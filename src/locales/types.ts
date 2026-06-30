@@ -3,6 +3,7 @@ export type Locale = "zh-CN" | "en";
 export type Messages = {
   appDescription: string;
   appName: string;
+  allRows: string;
   autoSaveError: string;
   autoSaveSaved: string;
   autoSaveSaving: string;
@@ -16,6 +17,13 @@ export type Messages = {
   emptyHistory: string;
   emptyPendingPosts: string;
   filter: string;
+  filterAll: string;
+  filterCustom: string;
+  filterDay: string;
+  filterFrom: string;
+  filterHour: string;
+  filterTo: string;
+  filterWeek: string;
   historyTitle: string;
   keywords: string;
   lastPoll: string;
@@ -35,6 +43,7 @@ export type Messages = {
   notificationProvider: string;
   notificationWebhook: string;
   globalSettings: string;
+  pageSize: string;
   pollInterval: string;
   pollingSettings: string;
   pollPostLimit: string;
