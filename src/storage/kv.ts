@@ -60,6 +60,11 @@ export function createKvStorage(defaultSettings: AppSettings) {
 
     listHistory,
 
+    async listPendingMatches(): Promise<MatchRecord[]> {
+      const history = await listHistory();
+      return history.filter((record) => !record.completedAt);
+    },
+
     async hasSeenPost(postId: string): Promise<boolean> {
       const store = await kv();
       const entry = await store.get<boolean>(keys.seen(postId));
@@ -72,6 +77,21 @@ export function createKvStorage(defaultSettings: AppSettings) {
         .set(keys.match(record.id), record)
         .set(keys.seen(record.post.id), true)
         .commit();
+    },
+
+    async completeMatches(ids: string[]): Promise<void> {
+      const store = await kv();
+      const completedAt = new Date().toISOString();
+      const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+
+      for (const id of uniqueIds) {
+        const entry = await store.get<MatchRecord>(keys.match(id));
+        if (!entry.value) {
+          continue;
+        }
+
+        await store.set(keys.match(id), { ...entry.value, completedAt });
+      }
     },
 
     async setLastPollAt(value: string): Promise<void> {

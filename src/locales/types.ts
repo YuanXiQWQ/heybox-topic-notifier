@@ -7,11 +7,14 @@ export type Messages = {
   autoSaveSaved: string;
   autoSaveSaving: string;
   batchOperation: string;
+  completeMatch: string;
   commonTopic: string;
   dashboardSubtitle: string;
   dashboardTitle: string;
   darkMode: string;
   emptyHistory: string;
+  emptyPendingPosts: string;
+  filter: string;
   historyTitle: string;
   keywords: string;
   lastPoll: string;
@@ -39,6 +42,10 @@ export type Messages = {
   pollSortReplyTime: string;
   pollSortSmart: string;
   postSettings: string;
+  postContent: string;
+  postTitle: string;
+  publishedAt: string;
+  matchedAt: string;
   runNow: string;
   saveSettings: string;
   selectKeywordToDelete: string;
@@ -53,4 +60,6 @@ export type Messages = {
   topicNote: string;
   topicId: string;
   totalMatches: string;
+  pendingPosts: string;
+  visitPost: string;
 };

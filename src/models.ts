@@ -47,6 +47,7 @@ export type TopicPost = {
 };
 
 export type MatchRecord = {
+  completedAt?: string;
   id: string;
   keyword: string;
   location: MatchLocation;

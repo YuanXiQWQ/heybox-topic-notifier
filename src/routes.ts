@@ -21,7 +21,8 @@ export function createRoutes(context: AppContext): Hono {
   app.get("/", async (c) => {
     const settings = await context.storage.getSettings();
     const state = await context.storage.getAppState();
-    return c.html(renderDashboard({ settings, state }));
+    const pendingMatches = await context.storage.listPendingMatches();
+    return c.html(renderDashboard({ pendingMatches, settings, state }));
   });
 
   app.get("/settings", async (c) => {
@@ -55,6 +56,12 @@ export function createRoutes(context: AppContext): Hono {
     return c.redirect("/");
   });
 
+  app.post("/matches/complete", async (c) => {
+    const form = await c.req.parseBody();
+    await context.storage.completeMatches(formValues(form, "matchId").map(String));
+    return c.redirect("/");
+  });
+
   app.get("/static/app.css", async () => {
     const css = await Deno.readTextFile(new URL("../static/app.css", import.meta.url));
     return new Response(css, {
@@ -74,6 +81,17 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   return app;
+}
+
+function formValues(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  key: string,
+): FormDataEntryValue[] {
+  const value = form[key];
+  if (Array.isArray(value)) {
+    return value;
+  }
+  return value === undefined ? [] : [value];
 }
 
 export function settingsFromForm(
