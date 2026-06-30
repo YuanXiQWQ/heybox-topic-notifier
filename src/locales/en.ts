@@ -1,0 +1,25 @@
+import type { Messages } from "./types.ts";
+
+export const en: Messages = {
+  appDescription: "Monitor Heybox topic posts and send keyword-based notifications.",
+  appName: "Heybox Topic Notifier",
+  dashboardSubtitle: "Poll status, recent matches, and notification checks.",
+  dashboardTitle: "Topic monitor",
+  emptyHistory: "No matched posts yet.",
+  historyTitle: "Match history",
+  keywords: "Keywords",
+  lastPoll: "Last poll",
+  latestMatch: "Latest match",
+  locale: "Locale",
+  matchedKeyword: "Matched keyword",
+  navDashboard: "Dashboard",
+  navHistory: "History",
+  navSettings: "Settings",
+  notificationProvider: "Notification provider",
+  runNow: "Run now",
+  settingsTitle: "Settings",
+  sourceMock: "Mock source",
+  testNotify: "Test notify",
+  topicId: "Topic ID",
+  totalMatches: "Total matches",
+};

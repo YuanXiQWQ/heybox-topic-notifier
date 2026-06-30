@@ -1,0 +1,26 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env --allow-read --unstable-kv --watch src/main.ts",
+    "start": "deno run --allow-net --allow-env --allow-read --unstable-kv src/main.ts",
+    "check": "deno fmt --check && deno lint && deno check src/main.ts && deno test --allow-env --unstable-kv"
+  },
+  "imports": {
+    "@hono/hono": "jsr:@hono/hono@^4.8.3"
+  },
+  "fmt": {
+    "lineWidth": 100,
+    "semiColons": true,
+    "singleQuote": false
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "deploy": {
+    "runtime": {
+      "type": "dynamic",
+      "entrypoint": "./src/main.ts"
+    }
+  }
+}

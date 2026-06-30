@@ -1,0 +1,25 @@
+import type { Messages } from "./types.ts";
+
+export const zhCN: Messages = {
+  appDescription: "监控小黑盒话题帖子，并按关键词发送通知。",
+  appName: "小黑盒话题提醒",
+  dashboardSubtitle: "查看轮询状态、最近命中和通知测试。",
+  dashboardTitle: "话题监控",
+  emptyHistory: "还没有命中的帖子。",
+  historyTitle: "命中历史",
+  keywords: "关键词",
+  lastPoll: "上次检查",
+  latestMatch: "最近命中",
+  locale: "语言",
+  matchedKeyword: "命中关键词",
+  navDashboard: "仪表盘",
+  navHistory: "历史",
+  navSettings: "设置",
+  notificationProvider: "通知方式",
+  runNow: "立即检查",
+  settingsTitle: "设置",
+  sourceMock: "模拟数据源",
+  testNotify: "测试通知",
+  topicId: "话题 ID",
+  totalMatches: "命中总数",
+};
