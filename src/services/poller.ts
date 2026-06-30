@@ -1,13 +1,13 @@
 import type { MatchRecord } from "../models.ts";
 import type { createKvStorage } from "../storage/kv.ts";
 import type { createMatcher } from "./matcher.ts";
-import type { createMockTopicSource } from "./mock_topic_source.ts";
 import type { createNotifier } from "./notifier.ts";
+import type { TopicSource } from "./topic_source.ts";
 
 type PollerDependencies = {
   matcher: ReturnType<typeof createMatcher>;
   notifier: ReturnType<typeof createNotifier>;
-  source: ReturnType<typeof createMockTopicSource>;
+  source: TopicSource;
   storage: ReturnType<typeof createKvStorage>;
 };
 

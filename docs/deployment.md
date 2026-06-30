@@ -18,8 +18,8 @@ https://heybox-topic-notifier.yuanxiqwq.deno.net
 https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
 ```
 
-`dev` 的测试 URL 只有在 Deno Deploy 构建过 `dev` 分支后才会出现。创建 App 时如果只构建了
-`main`，Deno Deploy 页面里暂时只会看到 Production 和 Git Branch / MAIN。
+当前 `dev` 测试部署已经建立，稳定测试入口是 Git Branch / DEV URL。后续推送到 `dev`
+会触发测试部署更新；推送到 `main` 会触发 Production 更新。
 
 ## Deno Deploy 配置
 
@@ -31,6 +31,12 @@ https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
 - Config Source：`deno.json deploy section`
 
 `deno.json` 中的 deploy 配置是部署入口的唯一仓库配置来源。
+
+## 数据库
+
+Deno Deploy App 已绑定 Deno KV 数据库。代码通过 `Deno.openKv()`
+读写设置、历史记录、轮询状态和已处理帖子标记；Deno Deploy 会按 timeline 隔离 Production 和 Git
+Branch 数据。
 
 ## 验证
 
@@ -48,9 +54,15 @@ Deno Deploy App 中按需配置：
 
 - `APP_LOCALE`
 - `HEYBOX_TOPIC_ID`
+- `TOPIC_SOURCE`
+- `HEYBOX_DEVICE_ID`
+- `HEYBOX_COOKIE`
+- `HEYBOX_USER_AGENT`
+- `HEYBOX_POST_LIMIT`
+- `HEYBOX_SORT_FILTER`
 - `POLL_ENABLED`
 - `NOTIFIER_PROVIDER`
 - `NOTIFIER_WEBHOOK_URL`
 
-当前真实小黑盒数据抓取和正式通知发送还没有接入。除非正在验证定时轮询，Production 和 Git Branch / DEV
-都建议先保持 `POLL_ENABLED=false`。
+真实小黑盒话题抓取可通过 `TOPIC_SOURCE=heybox` 启用。除非正在验证定时轮询，Production 和 Git Branch
+/ DEV 都建议先保持 `POLL_ENABLED=false`。

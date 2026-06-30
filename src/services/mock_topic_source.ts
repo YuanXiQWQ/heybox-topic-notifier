@@ -1,6 +1,7 @@
 import type { TopicPost } from "../models.ts";
+import type { TopicSource } from "./topic_source.ts";
 
-export function createMockTopicSource() {
+export function createMockTopicSource(): TopicSource {
   return {
     async listLatestPosts(_topicId: string): Promise<TopicPost[]> {
       await Promise.resolve();
