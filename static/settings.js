@@ -1,6 +1,9 @@
 function initKeywordEditor(editor) {
   const panel = editor.querySelector("[data-keyword-panel]");
   const toggle = editor.querySelector("[data-action='toggle-keywords']");
+  panel.hidden = false;
+  panel.setAttribute("aria-hidden", "true");
+  panel.inert = true;
 
   editor.addEventListener("click", (event) => {
     const target = event.target;
@@ -15,8 +18,10 @@ function initKeywordEditor(editor) {
 
     const action = actionButton.dataset.action;
     if (action === "toggle-keywords") {
-      const isOpen = panel.hidden;
-      panel.hidden = !isOpen;
+      const isOpen = !editor.classList.contains("is-keyword-open");
+      editor.classList.toggle("is-keyword-open", isOpen);
+      panel.setAttribute("aria-hidden", String(!isOpen));
+      panel.inert = !isOpen;
       toggle.setAttribute("aria-expanded", String(isOpen));
       toggle.classList.toggle("is-open", isOpen);
       return;

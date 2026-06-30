@@ -119,9 +119,14 @@ input[type="checkbox"] {
 .metrics article,
 .settings-list,
 table {
-  background: #ffffff;
   border: 1px solid #dfe4ea;
   border-radius: 8px;
+}
+
+.metrics article,
+.settings-list,
+table {
+  background: #ffffff;
 }
 
 .metrics article {
@@ -145,15 +150,17 @@ dt {
 
 .settings-list {
   margin: 0;
-  padding: 8px 18px;
+  overflow: hidden;
+  padding: 0;
 }
 
 .settings-list > div {
   border-bottom: 1px solid #e8edf2;
+  background: #f4f7fa;
   display: grid;
   gap: 12px;
   grid-template-columns: 180px 1fr;
-  padding: 14px 0;
+  padding: 18px 22px;
 }
 
 .settings-list > div:last-child {
@@ -181,6 +188,11 @@ dd {
 .keyword-settings-row {
   align-items: center;
   position: relative;
+  transition: background-color 180ms ease;
+}
+
+.keyword-settings-row.is-keyword-open {
+  background: #eef3f7;
 }
 
 .keyword-toggle {
@@ -216,19 +228,34 @@ dd {
 }
 
 .keyword-rules-panel {
+  background: #ffffff;
+  display: grid;
   grid-column: 1 / -1;
+  grid-template-rows: 0fr;
+  margin: 14px -22px -18px;
   min-width: 0;
-  padding-top: 12px;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-6px);
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 180ms ease,
+    transform 220ms ease;
 }
 
-.keyword-rules-panel[hidden] {
-  display: none;
+.keyword-settings-row.is-keyword-open .keyword-rules-panel {
+  border-top: 1px solid #e8edf2;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.keyword-rules-panel-inner {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .keyword-rule-grid {
-  border: 1px solid #dfe4ea;
-  border-radius: 8px;
-  overflow: hidden;
   width: 100%;
 }
 

@@ -92,9 +92,11 @@ function renderKeywordSection(settings: AppSettings): string {
         </button>
       </dd>
       <dd class="keyword-rules-panel" id="keyword-rules-panel" data-keyword-panel hidden>
-        <div class="keyword-rule-grid" role="table">
-          ${renderKeywordRuleHeader(messages)}
-          ${rows.map((rule, index) => renderKeywordRuleRow(rule, index)).join("")}
+        <div class="keyword-rules-panel-inner">
+          <div class="keyword-rule-grid" role="table">
+            ${renderKeywordRuleHeader(messages)}
+            ${rows.map((rule, index) => renderKeywordRuleRow(rule, index)).join("")}
+          </div>
         </div>
       </dd>
       <template data-keyword-row-template>
