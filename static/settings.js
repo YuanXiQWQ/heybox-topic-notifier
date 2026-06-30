@@ -1,3 +1,11 @@
+let autoSaveForm;
+let autoSaveKeywordEditor;
+let autoSaveTopicEditor;
+let autoSaveTimer;
+let autoSaveController;
+let lastSavedSignature = "";
+let reloadAfterSave = false;
+
 function initSettingsEditors() {
   const topicEditor = document.querySelector("[data-topic-editor]");
   const keywordEditor = document.querySelector("[data-keyword-editor]");
@@ -11,7 +19,8 @@ function initSettingsEditors() {
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
   initThemePicker();
-  topicEditor.dataset.commonKeywords = serializeKeywordRows(keywordEditor);
+  initKeywordRuleStorage(topicEditor, keywordEditor);
+  initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
   updateKeywordSummary(keywordEditor);
 }
 
@@ -42,16 +51,19 @@ function initTopicEditor(topicEditor, keywordEditor) {
 
     if (button.dataset.action === "insert-topic") {
       insertTopicRow(topicEditor, button);
+      scheduleAutoSave();
       return;
     }
 
     if (button.dataset.action === "delete-topics") {
       deleteTopicRows(topicEditor, keywordEditor, button);
+      scheduleAutoSave();
       return;
     }
 
     if (button.dataset.action === "edit-topic-keywords") {
       switchKeywordTarget(topicEditor, keywordEditor, button);
+      scheduleAutoSave();
     }
   });
 
@@ -60,6 +72,8 @@ function initTopicEditor(topicEditor, keywordEditor) {
     if (!(target instanceof HTMLInputElement)) {
       return;
     }
+
+    let shouldSave = false;
 
     if (target.matches("[data-role='select-all-topics']")) {
       topicEditor.querySelectorAll("[data-role='select-topic-row']").forEach((checkbox) => {
@@ -71,11 +85,21 @@ function initTopicEditor(topicEditor, keywordEditor) {
       topicEditor.querySelectorAll("[data-role='topic-enabled']").forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
+      shouldSave = true;
+    }
+
+    if (target.matches("[data-role='topic-enabled']")) {
+      shouldSave = true;
+    }
+
+    if (shouldSave) {
+      scheduleAutoSave();
     }
   });
 
   topicEditor.addEventListener("input", () => {
     updateActiveTopicSummary(topicEditor);
+    scheduleAutoSave();
   });
 }
 
@@ -89,12 +113,14 @@ function initKeywordEditor(keywordEditor) {
     if (button.dataset.action === "insert-keyword") {
       insertKeywordRow(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
+      scheduleAutoSave();
       return;
     }
 
     if (button.dataset.action === "delete-keywords") {
       deleteKeywordRows(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
+      scheduleAutoSave();
     }
   });
 
@@ -103,6 +129,8 @@ function initKeywordEditor(keywordEditor) {
     if (!(target instanceof HTMLInputElement)) {
       return;
     }
+
+    let shouldSave = false;
 
     if (target.matches("[data-role='select-all-keywords']")) {
       keywordEditor.querySelectorAll("[data-role='select-keyword-row']").forEach((checkbox) => {
@@ -117,13 +145,22 @@ function initKeywordEditor(keywordEditor) {
         .forEach((checkbox) => {
           checkbox.checked = target.checked;
         });
+      shouldSave = true;
+    }
+
+    if (target.name.includes("_location_")) {
+      shouldSave = true;
     }
 
     updateKeywordSummary(keywordEditor);
+    if (shouldSave) {
+      scheduleAutoSave();
+    }
   });
 
   keywordEditor.addEventListener("input", () => {
     updateKeywordSummary(keywordEditor);
+    scheduleAutoSave();
   });
 }
 
@@ -137,6 +174,34 @@ function actionButtonFromEvent(event) {
   return button instanceof HTMLButtonElement ? button : undefined;
 }
 
+function initKeywordRuleStorage(topicEditor, keywordEditor) {
+  const activeTarget = activeKeywordTargetInput().value || "common";
+  const commonInput = commonKeywordRulesInput();
+
+  if (activeTarget === "common") {
+    commonInput.value = serializeKeywordRows(keywordEditor);
+  } else {
+    const activeRow = findActiveTopicRow(topicEditor, activeTarget);
+    if (activeRow) {
+      setTopicKeywordRules(activeRow, serializeKeywordRows(keywordEditor));
+    }
+  }
+
+  topicEditor.dataset.commonKeywords = commonInput.value || "[]";
+  topicEditor.closest("form")?.addEventListener("submit", () => {
+    persistCurrentKeywordRows(topicEditor, keywordEditor);
+  });
+}
+
+function commonKeywordRulesInput() {
+  return document.querySelector("[data-common-keyword-rules]");
+}
+
+function findActiveTopicRow(topicEditor, activeTarget) {
+  return topicEditor.querySelector('[data-topic-row][data-active-keyword-target="true"]') ??
+    findTopicRowById(topicEditor, activeTarget);
+}
+
 function initThemePicker() {
   const colorInput = document.querySelector("[data-theme-color-input]");
   const darkModeInput = document.querySelector("[data-dark-mode-input]");
@@ -144,14 +209,131 @@ function initThemePicker() {
   if (colorInput instanceof HTMLInputElement) {
     colorInput.addEventListener("input", () => {
       document.documentElement.style.setProperty("--theme-color", colorInput.value);
+      scheduleAutoSave();
     });
   }
 
   if (darkModeInput instanceof HTMLInputElement) {
     darkModeInput.addEventListener("change", () => {
       document.documentElement.dataset.colorMode = darkModeInput.checked ? "dark" : "light";
+      scheduleAutoSave();
     });
   }
+}
+
+function initAutoSave(form, topicEditor, keywordEditor) {
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+
+  autoSaveForm = form;
+  autoSaveTopicEditor = topicEditor;
+  autoSaveKeywordEditor = keywordEditor;
+  lastSavedSignature = settingsSignature();
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveSettingsNow();
+  });
+
+  form.addEventListener("input", (event) => {
+    if (isEditorEvent(event)) {
+      return;
+    }
+
+    scheduleAutoSave();
+  });
+
+  form.addEventListener("change", (event) => {
+    if (isEditorEvent(event)) {
+      return;
+    }
+
+    const target = event.target;
+    if (target instanceof HTMLSelectElement && target.name === "locale") {
+      reloadAfterSave = true;
+    }
+
+    scheduleAutoSave();
+  });
+}
+
+function isEditorEvent(event) {
+  const target = event.target;
+  return target instanceof Element &&
+    Boolean(target.closest("[data-topic-editor], [data-keyword-editor]"));
+}
+
+function scheduleAutoSave() {
+  if (!autoSaveForm) {
+    return;
+  }
+
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    void saveSettingsNow();
+  }, 450);
+}
+
+async function saveSettingsNow() {
+  if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor) {
+    return;
+  }
+
+  persistCurrentKeywordRows(autoSaveTopicEditor, autoSaveKeywordEditor);
+
+  const signature = settingsSignature();
+  if (signature === lastSavedSignature) {
+    return;
+  }
+
+  autoSaveController?.abort();
+  autoSaveController = new AbortController();
+  setAutoSaveStatus("saving");
+
+  try {
+    const response = await fetch(autoSaveForm.action, {
+      body: new FormData(autoSaveForm),
+      headers: { "x-autosave": "1" },
+      method: autoSaveForm.method || "post",
+      signal: autoSaveController.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Save failed with ${response.status}`);
+    }
+
+    lastSavedSignature = signature;
+    setAutoSaveStatus("saved");
+    if (reloadAfterSave) {
+      location.reload();
+    }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return;
+    }
+
+    setAutoSaveStatus("error");
+  }
+}
+
+function settingsSignature() {
+  if (!autoSaveForm) {
+    return "";
+  }
+
+  return new URLSearchParams(new FormData(autoSaveForm)).toString();
+}
+
+function setAutoSaveStatus(state) {
+  const status = document.querySelector("[data-autosave-status]");
+  if (!status || !autoSaveForm) {
+    return;
+  }
+
+  status.dataset.state = state;
+  status.textContent = autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
+    "";
 }
 
 function insertTopicRow(editor, actionButton) {
@@ -243,8 +425,8 @@ function switchKeywordTarget(topicEditor, keywordEditor, button) {
   activeKeywordTargetInput().value = target || "common";
 
   const rules = row
-    ? parseRules(row.querySelector("[data-action='edit-topic-keywords']").dataset.topicKeywords)
-    : parseRules(topicEditor.dataset.commonKeywords);
+    ? parseRules(topicKeywordRulesValue(row))
+    : parseRules(commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords);
 
   replaceKeywordRows(keywordEditor, rules);
   updateActiveTopicSummary(topicEditor);
@@ -258,12 +440,30 @@ function persistCurrentKeywordRows(topicEditor, keywordEditor) {
 
   if (activeTarget === "common") {
     topicEditor.dataset.commonKeywords = serialized;
+    commonKeywordRulesInput().value = serialized;
     return;
   }
 
-  const row = findTopicRowById(topicEditor, activeTarget);
+  const row = findActiveTopicRow(topicEditor, activeTarget);
   if (row) {
-    row.querySelector("[data-action='edit-topic-keywords']").dataset.topicKeywords = serialized;
+    setTopicKeywordRules(row, serialized);
+  }
+}
+
+function topicKeywordRulesValue(row) {
+  return row.querySelector("[data-topic-keyword-rules]")?.value ??
+    row.querySelector("[data-action='edit-topic-keywords']")?.dataset.topicKeywords ??
+    "[]";
+}
+
+function setTopicKeywordRules(row, serialized) {
+  const input = row.querySelector("[data-topic-keyword-rules]");
+  const button = row.querySelector("[data-action='edit-topic-keywords']");
+  if (input) {
+    input.value = serialized;
+  }
+  if (button) {
+    button.dataset.topicKeywords = serialized;
   }
 }
 

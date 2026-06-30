@@ -1,6 +1,9 @@
 {
   "appDescription": "监控小黑盒话题帖子，并按关键词发送通知。",
   "appName": "小黑盒话题提醒",
+  "autoSaveError": "保存失败",
+  "autoSaveSaved": "已保存",
+  "autoSaveSaving": "保存中...",
   "batchOperation": "批量操作",
   "commonTopic": "公共",
   "dashboardSubtitle": "查看轮询状态、最近命中和通知测试。",

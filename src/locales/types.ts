@@ -3,6 +3,9 @@ export type Locale = "zh-CN" | "en";
 export type Messages = {
   appDescription: string;
   appName: string;
+  autoSaveError: string;
+  autoSaveSaved: string;
+  autoSaveSaving: string;
   batchOperation: string;
   commonTopic: string;
   dashboardSubtitle: string;

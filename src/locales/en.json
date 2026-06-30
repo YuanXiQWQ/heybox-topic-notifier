@@ -1,6 +1,9 @@
 {
   "appDescription": "Monitor Heybox topic posts and send keyword-based notifications.",
   "appName": "Heybox Topic Notifier",
+  "autoSaveError": "Save failed",
+  "autoSaveSaved": "Saved",
+  "autoSaveSaving": "Saving...",
   "batchOperation": "Bulk actions",
   "commonTopic": "Common",
   "dashboardSubtitle": "Poll status, recent matches, and notification checks.",
