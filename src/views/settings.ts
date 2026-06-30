@@ -16,7 +16,14 @@ export function renderSettings(options: {
         <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
-    <form method="post" action="/settings">
+    <form
+      method="post"
+      action="/settings"
+      data-autosave-form
+      data-autosave-saving="${escapeHtml(messages.autoSaveSaving)}"
+      data-autosave-saved="${escapeHtml(messages.autoSaveSaved)}"
+      data-autosave-error="${escapeHtml(messages.autoSaveError)}"
+    >
       <section class="settings-group" aria-labelledby="post-settings-heading">
         <h2 id="post-settings-heading">${escapeHtml(messages.postSettings)}</h2>
         <dl class="settings-list" data-settings-list>
@@ -84,7 +91,7 @@ export function renderSettings(options: {
         </dl>
       </section>
       <div class="form-actions">
-        <button type="submit">${escapeHtml(messages.saveSettings)}</button>
+        <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
     <script src="/static/settings.js" defer></script>
@@ -118,6 +125,12 @@ function renderTopicSection(settings: AppSettings): string {
         <input type="hidden" name="activeKeywordTarget" value="${
     escapeHtml(settings.activeKeywordTarget)
   }" data-active-keyword-target>
+        <input
+          type="hidden"
+          name="commonKeywordRulesJson"
+          value="${escapeHtml(JSON.stringify(settings.commonKeywordRules))}"
+          data-common-keyword-rules
+        >
         <span data-topic-summary data-common-label="${escapeHtml(messages.commonTopic)}">${
     escapeHtml(summary)
   }</span>
@@ -245,6 +258,12 @@ function renderTopicRuleRow(
 
   return `
     <div class="topic-rule-row topic-rule-item" role="row" data-topic-row>
+      <input
+        type="hidden"
+        name="topic_${index}_keywordRulesJson"
+        value="${keywordRulesJson}"
+        data-topic-keyword-rules
+      >
       <label class="checkbox-cell" role="cell">
         <input type="checkbox" data-role="select-topic-row">
       </label>

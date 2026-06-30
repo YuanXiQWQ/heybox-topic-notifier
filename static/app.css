@@ -291,6 +291,20 @@ dd {
   margin-top: 18px;
 }
 
+.autosave-status {
+  color: var(--muted);
+  font-size: 14px;
+  min-height: 20px;
+}
+
+.autosave-status[data-state="error"] {
+  color: #b42318;
+}
+
+:root[data-color-mode="dark"] .autosave-status[data-state="error"] {
+  color: #ffb4ab;
+}
+
 .settings-group {
   margin-top: 24px;
 }

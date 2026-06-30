@@ -26,6 +26,9 @@ export function createRoutes(context: AppContext): Hono {
     const form = await c.req.parseBody();
     const currentSettings = await context.storage.getSettings();
     await context.storage.saveSettings(settingsFromForm(form, currentSettings));
+    if (c.req.header("x-autosave") === "1") {
+      return new Response(null, { status: 204 });
+    }
     return c.redirect("/settings");
   });
 
@@ -66,20 +69,21 @@ export function createRoutes(context: AppContext): Hono {
   return app;
 }
 
-function settingsFromForm(
+export function settingsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   currentSettings: AppSettings,
 ): AppSettings {
   const activeKeywordTarget = String(form.activeKeywordTarget ?? "common").trim() || "common";
   const keywordRules = keywordRulesFromForm(form);
+  const commonKeywordRules = activeKeywordTarget === "common"
+    ? keywordRules
+    : keywordRulesFromJson(form.commonKeywordRulesJson) ?? currentSettings.commonKeywordRules;
   const topics = topicsFromForm(form, currentSettings, activeKeywordTarget, keywordRules);
 
   return {
     ...currentSettings,
     activeKeywordTarget,
-    commonKeywordRules: activeKeywordTarget === "common"
-      ? keywordRules
-      : currentSettings.commonKeywordRules,
+    commonKeywordRules,
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
@@ -112,9 +116,10 @@ function topicsFromForm(
   return formIndexes(form, /^topic_(\d+)_id$/).map((index) => {
     const id = String(form[`topic_${index}_id`] ?? "").trim();
     const existingTopic = existingTopics.get(id);
+    const submittedKeywordRules = keywordRulesFromJson(form[`topic_${index}_keywordRulesJson`]);
     const keywordRules = activeKeywordTarget === id
       ? activeKeywordRules
-      : existingTopic?.keywordRules ?? [];
+      : submittedKeywordRules ?? existingTopic?.keywordRules ?? [];
 
     return {
       enabled: form[`topic_${index}_enabled`] === "on",
@@ -123,6 +128,36 @@ function topicsFromForm(
       note: String(form[`topic_${index}_note`] ?? "").trim(),
     };
   }).filter((topic) => topic.id.length > 0);
+}
+
+function keywordRulesFromJson(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+): KeywordRule[] | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return undefined;
+    }
+
+    return parsed.map((rule) => {
+      const keyword = typeof rule?.keyword === "string" ? rule.keyword.trim() : "";
+      const locations = Array.isArray(rule?.locations)
+        ? rule.locations.filter(isMatchLocation)
+        : [];
+
+      return { keyword, locations };
+    }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
+  } catch {
+    return undefined;
+  }
+}
+
+function isMatchLocation(value: unknown): value is MatchLocation {
+  return value === "title" || value === "body" || value === "comments" || value === "replies";
 }
 
 function formIndexes(
