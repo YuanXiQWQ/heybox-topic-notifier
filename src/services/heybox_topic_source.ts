@@ -1,61 +1,76 @@
 import type { PollSort, TopicPost } from "../models.ts";
 import type { TopicListOptions, TopicSource } from "./topic_source.ts";
-import { createHeyboxSignatureParams } from "./heybox_signer.ts";
+import { createHeyboxSignatureParams, type HeyboxSignatureMode } from "./heybox_signer.ts";
 
 export type HeyboxTopicSourceConfig = {
+  appBuild?: string;
   apiBaseUrl?: string;
   appVersion?: string;
+  channel?: string;
   cookie?: string;
   deviceId?: string;
   deviceInfo?: string;
+  dw?: string;
   fetchFn?: typeof fetch;
+  heyboxId?: string;
   now?: () => Date;
+  osVersion?: string;
   random?: () => number;
+  signatureMode?: HeyboxSignatureMode;
+  timeZone?: string;
   userAgent?: string;
 };
 
 const topicFeedsPath = "/bbs/app/topic/feeds";
-const publishTimeFetchLimit = 100;
 
 export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
-  const appVersion = config.appVersion ?? "2.5.6";
-  const deviceInfo = config.deviceInfo ?? "Chrome";
+  const appBuild = config.appBuild ?? "783";
+  const appVersion = config.appVersion ?? "1.3.232";
+  const channel = config.channel ?? "heybox_wandoujia";
+  const deviceInfo = config.deviceInfo ?? "M2104K10AC";
   const deviceId = config.deviceId ?? crypto.randomUUID().replaceAll("-", "");
+  const dw = config.dw ?? "393";
   const fetchFn = config.fetchFn ?? fetch;
+  const heyboxId = config.heyboxId ?? "";
+  const osVersion = config.osVersion ?? "14";
+  const signatureMode = config.signatureMode ?? "app";
+  const timeZone = config.timeZone ?? "Asia/Shanghai";
   const userAgent = config.userAgent ??
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-      "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 " +
+      "Safari/537.36 ApiMaxJia/1.0";
 
   return {
     async listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
       const limit = normalizeLimit(options.limit);
+      const requestLimit = options.sort === "publishTime" ? Math.max(limit, 30) : limit;
       const signature = createHeyboxSignatureParams(
         topicFeedsPath,
         config.now?.() ?? new Date(),
         config.random,
+        signatureMode,
       );
       const url = new URL(topicFeedsPath, apiBaseUrl);
       const params: Record<string, string> = {
         _time: String(signature.time),
-        app: "heybox",
-        client_type: "web",
-        device_id: deviceId,
+        build: appBuild,
+        channel,
         device_info: deviceInfo,
-        dw: "604",
-        heybox_id: "",
+        dw,
+        heybox_id: heyboxId,
         hkey: signature.hkey,
-        lastval: "",
-        limit: String(requestLimit(limit, options.sort)),
+        imei: deviceId,
+        limit: String(requestLimit),
         nonce: signature.nonce,
         offset: "0",
-        os_type: "web",
+        os_type: "Android",
+        os_version: osVersion,
+        time_zone: timeZone,
         topic_id: topicId,
-        version: "999.0.4",
-        web_version: appVersion.split(".").slice(0, 2).join("."),
-        x_app: "heybox_website",
-        x_client_type: "web",
-        x_os_type: "Windows",
+        version: appVersion,
+        x_app: "heybox",
+        x_client_type: "mobile",
+        x_os_type: "Android",
       };
 
       const sortFilter = heyboxSortFilter(options.sort);
@@ -70,7 +85,7 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
       const response = await fetchFn(url, {
         headers: {
           accept: "application/json,text/plain,*/*",
-          referer: "https://www.xiaoheihe.cn/",
+          referer: "http://api.maxjia.com/",
           "user-agent": userAgent,
           ...(config.cookie ? { cookie: config.cookie } : {}),
         },
@@ -82,12 +97,21 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
 
       const payload = await response.json();
       assertHeyboxOk(payload);
+      assertRequestedSortApplied(payload, options.sort);
       const posts = parseHeyboxTopicPosts(payload, topicId);
-      return options.sort === "publishTime"
-        ? posts.toSorted(comparePostPublishedAtDesc).slice(0, limit)
-        : posts;
+      return orderPosts(posts, options.sort).slice(0, limit);
     },
   };
+}
+
+function orderPosts(posts: TopicPost[], sort: PollSort): TopicPost[] {
+  if (sort !== "publishTime") {
+    return posts;
+  }
+
+  return [...posts].sort((left, right) =>
+    Date.parse(right.publishedAt) - Date.parse(left.publishedAt)
+  );
 }
 
 export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicPost[] {
@@ -130,30 +154,33 @@ function normalizeLimit(value: number | undefined): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 20;
 }
 
-function requestLimit(limit: number, sort: PollSort): number {
-  return sort === "publishTime" ? Math.max(limit, publishTimeFetchLimit) : limit;
-}
-
-function heyboxSortFilter(sort: PollSort): string | undefined {
+export function heyboxSortFilter(sort: PollSort): string {
   switch (sort) {
     case "smart":
       return "hot-rank";
     case "replyTime":
-      return "comment-time";
+      return "reply";
     case "publishTime":
-      return undefined;
+      return "create";
   }
 }
 
-function comparePostPublishedAtDesc(left: TopicPost, right: TopicPost): number {
-  const leftTime = new Date(left.publishedAt).getTime();
-  const rightTime = new Date(right.publishedAt).getTime();
-
-  if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
-    return rightTime - leftTime;
+function assertRequestedSortApplied(payload: unknown, sort: PollSort): void {
+  const expectedSortFilter = heyboxSortFilter(sort);
+  const sortFilters = arrayAt(payload, ["result", "sort_filter"]);
+  if (sortFilters.length === 0) {
+    return;
   }
 
-  return right.publishedAt.localeCompare(left.publishedAt);
+  const availableKeys = sortFilters
+    .map((filter) => stringField(asRecord(filter), ["key", "value"]))
+    .filter((key) => key.length > 0);
+
+  if (availableKeys.length > 0 && !availableKeys.includes(expectedSortFilter)) {
+    throw new Error(
+      `Heybox topic feed did not apply requested sort_filter=${expectedSortFilter}`,
+    );
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

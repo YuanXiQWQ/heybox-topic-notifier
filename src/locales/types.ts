@@ -61,7 +61,6 @@ export type Messages = {
   selectKeywordToDelete: string;
   selectTopicToDelete: string;
   settingsTitle: string;
-  sourceMock: string;
   testNotify: string;
   theme: string;
   topic: string;
