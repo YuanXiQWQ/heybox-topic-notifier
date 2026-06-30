@@ -58,7 +58,11 @@ export function createRoutes(context: AppContext): Hono {
 
   app.post("/matches/complete", async (c) => {
     const form = await c.req.parseBody();
-    await context.storage.completeMatches(formValues(form, "matchId").map(String));
+    const ids = formValues(form, "matchId").map(String);
+    const matchIds = ids.length > 0
+      ? ids
+      : (await context.storage.listPendingMatches()).map((record) => record.id);
+    await context.storage.completeMatches(matchIds);
     return c.redirect("/");
   });
 

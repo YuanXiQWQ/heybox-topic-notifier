@@ -77,11 +77,6 @@ function renderPendingMatches(
       <td>${escapeHtml(record.keyword)}</td>
       <td>${escapeHtml(locationLabel(record.location, messages))}</td>
       <td>
-        <a class="button-link" href="${
-    escapeHtml(record.post.url)
-  }" target="_blank" rel="noreferrer">${escapeHtml(messages.visitPost)}</a>
-      </td>
-      <td>
         <button
           type="submit"
           class="icon-button"
@@ -123,7 +118,6 @@ function renderPendingMatches(
                 <th>${escapeHtml(messages.matchedAt)}</th>
                 <th>${escapeHtml(messages.matchedKeyword)}</th>
                 <th>${escapeHtml(messages.matchLocationHeader)}</th>
-                <th>${escapeHtml(messages.visitPost)}</th>
                 <th>
                   <button
                     type="submit"

@@ -62,7 +62,11 @@ export function createKvStorage(defaultSettings: AppSettings) {
 
     async listPendingMatches(): Promise<MatchRecord[]> {
       const history = await listHistory();
-      return history.filter((record) => !record.completedAt);
+      return history.filter((record) => !record.completedAt)
+        .toSorted((left, right) =>
+          compareIsoDesc(left.post.publishedAt, right.post.publishedAt) ||
+          compareIsoDesc(left.matchedAt, right.matchedAt)
+        );
     },
 
     async hasSeenPost(postId: string): Promise<boolean> {
@@ -108,6 +112,17 @@ export function createKvStorage(defaultSettings: AppSettings) {
       await store.set(keys.state, { lastPollAt: value });
     },
   };
+}
+
+function compareIsoDesc(left: string, right: string): number {
+  const leftTime = new Date(left).getTime();
+  const rightTime = new Date(right).getTime();
+
+  if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
+    return rightTime - leftTime;
+  }
+
+  return right.localeCompare(left);
 }
 
 type LegacySettings = {
