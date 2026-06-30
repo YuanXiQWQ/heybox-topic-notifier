@@ -62,6 +62,12 @@ export function createRoutes(context: AppContext): Hono {
     return c.redirect("/");
   });
 
+  app.post("/matches/delete", async (c) => {
+    const form = await c.req.parseBody();
+    await context.storage.deleteMatches(formValues(form, "matchId").map(String));
+    return c.redirect("/history");
+  });
+
   app.get("/static/app.css", async () => {
     const css = await Deno.readTextFile(new URL("../static/app.css", import.meta.url));
     return new Response(css, {

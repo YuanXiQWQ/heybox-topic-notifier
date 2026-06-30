@@ -94,6 +94,15 @@ export function createKvStorage(defaultSettings: AppSettings) {
       }
     },
 
+    async deleteMatches(ids: string[]): Promise<void> {
+      const store = await kv();
+      const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+
+      for (const id of uniqueIds) {
+        await store.delete(keys.match(id));
+      }
+    },
+
     async setLastPollAt(value: string): Promise<void> {
       const store = await kv();
       await store.set(keys.state, { lastPollAt: value });

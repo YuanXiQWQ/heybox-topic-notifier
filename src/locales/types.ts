@@ -12,6 +12,7 @@ export type Messages = {
   dashboardSubtitle: string;
   dashboardTitle: string;
   darkMode: string;
+  deleteMatch: string;
   emptyHistory: string;
   emptyPendingPosts: string;
   filter: string;

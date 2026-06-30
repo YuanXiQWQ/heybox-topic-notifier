@@ -10,6 +10,7 @@
   "dashboardSubtitle": "Poll status, recent matches, and notification checks.",
   "dashboardTitle": "Topic monitor",
   "darkMode": "Dark mode",
+  "deleteMatch": "Delete match",
   "emptyHistory": "No matched posts yet.",
   "emptyPendingPosts": "No pending posts.",
   "filter": "Filter",

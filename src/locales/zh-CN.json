@@ -10,6 +10,7 @@
   "dashboardSubtitle": "查看轮询状态、最近命中和通知测试。",
   "dashboardTitle": "话题监控",
   "darkMode": "深色模式",
+  "deleteMatch": "删除记录",
   "emptyHistory": "还没有命中的帖子。",
   "emptyPendingPosts": "暂无待处理帖子。",
   "filter": "筛选",
