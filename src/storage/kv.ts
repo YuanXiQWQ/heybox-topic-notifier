@@ -1,4 +1,12 @@
-import type { AppSettings, AppState, MatchRecord } from "../models.ts";
+import type {
+  AppSettings,
+  AppState,
+  KeywordRule,
+  MatchRecord,
+  PollingSettings,
+  PollSort,
+  TopicRule,
+} from "../models.ts";
 
 const keys = {
   match: (id: string) => ["matches", id] as const,
@@ -29,8 +37,13 @@ export function createKvStorage(defaultSettings: AppSettings) {
   return {
     async getSettings(): Promise<AppSettings> {
       const store = await kv();
-      const entry = await store.get<AppSettings>(keys.settings);
-      return entry.value ?? defaultSettings;
+      const entry = await store.get<Partial<AppSettings> & LegacySettings>(keys.settings);
+      return normalizeSettings(entry.value, defaultSettings);
+    },
+
+    async saveSettings(settings: AppSettings): Promise<void> {
+      const store = await kv();
+      await store.set(keys.settings, settings);
     },
 
     async getAppState(): Promise<AppState> {
@@ -47,6 +60,15 @@ export function createKvStorage(defaultSettings: AppSettings) {
 
     listHistory,
 
+    async listPendingMatches(): Promise<MatchRecord[]> {
+      const history = await listHistory();
+      return history.filter((record) => !record.completedAt)
+        .toSorted((left, right) =>
+          compareIsoDesc(left.post.publishedAt, right.post.publishedAt) ||
+          compareIsoDesc(left.matchedAt, right.matchedAt)
+        );
+    },
+
     async hasSeenPost(postId: string): Promise<boolean> {
       const store = await kv();
       const entry = await store.get<boolean>(keys.seen(postId));
@@ -61,9 +83,143 @@ export function createKvStorage(defaultSettings: AppSettings) {
         .commit();
     },
 
+    async completeMatches(ids: string[]): Promise<void> {
+      const store = await kv();
+      const completedAt = new Date().toISOString();
+      const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+
+      for (const id of uniqueIds) {
+        const entry = await store.get<MatchRecord>(keys.match(id));
+        if (!entry.value) {
+          continue;
+        }
+
+        await store.set(keys.match(id), { ...entry.value, completedAt });
+      }
+    },
+
+    async deleteMatches(ids: string[]): Promise<void> {
+      const store = await kv();
+      const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+
+      for (const id of uniqueIds) {
+        await store.delete(keys.match(id));
+      }
+    },
+
     async setLastPollAt(value: string): Promise<void> {
       const store = await kv();
       await store.set(keys.state, { lastPollAt: value });
     },
   };
+}
+
+function compareIsoDesc(left: string, right: string): number {
+  const leftTime = new Date(left).getTime();
+  const rightTime = new Date(right).getTime();
+
+  if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
+    return rightTime - leftTime;
+  }
+
+  return right.localeCompare(left);
+}
+
+type LegacySettings = {
+  commonKeywordRules?: KeywordRule[];
+  keywordRules?: KeywordRule[];
+  keywords?: string[];
+  topicId?: string;
+};
+
+function normalizeSettings(
+  value: (Partial<AppSettings> & LegacySettings) | null,
+  defaultSettings: AppSettings,
+): AppSettings {
+  if (!value) {
+    return defaultSettings;
+  }
+
+  const commonKeywordRules = normalizeKeywordRules(value, defaultSettings.commonKeywordRules);
+  const topics = normalizeTopics(value, defaultSettings.topics);
+
+  return {
+    ...defaultSettings,
+    ...value,
+    activeKeywordTarget: value.activeKeywordTarget ?? defaultSettings.activeKeywordTarget,
+    commonKeywordRules,
+    darkMode: typeof value.darkMode === "boolean" ? value.darkMode : defaultSettings.darkMode,
+    polling: normalizePollingSettings(value.polling, defaultSettings.polling),
+    themeColor: normalizeThemeColor(value.themeColor, defaultSettings.themeColor),
+    topics,
+  };
+}
+
+function normalizePollingSettings(
+  value: Partial<PollingSettings> | undefined,
+  fallback: PollingSettings,
+): PollingSettings {
+  return {
+    intervalMinutes: normalizePositiveInteger(value?.intervalMinutes, fallback.intervalMinutes),
+    postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
+    sort: normalizePollSort(value?.sort, fallback.sort),
+  };
+}
+
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
+  return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
+}
+
+function normalizeThemeColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
+    ? value.toLowerCase()
+    : fallback;
+}
+
+function normalizeKeywordRules(
+  value: LegacySettings,
+  defaultKeywordRules: KeywordRule[],
+): KeywordRule[] {
+  if (value.commonKeywordRules) {
+    return value.commonKeywordRules;
+  }
+
+  if (value.keywordRules) {
+    return value.keywordRules;
+  }
+
+  if (value.keywords) {
+    return value.keywords.map((keyword) => ({
+      keyword,
+      locations: ["title", "body", "comments", "replies"],
+    }));
+  }
+
+  return defaultKeywordRules;
+}
+
+function normalizeTopics(
+  value: Partial<AppSettings> & LegacySettings,
+  defaultTopics: TopicRule[],
+): TopicRule[] {
+  if (value.topics && value.topics.length > 0) {
+    return value.topics;
+  }
+
+  if (value.topicId) {
+    return [
+      {
+        enabled: true,
+        id: value.topicId,
+        keywordRules: [],
+        note: value.topicId === "12099" ? "蔚蓝" : "",
+      },
+    ];
+  }
+
+  return defaultTopics;
 }
