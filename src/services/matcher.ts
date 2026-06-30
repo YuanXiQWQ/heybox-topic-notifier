@@ -1,4 +1,4 @@
-import type { AppSettings, MatchLocation, TopicPost } from "../models.ts";
+import type { KeywordRule, MatchLocation, TopicPost } from "../models.ts";
 
 export type KeywordMatch = {
   keyword: string;
@@ -7,8 +7,8 @@ export type KeywordMatch = {
 
 export function createMatcher() {
   return {
-    findMatch(post: TopicPost, settings: AppSettings): KeywordMatch | undefined {
-      for (const rule of settings.keywordRules) {
+    findMatch(post: TopicPost, keywordRules: KeywordRule[]): KeywordMatch | undefined {
+      for (const rule of keywordRules) {
         const keyword = rule.keyword.trim();
 
         if (!keyword) {

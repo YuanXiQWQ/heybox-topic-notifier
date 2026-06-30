@@ -7,11 +7,23 @@ export type KeywordRule = {
   locations: MatchLocation[];
 };
 
-export type AppSettings = {
+export type TopicRule = {
+  enabled: boolean;
+  id: string;
   keywordRules: KeywordRule[];
+  note: string;
+};
+
+export type KeywordTarget = "common" | string;
+
+export type AppSettings = {
+  activeKeywordTarget: KeywordTarget;
+  commonKeywordRules: KeywordRule[];
+  darkMode: boolean;
   locale: Locale;
   notificationProvider: "disabled" | "email" | "webhook";
-  topicId: string;
+  themeColor: string;
+  topics: TopicRule[];
 };
 
 export type TopicPost = {

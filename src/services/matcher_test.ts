@@ -2,7 +2,8 @@ import { createMatcher } from "./matcher.ts";
 import type { AppSettings, TopicPost } from "../models.ts";
 
 const settings: AppSettings = {
-  keywordRules: [
+  activeKeywordTarget: "common",
+  commonKeywordRules: [
     {
       keyword: "求助",
       locations: ["title"],
@@ -12,9 +13,18 @@ const settings: AppSettings = {
       locations: ["comments"],
     },
   ],
+  darkMode: false,
   locale: "zh-CN",
   notificationProvider: "webhook",
-  topicId: "12099",
+  themeColor: "#bd7fff",
+  topics: [
+    {
+      enabled: true,
+      id: "12099",
+      keywordRules: [],
+      note: "蔚蓝",
+    },
+  ],
 };
 
 const basePost: TopicPost = {
@@ -33,7 +43,7 @@ Deno.test("findMatch returns the first matching keyword and location", () => {
   const match = matcher.findMatch({
     ...basePost,
     title: "求助：这里应该怎么走",
-  }, settings);
+  }, settings.commonKeywordRules);
 
   if (match?.keyword !== "求助" || match.location !== "title") {
     throw new Error(`Expected 求助/title, got ${JSON.stringify(match)}`);
@@ -45,7 +55,7 @@ Deno.test("findMatch respects location checkboxes", () => {
   const match = matcher.findMatch({
     ...basePost,
     body: "正文里提到打不开，但这个规则只勾选了评论。",
-  }, settings);
+  }, settings.commonKeywordRules);
 
   if (match !== undefined) {
     throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
@@ -57,7 +67,7 @@ Deno.test("findMatch can match comments independently", () => {
   const match = matcher.findMatch({
     ...basePost,
     comments: ["这里打不开。"],
-  }, settings);
+  }, settings.commonKeywordRules);
 
   if (match?.keyword !== "打不开" || match.location !== "comments") {
     throw new Error(`Expected 打不开/comments, got ${JSON.stringify(match)}`);
@@ -66,7 +76,7 @@ Deno.test("findMatch can match comments independently", () => {
 
 Deno.test("findMatch returns undefined when nothing matches", () => {
   const matcher = createMatcher();
-  const match = matcher.findMatch(basePost, settings);
+  const match = matcher.findMatch(basePost, settings.commonKeywordRules);
 
   if (match !== undefined) {
     throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);

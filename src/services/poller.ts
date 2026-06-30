@@ -15,27 +15,32 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
   return {
     async runOnce(): Promise<void> {
       const settings = await storage.getSettings();
-      const posts = await source.listLatestPosts(settings.topicId);
+      const enabledTopics = settings.topics.filter((topic) => topic.enabled && topic.id.trim());
 
-      for (const post of posts) {
-        const match = matcher.findMatch(post, settings);
-        const alreadySeen = await storage.hasSeenPost(post.id);
+      for (const topic of enabledTopics) {
+        const posts = await source.listLatestPosts(topic.id);
+        const keywordRules = [...settings.commonKeywordRules, ...topic.keywordRules];
 
-        if (!match || alreadySeen) {
-          continue;
+        for (const post of posts) {
+          const match = matcher.findMatch(post, keywordRules);
+          const alreadySeen = await storage.hasSeenPost(post.id);
+
+          if (!match || alreadySeen) {
+            continue;
+          }
+
+          const matchedAt = new Date().toISOString();
+          const record: MatchRecord = {
+            id: `${topic.id}:${post.id}:${match.keyword}:${match.location}`,
+            keyword: match.keyword,
+            location: match.location,
+            matchedAt,
+            post,
+          };
+
+          await storage.saveMatch(record);
+          await notifier.sendMatch();
         }
-
-        const matchedAt = new Date().toISOString();
-        const record: MatchRecord = {
-          id: `${post.id}:${match.keyword}:${match.location}`,
-          keyword: match.keyword,
-          location: match.location,
-          matchedAt,
-          post,
-        };
-
-        await storage.saveMatch(record);
-        await notifier.sendMatch();
       }
 
       await storage.setLastPollAt(new Date().toISOString());

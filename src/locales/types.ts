@@ -3,8 +3,11 @@ export type Locale = "zh-CN" | "en";
 export type Messages = {
   appDescription: string;
   appName: string;
+  batchOperation: string;
+  commonTopic: string;
   dashboardSubtitle: string;
   dashboardTitle: string;
+  darkMode: string;
   emptyHistory: string;
   historyTitle: string;
   keywords: string;
@@ -29,9 +32,15 @@ export type Messages = {
   runNow: string;
   saveSettings: string;
   selectKeywordToDelete: string;
+  selectTopicToDelete: string;
   settingsTitle: string;
   sourceMock: string;
   testNotify: string;
+  theme: string;
+  topic: string;
+  topicEnabled: string;
+  topicKeywords: string;
+  topicNote: string;
   topicId: string;
   totalMatches: string;
 };

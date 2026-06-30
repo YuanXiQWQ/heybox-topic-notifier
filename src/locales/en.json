@@ -1,8 +1,11 @@
 {
   "appDescription": "Monitor Heybox topic posts and send keyword-based notifications.",
   "appName": "Heybox Topic Notifier",
+  "batchOperation": "Bulk actions",
+  "commonTopic": "Common",
   "dashboardSubtitle": "Poll status, recent matches, and notification checks.",
   "dashboardTitle": "Topic monitor",
+  "darkMode": "Dark mode",
   "emptyHistory": "No matched posts yet.",
   "globalSettings": "Global settings",
   "historyTitle": "Match history",
@@ -27,9 +30,15 @@
   "runNow": "Run now",
   "saveSettings": "Save settings",
   "selectKeywordToDelete": "Please select keywords to delete.",
+  "selectTopicToDelete": "Please select topics to delete.",
   "settingsTitle": "Settings",
   "sourceMock": "Mock source",
   "testNotify": "Test notify",
+  "theme": "Theme",
+  "topic": "Topic",
+  "topicEnabled": "Enabled",
+  "topicKeywords": "Edit keywords",
+  "topicNote": "Note",
   "topicId": "Topic ID",
   "totalMatches": "Total matches"
 }

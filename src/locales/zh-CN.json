@@ -1,8 +1,11 @@
 {
   "appDescription": "监控小黑盒话题帖子，并按关键词发送通知。",
   "appName": "小黑盒话题提醒",
+  "batchOperation": "批量操作",
+  "commonTopic": "公共",
   "dashboardSubtitle": "查看轮询状态、最近命中和通知测试。",
   "dashboardTitle": "话题监控",
+  "darkMode": "深色模式",
   "emptyHistory": "还没有命中的帖子。",
   "globalSettings": "全局设置",
   "historyTitle": "命中历史",
@@ -27,9 +30,15 @@
   "runNow": "立即检查",
   "saveSettings": "保存设置",
   "selectKeywordToDelete": "请选择要删除的关键词。",
+  "selectTopicToDelete": "请选择要删除的话题。",
   "settingsTitle": "设置",
   "sourceMock": "模拟数据源",
   "testNotify": "测试通知",
+  "theme": "主题",
+  "topic": "话题",
+  "topicEnabled": "开启",
+  "topicKeywords": "编辑关键词",
+  "topicNote": "备注",
   "topicId": "话题 ID",
   "totalMatches": "命中总数"
 }

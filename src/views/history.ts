@@ -42,7 +42,9 @@ export function renderHistory(options: {
 
   return renderLayout({
     body,
+    darkMode: options.settings.darkMode,
     locale: options.settings.locale,
+    themeColor: options.settings.themeColor,
     title: messages.historyTitle,
   });
 }

@@ -1,5 +1,5 @@
 import { normalizeLocale } from "../locales/index.ts";
-import type { AppSettings } from "../models.ts";
+import type { AppSettings, KeywordRule } from "../models.ts";
 import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
 import { createMockTopicSource } from "./mock_topic_source.ts";
@@ -15,15 +15,27 @@ export type AppConfig = {
 export type AppContext = ReturnType<typeof createAppContext>;
 
 export function createAppContext() {
+  const defaultKeywordRules: KeywordRule[] = ["求助", "怎么", "卡住", "打不开"].map((keyword) => ({
+    keyword,
+    locations: ["title", "body", "comments", "replies"],
+  }));
+
   const config: AppConfig = {
     defaultSettings: {
-      keywordRules: ["求助", "怎么", "卡住", "打不开"].map((keyword) => ({
-        keyword,
-        locations: ["title", "body", "comments", "replies"],
-      })),
+      activeKeywordTarget: "common",
+      commonKeywordRules: defaultKeywordRules,
+      darkMode: false,
       locale: normalizeLocale(Deno.env.get("APP_LOCALE")),
       notificationProvider: "webhook",
-      topicId: Deno.env.get("HEYBOX_TOPIC_ID") ?? "12099",
+      themeColor: "#bd7fff",
+      topics: [
+        {
+          enabled: true,
+          id: Deno.env.get("HEYBOX_TOPIC_ID") ?? "12099",
+          keywordRules: [],
+          note: "蔚蓝",
+        },
+      ],
     },
     pollEnabled: Deno.env.get("POLL_ENABLED") === "true",
     port: Number(Deno.env.get("PORT") ?? "8000"),

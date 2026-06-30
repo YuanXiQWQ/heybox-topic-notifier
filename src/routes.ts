@@ -1,6 +1,6 @@
 import { Hono } from "@hono/hono";
 import { normalizeLocale } from "./locales/index.ts";
-import type { AppSettings, MatchLocation } from "./models.ts";
+import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
@@ -70,16 +70,28 @@ function settingsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   currentSettings: AppSettings,
 ): AppSettings {
-  const indexes = Array.from(
-    new Set(
-      Object.keys(form)
-        .map((key) => key.match(/^keyword_(\d+)$/)?.[1])
-        .filter((value): value is string => value !== undefined)
-        .map(Number),
-    ),
-  ).toSorted((left, right) => left - right);
+  const activeKeywordTarget = String(form.activeKeywordTarget ?? "common").trim() || "common";
+  const keywordRules = keywordRulesFromForm(form);
+  const topics = topicsFromForm(form, currentSettings, activeKeywordTarget, keywordRules);
 
-  const keywordRules = indexes.map((index) => {
+  return {
+    ...currentSettings,
+    activeKeywordTarget,
+    commonKeywordRules: activeKeywordTarget === "common"
+      ? keywordRules
+      : currentSettings.commonKeywordRules,
+    darkMode: form.darkMode === "on",
+    locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
+    notificationProvider: normalizeNotificationProvider(form.notificationProvider),
+    themeColor: normalizeThemeColor(form.themeColor, currentSettings.themeColor),
+    topics,
+  };
+}
+
+function keywordRulesFromForm(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+): KeywordRule[] {
+  return formIndexes(form, /^keyword_(\d+)$/).map((index) => {
     const keyword = String(form[`keyword_${index}`] ?? "").trim();
     const locations = matchLocations.filter((location) =>
       form[`keyword_${index}_location_${location}`] === "on"
@@ -87,18 +99,56 @@ function settingsFromForm(
 
     return { keyword, locations };
   }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
+}
 
-  return {
-    ...currentSettings,
-    keywordRules,
-    locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
-    notificationProvider: normalizeNotificationProvider(form.notificationProvider),
-    topicId: String(form.topicId ?? currentSettings.topicId).trim() || currentSettings.topicId,
-  };
+function topicsFromForm(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  currentSettings: AppSettings,
+  activeKeywordTarget: string,
+  activeKeywordRules: KeywordRule[],
+): TopicRule[] {
+  const existingTopics = new Map(currentSettings.topics.map((topic) => [topic.id, topic]));
+
+  return formIndexes(form, /^topic_(\d+)_id$/).map((index) => {
+    const id = String(form[`topic_${index}_id`] ?? "").trim();
+    const existingTopic = existingTopics.get(id);
+    const keywordRules = activeKeywordTarget === id
+      ? activeKeywordRules
+      : existingTopic?.keywordRules ?? [];
+
+    return {
+      enabled: form[`topic_${index}_enabled`] === "on",
+      id,
+      keywordRules,
+      note: String(form[`topic_${index}_note`] ?? "").trim(),
+    };
+  }).filter((topic) => topic.id.length > 0);
+}
+
+function formIndexes(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  pattern: RegExp,
+): number[] {
+  return Array.from(
+    new Set(
+      Object.keys(form)
+        .map((key) => key.match(pattern)?.[1])
+        .filter((value): value is string => value !== undefined)
+        .map(Number),
+    ),
+  ).toSorted((left, right) => left - right);
 }
 
 function normalizeNotificationProvider(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
 ): AppSettings["notificationProvider"] {
   return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
+}
+
+function normalizeThemeColor(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  fallback: string,
+): string {
+  const color = typeof value === "string" ? value.trim() : "";
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
 }
