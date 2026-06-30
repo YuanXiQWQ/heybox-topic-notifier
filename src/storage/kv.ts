@@ -1,4 +1,4 @@
-import type { AppSettings, AppState, MatchRecord } from "../models.ts";
+import type { AppSettings, AppState, KeywordRule, MatchRecord, TopicRule } from "../models.ts";
 
 const keys = {
   match: (id: string) => ["matches", id] as const,
@@ -29,8 +29,13 @@ export function createKvStorage(defaultSettings: AppSettings) {
   return {
     async getSettings(): Promise<AppSettings> {
       const store = await kv();
-      const entry = await store.get<AppSettings>(keys.settings);
-      return entry.value ?? defaultSettings;
+      const entry = await store.get<Partial<AppSettings> & LegacySettings>(keys.settings);
+      return normalizeSettings(entry.value, defaultSettings);
+    },
+
+    async saveSettings(settings: AppSettings): Promise<void> {
+      const store = await kv();
+      await store.set(keys.settings, settings);
     },
 
     async getAppState(): Promise<AppState> {
@@ -66,4 +71,83 @@ export function createKvStorage(defaultSettings: AppSettings) {
       await store.set(keys.state, { lastPollAt: value });
     },
   };
+}
+
+type LegacySettings = {
+  commonKeywordRules?: KeywordRule[];
+  keywordRules?: KeywordRule[];
+  keywords?: string[];
+  topicId?: string;
+};
+
+function normalizeSettings(
+  value: (Partial<AppSettings> & LegacySettings) | null,
+  defaultSettings: AppSettings,
+): AppSettings {
+  if (!value) {
+    return defaultSettings;
+  }
+
+  const commonKeywordRules = normalizeKeywordRules(value, defaultSettings.commonKeywordRules);
+  const topics = normalizeTopics(value, defaultSettings.topics);
+
+  return {
+    ...defaultSettings,
+    ...value,
+    activeKeywordTarget: value.activeKeywordTarget ?? defaultSettings.activeKeywordTarget,
+    commonKeywordRules,
+    darkMode: typeof value.darkMode === "boolean" ? value.darkMode : defaultSettings.darkMode,
+    themeColor: normalizeThemeColor(value.themeColor, defaultSettings.themeColor),
+    topics,
+  };
+}
+
+function normalizeThemeColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
+    ? value.toLowerCase()
+    : fallback;
+}
+
+function normalizeKeywordRules(
+  value: LegacySettings,
+  defaultKeywordRules: KeywordRule[],
+): KeywordRule[] {
+  if (value.commonKeywordRules) {
+    return value.commonKeywordRules;
+  }
+
+  if (value.keywordRules) {
+    return value.keywordRules;
+  }
+
+  if (value.keywords) {
+    return value.keywords.map((keyword) => ({
+      keyword,
+      locations: ["title", "body", "comments", "replies"],
+    }));
+  }
+
+  return defaultKeywordRules;
+}
+
+function normalizeTopics(
+  value: Partial<AppSettings> & LegacySettings,
+  defaultTopics: TopicRule[],
+): TopicRule[] {
+  if (value.topics && value.topics.length > 0) {
+    return value.topics;
+  }
+
+  if (value.topicId) {
+    return [
+      {
+        enabled: true,
+        id: value.topicId,
+        keywordRules: [],
+        note: value.topicId === "12099" ? "蔚蓝" : "",
+      },
+    ];
+  }
+
+  return defaultTopics;
 }

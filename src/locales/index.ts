@@ -1,9 +1,11 @@
-import { en } from "./en.ts";
 import type { Locale, Messages } from "./types.ts";
-import { zhCN } from "./zh-CN.ts";
+import en from "./en.json" with { type: "json" };
+import zhCN from "./zh-CN.json" with { type: "json" };
 
-const dictionaries: Record<Locale, Messages> = {
-  "zh-CN": zhCN,
+const baseMessages: Messages = zhCN;
+
+const overrides: Record<Locale, Partial<Messages>> = {
+  "zh-CN": {},
   en,
 };
 
@@ -12,5 +14,12 @@ export function normalizeLocale(value: string | undefined): Locale {
 }
 
 export function getMessages(locale: Locale): Messages {
-  return dictionaries[locale];
+  return mergeMessages(overrides[locale]);
+}
+
+export function mergeMessages(override: Partial<Messages>): Messages {
+  return {
+    ...baseMessages,
+    ...override,
+  };
 }

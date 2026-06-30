@@ -12,13 +12,19 @@ export function escapeHtml(value: string): string {
 
 export function renderLayout(options: {
   body: string;
+  darkMode: boolean;
   locale: Locale;
+  themeColor: string;
   title: string;
 }): string {
   const messages = getMessages(options.locale);
 
   return `<!doctype html>
-<html lang="${options.locale}">
+<html
+  lang="${options.locale}"
+  data-color-mode="${options.darkMode ? "dark" : "light"}"
+  style="--theme-color: ${escapeHtml(options.themeColor)}"
+>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

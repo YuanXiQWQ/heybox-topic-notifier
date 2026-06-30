@@ -1,10 +1,43 @@
-import type { AppSettings, TopicPost } from "../models.ts";
+import type { KeywordRule, MatchLocation, TopicPost } from "../models.ts";
+
+export type KeywordMatch = {
+  keyword: string;
+  location: MatchLocation;
+};
 
 export function createMatcher() {
   return {
-    findKeyword(post: TopicPost, settings: AppSettings): string | undefined {
-      const haystack = `${post.title}\n${post.excerpt}`.toLocaleLowerCase();
-      return settings.keywords.find((keyword) => haystack.includes(keyword.toLocaleLowerCase()));
+    findMatch(post: TopicPost, keywordRules: KeywordRule[]): KeywordMatch | undefined {
+      for (const rule of keywordRules) {
+        const keyword = rule.keyword.trim();
+
+        if (!keyword) {
+          continue;
+        }
+
+        for (const location of rule.locations) {
+          if (
+            locationText(post, location).toLocaleLowerCase().includes(keyword.toLocaleLowerCase())
+          ) {
+            return { keyword, location };
+          }
+        }
+      }
+
+      return undefined;
     },
   };
+}
+
+function locationText(post: TopicPost, location: MatchLocation): string {
+  switch (location) {
+    case "title":
+      return post.title;
+    case "body":
+      return `${post.excerpt}\n${post.body}`;
+    case "comments":
+      return post.comments.join("\n");
+    case "replies":
+      return post.commentReplies.join("\n");
+  }
 }

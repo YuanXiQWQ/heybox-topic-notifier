@@ -1,5 +1,5 @@
 import { getMessages } from "../locales/index.ts";
-import type { AppSettings, MatchRecord } from "../models.ts";
+import type { AppSettings, MatchLocation, MatchRecord } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 
 export function renderHistory(options: {
@@ -11,6 +11,7 @@ export function renderHistory(options: {
     <tr>
       <td><a href="${escapeHtml(record.post.url)}">${escapeHtml(record.post.title)}</a></td>
       <td>${escapeHtml(record.keyword)}</td>
+      <td>${escapeHtml(locationLabel(record.location, messages))}</td>
       <td>${escapeHtml(record.matchedAt)}</td>
     </tr>
   `).join("");
@@ -29,6 +30,7 @@ export function renderHistory(options: {
           <tr>
             <th>${escapeHtml(messages.latestMatch)}</th>
             <th>${escapeHtml(messages.matchedKeyword)}</th>
+            <th>${escapeHtml(messages.matchLocationHeader)}</th>
             <th>${escapeHtml(messages.lastPoll)}</th>
           </tr>
         </thead>
@@ -40,7 +42,27 @@ export function renderHistory(options: {
 
   return renderLayout({
     body,
+    darkMode: options.settings.darkMode,
     locale: options.settings.locale,
+    themeColor: options.settings.themeColor,
     title: messages.historyTitle,
   });
+}
+
+function locationLabel(
+  location: MatchLocation | undefined,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  switch (location) {
+    case "title":
+      return messages.matchTitle;
+    case "body":
+      return messages.matchBody;
+    case "comments":
+      return messages.matchComments;
+    case "replies":
+      return messages.matchReplies;
+    default:
+      return "-";
+  }
 }
