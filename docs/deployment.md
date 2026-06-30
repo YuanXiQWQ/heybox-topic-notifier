@@ -1,29 +1,40 @@
 # 部署说明
 
-本项目使用 `dev` 和 `main` 两条部署分支：
+本项目使用 Deno Deploy 的 GitHub 集成部署，不使用 GitHub Actions 部署。
 
-- `dev`：发布前测试部署，推送后部署到测试 Deno Deploy 项目。
-- `main`：正式发布部署，推送后部署到正式 Deno Deploy 项目。
+GitHub Actions 只负责运行 `deno task check`。Deno Deploy 负责在仓库 push 后构建并路由应用。
 
-## GitHub Secrets
+## 分支部署
 
-在仓库的 GitHub Actions secrets 中配置：
+Deno Deploy 会为同一个 App 创建不同 timeline：
 
-- `DENO_DEPLOY_TOKEN`：Deno Deploy access token。
-- `DENO_DEPLOY_PROJECT_DEV`：`dev` 分支使用的测试项目名。
-- `DENO_DEPLOY_PROJECT_MAIN`：`main` 分支使用的正式项目名。
+- `main`：正式发布部署，路由到 Production URL。
+- `dev`：发布前测试部署，路由到 Git Branch / DEV URL。
 
-## 流程
+当前 App 名为 `heybox-topic-notifier` 时，URL 约定为：
 
-`.github/workflows/deploy.yml` 会在 `dev` 和 `main` 有 push 时运行，也支持手动触发。
+```text
+https://heybox-topic-notifier.yuanxiqwq.deno.net
+https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
+```
 
-流程顺序：
+`dev` 的测试 URL 只有在 Deno Deploy 构建过 `dev` 分支后才会出现。创建 App 时如果只构建了
+`main`，Deno Deploy 页面里暂时只会看到 Production 和 Git Branch / MAIN。
 
-1. 安装 Deno 2。
-2. 执行 `deno task check`。
-3. 使用 `deployctl` 部署 `src/main.ts`。
+## Deno Deploy 配置
 
-部署完成后可以访问：
+在 Deno Deploy App 中保持以下配置：
+
+- Repository：`YuanXiQWQ/heybox-topic-notifier`
+- App Directory：root directory
+- Entrypoint：`./src/main.ts`
+- Config Source：`deno.json deploy section`
+
+`deno.json` 中的 deploy 配置是部署入口的唯一仓库配置来源。
+
+## 验证
+
+部署完成后访问：
 
 ```text
 /healthz
@@ -33,7 +44,7 @@
 
 ## 运行环境变量
 
-Deno Deploy 项目中按需配置：
+Deno Deploy App 中按需配置：
 
 - `APP_LOCALE`
 - `HEYBOX_TOPIC_ID`
@@ -41,5 +52,5 @@ Deno Deploy 项目中按需配置：
 - `NOTIFIER_PROVIDER`
 - `NOTIFIER_WEBHOOK_URL`
 
-当前真实小黑盒数据抓取和正式通知发送还没有接入。除非正在验证定时轮询，测试和正式项目建议先保持
-`POLL_ENABLED=false`。
+当前真实小黑盒数据抓取和正式通知发送还没有接入。除非正在验证定时轮询，Production 和 Git Branch / DEV
+都建议先保持 `POLL_ENABLED=false`。
