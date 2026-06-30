@@ -11,6 +11,11 @@ const settings: AppSettings = {
   darkMode: false,
   locale: "zh-CN",
   notificationProvider: "webhook",
+  polling: {
+    intervalMinutes: 1,
+    postLimit: 50,
+    sort: "replyTime",
+  },
   themeColor: "#bd7fff",
   topics: [
     {
@@ -42,6 +47,7 @@ const postsByTopic: Record<string, TopicPost[]> = {
 
 Deno.test("poller combines common and topic keywords for enabled topics", async () => {
   const listedTopicIds: string[] = [];
+  const listedOptions: unknown[] = [];
   const records: MatchRecord[] = [];
   let sentMatches = 0;
   let lastPollAt = "";
@@ -55,8 +61,9 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
       },
     } as ReturnType<typeof createNotifier>,
     source: {
-      listLatestPosts: (topicId: string) => {
+      listLatestPosts: (topicId, options) => {
         listedTopicIds.push(topicId);
+        listedOptions.push(options);
         return Promise.resolve(postsByTopic[topicId] ?? []);
       },
     } as TopicSource,
@@ -77,6 +84,7 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
   await poller.runOnce();
 
   assertEquals(listedTopicIds, ["12099"]);
+  assertEquals(listedOptions, [{ limit: 50, sort: "replyTime" }]);
   assertEquals(records.map((record) => [record.post.id, record.keyword, record.location]), [
     ["p1", "common-hit", "title"],
     ["p2", "topic-hit", "comments"],

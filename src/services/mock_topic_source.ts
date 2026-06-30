@@ -1,9 +1,9 @@
 import type { TopicPost } from "../models.ts";
-import type { TopicSource } from "./topic_source.ts";
+import type { TopicListOptions, TopicSource } from "./topic_source.ts";
 
 export function createMockTopicSource(): TopicSource {
   return {
-    async listLatestPosts(_topicId: string): Promise<TopicPost[]> {
+    async listLatestPosts(_topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
       await Promise.resolve();
 
       return [
@@ -27,7 +27,7 @@ export function createMockTopicSource(): TopicSource {
           title: "分享一个新路线",
           url: "https://www.xiaoheihe.cn/app/topic/link/12099",
         },
-      ];
+      ].slice(0, options.limit);
     },
   };
 }

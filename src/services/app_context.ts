@@ -1,5 +1,5 @@
 import { normalizeLocale } from "../locales/index.ts";
-import type { AppSettings, KeywordRule } from "../models.ts";
+import type { AppSettings, KeywordRule, PollSort } from "../models.ts";
 import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
@@ -29,6 +29,14 @@ export function createAppContext() {
       darkMode: false,
       locale: normalizeLocale(Deno.env.get("APP_LOCALE")),
       notificationProvider: "webhook",
+      polling: {
+        intervalMinutes: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
+        postLimit: positiveIntegerFromEnv(
+          "POLL_POST_LIMIT",
+          positiveIntegerFromEnv("HEYBOX_POST_LIMIT", 20),
+        ),
+        sort: pollSortFromEnv(),
+      },
       themeColor: "#bd7fff",
       topics: [
         {
@@ -51,8 +59,6 @@ export function createAppContext() {
     ? createHeyboxTopicSource({
       cookie: Deno.env.get("HEYBOX_COOKIE") ?? undefined,
       deviceId: Deno.env.get("HEYBOX_DEVICE_ID") ?? undefined,
-      limit: positiveIntegerFromEnv("HEYBOX_POST_LIMIT", 20),
-      sortFilter: Deno.env.get("HEYBOX_SORT_FILTER") || undefined,
       userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
     })
     : createMockTopicSource();
@@ -71,4 +77,20 @@ export function createAppContext() {
 function positiveIntegerFromEnv(name: string, fallback: number): number {
   const value = Number(Deno.env.get(name));
   return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function pollSortFromEnv(): PollSort {
+  const value = Deno.env.get("POLL_SORT");
+  if (value === "publishTime" || value === "smart" || value === "replyTime") {
+    return value;
+  }
+
+  switch (Deno.env.get("HEYBOX_SORT_FILTER")) {
+    case "hot-rank":
+      return "smart";
+    case "comment-time":
+      return "replyTime";
+    default:
+      return "publishTime";
+  }
 }

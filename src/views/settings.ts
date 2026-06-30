@@ -31,6 +31,7 @@ export function renderSettings(options: {
           ${renderKeywordSection(options.settings)}
         </dl>
       </section>
+      ${renderPollingSection(options.settings)}
       <section class="settings-group" aria-labelledby="global-settings-heading">
         <h2 id="global-settings-heading">${escapeHtml(messages.globalSettings)}</h2>
         <dl class="settings-list">
@@ -104,6 +105,52 @@ export function renderSettings(options: {
     themeColor: options.settings.themeColor,
     title: messages.settingsTitle,
   });
+}
+
+function renderPollingSection(settings: AppSettings): string {
+  const messages = getMessages(settings.locale);
+
+  return `
+      <section class="settings-group" aria-labelledby="polling-settings-heading">
+        <h2 id="polling-settings-heading">${escapeHtml(messages.pollingSettings)}</h2>
+        <dl class="settings-list">
+          <div>
+            <dt>${escapeHtml(messages.pollInterval)}</dt>
+            <dd>
+              <input
+                type="number"
+                name="pollIntervalMinutes"
+                min="1"
+                step="1"
+                value="${settings.polling.intervalMinutes}"
+              >
+            </dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(messages.pollPostLimit)}</dt>
+            <dd>
+              <select name="pollPostLimit">
+                ${
+    [10, 20, 50, 100, 200, 500].map((limit) =>
+      option(String(limit), String(settings.polling.postLimit), String(limit))
+    ).join("")
+  }
+              </select>
+            </dd>
+          </div>
+          <div>
+            <dt>${escapeHtml(messages.pollSort)}</dt>
+            <dd>
+              <select name="pollSort">
+                ${option("publishTime", settings.polling.sort, messages.pollSortPublishTime)}
+                ${option("smart", settings.polling.sort, messages.pollSortSmart)}
+                ${option("replyTime", settings.polling.sort, messages.pollSortReplyTime)}
+              </select>
+            </dd>
+          </div>
+        </dl>
+      </section>
+  `;
 }
 
 function renderTopicSection(settings: AppSettings): string {

@@ -1,6 +1,6 @@
 import { Hono } from "@hono/hono";
 import { normalizeLocale } from "./locales/index.ts";
-import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "./models.ts";
+import type { AppSettings, KeywordRule, MatchLocation, PollSort, TopicRule } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
@@ -21,7 +21,8 @@ export function createRoutes(context: AppContext): Hono {
   app.get("/", async (c) => {
     const settings = await context.storage.getSettings();
     const state = await context.storage.getAppState();
-    return c.html(renderDashboard({ settings, state }));
+    const pendingMatches = await context.storage.listPendingMatches();
+    return c.html(renderDashboard({ pendingMatches, settings, state }));
   });
 
   app.get("/settings", async (c) => {
@@ -55,6 +56,18 @@ export function createRoutes(context: AppContext): Hono {
     return c.redirect("/");
   });
 
+  app.post("/matches/complete", async (c) => {
+    const form = await c.req.parseBody();
+    await context.storage.completeMatches(formValues(form, "matchId").map(String));
+    return c.redirect("/");
+  });
+
+  app.post("/matches/delete", async (c) => {
+    const form = await c.req.parseBody();
+    await context.storage.deleteMatches(formValues(form, "matchId").map(String));
+    return c.redirect("/history");
+  });
+
   app.get("/static/app.css", async () => {
     const css = await Deno.readTextFile(new URL("../static/app.css", import.meta.url));
     return new Response(css, {
@@ -76,6 +89,17 @@ export function createRoutes(context: AppContext): Hono {
   return app;
 }
 
+function formValues(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  key: string,
+): FormDataEntryValue[] {
+  const value = form[key];
+  if (Array.isArray(value)) {
+    return value;
+  }
+  return value === undefined ? [] : [value];
+}
+
 export function settingsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   currentSettings: AppSettings,
@@ -94,6 +118,14 @@ export function settingsFromForm(
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
+    polling: {
+      intervalMinutes: normalizePositiveInteger(
+        form.pollIntervalMinutes,
+        currentSettings.polling.intervalMinutes,
+      ),
+      postLimit: normalizePositiveInteger(form.pollPostLimit, currentSettings.polling.postLimit),
+      sort: normalizePollSort(form.pollSort, currentSettings.polling.sort),
+    },
     themeColor: normalizeThemeColor(form.themeColor, currentSettings.themeColor),
     topics,
   };
@@ -185,6 +217,21 @@ function normalizeNotificationProvider(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
 ): AppSettings["notificationProvider"] {
   return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
+}
+
+function normalizePositiveInteger(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  fallback: number,
+): number {
+  const numericValue = Number(typeof value === "string" ? value : undefined);
+  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : fallback;
+}
+
+function normalizePollSort(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  fallback: PollSort,
+): PollSort {
+  return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
 }
 
 function normalizeThemeColor(

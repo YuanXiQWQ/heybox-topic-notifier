@@ -16,12 +16,21 @@ export type TopicRule = {
 
 export type KeywordTarget = "common" | string;
 
+export type PollSort = "publishTime" | "smart" | "replyTime";
+
+export type PollingSettings = {
+  intervalMinutes: number;
+  postLimit: number;
+  sort: PollSort;
+};
+
 export type AppSettings = {
   activeKeywordTarget: KeywordTarget;
   commonKeywordRules: KeywordRule[];
   darkMode: boolean;
   locale: Locale;
   notificationProvider: "disabled" | "email" | "webhook";
+  polling: PollingSettings;
   themeColor: string;
   topics: TopicRule[];
 };
@@ -38,6 +47,7 @@ export type TopicPost = {
 };
 
 export type MatchRecord = {
+  completedAt?: string;
   id: string;
   keyword: string;
   location: MatchLocation;
