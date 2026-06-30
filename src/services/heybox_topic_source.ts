@@ -15,6 +15,7 @@ export type HeyboxTopicSourceConfig = {
 };
 
 const topicFeedsPath = "/bbs/app/topic/feeds";
+const publishTimeFetchLimit = 100;
 
 export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
@@ -28,6 +29,7 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
 
   return {
     async listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
+      const limit = normalizeLimit(options.limit);
       const signature = createHeyboxSignatureParams(
         topicFeedsPath,
         config.now?.() ?? new Date(),
@@ -44,7 +46,7 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
         heybox_id: "",
         hkey: signature.hkey,
         lastval: "",
-        limit: String(normalizeLimit(options.limit)),
+        limit: String(requestLimit(limit, options.sort)),
         nonce: signature.nonce,
         offset: "0",
         os_type: "web",
@@ -80,7 +82,10 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
 
       const payload = await response.json();
       assertHeyboxOk(payload);
-      return parseHeyboxTopicPosts(payload, topicId);
+      const posts = parseHeyboxTopicPosts(payload, topicId);
+      return options.sort === "publishTime"
+        ? posts.toSorted(comparePostPublishedAtDesc).slice(0, limit)
+        : posts;
     },
   };
 }
@@ -90,7 +95,10 @@ export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicP
 
   return links.map((link) => {
     const record = asRecord(link);
-    const id = stringField(record, ["linkid", "link_id", "post_id", "article_id", "id"]);
+    const shareUrl = stringField(record, ["share_url", "url", "link", "web_url"]);
+    const webLinkId = linkIdFromUrl(shareUrl);
+    const id = webLinkId ||
+      stringField(record, ["linkid", "link_id", "post_id", "article_id", "id"]);
 
     return {
       body: stringField(record, ["content", "text", "body", "description"]),
@@ -100,7 +108,7 @@ export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicP
       id,
       publishedAt: timeField(record, ["create_at", "created_at", "publish_time", "timestamp"]),
       title: stringField(record, ["title", "subject", "name"]),
-      url: stringField(record, ["share_url", "url", "link", "web_url"]) ||
+      url: webLinkId ? `https://www.xiaoheihe.cn/app/bbs/link/${webLinkId}` : shareUrl ||
         `https://www.xiaoheihe.cn/app/topic/link/${topicId}`,
     };
   }).filter((post) => post.id && (post.title || post.excerpt || post.body));
@@ -122,6 +130,10 @@ function normalizeLimit(value: number | undefined): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 20;
 }
 
+function requestLimit(limit: number, sort: PollSort): number {
+  return sort === "publishTime" ? Math.max(limit, publishTimeFetchLimit) : limit;
+}
+
 function heyboxSortFilter(sort: PollSort): string | undefined {
   switch (sort) {
     case "smart":
@@ -131,6 +143,17 @@ function heyboxSortFilter(sort: PollSort): string | undefined {
     case "publishTime":
       return undefined;
   }
+}
+
+function comparePostPublishedAtDesc(left: TopicPost, right: TopicPost): number {
+  const leftTime = new Date(left.publishedAt).getTime();
+  const rightTime = new Date(right.publishedAt).getTime();
+
+  if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
+    return rightTime - leftTime;
+  }
+
+  return right.publishedAt.localeCompare(left.publishedAt);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -159,6 +182,25 @@ function stringField(record: Record<string, unknown>, keys: string[]): string {
   }
 
   return "";
+}
+
+function linkIdFromUrl(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const url = new URL(value);
+    const queryLinkId = url.searchParams.get("link_id");
+    if (queryLinkId) {
+      return queryLinkId;
+    }
+
+    const [, pathLinkId = ""] = url.pathname.match(/\/app\/bbs\/link\/([^/]+)/) ?? [];
+    return pathLinkId;
+  } catch {
+    return "";
+  }
 }
 
 function timeField(record: Record<string, unknown>, keys: string[]): string {

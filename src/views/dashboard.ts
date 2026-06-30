@@ -31,7 +31,9 @@ export function renderDashboard(options: {
     <section class="metrics">
       <article>
         <span>${escapeHtml(messages.lastPoll)}</span>
-        <strong>${escapeHtml(options.state.lastPollAt ?? "-")}</strong>
+        <strong>${
+    escapeHtml(options.state.lastPollAt ? formatHeyboxRelativeTime(options.state.lastPollAt) : "-")
+  }</strong>
       </article>
       <article>
         <span>${escapeHtml(messages.latestMatch)}</span>

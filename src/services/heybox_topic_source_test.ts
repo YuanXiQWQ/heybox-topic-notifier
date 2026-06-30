@@ -10,7 +10,8 @@ Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
           description: "post summary",
           linkid: 184665213,
           reply_list: [{ reply: "first reply" }],
-          share_url: "https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?link_id=abc",
+          share_url:
+            "https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?h_src=YXBwX3NoYXJl&link_id=abc",
           title: "post title",
         },
       ],
@@ -24,10 +25,10 @@ Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
       commentReplies: ["first reply"],
       comments: ["first comment"],
       excerpt: "post summary",
-      id: "184665213",
+      id: "abc",
       publishedAt: "2026-06-30T18:01:41.000Z",
       title: "post title",
-      url: "https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?link_id=abc",
+      url: "https://www.xiaoheihe.cn/app/bbs/link/abc",
     },
   ]);
 });
@@ -74,25 +75,36 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
   assertEquals(posts[0].id, "1");
 });
 
-Deno.test("createHeyboxTopicSource omits sort_filter for publish time", async () => {
+Deno.test("createHeyboxTopicSource expands and locally sorts publish time requests", async () => {
   let requestedUrl: URL | undefined;
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
     fetchFn: (input) => {
       requestedUrl = new URL(String(input));
-      return Promise.resolve(Response.json({ result: { links: [] }, status: "ok" }));
+      return Promise.resolve(Response.json({
+        result: {
+          links: [
+            { create_at: 1782840000, linkid: "older", title: "older" },
+            { create_at: 1782850000, linkid: "newer", title: "newer" },
+            { create_at: 1782845000, linkid: "middle", title: "middle" },
+          ],
+        },
+        status: "ok",
+      }));
     },
     now: () => new Date(1782848432 * 1000),
     random: () => 0.123,
   });
 
-  await source.listLatestPosts("12099", { limit: 10, sort: "publishTime" });
+  const posts = await source.listLatestPosts("12099", { limit: 2, sort: "publishTime" });
 
   if (!requestedUrl) {
     throw new Error("Expected request URL to be captured");
   }
 
+  assertEquals(requestedUrl.searchParams.get("limit"), "100");
   assertEquals(requestedUrl.searchParams.has("sort_filter"), false);
+  assertEquals(posts.map((post) => post.id), ["newer", "middle"]);
 });
 
 Deno.test("createHeyboxTopicSource maps reply time sort to Heybox comment-time", async () => {
