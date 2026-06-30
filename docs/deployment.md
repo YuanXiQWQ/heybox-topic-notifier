@@ -13,6 +13,10 @@
 - `DENO_DEPLOY_PROJECT_DEV`：`dev` 分支使用的测试项目名。
 - `DENO_DEPLOY_PROJECT_MAIN`：`main` 分支使用的正式项目名。
 
+部署 workflow 使用 `staging` 和 `production` 两个 GitHub Environments。如果 secrets 放在 Environment
+secrets 里，需要分别在 `staging` 和 `production` 中配置；如果放在仓库级 secrets
+里，则两套环境会共用同一组 token 和项目名配置。
+
 ## 流程
 
 `.github/workflows/deploy.yml` 会在 `dev` 和 `main` 有 push 时运行，也支持手动触发。
