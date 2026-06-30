@@ -16,7 +16,7 @@
   --muted: #506070;
   --muted-strong: #405060;
   --placeholder: #9aa7b4;
-  --secondary-button: #4d5d53;
+  --secondary-button: color-mix(in srgb, var(--theme-color) 54%, var(--muted-strong) 46%);
   --shadow-strong: rgba(23, 32, 42, 0.18);
   --surface: #ffffff;
   --surface-soft-base: #f6f7f8;
@@ -41,7 +41,7 @@
   --muted: #a8b3bf;
   --muted-strong: #c4cbd3;
   --placeholder: #778390;
-  --secondary-button: #4d665a;
+  --secondary-button: color-mix(in srgb, var(--theme-color) 48%, var(--muted-strong) 52%);
   --shadow-strong: rgba(0, 0, 0, 0.36);
   --surface: #171c22;
   --surface-soft-base: #1f252d;
