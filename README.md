@@ -15,7 +15,7 @@
 项目仍处于早期 MVP
 阶段。当前目标是先搭建一个可本地运行的管理后台，并通过模拟话题数据跑通设置、匹配、历史记录和手动检查流程。
 
-真实小黑盒数据抓取和正式通知发送还没有接入；当前通知器仍是占位实现。
+真实小黑盒话题抓取已经可以通过环境变量启用；当前通知器仍是占位实现。
 
 ## 计划中的最小版本
 
@@ -59,14 +59,20 @@ deno task check
 
 ## 环境变量
 
-| 变量                   | 默认值    | 说明              |
-| :--------------------- | :-------- | :---------------- |
-| `APP_LOCALE`           | `zh-CN`   | 默认界面语言      |
-| `HEYBOX_TOPIC_ID`      | `12099`   | 默认监控的话题 ID |
-| `POLL_ENABLED`         | `false`   | 是否启用定时轮询  |
-| `NOTIFIER_PROVIDER`    | `webhook` | 预留通知通道配置  |
-| `NOTIFIER_WEBHOOK_URL` | 空        | 预留 Webhook 地址 |
-| `PORT`                 | `8000`    | 本地服务端口      |
+| 变量                   | 默认值    | 说明                                      |
+| :--------------------- | :-------- | :---------------------------------------- |
+| `APP_LOCALE`           | `zh-CN`   | 默认界面语言                              |
+| `HEYBOX_TOPIC_ID`      | `12099`   | 默认监控的话题 ID                         |
+| `TOPIC_SOURCE`         | `mock`    | 话题数据源，`mock` 或 `heybox`            |
+| `HEYBOX_DEVICE_ID`     | 空        | 小黑盒网页请求设备标识，留空则启动时生成  |
+| `HEYBOX_COOKIE`        | 空        | 预留小黑盒 Cookie，公开话题首屏通常不需要 |
+| `HEYBOX_USER_AGENT`    | 空        | 覆盖小黑盒请求 User-Agent                 |
+| `HEYBOX_POST_LIMIT`    | `20`      | 每次轮询读取的帖子数量                    |
+| `HEYBOX_SORT_FILTER`   | 空        | 预留小黑盒排序参数，留空时跟随网页首屏    |
+| `POLL_ENABLED`         | `false`   | 是否启用定时轮询                          |
+| `NOTIFIER_PROVIDER`    | `webhook` | 预留通知通道配置                          |
+| `NOTIFIER_WEBHOOK_URL` | 空        | 预留 Webhook 地址                         |
+| `PORT`                 | `8000`    | 本地服务端口                              |
 
 ## 许可证
 
@@ -92,8 +98,8 @@ This project is still in the early MVP stage. The current goal is to provide a l
 management dashboard and use mock topic data to validate settings, matching, history, and manual
 polling.
 
-Real Heybox data fetching and production notification delivery are not wired in yet. The notifier is
-currently a placeholder implementation.
+Real Heybox topic fetching can now be enabled through environment variables. The notifier is still a
+placeholder implementation.
 
 ## Planned MVP
 
@@ -139,14 +145,20 @@ deno task check
 
 ## Environment Variables
 
-| Variable               | Default   | Description                            |
-| :--------------------- | :-------- | :------------------------------------- |
-| `APP_LOCALE`           | `zh-CN`   | Default UI language                    |
-| `HEYBOX_TOPIC_ID`      | `12099`   | Default topic ID to monitor            |
-| `POLL_ENABLED`         | `false`   | Enables scheduled polling              |
-| `NOTIFIER_PROVIDER`    | `webhook` | Reserved notification provider setting |
-| `NOTIFIER_WEBHOOK_URL` | empty     | Reserved webhook URL                   |
-| `PORT`                 | `8000`    | Local server port                      |
+| Variable               | Default   | Description                                                           |
+| :--------------------- | :-------- | :-------------------------------------------------------------------- |
+| `APP_LOCALE`           | `zh-CN`   | Default UI language                                                   |
+| `HEYBOX_TOPIC_ID`      | `12099`   | Default topic ID to monitor                                           |
+| `TOPIC_SOURCE`         | `mock`    | Topic source, either `mock` or `heybox`                               |
+| `HEYBOX_DEVICE_ID`     | empty     | Heybox web device ID, generated on startup when empty                 |
+| `HEYBOX_COOKIE`        | empty     | Reserved Heybox cookie, usually not needed for public topic feeds     |
+| `HEYBOX_USER_AGENT`    | empty     | Overrides the Heybox request User-Agent                               |
+| `HEYBOX_POST_LIMIT`    | `20`      | Number of posts to read per poll                                      |
+| `HEYBOX_SORT_FILTER`   | empty     | Reserved Heybox sort filter; empty follows the first web page request |
+| `POLL_ENABLED`         | `false`   | Enables scheduled polling                                             |
+| `NOTIFIER_PROVIDER`    | `webhook` | Reserved notification provider setting                                |
+| `NOTIFIER_WEBHOOK_URL` | empty     | Reserved webhook URL                                                  |
+| `PORT`                 | `8000`    | Local server port                                                     |
 
 ## License
 

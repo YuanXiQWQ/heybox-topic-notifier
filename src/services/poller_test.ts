@@ -1,9 +1,9 @@
 import type { AppSettings, MatchRecord, TopicPost } from "../models.ts";
 import type { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
-import type { createMockTopicSource } from "./mock_topic_source.ts";
 import type { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
+import type { TopicSource } from "./topic_source.ts";
 
 const settings: AppSettings = {
   activeKeywordTarget: "common",
@@ -59,7 +59,7 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
         listedTopicIds.push(topicId);
         return Promise.resolve(postsByTopic[topicId] ?? []);
       },
-    } as ReturnType<typeof createMockTopicSource>,
+    } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),
       hasSeenPost: (postId: string) => Promise.resolve(postId === "p3"),

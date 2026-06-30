@@ -2,6 +2,7 @@ import { normalizeLocale } from "../locales/index.ts";
 import type { AppSettings, KeywordRule } from "../models.ts";
 import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
+import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import { createMockTopicSource } from "./mock_topic_source.ts";
 import { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
@@ -10,6 +11,7 @@ export type AppConfig = {
   defaultSettings: AppSettings;
   pollEnabled: boolean;
   port: number;
+  topicSource: "heybox" | "mock";
 };
 
 export type AppContext = ReturnType<typeof createAppContext>;
@@ -39,12 +41,21 @@ export function createAppContext() {
     },
     pollEnabled: Deno.env.get("POLL_ENABLED") === "true",
     port: Number(Deno.env.get("PORT") ?? "8000"),
+    topicSource: Deno.env.get("TOPIC_SOURCE") === "heybox" ? "heybox" : "mock",
   };
 
   const storage = createKvStorage(config.defaultSettings);
   const matcher = createMatcher();
   const notifier = createNotifier();
-  const source = createMockTopicSource();
+  const source = config.topicSource === "heybox"
+    ? createHeyboxTopicSource({
+      cookie: Deno.env.get("HEYBOX_COOKIE") ?? undefined,
+      deviceId: Deno.env.get("HEYBOX_DEVICE_ID") ?? undefined,
+      limit: positiveIntegerFromEnv("HEYBOX_POST_LIMIT", 20),
+      sortFilter: Deno.env.get("HEYBOX_SORT_FILTER") || undefined,
+      userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
+    })
+    : createMockTopicSource();
   const poller = createPoller({ matcher, notifier, source, storage });
 
   return {
@@ -55,4 +66,9 @@ export function createAppContext() {
     source,
     storage,
   };
+}
+
+function positiveIntegerFromEnv(name: string, fallback: number): number {
+  const value = Number(Deno.env.get(name));
+  return Number.isInteger(value) && value > 0 ? value : fallback;
 }
