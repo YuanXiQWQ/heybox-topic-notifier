@@ -10,6 +10,11 @@ const currentSettings: AppSettings = {
   darkMode: false,
   locale: "zh-CN",
   notificationProvider: "webhook",
+  polling: {
+    intervalMinutes: 1,
+    postLimit: 20,
+    sort: "publishTime",
+  },
   themeColor: "#bd7fff",
   topics: [
     {
@@ -46,6 +51,9 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     keyword_0_location_replies: "on",
     locale: "zh-CN",
     notificationProvider: "email",
+    pollIntervalMinutes: "3",
+    pollPostLimit: "50",
+    pollSort: "replyTime",
     themeColor: "#123abc",
     topic_0_enabled: "on",
     topic_0_id: "12099",
@@ -66,6 +74,11 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   ]);
   assertEquals(settings.darkMode, true);
   assertEquals(settings.notificationProvider, "email");
+  assertEquals(settings.polling, {
+    intervalMinutes: 3,
+    postLimit: 50,
+    sort: "replyTime",
+  });
   assertEquals(settings.themeColor, "#123abc");
 });
 

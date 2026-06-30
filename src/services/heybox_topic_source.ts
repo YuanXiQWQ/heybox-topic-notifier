@@ -1,5 +1,5 @@
-import type { TopicPost } from "../models.ts";
-import type { TopicSource } from "./topic_source.ts";
+import type { PollSort, TopicPost } from "../models.ts";
+import type { TopicListOptions, TopicSource } from "./topic_source.ts";
 import { createHeyboxSignatureParams } from "./heybox_signer.ts";
 
 export type HeyboxTopicSourceConfig = {
@@ -9,10 +9,8 @@ export type HeyboxTopicSourceConfig = {
   deviceId?: string;
   deviceInfo?: string;
   fetchFn?: typeof fetch;
-  limit?: number;
   now?: () => Date;
   random?: () => number;
-  sortFilter?: string;
   userAgent?: string;
 };
 
@@ -24,13 +22,12 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
   const deviceInfo = config.deviceInfo ?? "Chrome";
   const deviceId = config.deviceId ?? crypto.randomUUID().replaceAll("-", "");
   const fetchFn = config.fetchFn ?? fetch;
-  const limit = normalizeLimit(config.limit);
   const userAgent = config.userAgent ??
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
   return {
-    async listLatestPosts(topicId: string): Promise<TopicPost[]> {
+    async listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
       const signature = createHeyboxSignatureParams(
         topicFeedsPath,
         config.now?.() ?? new Date(),
@@ -47,7 +44,7 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
         heybox_id: "",
         hkey: signature.hkey,
         lastval: "",
-        limit: String(limit),
+        limit: String(normalizeLimit(options.limit)),
         nonce: signature.nonce,
         offset: "0",
         os_type: "web",
@@ -59,8 +56,9 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
         x_os_type: "Windows",
       };
 
-      if (config.sortFilter) {
-        params.sort_filter = config.sortFilter;
+      const sortFilter = heyboxSortFilter(options.sort);
+      if (sortFilter) {
+        params.sort_filter = sortFilter;
       }
 
       for (const [key, value] of Object.entries(params)) {
@@ -122,6 +120,17 @@ function assertHeyboxOk(payload: unknown): void {
 
 function normalizeLimit(value: number | undefined): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 20;
+}
+
+function heyboxSortFilter(sort: PollSort): string | undefined {
+  switch (sort) {
+    case "smart":
+      return "hot-rank";
+    case "replyTime":
+      return "comment-time";
+    case "publishTime":
+      return undefined;
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

@@ -1,6 +1,6 @@
 import { Hono } from "@hono/hono";
 import { normalizeLocale } from "./locales/index.ts";
-import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "./models.ts";
+import type { AppSettings, KeywordRule, MatchLocation, PollSort, TopicRule } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
@@ -94,6 +94,14 @@ export function settingsFromForm(
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
+    polling: {
+      intervalMinutes: normalizePositiveInteger(
+        form.pollIntervalMinutes,
+        currentSettings.polling.intervalMinutes,
+      ),
+      postLimit: normalizePositiveInteger(form.pollPostLimit, currentSettings.polling.postLimit),
+      sort: normalizePollSort(form.pollSort, currentSettings.polling.sort),
+    },
     themeColor: normalizeThemeColor(form.themeColor, currentSettings.themeColor),
     topics,
   };
@@ -185,6 +193,21 @@ function normalizeNotificationProvider(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
 ): AppSettings["notificationProvider"] {
   return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
+}
+
+function normalizePositiveInteger(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  fallback: number,
+): number {
+  const numericValue = Number(typeof value === "string" ? value : undefined);
+  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : fallback;
+}
+
+function normalizePollSort(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  fallback: PollSort,
+): PollSort {
+  return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
 }
 
 function normalizeThemeColor(

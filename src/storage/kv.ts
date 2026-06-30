@@ -1,4 +1,12 @@
-import type { AppSettings, AppState, KeywordRule, MatchRecord, TopicRule } from "../models.ts";
+import type {
+  AppSettings,
+  AppState,
+  KeywordRule,
+  MatchRecord,
+  PollingSettings,
+  PollSort,
+  TopicRule,
+} from "../models.ts";
 
 const keys = {
   match: (id: string) => ["matches", id] as const,
@@ -97,9 +105,29 @@ function normalizeSettings(
     activeKeywordTarget: value.activeKeywordTarget ?? defaultSettings.activeKeywordTarget,
     commonKeywordRules,
     darkMode: typeof value.darkMode === "boolean" ? value.darkMode : defaultSettings.darkMode,
+    polling: normalizePollingSettings(value.polling, defaultSettings.polling),
     themeColor: normalizeThemeColor(value.themeColor, defaultSettings.themeColor),
     topics,
   };
+}
+
+function normalizePollingSettings(
+  value: Partial<PollingSettings> | undefined,
+  fallback: PollingSettings,
+): PollingSettings {
+  return {
+    intervalMinutes: normalizePositiveInteger(value?.intervalMinutes, fallback.intervalMinutes),
+    postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
+    sort: normalizePollSort(value?.sort, fallback.sort),
+  };
+}
+
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
+  return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
 }
 
 function normalizeThemeColor(value: unknown, fallback: string): string {

@@ -31,6 +31,13 @@ export type Messages = {
   notificationProvider: string;
   notificationWebhook: string;
   globalSettings: string;
+  pollInterval: string;
+  pollingSettings: string;
+  pollPostLimit: string;
+  pollSort: string;
+  pollSortPublishTime: string;
+  pollSortReplyTime: string;
+  pollSortSmart: string;
   postSettings: string;
   runNow: string;
   saveSettings: string;

@@ -1,5 +1,10 @@
-import type { TopicPost } from "../models.ts";
+import type { PollSort, TopicPost } from "../models.ts";
+
+export type TopicListOptions = {
+  limit: number;
+  sort: PollSort;
+};
 
 export type TopicSource = {
-  listLatestPosts(topicId: string): Promise<TopicPost[]>;
+  listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]>;
 };

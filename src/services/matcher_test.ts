@@ -16,6 +16,11 @@ const settings: AppSettings = {
   darkMode: false,
   locale: "zh-CN",
   notificationProvider: "webhook",
+  polling: {
+    intervalMinutes: 1,
+    postLimit: 20,
+    sort: "publishTime",
+  },
   themeColor: "#bd7fff",
   topics: [
     {

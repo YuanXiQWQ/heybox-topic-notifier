@@ -18,7 +18,10 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
       const enabledTopics = settings.topics.filter((topic) => topic.enabled && topic.id.trim());
 
       for (const topic of enabledTopics) {
-        const posts = await source.listLatestPosts(topic.id);
+        const posts = await source.listLatestPosts(topic.id, {
+          limit: settings.polling.postLimit,
+          sort: settings.polling.sort,
+        });
         const keywordRules = [...settings.commonKeywordRules, ...topic.keywordRules];
 
         for (const post of posts) {

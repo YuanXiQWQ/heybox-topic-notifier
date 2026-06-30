@@ -52,13 +52,11 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
         status: "ok",
       }));
     },
-    limit: 3,
     now: () => new Date(1782848432 * 1000),
     random: () => 0.123,
-    sortFilter: "hot-rank",
   });
 
-  const posts = await source.listLatestPosts("12099");
+  const posts = await source.listLatestPosts("12099", { limit: 3, sort: "smart" });
 
   if (!requestedUrl) {
     throw new Error("Expected request URL to be captured");
@@ -76,6 +74,48 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
   assertEquals(posts[0].id, "1");
 });
 
+Deno.test("createHeyboxTopicSource omits sort_filter for publish time", async () => {
+  let requestedUrl: URL | undefined;
+  const source = createHeyboxTopicSource({
+    apiBaseUrl: "https://api.example.test",
+    fetchFn: (input) => {
+      requestedUrl = new URL(String(input));
+      return Promise.resolve(Response.json({ result: { links: [] }, status: "ok" }));
+    },
+    now: () => new Date(1782848432 * 1000),
+    random: () => 0.123,
+  });
+
+  await source.listLatestPosts("12099", { limit: 10, sort: "publishTime" });
+
+  if (!requestedUrl) {
+    throw new Error("Expected request URL to be captured");
+  }
+
+  assertEquals(requestedUrl.searchParams.has("sort_filter"), false);
+});
+
+Deno.test("createHeyboxTopicSource maps reply time sort to Heybox comment-time", async () => {
+  let requestedUrl: URL | undefined;
+  const source = createHeyboxTopicSource({
+    apiBaseUrl: "https://api.example.test",
+    fetchFn: (input) => {
+      requestedUrl = new URL(String(input));
+      return Promise.resolve(Response.json({ result: { links: [] }, status: "ok" }));
+    },
+    now: () => new Date(1782848432 * 1000),
+    random: () => 0.123,
+  });
+
+  await source.listLatestPosts("12099", { limit: 10, sort: "replyTime" });
+
+  if (!requestedUrl) {
+    throw new Error("Expected request URL to be captured");
+  }
+
+  assertEquals(requestedUrl.searchParams.get("sort_filter"), "comment-time");
+});
+
 Deno.test("createHeyboxTopicSource throws on failed Heybox response", async () => {
   const source = createHeyboxTopicSource({
     fetchFn: () =>
@@ -89,7 +129,7 @@ Deno.test("createHeyboxTopicSource throws on failed Heybox response", async () =
   });
 
   await assertRejects(
-    () => source.listLatestPosts("12099"),
+    () => source.listLatestPosts("12099", { limit: 20, sort: "publishTime" }),
     "Heybox topic feed request failed: illegal request",
   );
 });
