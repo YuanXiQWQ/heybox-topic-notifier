@@ -16,8 +16,7 @@ export function createRoutes(context: AppContext): Hono {
       deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? "local",
       service: "heybox-topic-notifier",
       status: "ok",
-    })
-  );
+    }));
 
   app.get("/", async (c) => {
     const settings = await context.storage.getSettings();

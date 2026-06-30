@@ -3,15 +3,17 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 | **简体中文** | [English](#heybox-topic-notifier) |
-|:------------:|:--------------------------------------:|
+| :----------: | :-------------------------------: |
 
 ---
 
-一个用于监控小黑盒话题帖子的轻量级 Deno 应用。它会按关键词检查帖子标题、正文、评论和回复，并为后续通知流程记录命中结果。
+一个用于监控小黑盒话题帖子的轻量级 Deno
+应用。它会按关键词检查帖子标题、正文、评论和回复，并为后续通知流程记录命中结果。
 
 ## 项目状态
 
-项目仍处于早期 MVP 阶段。当前目标是先搭建一个可本地运行的管理后台，并通过模拟话题数据跑通设置、匹配、历史记录和手动检查流程。
+项目仍处于早期 MVP
+阶段。当前目标是先搭建一个可本地运行的管理后台，并通过模拟话题数据跑通设置、匹配、历史记录和手动检查流程。
 
 真实小黑盒数据抓取和正式通知发送还没有接入；当前通知器仍是占位实现。
 
@@ -57,14 +59,14 @@ deno task check
 
 ## 环境变量
 
-| 变量 | 默认值 | 说明 |
-|:-----|:-------|:-----|
-| `APP_LOCALE` | `zh-CN` | 默认界面语言 |
-| `HEYBOX_TOPIC_ID` | `12099` | 默认监控的话题 ID |
-| `POLL_ENABLED` | `false` | 是否启用定时轮询 |
-| `NOTIFIER_PROVIDER` | `webhook` | 预留通知通道配置 |
-| `NOTIFIER_WEBHOOK_URL` | 空 | 预留 Webhook 地址 |
-| `PORT` | `8000` | 本地服务端口 |
+| 变量                   | 默认值    | 说明              |
+| :--------------------- | :-------- | :---------------- |
+| `APP_LOCALE`           | `zh-CN`   | 默认界面语言      |
+| `HEYBOX_TOPIC_ID`      | `12099`   | 默认监控的话题 ID |
+| `POLL_ENABLED`         | `false`   | 是否启用定时轮询  |
+| `NOTIFIER_PROVIDER`    | `webhook` | 预留通知通道配置  |
+| `NOTIFIER_WEBHOOK_URL` | 空        | 预留 Webhook 地址 |
+| `PORT`                 | `8000`    | 本地服务端口      |
 
 ## 许可证
 
@@ -80,18 +82,24 @@ deno task check
 
 ---
 
-A lightweight Deno app for monitoring posts in Heybox topics. It checks post titles, bodies, comments, and replies against keyword rules, then records matched results for the future notification workflow.
+A lightweight Deno app for monitoring posts in Heybox topics. It checks post titles, bodies,
+comments, and replies against keyword rules, then records matched results for the future
+notification workflow.
 
 ## Status
 
-This project is still in the early MVP stage. The current goal is to provide a locally runnable management dashboard and use mock topic data to validate settings, matching, history, and manual polling.
+This project is still in the early MVP stage. The current goal is to provide a locally runnable
+management dashboard and use mock topic data to validate settings, matching, history, and manual
+polling.
 
-Real Heybox data fetching and production notification delivery are not wired in yet. The notifier is currently a placeholder implementation.
+Real Heybox data fetching and production notification delivery are not wired in yet. The notifier is
+currently a placeholder implementation.
 
 ## Planned MVP
 
 - Dashboard: view poll status, total matches, and the latest match
-- Settings page: configure topic ID, keywords, match locations, UI language, and notification provider
+- Settings page: configure topic ID, keywords, match locations, UI language, and notification
+  provider
 - History page: review matched post records
 - Manual run: trigger one matching pass for local testing
 - Notification test: keep a test entry point for future notification channels
@@ -118,7 +126,8 @@ Then open:
 http://localhost:8000
 ```
 
-To override the defaults, use `.env.example` as a reference and set the corresponding environment variables in your runtime environment.
+To override the defaults, use `.env.example` as a reference and set the corresponding environment
+variables in your runtime environment.
 
 ## Commands
 
@@ -130,14 +139,14 @@ deno task check
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|:---------|:--------|:------------|
-| `APP_LOCALE` | `zh-CN` | Default UI language |
-| `HEYBOX_TOPIC_ID` | `12099` | Default topic ID to monitor |
-| `POLL_ENABLED` | `false` | Enables scheduled polling |
-| `NOTIFIER_PROVIDER` | `webhook` | Reserved notification provider setting |
-| `NOTIFIER_WEBHOOK_URL` | empty | Reserved webhook URL |
-| `PORT` | `8000` | Local server port |
+| Variable               | Default   | Description                            |
+| :--------------------- | :-------- | :------------------------------------- |
+| `APP_LOCALE`           | `zh-CN`   | Default UI language                    |
+| `HEYBOX_TOPIC_ID`      | `12099`   | Default topic ID to monitor            |
+| `POLL_ENABLED`         | `false`   | Enables scheduled polling              |
+| `NOTIFIER_PROVIDER`    | `webhook` | Reserved notification provider setting |
+| `NOTIFIER_WEBHOOK_URL` | empty     | Reserved webhook URL                   |
+| `PORT`                 | `8000`    | Local server port                      |
 
 ## License
 

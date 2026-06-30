@@ -41,4 +41,5 @@ Deno Deploy 项目中按需配置：
 - `NOTIFIER_PROVIDER`
 - `NOTIFIER_WEBHOOK_URL`
 
-当前真实小黑盒数据抓取和正式通知发送还没有接入。除非正在验证定时轮询，测试和正式项目建议先保持 `POLL_ENABLED=false`。
+当前真实小黑盒数据抓取和正式通知发送还没有接入。除非正在验证定时轮询，测试和正式项目建议先保持
+`POLL_ENABLED=false`。
