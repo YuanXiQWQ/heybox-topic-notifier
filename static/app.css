@@ -258,6 +258,76 @@ input[type="color"]::-moz-color-swatch {
   margin: 0;
 }
 
+.table-filter-form {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.table-filter-form input,
+.table-filter-form select {
+  width: auto;
+}
+
+.table-filter-form button {
+  min-height: 36px;
+}
+
+.filter-icon {
+  color: var(--theme-strong);
+  display: inline-flex;
+}
+
+.filter-icon svg {
+  fill: currentColor;
+  height: 18px;
+  width: 18px;
+}
+
+.pagination-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.pagination,
+.page-size-links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pagination a,
+.page-size-links a,
+.pagination-ellipsis {
+  align-items: center;
+  border-radius: 4px;
+  color: var(--theme-strong);
+  display: inline-flex;
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0 8px;
+  text-decoration: none;
+}
+
+.pagination a.is-current,
+.page-size-links a.is-current {
+  background: var(--theme-soft-strong);
+  color: var(--heading);
+  font-weight: 700;
+}
+
+.page-size-links span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .metrics article,
 .settings-list,
 table {

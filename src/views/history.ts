@@ -1,10 +1,12 @@
 import { getMessages } from "../locales/index.ts";
-import type { AppSettings, MatchLocation, MatchRecord } from "../models.ts";
+import type { AppSettings, MatchLocation } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
+import type { MatchTableResult } from "./match_table.ts";
+import { buildMatchTableUrl, compactPages, pageSizeValues } from "./match_table.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
 export function renderHistory(options: {
-  history: MatchRecord[];
+  historyTable: MatchTableResult;
   settings: AppSettings;
 }): string {
   const messages = getMessages(options.settings.locale);
@@ -16,7 +18,7 @@ export function renderHistory(options: {
         <p>${escapeHtml(messages.sourceMock)}</p>
       </div>
     </section>
-    ${renderHistoryTable(options.history, messages)}
+    ${renderHistoryTable(options.historyTable, messages)}
   `;
 
   return renderLayout({
@@ -29,9 +31,10 @@ export function renderHistory(options: {
 }
 
 function renderHistoryTable(
-  records: MatchRecord[],
+  table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
 ): string {
+  const records = table.records;
   const rows = records.map((record) => `
     <tr>
       <td>
@@ -69,15 +72,10 @@ function renderHistoryTable(
     <section class="table-section" aria-labelledby="history-table-heading">
       <div class="section-title-row">
         <h2 id="history-table-heading">${escapeHtml(messages.historyTitle)}</h2>
-        <button
-          type="button"
-          class="icon-button"
-          title="${escapeHtml(messages.filter)}"
-          aria-label="${escapeHtml(messages.filter)}"
-        >${filterIcon()}</button>
+        ${renderTableFilters("/history", table, messages)}
       </div>
       ${
-    records.length === 0 ? `<p>${escapeHtml(messages.emptyHistory)}</p>` : `
+    table.totalRecords === 0 ? `<p>${escapeHtml(messages.emptyHistory)}</p>` : `
         <form method="post" action="/matches/delete">
           <table>
             <thead>
@@ -106,11 +104,72 @@ function renderHistoryTable(
             </thead>
             <tbody>${rows}</tbody>
           </table>
+          ${renderPagination("/history", table, messages)}
         </form>
       `
   }
     </section>
     ${records.length === 0 ? "" : renderHistoryScript()}
+  `;
+}
+
+function renderTableFilters(
+  path: string,
+  table: MatchTableResult,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  return `
+    <form class="table-filter-form" method="get" action="${path}">
+      <span class="filter-icon" aria-hidden="true">${filterIcon()}</span>
+      <select name="range">
+        ${option("all", table.range, messages.filterAll)}
+        ${option("hour", table.range, messages.filterHour)}
+        ${option("day", table.range, messages.filterDay)}
+        ${option("week", table.range, messages.filterWeek)}
+        ${option("custom", table.range, messages.filterCustom)}
+      </select>
+      <input type="datetime-local" name="from" value="${escapeHtml(table.from)}" aria-label="${
+    escapeHtml(messages.filterFrom)
+  }">
+      <input type="datetime-local" name="to" value="${escapeHtml(table.to)}" aria-label="${
+    escapeHtml(messages.filterTo)
+  }">
+      <input type="hidden" name="pageSize" value="${table.pageSize}">
+      <button type="submit" class="secondary">${escapeHtml(messages.filter)}</button>
+    </form>
+  `;
+}
+
+function renderPagination(
+  path: string,
+  table: MatchTableResult,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const pageLinks = compactPages(table.page, table.totalPages).map((page) => {
+    if (page === "...") {
+      return `<span class="pagination-ellipsis">...</span>`;
+    }
+
+    const href = buildMatchTableUrl(path, table, { page });
+    const isCurrent = page === table.page;
+    return `<a class="${isCurrent ? "is-current" : ""}" href="${escapeHtml(href)}">${page}</a>`;
+  }).join("");
+  const pageSizeLinks = pageSizeValues().map((pageSize) => {
+    const href = buildMatchTableUrl(path, table, { page: 1, pageSize });
+    const label = pageSize === "all" ? messages.allRows : String(pageSize);
+    return `<a class="${pageSize === table.pageSize ? "is-current" : ""}" href="${
+      escapeHtml(href)
+    }">${escapeHtml(label)}</a>`;
+  }).join("");
+
+  return `
+    <div class="pagination-row">
+      <nav class="pagination" aria-label="pagination">${pageLinks}</nav>
+      <div class="page-size-links">
+        <span>${escapeHtml(messages.pageSize)}</span>
+        ${pageSizeLinks}
+      </div>
+    </div>
   `;
 }
 
@@ -135,6 +194,12 @@ function locationLabel(
 function truncateText(value: string, maxLength = 80): string {
   const text = value.trim().replace(/\s+/g, " ");
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function option(value: string, current: string, label: string): string {
+  return `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${
+    escapeHtml(label)
+  }</option>`;
 }
 
 function trashIcon(): string {

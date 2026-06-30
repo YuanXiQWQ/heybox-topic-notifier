@@ -4,6 +4,7 @@ import type { AppSettings, KeywordRule, MatchLocation, PollSort, TopicRule } fro
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
+import { applyMatchTableQuery, parseMatchTableQuery } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
@@ -22,7 +23,11 @@ export function createRoutes(context: AppContext): Hono {
     const settings = await context.storage.getSettings();
     const state = await context.storage.getAppState();
     const pendingMatches = await context.storage.listPendingMatches();
-    return c.html(renderDashboard({ pendingMatches, settings, state }));
+    const pendingTable = applyMatchTableQuery(
+      pendingMatches,
+      parseMatchTableQuery(new URL(c.req.url).searchParams),
+    );
+    return c.html(renderDashboard({ pendingTable, settings, state }));
   });
 
   app.get("/settings", async (c) => {
@@ -43,7 +48,11 @@ export function createRoutes(context: AppContext): Hono {
   app.get("/history", async (c) => {
     const settings = await context.storage.getSettings();
     const history = await context.storage.listHistory();
-    return c.html(renderHistory({ history, settings }));
+    const historyTable = applyMatchTableQuery(
+      history,
+      parseMatchTableQuery(new URL(c.req.url).searchParams),
+    );
+    return c.html(renderHistory({ historyTable, settings }));
   });
 
   app.post("/run-now", async (c) => {
@@ -58,7 +67,11 @@ export function createRoutes(context: AppContext): Hono {
 
   app.post("/matches/complete", async (c) => {
     const form = await c.req.parseBody();
-    await context.storage.completeMatches(formValues(form, "matchId").map(String));
+    const ids = formValues(form, "matchId").map(String);
+    const matchIds = ids.length > 0
+      ? ids
+      : (await context.storage.listPendingMatches()).map((record) => record.id);
+    await context.storage.completeMatches(matchIds);
     return c.redirect("/");
   });
 
