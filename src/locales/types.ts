@@ -20,7 +20,10 @@ export type Messages = {
   navDashboard: string;
   navHistory: string;
   navSettings: string;
+  notificationDisabled: string;
+  notificationEmail: string;
   notificationProvider: string;
+  notificationWebhook: string;
   globalSettings: string;
   postSettings: string;
   runNow: string;

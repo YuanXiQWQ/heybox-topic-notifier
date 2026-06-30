@@ -1,4 +1,5 @@
 import { getMessages } from "../locales/index.ts";
+import { languageOptions } from "../locales/languages.ts";
 import type { AppSettings, MatchLocation } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 
@@ -35,9 +36,15 @@ export function renderSettings(options: {
             <dt>${escapeHtml(messages.notificationProvider)}</dt>
             <dd>
               <select name="notificationProvider">
-                ${option("webhook", options.settings.notificationProvider, "webhook")}
-                ${option("email", options.settings.notificationProvider, "email")}
-                ${option("disabled", options.settings.notificationProvider, "disabled")}
+                ${
+    option("webhook", options.settings.notificationProvider, messages.notificationWebhook)
+  }
+                ${
+    option("email", options.settings.notificationProvider, messages.notificationEmail)
+  }
+                ${
+    option("disabled", options.settings.notificationProvider, messages.notificationDisabled)
+  }
               </select>
             </dd>
           </div>
@@ -45,8 +52,11 @@ export function renderSettings(options: {
             <dt>${escapeHtml(messages.locale)}</dt>
             <dd>
               <select name="locale">
-                ${option("zh-CN", options.settings.locale, "zh-CN")}
-                ${option("en", options.settings.locale, "en")}
+                ${
+    languageOptions.map((language) =>
+      option(language.code, options.settings.locale, language.label)
+    ).join("")
+  }
               </select>
             </dd>
           </div>
