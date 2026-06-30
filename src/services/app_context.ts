@@ -17,7 +17,10 @@ export type AppContext = ReturnType<typeof createAppContext>;
 export function createAppContext() {
   const config: AppConfig = {
     defaultSettings: {
-      keywords: ["求助", "怎么", "卡住", "打不开"],
+      keywordRules: ["求助", "怎么", "卡住", "打不开"].map((keyword) => ({
+        keyword,
+        locations: ["title", "body", "comments", "replies"],
+      })),
       locale: normalizeLocale(Deno.env.get("APP_LOCALE")),
       notificationProvider: "webhook",
       topicId: Deno.env.get("HEYBOX_TOPIC_ID") ?? "12099",

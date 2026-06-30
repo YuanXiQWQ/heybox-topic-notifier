@@ -7,6 +7,9 @@ export function createMockTopicSource() {
 
       return [
         {
+          body: "这里试了几个路线都不太行，想问一下这里的路线应该怎么走。",
+          commentReplies: ["可以试试从右侧起跳。"],
+          comments: ["这个点位确实容易卡住。"],
           excerpt: "想问一下这里的路线应该怎么走。",
           id: "mock-001",
           publishedAt: new Date().toISOString(),
@@ -14,6 +17,9 @@ export function createMockTopicSource() {
           url: "https://www.xiaoheihe.cn/app/topic/link/12099",
         },
         {
+          body: "今天整理了一条新路线，可能能节省几秒。",
+          commentReplies: ["谢谢分享。"],
+          comments: ["看起来很顺。"],
           excerpt: "没有触发默认关键词，用来验证过滤逻辑。",
           id: "mock-002",
           publishedAt: new Date().toISOString(),

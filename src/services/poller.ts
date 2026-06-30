@@ -18,17 +18,18 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
       const posts = await source.listLatestPosts(settings.topicId);
 
       for (const post of posts) {
-        const keyword = matcher.findKeyword(post, settings);
+        const match = matcher.findMatch(post, settings);
         const alreadySeen = await storage.hasSeenPost(post.id);
 
-        if (!keyword || alreadySeen) {
+        if (!match || alreadySeen) {
           continue;
         }
 
         const matchedAt = new Date().toISOString();
         const record: MatchRecord = {
-          id: `${post.id}:${keyword}`,
-          keyword,
+          id: `${post.id}:${match.keyword}:${match.location}`,
+          keyword: match.keyword,
+          location: match.location,
           matchedAt,
           post,
         };

@@ -29,8 +29,13 @@ export function createKvStorage(defaultSettings: AppSettings) {
   return {
     async getSettings(): Promise<AppSettings> {
       const store = await kv();
-      const entry = await store.get<AppSettings>(keys.settings);
-      return entry.value ?? defaultSettings;
+      const entry = await store.get<Partial<AppSettings> & { keywords?: string[] }>(keys.settings);
+      return normalizeSettings(entry.value, defaultSettings);
+    },
+
+    async saveSettings(settings: AppSettings): Promise<void> {
+      const store = await kv();
+      await store.set(keys.settings, settings);
     },
 
     async getAppState(): Promise<AppState> {
@@ -65,5 +70,31 @@ export function createKvStorage(defaultSettings: AppSettings) {
       const store = await kv();
       await store.set(keys.state, { lastPollAt: value });
     },
+  };
+}
+
+function normalizeSettings(
+  value: (Partial<AppSettings> & { keywords?: string[] }) | null,
+  defaultSettings: AppSettings,
+): AppSettings {
+  if (!value) {
+    return defaultSettings;
+  }
+
+  if (!value.keywordRules && value.keywords) {
+    return {
+      ...defaultSettings,
+      ...value,
+      keywordRules: value.keywords.map((keyword) => ({
+        keyword,
+        locations: ["title", "body", "comments", "replies"],
+      })),
+    };
+  }
+
+  return {
+    ...defaultSettings,
+    ...value,
+    keywordRules: value.keywordRules ?? defaultSettings.keywordRules,
   };
 }
