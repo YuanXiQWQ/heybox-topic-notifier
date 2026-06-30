@@ -104,6 +104,11 @@ select {
   width: 100%;
 }
 
+.settings-list > div > dd > input,
+.settings-list > div > dd > select {
+  max-width: 360px;
+}
+
 input[type="checkbox"] {
   accent-color: #176b87;
   min-height: 18px;
@@ -155,6 +160,7 @@ dt {
 }
 
 .settings-list > div {
+  align-items: center;
   border-bottom: 1px solid #e8edf2;
   background: #f4f7fa;
   display: grid;
@@ -187,8 +193,14 @@ dd {
 
 .keyword-settings-row {
   align-items: center;
+  column-gap: 12px;
   position: relative;
+  row-gap: 0;
   transition: background-color 180ms ease;
+}
+
+.settings-list > .keyword-settings-row {
+  row-gap: 0;
 }
 
 .keyword-settings-row.is-keyword-open {
@@ -232,7 +244,7 @@ dd {
   display: grid;
   grid-column: 1 / -1;
   grid-template-rows: 0fr;
-  margin: 14px -22px -18px;
+  margin: 0 -22px 0;
   min-width: 0;
   opacity: 0;
   overflow: hidden;
@@ -246,6 +258,7 @@ dd {
 .keyword-settings-row.is-keyword-open .keyword-rules-panel {
   border-top: 1px solid #e8edf2;
   grid-template-rows: 1fr;
+  margin: 14px -22px -18px;
   opacity: 1;
   transform: translateY(0);
 }
@@ -302,7 +315,19 @@ dd {
 }
 
 .keyword-rule-head > * {
+  justify-content: center;
+  text-align: center;
   overflow-wrap: anywhere;
+}
+
+.keyword-rule-head > div:nth-child(2) {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.keyword-rule-head > div:nth-child(3) {
+  justify-content: center;
+  text-align: center;
 }
 
 .checkbox-cell {
