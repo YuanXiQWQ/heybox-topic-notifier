@@ -11,6 +11,13 @@ const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"]
 export function createRoutes(context: AppContext): Hono {
   const app = new Hono();
 
+  app.get("/healthz", (c) =>
+    c.json({
+      deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? "local",
+      service: "heybox-topic-notifier",
+      status: "ok",
+    }));
+
   app.get("/", async (c) => {
     const settings = await context.storage.getSettings();
     const state = await context.storage.getAppState();

@@ -1,5 +1,6 @@
-import { settingsFromForm } from "./routes.ts";
+import { createRoutes, settingsFromForm } from "./routes.ts";
 import type { AppSettings } from "./models.ts";
+import type { AppContext } from "./services/app_context.ts";
 
 const currentSettings: AppSettings = {
   activeKeywordTarget: "common",
@@ -25,6 +26,16 @@ const currentSettings: AppSettings = {
     },
   ],
 };
+
+Deno.test("health check returns deployment status without storage access", async () => {
+  const app = createRoutes({} as AppContext);
+  const response = await app.request("/healthz");
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(body.status, "ok");
+  assertEquals(body.service, "heybox-topic-notifier");
+});
 
 Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => {
   const settings = settingsFromForm({
