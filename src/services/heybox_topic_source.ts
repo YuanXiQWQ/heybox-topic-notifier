@@ -135,7 +135,7 @@ function requestLimit(limit: number, sort: PollSort): number {
   return sort === "publishTime" ? Math.max(limit, publishTimeFetchLimit) : limit;
 }
 
-function heyboxSortFilter(sort: PollSort): string {
+export function heyboxSortFilter(sort: PollSort): string {
   switch (sort) {
     case "smart":
       return "hot-rank";

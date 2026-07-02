@@ -2,6 +2,7 @@ import { normalizeLocale } from "../locales/index.ts";
 import type { AppSettings, KeywordRule, PollSort } from "../models.ts";
 import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
+import { createHeyboxHblogTopicSource } from "./heybox_hblog_topic_source.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import { createMockTopicSource } from "./mock_topic_source.ts";
 import { createNotifier } from "./notifier.ts";
@@ -11,7 +12,7 @@ export type AppConfig = {
   defaultSettings: AppSettings;
   pollEnabled: boolean;
   port: number;
-  topicSource: "heybox" | "mock";
+  topicSource: "heybox" | "heybox-hblog" | "mock";
 };
 
 export type AppContext = ReturnType<typeof createAppContext>;
@@ -49,7 +50,7 @@ export function createAppContext() {
     },
     pollEnabled: Deno.env.get("POLL_ENABLED") === "true",
     port: Number(Deno.env.get("PORT") ?? "8000"),
-    topicSource: Deno.env.get("TOPIC_SOURCE") === "heybox" ? "heybox" : "mock",
+    topicSource: topicSourceFromEnv(),
   };
 
   const storage = createKvStorage(config.defaultSettings);
@@ -61,6 +62,8 @@ export function createAppContext() {
       deviceId: Deno.env.get("HEYBOX_DEVICE_ID") ?? undefined,
       userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
     })
+    : config.topicSource === "heybox-hblog"
+    ? createHeyboxHblogTopicSource({ logFilePath: requiredEnv("HEYBOX_HBLOG_NET_LOG") })
     : createMockTopicSource();
   const poller = createPoller({ matcher, notifier, source, storage });
 
@@ -72,6 +75,19 @@ export function createAppContext() {
     source,
     storage,
   };
+}
+
+function topicSourceFromEnv(): AppConfig["topicSource"] {
+  const value = Deno.env.get("TOPIC_SOURCE");
+  return value === "heybox" || value === "heybox-hblog" ? value : "mock";
+}
+
+function requiredEnv(name: string): string {
+  const value = Deno.env.get(name)?.trim();
+  if (!value) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
 }
 
 function positiveIntegerFromEnv(name: string, fallback: number): number {
