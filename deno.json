@@ -3,6 +3,9 @@
     "dev": "deno run --allow-net --allow-env --allow-read --unstable-kv --watch src/main.ts",
     "start": "deno run --allow-net --allow-env --allow-read --unstable-kv src/main.ts",
     "check": "deno fmt --check && deno lint && deno check src/main.ts && deno test --allow-env --unstable-kv",
+    "android-worker-feed": "deno run --allow-run --allow-env --allow-read --allow-write scripts/android_worker_feed.ts",
+    "hblog-worker-feed": "deno run --allow-env --allow-read --allow-write scripts/hblog_worker_feed.ts",
+    "validate-worker-feed-file": "deno run --allow-env --allow-read scripts/validate_worker_feed_file.ts",
     "verify-worker-feed": "deno run --allow-net --allow-env scripts/verify_worker_feed.ts"
   },
   "imports": {

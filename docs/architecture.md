@@ -86,3 +86,18 @@ The repository includes a free-channel verification workflow:
 This workflow verifies that a candidate feed worker is producing the contract consumed by the Deno
 service. It does not claim that the candidate is production-ready until the returned `publishTime`
 feed has been proven to come from the App-side publish-time order.
+
+## Android Worker Candidate
+
+The Android worker candidate is script-first:
+
+- `deno task android-worker-feed` installs or launches Xiaoheihe through `adb`.
+- It waits for the App to enter or refresh the target topic page.
+- It reads the App hblog net log from `/data/user/0/com.max.xiaoheihe/cache/hblog/content/net/log`.
+- It extracts the latest matching `/bbs/app/topic/feeds` response for the requested `POLL_SORT`.
+- It writes the same `{ posts: [...] }` JSON consumed by `TOPIC_SOURCE=worker`.
+
+The GitHub Actions workflow `.github/workflows/android-feed-worker.yml` is a validation candidate,
+not a promise that GitHub-hosted Android emulation is stable enough for production. The local APK
+observed during development is arm64-only, so emulator architecture compatibility is part of the
+worker acceptance test.

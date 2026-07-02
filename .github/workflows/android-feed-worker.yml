@@ -1,0 +1,70 @@
+name: Android feed worker
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  android-feed-worker:
+    runs-on: ubuntu-latest
+    env:
+      HEYBOX_ANDROID_WAIT_MS: ${{ vars.HEYBOX_ANDROID_WAIT_MS || '45000' }}
+      HEYBOX_APK_URL: ${{ secrets.HEYBOX_APK_URL }}
+      HEYBOX_DEEPLINK_URL: ${{ vars.HEYBOX_DEEPLINK_URL }}
+      HEYBOX_TOPIC_ID: ${{ vars.HEYBOX_TOPIC_ID || '12099' }}
+      POLL_POST_LIMIT: ${{ vars.POLL_POST_LIMIT || '20' }}
+      POLL_SORT: ${{ vars.POLL_SORT || 'publishTime' }}
+      WORKER_FEED_OUTPUT: worker-feed.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Skip until APK URL is configured
+        if: env.HEYBOX_APK_URL == ''
+        run: |
+          echo "Set secret HEYBOX_APK_URL to enable Android feed worker validation."
+
+      - name: Download Heybox APK
+        if: env.HEYBOX_APK_URL != ''
+        run: |
+          curl --fail --location --show-error "$HEYBOX_APK_URL" --output heybox.apk
+
+      - name: Enable KVM group permissions
+        if: env.HEYBOX_APK_URL != ''
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Android feed worker
+        if: env.HEYBOX_APK_URL != ''
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: arm64-v8a
+          profile: pixel_6
+          script: |
+            deno task android-worker-feed
+        env:
+          HEYBOX_APK_PATH: heybox.apk
+
+      - name: Verify generated worker feed
+        if: env.HEYBOX_APK_URL != ''
+        run: deno task validate-worker-feed-file
+
+      - name: Upload worker feed artifact
+        if: env.HEYBOX_APK_URL != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: heybox-worker-feed
+          path: worker-feed.json
+          retention-days: 7

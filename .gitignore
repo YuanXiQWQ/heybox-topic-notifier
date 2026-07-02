@@ -4,6 +4,7 @@
 .DS_Store
 Thumbs.db
 coverage/
+worker-feed.json
 .vscode/
 .idea/
 
