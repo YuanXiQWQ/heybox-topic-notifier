@@ -101,3 +101,8 @@ The GitHub Actions workflow `.github/workflows/android-feed-worker.yml` is a val
 not a promise that GitHub-hosted Android emulation is stable enough for production. The local APK
 observed during development is arm64-only, so emulator architecture compatibility is part of the
 worker acceptance test.
+
+During local validation, LDPlayer can still be useful for manual UI and hblog checks, but it is not
+part of the production design. If a local x86/native-bridge emulator cannot keep the current App
+version running, use the saved hblog parser tests and the arm64 GitHub Actions worker candidate as
+the next validation path.

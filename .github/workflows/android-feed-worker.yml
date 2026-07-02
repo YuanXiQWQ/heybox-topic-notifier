@@ -12,6 +12,8 @@ jobs:
   android-feed-worker:
     runs-on: ubuntu-latest
     env:
+      HEYBOX_ADB_ROOT: ${{ vars.HEYBOX_ADB_ROOT || 'true' }}
+      HEYBOX_ANDROID_NAVIGATION: ${{ vars.HEYBOX_ANDROID_NAVIGATION }}
       HEYBOX_ANDROID_WAIT_MS: ${{ vars.HEYBOX_ANDROID_WAIT_MS || '45000' }}
       HEYBOX_APK_URL: ${{ secrets.HEYBOX_APK_URL }}
       HEYBOX_DEEPLINK_URL: ${{ vars.HEYBOX_DEEPLINK_URL }}
@@ -19,6 +21,7 @@ jobs:
       POLL_POST_LIMIT: ${{ vars.POLL_POST_LIMIT || '20' }}
       POLL_SORT: ${{ vars.POLL_SORT || 'publishTime' }}
       WORKER_FEED_OUTPUT: worker-feed.json
+      WORKER_FEED_DEBUG_OUTPUT: android-worker-debug.txt
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -62,9 +65,11 @@ jobs:
         run: deno task validate-worker-feed-file
 
       - name: Upload worker feed artifact
-        if: env.HEYBOX_APK_URL != ''
+        if: env.HEYBOX_APK_URL != '' && always()
         uses: actions/upload-artifact@v4
         with:
           name: heybox-worker-feed
-          path: worker-feed.json
+          path: |
+            worker-feed.json
+            android-worker-debug.txt
           retention-days: 7

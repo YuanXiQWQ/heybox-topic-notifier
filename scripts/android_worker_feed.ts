@@ -3,13 +3,17 @@ import { parseHeyboxHblogTopicPosts } from "../src/services/heybox_hblog_topic_s
 
 const config = {
   adb: Deno.env.get("ANDROID_ADB")?.trim() || "adb",
+  adbRoot: Deno.env.get("HEYBOX_ADB_ROOT") === "true",
   apkPath: Deno.env.get("HEYBOX_APK_PATH")?.trim(),
   clearApp: Deno.env.get("HEYBOX_CLEAR_APP") === "true",
   deepLinkUrl: Deno.env.get("HEYBOX_DEEPLINK_URL")?.trim(),
   hblogLogPath: Deno.env.get("HEYBOX_ANDROID_HBLOG_LOG")?.trim() ||
     "/data/user/0/com.max.xiaoheihe/cache/hblog/content/net/log",
   launchActivity: Deno.env.get("HEYBOX_LAUNCH_ACTIVITY")?.trim() ||
-    "com.max.xiaoheihe/.SplashActivity",
+    "com.max.xiaoheihe/com.max.xiaoheihe.SplashActivity",
+  debugOutputPath: Deno.env.get("WORKER_FEED_DEBUG_OUTPUT")?.trim() ||
+    "android-worker-debug.txt",
+  navigationScript: Deno.env.get("HEYBOX_ANDROID_NAVIGATION")?.trim(),
   outputPath: Deno.env.get("WORKER_FEED_OUTPUT")?.trim() || "worker-feed.json",
   packageName: Deno.env.get("HEYBOX_PACKAGE")?.trim() || "com.max.xiaoheihe",
   postLimit: positiveIntegerFromEnv("POLL_POST_LIMIT", 20),
@@ -18,52 +22,65 @@ const config = {
   waitMs: positiveIntegerFromEnv("HEYBOX_ANDROID_WAIT_MS", 45000),
 };
 
-await adb(["start-server"]);
-await adb(["wait-for-device"]);
-await adbOutput(["root"]);
-await adb(["wait-for-device"]);
-
-if (config.apkPath) {
-  await adb(["install", "-r", config.apkPath]);
+try {
+  await main();
+} catch (error) {
+  throw await withAndroidDebug(error);
 }
 
-if (config.clearApp) {
-  await adb(["shell", "pm", "clear", config.packageName]);
-}
+async function main(): Promise<void> {
+  await adb(["start-server"]);
+  await adb(["wait-for-device"]);
+  if (config.adbRoot) {
+    await adbOutput(["root"]);
+    await adb(["wait-for-device"]);
+  }
 
-await adb(["shell", "am", "force-stop", config.packageName]);
-await launchHeybox();
-await delay(config.waitMs);
+  if (config.apkPath) {
+    await adb(["install", "-r", config.apkPath]);
+  }
 
-const hblog = await readHblog();
-const posts = parseHeyboxHblogTopicPosts(hblog, config.topicId, config.sort).slice(
-  0,
-  config.postLimit,
-);
+  if (config.clearApp) {
+    await adb(["shell", "pm", "clear", config.packageName]);
+  }
 
-if (posts.length === 0) {
-  throw new Error("Android worker feed produced no posts");
-}
+  await adb(["shell", "am", "force-stop", config.packageName]);
+  await launchHeybox();
+  if (config.navigationScript) {
+    await runNavigationScript(config.navigationScript);
+  }
+  await delay(config.waitMs);
 
-const payload = JSON.stringify({ posts }, null, 2) + "\n";
-await Deno.writeTextFile(config.outputPath, payload);
-console.log(
-  JSON.stringify(
-    {
-      firstPost: {
-        id: posts[0].id,
-        publishedAt: posts[0].publishedAt,
-        title: posts[0].title,
+  const hblog = await readHblog();
+  const posts = parseHeyboxHblogTopicPosts(hblog, config.topicId, config.sort).slice(
+    0,
+    config.postLimit,
+  );
+
+  if (posts.length === 0) {
+    throw new Error("Android worker feed produced no posts");
+  }
+
+  const payload = JSON.stringify({ posts }, null, 2) + "\n";
+  await Deno.writeTextFile(config.outputPath, payload);
+  console.log(
+    JSON.stringify(
+      {
+        firstPost: {
+          id: posts[0].id,
+          publishedAt: posts[0].publishedAt,
+          title: posts[0].title,
+        },
+        outputPath: config.outputPath,
+        postCount: posts.length,
+        sort: config.sort,
+        topicId: config.topicId,
       },
-      outputPath: config.outputPath,
-      postCount: posts.length,
-      sort: config.sort,
-      topicId: config.topicId,
-    },
-    null,
-    2,
-  ),
-);
+      null,
+      2,
+    ),
+  );
+}
 
 async function launchHeybox(): Promise<void> {
   if (config.deepLinkUrl) {
@@ -100,6 +117,99 @@ async function readHblog(): Promise<string> {
   }
 
   throw new Error(`Unable to read Heybox hblog net log:\n${errors.join("\n")}`);
+}
+
+async function runNavigationScript(script: string): Promise<void> {
+  for (const rawLine of script.split(/[;\r\n]+/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const [command = "", ...args] = line.split(/\s+/);
+    switch (command) {
+      case "keyevent":
+        await repeat(Number(args[1]) || 1, async () => {
+          await adb(["shell", "input", "keyevent", requiredArg(command, args, 0)]);
+        });
+        break;
+      case "sleep":
+        await delay(Number(requiredArg(command, args, 0)));
+        break;
+      case "swipe":
+        await adb(["shell", "input", "swipe", ...requiredArgs(command, args, 5)]);
+        break;
+      case "tap":
+        await adb(["shell", "input", "tap", ...requiredArgs(command, args, 2)]);
+        break;
+      case "text":
+        await adb(["shell", "input", "text", args.join("%s")]);
+        break;
+      default:
+        throw new Error(`Unsupported Android navigation command: ${command}`);
+    }
+  }
+}
+
+async function withAndroidDebug(error: unknown): Promise<Error> {
+  const message = error instanceof Error ? error.message : String(error);
+  const [activity, hblogResult] = await Promise.all([
+    frontActivity(),
+    adbOutput(["exec-out", "cat", config.hblogLogPath]),
+  ]);
+  const hblog = hblogResult.success ? hblogResult.stdout : "";
+  const debug = [
+    `error=${message}`,
+    `package=${config.packageName}`,
+    `topicId=${config.topicId}`,
+    `sort=${config.sort}`,
+    `activity=${activity || "unknown"}`,
+    `hblogReadable=${hblogResult.success}`,
+    `hblogBytes=${hblog.length}`,
+    "recentTopicFeeds:",
+    ...recentTopicFeedLines(hblog),
+  ].join("\n");
+
+  await Deno.writeTextFile(config.debugOutputPath, debug + "\n");
+  return new Error(`${message}\nAndroid debug written to ${config.debugOutputPath}\n${debug}`);
+}
+
+async function frontActivity(): Promise<string> {
+  const result = await adbOutput(["shell", "dumpsys", "window", "windows"]);
+  if (!result.success) {
+    return result.stderr;
+  }
+  const match = result.stdout.match(/mCurrentFocus=.*? ([^}\s]+)}/) ??
+    result.stdout.match(/mFocusedApp=.*?ActivityRecord\{[^ ]+ [^ ]+ ([^ ]+)/);
+  return match?.[1] ?? "";
+}
+
+function recentTopicFeedLines(hblog: string): string[] {
+  const lines = hblog.split(/\r?\n/).filter((line) =>
+    line.includes("/bbs/app/topic/feeds") || line.includes("topic_id")
+  );
+  return lines.slice(-12).map((line) => line.slice(0, 1000));
+}
+
+async function repeat(count: number, action: () => Promise<void>): Promise<void> {
+  for (let index = 0; index < count; index += 1) {
+    await action();
+  }
+}
+
+function requiredArg(command: string, args: string[], index: number): string {
+  const value = args[index];
+  if (!value) {
+    throw new Error(`${command} requires argument ${index + 1}`);
+  }
+  return value;
+}
+
+function requiredArgs(command: string, args: string[], count: number): string[] {
+  if (args.length < count) {
+    throw new Error(`${command} requires ${count} arguments`);
+  }
+  return args.slice(0, count);
 }
 
 async function adb(args: string[]): Promise<void> {
