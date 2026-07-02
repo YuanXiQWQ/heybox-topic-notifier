@@ -30,6 +30,16 @@ GET {TOPIC_WORKER_URL}?topic_id={topic_id}&limit={limit}&sort={publishTime|smart
 Authorization: Bearer {TOPIC_WORKER_TOKEN}
 ```
 
+`TOPIC_WORKER_URL` may also be a static URL template:
+
+```text
+https://example.test/feeds/{topic_id}/{sort}-{limit}.json
+```
+
+When the URL contains `{topic_id}`, `{sort}`, or `{limit}`, the main service replaces those tokens
+instead of appending query parameters. This lets a scheduled free worker publish normalized JSON to
+a static host or raw file URL without running a permanent HTTP service.
+
 The worker returns:
 
 ```json
@@ -62,3 +72,17 @@ The likely free split is:
 Long-running cloud Android emulators usually need paid or fragile infrastructure. GitHub Actions can
 run scheduled jobs and Android emulators for experiments, but it should be treated as a worker
 candidate to validate rather than assumed as a stable always-on Android host.
+
+## Worker Verification
+
+The repository includes a free-channel verification workflow:
+
+- `.github/workflows/verify-worker-feed.yml` runs on a schedule or manual dispatch.
+- It reads repository variables `TOPIC_WORKER_URL`, `HEYBOX_TOPIC_ID`, `POLL_POST_LIMIT`, and
+  `POLL_SORT`.
+- It reads secret `TOPIC_WORKER_TOKEN` when the worker needs bearer authentication.
+- It runs `deno task verify-worker-feed` and fails if the worker returns no valid normalized posts.
+
+This workflow verifies that a candidate feed worker is producing the contract consumed by the Deno
+service. It does not claim that the candidate is production-ready until the returned `publishTime`
+feed has been proven to come from the App-side publish-time order.

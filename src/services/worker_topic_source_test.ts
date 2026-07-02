@@ -1,4 +1,8 @@
-import { createWorkerTopicSource, parseWorkerTopicPosts } from "./worker_topic_source.ts";
+import {
+  createWorkerTopicSource,
+  parseWorkerTopicPosts,
+  workerFeedUrl,
+} from "./worker_topic_source.ts";
 
 Deno.test("createWorkerTopicSource requests worker feed", async () => {
   let requestedUrl: URL | undefined;
@@ -51,6 +55,16 @@ Deno.test("parseWorkerTopicPosts filters invalid records", () => {
   });
 
   assertEquals(posts.map((post) => post.id), ["ok"]);
+});
+
+Deno.test("workerFeedUrl supports static feed URL templates", () => {
+  const url = workerFeedUrl(
+    "https://static.example.test/feeds/{topic_id}/{sort}-{limit}.json",
+    "12099",
+    { limit: 20, sort: "publishTime" },
+  );
+
+  assertEquals(url.href, "https://static.example.test/feeds/12099/publishTime-20.json");
 });
 
 Deno.test("createWorkerTopicSource throws on HTTP failure", async () => {

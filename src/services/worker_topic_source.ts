@@ -12,10 +12,7 @@ export function createWorkerTopicSource(config: WorkerTopicSourceConfig): TopicS
 
   return {
     async listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
-      const url = new URL(config.workerUrl);
-      url.searchParams.set("topic_id", topicId);
-      url.searchParams.set("limit", String(options.limit));
-      url.searchParams.set("sort", options.sort);
+      const url = workerFeedUrl(config.workerUrl, topicId, options);
 
       const response = await fetchFn(url, {
         headers: {
@@ -32,6 +29,31 @@ export function createWorkerTopicSource(config: WorkerTopicSourceConfig): TopicS
       return parseWorkerTopicPosts(payload);
     },
   };
+}
+
+export function workerFeedUrl(
+  workerUrl: string,
+  topicId: string,
+  options: TopicListOptions,
+): URL {
+  const replacements: Record<string, string> = {
+    limit: String(options.limit),
+    sort: options.sort,
+    topic_id: topicId,
+  };
+  const templatedUrl = Object.entries(replacements).reduce(
+    (url, [key, value]) => url.replaceAll(`{${key}}`, encodeURIComponent(value)),
+    workerUrl,
+  );
+  const url = new URL(templatedUrl);
+
+  if (templatedUrl === workerUrl) {
+    url.searchParams.set("topic_id", topicId);
+    url.searchParams.set("limit", String(options.limit));
+    url.searchParams.set("sort", options.sort);
+  }
+
+  return url;
 }
 
 export function parseWorkerTopicPosts(payload: unknown): TopicPost[] {

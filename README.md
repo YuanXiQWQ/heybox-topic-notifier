@@ -55,6 +55,7 @@ http://localhost:8000
 deno task dev
 deno task start
 deno task check
+deno task verify-worker-feed
 ```
 
 ## 环境变量
@@ -153,7 +154,7 @@ deno task check
 | `APP_LOCALE`           | `zh-CN`   | Default UI language                                                   |
 | `HEYBOX_TOPIC_ID`      | `12099`   | Default topic ID to monitor                                           |
 | `TOPIC_SOURCE`         | `mock`    | Topic source: `mock`, `heybox`, `heybox-hblog`, or `worker`           |
-| `TOPIC_WORKER_URL`     | empty     | Reserved cloud feed worker URL, required when `TOPIC_SOURCE=worker`   |
+| `TOPIC_WORKER_URL`     | empty     | Cloud feed worker URL or `{topic_id}`/`{sort}`/`{limit}` template     |
 | `TOPIC_WORKER_TOKEN`   | empty     | Reserved cloud feed worker Bearer token                               |
 | `HEYBOX_HBLOG_NET_LOG` | empty     | Local development hblog net log path                                  |
 | `HEYBOX_DEVICE_ID`     | empty     | Heybox web device ID, generated on startup when empty                 |
