@@ -82,6 +82,7 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
 
       const payload = await response.json();
       assertHeyboxOk(payload);
+      assertRequestedSortApplied(payload, options.sort);
       const posts = parseHeyboxTopicPosts(payload, topicId);
       return options.sort === "publishTime"
         ? posts.toSorted(comparePostPublishedAtDesc).slice(0, limit)
@@ -134,14 +135,32 @@ function requestLimit(limit: number, sort: PollSort): number {
   return sort === "publishTime" ? Math.max(limit, publishTimeFetchLimit) : limit;
 }
 
-function heyboxSortFilter(sort: PollSort): string | undefined {
+function heyboxSortFilter(sort: PollSort): string {
   switch (sort) {
     case "smart":
       return "hot-rank";
     case "replyTime":
-      return "comment-time";
+      return "reply";
     case "publishTime":
-      return undefined;
+      return "create";
+  }
+}
+
+function assertRequestedSortApplied(payload: unknown, sort: PollSort): void {
+  const expectedSortFilter = heyboxSortFilter(sort);
+  const sortFilters = arrayAt(payload, ["result", "sort_filter"]);
+  if (sortFilters.length === 0) {
+    return;
+  }
+
+  const availableKeys = sortFilters
+    .map((filter) => stringField(asRecord(filter), ["key", "value"]))
+    .filter((key) => key.length > 0);
+
+  if (availableKeys.length > 0 && !availableKeys.includes(expectedSortFilter)) {
+    throw new Error(
+      `Heybox topic feed did not apply requested sort_filter=${expectedSortFilter}`,
+    );
   }
 }
 

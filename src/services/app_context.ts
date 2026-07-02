@@ -88,8 +88,11 @@ function pollSortFromEnv(): PollSort {
   switch (Deno.env.get("HEYBOX_SORT_FILTER")) {
     case "hot-rank":
       return "smart";
+    case "reply":
     case "comment-time":
       return "replyTime";
+    case "create":
+      return "publishTime";
     default:
       return "publishTime";
   }
