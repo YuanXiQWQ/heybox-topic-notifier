@@ -7,12 +7,13 @@ import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import { createMockTopicSource } from "./mock_topic_source.ts";
 import { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
+import { createWorkerTopicSource } from "./worker_topic_source.ts";
 
 export type AppConfig = {
   defaultSettings: AppSettings;
   pollEnabled: boolean;
   port: number;
-  topicSource: "heybox" | "heybox-hblog" | "mock";
+  topicSource: "heybox" | "heybox-hblog" | "mock" | "worker";
 };
 
 export type AppContext = ReturnType<typeof createAppContext>;
@@ -64,6 +65,11 @@ export function createAppContext() {
     })
     : config.topicSource === "heybox-hblog"
     ? createHeyboxHblogTopicSource({ logFilePath: requiredEnv("HEYBOX_HBLOG_NET_LOG") })
+    : config.topicSource === "worker"
+    ? createWorkerTopicSource({
+      token: Deno.env.get("TOPIC_WORKER_TOKEN") ?? undefined,
+      workerUrl: requiredEnv("TOPIC_WORKER_URL"),
+    })
     : createMockTopicSource();
   const poller = createPoller({ matcher, notifier, source, storage });
 
@@ -79,7 +85,7 @@ export function createAppContext() {
 
 function topicSourceFromEnv(): AppConfig["topicSource"] {
   const value = Deno.env.get("TOPIC_SOURCE");
-  return value === "heybox" || value === "heybox-hblog" ? value : "mock";
+  return value === "heybox" || value === "heybox-hblog" || value === "worker" ? value : "mock";
 }
 
 function requiredEnv(name: string): string {
