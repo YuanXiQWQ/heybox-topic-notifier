@@ -12,8 +12,10 @@ jobs:
   android-feed-worker:
     runs-on: ubuntu-latest
     env:
+      ANDROID_SERIAL: ${{ vars.ANDROID_SERIAL }}
       HEYBOX_ADB_ROOT: ${{ vars.HEYBOX_ADB_ROOT || 'true' }}
       HEYBOX_ANDROID_NAVIGATION: ${{ vars.HEYBOX_ANDROID_NAVIGATION }}
+      HEYBOX_ANDROID_PRELAUNCH_MS: ${{ vars.HEYBOX_ANDROID_PRELAUNCH_MS || '0' }}
       HEYBOX_ANDROID_WAIT_MS: ${{ vars.HEYBOX_ANDROID_WAIT_MS || '45000' }}
       HEYBOX_APK_URL: ${{ secrets.HEYBOX_APK_URL }}
       HEYBOX_DEEPLINK_URL: ${{ vars.HEYBOX_DEEPLINK_URL }}

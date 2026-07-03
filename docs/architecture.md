@@ -97,6 +97,22 @@ The Android worker candidate is script-first:
 - It extracts the latest matching `/bbs/app/topic/feeds` response for the requested `POLL_SORT`.
 - It writes the same `{ posts: [...] }` JSON consumed by `TOPIC_SOURCE=worker`.
 
+For local multi-device ADB setups, set `ANDROID_SERIAL` or `ANDROID_ADB_SERIAL` so the script does
+not fail with "more than one device/emulator". If cold deep links only open `RouterActivity` and
+return to the launcher, set `HEYBOX_ANDROID_PRELAUNCH_MS` to start `HEYBOX_LAUNCH_ACTIVITY` first,
+wait for App initialization, and then dispatch `HEYBOX_DEEPLINK_URL`.
+
+`HEYBOX_ANDROID_NAVIGATION` supports `sleep`, raw-coordinate `tap`, `tap_id`, `tap_text`, `swipe`,
+`keyevent`, and `text` commands. Prefer `tap_id` and `tap_text` for stable validation, for example:
+
+```text
+sleep 6000; tap_id fbv_sort; sleep 1500; tap_text 发布时间
+```
+
+That sequence opens the topic sort menu and selects the App-side publish-time feed. The resulting
+hblog request must include `sort_filter=create`; otherwise the worker must fail instead of locally
+reordering smart-sort posts.
+
 The GitHub Actions workflow `.github/workflows/android-feed-worker.yml` is a validation candidate,
 not a promise that GitHub-hosted Android emulation is stable enough for production. The local APK
 observed during development is arm64-only, so emulator architecture compatibility is part of the

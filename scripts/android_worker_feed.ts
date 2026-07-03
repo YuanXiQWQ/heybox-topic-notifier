@@ -4,6 +4,8 @@ import { parseHeyboxHblogTopicPosts } from "../src/services/heybox_hblog_topic_s
 const config = {
   adb: Deno.env.get("ANDROID_ADB")?.trim() || "adb",
   adbRoot: Deno.env.get("HEYBOX_ADB_ROOT") === "true",
+  adbSerial: Deno.env.get("ANDROID_SERIAL")?.trim() ||
+    Deno.env.get("ANDROID_ADB_SERIAL")?.trim(),
   apkPath: Deno.env.get("HEYBOX_APK_PATH")?.trim(),
   clearApp: Deno.env.get("HEYBOX_CLEAR_APP") === "true",
   deepLinkUrl: Deno.env.get("HEYBOX_DEEPLINK_URL")?.trim(),
@@ -11,6 +13,7 @@ const config = {
     "/data/user/0/com.max.xiaoheihe/cache/hblog/content/net/log",
   launchActivity: Deno.env.get("HEYBOX_LAUNCH_ACTIVITY")?.trim() ||
     "com.max.xiaoheihe/com.max.xiaoheihe.SplashActivity",
+  prelaunchMs: positiveIntegerFromEnv("HEYBOX_ANDROID_PRELAUNCH_MS", 0),
   debugOutputPath: Deno.env.get("WORKER_FEED_DEBUG_OUTPUT")?.trim() ||
     "android-worker-debug.txt",
   navigationScript: Deno.env.get("HEYBOX_ANDROID_NAVIGATION")?.trim(),
@@ -84,6 +87,10 @@ async function main(): Promise<void> {
 
 async function launchHeybox(): Promise<void> {
   if (config.deepLinkUrl) {
+    if (config.prelaunchMs > 0) {
+      await adb(["shell", "am", "start", "-W", "-n", config.launchActivity]);
+      await delay(config.prelaunchMs);
+    }
     await adb([
       "shell",
       "am",
@@ -101,14 +108,8 @@ async function launchHeybox(): Promise<void> {
 }
 
 async function readHblog(): Promise<string> {
-  const attempts = [
-    ["exec-out", "su", "0", "cat", config.hblogLogPath],
-    ["exec-out", "cat", config.hblogLogPath],
-    ["exec-out", "run-as", config.packageName, "cat", "cache/hblog/content/net/log"],
-  ];
-
   const errors: string[] = [];
-  for (const args of attempts) {
+  for (const args of hblogReadAttempts()) {
     const result = await adbOutput(args);
     if (result.success && result.stdout.trim().length > 0) {
       return result.stdout;
@@ -142,6 +143,18 @@ async function runNavigationScript(script: string): Promise<void> {
       case "tap":
         await adb(["shell", "input", "tap", ...requiredArgs(command, args, 2)]);
         break;
+      case "tap_id":
+        await tapUiNode(
+          (attrs) => matchesResourceId(attrs["resource-id"], requiredArg(command, args, 0)),
+          command,
+        );
+        break;
+      case "tap_text":
+        await tapUiNode((attrs) => {
+          const text = args.join(" ");
+          return attrs.text === text || attrs["content-desc"] === text;
+        }, `${command} ${args.join(" ")}`);
+        break;
       case "text":
         await adb(["shell", "input", "text", args.join("%s")]);
         break;
@@ -151,11 +164,85 @@ async function runNavigationScript(script: string): Promise<void> {
   }
 }
 
+async function tapUiNode(
+  predicate: (attrs: Record<string, string>) => boolean,
+  description: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const xml = await dumpUiXml();
+    const bounds = findNodeBounds(xml, predicate);
+    if (bounds) {
+      await adb(["shell", "input", "tap", String(bounds.x), String(bounds.y)]);
+      return;
+    }
+    await delay(500);
+  }
+
+  throw new Error(`Unable to find Android UI node for ${description}`);
+}
+
+async function dumpUiXml(): Promise<string> {
+  const remotePath = "/sdcard/heybox-worker-ui.xml";
+  await adb(["shell", "uiautomator", "dump", remotePath]);
+  const result = await adbOutput(["exec-out", "cat", remotePath]);
+  if (!result.success || !result.stdout.trim()) {
+    throw new Error(`Unable to read Android UI dump: ${result.stderr || "empty stdout"}`);
+  }
+  return result.stdout;
+}
+
+function findNodeBounds(
+  xml: string,
+  predicate: (attrs: Record<string, string>) => boolean,
+): { x: number; y: number } | undefined {
+  for (const match of xml.matchAll(/<node\b[^>]*>/g)) {
+    const attrs = nodeAttributes(match[0]);
+    if (!predicate(attrs)) {
+      continue;
+    }
+
+    const bounds = attrs.bounds?.match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
+    if (bounds) {
+      const [, left, top, right, bottom] = bounds.map(Number);
+      return {
+        x: Math.round((left + right) / 2),
+        y: Math.round((top + bottom) / 2),
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function nodeAttributes(node: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const match of node.matchAll(/([^\s=]+)="([^"]*)"/g)) {
+    attrs[match[1]] = decodeXmlAttribute(match[2]);
+  }
+  return attrs;
+}
+
+function matchesResourceId(actual: string | undefined, expected: string): boolean {
+  if (!actual) {
+    return false;
+  }
+  return actual === expected || actual.endsWith(`:id/${expected}`);
+}
+
+function decodeXmlAttribute(value: string): string {
+  return value
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
+
 async function withAndroidDebug(error: unknown): Promise<Error> {
   const message = error instanceof Error ? error.message : String(error);
   const [activity, hblogResult] = await Promise.all([
     frontActivity(),
-    adbOutput(["exec-out", "cat", config.hblogLogPath]),
+    bestEffortReadHblog(),
   ]);
   const hblog = hblogResult.success ? hblogResult.stdout : "";
   const debug = [
@@ -174,6 +261,36 @@ async function withAndroidDebug(error: unknown): Promise<Error> {
   return new Error(`${message}\nAndroid debug written to ${config.debugOutputPath}\n${debug}`);
 }
 
+async function bestEffortReadHblog(): Promise<{
+  stderr: string;
+  stdout: string;
+  success: boolean;
+}> {
+  const errors: string[] = [];
+  for (const args of hblogReadAttempts()) {
+    const result = await adbOutput(args);
+    if (result.success && result.stdout.trim().length > 0) {
+      return result;
+    }
+    errors.push(result.stderr || "empty stdout");
+  }
+
+  return {
+    stderr: errors.join("\n"),
+    stdout: "",
+    success: false,
+  };
+}
+
+function hblogReadAttempts(): string[][] {
+  return [
+    ["exec-out", "su", "0", "cat", config.hblogLogPath],
+    ["shell", "su", "-c", `cat ${shellArg(config.hblogLogPath)}`],
+    ["exec-out", "cat", config.hblogLogPath],
+    ["exec-out", "run-as", config.packageName, "cat", "cache/hblog/content/net/log"],
+  ];
+}
+
 async function frontActivity(): Promise<string> {
   const result = await adbOutput(["shell", "dumpsys", "window", "windows"]);
   if (!result.success) {
@@ -188,7 +305,33 @@ function recentTopicFeedLines(hblog: string): string[] {
   const lines = hblog.split(/\r?\n/).filter((line) =>
     line.includes("/bbs/app/topic/feeds") || line.includes("topic_id")
   );
-  return lines.slice(-12).map((line) => line.slice(0, 1000));
+  return lines.slice(-12).map((line) => sanitizeAndroidDebugLine(line).slice(0, 1000));
+}
+
+function sanitizeAndroidDebugLine(line: string): string {
+  const sensitiveQueryKeys = [
+    "hkey",
+    "nonce",
+    "_rnd",
+    "imei",
+    "device_info",
+    "heybox_id",
+    "pkey",
+    "x_pkey",
+    "x_xhh_tokenid",
+    "x_heybox_id",
+  ].join("|");
+
+  return line
+    .replace(
+      new RegExp(`([?&](${sensitiveQueryKeys})=)[^&\\s"]+`, "gi"),
+      "$1<redacted>",
+    )
+    .replace(/(Cookie:\s*).+/i, "$1<redacted>")
+    .replace(
+      new RegExp(`("(?:${sensitiveQueryKeys})"\\s*:\\s*")[^"]+"`, "gi"),
+      '$1<redacted>"',
+    );
 }
 
 async function repeat(count: number, action: () => Promise<void>): Promise<void> {
@@ -224,8 +367,9 @@ async function adbOutput(args: string[]): Promise<{
   stdout: string;
   success: boolean;
 }> {
+  const commandArgs = config.adbSerial ? ["-s", config.adbSerial, ...args] : args;
   const command = new Deno.Command(config.adb, {
-    args,
+    args: commandArgs,
     stderr: "piped",
     stdout: "piped",
   });
@@ -274,4 +418,8 @@ async function writeTextFileCreatingParents(path: string, data: string): Promise
 function parentDirectory(path: string): string {
   const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return index > 0 ? path.slice(0, index) : "";
+}
+
+function shellArg(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
