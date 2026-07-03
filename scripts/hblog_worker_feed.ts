@@ -14,7 +14,7 @@ if (posts.length === 0) {
   throw new Error("Hblog worker feed produced no posts");
 }
 
-await Deno.writeTextFile(outputPath, JSON.stringify({ posts }, null, 2) + "\n");
+await writeTextFileCreatingParents(outputPath, JSON.stringify({ posts }, null, 2) + "\n");
 console.log(
   JSON.stringify(
     {
@@ -52,4 +52,17 @@ function pollSortFromEnv(): PollSort {
     return value;
   }
   return "publishTime";
+}
+
+async function writeTextFileCreatingParents(path: string, data: string): Promise<void> {
+  const parent = parentDirectory(path);
+  if (parent) {
+    await Deno.mkdir(parent, { recursive: true });
+  }
+  await Deno.writeTextFile(path, data);
+}
+
+function parentDirectory(path: string): string {
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return index > 0 ? path.slice(0, index) : "";
 }

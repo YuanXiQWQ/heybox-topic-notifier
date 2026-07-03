@@ -68,7 +68,7 @@ function parseTopicFeedLogEntries(logText: string): TopicFeedLogEntry[] {
     if (hasTopicLinks(payload)) {
       entries.push({
         payload,
-        sortFilter: matchedUrl.searchParams.get("sort_filter"),
+        sortFilter: matchedUrl.searchParams.get("sort_filter") ?? sortFilterFromPayload(payload),
         topicId: matchedUrl.searchParams.get("topic_id"),
       });
     }
@@ -109,6 +109,44 @@ function hblogPayload(line: string): unknown | undefined {
 
 function hasTopicLinks(payload: unknown): boolean {
   return Array.isArray(asRecord(asRecord(payload).result).links);
+}
+
+function sortFilterFromPayload(payload: unknown): string | null {
+  const links = asRecord(asRecord(payload).result).links;
+  if (!Array.isArray(links)) {
+    return null;
+  }
+
+  for (const link of links) {
+    const hSrc = stringField(asRecord(link), "h_src");
+    const decoded = decodeBase64Url(hSrc);
+    const [, sortFilter = ""] = decoded.match(/(?:^|__)sort_filter__([A-Za-z0-9-]+)(?:__|$)/) ??
+      [];
+    if (sortFilter) {
+      return sortFilter;
+    }
+  }
+
+  return null;
+}
+
+function decodeBase64Url(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
+    const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, "=");
+    return atob(padded);
+  } catch {
+    return "";
+  }
+}
+
+function stringField(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

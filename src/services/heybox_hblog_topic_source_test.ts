@@ -43,23 +43,26 @@ const hblogFixture = [
   payloadLine([
     { create_at: 100, linkid: "old-create", title: "old create" },
   ]),
-  responseLine("sort_filter=create", "12099"),
+  responseLine("", "12099"),
   payloadLine([
     { create_at: 200, linkid: "newer-app-order", title: "newer in app order" },
     { create_at: 100, linkid: "older-app-order", title: "older in app order" },
-  ]),
+  ], "create"),
 ].join("\n");
 
 function responseLine(sortFilter: string, topicId: string): string {
+  const sortQuery = sortFilter ? `&${sortFilter}` : "";
   return "2026-07-03 02:52:00.000 I/HBLog_Net: <-- 200 OK " +
-    `https://api.xiaoheihe.cn/bbs/app/topic/feeds?topic_id=${topicId}&offset=0&limit=30&${sortFilter}`;
+    `https://api.xiaoheihe.cn/bbs/app/topic/feeds?topic_id=${topicId}&offset=0&limit=30${sortQuery}`;
 }
 
-function payloadLine(links: Array<Record<string, unknown>>): string {
+function payloadLine(links: Array<Record<string, unknown>>, hSrcSortFilter = ""): string {
   return `2026-07-03 02:52:00.000 I/HBLog_Net: ${
     JSON.stringify({
       result: {
-        links,
+        links: hSrcSortFilter
+          ? links.map((link) => ({ ...link, h_src: hSrcWithSortFilter(hSrcSortFilter) }))
+          : links,
         sort_filter: [
           { key: "create", text: "发布时间" },
           { key: "hot-rank", text: "智能排序" },
@@ -69,6 +72,10 @@ function payloadLine(links: Array<Record<string, unknown>>): string {
       status: "ok",
     })
   }`;
+}
+
+function hSrcWithSortFilter(sortFilter: string): string {
+  return btoa(`app_share__sort_filter__${sortFilter}__topic_ids__12099__type_v2__4`);
 }
 
 function assertThrows(fn: () => unknown, expectedMessage: string): void {

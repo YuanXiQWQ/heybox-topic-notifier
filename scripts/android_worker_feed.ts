@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   }
 
   const payload = JSON.stringify({ posts }, null, 2) + "\n";
-  await Deno.writeTextFile(config.outputPath, payload);
+  await writeTextFileCreatingParents(config.outputPath, payload);
   console.log(
     JSON.stringify(
       {
@@ -170,7 +170,7 @@ async function withAndroidDebug(error: unknown): Promise<Error> {
     ...recentTopicFeedLines(hblog),
   ].join("\n");
 
-  await Deno.writeTextFile(config.debugOutputPath, debug + "\n");
+  await writeTextFileCreatingParents(config.debugOutputPath, debug + "\n");
   return new Error(`${message}\nAndroid debug written to ${config.debugOutputPath}\n${debug}`);
 }
 
@@ -261,4 +261,17 @@ function pollSortFromEnv(): PollSort {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function writeTextFileCreatingParents(path: string, data: string): Promise<void> {
+  const parent = parentDirectory(path);
+  if (parent) {
+    await Deno.mkdir(parent, { recursive: true });
+  }
+  await Deno.writeTextFile(path, data);
+}
+
+function parentDirectory(path: string): string {
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return index > 0 ? path.slice(0, index) : "";
 }

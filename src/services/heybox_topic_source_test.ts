@@ -71,16 +71,20 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
   assertEquals(requestedUrl.origin, "https://api.example.test");
   assertEquals(requestedUrl.pathname, "/bbs/app/topic/feeds");
   assertEquals(requestedUrl.searchParams.get("topic_id"), "12099");
-  assertEquals(requestedUrl.searchParams.get("device_id"), "device-1");
+  assertEquals(requestedUrl.searchParams.get("imei"), "device-1");
   assertEquals(requestedUrl.searchParams.get("limit"), "3");
   assertEquals(requestedUrl.searchParams.get("sort_filter"), "hot-rank");
+  assertEquals(requestedUrl.searchParams.get("x_client_type"), "mobile");
+  assertEquals(requestedUrl.searchParams.get("x_app"), "heybox");
+  assertEquals(requestedUrl.searchParams.get("version"), "1.3.390");
+  assertEquals(requestedUrl.searchParams.get("build"), "1107");
   assertEquals(requestedUrl.searchParams.has("hkey"), true);
   assertEquals(requestedUrl.searchParams.has("nonce"), true);
   assertEquals(requestedUrl.searchParams.get("_time"), "1782848432");
   assertEquals(posts[0].id, "1");
 });
 
-Deno.test("createHeyboxTopicSource expands and locally sorts publish time requests", async () => {
+Deno.test("createHeyboxTopicSource preserves app order for publish time requests", async () => {
   let requestedUrl: URL | undefined;
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
@@ -112,9 +116,9 @@ Deno.test("createHeyboxTopicSource expands and locally sorts publish time reques
     throw new Error("Expected request URL to be captured");
   }
 
-  assertEquals(requestedUrl.searchParams.get("limit"), "100");
+  assertEquals(requestedUrl.searchParams.get("limit"), "2");
   assertEquals(requestedUrl.searchParams.get("sort_filter"), "create");
-  assertEquals(posts.map((post) => post.id), ["newer", "middle"]);
+  assertEquals(posts.map((post) => post.id), ["older", "newer"]);
 });
 
 Deno.test("createHeyboxTopicSource maps reply time sort to Heybox reply", async () => {
