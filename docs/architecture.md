@@ -40,6 +40,17 @@ When the URL contains `{topic_id}`, `{sort}`, or `{limit}`, the main service rep
 instead of appending query parameters. This lets a scheduled free worker publish normalized JSON to
 a static host or raw file URL without running a permanent HTTP service.
 
+The Android worker workflow can publish the generated JSON to the `worker-feed` branch when
+`PUBLISH_WORKER_FEED=true`. With the default topic and limit, the main Deno service can consume it
+with a static template like:
+
+```text
+https://raw.githubusercontent.com/YuanXiQWQ/heybox-topic-notifier/worker-feed/feeds/{topic_id}/{sort}-{limit}.json
+```
+
+This keeps the production Deno service cloud-run and no-cost while treating the Android side as a
+replaceable scheduled feed producer.
+
 The worker returns:
 
 ```json
@@ -106,7 +117,7 @@ wait for App initialization, and then dispatch `HEYBOX_DEEPLINK_URL`.
 `keyevent`, and `text` commands. Prefer `tap_id` and `tap_text` for stable validation, for example:
 
 ```text
-sleep 6000; tap_id fbv_sort; sleep 1500; tap_text 发布时间
+tap_id fbv_sort; sleep 1500; tap_text 发布时间
 ```
 
 That sequence opens the topic sort menu and selects the App-side publish-time feed. The resulting

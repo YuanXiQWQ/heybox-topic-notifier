@@ -168,7 +168,7 @@ async function tapUiNode(
   predicate: (attrs: Record<string, string>) => boolean,
   description: string,
 ): Promise<void> {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     const xml = await dumpUiXml();
     const bounds = findNodeBounds(xml, predicate);
     if (bounds) {
