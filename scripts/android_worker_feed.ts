@@ -150,10 +150,10 @@ async function runNavigationScript(script: string): Promise<void> {
         );
         break;
       case "tap_text":
-        await tapUiNode((attrs) => {
-          const text = args.join(" ");
-          return attrs.text === text || attrs["content-desc"] === text;
-        }, `${command} ${args.join(" ")}`);
+        await tapText(args.join(" "), `${command} ${args.join(" ")}`);
+        break;
+      case "tap_text_b64":
+        await tapText(decodeBase64Utf8(requiredArg(command, args, 0)), command);
         break;
       case "text":
         await adb(["shell", "input", "text", args.join("%s")]);
@@ -162,6 +162,10 @@ async function runNavigationScript(script: string): Promise<void> {
         throw new Error(`Unsupported Android navigation command: ${command}`);
     }
   }
+}
+
+async function tapText(text: string, description: string): Promise<void> {
+  await tapUiNode((attrs) => attrs.text === text || attrs["content-desc"] === text, description);
 }
 
 async function tapUiNode(
@@ -236,6 +240,12 @@ function decodeXmlAttribute(value: string): string {
     .replaceAll("&lt;", "<")
     .replaceAll("&gt;", ">")
     .replaceAll("&amp;", "&");
+}
+
+function decodeBase64Utf8(value: string): string {
+  const binary = atob(value);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 async function withAndroidDebug(error: unknown): Promise<Error> {
