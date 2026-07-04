@@ -125,9 +125,12 @@ hblog request must include `sort_filter=create`; otherwise the worker must fail 
 reordering smart-sort posts.
 
 The GitHub Actions workflow `.github/workflows/android-feed-worker.yml` is a validation candidate,
-not a promise that GitHub-hosted Android emulation is stable enough for production. The local APK
-observed during development is arm64-only, so emulator architecture compatibility is part of the
-worker acceptance test.
+not a promise that GitHub-hosted Android emulation is stable enough for production. By default it
+downloads the official Xiaoheihe Android package from
+`https://dl.max-c.com/app/heybox/heybox-release.apk`; repository secret or variable `HEYBOX_APK_URL`
+can override that public URL if the official download path changes. The current APK observed during
+development is arm64-only, so emulator architecture compatibility is part of the worker acceptance
+test.
 
 During local validation, LDPlayer can still be useful for manual UI and hblog checks, but it is not
 part of the production design. If a local x86/native-bridge emulator cannot keep the current App
