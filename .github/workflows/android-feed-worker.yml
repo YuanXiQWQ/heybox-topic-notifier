@@ -17,7 +17,8 @@ jobs:
       HEYBOX_ANDROID_NAVIGATION: ${{ vars.HEYBOX_ANDROID_NAVIGATION }}
       HEYBOX_ANDROID_PRELAUNCH_MS: ${{ vars.HEYBOX_ANDROID_PRELAUNCH_MS || '0' }}
       HEYBOX_ANDROID_WAIT_MS: ${{ vars.HEYBOX_ANDROID_WAIT_MS || '45000' }}
-      HEYBOX_APK_URL: ${{ secrets.HEYBOX_APK_URL || vars.HEYBOX_APK_URL || 'https://dl.max-c.com/app/heybox/heybox-release.apk' }}
+      HEYBOX_APK_FALLBACK_URLS: ${{ vars.HEYBOX_APK_FALLBACK_URLS || 'https://dl.max-c.com/app/heybox/heybox-release.apk' }}
+      HEYBOX_APK_URL: ${{ secrets.HEYBOX_APK_URL || vars.HEYBOX_APK_URL || 'https://imtt.dd.qq.com/sjy.00009/sjy.00004/16891/apk/378DD0F85B2D290CEFCA156AF4C318F9.apk?fsname=com.max.xiaoheihe_1.3.390.apk' }}
       HEYBOX_DEEPLINK_URL: ${{ vars.HEYBOX_DEEPLINK_URL }}
       HEYBOX_TOPIC_ID: ${{ vars.HEYBOX_TOPIC_ID || '12099' }}
       PUBLISH_WORKER_FEED: ${{ vars.PUBLISH_WORKER_FEED || 'true' }}
@@ -35,8 +36,39 @@ jobs:
           deno-version: v2.x
 
       - name: Download Heybox APK
+        shell: bash
         run: |
-          curl --fail --location --show-error "$HEYBOX_APK_URL" --output heybox.apk
+          set -euo pipefail
+
+          urls=("$HEYBOX_APK_URL")
+          if [[ -n "${HEYBOX_APK_FALLBACK_URLS:-}" ]]; then
+            while IFS= read -r url; do
+              [[ -n "$url" ]] && urls+=("$url")
+            done < <(printf '%s\n' "$HEYBOX_APK_FALLBACK_URLS" | tr ',' '\n')
+          fi
+
+          for url in "${urls[@]}"; do
+            echo "Downloading Heybox APK from ${url%%\?*}"
+            if curl \
+              --fail \
+              --location \
+              --show-error \
+              --retry 4 \
+              --retry-all-errors \
+              --connect-timeout 30 \
+              --speed-time 60 \
+              --speed-limit 1024 \
+              --max-time 600 \
+              "$url" \
+              --output heybox.apk; then
+              test -s heybox.apk
+              file heybox.apk
+              exit 0
+            fi
+          done
+
+          echo "Failed to download Heybox APK from all configured sources." >&2
+          exit 1
 
       - name: Enable KVM group permissions
         run: |
