@@ -17,7 +17,7 @@ jobs:
       HEYBOX_ANDROID_NAVIGATION: ${{ vars.HEYBOX_ANDROID_NAVIGATION }}
       HEYBOX_ANDROID_PRELAUNCH_MS: ${{ vars.HEYBOX_ANDROID_PRELAUNCH_MS || '0' }}
       HEYBOX_ANDROID_WAIT_MS: ${{ vars.HEYBOX_ANDROID_WAIT_MS || '45000' }}
-      HEYBOX_APK_URL: ${{ secrets.HEYBOX_APK_URL }}
+      HEYBOX_APK_URL: ${{ secrets.HEYBOX_APK_URL || vars.HEYBOX_APK_URL || 'https://dl.max-c.com/app/heybox/heybox-release.apk' }}
       HEYBOX_DEEPLINK_URL: ${{ vars.HEYBOX_DEEPLINK_URL }}
       HEYBOX_TOPIC_ID: ${{ vars.HEYBOX_TOPIC_ID || '12099' }}
       PUBLISH_WORKER_FEED: ${{ vars.PUBLISH_WORKER_FEED || 'true' }}
@@ -34,25 +34,17 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Skip until APK URL is configured
-        if: env.HEYBOX_APK_URL == ''
-        run: |
-          echo "Set secret HEYBOX_APK_URL to enable Android feed worker validation."
-
       - name: Download Heybox APK
-        if: env.HEYBOX_APK_URL != ''
         run: |
           curl --fail --location --show-error "$HEYBOX_APK_URL" --output heybox.apk
 
       - name: Enable KVM group permissions
-        if: env.HEYBOX_APK_URL != ''
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
       - name: Run Android feed worker
-        if: env.HEYBOX_APK_URL != ''
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -64,11 +56,10 @@ jobs:
           HEYBOX_APK_PATH: heybox.apk
 
       - name: Verify generated worker feed
-        if: env.HEYBOX_APK_URL != ''
         run: deno task validate-worker-feed-file
 
       - name: Publish worker feed branch
-        if: env.HEYBOX_APK_URL != '' && env.PUBLISH_WORKER_FEED == 'true'
+        if: env.PUBLISH_WORKER_FEED == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -98,7 +89,7 @@ jobs:
           git push origin worker-feed
 
       - name: Upload worker feed artifact
-        if: env.HEYBOX_APK_URL != '' && always()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: heybox-worker-feed
