@@ -2,7 +2,8 @@
 
 本项目使用 Deno Deploy 的 GitHub 集成部署，不使用 GitHub Actions 部署。
 
-GitHub Actions 只负责运行 `deno task check`。Deno Deploy 负责在仓库 push 后构建并路由应用。
+GitHub Actions 负责运行 `deno task check`，并在检查通过后创建 GitHub Deployments 引用链接。 Deno
+Deploy 负责在仓库 push 后构建并路由应用。
 
 ## 分支部署
 
@@ -48,6 +49,15 @@ Branch 数据。
 
 返回 `status: ok` 即代表服务进程已启动，且健康检查不会读取 Deno KV。
 
+## GitHub Deployments
+
+GitHub 仓库右侧的 Deployments 区块由 `.github/workflows/check.yml` 创建引用记录：
+
+- `main` push 检查通过后，创建 `production` deployment，链接到 Production URL。
+- `dev` push 检查通过后，创建 `staging` deployment，链接到 Git Branch / DEV URL。
+
+这些记录只用于从 GitHub 跳转到 Deno 部署；实际部署仍由 Deno Deploy GitHub 集成完成。
+
 ## 运行环境变量
 
 Deno Deploy App 中按需配置：
@@ -55,6 +65,8 @@ Deno Deploy App 中按需配置：
 - `APP_LOCALE`
 - `HEYBOX_TOPIC_ID`
 - `TOPIC_SOURCE`
+- `TOPIC_WORKER_URL`
+- `TOPIC_WORKER_TOKEN`
 - `HEYBOX_DEVICE_ID`
 - `HEYBOX_COOKIE`
 - `HEYBOX_USER_AGENT`
