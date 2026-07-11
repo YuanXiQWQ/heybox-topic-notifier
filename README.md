@@ -3,10 +3,11 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 | **简体中文** | [English](#heybox-topic-notifier) |
-| :----------: | :-------------------------------: |
+|:--------:|:---------------------------------:|
 
 ---
 
+[小黑盒话题提醒](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
 一个用于监控小黑盒话题帖子的轻量级 Deno
 应用。它会按关键词检查帖子标题、正文、评论和回复，并为后续通知流程记录命中结果。
 
@@ -62,23 +63,23 @@ deno task verify-worker-feed
 
 ## 环境变量
 
-| 变量                   | 默认值    | 说明                                                           |
-| :--------------------- | :-------- | :------------------------------------------------------------- |
-| `APP_LOCALE`           | `zh-CN`   | 默认界面语言                                                   |
-| `HEYBOX_TOPIC_ID`      | `12099`   | 默认监控的话题 ID                                              |
-| `TOPIC_SOURCE`         | `mock`    | 话题数据源，`mock`、`heybox`、`heybox-hblog` 或 `worker`       |
-| `TOPIC_WORKER_URL`     | 空        | 云端 feed worker 地址，或 `{topic_id}`/`{sort}`/`{limit}` 模板 |
-| `TOPIC_WORKER_TOKEN`   | 空        | 预留云端 feed worker Bearer token                              |
-| `HEYBOX_HBLOG_NET_LOG` | 空        | 本地开发验证用的小黑盒 hblog net 日志路径                      |
-| `HEYBOX_DEVICE_ID`     | 空        | 小黑盒网页请求设备标识，留空则启动时生成                       |
-| `HEYBOX_COOKIE`        | 空        | 预留小黑盒 Cookie，公开话题首屏通常不需要                      |
-| `HEYBOX_USER_AGENT`    | 空        | 覆盖小黑盒请求 User-Agent                                      |
-| `HEYBOX_POST_LIMIT`    | `20`      | 每次轮询读取的帖子数量                                         |
-| `HEYBOX_SORT_FILTER`   | 空        | 预留小黑盒排序参数，留空时跟随网页首屏                         |
+| 变量                     | 默认值       | 说明                                                     |
+|:-----------------------|:----------|:-------------------------------------------------------|
+| `APP_LOCALE`           | `zh-CN`   | 默认界面语言                                                 |
+| `HEYBOX_TOPIC_ID`      | `12099`   | 默认监控的话题 ID                                             |
+| `TOPIC_SOURCE`         | `mock`    | 话题数据源，`mock`、`heybox`、`heybox-hblog` 或 `worker`        |
+| `TOPIC_WORKER_URL`     | 空         | 云端 feed worker 地址，或 `{topic_id}`/`{sort}`/`{limit}` 模板 |
+| `TOPIC_WORKER_TOKEN`   | 空         | 预留云端 feed worker Bearer token                          |
+| `HEYBOX_HBLOG_NET_LOG` | 空         | 本地开发验证用的小黑盒 hblog net 日志路径                             |
+| `HEYBOX_DEVICE_ID`     | 空         | 小黑盒网页请求设备标识，留空则启动时生成                                   |
+| `HEYBOX_COOKIE`        | 空         | 预留小黑盒 Cookie，公开话题首屏通常不需要                               |
+| `HEYBOX_USER_AGENT`    | 空         | 覆盖小黑盒请求 User-Agent                                     |
+| `HEYBOX_POST_LIMIT`    | `20`      | 每次轮询读取的帖子数量                                            |
+| `HEYBOX_SORT_FILTER`   | 空         | 预留小黑盒排序参数，留空时跟随网页首屏                                    |
 | `POLL_ENABLED`         | `false`   | 是否启用定时轮询                                               |
 | `NOTIFIER_PROVIDER`    | `webhook` | 预留通知通道配置                                               |
-| `NOTIFIER_WEBHOOK_URL` | 空        | 预留 Webhook 地址                                              |
-| `PORT`                 | `8000`    | 本地服务端口                                                   |
+| `NOTIFIER_WEBHOOK_URL` | 空         | 预留 Webhook 地址                                          |
+| `PORT`                 | `8000`    | 本地服务端口                                                 |
 
 ## 许可证
 
@@ -94,6 +95,7 @@ deno task verify-worker-feed
 
 ---
 
+[HEY BOX Topic Notifier](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
 A lightweight Deno app for monitoring posts in Heybox topics. It checks post titles, bodies,
 comments, and replies against keyword rules, then records matched results for the future
 notification workflow.
@@ -152,7 +154,7 @@ deno task check
 ## Environment Variables
 
 | Variable               | Default   | Description                                                           |
-| :--------------------- | :-------- | :-------------------------------------------------------------------- |
+|:-----------------------|:----------|:----------------------------------------------------------------------|
 | `APP_LOCALE`           | `zh-CN`   | Default UI language                                                   |
 | `HEYBOX_TOPIC_ID`      | `12099`   | Default topic ID to monitor                                           |
 | `TOPIC_SOURCE`         | `mock`    | Topic source: `mock`, `heybox`, `heybox-hblog`, or `worker`           |
