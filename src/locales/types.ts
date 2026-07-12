@@ -50,6 +50,8 @@ export type Messages = {
   notificationWebhookCustom: string;
   notificationWebhookService: string;
   notificationWebhookUrl: string;
+  notificationWxPusher: string;
+  notificationWxPusherSpt: string;
   globalSettings: string;
   pageSize: string;
   pollInterval: string;
@@ -70,6 +72,7 @@ export type Messages = {
   selectTopicToDelete: string;
   settingsTitle: string;
   testNotify: string;
+  testNotifySent: string;
   theme: string;
   topic: string;
   topicEnabled: string;

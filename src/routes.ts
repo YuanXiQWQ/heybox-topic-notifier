@@ -1,6 +1,7 @@
 import { Hono } from "@hono/hono";
-import { normalizeLocale } from "./locales/index.ts";
+import { getMessages, normalizeLocale } from "./locales/index.ts";
 import type { AppSettings, KeywordRule, MatchLocation, PollSort, TopicRule } from "./models.ts";
+import { normalizeNotificationWebhookService } from "./notification_services.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
@@ -69,6 +70,9 @@ export function createRoutes(context: AppContext): Hono {
     const settings = await context.storage.getSettings();
     try {
       await context.notifier.sendTest(settings);
+      if (c.req.header("x-test-notify") === "1") {
+        return c.text(getMessages(settings.locale).testNotifySent);
+      }
       return c.redirect("/");
     } catch (error) {
       return notificationErrorResponse(error);
@@ -165,6 +169,7 @@ export function settingsFromForm(
       form.notificationWebhookService,
     ),
     notificationWebhookUrl: String(form.notificationWebhookUrl ?? "").trim(),
+    notificationWxPusherSpt: String(form.notificationWxPusherSpt ?? "").trim(),
     polling: {
       intervalMinutes: normalizePositiveInteger(
         form.pollIntervalMinutes,
@@ -264,12 +269,6 @@ function normalizeNotificationProvider(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
 ): AppSettings["notificationProvider"] {
   return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
-}
-
-function normalizeNotificationWebhookService(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-): AppSettings["notificationWebhookService"] {
-  return value === "serverChan" ? "serverChan" : "custom";
 }
 
 function normalizePositiveInteger(

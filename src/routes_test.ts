@@ -15,6 +15,7 @@ const currentSettings: AppSettings = {
   notificationServerChanSendKey: "SCT-current",
   notificationWebhookService: "custom",
   notificationWebhookUrl: "https://example.com/webhook",
+  notificationWxPusherSpt: "SPT-current",
   polling: {
     intervalMinutes: 1,
     postLimit: 20,
@@ -60,6 +61,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     notificationServerChanSendKey: "SCT-new",
     notificationWebhookService: "serverChan",
     notificationWebhookUrl: "https://example.com/new-webhook",
+    notificationWxPusherSpt: "SPT-new",
     pollIntervalMinutes: "3",
     pollPostLimit: "50",
     pollSort: "replyTime",
@@ -87,6 +89,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   assertEquals(settings.notificationServerChanSendKey, "SCT-new");
   assertEquals(settings.notificationWebhookService, "serverChan");
   assertEquals(settings.notificationWebhookUrl, "https://example.com/new-webhook");
+  assertEquals(settings.notificationWxPusherSpt, "SPT-new");
   assertEquals(settings.polling, {
     intervalMinutes: 3,
     postLimit: 50,
@@ -106,6 +109,7 @@ Deno.test("settingsFromForm saves visible common keywords and submitted topic ke
     notificationProvider: "webhook",
     notificationWebhookService: "custom",
     notificationWebhookUrl: "https://example.com/webhook",
+    notificationWxPusherSpt: "SPT-current",
     themeColor: "#bd7fff",
     topic_0_enabled: "on",
     topic_0_id: "12099",
@@ -135,6 +139,7 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
     notificationProvider: "webhook",
     notificationWebhookService: "custom",
     notificationWebhookUrl: "https://example.com/webhook",
+    notificationWxPusherSpt: "SPT-current",
     themeColor: "#bd7fff",
     topic_0_enabled: "on",
     topic_0_id: "12099",
@@ -163,6 +168,25 @@ Deno.test("test notify returns a readable configuration error", async () => {
 
   assertEquals(response.status, 400);
   assertEquals(await response.text(), "missing webhook");
+});
+
+Deno.test("test notify ajax request returns a readable success message", async () => {
+  const app = createRoutes({
+    notifier: {
+      sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+    },
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/test-notify", {
+    headers: { "x-test-notify": "1" },
+    method: "POST",
+  });
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.text(), "通知已发送");
 });
 
 function assertEquals(actual: unknown, expected: unknown): void {

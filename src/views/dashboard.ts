@@ -23,9 +23,6 @@ export function renderDashboard(options: {
         <form method="post" action="/run-now">
           <button type="submit">${escapeHtml(messages.runNow)}</button>
         </form>
-        <form method="post" action="/test-notify">
-          <button type="submit" class="secondary">${escapeHtml(messages.testNotify)}</button>
-        </form>
       </div>
     </section>
     <section class="metrics">

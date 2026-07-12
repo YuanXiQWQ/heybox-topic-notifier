@@ -3,6 +3,7 @@ let autoSaveKeywordEditor;
 let autoSaveTopicEditor;
 let autoSaveTimer;
 let autoSaveController;
+let testNotifyStatusTimer;
 let lastSavedSignature = "";
 let reloadAfterSave = false;
 const notificationTransitionMs = 190;
@@ -29,6 +30,8 @@ function initSettingsEditors() {
 function initNotificationSettings() {
   const providerSelect = document.querySelector("[data-notification-provider-select]");
   const serviceSelect = document.querySelector("[data-notification-webhook-service-select]");
+  const testNotifyButton = document.querySelector("[data-test-notify-button]");
+  const testNotifyStatus = document.querySelector("[data-test-notify-status]");
   const rows = Array.from(document.querySelectorAll("[data-notification-field]"));
 
   if (!(providerSelect instanceof HTMLSelectElement)) {
@@ -49,7 +52,7 @@ function initNotificationSettings() {
 
     return new Set([
       "webhook-service",
-      serviceSelect?.value === "serverChan" ? "serverChan" : "custom",
+      serviceSelect?.value || "custom",
     ]);
   }
 
@@ -98,6 +101,16 @@ function initNotificationSettings() {
         hideRow(row, animate, token);
       }
     }
+
+    if (testNotifyButton instanceof HTMLButtonElement) {
+      testNotifyButton.hidden = providerSelect.value === "disabled";
+      if (testNotifyStatus instanceof HTMLElement) {
+        testNotifyStatus.hidden = testNotifyButton.hidden;
+      }
+      if (testNotifyButton.hidden) {
+        setTestNotifyStatus("");
+      }
+    }
   }
 
   function syncNotificationFields(animate) {
@@ -117,6 +130,20 @@ function initNotificationSettings() {
   serviceSelect?.addEventListener("change", () => {
     syncNotificationFields(true);
     scheduleAutoSave();
+  });
+
+  testNotifyButton?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    if (!(testNotifyButton instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    testNotifyButton.disabled = true;
+    const saved = await saveSettingsNow();
+    if (saved) {
+      await sendTestNotification();
+    }
+    testNotifyButton.disabled = false;
   });
 
   applyNotificationFields(visibleFields, false, ++transitionToken);
@@ -375,14 +402,15 @@ function scheduleAutoSave() {
 
 async function saveSettingsNow() {
   if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor) {
-    return;
+    return true;
   }
 
+  clearTimeout(autoSaveTimer);
   persistCurrentKeywordRows(autoSaveTopicEditor, autoSaveKeywordEditor);
 
   const signature = settingsSignature();
   if (signature === lastSavedSignature) {
-    return;
+    return true;
   }
 
   autoSaveController?.abort();
@@ -406,12 +434,49 @@ async function saveSettingsNow() {
     if (reloadAfterSave) {
       location.reload();
     }
+    return true;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      return;
+      return false;
     }
 
     setAutoSaveStatus("error");
+    return false;
+  }
+}
+
+async function sendTestNotification() {
+  try {
+    const response = await fetch("/test-notify", {
+      headers: { "x-test-notify": "1" },
+      method: "POST",
+    });
+    const text = await response.text();
+    if (response.ok) {
+      setTestNotifyStatus(text);
+    } else {
+      setAutoSaveStatus("error", text);
+    }
+  } catch {
+    setAutoSaveStatus("error");
+  }
+}
+
+function setTestNotifyStatus(text) {
+  const status = document.querySelector("[data-test-notify-status]");
+  if (!status) {
+    return;
+  }
+
+  clearTimeout(testNotifyStatusTimer);
+  status.textContent = text;
+
+  if (text) {
+    testNotifyStatusTimer = setTimeout(() => {
+      if (status.textContent === text) {
+        status.textContent = "";
+      }
+    }, 2200);
   }
 }
 
@@ -423,14 +488,15 @@ function settingsSignature() {
   return new URLSearchParams(new FormData(autoSaveForm)).toString();
 }
 
-function setAutoSaveStatus(state) {
+function setAutoSaveStatus(state, text) {
   const status = document.querySelector("[data-autosave-status]");
   if (!status || !autoSaveForm) {
     return;
   }
 
   status.dataset.state = state;
-  status.textContent = autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
+  status.textContent = text ??
+    autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
     "";
 }
 

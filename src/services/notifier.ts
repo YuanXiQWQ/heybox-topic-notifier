@@ -29,6 +29,8 @@ export type NotifierOptions = {
   webhookUrl?: string;
 };
 
+const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
+
 export class NotificationConfigError extends Error {}
 
 export class NotificationDeliveryError extends Error {}
@@ -45,6 +47,7 @@ export function createNotifier(options: NotifierOptions = {}) {
         serverChanSendKey: settings.notificationServerChanSendKey,
         webhookService: settings.notificationWebhookService,
         webhookUrl: settings.notificationWebhookUrl,
+        wxPusherSpt: settings.notificationWxPusherSpt,
       });
     },
 
@@ -58,6 +61,7 @@ export function createNotifier(options: NotifierOptions = {}) {
         serverChanSendKey: settings.notificationServerChanSendKey,
         webhookService: settings.notificationWebhookService,
         webhookUrl: settings.notificationWebhookUrl,
+        wxPusherSpt: settings.notificationWxPusherSpt,
       });
     },
   };
@@ -68,6 +72,7 @@ export function createNotifier(options: NotifierOptions = {}) {
     serverChanSendKey: string;
     webhookService: AppSettings["notificationWebhookService"];
     webhookUrl: string;
+    wxPusherSpt: string;
   }): Promise<NotifyResult> {
     if (options.provider === "disabled") {
       return { provider: options.provider, sent: false };
@@ -75,6 +80,12 @@ export function createNotifier(options: NotifierOptions = {}) {
 
     if (options.provider === "email") {
       throw new NotificationConfigError("Email notifications are not implemented yet.");
+    }
+
+    if (options.webhookService === "wxPusher" && !options.wxPusherSpt.trim()) {
+      throw new NotificationConfigError(
+        "WxPusher SPT is required for webhook notifications.",
+      );
     }
 
     const targetWebhookUrl = targetUrlForWebhook({
@@ -92,19 +103,28 @@ export function createNotifier(options: NotifierOptions = {}) {
     }
 
     const response = await fetcher(targetWebhookUrl, {
-      body: JSON.stringify(bodyForWebhook(targetWebhookUrl, options.payload)),
+      body: JSON.stringify(bodyForWebhook({
+        payload: options.payload,
+        service: options.webhookService,
+        url: targetWebhookUrl,
+        wxPusherSpt: options.wxPusherSpt,
+      })),
       headers: {
         "content-type": "application/json; charset=utf-8",
       },
       method: "POST",
     });
 
+    const responseBody = await response.text().catch(() => "");
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
       throw new NotificationDeliveryError(
-        `Webhook notification failed with HTTP ${response.status}${body ? `: ${body}` : ""}`,
+        `Webhook notification failed with HTTP ${response.status}${
+          responseBody ? `: ${responseBody}` : ""
+        }`,
       );
     }
+
+    assertWebhookAccepted(options.webhookService, responseBody);
 
     return { provider: options.provider, sent: true };
   }
@@ -118,6 +138,10 @@ function targetUrlForWebhook(options: {
 }): string {
   if (options.webhookService === "serverChan") {
     return serverChanUrlFromSendKey(options.serverChanSendKey);
+  }
+
+  if (options.webhookService === "wxPusher") {
+    return wxPusherSimplePushUrl;
   }
 
   return options.webhookUrl.trim() || options.fallbackWebhookUrl.trim();
@@ -160,15 +184,29 @@ function matchPayload(record: MatchRecord): NotificationPayload {
   };
 }
 
-function bodyForWebhook(url: string, payload: NotificationPayload): unknown {
-  if (isServerChanUrl(url)) {
+function bodyForWebhook(options: {
+  payload: NotificationPayload;
+  service: AppSettings["notificationWebhookService"];
+  url: string;
+  wxPusherSpt: string;
+}): unknown {
+  if (options.service === "wxPusher") {
     return {
-      desp: serverChanDescription(payload),
-      title: serverChanTitle(payload),
+      content: notificationDescription(options.payload),
+      contentType: 1,
+      spt: options.wxPusherSpt.trim(),
+      summary: notificationTitle(options.payload),
     };
   }
 
-  return payload;
+  if (options.service === "serverChan" || isServerChanUrl(options.url)) {
+    return {
+      desp: notificationDescription(options.payload),
+      title: notificationTitle(options.payload),
+    };
+  }
+
+  return options.payload;
 }
 
 function isServerChanUrl(value: string): boolean {
@@ -180,7 +218,38 @@ function isServerChanUrl(value: string): boolean {
   }
 }
 
-function serverChanTitle(payload: NotificationPayload): string {
+function assertWebhookAccepted(
+  service: AppSettings["notificationWebhookService"],
+  responseBody: string,
+): void {
+  if (service !== "wxPusher") {
+    return;
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(responseBody);
+  } catch {
+    throw new NotificationDeliveryError(
+      `WxPusher notification failed with an invalid response: ${responseBody}`,
+    );
+  }
+
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    Number("code" in payload ? payload.code : undefined) === 1000
+  ) {
+    return;
+  }
+
+  const message = typeof payload === "object" && payload !== null && "msg" in payload
+    ? String(payload.msg)
+    : responseBody;
+  throw new NotificationDeliveryError(`WxPusher notification failed: ${message}`);
+}
+
+function notificationTitle(payload: NotificationPayload): string {
   if (payload.type === "test") {
     return "小黑盒话题提醒测试";
   }
@@ -188,7 +257,7 @@ function serverChanTitle(payload: NotificationPayload): string {
   return `小黑盒命中：${payload.match?.keyword ?? "关键词"}`;
 }
 
-function serverChanDescription(payload: NotificationPayload): string {
+function notificationDescription(payload: NotificationPayload): string {
   if (!payload.match) {
     return payload.text;
   }

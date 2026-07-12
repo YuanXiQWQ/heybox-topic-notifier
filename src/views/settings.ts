@@ -1,6 +1,7 @@
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
 import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "../models.ts";
+import { notificationWebhookServices } from "../notification_services.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
@@ -102,11 +103,21 @@ function renderNotificationSection(settings: AppSettings): string {
           <div>
             <dt>${escapeHtml(messages.notificationProvider)}</dt>
             <dd>
-              <select name="notificationProvider" data-notification-provider-select>
-                ${option("webhook", settings.notificationProvider, messages.notificationWebhook)}
-                ${option("email", settings.notificationProvider, messages.notificationEmail)}
-                ${option("disabled", settings.notificationProvider, messages.notificationDisabled)}
-              </select>
+              <div class="notification-provider-row">
+                <select name="notificationProvider" data-notification-provider-select>
+                  ${option("webhook", settings.notificationProvider, messages.notificationWebhook)}
+                  ${option("email", settings.notificationProvider, messages.notificationEmail)}
+                  ${
+    option("disabled", settings.notificationProvider, messages.notificationDisabled)
+  }
+                </select>
+                <button
+                  type="button"
+                  data-test-notify-button
+                  ${settings.notificationProvider === "disabled" ? "hidden" : ""}
+                >${escapeHtml(messages.testNotify)}</button>
+                <span class="inline-action-status" data-test-notify-status role="status"></span>
+              </div>
             </dd>
           </div>
           <div
@@ -118,10 +129,9 @@ function renderNotificationSection(settings: AppSettings): string {
             <dd>
               <select name="notificationWebhookService" data-notification-webhook-service-select>
                 ${
-    option("serverChan", settings.notificationWebhookService, messages.notificationServerChan)
-  }
-                ${
-    option("custom", settings.notificationWebhookService, messages.notificationWebhookCustom)
+    notificationWebhookServices.map((service) =>
+      option(service.id, settings.notificationWebhookService, messages[service.labelKey])
+    ).join("")
   }
               </select>
             </dd>
@@ -143,6 +153,33 @@ function renderNotificationSection(settings: AppSettings): string {
                 <a
                   class="button-link external-settings-link"
                   href="https://sct.ftqq.com/sendkey"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>${escapeHtml(messages.configure)}</span>
+                  ${externalLinkIcon()}
+                </a>
+              </div>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="wxPusher"
+            data-notification-provider-field="webhook"
+            data-notification-webhook-service-field="wxPusher"
+          >
+            <dt>${escapeHtml(messages.notificationWxPusherSpt)}</dt>
+            <dd>
+              <div class="input-action-row">
+                <input
+                  name="notificationWxPusherSpt"
+                  value="${escapeHtml(settings.notificationWxPusherSpt)}"
+                  autocomplete="off"
+                  placeholder="SPT_xxx"
+                >
+                <a
+                  class="button-link external-settings-link"
+                  href="https://wxpusher.zjiecode.com/docs/spt.html"
                   target="_blank"
                   rel="noreferrer"
                 >

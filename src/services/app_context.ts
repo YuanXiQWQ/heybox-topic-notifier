@@ -1,5 +1,6 @@
 import { normalizeLocale } from "../locales/index.ts";
 import type { AppSettings, KeywordRule, PollSort } from "../models.ts";
+import { normalizeNotificationWebhookService } from "../notification_services.ts";
 import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
@@ -32,6 +33,7 @@ export function createAppContext() {
       notificationServerChanSendKey: Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_KEY") ?? "",
       notificationWebhookService: notificationWebhookServiceFromEnv(),
       notificationWebhookUrl: Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "",
+      notificationWxPusherSpt: Deno.env.get("NOTIFIER_WXPUSHER_SPT") ?? "",
       polling: {
         intervalMinutes: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
         postLimit: positiveIntegerFromEnv(
@@ -105,8 +107,7 @@ function notificationProviderFromEnv(): AppSettings["notificationProvider"] {
 }
 
 function notificationWebhookServiceFromEnv(): AppSettings["notificationWebhookService"] {
-  const value = Deno.env.get("NOTIFIER_WEBHOOK_SERVICE");
-  return value === "serverChan" ? "serverChan" : "custom";
+  return normalizeNotificationWebhookService(Deno.env.get("NOTIFIER_WEBHOOK_SERVICE"));
 }
 
 function heyboxSignatureModeFromEnv(): HeyboxSignatureMode | undefined {

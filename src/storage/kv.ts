@@ -7,6 +7,7 @@ import type {
   PollSort,
   TopicRule,
 } from "../models.ts";
+import { normalizeNotificationWebhookService } from "../notification_services.ts";
 
 const keys = {
   match: (id: string) => ["matches", id] as const,
@@ -174,12 +175,15 @@ function normalizeSettings(
     notificationServerChanSendKey: typeof value.notificationServerChanSendKey === "string"
       ? value.notificationServerChanSendKey
       : defaultSettings.notificationServerChanSendKey,
-    notificationWebhookService: value.notificationWebhookService === "serverChan"
-      ? "serverChan"
+    notificationWebhookService: value.notificationWebhookService
+      ? normalizeNotificationWebhookService(value.notificationWebhookService)
       : defaultSettings.notificationWebhookService,
     notificationWebhookUrl: typeof value.notificationWebhookUrl === "string"
       ? value.notificationWebhookUrl
       : defaultSettings.notificationWebhookUrl,
+    notificationWxPusherSpt: typeof value.notificationWxPusherSpt === "string"
+      ? value.notificationWxPusherSpt
+      : defaultSettings.notificationWxPusherSpt,
     polling: normalizePollingSettings(value.polling, defaultSettings.polling),
     themeColor: normalizeThemeColor(value.themeColor, defaultSettings.themeColor),
     topics,

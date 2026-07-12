@@ -61,23 +61,26 @@ deno task check
 
 ## 环境变量
 
-| 变量                    | 默认值        | 说明                                                                   |
-| :---------------------- | :------------ | :--------------------------------------------------------------------- |
-| `APP_LOCALE`            | `zh-CN`       | 默认界面语言                                                           |
-| `HEYBOX_TOPIC_ID`       | `12099`       | 默认监控的话题 ID                                                      |
-| `HEYBOX_DEVICE_ID`      | 空            | 小黑盒 App API 设备标识，留空则启动时生成                              |
-| `HEYBOX_COOKIE`         | 空            | 预留小黑盒 Cookie，公开话题发布时间列表通常不需要                      |
-| `HEYBOX_USER_AGENT`     | 空            | 覆盖小黑盒请求 User-Agent                                              |
-| `HEYBOX_SIGNATURE_MODE` | `app`         | 小黑盒签名模式，`app` 为已验证的发布时间接口模式，`web` 仅保留诊断用途 |
-| `HEYBOX_POST_LIMIT`     | `20`          | 每次轮询读取的帖子数量                                                 |
-| `HEYBOX_SORT_FILTER`    | 空            | 兼容旧配置；`create` 等价于发布时间，`hot-rank` 等价于智能排序         |
-| `POLL_ENABLED`          | `false`       | 是否启用定时轮询                                                       |
-| `POLL_INTERVAL_MINUTES` | `1`           | 定时轮询间隔                                                           |
-| `POLL_POST_LIMIT`       | `20`          | 每次轮询读取的帖子数量                                                 |
-| `POLL_SORT`             | `publishTime` | 轮询排序方式，支持 `publishTime`、`smart`、`replyTime`                 |
-| `NOTIFIER_PROVIDER`     | `webhook`     | 预留通知通道配置                                                       |
-| `NOTIFIER_WEBHOOK_URL`  | 空            | 预留 Webhook 地址                                                      |
-| `PORT`                  | `8000`        | 本地服务端口                                                           |
+| 变量                            | 默认值        | 说明                                                                   |
+| :------------------------------ | :------------ | :--------------------------------------------------------------------- |
+| `APP_LOCALE`                    | `zh-CN`       | 默认界面语言                                                           |
+| `HEYBOX_TOPIC_ID`               | `12099`       | 默认监控的话题 ID                                                      |
+| `HEYBOX_DEVICE_ID`              | 空            | 小黑盒 App API 设备标识，留空则启动时生成                              |
+| `HEYBOX_COOKIE`                 | 空            | 预留小黑盒 Cookie，公开话题发布时间列表通常不需要                      |
+| `HEYBOX_USER_AGENT`             | 空            | 覆盖小黑盒请求 User-Agent                                              |
+| `HEYBOX_SIGNATURE_MODE`         | `app`         | 小黑盒签名模式，`app` 为已验证的发布时间接口模式，`web` 仅保留诊断用途 |
+| `HEYBOX_POST_LIMIT`             | `20`          | 每次轮询读取的帖子数量                                                 |
+| `HEYBOX_SORT_FILTER`            | 空            | 兼容旧配置；`create` 等价于发布时间，`hot-rank` 等价于智能排序         |
+| `POLL_ENABLED`                  | `false`       | 是否启用定时轮询                                                       |
+| `POLL_INTERVAL_MINUTES`         | `1`           | 定时轮询间隔                                                           |
+| `POLL_POST_LIMIT`               | `20`          | 每次轮询读取的帖子数量                                                 |
+| `POLL_SORT`                     | `publishTime` | 轮询排序方式，支持 `publishTime`、`smart`、`replyTime`                 |
+| `NOTIFIER_PROVIDER`             | `webhook`     | 通知方式，支持 `webhook`、`email`、`disabled`；`email` 暂未实现        |
+| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook 服务，支持 `custom`、`serverChan`、`wxPusher`                  |
+| `NOTIFIER_WEBHOOK_URL`          | 空            | 自定义 Webhook 地址，仅 `NOTIFIER_WEBHOOK_SERVICE=custom` 时需要       |
+| `NOTIFIER_SERVER_CHAN_SEND_KEY` | 空            | Server酱 SendKey，仅 `NOTIFIER_WEBHOOK_SERVICE=serverChan` 时需要      |
+| `NOTIFIER_WXPUSHER_SPT`         | 空            | WxPusher SPT，仅 `NOTIFIER_WEBHOOK_SERVICE=wxPusher` 时需要            |
+| `PORT`                          | `8000`        | 本地服务端口                                                           |
 
 ## 许可证
 
@@ -150,23 +153,26 @@ deno task check
 
 ## Environment Variables
 
-| Variable                | Default       | Description                                                                                        |
-| :---------------------- | :------------ | :------------------------------------------------------------------------------------------------- |
-| `APP_LOCALE`            | `zh-CN`       | Default UI language                                                                                |
-| `HEYBOX_TOPIC_ID`       | `12099`       | Default topic ID to monitor                                                                        |
-| `HEYBOX_DEVICE_ID`      | empty         | Heybox App API device ID, generated on startup when empty                                          |
-| `HEYBOX_COOKIE`         | empty         | Reserved Heybox cookie, usually not needed for public publish-time feeds                           |
-| `HEYBOX_USER_AGENT`     | empty         | Overrides the Heybox request User-Agent                                                            |
-| `HEYBOX_SIGNATURE_MODE` | `app`         | Heybox signing mode; `app` is verified for publish-time feeds, `web` is diagnostic fallback only   |
-| `HEYBOX_POST_LIMIT`     | `20`          | Number of posts to read per poll                                                                   |
-| `HEYBOX_SORT_FILTER`    | empty         | Legacy-compatible sort setting; `create` maps to publish time, `hot-rank` maps to smart sort       |
-| `POLL_ENABLED`          | `false`       | Enables scheduled polling                                                                          |
-| `POLL_INTERVAL_MINUTES` | `1`           | Scheduled polling interval                                                                         |
-| `POLL_POST_LIMIT`       | `20`          | Number of posts to read per poll                                                                   |
-| `POLL_SORT`             | `publishTime` | Polling sort, supports `publishTime`, `smart`, and `replyTime`                                     |
-| `NOTIFIER_PROVIDER`     | `webhook`     | Notification provider, supports `webhook`, `email`, and `disabled`; `email` is not implemented yet |
-| `NOTIFIER_WEBHOOK_URL`  | empty         | Required when `NOTIFIER_PROVIDER=webhook`; receives JSON notification payloads                     |
-| `PORT`                  | `8000`        | Local server port                                                                                  |
+| Variable                        | Default       | Description                                                                                        |
+| :------------------------------ | :------------ | :------------------------------------------------------------------------------------------------- |
+| `APP_LOCALE`                    | `zh-CN`       | Default UI language                                                                                |
+| `HEYBOX_TOPIC_ID`               | `12099`       | Default topic ID to monitor                                                                        |
+| `HEYBOX_DEVICE_ID`              | empty         | Heybox App API device ID, generated on startup when empty                                          |
+| `HEYBOX_COOKIE`                 | empty         | Reserved Heybox cookie, usually not needed for public publish-time feeds                           |
+| `HEYBOX_USER_AGENT`             | empty         | Overrides the Heybox request User-Agent                                                            |
+| `HEYBOX_SIGNATURE_MODE`         | `app`         | Heybox signing mode; `app` is verified for publish-time feeds, `web` is diagnostic fallback only   |
+| `HEYBOX_POST_LIMIT`             | `20`          | Number of posts to read per poll                                                                   |
+| `HEYBOX_SORT_FILTER`            | empty         | Legacy-compatible sort setting; `create` maps to publish time, `hot-rank` maps to smart sort       |
+| `POLL_ENABLED`                  | `false`       | Enables scheduled polling                                                                          |
+| `POLL_INTERVAL_MINUTES`         | `1`           | Scheduled polling interval                                                                         |
+| `POLL_POST_LIMIT`               | `20`          | Number of posts to read per poll                                                                   |
+| `POLL_SORT`                     | `publishTime` | Polling sort, supports `publishTime`, `smart`, and `replyTime`                                     |
+| `NOTIFIER_PROVIDER`             | `webhook`     | Notification provider, supports `webhook`, `email`, and `disabled`; `email` is not implemented yet |
+| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook service, supports `custom`, `serverChan`, and `wxPusher`                                   |
+| `NOTIFIER_WEBHOOK_URL`          | empty         | Custom webhook URL, required only when `NOTIFIER_WEBHOOK_SERVICE=custom`                           |
+| `NOTIFIER_SERVER_CHAN_SEND_KEY` | empty         | ServerChan SendKey, required only when `NOTIFIER_WEBHOOK_SERVICE=serverChan`                       |
+| `NOTIFIER_WXPUSHER_SPT`         | empty         | WxPusher SPT, required only when `NOTIFIER_WEBHOOK_SERVICE=wxPusher`                               |
+| `PORT`                          | `8000`        | Local server port                                                                                  |
 
 ## License
 

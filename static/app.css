@@ -27,6 +27,8 @@
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
   --rule-action-column: 54px;
   --rule-select-column: 96px;
+  --settings-action-width: 120px;
+  --settings-control-width: 360px;
 }
 
 :root[data-color-mode="dark"] {
@@ -170,23 +172,57 @@ select {
 
 .settings-list > div > dd > input,
 .settings-list > div > dd > select {
-  max-width: 360px;
+  max-width: var(--settings-control-width);
+}
+
+.notification-provider-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  max-width: calc(var(--settings-control-width) + 250px);
+}
+
+.notification-provider-row select {
+  flex: 0 0 var(--settings-control-width);
+  min-width: 0;
+  max-width: var(--settings-control-width);
+}
+
+.notification-provider-row button {
+  flex: 0 0 var(--settings-action-width);
+  white-space: nowrap;
+  width: var(--settings-action-width);
+}
+
+.inline-action-status {
+  color: var(--muted);
+  flex: 0 0 7em;
+  font-size: 14px;
+  min-height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .input-action-row {
   align-items: center;
   display: flex;
   gap: 10px;
-  max-width: 520px;
+  max-width: calc(var(--settings-control-width) + 160px);
 }
 
 .input-action-row input {
+  flex: 0 0 var(--settings-control-width);
   min-width: 0;
+  max-width: var(--settings-control-width);
 }
 
 .external-settings-link {
   gap: 6px;
+  box-sizing: border-box;
+  flex: 0 0 var(--settings-action-width);
+  justify-content: center;
   min-height: 38px;
+  width: var(--settings-action-width);
 }
 
 .external-settings-link svg {
@@ -905,7 +941,19 @@ tr:last-child td {
   .input-action-row {
     align-items: stretch;
     flex-direction: column;
-    max-width: 360px;
+    max-width: var(--settings-control-width);
+  }
+
+  .notification-provider-row {
+    align-items: stretch;
+    flex-direction: column;
+    max-width: var(--settings-control-width);
+  }
+
+  .input-action-row input,
+  .notification-provider-row select {
+    flex-basis: auto;
+    width: 100%;
   }
 
   .section-title-row {

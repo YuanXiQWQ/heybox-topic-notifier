@@ -1,4 +1,5 @@
 import type { Locale } from "./locales/types.ts";
+import type { NotificationWebhookService } from "./notification_services.ts";
 
 export type MatchLocation = "title" | "body" | "comments" | "replies";
 
@@ -32,8 +33,9 @@ export type AppSettings = {
   notificationEmailAddress: string;
   notificationProvider: "disabled" | "email" | "webhook";
   notificationServerChanSendKey: string;
-  notificationWebhookService: "custom" | "serverChan";
+  notificationWebhookService: NotificationWebhookService;
   notificationWebhookUrl: string;
+  notificationWxPusherSpt: string;
   polling: PollingSettings;
   themeColor: string;
   topics: TopicRule[];

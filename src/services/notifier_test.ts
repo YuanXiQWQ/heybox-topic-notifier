@@ -11,6 +11,7 @@ const settings: AppSettings = {
   notificationServerChanSendKey: "SCT-test",
   notificationWebhookService: "custom",
   notificationWebhookUrl: "https://example.com/settings-webhook",
+  notificationWxPusherSpt: "SPT-test",
   polling: {
     intervalMinutes: 1,
     postLimit: 20,
@@ -143,6 +144,54 @@ Deno.test("server chan 3 webhook receives title and desp fields", async () => {
   });
 });
 
+Deno.test("wxpusher service posts to the simple push API", async () => {
+  const requests: Request[] = [];
+  const notifier = createNotifier({
+    fetch: (input, init) => {
+      requests.push(new Request(input, init));
+      return Promise.resolve(new Response(JSON.stringify({ code: 1000 }), { status: 200 }));
+    },
+  });
+
+  await notifier.sendMatch(record, {
+    ...settings,
+    notificationWebhookService: "wxPusher",
+    notificationWebhookUrl: "",
+    notificationWxPusherSpt: "SPT123",
+  });
+
+  assertEquals(
+    requests[0].url,
+    "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+  );
+  const body = await requests[0].json();
+  assertEquals(body.spt, "SPT123");
+  assertEquals(body.contentType, 1);
+  assertEquals(body.summary, "小黑盒命中：help");
+  assertEquals(body.content.includes("Need help"), true);
+  assertEquals(body.content.includes("https://example.com/p1"), true);
+});
+
+Deno.test("wxpusher service reports business errors from the API", async () => {
+  const notifier = createNotifier({
+    fetch: () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ code: 1001, msg: "invalid spt" }), { status: 200 }),
+      ),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationWebhookService: "wxPusher",
+        notificationWebhookUrl: "",
+        notificationWxPusherSpt: "SPT123",
+      }),
+    "WxPusher notification failed: invalid spt",
+  );
+});
+
 Deno.test("webhook provider requires a webhook URL", async () => {
   const notifier = createNotifier({ webhookUrl: "" });
 
@@ -164,6 +213,21 @@ Deno.test("server chan service requires a SendKey", async () => {
         notificationWebhookUrl: "",
       }),
     "Server酱 SendKey is required for webhook notifications.",
+  );
+});
+
+Deno.test("wxpusher service requires an SPT", async () => {
+  const notifier = createNotifier({ webhookUrl: "" });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationWebhookService: "wxPusher",
+        notificationWebhookUrl: "",
+        notificationWxPusherSpt: "",
+      }),
+    "WxPusher SPT is required for webhook notifications.",
   );
 });
 
