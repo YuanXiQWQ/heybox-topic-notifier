@@ -2,8 +2,6 @@ name: Android feed worker
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/30 * * * *"
 
 permissions:
   contents: write

@@ -2,8 +2,7 @@
 
 本项目使用 Deno Deploy 的 GitHub 集成部署，不使用 GitHub Actions 部署。
 
-GitHub Actions 负责运行 `deno task check`，并在检查通过后创建 GitHub Deployments 引用链接。 Deno
-Deploy 负责在仓库 push 后构建并路由应用。
+GitHub Actions 只负责运行 `deno task check`。Deno Deploy 负责在仓库 push 后构建并路由应用。
 
 ## 分支部署
 
@@ -49,15 +48,6 @@ Branch 数据。
 
 返回 `status: ok` 即代表服务进程已启动，且健康检查不会读取 Deno KV。
 
-## GitHub Deployments
-
-GitHub 仓库右侧的 Deployments 区块由 `.github/workflows/check.yml` 创建引用记录：
-
-- `main` push 检查通过后，创建 `production` deployment，链接到 Production URL。
-- `dev` push 检查通过后，创建 `staging` deployment，链接到 Git Branch / DEV URL。
-
-这些记录只用于从 GitHub 跳转到 Deno 部署；实际部署仍由 Deno Deploy GitHub 集成完成。
-
 ## 运行环境变量
 
 Deno Deploy App 中按需配置：
@@ -70,11 +60,13 @@ Deno Deploy App 中按需配置：
 - `HEYBOX_DEVICE_ID`
 - `HEYBOX_COOKIE`
 - `HEYBOX_USER_AGENT`
+- `HEYBOX_SIGNATURE_MODE`
 - `HEYBOX_POST_LIMIT`
 - `HEYBOX_SORT_FILTER`
 - `POLL_ENABLED`
 - `NOTIFIER_PROVIDER`
 - `NOTIFIER_WEBHOOK_URL`
 
-真实小黑盒话题抓取可通过 `TOPIC_SOURCE=heybox` 启用。除非正在验证定时轮询，Production 和 Git Branch
-/ DEV 都建议先保持 `POLL_ENABLED=false`。
+真实小黑盒话题抓取可通过 `TOPIC_SOURCE=heybox` 启用。默认 `HEYBOX_SIGNATURE_MODE=app` 使用已验证的
+App API 发布时间列表；`web` 仅保留为诊断回退。除非正在验证定时轮询， Production 和 Git Branch / DEV
+都建议先保持 `POLL_ENABLED=false`。

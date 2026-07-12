@@ -3,7 +3,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 | **简体中文** | [English](#heybox-topic-notifier) |
-|:--------:|:---------------------------------:|
+| :----------: | :-------------------------------: |
 
 ---
 
@@ -63,23 +63,24 @@ deno task verify-worker-feed
 
 ## 环境变量
 
-| 变量                     | 默认值       | 说明                                                     |
-|:-----------------------|:----------|:-------------------------------------------------------|
-| `APP_LOCALE`           | `zh-CN`   | 默认界面语言                                                 |
-| `HEYBOX_TOPIC_ID`      | `12099`   | 默认监控的话题 ID                                             |
-| `TOPIC_SOURCE`         | `mock`    | 话题数据源，`mock`、`heybox`、`heybox-hblog` 或 `worker`        |
-| `TOPIC_WORKER_URL`     | 空         | 云端 feed worker 地址，或 `{topic_id}`/`{sort}`/`{limit}` 模板 |
-| `TOPIC_WORKER_TOKEN`   | 空         | 预留云端 feed worker Bearer token                          |
-| `HEYBOX_HBLOG_NET_LOG` | 空         | 本地开发验证用的小黑盒 hblog net 日志路径                             |
-| `HEYBOX_DEVICE_ID`     | 空         | 小黑盒网页请求设备标识，留空则启动时生成                                   |
-| `HEYBOX_COOKIE`        | 空         | 预留小黑盒 Cookie，公开话题首屏通常不需要                               |
-| `HEYBOX_USER_AGENT`    | 空         | 覆盖小黑盒请求 User-Agent                                     |
-| `HEYBOX_POST_LIMIT`    | `20`      | 每次轮询读取的帖子数量                                            |
-| `HEYBOX_SORT_FILTER`   | 空         | 预留小黑盒排序参数，留空时跟随网页首屏                                    |
-| `POLL_ENABLED`         | `false`   | 是否启用定时轮询                                               |
-| `NOTIFIER_PROVIDER`    | `webhook` | 预留通知通道配置                                               |
-| `NOTIFIER_WEBHOOK_URL` | 空         | 预留 Webhook 地址                                          |
-| `PORT`                 | `8000`    | 本地服务端口                                                 |
+| 变量                    | 默认值    | 说明                                                                   |
+| :---------------------- | :-------- | :--------------------------------------------------------------------- |
+| `APP_LOCALE`            | `zh-CN`   | 默认界面语言                                                           |
+| `HEYBOX_TOPIC_ID`       | `12099`   | 默认监控的话题 ID                                                      |
+| `TOPIC_SOURCE`          | `mock`    | 话题数据源，`mock`、`heybox`、`heybox-hblog` 或 `worker`               |
+| `TOPIC_WORKER_URL`      | 空        | 云端 feed worker 地址，或 `{topic_id}`/`{sort}`/`{limit}` 模板         |
+| `TOPIC_WORKER_TOKEN`    | 空        | 预留云端 feed worker Bearer token                                      |
+| `HEYBOX_HBLOG_NET_LOG`  | 空        | 本地开发验证用的小黑盒 hblog net 日志路径                              |
+| `HEYBOX_DEVICE_ID`      | 空        | 小黑盒 App API 设备标识，留空则启动时生成                              |
+| `HEYBOX_COOKIE`         | 空        | 预留小黑盒 Cookie，公开话题发布时间列表通常不需要                      |
+| `HEYBOX_USER_AGENT`     | 空        | 覆盖小黑盒请求 User-Agent                                              |
+| `HEYBOX_SIGNATURE_MODE` | `app`     | 小黑盒签名模式，`app` 为已验证的发布时间接口模式，`web` 仅用于回退诊断 |
+| `HEYBOX_POST_LIMIT`     | `20`      | 每次轮询读取的帖子数量                                                 |
+| `HEYBOX_SORT_FILTER`    | 空        | 兼容旧配置；`create` 等价于发布时间，`hot-rank` 等价于智能排序         |
+| `POLL_ENABLED`          | `false`   | 是否启用定时轮询                                                       |
+| `NOTIFIER_PROVIDER`     | `webhook` | 预留通知通道配置                                                       |
+| `NOTIFIER_WEBHOOK_URL`  | 空        | 预留 Webhook 地址                                                      |
+| `PORT`                  | `8000`    | 本地服务端口                                                           |
 
 ## 许可证
 
@@ -95,10 +96,9 @@ deno task verify-worker-feed
 
 ---
 
-[HEY BOX Topic Notifier](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
-A lightweight Deno app for monitoring posts in Heybox topics. It checks post titles, bodies,
-comments, and replies against keyword rules, then records matched results for the future
-notification workflow.
+[HEY BOX Topic Notifier](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/) A lightweight Deno
+app for monitoring posts in Heybox topics. It checks post titles, bodies, comments, and replies
+against keyword rules, then records matched results for the future notification workflow.
 
 ## Status
 
@@ -153,23 +153,24 @@ deno task check
 
 ## Environment Variables
 
-| Variable               | Default   | Description                                                           |
-|:-----------------------|:----------|:----------------------------------------------------------------------|
-| `APP_LOCALE`           | `zh-CN`   | Default UI language                                                   |
-| `HEYBOX_TOPIC_ID`      | `12099`   | Default topic ID to monitor                                           |
-| `TOPIC_SOURCE`         | `mock`    | Topic source: `mock`, `heybox`, `heybox-hblog`, or `worker`           |
-| `TOPIC_WORKER_URL`     | empty     | Cloud feed worker URL or `{topic_id}`/`{sort}`/`{limit}` template     |
-| `TOPIC_WORKER_TOKEN`   | empty     | Reserved cloud feed worker Bearer token                               |
-| `HEYBOX_HBLOG_NET_LOG` | empty     | Local development hblog net log path                                  |
-| `HEYBOX_DEVICE_ID`     | empty     | Heybox web device ID, generated on startup when empty                 |
-| `HEYBOX_COOKIE`        | empty     | Reserved Heybox cookie, usually not needed for public topic feeds     |
-| `HEYBOX_USER_AGENT`    | empty     | Overrides the Heybox request User-Agent                               |
-| `HEYBOX_POST_LIMIT`    | `20`      | Number of posts to read per poll                                      |
-| `HEYBOX_SORT_FILTER`   | empty     | Reserved Heybox sort filter; empty follows the first web page request |
-| `POLL_ENABLED`         | `false`   | Enables scheduled polling                                             |
-| `NOTIFIER_PROVIDER`    | `webhook` | Reserved notification provider setting                                |
-| `NOTIFIER_WEBHOOK_URL` | empty     | Reserved webhook URL                                                  |
-| `PORT`                 | `8000`    | Local server port                                                     |
+| Variable                | Default   | Description                                                                                 |
+| :---------------------- | :-------- | :------------------------------------------------------------------------------------------ |
+| `APP_LOCALE`            | `zh-CN`   | Default UI language                                                                         |
+| `HEYBOX_TOPIC_ID`       | `12099`   | Default topic ID to monitor                                                                 |
+| `TOPIC_SOURCE`          | `mock`    | Topic source: `mock`, `heybox`, `heybox-hblog`, or `worker`                                 |
+| `TOPIC_WORKER_URL`      | empty     | Cloud feed worker URL or `{topic_id}`/`{sort}`/`{limit}` template                           |
+| `TOPIC_WORKER_TOKEN`    | empty     | Reserved cloud feed worker Bearer token                                                     |
+| `HEYBOX_HBLOG_NET_LOG`  | empty     | Local development hblog net log path                                                        |
+| `HEYBOX_DEVICE_ID`      | empty     | Heybox App API device ID, generated on startup when empty                                   |
+| `HEYBOX_COOKIE`         | empty     | Reserved Heybox cookie, usually not needed for public publish-time feeds                    |
+| `HEYBOX_USER_AGENT`     | empty     | Overrides the Heybox request User-Agent                                                     |
+| `HEYBOX_SIGNATURE_MODE` | `app`     | Heybox signing mode; `app` is verified for publish-time feeds, `web` is diagnostic fallback |
+| `HEYBOX_POST_LIMIT`     | `20`      | Number of posts to read per poll                                                            |
+| `HEYBOX_SORT_FILTER`    | empty     | Legacy-compatible sort setting; `create` maps to publish time                               |
+| `POLL_ENABLED`          | `false`   | Enables scheduled polling                                                                   |
+| `NOTIFIER_PROVIDER`     | `webhook` | Reserved notification provider setting                                                      |
+| `NOTIFIER_WEBHOOK_URL`  | empty     | Reserved webhook URL                                                                        |
+| `PORT`                  | `8000`    | Local server port                                                                           |
 
 ## License
 
