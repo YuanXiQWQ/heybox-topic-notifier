@@ -221,6 +221,108 @@ Deno.test("test notify ajax request returns a readable success message", async (
   assertEquals(await response.text(), "通知已发送");
 });
 
+Deno.test("complete matches handles all selected ids and ignores empty submissions", async () => {
+  const completed: string[][] = [];
+  const app = createRoutes({
+    storage: {
+      completeMatches: (ids: string[]) => {
+        completed.push(ids);
+        return Promise.resolve();
+      },
+    },
+  } as unknown as AppContext);
+
+  const selected = new URLSearchParams();
+  selected.append("matchId", "first");
+  selected.append("matchId", "second");
+  selected.set("returnTo", "/?range=week&page=3&pageSize=50");
+
+  const selectedResponse = await app.request("/matches/complete", {
+    body: selected,
+    method: "POST",
+  });
+  const emptyResponse = await app.request("/matches/complete", {
+    body: new URLSearchParams(),
+    method: "POST",
+  });
+
+  assertEquals(selectedResponse.status, 302);
+  assertEquals(emptyResponse.status, 302);
+  assertEquals(selectedResponse.headers.get("location"), "/?range=week&page=3&pageSize=50");
+  assertEquals(emptyResponse.headers.get("location"), "/");
+  assertEquals(completed, [["first", "second"]]);
+});
+
+Deno.test("delete matches handles all selected ids and ignores empty submissions", async () => {
+  const deleted: string[][] = [];
+  const app = createRoutes({
+    storage: {
+      deleteMatches: (ids: string[]) => {
+        deleted.push(ids);
+        return Promise.resolve();
+      },
+    },
+  } as unknown as AppContext);
+
+  const selected = new URLSearchParams();
+  selected.append("matchId", "old-first");
+  selected.append("matchId", "old-second");
+  selected.set("returnTo", "/history?range=day&page=4&pageSize=100");
+
+  const selectedResponse = await app.request("/matches/delete", {
+    body: selected,
+    method: "POST",
+  });
+  const emptyResponse = await app.request("/matches/delete", {
+    body: new URLSearchParams(),
+    method: "POST",
+  });
+
+  assertEquals(selectedResponse.status, 302);
+  assertEquals(emptyResponse.status, 302);
+  assertEquals(selectedResponse.headers.get("location"), "/history?range=day&page=4&pageSize=100");
+  assertEquals(emptyResponse.headers.get("location"), "/history");
+  assertEquals(deleted, [["old-first", "old-second"]]);
+});
+
+Deno.test("match redirects reject paths outside their table", async () => {
+  const completed: string[][] = [];
+  const deleted: string[][] = [];
+  const app = createRoutes({
+    storage: {
+      completeMatches: (ids: string[]) => {
+        completed.push(ids);
+        return Promise.resolve();
+      },
+      deleteMatches: (ids: string[]) => {
+        deleted.push(ids);
+        return Promise.resolve();
+      },
+    },
+  } as unknown as AppContext);
+
+  const completeForm = new URLSearchParams();
+  completeForm.set("matchId", "first");
+  completeForm.set("returnTo", "https://example.com/history?page=9");
+  const deleteForm = new URLSearchParams();
+  deleteForm.set("matchId", "old-first");
+  deleteForm.set("returnTo", "/?page=9&pageSize=500");
+
+  const completeResponse = await app.request("/matches/complete", {
+    body: completeForm,
+    method: "POST",
+  });
+  const deleteResponse = await app.request("/matches/delete", {
+    body: deleteForm,
+    method: "POST",
+  });
+
+  assertEquals(completeResponse.headers.get("location"), "/");
+  assertEquals(deleteResponse.headers.get("location"), "/history");
+  assertEquals(completed, [["first"]]);
+  assertEquals(deleted, [["old-first"]]);
+});
+
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);

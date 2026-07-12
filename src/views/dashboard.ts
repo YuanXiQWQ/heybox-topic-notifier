@@ -13,6 +13,7 @@ export function renderDashboard(options: {
 }): string {
   const messages = getMessages(options.settings.locale);
   const latest = options.state.latestMatch;
+  const lastPollAt = options.state.lastPollAt;
 
   const body = `
     <section class="page-heading">
@@ -29,9 +30,7 @@ export function renderDashboard(options: {
     <section class="metrics">
       <article>
         <span>${escapeHtml(messages.lastPoll)}</span>
-        <strong>${
-    escapeHtml(options.state.lastPollAt ? formatHeyboxRelativeTime(options.state.lastPollAt) : "-")
-  }</strong>
+        ${renderLastPoll(lastPollAt, options.settings.locale)}
       </article>
       <article>
         <span>${escapeHtml(messages.latestMatch)}</span>
@@ -48,7 +47,8 @@ export function renderDashboard(options: {
         <strong>${options.state.totalMatches}</strong>
       </article>
     </section>
-    ${renderPendingMatches(options.pendingTable, messages)}
+    ${renderPendingMatches(options.pendingTable, messages, options.settings.locale)}
+    ${lastPollAt ? renderLastPollScript(messages) : ""}
   `;
 
   return renderLayout({
@@ -60,9 +60,20 @@ export function renderDashboard(options: {
   });
 }
 
+function renderLastPoll(lastPollAt: string | undefined, locale: AppSettings["locale"]): string {
+  if (!lastPollAt) {
+    return "<strong>-</strong>";
+  }
+
+  return `<strong data-last-poll-at="${escapeHtml(lastPollAt)}" data-last-poll-locale="${
+    escapeHtml(locale)
+  }">${escapeHtml(formatHeyboxRelativeTime(lastPollAt, new Date(), locale))}</strong>`;
+}
+
 function renderPendingMatches(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
+  locale: AppSettings["locale"],
 ): string {
   const records = table.records;
   const rows = records.map((record) => `
@@ -83,8 +94,8 @@ function renderPendingMatches(
       <td class="table-clip">${
     escapeHtml(truncateText(record.post.excerpt || record.post.body))
   }</td>
-      <td>${escapeHtml(formatHeyboxRelativeTime(record.post.publishedAt))}</td>
-      <td>${escapeHtml(formatHeyboxRelativeTime(record.matchedAt))}</td>
+      <td>${escapeHtml(formatHeyboxRelativeTime(record.post.publishedAt, new Date(), locale))}</td>
+      <td>${escapeHtml(formatHeyboxRelativeTime(record.matchedAt, new Date(), locale))}</td>
       <td>${escapeHtml(record.keyword)}</td>
       <td>${escapeHtml(locationLabel(record.location, messages))}</td>
       <td class="table-action-cell">
@@ -109,6 +120,9 @@ function renderPendingMatches(
       ${
     table.totalRecords === 0 ? `<p>${escapeHtml(messages.emptyPendingPosts)}</p>` : `
         <form method="post" action="/matches/complete">
+          <input type="hidden" name="returnTo" value="${
+      escapeHtml(buildMatchTableUrl("/", table, {}))
+    }">
           <table class="match-table">
             ${renderMatchTableColumns()}
             <thead>
@@ -129,6 +143,7 @@ function renderPendingMatches(
                   <button
                     type="submit"
                     class="icon-button"
+                    data-pending-bulk-complete
                     title="${escapeHtml(messages.completeMatch)}"
                     aria-label="${escapeHtml(messages.completeMatch)}"
                   >${checkIcon()}</button>
@@ -142,8 +157,97 @@ function renderPendingMatches(
       `
   }
     </section>
-    ${records.length === 0 ? "" : renderPendingScript()}
+    ${records.length === 0 ? "" : renderPendingScript(messages)}
   `;
+}
+
+function renderLastPollScript(messages: ReturnType<typeof getMessages>): string {
+  const relativeTemplates = {
+    daysAgo: messages.relativeDaysAgo,
+    hoursAgo: messages.relativeHoursAgo,
+    justNow: messages.relativeJustNow,
+    minutesAgo: messages.relativeMinutesAgo,
+    secondsAgo: messages.relativeSecondsAgo,
+    yesterdayAt: messages.relativeYesterdayAt,
+  };
+
+  return `<script>
+    (() => {
+      const lastPoll = document.querySelector("[data-last-poll-at]");
+      if (!lastPoll) return;
+
+      const timestamp = Date.parse(lastPoll.dataset.lastPollAt || "");
+      if (!Number.isFinite(timestamp)) return;
+
+      const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
+      const relativeTemplates = ${JSON.stringify(relativeTemplates)};
+      updateLastPoll();
+      window.setInterval(updateLastPoll, 1000);
+
+      function updateLastPoll() {
+        lastPoll.textContent = formatRelativeTime(timestamp, locale);
+      }
+
+      function formatRelativeTime(value, locale) {
+        const date = new Date(value);
+        const diffSeconds = Math.max(0, Math.floor((Date.now() - value) / 1000));
+
+        if (diffSeconds === 0) {
+          return relativeTemplates.justNow;
+        }
+
+        if (diffSeconds < 60) {
+          return formatTemplate(relativeTemplates.secondsAgo, { count: diffSeconds });
+        }
+
+        const diffMinutes = Math.floor(diffSeconds / 60);
+        if (diffMinutes < 60) {
+          return formatTemplate(relativeTemplates.minutesAgo, { count: diffMinutes });
+        }
+
+        const diffHours = Math.floor(diffMinutes / 60);
+        if (diffHours < 24) {
+          return formatTemplate(relativeTemplates.hoursAgo, { count: diffHours });
+        }
+
+        if (diffHours < 48) {
+          const time = formatInChina(date, { hour: "2-digit", minute: "2-digit" }, locale);
+          return formatTemplate(relativeTemplates.yesterdayAt, { time });
+        }
+
+        const diffDays = Math.floor(diffHours / 24);
+        if (diffDays < 7) {
+          return formatTemplate(relativeTemplates.daysAgo, { count: diffDays });
+        }
+
+        return formatInChina(
+          date,
+          sameChinaYear(date, new Date())
+            ? { day: "2-digit", month: "2-digit" }
+            : { day: "2-digit", month: "2-digit", year: "numeric" },
+          locale,
+        );
+      }
+
+      function formatTemplate(template, values) {
+        return template.replaceAll(/\\{(\\w+)\\}/g, (placeholder, key) =>
+          values[key] === undefined ? placeholder : String(values[key])
+        );
+      }
+
+      function sameChinaYear(left, right) {
+        return formatInChina(left, { year: "numeric" }) ===
+          formatInChina(right, { year: "numeric" });
+      }
+
+      function formatInChina(date, options, locale) {
+        return new Intl.DateTimeFormat(locale, {
+          timeZone: "Asia/Shanghai",
+          ...options,
+        }).format(date).replaceAll("/", "-");
+      }
+    })();
+  </script>`;
 }
 
 function renderMatchTableColumns(): string {
@@ -273,11 +377,13 @@ function filterIcon(): string {
   </svg>`;
 }
 
-function renderPendingScript(): string {
+function renderPendingScript(messages: ReturnType<typeof getMessages>): string {
   return `<script>
     (() => {
       const selectAll = document.querySelector("[data-pending-select-all]");
       if (!selectAll) return;
+      const section = selectAll.closest(".table-section");
+      const bulkComplete = document.querySelector("[data-pending-bulk-complete]");
       const checkboxes = Array.from(document.querySelectorAll("[data-pending-match-checkbox]"));
       selectAll.addEventListener("change", () => {
         for (const checkbox of checkboxes) checkbox.checked = selectAll.checked;
@@ -286,6 +392,26 @@ function renderPendingScript(): string {
         checkbox.addEventListener("change", () => {
           selectAll.checked = checkboxes.length > 0 && checkboxes.every((item) => item.checked);
         });
+      }
+      bulkComplete?.addEventListener("click", (event) => {
+        if (checkboxes.some((item) => item.checked)) return;
+        event.preventDefault();
+        showTableToast(section, ${JSON.stringify(messages.selectMatchToComplete)});
+      });
+
+      function showTableToast(container, message) {
+        if (!container) return;
+        container.querySelector("[data-table-toast]")?.remove();
+        const toast = document.createElement("div");
+        toast.className = "keyword-toast";
+        toast.dataset.tableToast = "true";
+        toast.setAttribute("role", "status");
+        toast.textContent = message;
+        container.append(toast);
+        window.setTimeout(() => {
+          toast.classList.add("is-hiding");
+          window.setTimeout(() => toast.remove(), 180);
+        }, 1800);
       }
     })();
   </script>`;

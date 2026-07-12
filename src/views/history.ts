@@ -18,7 +18,7 @@ export function renderHistory(options: {
         <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
-    ${renderHistoryTable(options.historyTable, messages)}
+    ${renderHistoryTable(options.historyTable, messages, options.settings.locale)}
   `;
 
   return renderLayout({
@@ -33,6 +33,7 @@ export function renderHistory(options: {
 function renderHistoryTable(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
+  locale: AppSettings["locale"],
 ): string {
   const records = table.records;
   const rows = records.map((record) => `
@@ -51,8 +52,8 @@ function renderHistoryTable(
       <td class="table-clip">${
     escapeHtml(truncateText(record.post.excerpt || record.post.body))
   }</td>
-      <td>${escapeHtml(formatHeyboxRelativeTime(record.post.publishedAt))}</td>
-      <td>${escapeHtml(formatHeyboxRelativeTime(record.matchedAt))}</td>
+      <td>${escapeHtml(formatHeyboxRelativeTime(record.post.publishedAt, new Date(), locale))}</td>
+      <td>${escapeHtml(formatHeyboxRelativeTime(record.matchedAt, new Date(), locale))}</td>
       <td>${escapeHtml(record.keyword)}</td>
       <td>${escapeHtml(locationLabel(record.location, messages))}</td>
       <td class="table-action-cell">
@@ -77,6 +78,9 @@ function renderHistoryTable(
       ${
     table.totalRecords === 0 ? `<p>${escapeHtml(messages.emptyHistory)}</p>` : `
         <form method="post" action="/matches/delete">
+          <input type="hidden" name="returnTo" value="${
+      escapeHtml(buildMatchTableUrl("/history", table, {}))
+    }">
           <table class="match-table">
             ${renderMatchTableColumns()}
             <thead>
@@ -97,6 +101,7 @@ function renderHistoryTable(
                   <button
                     type="submit"
                     class="icon-button"
+                    data-history-bulk-delete
                     title="${escapeHtml(messages.deleteMatch)}"
                     aria-label="${escapeHtml(messages.deleteMatch)}"
                   >${trashIcon()}</button>
@@ -110,7 +115,7 @@ function renderHistoryTable(
       `
   }
     </section>
-    ${records.length === 0 ? "" : renderHistoryScript()}
+    ${records.length === 0 ? "" : renderHistoryScript(messages)}
   `;
 }
 
@@ -133,25 +138,42 @@ function renderTableFilters(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
 ): string {
+  const isActive = table.range !== "all" || table.from !== "" || table.to !== "";
+
   return `
-    <form class="table-filter-form" method="get" action="${path}">
-      <span class="filter-icon" aria-hidden="true">${filterIcon()}</span>
-      <select name="range">
-        ${option("all", table.range, messages.filterAll)}
-        ${option("hour", table.range, messages.filterHour)}
-        ${option("day", table.range, messages.filterDay)}
-        ${option("week", table.range, messages.filterWeek)}
-        ${option("custom", table.range, messages.filterCustom)}
-      </select>
-      <input type="datetime-local" name="from" value="${escapeHtml(table.from)}" aria-label="${
+    <div class="table-filter-shell">
+      <input
+        class="filter-toggle-input"
+        type="checkbox"
+        id="history-table-filter-toggle"
+        ${isActive ? "checked" : ""}
+      >
+      <label
+        class="filter-toggle"
+        for="history-table-filter-toggle"
+        title="${escapeHtml(messages.filter)}"
+        aria-label="${escapeHtml(messages.filter)}"
+      >
+        ${filterIcon()}
+      </label>
+      <form class="table-filter-form" method="get" action="${path}">
+        <select name="range">
+          ${option("all", table.range, messages.filterAll)}
+          ${option("hour", table.range, messages.filterHour)}
+          ${option("day", table.range, messages.filterDay)}
+          ${option("week", table.range, messages.filterWeek)}
+          ${option("custom", table.range, messages.filterCustom)}
+        </select>
+        <input type="datetime-local" name="from" value="${escapeHtml(table.from)}" aria-label="${
     escapeHtml(messages.filterFrom)
   }">
-      <input type="datetime-local" name="to" value="${escapeHtml(table.to)}" aria-label="${
+        <input type="datetime-local" name="to" value="${escapeHtml(table.to)}" aria-label="${
     escapeHtml(messages.filterTo)
   }">
-      <input type="hidden" name="pageSize" value="${table.pageSize}">
-      <button type="submit" class="secondary">${escapeHtml(messages.filter)}</button>
-    </form>
+        <input type="hidden" name="pageSize" value="${table.pageSize}">
+        <button type="submit" class="secondary">${escapeHtml(messages.filter)}</button>
+      </form>
+    </div>
   `;
 }
 
@@ -230,11 +252,13 @@ function filterIcon(): string {
   </svg>`;
 }
 
-function renderHistoryScript(): string {
+function renderHistoryScript(messages: ReturnType<typeof getMessages>): string {
   return `<script>
     (() => {
       const selectAll = document.querySelector("[data-history-select-all]");
       if (!selectAll) return;
+      const section = selectAll.closest(".table-section");
+      const bulkDelete = document.querySelector("[data-history-bulk-delete]");
       const checkboxes = Array.from(document.querySelectorAll("[data-history-match-checkbox]"));
       selectAll.addEventListener("change", () => {
         for (const checkbox of checkboxes) checkbox.checked = selectAll.checked;
@@ -243,6 +267,26 @@ function renderHistoryScript(): string {
         checkbox.addEventListener("change", () => {
           selectAll.checked = checkboxes.length > 0 && checkboxes.every((item) => item.checked);
         });
+      }
+      bulkDelete?.addEventListener("click", (event) => {
+        if (checkboxes.some((item) => item.checked)) return;
+        event.preventDefault();
+        showTableToast(section, ${JSON.stringify(messages.selectMatchToDelete)});
+      });
+
+      function showTableToast(container, message) {
+        if (!container) return;
+        container.querySelector("[data-table-toast]")?.remove();
+        const toast = document.createElement("div");
+        toast.className = "keyword-toast";
+        toast.dataset.tableToast = "true";
+        toast.setAttribute("role", "status");
+        toast.textContent = message;
+        container.append(toast);
+        window.setTimeout(() => {
+          toast.classList.add("is-hiding");
+          window.setTimeout(() => toast.remove(), 180);
+        }, 1800);
       }
     })();
   </script>`;

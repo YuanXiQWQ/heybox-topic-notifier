@@ -308,6 +308,7 @@ input[type="color"]::-moz-color-swatch {
 
 .table-section {
   margin-top: 24px;
+  position: relative;
 }
 
 .section-title-row {

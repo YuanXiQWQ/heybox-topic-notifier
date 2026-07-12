@@ -1,3 +1,4 @@
+import { getMessages } from "../locales/index.ts";
 import type { Locale } from "../locales/types.ts";
 
 const chinaTimeZone = "Asia/Shanghai";
@@ -14,54 +15,39 @@ export function formatHeyboxRelativeTime(
     return value || "-";
   }
 
+  const messages = getMessages(locale);
   const diffSeconds = Math.max(0, Math.floor((now.getTime() - timestamp) / 1000));
 
+  if (diffSeconds === 0) {
+    return messages.relativeJustNow;
+  }
+
   if (diffSeconds < 60) {
-    if (locale === "en") {
-      return `${Math.max(1, diffSeconds)} seconds ago`;
-    }
-    return `${Math.max(1, diffSeconds)} 秒前`;
+    return formatTemplate(messages.relativeSecondsAgo, { count: diffSeconds });
   }
 
   const diffMinutes = Math.floor(diffSeconds / 60);
   if (diffMinutes < 60) {
-    if (locale === "en") {
-      return `${diffMinutes} minutes ago`;
-    }
-    return `${diffMinutes} 分钟前`;
+    return formatTemplate(messages.relativeMinutesAgo, { count: diffMinutes });
   }
 
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) {
-    if (locale === "en") {
-      return `${diffHours} hours ago`;
-    }
-    return `${diffHours} 小时前`;
+    return formatTemplate(messages.relativeHoursAgo, { count: diffHours });
   }
 
   if (diffHours < 48) {
-    if (locale === "en") {
-      return `yesterday ${
-        formatInChina(date, {
-          hour: "2-digit",
-          minute: "2-digit",
-        }, locale)
-      }`;
-    }
-    return `昨天 ${
-      formatInChina(date, {
+    return formatTemplate(messages.relativeYesterdayAt, {
+      time: formatInChina(date, {
         hour: "2-digit",
         minute: "2-digit",
-      }, locale)
-    }`;
+      }, locale),
+    });
   }
 
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) {
-    if (locale === "en") {
-      return `${diffDays} days ago`;
-    }
-    return `${diffDays} 天前`;
+    return formatTemplate(messages.relativeDaysAgo, { count: diffDays });
   }
 
   return formatInChina(
@@ -70,6 +56,13 @@ export function formatHeyboxRelativeTime(
       ? { day: "2-digit", month: "2-digit" }
       : { day: "2-digit", month: "2-digit", year: "numeric" },
     locale,
+  );
+}
+
+function formatTemplate(template: string, values: Record<string, string | number>): string {
+  return template.replaceAll(
+    /\{(\w+)\}/g,
+    (placeholder, key) => values[key] === undefined ? placeholder : String(values[key]),
   );
 }
 
