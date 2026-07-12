@@ -27,6 +27,8 @@
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
   --rule-action-column: 54px;
   --rule-select-column: 96px;
+  --settings-action-width: 120px;
+  --settings-control-width: 360px;
 }
 
 :root[data-color-mode="dark"] {
@@ -51,6 +53,10 @@
 
 body {
   margin: 0;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 a {
@@ -166,7 +172,63 @@ select {
 
 .settings-list > div > dd > input,
 .settings-list > div > dd > select {
-  max-width: 360px;
+  max-width: var(--settings-control-width);
+}
+
+.notification-provider-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  max-width: calc(var(--settings-control-width) + 250px);
+}
+
+.notification-provider-row select {
+  flex: 0 0 var(--settings-control-width);
+  min-width: 0;
+  max-width: var(--settings-control-width);
+}
+
+.notification-provider-row button {
+  flex: 0 0 var(--settings-action-width);
+  white-space: nowrap;
+  width: var(--settings-action-width);
+}
+
+.inline-action-status {
+  color: var(--muted);
+  flex: 0 0 7em;
+  font-size: 14px;
+  min-height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.input-action-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  max-width: calc(var(--settings-control-width) + 160px);
+}
+
+.input-action-row input {
+  flex: 0 0 var(--settings-control-width);
+  min-width: 0;
+  max-width: var(--settings-control-width);
+}
+
+.external-settings-link {
+  gap: 6px;
+  box-sizing: border-box;
+  flex: 0 0 var(--settings-action-width);
+  justify-content: center;
+  min-height: 38px;
+  width: var(--settings-action-width);
+}
+
+.external-settings-link svg {
+  fill: currentColor;
+  height: 16px;
+  width: 16px;
 }
 
 input[type="checkbox"] {
@@ -449,6 +511,29 @@ dt {
 
 .settings-list > div:last-child {
   border-bottom: 0;
+}
+
+.notification-option-row {
+  max-height: 180px;
+  opacity: 1;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    max-height 180ms ease,
+    opacity 140ms ease,
+    padding-bottom 180ms ease,
+    padding-top 180ms ease,
+    transform 180ms ease;
+}
+
+.notification-option-row.is-collapsed {
+  border-bottom-color: transparent;
+  max-height: 0;
+  opacity: 0;
+  padding-bottom: 0;
+  padding-top: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
 }
 
 dd {
@@ -851,6 +936,24 @@ tr:last-child td {
 
   .settings-list > div {
     grid-template-columns: 1fr;
+  }
+
+  .input-action-row {
+    align-items: stretch;
+    flex-direction: column;
+    max-width: var(--settings-control-width);
+  }
+
+  .notification-provider-row {
+    align-items: stretch;
+    flex-direction: column;
+    max-width: var(--settings-control-width);
+  }
+
+  .input-action-row input,
+  .notification-provider-row select {
+    flex-basis: auto;
+    width: 100%;
   }
 
   .section-title-row {

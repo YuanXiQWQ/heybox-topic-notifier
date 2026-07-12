@@ -3,6 +3,7 @@ import type { AppSettings, AppState, MatchLocation } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import { buildMatchTableUrl, compactPages, pageSizeValues } from "./match_table.ts";
+import { truncateText } from "./text.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
 export function renderDashboard(options: {
@@ -22,9 +23,6 @@ export function renderDashboard(options: {
       <div class="actions">
         <form method="post" action="/run-now">
           <button type="submit">${escapeHtml(messages.runNow)}</button>
-        </form>
-        <form method="post" action="/test-notify">
-          <button type="submit" class="secondary">${escapeHtml(messages.testNotify)}</button>
         </form>
       </div>
     </section>
@@ -255,11 +253,6 @@ function locationLabel(
     default:
       return "-";
   }
-}
-
-function truncateText(value: string, maxLength = 80): string {
-  const text = value.trim().replace(/\s+/g, " ");
-  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 }
 
 function option(value: string, current: string, label: string): string {

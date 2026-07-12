@@ -1,11 +1,16 @@
 import { Hono } from "@hono/hono";
-import { normalizeLocale } from "./locales/index.ts";
+import { getMessages, normalizeLocale } from "./locales/index.ts";
 import type { AppSettings, KeywordRule, MatchLocation, PollSort, TopicRule } from "./models.ts";
+import {
+  normalizeNotificationEmailService,
+  normalizeNotificationWebhookService,
+} from "./notification_services.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
 import { applyMatchTableQuery, parseMatchTableQuery } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
+import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 
@@ -56,13 +61,25 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/run-now", async (c) => {
-    await context.poller.runOnce();
-    return c.redirect("/");
+    try {
+      await context.poller.runOnce();
+      return c.redirect("/");
+    } catch (error) {
+      return notificationErrorResponse(error);
+    }
   });
 
   app.post("/test-notify", async (c) => {
-    await context.notifier.sendTest();
-    return c.redirect("/");
+    const settings = await context.storage.getSettings();
+    try {
+      await context.notifier.sendTest(settings);
+      if (c.req.header("x-test-notify") === "1") {
+        return c.text(getMessages(settings.locale).testNotifySent);
+      }
+      return c.redirect("/");
+    } catch (error) {
+      return notificationErrorResponse(error);
+    }
   });
 
   app.post("/matches/complete", async (c) => {
@@ -85,6 +102,7 @@ export function createRoutes(context: AppContext): Hono {
     const css = await Deno.readTextFile(new URL("../static/app.css", import.meta.url));
     return new Response(css, {
       headers: {
+        "cache-control": "no-store",
         "content-type": "text/css; charset=utf-8",
       },
     });
@@ -94,12 +112,31 @@ export function createRoutes(context: AppContext): Hono {
     const script = await Deno.readTextFile(new URL("../static/settings.js", import.meta.url));
     return new Response(script, {
       headers: {
+        "cache-control": "no-store",
         "content-type": "text/javascript; charset=utf-8",
       },
     });
   });
 
   return app;
+}
+
+function notificationErrorResponse(error: unknown): Response {
+  if (error instanceof NotificationConfigError) {
+    return new Response(error.message, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 400,
+    });
+  }
+
+  if (error instanceof NotificationDeliveryError) {
+    return new Response(error.message, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 502,
+    });
+  }
+
+  throw error;
 }
 
 function formValues(
@@ -130,7 +167,29 @@ export function settingsFromForm(
     commonKeywordRules,
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
+    notificationEmailAddress: String(form.notificationEmailAddress ?? "").trim(),
+    notificationEmailApiToken: String(form.notificationEmailApiToken ?? ""),
+    notificationEmailApiUrl: String(form.notificationEmailApiUrl ?? "").trim(),
+    notificationEmailFrom: String(form.notificationEmailFrom ?? "").trim(),
+    notificationEmailService: normalizeNotificationEmailService(form.notificationEmailService),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
+    notificationPushPlusToken: String(
+      form.notificationPushPlusSecret ?? form.notificationPushPlusToken ?? "",
+    ).trim(),
+    notificationServerChanSendKey: String(form.notificationServerChanSendKey ?? "").trim(),
+    notificationSmtpHost: String(form.notificationSmtpHost ?? "").trim(),
+    notificationSmtpPassword: String(form.notificationSmtpPassword ?? ""),
+    notificationSmtpPort: normalizePositiveInteger(
+      form.notificationSmtpPort,
+      currentSettings.notificationSmtpPort,
+    ),
+    notificationSmtpSecure: form.notificationSmtpSecure === "on",
+    notificationSmtpUsername: String(form.notificationSmtpUsername ?? "").trim(),
+    notificationWebhookService: normalizeNotificationWebhookService(
+      form.notificationWebhookService,
+    ),
+    notificationWebhookUrl: String(form.notificationWebhookUrl ?? "").trim(),
+    notificationWxPusherSpt: String(form.notificationWxPusherSpt ?? "").trim(),
     polling: {
       intervalMinutes: normalizePositiveInteger(
         form.pollIntervalMinutes,

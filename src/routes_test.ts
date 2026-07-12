@@ -1,6 +1,7 @@
 import { createRoutes, settingsFromForm } from "./routes.ts";
 import type { AppSettings } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
+import { NotificationConfigError } from "./services/notifier.ts";
 
 const currentSettings: AppSettings = {
   activeKeywordTarget: "common",
@@ -9,7 +10,22 @@ const currentSettings: AppSettings = {
   ],
   darkMode: false,
   locale: "zh-CN",
+  notificationEmailAddress: "old@example.com",
+  notificationEmailApiToken: "old-api-token",
+  notificationEmailApiUrl: "https://example.com/old-email-api",
+  notificationEmailFrom: "old-from@example.com",
+  notificationEmailService: "smtp",
   notificationProvider: "webhook",
+  notificationPushPlusToken: "pushplus-current",
+  notificationServerChanSendKey: "SCT-current",
+  notificationSmtpHost: "smtp.current.example.com",
+  notificationSmtpPassword: "smtp-current-password",
+  notificationSmtpPort: 465,
+  notificationSmtpSecure: true,
+  notificationSmtpUsername: "smtp-current-user",
+  notificationWebhookService: "custom",
+  notificationWebhookUrl: "https://example.com/webhook",
+  notificationWxPusherSpt: "SPT-current",
   polling: {
     intervalMinutes: 1,
     postLimit: 20,
@@ -50,7 +66,22 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     keyword_0: "new-topic",
     keyword_0_location_replies: "on",
     locale: "zh-CN",
+    notificationEmailAddress: "new@example.com",
+    notificationEmailApiToken: "new-api-token",
+    notificationEmailApiUrl: "https://example.com/new-email-api",
+    notificationEmailFrom: "new-from@example.com",
+    notificationEmailService: "api",
     notificationProvider: "email",
+    notificationPushPlusSecret: "pushplus-new",
+    notificationServerChanSendKey: "SCT-new",
+    notificationSmtpHost: "smtp.new.example.com",
+    notificationSmtpPassword: "smtp-new-password",
+    notificationSmtpPort: "587",
+    notificationSmtpSecure: "on",
+    notificationSmtpUsername: "smtp-new-user",
+    notificationWebhookService: "serverChan",
+    notificationWebhookUrl: "https://example.com/new-webhook",
+    notificationWxPusherSpt: "SPT-new",
     pollIntervalMinutes: "3",
     pollPostLimit: "50",
     pollSort: "replyTime",
@@ -73,7 +104,22 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     { keyword: "new-other", locations: ["comments"] },
   ]);
   assertEquals(settings.darkMode, true);
+  assertEquals(settings.notificationEmailAddress, "new@example.com");
+  assertEquals(settings.notificationEmailApiToken, "new-api-token");
+  assertEquals(settings.notificationEmailApiUrl, "https://example.com/new-email-api");
+  assertEquals(settings.notificationEmailFrom, "new-from@example.com");
+  assertEquals(settings.notificationEmailService, "api");
   assertEquals(settings.notificationProvider, "email");
+  assertEquals(settings.notificationPushPlusToken, "pushplus-new");
+  assertEquals(settings.notificationServerChanSendKey, "SCT-new");
+  assertEquals(settings.notificationSmtpHost, "smtp.new.example.com");
+  assertEquals(settings.notificationSmtpPassword, "smtp-new-password");
+  assertEquals(settings.notificationSmtpPort, 587);
+  assertEquals(settings.notificationSmtpSecure, true);
+  assertEquals(settings.notificationSmtpUsername, "smtp-new-user");
+  assertEquals(settings.notificationWebhookService, "serverChan");
+  assertEquals(settings.notificationWebhookUrl, "https://example.com/new-webhook");
+  assertEquals(settings.notificationWxPusherSpt, "SPT-new");
   assertEquals(settings.polling, {
     intervalMinutes: 3,
     postLimit: 50,
@@ -89,7 +135,12 @@ Deno.test("settingsFromForm saves visible common keywords and submitted topic ke
     keyword_0_location_title: "on",
     keyword_0_location_body: "on",
     locale: "zh-CN",
+    notificationEmailAddress: "old@example.com",
     notificationProvider: "webhook",
+    notificationPushPlusToken: "pushplus-current",
+    notificationWebhookService: "custom",
+    notificationWebhookUrl: "https://example.com/webhook",
+    notificationWxPusherSpt: "SPT-current",
     themeColor: "#bd7fff",
     topic_0_enabled: "on",
     topic_0_id: "12099",
@@ -115,7 +166,12 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
     keyword_0: "new-topic",
     keyword_0_location_title: "on",
     locale: "zh-CN",
+    notificationEmailAddress: "old@example.com",
     notificationProvider: "webhook",
+    notificationPushPlusToken: "pushplus-current",
+    notificationWebhookService: "custom",
+    notificationWebhookUrl: "https://example.com/webhook",
+    notificationWxPusherSpt: "SPT-current",
     themeColor: "#bd7fff",
     topic_0_enabled: "on",
     topic_0_id: "12099",
@@ -128,6 +184,41 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
 
   assertEquals(settings.commonKeywordRules, currentSettings.commonKeywordRules);
   assertEquals(settings.topics[1].keywordRules, currentSettings.topics[1].keywordRules);
+});
+
+Deno.test("test notify returns a readable configuration error", async () => {
+  const app = createRoutes({
+    notifier: {
+      sendTest: () => Promise.reject(new NotificationConfigError("missing webhook")),
+    },
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/test-notify", { method: "POST" });
+
+  assertEquals(response.status, 400);
+  assertEquals(await response.text(), "missing webhook");
+});
+
+Deno.test("test notify ajax request returns a readable success message", async () => {
+  const app = createRoutes({
+    notifier: {
+      sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+    },
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/test-notify", {
+    headers: { "x-test-notify": "1" },
+    method: "POST",
+  });
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.text(), "通知已发送");
 });
 
 function assertEquals(actual: unknown, expected: unknown): void {

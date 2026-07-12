@@ -3,8 +3,10 @@ let autoSaveKeywordEditor;
 let autoSaveTopicEditor;
 let autoSaveTimer;
 let autoSaveController;
+let testNotifyStatusTimer;
 let lastSavedSignature = "";
 let reloadAfterSave = false;
+const notificationTransitionMs = 190;
 
 function initSettingsEditors() {
   const topicEditor = document.querySelector("[data-topic-editor]");
@@ -18,10 +20,157 @@ function initSettingsEditors() {
   initDropdown(keywordEditor, "keywords");
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
+  initNotificationSettings();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
   initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
   updateKeywordSummary(keywordEditor);
+}
+
+function initNotificationSettings() {
+  const providerSelect = document.querySelector("[data-notification-provider-select]");
+  const emailServiceSelect = document.querySelector("[data-notification-email-service-select]");
+  const serviceSelect = document.querySelector("[data-notification-webhook-service-select]");
+  const testNotifyButton = document.querySelector("[data-test-notify-button]");
+  const testNotifyStatus = document.querySelector("[data-test-notify-status]");
+  const rows = Array.from(document.querySelectorAll("[data-notification-field]"));
+
+  if (!(providerSelect instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  let visibleFields = desiredNotificationFields();
+  let transitionToken = 0;
+
+  function desiredNotificationFields() {
+    if (providerSelect.value === "email") {
+      const fields = [
+        "email-service",
+        "email-address",
+        "email-from",
+      ];
+
+      if (emailServiceSelect?.value === "api") {
+        fields.push("email-api-url", "email-api-token");
+      } else {
+        fields.push(
+          "smtp-host",
+          "smtp-port",
+          "smtp-secure",
+          "smtp-username",
+          "smtp-password",
+        );
+      }
+
+      return new Set(fields);
+    }
+
+    if (providerSelect.value !== "webhook") {
+      return new Set();
+    }
+
+    return new Set([
+      "webhook-service",
+      serviceSelect?.value || "custom",
+    ]);
+  }
+
+  function rowName(row) {
+    return row.dataset.notificationField;
+  }
+
+  function showRow(row, animate, token) {
+    row.hidden = false;
+    row.dataset.notificationTransitionToken = String(token);
+
+    if (!animate) {
+      row.classList.remove("is-collapsed");
+      return;
+    }
+
+    row.classList.add("is-collapsed");
+    row.getBoundingClientRect();
+    row.classList.remove("is-collapsed");
+  }
+
+  function hideRow(row, animate, token) {
+    row.dataset.notificationTransitionToken = String(token);
+    row.classList.add("is-collapsed");
+
+    if (!animate) {
+      row.hidden = true;
+      return;
+    }
+
+    setTimeout(() => {
+      if (
+        row.dataset.notificationTransitionToken === String(token) &&
+        row.classList.contains("is-collapsed")
+      ) {
+        row.hidden = true;
+      }
+    }, notificationTransitionMs);
+  }
+
+  function applyNotificationFields(fields, animate, token) {
+    for (const row of rows) {
+      if (fields.has(rowName(row))) {
+        showRow(row, animate, token);
+      } else {
+        hideRow(row, animate, token);
+      }
+    }
+
+    if (testNotifyButton instanceof HTMLButtonElement) {
+      testNotifyButton.hidden = providerSelect.value === "disabled";
+      if (testNotifyStatus instanceof HTMLElement) {
+        testNotifyStatus.hidden = testNotifyButton.hidden;
+      }
+      if (testNotifyButton.hidden) {
+        setTestNotifyStatus("");
+      }
+    }
+  }
+
+  function syncNotificationFields(animate) {
+    const targetFields = desiredNotificationFields();
+    const token = ++transitionToken;
+
+    applyNotificationFields(targetFields, animate, token);
+
+    visibleFields = targetFields;
+  }
+
+  providerSelect.addEventListener("change", () => {
+    syncNotificationFields(true);
+    scheduleAutoSave();
+  });
+
+  emailServiceSelect?.addEventListener("change", () => {
+    syncNotificationFields(true);
+    scheduleAutoSave();
+  });
+
+  serviceSelect?.addEventListener("change", () => {
+    syncNotificationFields(true);
+    scheduleAutoSave();
+  });
+
+  testNotifyButton?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    if (!(testNotifyButton instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    testNotifyButton.disabled = true;
+    const saved = await saveSettingsNow();
+    if (saved) {
+      await sendTestNotification();
+    }
+    testNotifyButton.disabled = false;
+  });
+
+  applyNotificationFields(visibleFields, false, ++transitionToken);
 }
 
 function initDropdown(editor, name) {
@@ -277,14 +426,15 @@ function scheduleAutoSave() {
 
 async function saveSettingsNow() {
   if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor) {
-    return;
+    return true;
   }
 
+  clearTimeout(autoSaveTimer);
   persistCurrentKeywordRows(autoSaveTopicEditor, autoSaveKeywordEditor);
 
   const signature = settingsSignature();
   if (signature === lastSavedSignature) {
-    return;
+    return true;
   }
 
   autoSaveController?.abort();
@@ -308,12 +458,49 @@ async function saveSettingsNow() {
     if (reloadAfterSave) {
       location.reload();
     }
+    return true;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      return;
+      return false;
     }
 
     setAutoSaveStatus("error");
+    return false;
+  }
+}
+
+async function sendTestNotification() {
+  try {
+    const response = await fetch("/test-notify", {
+      headers: { "x-test-notify": "1" },
+      method: "POST",
+    });
+    const text = await response.text();
+    if (response.ok) {
+      setTestNotifyStatus(text);
+    } else {
+      setAutoSaveStatus("error", text);
+    }
+  } catch {
+    setAutoSaveStatus("error");
+  }
+}
+
+function setTestNotifyStatus(text) {
+  const status = document.querySelector("[data-test-notify-status]");
+  if (!status) {
+    return;
+  }
+
+  clearTimeout(testNotifyStatusTimer);
+  status.textContent = text;
+
+  if (text) {
+    testNotifyStatusTimer = setTimeout(() => {
+      if (status.textContent === text) {
+        status.textContent = "";
+      }
+    }, 2200);
   }
 }
 
@@ -325,14 +512,15 @@ function settingsSignature() {
   return new URLSearchParams(new FormData(autoSaveForm)).toString();
 }
 
-function setAutoSaveStatus(state) {
+function setAutoSaveStatus(state, text) {
   const status = document.querySelector("[data-autosave-status]");
   if (!status || !autoSaveForm) {
     return;
   }
 
   status.dataset.state = state;
-  status.textContent = autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
+  status.textContent = text ??
+    autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
     "";
 }
 

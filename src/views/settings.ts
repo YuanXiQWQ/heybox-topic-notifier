@@ -1,6 +1,10 @@
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
 import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "../models.ts";
+import {
+  notificationEmailServices,
+  notificationWebhookServices,
+} from "../notification_services.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
@@ -32,25 +36,10 @@ export function renderSettings(options: {
         </dl>
       </section>
       ${renderPollingSection(options.settings)}
+      ${renderNotificationSection(options.settings)}
       <section class="settings-group" aria-labelledby="global-settings-heading">
         <h2 id="global-settings-heading">${escapeHtml(messages.globalSettings)}</h2>
         <dl class="settings-list">
-          <div>
-            <dt>${escapeHtml(messages.notificationProvider)}</dt>
-            <dd>
-              <select name="notificationProvider">
-                ${
-    option("webhook", options.settings.notificationProvider, messages.notificationWebhook)
-  }
-                ${
-    option("email", options.settings.notificationProvider, messages.notificationEmail)
-  }
-                ${
-    option("disabled", options.settings.notificationProvider, messages.notificationDisabled)
-  }
-              </select>
-            </dd>
-          </div>
           <div>
             <dt>${escapeHtml(messages.theme)}</dt>
             <dd>
@@ -95,7 +84,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
-    <script src="/static/settings.js" defer></script>
+    <script src="/static/settings.js?v=20260712-email-service" defer></script>
   `;
 
   return renderLayout({
@@ -105,6 +94,310 @@ export function renderSettings(options: {
     themeColor: options.settings.themeColor,
     title: messages.settingsTitle,
   });
+}
+
+function renderNotificationSection(settings: AppSettings): string {
+  const messages = getMessages(settings.locale);
+
+  return `
+      <section class="settings-group" aria-labelledby="notification-settings-heading">
+        <h2 id="notification-settings-heading">${escapeHtml(messages.notificationSettings)}</h2>
+        <dl class="settings-list">
+          <div>
+            <dt>${escapeHtml(messages.notificationProvider)}</dt>
+            <dd>
+              <div class="notification-provider-row">
+                <select name="notificationProvider" data-notification-provider-select>
+                  ${option("webhook", settings.notificationProvider, messages.notificationWebhook)}
+                  ${option("email", settings.notificationProvider, messages.notificationEmail)}
+                  ${
+    option("disabled", settings.notificationProvider, messages.notificationDisabled)
+  }
+                </select>
+                <button
+                  type="button"
+                  data-test-notify-button
+                  ${settings.notificationProvider === "disabled" ? "hidden" : ""}
+                >${escapeHtml(messages.testNotify)}</button>
+                <span class="inline-action-status" data-test-notify-status role="status"></span>
+              </div>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="webhook-service"
+            data-notification-provider-field="webhook"
+          >
+            <dt>${escapeHtml(messages.notificationWebhookService)}</dt>
+            <dd>
+              <select name="notificationWebhookService" data-notification-webhook-service-select>
+                ${
+    notificationWebhookServices.map((service) =>
+      option(service.id, settings.notificationWebhookService, messages[service.labelKey])
+    ).join("")
+  }
+              </select>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="serverChan"
+            data-notification-provider-field="webhook"
+            data-notification-webhook-service-field="serverChan"
+          >
+            <dt>${escapeHtml(messages.notificationServerChanSendKey)}</dt>
+            <dd>
+              <div class="input-action-row">
+                <input
+                  type="password"
+                  name="notificationServerChanSendKey"
+                  value="${escapeHtml(settings.notificationServerChanSendKey)}"
+                  autocomplete="off"
+                >
+                <a
+                  class="button-link external-settings-link"
+                  href="https://sct.ftqq.com/sendkey"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>${escapeHtml(messages.configure)}</span>
+                  ${externalLinkIcon()}
+                </a>
+              </div>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="pushPlus"
+            data-notification-provider-field="webhook"
+            data-notification-webhook-service-field="pushPlus"
+          >
+            <dt>${escapeHtml(messages.notificationPushPlusToken)}</dt>
+            <dd>
+              <div class="input-action-row">
+                <input
+                  type="password"
+                  name="notificationPushPlusSecret"
+                  value="${escapeHtml(settings.notificationPushPlusToken)}"
+                  autocomplete="off"
+                >
+                <a
+                  class="button-link external-settings-link"
+                  href="https://www.pushplus.plus/uc-dev.html"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>${escapeHtml(messages.configure)}</span>
+                  ${externalLinkIcon()}
+                </a>
+              </div>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="wxPusher"
+            data-notification-provider-field="webhook"
+            data-notification-webhook-service-field="wxPusher"
+          >
+            <dt>${escapeHtml(messages.notificationWxPusherSpt)}</dt>
+            <dd>
+              <div class="input-action-row">
+                <input
+                  type="password"
+                  name="notificationWxPusherSpt"
+                  value="${escapeHtml(settings.notificationWxPusherSpt)}"
+                  autocomplete="off"
+                  placeholder="SPT_xxx"
+                >
+                <a
+                  class="button-link external-settings-link"
+                  href="https://wxpusher.zjiecode.com/docs/spt.html"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>${escapeHtml(messages.configure)}</span>
+                  ${externalLinkIcon()}
+                </a>
+              </div>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="custom"
+            data-notification-provider-field="webhook"
+            data-notification-webhook-service-field="custom"
+          >
+            <dt>${escapeHtml(messages.notificationWebhookUrl)}</dt>
+            <dd>
+              <input
+                type="password"
+                name="notificationWebhookUrl"
+                value="${escapeHtml(settings.notificationWebhookUrl)}"
+                placeholder="https://"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-service"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationEmailService)}</dt>
+            <dd>
+              <select name="notificationEmailService" data-notification-email-service-select>
+                ${
+    notificationEmailServices.map((service) =>
+      option(service.id, settings.notificationEmailService, messages[service.labelKey])
+    ).join("")
+  }
+              </select>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-address"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationEmailAddress)}</dt>
+            <dd>
+              <input
+                type="email"
+                name="notificationEmailAddress"
+                value="${escapeHtml(settings.notificationEmailAddress)}"
+                placeholder="name@example.com"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-from"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationEmailFrom)}</dt>
+            <dd>
+              <input
+                type="email"
+                name="notificationEmailFrom"
+                value="${escapeHtml(settings.notificationEmailFrom)}"
+                placeholder="name@example.com"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-api-url"
+            data-notification-provider-field="email"
+            data-notification-email-service-field="api"
+          >
+            <dt>${escapeHtml(messages.notificationEmailApiUrl)}</dt>
+            <dd>
+              <input
+                type="url"
+                name="notificationEmailApiUrl"
+                value="${escapeHtml(settings.notificationEmailApiUrl)}"
+                placeholder="https://"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-api-token"
+            data-notification-provider-field="email"
+            data-notification-email-service-field="api"
+          >
+            <dt>${escapeHtml(messages.notificationEmailApiToken)}</dt>
+            <dd>
+              <input
+                type="password"
+                name="notificationEmailApiToken"
+                value="${escapeHtml(settings.notificationEmailApiToken)}"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-host"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpHost)}</dt>
+            <dd>
+              <input
+                name="notificationSmtpHost"
+                value="${escapeHtml(settings.notificationSmtpHost)}"
+                placeholder="smtp.example.com"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-port"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpPort)}</dt>
+            <dd>
+              <input
+                type="number"
+                name="notificationSmtpPort"
+                min="1"
+                step="1"
+                value="${settings.notificationSmtpPort}"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-secure"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpSecure)}</dt>
+            <dd>
+              <label class="switch-control">
+                <input
+                  type="checkbox"
+                  name="notificationSmtpSecure"
+                  ${settings.notificationSmtpSecure ? "checked" : ""}
+                >
+              </label>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-username"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpUsername)}</dt>
+            <dd>
+              <input
+                name="notificationSmtpUsername"
+                value="${escapeHtml(settings.notificationSmtpUsername)}"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-password"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpPassword)}</dt>
+            <dd>
+              <input
+                type="password"
+                name="notificationSmtpPassword"
+                value="${escapeHtml(settings.notificationSmtpPassword)}"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+        </dl>
+      </section>
+  `;
 }
 
 function renderPollingSection(settings: AppSettings): string {
@@ -490,5 +783,12 @@ function trashIcon(): string {
   return `<svg aria-hidden="true" viewBox="0 0 24 24">
     <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z"></path>
     <path d="M6 9h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"></path>
+  </svg>`;
+}
+
+function externalLinkIcon(): string {
+  return `<svg aria-hidden="true" viewBox="0 0 24 24">
+    <path d="M14 4h6v6h-2V7.4l-7.3 7.3-1.4-1.4L16.6 6H14V4Z"></path>
+    <path d="M5 5h6v2H7v10h10v-4h2v6H5V5Z"></path>
   </svg>`;
 }
