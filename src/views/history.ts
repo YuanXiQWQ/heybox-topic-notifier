@@ -55,7 +55,7 @@ function renderHistoryTable(
       <td>${escapeHtml(formatHeyboxRelativeTime(record.matchedAt))}</td>
       <td>${escapeHtml(record.keyword)}</td>
       <td>${escapeHtml(locationLabel(record.location, messages))}</td>
-      <td>
+      <td class="table-action-cell">
         <button
           type="submit"
           class="icon-button"
@@ -77,7 +77,8 @@ function renderHistoryTable(
       ${
     table.totalRecords === 0 ? `<p>${escapeHtml(messages.emptyHistory)}</p>` : `
         <form method="post" action="/matches/delete">
-          <table>
+          <table class="match-table">
+            ${renderMatchTableColumns()}
             <thead>
               <tr>
                 <th>
@@ -92,7 +93,7 @@ function renderHistoryTable(
                 <th>${escapeHtml(messages.matchedAt)}</th>
                 <th>${escapeHtml(messages.matchedKeyword)}</th>
                 <th>${escapeHtml(messages.matchLocationHeader)}</th>
-                <th>
+                <th class="table-action-cell">
                   <button
                     type="submit"
                     class="icon-button"
@@ -111,6 +112,20 @@ function renderHistoryTable(
     </section>
     ${records.length === 0 ? "" : renderHistoryScript()}
   `;
+}
+
+function renderMatchTableColumns(): string {
+  return `
+            <colgroup>
+              <col class="match-table-col-2">
+              <col class="match-table-col-4">
+              <col class="match-table-col-10">
+              <col class="match-table-col-2">
+              <col class="match-table-col-2">
+              <col class="match-table-col-2">
+              <col class="match-table-col-2">
+              <col class="match-table-col-1">
+            </colgroup>`;
 }
 
 function renderTableFilters(
