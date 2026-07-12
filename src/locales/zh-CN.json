@@ -41,6 +41,8 @@
   "notificationDisabled": "关闭",
   "notificationEmailAddress": "邮箱",
   "notificationEmail": "邮件",
+  "notificationBatchTitle": "小黑盒话题提醒：轮询命中",
+  "notificationMoreMatches": "及另外 {count} 条帖子",
   "notificationProvider": "通知方式",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",

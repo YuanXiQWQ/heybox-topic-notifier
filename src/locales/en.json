@@ -41,6 +41,8 @@
   "notificationDisabled": "Disabled",
   "notificationEmailAddress": "Email address",
   "notificationEmail": "Email",
+  "notificationBatchTitle": "Heybox Topic Notifier: Poll matches",
+  "notificationMoreMatches": "and {count} more posts",
   "notificationProvider": "Notification provider",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",

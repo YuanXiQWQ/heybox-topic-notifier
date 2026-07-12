@@ -39,6 +39,24 @@ const record: MatchRecord = {
   },
 };
 
+const secondRecord: MatchRecord = {
+  id: "12099:p2:guide:body",
+  keyword: "guide",
+  location: "body",
+  matchedAt: "2026-07-12T00:01:00.000Z",
+  post: {
+    body:
+      "This body is intentionally long so the notification preview is shorter than the pending table preview.",
+    commentReplies: [],
+    comments: [],
+    excerpt: "",
+    id: "p2",
+    publishedAt: "2026-07-12T00:00:30.000Z",
+    title: "Guide request",
+    url: "https://example.com/p2",
+  },
+};
+
 Deno.test("sendMatch posts a JSON webhook payload", async () => {
   const requests: Request[] = [];
   const notifier = createNotifier({
@@ -60,6 +78,72 @@ Deno.test("sendMatch posts a JSON webhook payload", async () => {
   assertEquals(body.type, "match");
   assertEquals(body.match.keyword, "help");
   assertEquals(body.match.post.url, "https://example.com/p1");
+});
+
+Deno.test("sendMatches posts one localized markdown summary", async () => {
+  const requests: Request[] = [];
+  const notifier = createNotifier({
+    fetch: (input, init) => {
+      requests.push(new Request(input, init));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  });
+
+  const result = await notifier.sendMatches(
+    [record, secondRecord],
+    {
+      ...settings,
+      notificationWebhookService: "custom",
+      notificationWebhookUrl: "https://example.com/batch-webhook",
+    },
+  );
+
+  assertEquals(result, { provider: "webhook", sent: true });
+  assertEquals(requests.length, 1);
+  const body = await requests[0].json();
+  assertEquals(body.type, "matches");
+  assertEquals(body.title, "小黑盒话题提醒：轮询命中");
+  assertEquals(body.text.includes("[Need help](https://example.com/p1)"), true);
+  assertEquals(body.text.includes("标题："), false);
+  assertEquals(body.text.includes("内容："), false);
+  assertEquals(body.text.includes("发帖时间："), true);
+  assertEquals(body.text.includes("命中时间："), false);
+  assertEquals(body.text.includes("命中关键词：help"), true);
+  assertEquals(body.text.includes("匹配位置：标题"), true);
+  assertEquals(body.text.includes("\n\n---\n\n"), true);
+  assertEquals(body.text.includes("[访问帖子]"), false);
+  assertEquals(body.text.includes("This body is intentionally long"), true);
+  assertEquals(body.text.includes("pending table preview."), false);
+});
+
+Deno.test("sendMatches summarizes omitted records when the markdown would be too long", async () => {
+  const requests: Request[] = [];
+  const notifier = createNotifier({
+    fetch: (input, init) => {
+      requests.push(new Request(input, init));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  });
+  const records = Array.from({ length: 80 }, (_, index) => ({
+    ...secondRecord,
+    id: `12099:p${index}:guide:body`,
+    post: {
+      ...secondRecord.post,
+      id: `p${index}`,
+      title: `Guide request ${index}`,
+      url: `https://example.com/p${index}`,
+    },
+  }));
+
+  await notifier.sendMatches(records, {
+    ...settings,
+    notificationWebhookService: "custom",
+    notificationWebhookUrl: "https://example.com/batch-webhook",
+  });
+
+  const body = await requests[0].json();
+  assertEquals(body.text.includes("及另外 "), true);
+  assertEquals(body.text.length <= 3700, true);
 });
 
 Deno.test("disabled provider does not send a request", async () => {

@@ -58,13 +58,16 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
   const notifiedMatches: string[] = [];
   const seenPosts: string[] = [];
   let sentMatches = 0;
+  let sentMatchCount = 0;
   let lastPollAt = "";
 
   const poller = createPoller({
     matcher: createMatcher(),
     notifier: {
-      sendMatch: () => {
+      sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendMatches: (matchedRecords: MatchRecord[]) => {
         sentMatches += 1;
+        sentMatchCount = matchedRecords.length;
         return Promise.resolve({ provider: "webhook", sent: true });
       },
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
@@ -106,7 +109,8 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
     ["p1", "common-hit", "title"],
     ["p2", "topic-hit", "comments"],
   ]);
-  assertEquals(sentMatches, 2);
+  assertEquals(sentMatches, 1);
+  assertEquals(sentMatchCount, 2);
   assertEquals(seenPosts, ["p1", "p2"]);
   assertEquals(notifiedMatches, records.map((record) => record.id));
   if (!lastPollAt) {
@@ -121,7 +125,8 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
   const poller = createPoller({
     matcher: createMatcher(),
     notifier: {
-      sendMatch: () => Promise.reject(new Error("webhook failed")),
+      sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendMatches: () => Promise.reject(new Error("webhook failed")),
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
     } as ReturnType<typeof createNotifier>,
     source: {

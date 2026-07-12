@@ -42,6 +42,8 @@ export type Messages = {
   notificationDisabled: string;
   notificationEmailAddress: string;
   notificationEmail: string;
+  notificationMoreMatches: string;
+  notificationBatchTitle: string;
   notificationProvider: string;
   notificationPushPlus: string;
   notificationPushPlusToken: string;

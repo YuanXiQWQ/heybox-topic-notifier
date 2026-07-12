@@ -3,6 +3,7 @@ import type { AppSettings, AppState, MatchLocation } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import { buildMatchTableUrl, compactPages, pageSizeValues } from "./match_table.ts";
+import { truncateText } from "./text.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
 export function renderDashboard(options: {
@@ -252,11 +253,6 @@ function locationLabel(
     default:
       return "-";
   }
-}
-
-function truncateText(value: string, maxLength = 80): string {
-  const text = value.trim().replace(/\s+/g, " ");
-  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 }
 
 function option(value: string, current: string, label: string): string {

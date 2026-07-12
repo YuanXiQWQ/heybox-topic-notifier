@@ -1,8 +1,12 @@
 import type { AppSettings, MatchRecord } from "../models.ts";
+import { getMessages } from "../locales/index.ts";
+import { truncateText } from "../views/text.ts";
+import { formatHeyboxRelativeTime } from "../views/time.ts";
 
-type NotifyKind = "match" | "test";
+type NotifyKind = "match" | "matches" | "test";
 
 type NotificationPayload = {
+  title?: string;
   type: NotifyKind;
   text: string;
   match?: {
@@ -17,6 +21,7 @@ type NotificationPayload = {
       url: string;
     };
   };
+  matches?: MatchRecord[];
 };
 
 export type NotifyResult = {
@@ -31,6 +36,11 @@ export type NotifierOptions = {
 
 const pushPlusSendUrl = "https://www.pushplus.plus/send/";
 const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
+const notificationContentLimit = 3600;
+const notificationContentPreviewLength = 60;
+const notificationTitlePreviewLength = 80;
+const markdownHardBreak = "  \n";
+const markdownSeparator = "\n\n---\n\n";
 
 export class NotificationConfigError extends Error {}
 
@@ -44,6 +54,22 @@ export function createNotifier(options: NotifierOptions = {}) {
     async sendMatch(record: MatchRecord, settings: AppSettings): Promise<NotifyResult> {
       return await send({
         payload: matchPayload(record),
+        provider: settings.notificationProvider,
+        pushPlusToken: settings.notificationPushPlusToken,
+        serverChanSendKey: settings.notificationServerChanSendKey,
+        webhookService: settings.notificationWebhookService,
+        webhookUrl: settings.notificationWebhookUrl,
+        wxPusherSpt: settings.notificationWxPusherSpt,
+      });
+    },
+
+    async sendMatches(records: MatchRecord[], settings: AppSettings): Promise<NotifyResult> {
+      if (records.length === 0) {
+        return { provider: settings.notificationProvider, sent: false };
+      }
+
+      return await send({
+        payload: matchesPayload(records, settings),
         provider: settings.notificationProvider,
         pushPlusToken: settings.notificationPushPlusToken,
         serverChanSendKey: settings.notificationServerChanSendKey,
@@ -199,6 +225,15 @@ function matchPayload(record: MatchRecord): NotificationPayload {
   };
 }
 
+function matchesPayload(records: MatchRecord[], settings: AppSettings): NotificationPayload {
+  return {
+    matches: records,
+    text: matchesDescription(records, settings),
+    title: getMessages(settings.locale).notificationBatchTitle,
+    type: "matches",
+  };
+}
+
 function bodyForWebhook(options: {
   payload: NotificationPayload;
   pushPlusToken: string;
@@ -282,6 +317,10 @@ function serviceLabel(service: AppSettings["notificationWebhookService"]): strin
 }
 
 function notificationTitle(payload: NotificationPayload): string {
+  if (payload.title) {
+    return payload.title;
+  }
+
   if (payload.type === "test") {
     return "小黑盒话题提醒测试";
   }
@@ -290,6 +329,10 @@ function notificationTitle(payload: NotificationPayload): string {
 }
 
 function notificationDescription(payload: NotificationPayload): string {
+  if (payload.type === "matches") {
+    return payload.text;
+  }
+
   if (!payload.match) {
     return payload.text;
   }
@@ -302,4 +345,81 @@ function notificationDescription(payload: NotificationPayload): string {
     "",
     `[打开帖子](${payload.match.post.url})`,
   ].join("\n");
+}
+
+function matchesDescription(
+  records: MatchRecord[],
+  settings: AppSettings,
+  now = new Date(),
+): string {
+  const messages = getMessages(settings.locale);
+  const renderedItems: string[] = [];
+
+  for (const record of records) {
+    const item = matchMarkdown(record, settings, now);
+    const omittedCount = records.length - renderedItems.length - 1;
+    const nextBody = [...renderedItems, item].join(markdownSeparator);
+    const nextWithOmitted = omittedCount > 0
+      ? `${nextBody}${markdownSeparator}${
+        moreMatchesText(messages.notificationMoreMatches, omittedCount)
+      }`
+      : nextBody;
+
+    if (renderedItems.length > 0 && nextWithOmitted.length > notificationContentLimit) {
+      break;
+    }
+
+    renderedItems.push(item);
+  }
+
+  const omittedCount = records.length - renderedItems.length;
+  const body = renderedItems.join(markdownSeparator);
+  return omittedCount > 0
+    ? `${body}${markdownSeparator}${
+      moreMatchesText(messages.notificationMoreMatches, omittedCount)
+    }`
+    : body;
+}
+
+function matchMarkdown(record: MatchRecord, settings: AppSettings, now: Date): string {
+  const messages = getMessages(settings.locale);
+  const content = truncateText(
+    record.post.excerpt || record.post.body || "-",
+    notificationContentPreviewLength,
+  );
+  const title = truncateText(record.post.title, notificationTitlePreviewLength);
+
+  return [
+    `[${escapeMarkdownLinkText(title)}](${record.post.url})`,
+    content,
+    `${messages.publishedAt}：${
+      formatHeyboxRelativeTime(record.post.publishedAt, now, settings.locale)
+    }，${messages.matchedKeyword}：${record.keyword}，${messages.matchLocationHeader}：${
+      matchLocationLabel(record.location, messages)
+    }`,
+  ].join(markdownHardBreak);
+}
+
+function escapeMarkdownLinkText(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
+}
+
+function matchLocationLabel(
+  location: MatchRecord["location"],
+  messages: ReturnType<typeof getMessages>,
+): string {
+  switch (location) {
+    case "title":
+      return messages.matchTitle;
+    case "body":
+      return messages.matchBody;
+    case "comments":
+      return messages.matchComments;
+    case "replies":
+      return messages.matchReplies;
+  }
+}
+
+function moreMatchesText(template: string, count: number): string {
+  return template.replace("{count}", String(count));
 }
