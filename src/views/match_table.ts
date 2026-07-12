@@ -57,6 +57,15 @@ export function applyMatchTableQuery(
   };
 }
 
+export function matchTableSignature(table: MatchTableResult): string {
+  return [
+    table.totalRecords,
+    table.page,
+    table.pageSize,
+    table.records.map((record) => record.id).join("|"),
+  ].join(":");
+}
+
 export function buildMatchTableUrl(
   path: string,
   query: MatchTableQuery,

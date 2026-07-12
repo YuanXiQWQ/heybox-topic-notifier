@@ -13,7 +13,6 @@ import { createPoller } from "./poller.ts";
 
 export type AppConfig = {
   defaultSettings: AppSettings;
-  pollEnabled: boolean;
   port: number;
 };
 
@@ -48,7 +47,9 @@ export function createAppContext() {
       notificationWebhookUrl: Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "",
       notificationWxPusherSpt: Deno.env.get("NOTIFIER_WXPUSHER_SPT") ?? "",
       polling: {
-        intervalMinutes: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
+        enabled: Deno.env.get("POLL_ENABLED") === "true",
+        intervalUnit: "minute",
+        intervalValue: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
         postLimit: positiveIntegerFromEnv(
           "POLL_POST_LIMIT",
           positiveIntegerFromEnv("HEYBOX_POST_LIMIT", 20),
@@ -65,7 +66,6 @@ export function createAppContext() {
         },
       ],
     },
-    pollEnabled: Deno.env.get("POLL_ENABLED") === "true",
     port: Number(Deno.env.get("PORT") ?? "8000"),
   };
 

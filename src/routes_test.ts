@@ -27,7 +27,9 @@ const currentSettings: AppSettings = {
   notificationWebhookUrl: "https://example.com/webhook",
   notificationWxPusherSpt: "SPT-current",
   polling: {
-    intervalMinutes: 1,
+    enabled: true,
+    intervalUnit: "minute",
+    intervalValue: 1,
     postLimit: 20,
     sort: "publishTime",
   },
@@ -82,7 +84,9 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     notificationWebhookService: "serverChan",
     notificationWebhookUrl: "https://example.com/new-webhook",
     notificationWxPusherSpt: "SPT-new",
-    pollIntervalMinutes: "3",
+    pollEnabled: "on",
+    pollIntervalUnit: "second",
+    pollIntervalValue: "3",
     pollPostLimit: "50",
     pollSort: "replyTime",
     themeColor: "#123abc",
@@ -121,11 +125,31 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   assertEquals(settings.notificationWebhookUrl, "https://example.com/new-webhook");
   assertEquals(settings.notificationWxPusherSpt, "SPT-new");
   assertEquals(settings.polling, {
-    intervalMinutes: 3,
+    enabled: true,
+    intervalUnit: "second",
+    intervalValue: 3,
     postLimit: 50,
     sort: "replyTime",
   });
   assertEquals(settings.themeColor, "#123abc");
+});
+
+Deno.test("settingsFromForm disables polling when switch is off", () => {
+  const settings = settingsFromForm({
+    activeKeywordTarget: "common",
+    pollIntervalUnit: "second",
+    pollIntervalValue: "1",
+    pollPostLimit: "100",
+    pollSort: "smart",
+  }, currentSettings);
+
+  assertEquals(settings.polling, {
+    enabled: false,
+    intervalUnit: "second",
+    intervalValue: 3,
+    postLimit: 100,
+    sort: "smart",
+  });
 });
 
 Deno.test("settingsFromForm saves visible common keywords and submitted topic keywords", () => {

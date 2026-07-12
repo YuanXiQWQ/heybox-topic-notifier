@@ -550,7 +550,8 @@ dt {
   border-bottom: 0;
 }
 
-.notification-option-row {
+.notification-option-row,
+.polling-option-row {
   max-height: 180px;
   opacity: 1;
   overflow: hidden;
@@ -563,7 +564,8 @@ dt {
     transform 180ms ease;
 }
 
-.notification-option-row.is-collapsed {
+.notification-option-row.is-collapsed,
+.polling-option-row.is-collapsed {
   border-bottom-color: transparent;
   max-height: 0;
   opacity: 0;
@@ -571,6 +573,13 @@ dt {
   padding-top: 0;
   pointer-events: none;
   transform: translateY(-4px);
+}
+
+.poll-interval-control {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 5fr) minmax(72px, 1fr);
+  max-width: var(--settings-control-width);
 }
 
 dd {
@@ -599,6 +608,7 @@ dd {
 
 .settings-group {
   margin-top: 24px;
+  position: relative;
 }
 
 .settings-group:first-of-type {

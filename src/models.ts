@@ -22,8 +22,12 @@ export type KeywordTarget = "common" | string;
 
 export type PollSort = "publishTime" | "smart" | "replyTime";
 
+export type PollIntervalUnit = "second" | "minute" | "hour" | "day" | "week" | "month";
+
 export type PollingSettings = {
-  intervalMinutes: number;
+  enabled: boolean;
+  intervalUnit: PollIntervalUnit;
+  intervalValue: number;
   postLimit: number;
   sort: PollSort;
 };

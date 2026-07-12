@@ -74,7 +74,15 @@ export type Messages = {
   notificationWxPusherSpt: string;
   globalSettings: string;
   pageSize: string;
+  pollEnabled: string;
   pollInterval: string;
+  pollIntervalDay: string;
+  pollIntervalHour: string;
+  pollIntervalMinute: string;
+  pollIntervalMonth: string;
+  pollIntervalSecond: string;
+  pollIntervalTooShort: string;
+  pollIntervalWeek: string;
   pollingSettings: string;
   pollPostLimit: string;
   pollSort: string;

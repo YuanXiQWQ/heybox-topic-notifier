@@ -3,7 +3,12 @@ import type { Locale } from "../locales/types.ts";
 import type { MatchLocation } from "../models.ts";
 import { escapeHtml } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
-import { buildMatchTableUrl, compactPages, pageSizeValues } from "./match_table.ts";
+import {
+  buildMatchTableUrl,
+  compactPages,
+  matchTableSignature,
+  pageSizeValues,
+} from "./match_table.ts";
 import { truncateText } from "./text.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
@@ -34,7 +39,11 @@ export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): 
   const records = options.table.records;
 
   return `
-    <section class="table-section" aria-labelledby="${escapeHtml(options.headingId)}">
+    <section
+      class="table-section"
+      aria-labelledby="${escapeHtml(options.headingId)}"
+      data-match-table-signature="${escapeHtml(matchTableSignature(options.table))}"
+    >
       <div class="section-title-row">
         <h2 id="${escapeHtml(options.headingId)}">${escapeHtml(options.heading)}</h2>
         ${renderTableFilters(options)}
@@ -323,22 +332,39 @@ function renderSelectionScript(action: MatchTableAction): string {
 
   return `<script>
     (() => {
-      const selectAll = document.querySelector(${JSON.stringify(selectAllSelector)});
-      if (!selectAll) return;
-      const section = selectAll.closest(".table-section");
-      const bulkButton = document.querySelector(${JSON.stringify(bulkButtonSelector)});
-      const checkboxes = Array.from(document.querySelectorAll(${
-    JSON.stringify(rowCheckboxSelector)
-  }));
-      selectAll.addEventListener("change", () => {
-        for (const checkbox of checkboxes) checkbox.checked = selectAll.checked;
-      });
-      for (const checkbox of checkboxes) {
-        checkbox.addEventListener("change", () => {
+      const selectAllSelector = ${JSON.stringify(selectAllSelector)};
+      const rowCheckboxSelector = ${JSON.stringify(rowCheckboxSelector)};
+      const bulkButtonSelector = ${JSON.stringify(bulkButtonSelector)};
+      const scriptKey = \`selection:\${selectAllSelector}:\${rowCheckboxSelector}:\${bulkButtonSelector}\`;
+      window.__matchTableSelectionScripts ??= new Set();
+      if (window.__matchTableSelectionScripts.has(scriptKey)) return;
+      window.__matchTableSelectionScripts.add(scriptKey);
+
+      document.addEventListener("change", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        if (target.matches(selectAllSelector)) {
+          const section = target.closest(".table-section");
+          const checkboxes = section ? Array.from(section.querySelectorAll(rowCheckboxSelector)) : [];
+          for (const checkbox of checkboxes) checkbox.checked = target.checked;
+          return;
+        }
+        if (!target.matches(rowCheckboxSelector)) return;
+        const section = target.closest(".table-section");
+        const selectAll = section?.querySelector(selectAllSelector);
+        const checkboxes = section ? Array.from(section.querySelectorAll(rowCheckboxSelector)) : [];
+        if (selectAll instanceof HTMLInputElement) {
           selectAll.checked = checkboxes.length > 0 && checkboxes.every((item) => item.checked);
-        });
-      }
-      bulkButton?.addEventListener("click", (event) => {
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        const button = event.target instanceof Element
+          ? event.target.closest(bulkButtonSelector)
+          : null;
+        if (!button) return;
+        const section = button.closest(".table-section");
+        const checkboxes = section ? Array.from(section.querySelectorAll(rowCheckboxSelector)) : [];
         if (checkboxes.some((item) => item.checked)) return;
         event.preventDefault();
         showTableToast(section, ${JSON.stringify(action.emptySelectionMessage)});

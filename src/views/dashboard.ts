@@ -33,7 +33,7 @@ export function renderDashboard(options: {
       </article>
       <article>
         <span>${escapeHtml(messages.latestMatch)}</span>
-        <strong>${
+        <strong data-latest-match>${
     latest
       ? `<a class="metric-link" href="${escapeHtml(latest.post.url)}">${
         escapeHtml(latest.post.title)
@@ -43,11 +43,11 @@ export function renderDashboard(options: {
       </article>
       <article>
         <span>${escapeHtml(messages.totalMatches)}</span>
-        <strong>${options.state.totalMatches}</strong>
+        <strong data-total-matches>${options.state.totalMatches}</strong>
       </article>
     </section>
     ${renderPendingMatches(options.pendingTable, messages, options.settings.locale)}
-    ${lastPollAt ? renderLastPollScript(messages) : ""}
+    ${renderLastPollScript(messages)}
   `;
 
   return renderLayout({
@@ -61,7 +61,7 @@ export function renderDashboard(options: {
 
 function renderLastPoll(lastPollAt: string | undefined, locale: AppSettings["locale"]): string {
   if (!lastPollAt) {
-    return "<strong>-</strong>";
+    return `<strong data-last-poll-at="" data-last-poll-locale="${escapeHtml(locale)}">-</strong>`;
   }
 
   return `<strong data-last-poll-at="${escapeHtml(lastPollAt)}" data-last-poll-locale="${
@@ -69,7 +69,7 @@ function renderLastPoll(lastPollAt: string | undefined, locale: AppSettings["loc
   }">${escapeHtml(formatHeyboxRelativeTime(lastPollAt, new Date(), locale))}</strong>`;
 }
 
-function renderPendingMatches(
+export function renderPendingMatches(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
   locale: AppSettings["locale"],
@@ -111,16 +111,76 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       const lastPoll = document.querySelector("[data-last-poll-at]");
       if (!lastPoll) return;
 
-      const timestamp = Date.parse(lastPoll.dataset.lastPollAt || "");
-      if (!Number.isFinite(timestamp)) return;
+      const latestMatch = document.querySelector("[data-latest-match]");
+      let pendingSection = document.querySelector(".table-section");
+      const totalMatches = document.querySelector("[data-total-matches]");
+      let timestamp = parseTimestamp(lastPoll.dataset.lastPollAt);
 
       const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
+      void refreshDashboardState();
       updateLastPoll();
       window.setInterval(updateLastPoll, 1000);
+      window.setInterval(() => {
+        void refreshDashboardState();
+      }, 1000);
 
       function updateLastPoll() {
+        if (!Number.isFinite(timestamp)) {
+          lastPoll.textContent = "-";
+          return;
+        }
         lastPoll.textContent = formatRelativeTime(timestamp, locale);
+      }
+
+      async function refreshDashboardState() {
+        try {
+          const response = await fetch(\`/dashboard-state\${location.search}\`, { cache: "no-store" });
+          if (!response.ok) return;
+          const state = await response.json();
+          const nextTimestamp = parseTimestamp(state.lastPollAt);
+          if (Number.isFinite(nextTimestamp) && nextTimestamp !== timestamp) {
+            timestamp = nextTimestamp;
+            lastPoll.dataset.lastPollAt = state.lastPollAt;
+            updateLastPoll();
+          }
+          updateLatestMatch(state.latestMatch);
+          if (totalMatches && Number.isInteger(state.totalMatches)) {
+            totalMatches.textContent = String(state.totalMatches);
+          }
+          updatePendingSection(state.pendingHtml, state.pendingSignature);
+        } catch {
+          // Keep the last rendered state when the status request is transiently unavailable.
+        }
+      }
+
+      function updatePendingSection(html, signature) {
+        if (!pendingSection || typeof html !== "string" || typeof signature !== "string") return;
+        if (pendingSection.dataset.matchTableSignature === signature) return;
+        const parsed = new DOMParser().parseFromString(html, "text/html");
+        const nextSection = parsed.querySelector(".table-section");
+        if (!nextSection) return;
+        pendingSection.replaceWith(nextSection);
+        pendingSection = nextSection;
+      }
+
+      function updateLatestMatch(match) {
+        if (!latestMatch) return;
+        latestMatch.textContent = "";
+        if (!match) {
+          latestMatch.textContent = "-";
+          return;
+        }
+        const link = document.createElement("a");
+        link.className = "metric-link";
+        link.href = match.url;
+        link.textContent = match.title;
+        latestMatch.append(link);
+      }
+
+      function parseTimestamp(value) {
+        const parsed = Date.parse(value || "");
+        return Number.isFinite(parsed) ? parsed : NaN;
       }
 
       function formatRelativeTime(value, locale) {

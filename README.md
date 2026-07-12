@@ -32,7 +32,7 @@
 - Deno 2 + TypeScript
 - Hono
 - Deno KV
-- Deno.cron
+- Deno timer scheduler
 - 服务端渲染 HTML
 
 ## 本地开发
@@ -134,7 +134,7 @@ This project is still in the MVP stage. The current direction is:
 - Deno 2 + TypeScript
 - Hono
 - Deno KV
-- Deno.cron
+- Deno timer scheduler
 - Server-rendered HTML
 
 ## Local Development

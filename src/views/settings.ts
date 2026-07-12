@@ -404,22 +404,51 @@ function renderPollingSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
 
   return `
-      <section class="settings-group" aria-labelledby="polling-settings-heading">
+      <section
+        class="settings-group"
+        aria-labelledby="polling-settings-heading"
+        data-polling-section
+        data-polling-interval-too-short="${escapeHtml(messages.pollIntervalTooShort)}"
+      >
         <h2 id="polling-settings-heading">${escapeHtml(messages.pollingSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.pollInterval)}</dt>
+            <dt>${escapeHtml(messages.pollEnabled)}</dt>
             <dd>
-              <input
-                type="number"
-                name="pollIntervalMinutes"
-                min="1"
-                step="1"
-                value="${settings.polling.intervalMinutes}"
-              >
+              <label class="switch-control">
+                <input
+                  type="checkbox"
+                  name="pollEnabled"
+                  data-polling-enabled-toggle
+                  ${settings.polling.enabled ? "checked" : ""}
+                >
+              </label>
             </dd>
           </div>
-          <div>
+          <div class="polling-option-row" data-polling-field="interval">
+            <dt>${escapeHtml(messages.pollInterval)}</dt>
+            <dd>
+              <div class="poll-interval-control">
+                <input
+                  type="number"
+                  name="pollIntervalValue"
+                  min="1"
+                  step="1"
+                  value="${settings.polling.intervalValue}"
+                  data-polling-interval-value
+                >
+                <select name="pollIntervalUnit" data-polling-interval-unit>
+                  ${option("second", settings.polling.intervalUnit, messages.pollIntervalSecond)}
+                  ${option("minute", settings.polling.intervalUnit, messages.pollIntervalMinute)}
+                  ${option("hour", settings.polling.intervalUnit, messages.pollIntervalHour)}
+                  ${option("day", settings.polling.intervalUnit, messages.pollIntervalDay)}
+                  ${option("week", settings.polling.intervalUnit, messages.pollIntervalWeek)}
+                  ${option("month", settings.polling.intervalUnit, messages.pollIntervalMonth)}
+                </select>
+              </div>
+            </dd>
+          </div>
+          <div class="polling-option-row" data-polling-field="post-limit">
             <dt>${escapeHtml(messages.pollPostLimit)}</dt>
             <dd>
               <select name="pollPostLimit">
@@ -431,7 +460,7 @@ function renderPollingSection(settings: AppSettings): string {
               </select>
             </dd>
           </div>
-          <div>
+          <div class="polling-option-row" data-polling-field="sort">
             <dt>${escapeHtml(messages.pollSort)}</dt>
             <dd>
               <select name="pollSort">

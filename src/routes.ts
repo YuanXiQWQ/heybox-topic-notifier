@@ -1,14 +1,26 @@
 import { Hono } from "@hono/hono";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
-import type { AppSettings, KeywordRule, MatchLocation, PollSort, TopicRule } from "./models.ts";
+import type {
+  AppSettings,
+  KeywordRule,
+  MatchLocation,
+  PollIntervalUnit,
+  PollSort,
+  TopicRule,
+} from "./models.ts";
 import {
   normalizeNotificationEmailService,
   normalizeNotificationWebhookService,
 } from "./notification_services.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
+import { renderPendingMatches } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
-import { applyMatchTableQuery, parseMatchTableQuery } from "./views/match_table.ts";
+import {
+  applyMatchTableQuery,
+  matchTableSignature,
+  parseMatchTableQuery,
+} from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
 import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
 
@@ -33,6 +45,30 @@ export function createRoutes(context: AppContext): Hono {
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
     return c.html(renderDashboard({ pendingTable, settings, state }));
+  });
+
+  app.get("/dashboard-state", async (c) => {
+    const settings = await context.storage.getSettings();
+    const state = await context.storage.getAppState();
+    const pendingMatches = await context.storage.listPendingMatches();
+    const pendingTable = applyMatchTableQuery(
+      pendingMatches,
+      parseMatchTableQuery(new URL(c.req.url).searchParams),
+    );
+    const messages = getMessages(settings.locale);
+
+    return c.json({
+      lastPollAt: state.lastPollAt ?? null,
+      latestMatch: state.latestMatch
+        ? {
+          title: state.latestMatch.post.title,
+          url: state.latestMatch.post.url,
+        }
+        : null,
+      pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale),
+      pendingSignature: matchTableSignature(pendingTable),
+      totalMatches: state.totalMatches,
+    });
   });
 
   app.get("/settings", async (c) => {
@@ -198,9 +234,15 @@ export function settingsFromForm(
     notificationWebhookUrl: String(form.notificationWebhookUrl ?? "").trim(),
     notificationWxPusherSpt: String(form.notificationWxPusherSpt ?? "").trim(),
     polling: {
-      intervalMinutes: normalizePositiveInteger(
-        form.pollIntervalMinutes,
-        currentSettings.polling.intervalMinutes,
+      enabled: form.pollEnabled === "on",
+      intervalUnit: normalizePollIntervalUnit(
+        form.pollIntervalUnit,
+        currentSettings.polling.intervalUnit,
+      ),
+      intervalValue: normalizePollIntervalValue(
+        form.pollIntervalValue,
+        normalizePollIntervalUnit(form.pollIntervalUnit, currentSettings.polling.intervalUnit),
+        currentSettings.polling.intervalValue,
       ),
       postLimit: normalizePositiveInteger(form.pollPostLimit, currentSettings.polling.postLimit),
       sort: normalizePollSort(form.pollSort, currentSettings.polling.sort),
@@ -311,6 +353,25 @@ function normalizePollSort(
   fallback: PollSort,
 ): PollSort {
   return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
+}
+
+function normalizePollIntervalUnit(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  fallback: PollIntervalUnit,
+): PollIntervalUnit {
+  return value === "second" || value === "minute" || value === "hour" || value === "day" ||
+      value === "week" || value === "month"
+    ? value
+    : fallback;
+}
+
+function normalizePollIntervalValue(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  unit: PollIntervalUnit,
+  fallback: number,
+): number {
+  const intervalValue = normalizePositiveInteger(value, fallback);
+  return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
 }
 
 function normalizeThemeColor(
