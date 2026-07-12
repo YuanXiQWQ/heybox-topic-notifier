@@ -3,7 +3,7 @@ import { getMessages } from "../locales/index.ts";
 import { truncateText } from "../views/text.ts";
 import { formatHeyboxRelativeTime } from "../views/time.ts";
 
-type NotifyKind = "match" | "matches" | "test";
+type NotifyKind = "match" | "matches";
 
 type NotificationPayload = {
   html?: string;
@@ -24,6 +24,19 @@ type NotificationPayload = {
   };
   matches?: MatchRecord[];
 };
+
+export type NotificationRequest =
+  | {
+    type: "match";
+    record: MatchRecord;
+  }
+  | {
+    type: "matches";
+    records: MatchRecord[];
+  }
+  | {
+    type: "test";
+  };
 
 export type NotifyResult = {
   provider: AppSettings["notificationProvider"];
@@ -59,6 +72,8 @@ const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/si
 const notificationContentLimit = 3600;
 const notificationContentPreviewLength = 60;
 const notificationTitlePreviewLength = 80;
+const testNotificationOverflowGuard = 300;
+const testNotificationUrl = "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/";
 const markdownHardBreak = "  \n";
 const markdownSeparator = "\n\n---\n\n";
 
@@ -73,80 +88,41 @@ export function createNotifier(options: NotifierOptions = {}) {
 
   return {
     async sendMatch(record: MatchRecord, settings: AppSettings): Promise<NotifyResult> {
-      return await send({
-        payload: matchPayload(record),
-        provider: settings.notificationProvider,
-        emailAddress: settings.notificationEmailAddress,
-        emailApiToken: settings.notificationEmailApiToken,
-        emailApiUrl: settings.notificationEmailApiUrl,
-        emailFrom: settings.notificationEmailFrom,
-        emailService: settings.notificationEmailService,
-        pushPlusToken: settings.notificationPushPlusToken,
-        serverChanSendKey: settings.notificationServerChanSendKey,
-        smtpHost: settings.notificationSmtpHost,
-        smtpPassword: settings.notificationSmtpPassword,
-        smtpPort: settings.notificationSmtpPort,
-        smtpSecure: settings.notificationSmtpSecure,
-        smtpUsername: settings.notificationSmtpUsername,
-        webhookService: settings.notificationWebhookService,
-        webhookUrl: settings.notificationWebhookUrl,
-        wxPusherSpt: settings.notificationWxPusherSpt,
-      });
+      return await sendNotification({ record, type: "match" }, settings);
     },
 
     async sendMatches(records: MatchRecord[], settings: AppSettings): Promise<NotifyResult> {
-      if (records.length === 0) {
-        return { provider: settings.notificationProvider, sent: false };
-      }
-
-      return await send({
-        payload: matchesPayload(records, settings),
-        provider: settings.notificationProvider,
-        emailAddress: settings.notificationEmailAddress,
-        emailApiToken: settings.notificationEmailApiToken,
-        emailApiUrl: settings.notificationEmailApiUrl,
-        emailFrom: settings.notificationEmailFrom,
-        emailService: settings.notificationEmailService,
-        pushPlusToken: settings.notificationPushPlusToken,
-        serverChanSendKey: settings.notificationServerChanSendKey,
-        smtpHost: settings.notificationSmtpHost,
-        smtpPassword: settings.notificationSmtpPassword,
-        smtpPort: settings.notificationSmtpPort,
-        smtpSecure: settings.notificationSmtpSecure,
-        smtpUsername: settings.notificationSmtpUsername,
-        webhookService: settings.notificationWebhookService,
-        webhookUrl: settings.notificationWebhookUrl,
-        wxPusherSpt: settings.notificationWxPusherSpt,
-      });
+      return await sendNotification({ records, type: "matches" }, settings);
     },
 
     async sendTest(settings: AppSettings): Promise<NotifyResult> {
-      return await send({
-        payload: {
-          text: "Heybox topic notifier test notification.",
-          type: "test",
-        },
-        provider: settings.notificationProvider,
-        emailAddress: settings.notificationEmailAddress,
-        emailApiToken: settings.notificationEmailApiToken,
-        emailApiUrl: settings.notificationEmailApiUrl,
-        emailFrom: settings.notificationEmailFrom,
-        emailService: settings.notificationEmailService,
-        pushPlusToken: settings.notificationPushPlusToken,
-        serverChanSendKey: settings.notificationServerChanSendKey,
-        smtpHost: settings.notificationSmtpHost,
-        smtpPassword: settings.notificationSmtpPassword,
-        smtpPort: settings.notificationSmtpPort,
-        smtpSecure: settings.notificationSmtpSecure,
-        smtpUsername: settings.notificationSmtpUsername,
-        webhookService: settings.notificationWebhookService,
-        webhookUrl: settings.notificationWebhookUrl,
-        wxPusherSpt: settings.notificationWxPusherSpt,
-      });
+      return await sendNotification({ type: "test" }, settings);
+    },
+
+    async sendNotification(
+      notification: NotificationRequest,
+      settings: AppSettings,
+    ): Promise<NotifyResult> {
+      return await sendNotification(notification, settings);
     },
   };
 
-  async function send(options: {
+  async function sendNotification(
+    notification: NotificationRequest,
+    settings: AppSettings,
+  ): Promise<NotifyResult> {
+    const payload = payloadForNotification(notification, settings);
+    if (!payload) {
+      return { provider: settings.notificationProvider, sent: false };
+    }
+
+    return await sendPayload(deliveryOptions(settings, payload));
+  }
+
+  function deliveryOptions(
+    settings: AppSettings,
+    payload: NotificationPayload,
+  ): {
     emailAddress: string;
     emailApiToken: string;
     emailApiUrl: string;
@@ -164,7 +140,29 @@ export function createNotifier(options: NotifierOptions = {}) {
     webhookService: AppSettings["notificationWebhookService"];
     webhookUrl: string;
     wxPusherSpt: string;
-  }): Promise<NotifyResult> {
+  } {
+    return {
+      payload,
+      provider: settings.notificationProvider,
+      emailAddress: settings.notificationEmailAddress,
+      emailApiToken: settings.notificationEmailApiToken,
+      emailApiUrl: settings.notificationEmailApiUrl,
+      emailFrom: settings.notificationEmailFrom,
+      emailService: settings.notificationEmailService,
+      pushPlusToken: settings.notificationPushPlusToken,
+      serverChanSendKey: settings.notificationServerChanSendKey,
+      smtpHost: settings.notificationSmtpHost,
+      smtpPassword: settings.notificationSmtpPassword,
+      smtpPort: settings.notificationSmtpPort,
+      smtpSecure: settings.notificationSmtpSecure,
+      smtpUsername: settings.notificationSmtpUsername,
+      webhookService: settings.notificationWebhookService,
+      webhookUrl: settings.notificationWebhookUrl,
+      wxPusherSpt: settings.notificationWxPusherSpt,
+    };
+  }
+
+  async function sendPayload(options: ReturnType<typeof deliveryOptions>): Promise<NotifyResult> {
     if (options.provider === "disabled") {
       return { provider: options.provider, sent: false };
     }
@@ -380,15 +378,100 @@ function matchPayload(record: MatchRecord): NotificationPayload {
   };
 }
 
-function matchesPayload(records: MatchRecord[], settings: AppSettings): NotificationPayload {
+function payloadForNotification(
+  notification: NotificationRequest,
+  settings: AppSettings,
+): NotificationPayload | undefined {
+  switch (notification.type) {
+    case "match":
+      return matchPayload(notification.record);
+    case "matches":
+      return notification.records.length > 0
+        ? matchesPayload(notification.records, settings)
+        : undefined;
+    case "test":
+      return testMatchesPayload(settings);
+  }
+}
+
+function matchesPayload(
+  records: MatchRecord[],
+  settings: AppSettings,
+  title = getMessages(settings.locale).notificationBatchTitle,
+): NotificationPayload {
   const now = new Date();
   const text = matchesDescription(records, settings, now);
   return {
     html: matchesHtml(records, settings, text, now),
     matches: records,
     text,
-    title: getMessages(settings.locale).notificationBatchTitle,
+    title,
     type: "matches",
+  };
+}
+
+function testMatchesPayload(settings: AppSettings): NotificationPayload {
+  const messages = getMessages(settings.locale);
+  return matchesPayload(
+    testMatchRecords(settings),
+    settings,
+    messages.notificationTestTitle,
+  );
+}
+
+function testMatchRecords(settings: AppSettings): MatchRecord[] {
+  const messages = getMessages(settings.locale);
+  const now = Date.now();
+  const locations: MatchRecord["location"][] = ["title", "body", "comments", "replies"];
+  const records: MatchRecord[] = [];
+
+  while (records.length < testNotificationOverflowGuard) {
+    records.push(testMatchRecord(records.length + 1, now, locations, messages));
+    const text = matchesDescription(records, settings);
+    if (omittedMatchCount(text, messages.notificationMoreMatches) > 0) {
+      break;
+    }
+  }
+
+  const extraRecordCount = randomInt(1, 20);
+  for (let index = 0; index < extraRecordCount; index += 1) {
+    records.push(testMatchRecord(records.length + 1, now, locations, messages));
+  }
+
+  return records;
+}
+
+function testMatchRecord(
+  number: number,
+  now: number,
+  locations: MatchRecord["location"][],
+  messages: ReturnType<typeof getMessages>,
+): MatchRecord {
+  const seed = String(randomInt(100, 999));
+  const location = locations[randomInt(0, locations.length - 1)];
+  const publishedAt = new Date(now - randomInt(1, 360) * 60_000).toISOString();
+
+  return {
+    id: `test:${number}:${seed}:${location}`,
+    keyword: templateText(messages.notificationTestKeyword, { seed }),
+    location,
+    matchedAt: new Date().toISOString(),
+    post: {
+      body: "",
+      commentReplies: [],
+      comments: [],
+      excerpt: templateText(messages.notificationTestPostContent, {
+        index: String(number),
+        seed,
+      }),
+      id: `test-${number}`,
+      publishedAt,
+      title: templateText(messages.notificationTestPostTitle, {
+        index: String(number),
+        seed,
+      }),
+      url: testNotificationUrl,
+    },
   };
 }
 
@@ -477,10 +560,6 @@ function serviceLabel(service: AppSettings["notificationWebhookService"]): strin
 function notificationTitle(payload: NotificationPayload): string {
   if (payload.title) {
     return payload.title;
-  }
-
-  if (payload.type === "test") {
-    return "小黑盒话题提醒测试";
   }
 
   return `小黑盒命中：${payload.match?.keyword ?? "关键词"}`;
@@ -625,6 +704,13 @@ function moreMatchesText(template: string, count: number): string {
   return template.replace("{count}", String(count));
 }
 
+function templateText(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, value),
+    template,
+  );
+}
+
 function countRenderedMatches(text: string): number {
   const sections = text.split(markdownSeparator);
   const omittedPattern = /^(?:及另外 \d+ 条帖子|and \d+ more posts)$/;
@@ -640,6 +726,12 @@ function omittedMatchCount(text: string, template: string): number {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function randomInt(min: number, max: number): number {
+  const lower = Math.ceil(min);
+  const upper = Math.floor(max);
+  return Math.floor(Math.random() * (upper - lower + 1)) + lower;
 }
 
 function escapeHtml(value: string): string {

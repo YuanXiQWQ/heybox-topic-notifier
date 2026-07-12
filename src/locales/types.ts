@@ -61,6 +61,10 @@ export type Messages = {
   notificationSmtpPort: string;
   notificationSmtpSecure: string;
   notificationSmtpUsername: string;
+  notificationTestKeyword: string;
+  notificationTestPostContent: string;
+  notificationTestPostTitle: string;
+  notificationTestTitle: string;
   notificationWebhook: string;
   notificationWebhookCustom: string;
   notificationWebhookService: string;

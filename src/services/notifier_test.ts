@@ -307,10 +307,17 @@ Deno.test("server chan 3 webhook receives title and desp fields", async () => {
 
   assertEquals(requests[0].url, "https://123.push.ft07.com/send/sctp123token.send");
   const body = await requests[0].json();
-  assertEquals(body, {
-    desp: "Heybox topic notifier test notification.",
-    title: "小黑盒话题提醒测试",
-  });
+  assertEquals(body.title, "小黑盒话题提醒：测试通知");
+  assertEquals(body.desp.includes("帖子 "), true);
+  assertEquals(
+    body.desp.includes("https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/"),
+    true,
+  );
+  assertEquals(body.desp.includes("发帖时间："), true);
+  assertEquals(body.desp.includes("命中关键词："), true);
+  assertEquals(body.desp.includes("匹配位置："), true);
+  assertEquals(body.desp.includes("命中时间："), false);
+  assertEquals(body.desp.includes("及另外 "), true);
 });
 
 Deno.test("wxpusher service posts to the simple push API", async () => {

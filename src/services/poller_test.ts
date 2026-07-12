@@ -79,6 +79,7 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
         sentMatchCount = matchedRecords.length;
         return Promise.resolve({ provider: "webhook", sent: true });
       },
+      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
     } as ReturnType<typeof createNotifier>,
     source: {
@@ -136,6 +137,7 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
     notifier: {
       sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
       sendMatches: () => Promise.reject(new Error("webhook failed")),
+      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
     } as ReturnType<typeof createNotifier>,
     source: {
