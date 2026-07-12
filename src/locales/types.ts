@@ -62,6 +62,8 @@ export type Messages = {
   notificationSmtpPort: string;
   notificationSmtpSecure: string;
   notificationSmtpUsername: string;
+  notificationSimulatedPostContent: string;
+  notificationSimulatedPostTitle: string;
   notificationTestKeyword: string;
   notificationTestPostContent: string;
   notificationTestPostTitle: string;
@@ -107,6 +109,7 @@ export type Messages = {
   selectMatchToDelete: string;
   selectTopicToDelete: string;
   settingsTitle: string;
+  simulateMatch: string;
   testNotify: string;
   testNotifySent: string;
   theme: string;

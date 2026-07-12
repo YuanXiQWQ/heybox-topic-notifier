@@ -24,6 +24,9 @@ export function renderDashboard(options: {
         <form method="post" action="/run-now">
           <button type="submit">${escapeHtml(messages.runNow)}</button>
         </form>
+        <form method="post" action="/simulate-match">
+          <button type="submit" class="secondary">${escapeHtml(messages.simulateMatch)}</button>
+        </form>
       </div>
     </section>
     <section class="metrics">

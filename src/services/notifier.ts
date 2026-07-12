@@ -74,6 +74,7 @@ const notificationContentPreviewLength = 60;
 const notificationTitlePreviewLength = 80;
 const testNotificationOverflowGuard = 300;
 const testNotificationUrl = "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/";
+const testMatchLocations: MatchRecord["location"][] = ["title", "body", "comments", "replies"];
 const markdownHardBreak = "  \n";
 const markdownSeparator = "\n\n---\n\n";
 
@@ -420,14 +421,12 @@ function testMatchesPayload(settings: AppSettings): NotificationPayload {
 }
 
 function testMatchRecords(settings: AppSettings): MatchRecord[] {
-  const messages = getMessages(settings.locale);
-  const now = Date.now();
-  const locations: MatchRecord["location"][] = ["title", "body", "comments", "replies"];
   const records: MatchRecord[] = [];
 
   while (records.length < testNotificationOverflowGuard) {
-    records.push(testMatchRecord(records.length + 1, now, locations, messages));
+    records.push(createRandomTestMatchRecord(settings, records.length + 1));
     const text = matchesDescription(records, settings);
+    const messages = getMessages(settings.locale);
     if (omittedMatchCount(text, messages.notificationMoreMatches) > 0) {
       break;
     }
@@ -435,24 +434,38 @@ function testMatchRecords(settings: AppSettings): MatchRecord[] {
 
   const extraRecordCount = randomInt(1, 20);
   for (let index = 0; index < extraRecordCount; index += 1) {
-    records.push(testMatchRecord(records.length + 1, now, locations, messages));
+    records.push(createRandomTestMatchRecord(settings, records.length + 1));
   }
 
   return records;
 }
 
-function testMatchRecord(
-  number: number,
-  now: number,
-  locations: MatchRecord["location"][],
-  messages: ReturnType<typeof getMessages>,
+export function createRandomTestMatchRecord(
+  settings: AppSettings,
+  number = 1,
+  variant: "notification" | "simulation" = "notification",
 ): MatchRecord {
+  const messages = getMessages(settings.locale);
+  const now = Date.now();
   const seed = String(randomInt(100, 999));
-  const location = locations[randomInt(0, locations.length - 1)];
+  const location = testMatchLocations[randomInt(0, testMatchLocations.length - 1)];
   const publishedAt = new Date(now - randomInt(1, 360) * 60_000).toISOString();
+  const uniqueId = `${now}:${number}:${seed}:${location}`;
+  const excerpt = variant === "simulation"
+    ? messages.notificationSimulatedPostContent
+    : templateText(messages.notificationTestPostContent, {
+      index: String(number),
+      seed,
+    });
+  const title = variant === "simulation"
+    ? templateText(messages.notificationSimulatedPostTitle, { seed })
+    : templateText(messages.notificationTestPostTitle, {
+      index: String(number),
+      seed,
+    });
 
   return {
-    id: `test:${number}:${seed}:${location}`,
+    id: `test:${uniqueId}`,
     keyword: templateText(messages.notificationTestKeyword, { seed }),
     location,
     matchedAt: new Date().toISOString(),
@@ -460,16 +473,10 @@ function testMatchRecord(
       body: "",
       commentReplies: [],
       comments: [],
-      excerpt: templateText(messages.notificationTestPostContent, {
-        index: String(number),
-        seed,
-      }),
+      excerpt,
       id: `test-${number}`,
       publishedAt,
-      title: templateText(messages.notificationTestPostTitle, {
-        index: String(number),
-        seed,
-      }),
+      title,
       url: testNotificationUrl,
     },
   };

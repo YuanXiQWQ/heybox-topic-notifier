@@ -22,7 +22,11 @@ import {
   parseMatchTableQuery,
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
-import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
+import {
+  createRandomTestMatchRecord,
+  NotificationConfigError,
+  NotificationDeliveryError,
+} from "./services/notifier.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 
@@ -103,6 +107,12 @@ export function createRoutes(context: AppContext): Hono {
     } catch (error) {
       return notificationErrorResponse(error);
     }
+  });
+
+  app.post("/simulate-match", async (c) => {
+    const settings = await context.storage.getSettings();
+    await context.storage.saveMatch(createRandomTestMatchRecord(settings, 1, "simulation"));
+    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
   });
 
   app.post("/test-notify", async (c) => {
