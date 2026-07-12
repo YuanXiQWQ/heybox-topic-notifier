@@ -4,6 +4,7 @@ import type {
   KeywordRule,
   MatchRecord,
   PollingSettings,
+  PollIntervalUnit,
   PollSort,
   TopicRule,
 } from "../models.ts";
@@ -228,8 +229,21 @@ function normalizePollingSettings(
   value: Partial<PollingSettings> | undefined,
   fallback: PollingSettings,
 ): PollingSettings {
+  const legacyIntervalMinutes = (value as
+    | Partial<PollingSettings> & {
+      intervalMinutes?: unknown;
+    }
+    | undefined)?.intervalMinutes;
+  const intervalUnit = normalizePollIntervalUnit(value?.intervalUnit, fallback.intervalUnit);
+
   return {
-    intervalMinutes: normalizePositiveInteger(value?.intervalMinutes, fallback.intervalMinutes),
+    enabled: typeof value?.enabled === "boolean" ? value.enabled : fallback.enabled,
+    intervalUnit,
+    intervalValue: normalizePollIntervalValue(
+      value?.intervalValue ?? legacyIntervalMinutes,
+      intervalUnit,
+      fallback.intervalValue,
+    ),
     postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
     sort: normalizePollSort(value?.sort, fallback.sort),
   };
@@ -241,6 +255,22 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
 
 function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
   return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
+}
+
+function normalizePollIntervalUnit(value: unknown, fallback: PollIntervalUnit): PollIntervalUnit {
+  return value === "second" || value === "minute" || value === "hour" || value === "day" ||
+      value === "week" || value === "month"
+    ? value
+    : fallback;
+}
+
+function normalizePollIntervalValue(
+  value: unknown,
+  unit: PollIntervalUnit,
+  fallback: number,
+): number {
+  const intervalValue = normalizePositiveInteger(value, fallback);
+  return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
 }
 
 function normalizeThemeColor(value: unknown, fallback: string): string {

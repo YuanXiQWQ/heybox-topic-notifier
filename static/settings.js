@@ -21,6 +21,7 @@ function initSettingsEditors() {
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
   initNotificationSettings();
+  initPollingSettings();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
   initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
@@ -171,6 +172,111 @@ function initNotificationSettings() {
   });
 
   applyNotificationFields(visibleFields, false, ++transitionToken);
+}
+
+function initPollingSettings() {
+  const enabledToggle = document.querySelector("[data-polling-enabled-toggle]");
+  const intervalValueInput = document.querySelector("[data-polling-interval-value]");
+  const intervalUnitSelect = document.querySelector("[data-polling-interval-unit]");
+  const section = document.querySelector("[data-polling-section]");
+  const rows = Array.from(document.querySelectorAll("[data-polling-field]"));
+
+  if (!(enabledToggle instanceof HTMLInputElement)) {
+    return;
+  }
+
+  let transitionToken = 0;
+
+  function showRow(row, animate, token) {
+    row.hidden = false;
+    row.dataset.pollingTransitionToken = String(token);
+
+    if (!animate) {
+      row.classList.remove("is-collapsed");
+      return;
+    }
+
+    row.classList.add("is-collapsed");
+    row.getBoundingClientRect();
+    row.classList.remove("is-collapsed");
+  }
+
+  function hideRow(row, animate, token) {
+    row.dataset.pollingTransitionToken = String(token);
+    row.classList.add("is-collapsed");
+
+    if (!animate) {
+      row.hidden = true;
+      return;
+    }
+
+    setTimeout(() => {
+      if (
+        row.dataset.pollingTransitionToken === String(token) &&
+        row.classList.contains("is-collapsed")
+      ) {
+        row.hidden = true;
+      }
+    }, notificationTransitionMs);
+  }
+
+  function validateMinimumInterval() {
+    if (
+      !(intervalValueInput instanceof HTMLInputElement) ||
+      !(intervalUnitSelect instanceof HTMLSelectElement)
+    ) {
+      return true;
+    }
+
+    intervalValueInput.min = intervalUnitSelect.value === "second" ? "3" : "1";
+
+    const intervalValue = Number(intervalValueInput.value);
+    if (
+      intervalUnitSelect.value === "second" &&
+      Number.isFinite(intervalValue) &&
+      intervalValue < 3
+    ) {
+      intervalValueInput.value = "3";
+      if (section instanceof HTMLElement) {
+        showToast(section, section.dataset.pollingIntervalTooShort);
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  function syncPollingFields(animate) {
+    const token = ++transitionToken;
+
+    for (const row of rows) {
+      if (enabledToggle.checked) {
+        showRow(row, animate, token);
+      } else {
+        hideRow(row, animate, token);
+      }
+    }
+  }
+
+  enabledToggle.addEventListener("change", () => {
+    syncPollingFields(true);
+    scheduleAutoSave();
+  });
+
+  intervalValueInput?.addEventListener("change", () => {
+    validateMinimumInterval();
+  });
+
+  intervalValueInput?.addEventListener("blur", () => {
+    validateMinimumInterval();
+  });
+
+  intervalUnitSelect?.addEventListener("change", () => {
+    validateMinimumInterval();
+  });
+
+  validateMinimumInterval();
+  syncPollingFields(false);
 }
 
 function initDropdown(editor, name) {

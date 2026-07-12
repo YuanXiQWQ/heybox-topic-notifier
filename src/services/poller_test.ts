@@ -27,7 +27,9 @@ const settings: AppSettings = {
   notificationWebhookUrl: "https://example.com/webhook",
   notificationWxPusherSpt: "SPT-test",
   polling: {
-    intervalMinutes: 1,
+    enabled: true,
+    intervalUnit: "minute",
+    intervalValue: 1,
     postLimit: 50,
     sort: "replyTime",
   },
