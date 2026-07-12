@@ -15,7 +15,7 @@ export function renderHistory(options: {
     <section class="page-heading">
       <div>
         <h1>${escapeHtml(messages.historyTitle)}</h1>
-        <p>${escapeHtml(messages.sourceMock)}</p>
+        <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
     ${renderHistoryTable(options.historyTable, messages)}

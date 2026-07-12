@@ -49,6 +49,11 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
               title: "hello",
             },
           ],
+          sort_filter: [
+            { key: "create", text: "发布时间" },
+            { key: "hot-rank", text: "智能排序" },
+            { key: "reply", text: "回复时间" },
+          ],
         },
         status: "ok",
       }));
@@ -66,16 +71,24 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
   assertEquals(requestedUrl.origin, "https://api.example.test");
   assertEquals(requestedUrl.pathname, "/bbs/app/topic/feeds");
   assertEquals(requestedUrl.searchParams.get("topic_id"), "12099");
-  assertEquals(requestedUrl.searchParams.get("device_id"), "device-1");
+  assertEquals(requestedUrl.searchParams.get("imei"), "device-1");
   assertEquals(requestedUrl.searchParams.get("limit"), "3");
   assertEquals(requestedUrl.searchParams.get("sort_filter"), "hot-rank");
+  assertEquals(requestedUrl.searchParams.get("x_client_type"), "mobile");
+  assertEquals(requestedUrl.searchParams.get("x_app"), "heybox");
+  assertEquals(requestedUrl.searchParams.get("version"), "1.3.232");
+  assertEquals(requestedUrl.searchParams.get("build"), "783");
+  assertEquals(requestedUrl.searchParams.get("channel"), "heybox_wandoujia");
+  assertEquals(requestedUrl.searchParams.get("device_info"), "M2104K10AC");
+  assertEquals(requestedUrl.searchParams.get("os_version"), "14");
+  assertEquals(requestedUrl.searchParams.get("dw"), "393");
   assertEquals(requestedUrl.searchParams.has("hkey"), true);
   assertEquals(requestedUrl.searchParams.has("nonce"), true);
   assertEquals(requestedUrl.searchParams.get("_time"), "1782848432");
   assertEquals(posts[0].id, "1");
 });
 
-Deno.test("createHeyboxTopicSource expands and locally sorts publish time requests", async () => {
+Deno.test("createHeyboxTopicSource orders publish-time feed before slicing", async () => {
   let requestedUrl: URL | undefined;
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
@@ -87,6 +100,11 @@ Deno.test("createHeyboxTopicSource expands and locally sorts publish time reques
             { create_at: 1782840000, linkid: "older", title: "older" },
             { create_at: 1782850000, linkid: "newer", title: "newer" },
             { create_at: 1782845000, linkid: "middle", title: "middle" },
+          ],
+          sort_filter: [
+            { key: "create", text: "发布时间" },
+            { key: "hot-rank", text: "智能排序" },
+            { key: "reply", text: "回复时间" },
           ],
         },
         status: "ok",
@@ -102,18 +120,28 @@ Deno.test("createHeyboxTopicSource expands and locally sorts publish time reques
     throw new Error("Expected request URL to be captured");
   }
 
-  assertEquals(requestedUrl.searchParams.get("limit"), "100");
-  assertEquals(requestedUrl.searchParams.has("sort_filter"), false);
+  assertEquals(requestedUrl.searchParams.get("limit"), "30");
+  assertEquals(requestedUrl.searchParams.get("sort_filter"), "create");
   assertEquals(posts.map((post) => post.id), ["newer", "middle"]);
 });
 
-Deno.test("createHeyboxTopicSource maps reply time sort to Heybox comment-time", async () => {
+Deno.test("createHeyboxTopicSource maps reply time sort to Heybox reply", async () => {
   let requestedUrl: URL | undefined;
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
     fetchFn: (input) => {
       requestedUrl = new URL(String(input));
-      return Promise.resolve(Response.json({ result: { links: [] }, status: "ok" }));
+      return Promise.resolve(Response.json({
+        result: {
+          links: [],
+          sort_filter: [
+            { key: "create", text: "发布时间" },
+            { key: "hot-rank", text: "智能排序" },
+            { key: "reply", text: "回复时间" },
+          ],
+        },
+        status: "ok",
+      }));
     },
     now: () => new Date(1782848432 * 1000),
     random: () => 0.123,
@@ -125,7 +153,28 @@ Deno.test("createHeyboxTopicSource maps reply time sort to Heybox comment-time",
     throw new Error("Expected request URL to be captured");
   }
 
-  assertEquals(requestedUrl.searchParams.get("sort_filter"), "comment-time");
+  assertEquals(requestedUrl.searchParams.get("sort_filter"), "reply");
+});
+
+Deno.test("createHeyboxTopicSource rejects ignored publish time sort", async () => {
+  const source = createHeyboxTopicSource({
+    apiBaseUrl: "https://api.example.test",
+    fetchFn: () =>
+      Promise.resolve(Response.json({
+        result: {
+          links: [],
+          sort_filter: [{ key: "hot-rank", text: "智能排序" }],
+        },
+        status: "ok",
+      })),
+    now: () => new Date(1782848432 * 1000),
+    random: () => 0.123,
+  });
+
+  await assertRejects(
+    () => source.listLatestPosts("12099", { limit: 10, sort: "publishTime" }),
+    "Heybox topic feed did not apply requested sort_filter=create",
+  );
 });
 
 Deno.test("createHeyboxTopicSource throws on failed Heybox response", async () => {
