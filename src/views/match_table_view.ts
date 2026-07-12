@@ -79,6 +79,7 @@ export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): 
       `
   }
     </section>
+    ${renderFilterScript()}
     ${records.length === 0 ? "" : renderSelectionScript(options.action)}
   `;
 }
@@ -146,6 +147,7 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
   const table = options.table;
   const messages = options.messages;
   const isActive = table.range !== "all" || table.from !== "" || table.to !== "";
+  const isCustom = table.range === "custom";
 
   return `
     <div class="table-filter-shell">
@@ -153,8 +155,46 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
         class="filter-toggle-input"
         type="checkbox"
         id="${escapeHtml(options.filterToggleId)}"
-        ${isActive ? "checked" : ""}
+        ${isActive || table.filterOpen ? "checked" : ""}
       >
+      <form class="table-filter-form ${
+    isCustom ? "is-custom" : "is-custom-collapsed"
+  }" method="get" action="${escapeHtml(options.path)}" data-match-filter-form>
+        <label class="table-filter-field">
+          <span>${escapeHtml(messages.filterRange)}</span>
+          <select name="range" data-match-filter-control>
+            ${option("all", table.range, messages.filterAll)}
+            ${option("hour", table.range, messages.filterHour)}
+            ${option("day", table.range, messages.filterDay)}
+            ${option("week", table.range, messages.filterWeek)}
+            ${option("custom", table.range, messages.filterCustom)}
+          </select>
+        </label>
+        <label class="table-filter-field table-filter-date-field">
+          <span>${escapeHtml(messages.filterFrom)}</span>
+          <input
+            type="datetime-local"
+            name="from"
+            value="${escapeHtml(table.from)}"
+            aria-label="${escapeHtml(messages.filterFrom)}"
+            data-match-filter-control
+            ${isCustom ? "" : "disabled"}
+          >
+        </label>
+        <label class="table-filter-field table-filter-date-field">
+          <span>${escapeHtml(messages.filterTo)}</span>
+          <input
+            type="datetime-local"
+            name="to"
+            value="${escapeHtml(table.to)}"
+            aria-label="${escapeHtml(messages.filterTo)}"
+            data-match-filter-control
+            ${isCustom ? "" : "disabled"}
+          >
+        </label>
+        <input type="hidden" name="pageSize" value="${table.pageSize}">
+        <input type="hidden" name="filterOpen" value="1">
+      </form>
       <label
         class="filter-toggle"
         for="${escapeHtml(options.filterToggleId)}"
@@ -163,23 +203,6 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
       >
         ${filterIcon()}
       </label>
-      <form class="table-filter-form" method="get" action="${escapeHtml(options.path)}">
-        <select name="range">
-          ${option("all", table.range, messages.filterAll)}
-          ${option("hour", table.range, messages.filterHour)}
-          ${option("day", table.range, messages.filterDay)}
-          ${option("week", table.range, messages.filterWeek)}
-          ${option("custom", table.range, messages.filterCustom)}
-        </select>
-        <input type="datetime-local" name="from" value="${escapeHtml(table.from)}" aria-label="${
-    escapeHtml(messages.filterFrom)
-  }">
-        <input type="datetime-local" name="to" value="${escapeHtml(table.to)}" aria-label="${
-    escapeHtml(messages.filterTo)
-  }">
-        <input type="hidden" name="pageSize" value="${table.pageSize}">
-        <button type="submit" class="secondary">${escapeHtml(messages.filter)}</button>
-      </form>
     </div>
   `;
 }
@@ -232,6 +255,59 @@ function option(value: string, current: string, label: string): string {
   return `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${
     escapeHtml(label)
   }</option>`;
+}
+
+function renderFilterScript(): string {
+  return `<script>
+    (() => {
+      const forms = document.querySelectorAll("[data-match-filter-form]");
+      for (const form of forms) {
+        const range = form.querySelector("select[name='range']");
+        const dateInputs = Array.from(
+          form.querySelectorAll(".table-filter-date-field input"),
+        );
+        const transitionMs = 180;
+        let customTransitionToken = 0;
+        const setCustomState = (options = {}) => {
+          const token = ++customTransitionToken;
+          const isCustom = range?.value === "custom";
+          if (isCustom) {
+            form.classList.remove("is-custom-collapsed");
+            for (const input of dateInputs) input.disabled = false;
+            requestAnimationFrame(() => {
+              if (token === customTransitionToken) form.classList.add("is-custom");
+            });
+            return;
+          }
+
+          form.classList.remove("is-custom");
+          for (const input of dateInputs) input.disabled = true;
+          const collapse = () => {
+            if (token !== customTransitionToken) return;
+            form.classList.add("is-custom-collapsed");
+            if (options.submitAfterCollapse) form.requestSubmit();
+          };
+          if (options.instant) {
+            collapse();
+            return;
+          }
+          setTimeout(collapse, transitionMs);
+        };
+        const controls = form.querySelectorAll("[data-match-filter-control]");
+        for (const control of controls) {
+          control.addEventListener("change", () => {
+            if (control === range) {
+              setCustomState({ submitAfterCollapse: range.value !== "custom" });
+              if (range.value === "custom") return;
+              return;
+            }
+            form.requestSubmit();
+          });
+        }
+        setCustomState({ instant: true });
+      }
+    })();
+  </script>`;
 }
 
 function filterIcon(): string {

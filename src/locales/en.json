@@ -21,6 +21,7 @@
   "filterDay": "One day",
   "filterFrom": "From",
   "filterHour": "One hour",
+  "filterRange": "Range",
   "filterTo": "To",
   "filterWeek": "One week",
   "globalSettings": "Global settings",

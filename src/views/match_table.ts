@@ -4,6 +4,7 @@ export type MatchTableRange = "all" | "hour" | "day" | "week" | "custom";
 export type MatchTablePageSize = number | "all";
 
 export type MatchTableQuery = {
+  filterOpen?: boolean;
   from: string;
   page: number;
   pageSize: MatchTablePageSize;
@@ -23,6 +24,7 @@ export function parseMatchTableQuery(params: URLSearchParams): MatchTableQuery {
   const pageSize = parsePageSize(params.get("pageSize"));
 
   return {
+    ...(params.get("filterOpen") === "1" ? { filterOpen: true } : {}),
     from: params.get("from") ?? "",
     page: parsePositiveInteger(params.get("page"), 1),
     pageSize,
@@ -66,6 +68,9 @@ export function buildMatchTableUrl(
   params.set("range", nextQuery.range);
   params.set("page", String(nextQuery.page));
   params.set("pageSize", String(nextQuery.pageSize));
+  if (nextQuery.filterOpen) {
+    params.set("filterOpen", "1");
+  }
   if (nextQuery.from) {
     params.set("from", nextQuery.from);
   }

@@ -52,6 +52,7 @@
 }
 
 body {
+  min-width: 0;
   margin: 0;
 }
 
@@ -313,34 +314,28 @@ input[type="color"]::-moz-color-swatch {
 
 .section-title-row {
   align-items: center;
-  display: flex;
+  display: grid;
   gap: 12px;
+  grid-template-columns: max-content minmax(0, 1fr);
   justify-content: space-between;
   margin-bottom: 12px;
 }
 
 .section-title-row h2 {
   margin: 0;
+  white-space: nowrap;
 }
 
 .table-filter-shell {
   align-items: center;
-  column-gap: 0;
-  display: grid;
-  grid-template-columns: 0fr 32px;
-  justify-content: end;
-  min-width: 32px;
-  overflow: hidden;
-  transition: column-gap 220ms ease, grid-template-columns 220ms ease;
-}
-
-.table-filter-shell:not(:has(.filter-toggle-input:checked)) {
-  block-size: 32px;
-}
-
-.table-filter-shell:has(.filter-toggle-input:checked) {
   column-gap: 8px;
-  grid-template-columns: 1fr 32px;
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  justify-content: stretch;
+  min-height: 28px;
+  min-width: 28px;
+  overflow: visible;
 }
 
 .filter-toggle-input {
@@ -359,21 +354,22 @@ input[type="color"]::-moz-color-swatch {
   display: inline-flex;
   grid-column: 2;
   grid-row: 1;
-  height: 32px;
+  height: 28px;
   justify-content: center;
   list-style: none;
   transition: background-color 160ms ease;
-  width: 32px;
+  width: 28px;
 }
 
-.filter-toggle:hover {
+.filter-toggle:hover,
+.table-filter-shell:has(.filter-toggle-input:checked) .filter-toggle {
   background: var(--theme-soft-strong);
 }
 
 .filter-toggle svg {
   fill: currentColor;
-  height: 22px;
-  width: 22px;
+  height: 20px;
+  width: 20px;
 }
 
 .table-filter-form {
@@ -384,28 +380,63 @@ input[type="color"]::-moz-color-swatch {
   grid-column: 1;
   grid-row: 1;
   justify-content: flex-end;
-  max-block-size: 120px;
+  max-block-size: 132px;
   min-width: 0;
   overflow: hidden;
   transition:
+    clip-path 180ms ease,
     max-block-size 180ms ease,
-    opacity 180ms ease;
-  white-space: nowrap;
+    opacity 180ms ease,
+    transform 180ms ease;
+  visibility: visible;
+  width: 100%;
 }
 
 .table-filter-shell:not(:has(.filter-toggle-input:checked)) .table-filter-form {
+  clip-path: inset(0 0 0 100%);
   max-block-size: 0;
   opacity: 0;
   pointer-events: none;
+  transform: translateX(8px);
 }
 
-.table-filter-form input,
-.table-filter-form select {
+.table-filter-field {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.table-filter-field span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.table-filter-field input,
+.table-filter-field select {
+  min-height: 30px;
+  padding-block: 0;
   width: auto;
 }
 
-.table-filter-form button {
-  min-height: 36px;
+.table-filter-date-field {
+  overflow: hidden;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.table-filter-form.is-custom-collapsed .table-filter-date-field {
+  display: none;
+}
+
+.table-filter-form:not(.is-custom) .table-filter-date-field {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(8px);
 }
 
 .pagination-row {
@@ -849,6 +880,7 @@ table {
   border-collapse: separate;
   border-spacing: 0;
   overflow: hidden;
+  min-width: 0;
   width: 100%;
 }
 
@@ -875,9 +907,11 @@ table {
 th,
 td {
   border-bottom: 1px solid var(--border-soft);
+  min-width: 0;
   padding: 14px 16px;
   text-align: left;
   vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 
 th:first-child,
@@ -964,12 +998,47 @@ tr:last-child td {
 
   .section-title-row {
     align-items: flex-start;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .table-filter-shell,
   .table-filter-shell:has(.filter-toggle-input:checked) {
-    grid-template-columns: 24px 1fr;
+    grid-template-columns: minmax(0, 1fr) 28px;
     width: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .shell {
+    padding-inline: 8px;
+  }
+
+  .topbar {
+    padding-inline: 8px;
+  }
+
+  th,
+  td {
+    padding-block: 10px;
+    padding-inline: 4px;
+  }
+
+  .table-filter-shell,
+  .table-filter-shell:has(.filter-toggle-input:checked) {
+    column-gap: 6px;
+    grid-template-columns: minmax(0, 1fr) 24px;
+  }
+
+  .filter-toggle {
+    width: 24px;
+  }
+
+  .table-filter-form {
+    gap: 6px;
+  }
+
+  .table-filter-field {
+    flex-basis: 100%;
+    justify-content: flex-end;
   }
 }

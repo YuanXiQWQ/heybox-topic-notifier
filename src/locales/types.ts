@@ -23,6 +23,7 @@ export type Messages = {
   filterDay: string;
   filterFrom: string;
   filterHour: string;
+  filterRange: string;
   filterTo: string;
   filterWeek: string;
   historyTitle: string;
