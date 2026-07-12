@@ -75,12 +75,22 @@ deno task check
 | `POLL_INTERVAL_MINUTES`         | `1`           | 定时轮询间隔                                                           |
 | `POLL_POST_LIMIT`               | `20`          | 每次轮询读取的帖子数量                                                 |
 | `POLL_SORT`                     | `publishTime` | 轮询排序方式，支持 `publishTime`、`smart`、`replyTime`                 |
-| `NOTIFIER_PROVIDER`             | `webhook`     | 通知方式，支持 `webhook`、`email`、`disabled`；`email` 暂未实现        |
+| `NOTIFIER_PROVIDER`             | `webhook`     | 通知方式，支持 `webhook`、`email`、`disabled`                          |
 | `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook 服务，支持 `custom`、`serverChan`、`pushPlus`、`wxPusher`      |
 | `NOTIFIER_WEBHOOK_URL`          | 空            | 自定义 Webhook 地址，仅 `NOTIFIER_WEBHOOK_SERVICE=custom` 时需要       |
 | `NOTIFIER_SERVER_CHAN_SEND_KEY` | 空            | Server酱 SendKey，仅 `NOTIFIER_WEBHOOK_SERVICE=serverChan` 时需要      |
 | `NOTIFIER_PUSHPLUS_TOKEN`       | 空            | PushPlus token，仅 `NOTIFIER_WEBHOOK_SERVICE=pushPlus` 时需要          |
 | `NOTIFIER_WXPUSHER_SPT`         | 空            | WxPusher SPT，仅 `NOTIFIER_WEBHOOK_SERVICE=wxPusher` 时需要            |
+| `NOTIFIER_EMAIL_SERVICE`        | `smtp`        | 邮件发信方式，支持 `api`、`smtp`                                       |
+| `NOTIFIER_EMAIL_ADDRESS`        | 空            | 收件邮箱，仅 `NOTIFIER_PROVIDER=email` 时需要                          |
+| `NOTIFIER_EMAIL_API_URL`        | 空            | 邮件 API 地址，仅 `NOTIFIER_EMAIL_SERVICE=api` 时需要                  |
+| `NOTIFIER_EMAIL_API_TOKEN`      | 空            | 邮件 API Token，可选；会作为 Bearer Token 发送                         |
+| `NOTIFIER_EMAIL_FROM`           | 空            | 发件邮箱，留空时使用 `NOTIFIER_SMTP_USERNAME`                          |
+| `NOTIFIER_SMTP_HOST`            | 空            | SMTP 主机，仅 `NOTIFIER_PROVIDER=email` 时需要                         |
+| `NOTIFIER_SMTP_PORT`            | `465`         | SMTP 端口                                                              |
+| `NOTIFIER_SMTP_SECURE`          | `true`        | 是否使用直连 SSL/TLS                                                   |
+| `NOTIFIER_SMTP_USERNAME`        | 空            | SMTP 用户名                                                            |
+| `NOTIFIER_SMTP_PASSWORD`        | 空            | SMTP 密码或授权码                                                      |
 | `PORT`                          | `8000`        | 本地服务端口                                                           |
 
 ## 许可证
@@ -154,27 +164,37 @@ deno task check
 
 ## Environment Variables
 
-| Variable                        | Default       | Description                                                                                        |
-| :------------------------------ | :------------ | :------------------------------------------------------------------------------------------------- |
-| `APP_LOCALE`                    | `zh-CN`       | Default UI language                                                                                |
-| `HEYBOX_TOPIC_ID`               | `12099`       | Default topic ID to monitor                                                                        |
-| `HEYBOX_DEVICE_ID`              | empty         | Heybox App API device ID, generated on startup when empty                                          |
-| `HEYBOX_COOKIE`                 | empty         | Reserved Heybox cookie, usually not needed for public publish-time feeds                           |
-| `HEYBOX_USER_AGENT`             | empty         | Overrides the Heybox request User-Agent                                                            |
-| `HEYBOX_SIGNATURE_MODE`         | `app`         | Heybox signing mode; `app` is verified for publish-time feeds, `web` is diagnostic fallback only   |
-| `HEYBOX_POST_LIMIT`             | `20`          | Number of posts to read per poll                                                                   |
-| `HEYBOX_SORT_FILTER`            | empty         | Legacy-compatible sort setting; `create` maps to publish time, `hot-rank` maps to smart sort       |
-| `POLL_ENABLED`                  | `false`       | Enables scheduled polling                                                                          |
-| `POLL_INTERVAL_MINUTES`         | `1`           | Scheduled polling interval                                                                         |
-| `POLL_POST_LIMIT`               | `20`          | Number of posts to read per poll                                                                   |
-| `POLL_SORT`                     | `publishTime` | Polling sort, supports `publishTime`, `smart`, and `replyTime`                                     |
-| `NOTIFIER_PROVIDER`             | `webhook`     | Notification provider, supports `webhook`, `email`, and `disabled`; `email` is not implemented yet |
-| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook service, supports `custom`, `serverChan`, `pushPlus`, and `wxPusher`                       |
-| `NOTIFIER_WEBHOOK_URL`          | empty         | Custom webhook URL, required only when `NOTIFIER_WEBHOOK_SERVICE=custom`                           |
-| `NOTIFIER_SERVER_CHAN_SEND_KEY` | empty         | ServerChan SendKey, required only when `NOTIFIER_WEBHOOK_SERVICE=serverChan`                       |
-| `NOTIFIER_PUSHPLUS_TOKEN`       | empty         | PushPlus token, required only when `NOTIFIER_WEBHOOK_SERVICE=pushPlus`                             |
-| `NOTIFIER_WXPUSHER_SPT`         | empty         | WxPusher SPT, required only when `NOTIFIER_WEBHOOK_SERVICE=wxPusher`                               |
-| `PORT`                          | `8000`        | Local server port                                                                                  |
+| Variable                        | Default       | Description                                                                                      |
+| :------------------------------ | :------------ | :----------------------------------------------------------------------------------------------- |
+| `APP_LOCALE`                    | `zh-CN`       | Default UI language                                                                              |
+| `HEYBOX_TOPIC_ID`               | `12099`       | Default topic ID to monitor                                                                      |
+| `HEYBOX_DEVICE_ID`              | empty         | Heybox App API device ID, generated on startup when empty                                        |
+| `HEYBOX_COOKIE`                 | empty         | Reserved Heybox cookie, usually not needed for public publish-time feeds                         |
+| `HEYBOX_USER_AGENT`             | empty         | Overrides the Heybox request User-Agent                                                          |
+| `HEYBOX_SIGNATURE_MODE`         | `app`         | Heybox signing mode; `app` is verified for publish-time feeds, `web` is diagnostic fallback only |
+| `HEYBOX_POST_LIMIT`             | `20`          | Number of posts to read per poll                                                                 |
+| `HEYBOX_SORT_FILTER`            | empty         | Legacy-compatible sort setting; `create` maps to publish time, `hot-rank` maps to smart sort     |
+| `POLL_ENABLED`                  | `false`       | Enables scheduled polling                                                                        |
+| `POLL_INTERVAL_MINUTES`         | `1`           | Scheduled polling interval                                                                       |
+| `POLL_POST_LIMIT`               | `20`          | Number of posts to read per poll                                                                 |
+| `POLL_SORT`                     | `publishTime` | Polling sort, supports `publishTime`, `smart`, and `replyTime`                                   |
+| `NOTIFIER_PROVIDER`             | `webhook`     | Notification provider, supports `webhook`, `email`, and `disabled`                               |
+| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook service, supports `custom`, `serverChan`, `pushPlus`, and `wxPusher`                     |
+| `NOTIFIER_WEBHOOK_URL`          | empty         | Custom webhook URL, required only when `NOTIFIER_WEBHOOK_SERVICE=custom`                         |
+| `NOTIFIER_SERVER_CHAN_SEND_KEY` | empty         | ServerChan SendKey, required only when `NOTIFIER_WEBHOOK_SERVICE=serverChan`                     |
+| `NOTIFIER_PUSHPLUS_TOKEN`       | empty         | PushPlus token, required only when `NOTIFIER_WEBHOOK_SERVICE=pushPlus`                           |
+| `NOTIFIER_WXPUSHER_SPT`         | empty         | WxPusher SPT, required only when `NOTIFIER_WEBHOOK_SERVICE=wxPusher`                             |
+| `NOTIFIER_EMAIL_SERVICE`        | `smtp`        | Email sending method, supports `api` and `smtp`                                                  |
+| `NOTIFIER_EMAIL_ADDRESS`        | empty         | Recipient email address, required only when `NOTIFIER_PROVIDER=email`                            |
+| `NOTIFIER_EMAIL_API_URL`        | empty         | Email API URL, required only when `NOTIFIER_EMAIL_SERVICE=api`                                   |
+| `NOTIFIER_EMAIL_API_TOKEN`      | empty         | Optional email API token, sent as a Bearer token                                                 |
+| `NOTIFIER_EMAIL_FROM`           | empty         | Sender email address; falls back to `NOTIFIER_SMTP_USERNAME`                                     |
+| `NOTIFIER_SMTP_HOST`            | empty         | SMTP host, required only when `NOTIFIER_PROVIDER=email`                                          |
+| `NOTIFIER_SMTP_PORT`            | `465`         | SMTP port                                                                                        |
+| `NOTIFIER_SMTP_SECURE`          | `true`        | Whether to use direct SSL/TLS                                                                    |
+| `NOTIFIER_SMTP_USERNAME`        | empty         | SMTP username                                                                                    |
+| `NOTIFIER_SMTP_PASSWORD`        | empty         | SMTP password or app authorization code                                                          |
+| `PORT`                          | `8000`        | Local server port                                                                                |
 
 ## License
 

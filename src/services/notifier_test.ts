@@ -7,9 +7,18 @@ const settings: AppSettings = {
   darkMode: false,
   locale: "zh-CN",
   notificationEmailAddress: "test@example.com",
+  notificationEmailApiToken: "email-api-token",
+  notificationEmailApiUrl: "https://example.com/email-api",
+  notificationEmailFrom: "from@example.com",
+  notificationEmailService: "smtp",
   notificationProvider: "webhook",
   notificationPushPlusToken: "pushplus-test",
   notificationServerChanSendKey: "SCT-test",
+  notificationSmtpHost: "smtp.example.com",
+  notificationSmtpPassword: "smtp-password",
+  notificationSmtpPort: 465,
+  notificationSmtpSecure: true,
+  notificationSmtpUsername: "smtp-user",
   notificationWebhookService: "custom",
   notificationWebhookUrl: "https://example.com/settings-webhook",
   notificationWxPusherSpt: "SPT-test",
@@ -144,6 +153,81 @@ Deno.test("sendMatches summarizes omitted records when the markdown would be too
   const body = await requests[0].json();
   assertEquals(body.text.includes("及另外 "), true);
   assertEquals(body.text.length <= 3700, true);
+});
+
+Deno.test("email provider sends matching plain text and HTML content", async () => {
+  const messages: Array<{
+    from: string;
+    html: string;
+    subject: string;
+    text: string;
+    to: string;
+  }> = [];
+  const configs: Array<{
+    host: string;
+    password: string;
+    port: number;
+    secure: boolean;
+    username: string;
+  }> = [];
+  const notifier = createNotifier({
+    emailSender: (message, config) => {
+      messages.push(message);
+      configs.push(config);
+      return Promise.resolve();
+    },
+  });
+
+  const result = await notifier.sendMatches([record, secondRecord], {
+    ...settings,
+    notificationProvider: "email",
+  });
+
+  assertEquals(result, { provider: "email", sent: true });
+  assertEquals(messages.length, 1);
+  assertEquals(configs[0], {
+    host: "smtp.example.com",
+    password: "smtp-password",
+    port: 465,
+    secure: true,
+    username: "smtp-user",
+  });
+  assertEquals(messages[0].from, "from@example.com");
+  assertEquals(messages[0].to, "test@example.com");
+  assertEquals(messages[0].subject, "小黑盒话题提醒：轮询命中");
+  assertEquals(messages[0].text.includes("[Need help](https://example.com/p1)"), true);
+  assertEquals(messages[0].text.includes("发帖时间："), true);
+  assertEquals(messages[0].html.includes('<a href="https://example.com/p1">Need help</a>'), true);
+  assertEquals(messages[0].html.includes("<hr>"), true);
+  assertEquals(messages[0].html.includes("命中时间"), false);
+});
+
+Deno.test("email API provider posts the email payload to the configured API", async () => {
+  const requests: Request[] = [];
+  const notifier = createNotifier({
+    fetch: (input, init) => {
+      requests.push(new Request(input, init));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  });
+
+  const result = await notifier.sendMatches([record], {
+    ...settings,
+    notificationEmailService: "api",
+    notificationProvider: "email",
+  });
+
+  assertEquals(result, { provider: "email", sent: true });
+  assertEquals(requests.length, 1);
+  assertEquals(requests[0].url, "https://example.com/email-api");
+  assertEquals(requests[0].method, "POST");
+  assertEquals(requests[0].headers.get("authorization"), "Bearer email-api-token");
+  const body = await requests[0].json();
+  assertEquals(body.from, "from@example.com");
+  assertEquals(body.to, "test@example.com");
+  assertEquals(body.subject, "小黑盒话题提醒：轮询命中");
+  assertEquals(body.text.includes("[Need help](https://example.com/p1)"), true);
+  assertEquals(body.html.includes('<a href="https://example.com/p1">Need help</a>'), true);
 });
 
 Deno.test("disabled provider does not send a request", async () => {
@@ -373,6 +457,39 @@ Deno.test("wxpusher service requires an SPT", async () => {
         notificationWxPusherSpt: "",
       }),
     "WxPusher SPT is required for webhook notifications.",
+  );
+});
+
+Deno.test("email provider requires SMTP settings", async () => {
+  const notifier = createNotifier({
+    emailSender: () => Promise.resolve(),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationProvider: "email",
+        notificationSmtpHost: "",
+      }),
+    "SMTP host is required for email notifications.",
+  );
+});
+
+Deno.test("email API provider requires an API URL", async () => {
+  const notifier = createNotifier({
+    fetch: () => Promise.resolve(new Response(null, { status: 204 })),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationEmailApiUrl: "",
+        notificationEmailService: "api",
+        notificationProvider: "email",
+      }),
+    "Email API URL is required for email notifications.",
   );
 });
 

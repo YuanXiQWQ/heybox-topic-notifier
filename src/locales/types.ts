@@ -42,6 +42,12 @@ export type Messages = {
   notificationDisabled: string;
   notificationEmailAddress: string;
   notificationEmail: string;
+  notificationEmailApi: string;
+  notificationEmailApiToken: string;
+  notificationEmailApiUrl: string;
+  notificationEmailFrom: string;
+  notificationEmailService: string;
+  notificationEmailSmtp: string;
   notificationMoreMatches: string;
   notificationBatchTitle: string;
   notificationProvider: string;
@@ -50,6 +56,11 @@ export type Messages = {
   notificationServerChan: string;
   notificationServerChanSendKey: string;
   notificationSettings: string;
+  notificationSmtpHost: string;
+  notificationSmtpPassword: string;
+  notificationSmtpPort: string;
+  notificationSmtpSecure: string;
+  notificationSmtpUsername: string;
   notificationWebhook: string;
   notificationWebhookCustom: string;
   notificationWebhookService: string;

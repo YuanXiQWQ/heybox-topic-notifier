@@ -11,9 +11,18 @@ const currentSettings: AppSettings = {
   darkMode: false,
   locale: "zh-CN",
   notificationEmailAddress: "old@example.com",
+  notificationEmailApiToken: "old-api-token",
+  notificationEmailApiUrl: "https://example.com/old-email-api",
+  notificationEmailFrom: "old-from@example.com",
+  notificationEmailService: "smtp",
   notificationProvider: "webhook",
   notificationPushPlusToken: "pushplus-current",
   notificationServerChanSendKey: "SCT-current",
+  notificationSmtpHost: "smtp.current.example.com",
+  notificationSmtpPassword: "smtp-current-password",
+  notificationSmtpPort: 465,
+  notificationSmtpSecure: true,
+  notificationSmtpUsername: "smtp-current-user",
   notificationWebhookService: "custom",
   notificationWebhookUrl: "https://example.com/webhook",
   notificationWxPusherSpt: "SPT-current",
@@ -58,9 +67,18 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     keyword_0_location_replies: "on",
     locale: "zh-CN",
     notificationEmailAddress: "new@example.com",
+    notificationEmailApiToken: "new-api-token",
+    notificationEmailApiUrl: "https://example.com/new-email-api",
+    notificationEmailFrom: "new-from@example.com",
+    notificationEmailService: "api",
     notificationProvider: "email",
-    notificationPushPlusToken: "pushplus-new",
+    notificationPushPlusSecret: "pushplus-new",
     notificationServerChanSendKey: "SCT-new",
+    notificationSmtpHost: "smtp.new.example.com",
+    notificationSmtpPassword: "smtp-new-password",
+    notificationSmtpPort: "587",
+    notificationSmtpSecure: "on",
+    notificationSmtpUsername: "smtp-new-user",
     notificationWebhookService: "serverChan",
     notificationWebhookUrl: "https://example.com/new-webhook",
     notificationWxPusherSpt: "SPT-new",
@@ -87,9 +105,18 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   ]);
   assertEquals(settings.darkMode, true);
   assertEquals(settings.notificationEmailAddress, "new@example.com");
+  assertEquals(settings.notificationEmailApiToken, "new-api-token");
+  assertEquals(settings.notificationEmailApiUrl, "https://example.com/new-email-api");
+  assertEquals(settings.notificationEmailFrom, "new-from@example.com");
+  assertEquals(settings.notificationEmailService, "api");
   assertEquals(settings.notificationProvider, "email");
   assertEquals(settings.notificationPushPlusToken, "pushplus-new");
   assertEquals(settings.notificationServerChanSendKey, "SCT-new");
+  assertEquals(settings.notificationSmtpHost, "smtp.new.example.com");
+  assertEquals(settings.notificationSmtpPassword, "smtp-new-password");
+  assertEquals(settings.notificationSmtpPort, 587);
+  assertEquals(settings.notificationSmtpSecure, true);
+  assertEquals(settings.notificationSmtpUsername, "smtp-new-user");
   assertEquals(settings.notificationWebhookService, "serverChan");
   assertEquals(settings.notificationWebhookUrl, "https://example.com/new-webhook");
   assertEquals(settings.notificationWxPusherSpt, "SPT-new");

@@ -1,6 +1,9 @@
 import { normalizeLocale } from "../locales/index.ts";
 import type { AppSettings, KeywordRule, PollSort } from "../models.ts";
-import { normalizeNotificationWebhookService } from "../notification_services.ts";
+import {
+  normalizeNotificationEmailService,
+  normalizeNotificationWebhookService,
+} from "../notification_services.ts";
 import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
@@ -29,9 +32,18 @@ export function createAppContext() {
       darkMode: false,
       locale: normalizeLocale(Deno.env.get("APP_LOCALE")),
       notificationEmailAddress: Deno.env.get("NOTIFIER_EMAIL_ADDRESS") ?? "",
+      notificationEmailApiToken: Deno.env.get("NOTIFIER_EMAIL_API_TOKEN") ?? "",
+      notificationEmailApiUrl: Deno.env.get("NOTIFIER_EMAIL_API_URL") ?? "",
+      notificationEmailFrom: Deno.env.get("NOTIFIER_EMAIL_FROM") ?? "",
+      notificationEmailService: notificationEmailServiceFromEnv(),
       notificationProvider: notificationProviderFromEnv(),
       notificationPushPlusToken: Deno.env.get("NOTIFIER_PUSHPLUS_TOKEN") ?? "",
       notificationServerChanSendKey: Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_KEY") ?? "",
+      notificationSmtpHost: Deno.env.get("NOTIFIER_SMTP_HOST") ?? "",
+      notificationSmtpPassword: Deno.env.get("NOTIFIER_SMTP_PASSWORD") ?? "",
+      notificationSmtpPort: positiveIntegerFromEnv("NOTIFIER_SMTP_PORT", 465),
+      notificationSmtpSecure: Deno.env.get("NOTIFIER_SMTP_SECURE") !== "false",
+      notificationSmtpUsername: Deno.env.get("NOTIFIER_SMTP_USERNAME") ?? "",
       notificationWebhookService: notificationWebhookServiceFromEnv(),
       notificationWebhookUrl: Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "",
       notificationWxPusherSpt: Deno.env.get("NOTIFIER_WXPUSHER_SPT") ?? "",
@@ -109,6 +121,10 @@ function notificationProviderFromEnv(): AppSettings["notificationProvider"] {
 
 function notificationWebhookServiceFromEnv(): AppSettings["notificationWebhookService"] {
   return normalizeNotificationWebhookService(Deno.env.get("NOTIFIER_WEBHOOK_SERVICE"));
+}
+
+function notificationEmailServiceFromEnv(): AppSettings["notificationEmailService"] {
+  return normalizeNotificationEmailService(Deno.env.get("NOTIFIER_EMAIL_SERVICE"));
 }
 
 function heyboxSignatureModeFromEnv(): HeyboxSignatureMode | undefined {

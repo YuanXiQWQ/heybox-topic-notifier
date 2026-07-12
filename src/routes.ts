@@ -1,7 +1,10 @@
 import { Hono } from "@hono/hono";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import type { AppSettings, KeywordRule, MatchLocation, PollSort, TopicRule } from "./models.ts";
-import { normalizeNotificationWebhookService } from "./notification_services.ts";
+import {
+  normalizeNotificationEmailService,
+  normalizeNotificationWebhookService,
+} from "./notification_services.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
@@ -99,6 +102,7 @@ export function createRoutes(context: AppContext): Hono {
     const css = await Deno.readTextFile(new URL("../static/app.css", import.meta.url));
     return new Response(css, {
       headers: {
+        "cache-control": "no-store",
         "content-type": "text/css; charset=utf-8",
       },
     });
@@ -108,6 +112,7 @@ export function createRoutes(context: AppContext): Hono {
     const script = await Deno.readTextFile(new URL("../static/settings.js", import.meta.url));
     return new Response(script, {
       headers: {
+        "cache-control": "no-store",
         "content-type": "text/javascript; charset=utf-8",
       },
     });
@@ -163,9 +168,23 @@ export function settingsFromForm(
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
     notificationEmailAddress: String(form.notificationEmailAddress ?? "").trim(),
+    notificationEmailApiToken: String(form.notificationEmailApiToken ?? ""),
+    notificationEmailApiUrl: String(form.notificationEmailApiUrl ?? "").trim(),
+    notificationEmailFrom: String(form.notificationEmailFrom ?? "").trim(),
+    notificationEmailService: normalizeNotificationEmailService(form.notificationEmailService),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
-    notificationPushPlusToken: String(form.notificationPushPlusToken ?? "").trim(),
+    notificationPushPlusToken: String(
+      form.notificationPushPlusSecret ?? form.notificationPushPlusToken ?? "",
+    ).trim(),
     notificationServerChanSendKey: String(form.notificationServerChanSendKey ?? "").trim(),
+    notificationSmtpHost: String(form.notificationSmtpHost ?? "").trim(),
+    notificationSmtpPassword: String(form.notificationSmtpPassword ?? ""),
+    notificationSmtpPort: normalizePositiveInteger(
+      form.notificationSmtpPort,
+      currentSettings.notificationSmtpPort,
+    ),
+    notificationSmtpSecure: form.notificationSmtpSecure === "on",
+    notificationSmtpUsername: String(form.notificationSmtpUsername ?? "").trim(),
     notificationWebhookService: normalizeNotificationWebhookService(
       form.notificationWebhookService,
     ),

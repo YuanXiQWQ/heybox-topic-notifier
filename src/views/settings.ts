@@ -1,7 +1,10 @@
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
 import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "../models.ts";
-import { notificationWebhookServices } from "../notification_services.ts";
+import {
+  notificationEmailServices,
+  notificationWebhookServices,
+} from "../notification_services.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
@@ -81,7 +84,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
-    <script src="/static/settings.js" defer></script>
+    <script src="/static/settings.js?v=20260712-email-service" defer></script>
   `;
 
   return renderLayout({
@@ -146,6 +149,7 @@ function renderNotificationSection(settings: AppSettings): string {
             <dd>
               <div class="input-action-row">
                 <input
+                  type="password"
                   name="notificationServerChanSendKey"
                   value="${escapeHtml(settings.notificationServerChanSendKey)}"
                   autocomplete="off"
@@ -172,7 +176,8 @@ function renderNotificationSection(settings: AppSettings): string {
             <dd>
               <div class="input-action-row">
                 <input
-                  name="notificationPushPlusToken"
+                  type="password"
+                  name="notificationPushPlusSecret"
                   value="${escapeHtml(settings.notificationPushPlusToken)}"
                   autocomplete="off"
                 >
@@ -198,6 +203,7 @@ function renderNotificationSection(settings: AppSettings): string {
             <dd>
               <div class="input-action-row">
                 <input
+                  type="password"
                   name="notificationWxPusherSpt"
                   value="${escapeHtml(settings.notificationWxPusherSpt)}"
                   autocomplete="off"
@@ -224,16 +230,33 @@ function renderNotificationSection(settings: AppSettings): string {
             <dt>${escapeHtml(messages.notificationWebhookUrl)}</dt>
             <dd>
               <input
-                type="url"
+                type="password"
                 name="notificationWebhookUrl"
                 value="${escapeHtml(settings.notificationWebhookUrl)}"
                 placeholder="https://"
+                autocomplete="off"
               >
             </dd>
           </div>
           <div
             class="notification-option-row"
-            data-notification-field="email"
+            data-notification-field="email-service"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationEmailService)}</dt>
+            <dd>
+              <select name="notificationEmailService" data-notification-email-service-select>
+                ${
+    notificationEmailServices.map((service) =>
+      option(service.id, settings.notificationEmailService, messages[service.labelKey])
+    ).join("")
+  }
+              </select>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-address"
             data-notification-provider-field="email"
           >
             <dt>${escapeHtml(messages.notificationEmailAddress)}</dt>
@@ -243,6 +266,132 @@ function renderNotificationSection(settings: AppSettings): string {
                 name="notificationEmailAddress"
                 value="${escapeHtml(settings.notificationEmailAddress)}"
                 placeholder="name@example.com"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-from"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationEmailFrom)}</dt>
+            <dd>
+              <input
+                type="email"
+                name="notificationEmailFrom"
+                value="${escapeHtml(settings.notificationEmailFrom)}"
+                placeholder="name@example.com"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-api-url"
+            data-notification-provider-field="email"
+            data-notification-email-service-field="api"
+          >
+            <dt>${escapeHtml(messages.notificationEmailApiUrl)}</dt>
+            <dd>
+              <input
+                type="url"
+                name="notificationEmailApiUrl"
+                value="${escapeHtml(settings.notificationEmailApiUrl)}"
+                placeholder="https://"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email-api-token"
+            data-notification-provider-field="email"
+            data-notification-email-service-field="api"
+          >
+            <dt>${escapeHtml(messages.notificationEmailApiToken)}</dt>
+            <dd>
+              <input
+                type="password"
+                name="notificationEmailApiToken"
+                value="${escapeHtml(settings.notificationEmailApiToken)}"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-host"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpHost)}</dt>
+            <dd>
+              <input
+                name="notificationSmtpHost"
+                value="${escapeHtml(settings.notificationSmtpHost)}"
+                placeholder="smtp.example.com"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-port"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpPort)}</dt>
+            <dd>
+              <input
+                type="number"
+                name="notificationSmtpPort"
+                min="1"
+                step="1"
+                value="${settings.notificationSmtpPort}"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-secure"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpSecure)}</dt>
+            <dd>
+              <label class="switch-control">
+                <input
+                  type="checkbox"
+                  name="notificationSmtpSecure"
+                  ${settings.notificationSmtpSecure ? "checked" : ""}
+                >
+              </label>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-username"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpUsername)}</dt>
+            <dd>
+              <input
+                name="notificationSmtpUsername"
+                value="${escapeHtml(settings.notificationSmtpUsername)}"
+                autocomplete="off"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="smtp-password"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationSmtpPassword)}</dt>
+            <dd>
+              <input
+                type="password"
+                name="notificationSmtpPassword"
+                value="${escapeHtml(settings.notificationSmtpPassword)}"
+                autocomplete="off"
               >
             </dd>
           </div>

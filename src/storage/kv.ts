@@ -7,7 +7,10 @@ import type {
   PollSort,
   TopicRule,
 } from "../models.ts";
-import { normalizeNotificationWebhookService } from "../notification_services.ts";
+import {
+  normalizeNotificationEmailService,
+  normalizeNotificationWebhookService,
+} from "../notification_services.ts";
 
 const keys = {
   match: (id: string) => ["matches", id] as const,
@@ -172,12 +175,40 @@ function normalizeSettings(
     notificationEmailAddress: typeof value.notificationEmailAddress === "string"
       ? value.notificationEmailAddress
       : defaultSettings.notificationEmailAddress,
+    notificationEmailApiToken: typeof value.notificationEmailApiToken === "string"
+      ? value.notificationEmailApiToken
+      : defaultSettings.notificationEmailApiToken,
+    notificationEmailApiUrl: typeof value.notificationEmailApiUrl === "string"
+      ? value.notificationEmailApiUrl
+      : defaultSettings.notificationEmailApiUrl,
+    notificationEmailFrom: typeof value.notificationEmailFrom === "string"
+      ? value.notificationEmailFrom
+      : defaultSettings.notificationEmailFrom,
+    notificationEmailService: value.notificationEmailService
+      ? normalizeNotificationEmailService(value.notificationEmailService)
+      : defaultSettings.notificationEmailService,
     notificationPushPlusToken: typeof value.notificationPushPlusToken === "string"
       ? value.notificationPushPlusToken
       : defaultSettings.notificationPushPlusToken,
     notificationServerChanSendKey: typeof value.notificationServerChanSendKey === "string"
       ? value.notificationServerChanSendKey
       : defaultSettings.notificationServerChanSendKey,
+    notificationSmtpHost: typeof value.notificationSmtpHost === "string"
+      ? value.notificationSmtpHost
+      : defaultSettings.notificationSmtpHost,
+    notificationSmtpPassword: typeof value.notificationSmtpPassword === "string"
+      ? value.notificationSmtpPassword
+      : defaultSettings.notificationSmtpPassword,
+    notificationSmtpPort: normalizePositiveInteger(
+      value.notificationSmtpPort,
+      defaultSettings.notificationSmtpPort,
+    ),
+    notificationSmtpSecure: typeof value.notificationSmtpSecure === "boolean"
+      ? value.notificationSmtpSecure
+      : defaultSettings.notificationSmtpSecure,
+    notificationSmtpUsername: typeof value.notificationSmtpUsername === "string"
+      ? value.notificationSmtpUsername
+      : defaultSettings.notificationSmtpUsername,
     notificationWebhookService: value.notificationWebhookService
       ? normalizeNotificationWebhookService(value.notificationWebhookService)
       : defaultSettings.notificationWebhookService,

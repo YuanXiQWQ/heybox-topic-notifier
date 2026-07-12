@@ -29,6 +29,7 @@ function initSettingsEditors() {
 
 function initNotificationSettings() {
   const providerSelect = document.querySelector("[data-notification-provider-select]");
+  const emailServiceSelect = document.querySelector("[data-notification-email-service-select]");
   const serviceSelect = document.querySelector("[data-notification-webhook-service-select]");
   const testNotifyButton = document.querySelector("[data-test-notify-button]");
   const testNotifyStatus = document.querySelector("[data-test-notify-status]");
@@ -43,7 +44,25 @@ function initNotificationSettings() {
 
   function desiredNotificationFields() {
     if (providerSelect.value === "email") {
-      return new Set(["email"]);
+      const fields = [
+        "email-service",
+        "email-address",
+        "email-from",
+      ];
+
+      if (emailServiceSelect?.value === "api") {
+        fields.push("email-api-url", "email-api-token");
+      } else {
+        fields.push(
+          "smtp-host",
+          "smtp-port",
+          "smtp-secure",
+          "smtp-username",
+          "smtp-password",
+        );
+      }
+
+      return new Set(fields);
     }
 
     if (providerSelect.value !== "webhook") {
@@ -123,6 +142,11 @@ function initNotificationSettings() {
   }
 
   providerSelect.addEventListener("change", () => {
+    syncNotificationFields(true);
+    scheduleAutoSave();
+  });
+
+  emailServiceSelect?.addEventListener("change", () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
