@@ -3,7 +3,7 @@ import type { AppSettings, KeywordRule, PollSort } from "../models.ts";
 import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
-import { createMockTopicSource } from "./mock_topic_source.ts";
+import type { HeyboxSignatureMode } from "./heybox_signer.ts";
 import { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
 
@@ -11,7 +11,6 @@ export type AppConfig = {
   defaultSettings: AppSettings;
   pollEnabled: boolean;
   port: number;
-  topicSource: "heybox" | "mock";
 };
 
 export type AppContext = ReturnType<typeof createAppContext>;
@@ -49,19 +48,17 @@ export function createAppContext() {
     },
     pollEnabled: Deno.env.get("POLL_ENABLED") === "true",
     port: Number(Deno.env.get("PORT") ?? "8000"),
-    topicSource: Deno.env.get("TOPIC_SOURCE") === "heybox" ? "heybox" : "mock",
   };
 
   const storage = createKvStorage(config.defaultSettings);
   const matcher = createMatcher();
   const notifier = createNotifier();
-  const source = config.topicSource === "heybox"
-    ? createHeyboxTopicSource({
-      cookie: Deno.env.get("HEYBOX_COOKIE") ?? undefined,
-      deviceId: Deno.env.get("HEYBOX_DEVICE_ID") ?? undefined,
-      userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
-    })
-    : createMockTopicSource();
+  const source = createHeyboxTopicSource({
+    cookie: Deno.env.get("HEYBOX_COOKIE") ?? undefined,
+    deviceId: Deno.env.get("HEYBOX_DEVICE_ID") ?? undefined,
+    signatureMode: heyboxSignatureModeFromEnv(),
+    userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
+  });
   const poller = createPoller({ matcher, notifier, source, storage });
 
   return {
@@ -88,9 +85,17 @@ function pollSortFromEnv(): PollSort {
   switch (Deno.env.get("HEYBOX_SORT_FILTER")) {
     case "hot-rank":
       return "smart";
+    case "reply":
     case "comment-time":
       return "replyTime";
+    case "create":
+      return "publishTime";
     default:
       return "publishTime";
   }
+}
+
+function heyboxSignatureModeFromEnv(): HeyboxSignatureMode | undefined {
+  const value = Deno.env.get("HEYBOX_SIGNATURE_MODE");
+  return value === "app" || value === "web" ? value : undefined;
 }
