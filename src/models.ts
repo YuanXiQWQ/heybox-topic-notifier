@@ -29,7 +29,11 @@ export type AppSettings = {
   commonKeywordRules: KeywordRule[];
   darkMode: boolean;
   locale: Locale;
+  notificationEmailAddress: string;
   notificationProvider: "disabled" | "email" | "webhook";
+  notificationServerChanSendKey: string;
+  notificationWebhookService: "custom" | "serverChan";
+  notificationWebhookUrl: string;
   polling: PollingSettings;
   themeColor: string;
   topics: TopicRule[];

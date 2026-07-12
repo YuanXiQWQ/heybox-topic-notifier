@@ -1,6 +1,7 @@
 import { createRoutes, settingsFromForm } from "./routes.ts";
 import type { AppSettings } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
+import { NotificationConfigError } from "./services/notifier.ts";
 
 const currentSettings: AppSettings = {
   activeKeywordTarget: "common",
@@ -9,7 +10,11 @@ const currentSettings: AppSettings = {
   ],
   darkMode: false,
   locale: "zh-CN",
+  notificationEmailAddress: "old@example.com",
   notificationProvider: "webhook",
+  notificationServerChanSendKey: "SCT-current",
+  notificationWebhookService: "custom",
+  notificationWebhookUrl: "https://example.com/webhook",
   polling: {
     intervalMinutes: 1,
     postLimit: 20,
@@ -50,7 +55,11 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     keyword_0: "new-topic",
     keyword_0_location_replies: "on",
     locale: "zh-CN",
+    notificationEmailAddress: "new@example.com",
     notificationProvider: "email",
+    notificationServerChanSendKey: "SCT-new",
+    notificationWebhookService: "serverChan",
+    notificationWebhookUrl: "https://example.com/new-webhook",
     pollIntervalMinutes: "3",
     pollPostLimit: "50",
     pollSort: "replyTime",
@@ -73,7 +82,11 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     { keyword: "new-other", locations: ["comments"] },
   ]);
   assertEquals(settings.darkMode, true);
+  assertEquals(settings.notificationEmailAddress, "new@example.com");
   assertEquals(settings.notificationProvider, "email");
+  assertEquals(settings.notificationServerChanSendKey, "SCT-new");
+  assertEquals(settings.notificationWebhookService, "serverChan");
+  assertEquals(settings.notificationWebhookUrl, "https://example.com/new-webhook");
   assertEquals(settings.polling, {
     intervalMinutes: 3,
     postLimit: 50,
@@ -89,7 +102,10 @@ Deno.test("settingsFromForm saves visible common keywords and submitted topic ke
     keyword_0_location_title: "on",
     keyword_0_location_body: "on",
     locale: "zh-CN",
+    notificationEmailAddress: "old@example.com",
     notificationProvider: "webhook",
+    notificationWebhookService: "custom",
+    notificationWebhookUrl: "https://example.com/webhook",
     themeColor: "#bd7fff",
     topic_0_enabled: "on",
     topic_0_id: "12099",
@@ -115,7 +131,10 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
     keyword_0: "new-topic",
     keyword_0_location_title: "on",
     locale: "zh-CN",
+    notificationEmailAddress: "old@example.com",
     notificationProvider: "webhook",
+    notificationWebhookService: "custom",
+    notificationWebhookUrl: "https://example.com/webhook",
     themeColor: "#bd7fff",
     topic_0_enabled: "on",
     topic_0_id: "12099",
@@ -128,6 +147,22 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
 
   assertEquals(settings.commonKeywordRules, currentSettings.commonKeywordRules);
   assertEquals(settings.topics[1].keywordRules, currentSettings.topics[1].keywordRules);
+});
+
+Deno.test("test notify returns a readable configuration error", async () => {
+  const app = createRoutes({
+    notifier: {
+      sendTest: () => Promise.reject(new NotificationConfigError("missing webhook")),
+    },
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/test-notify", { method: "POST" });
+
+  assertEquals(response.status, 400);
+  assertEquals(await response.text(), "missing webhook");
 });
 
 function assertEquals(actual: unknown, expected: unknown): void {

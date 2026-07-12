@@ -27,7 +27,11 @@ export function createAppContext() {
       commonKeywordRules: defaultKeywordRules,
       darkMode: false,
       locale: normalizeLocale(Deno.env.get("APP_LOCALE")),
-      notificationProvider: "webhook",
+      notificationEmailAddress: Deno.env.get("NOTIFIER_EMAIL_ADDRESS") ?? "",
+      notificationProvider: notificationProviderFromEnv(),
+      notificationServerChanSendKey: Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_KEY") ?? "",
+      notificationWebhookService: notificationWebhookServiceFromEnv(),
+      notificationWebhookUrl: Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "",
       polling: {
         intervalMinutes: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
         postLimit: positiveIntegerFromEnv(
@@ -93,6 +97,16 @@ function pollSortFromEnv(): PollSort {
     default:
       return "publishTime";
   }
+}
+
+function notificationProviderFromEnv(): AppSettings["notificationProvider"] {
+  const value = Deno.env.get("NOTIFIER_PROVIDER");
+  return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
+}
+
+function notificationWebhookServiceFromEnv(): AppSettings["notificationWebhookService"] {
+  const value = Deno.env.get("NOTIFIER_WEBHOOK_SERVICE");
+  return value === "serverChan" ? "serverChan" : "custom";
 }
 
 function heyboxSignatureModeFromEnv(): HeyboxSignatureMode | undefined {

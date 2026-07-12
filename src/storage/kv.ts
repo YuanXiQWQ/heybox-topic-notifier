@@ -77,10 +77,22 @@ export function createKvStorage(defaultSettings: AppSettings) {
 
     async saveMatch(record: MatchRecord): Promise<void> {
       const store = await kv();
-      await store.atomic()
-        .set(keys.match(record.id), record)
-        .set(keys.seen(record.post.id), true)
-        .commit();
+      await store.set(keys.match(record.id), record);
+    },
+
+    async markPostSeen(postId: string): Promise<void> {
+      const store = await kv();
+      await store.set(keys.seen(postId), true);
+    },
+
+    async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
+      const store = await kv();
+      const entry = await store.get<MatchRecord>(keys.match(id));
+      if (!entry.value) {
+        return;
+      }
+
+      await store.set(keys.match(id), { ...entry.value, notifiedAt });
     },
 
     async completeMatches(ids: string[]): Promise<void> {
@@ -156,6 +168,18 @@ function normalizeSettings(
     activeKeywordTarget: value.activeKeywordTarget ?? defaultSettings.activeKeywordTarget,
     commonKeywordRules,
     darkMode: typeof value.darkMode === "boolean" ? value.darkMode : defaultSettings.darkMode,
+    notificationEmailAddress: typeof value.notificationEmailAddress === "string"
+      ? value.notificationEmailAddress
+      : defaultSettings.notificationEmailAddress,
+    notificationServerChanSendKey: typeof value.notificationServerChanSendKey === "string"
+      ? value.notificationServerChanSendKey
+      : defaultSettings.notificationServerChanSendKey,
+    notificationWebhookService: value.notificationWebhookService === "serverChan"
+      ? "serverChan"
+      : defaultSettings.notificationWebhookService,
+    notificationWebhookUrl: typeof value.notificationWebhookUrl === "string"
+      ? value.notificationWebhookUrl
+      : defaultSettings.notificationWebhookUrl,
     polling: normalizePollingSettings(value.polling, defaultSettings.polling),
     themeColor: normalizeThemeColor(value.themeColor, defaultSettings.themeColor),
     topics,

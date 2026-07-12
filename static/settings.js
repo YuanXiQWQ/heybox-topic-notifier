@@ -5,6 +5,7 @@ let autoSaveTimer;
 let autoSaveController;
 let lastSavedSignature = "";
 let reloadAfterSave = false;
+const notificationTransitionMs = 190;
 
 function initSettingsEditors() {
   const topicEditor = document.querySelector("[data-topic-editor]");
@@ -18,10 +19,107 @@ function initSettingsEditors() {
   initDropdown(keywordEditor, "keywords");
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
+  initNotificationSettings();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
   initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
   updateKeywordSummary(keywordEditor);
+}
+
+function initNotificationSettings() {
+  const providerSelect = document.querySelector("[data-notification-provider-select]");
+  const serviceSelect = document.querySelector("[data-notification-webhook-service-select]");
+  const rows = Array.from(document.querySelectorAll("[data-notification-field]"));
+
+  if (!(providerSelect instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  let visibleFields = desiredNotificationFields();
+  let transitionToken = 0;
+
+  function desiredNotificationFields() {
+    if (providerSelect.value === "email") {
+      return new Set(["email"]);
+    }
+
+    if (providerSelect.value !== "webhook") {
+      return new Set();
+    }
+
+    return new Set([
+      "webhook-service",
+      serviceSelect?.value === "serverChan" ? "serverChan" : "custom",
+    ]);
+  }
+
+  function rowName(row) {
+    return row.dataset.notificationField;
+  }
+
+  function showRow(row, animate, token) {
+    row.hidden = false;
+    row.dataset.notificationTransitionToken = String(token);
+
+    if (!animate) {
+      row.classList.remove("is-collapsed");
+      return;
+    }
+
+    row.classList.add("is-collapsed");
+    row.getBoundingClientRect();
+    row.classList.remove("is-collapsed");
+  }
+
+  function hideRow(row, animate, token) {
+    row.dataset.notificationTransitionToken = String(token);
+    row.classList.add("is-collapsed");
+
+    if (!animate) {
+      row.hidden = true;
+      return;
+    }
+
+    setTimeout(() => {
+      if (
+        row.dataset.notificationTransitionToken === String(token) &&
+        row.classList.contains("is-collapsed")
+      ) {
+        row.hidden = true;
+      }
+    }, notificationTransitionMs);
+  }
+
+  function applyNotificationFields(fields, animate, token) {
+    for (const row of rows) {
+      if (fields.has(rowName(row))) {
+        showRow(row, animate, token);
+      } else {
+        hideRow(row, animate, token);
+      }
+    }
+  }
+
+  function syncNotificationFields(animate) {
+    const targetFields = desiredNotificationFields();
+    const token = ++transitionToken;
+
+    applyNotificationFields(targetFields, animate, token);
+
+    visibleFields = targetFields;
+  }
+
+  providerSelect.addEventListener("change", () => {
+    syncNotificationFields(true);
+    scheduleAutoSave();
+  });
+
+  serviceSelect?.addEventListener("change", () => {
+    syncNotificationFields(true);
+    scheduleAutoSave();
+  });
+
+  applyNotificationFields(visibleFields, false, ++transitionToken);
 }
 
 function initDropdown(editor, name) {

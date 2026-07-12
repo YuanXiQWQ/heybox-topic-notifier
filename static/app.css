@@ -53,6 +53,10 @@ body {
   margin: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 a {
   color: var(--theme-link);
   text-decoration: none;
@@ -167,6 +171,28 @@ select {
 .settings-list > div > dd > input,
 .settings-list > div > dd > select {
   max-width: 360px;
+}
+
+.input-action-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  max-width: 520px;
+}
+
+.input-action-row input {
+  min-width: 0;
+}
+
+.external-settings-link {
+  gap: 6px;
+  min-height: 38px;
+}
+
+.external-settings-link svg {
+  fill: currentColor;
+  height: 16px;
+  width: 16px;
 }
 
 input[type="checkbox"] {
@@ -449,6 +475,29 @@ dt {
 
 .settings-list > div:last-child {
   border-bottom: 0;
+}
+
+.notification-option-row {
+  max-height: 180px;
+  opacity: 1;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    max-height 180ms ease,
+    opacity 140ms ease,
+    padding-bottom 180ms ease,
+    padding-top 180ms ease,
+    transform 180ms ease;
+}
+
+.notification-option-row.is-collapsed {
+  border-bottom-color: transparent;
+  max-height: 0;
+  opacity: 0;
+  padding-bottom: 0;
+  padding-top: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
 }
 
 dd {
@@ -851,6 +900,12 @@ tr:last-child td {
 
   .settings-list > div {
     grid-template-columns: 1fr;
+  }
+
+  .input-action-row {
+    align-items: stretch;
+    flex-direction: column;
+    max-width: 360px;
   }
 
   .section-title-row {

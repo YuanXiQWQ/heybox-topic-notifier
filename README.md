@@ -150,23 +150,23 @@ deno task check
 
 ## Environment Variables
 
-| Variable                | Default       | Description                                                                                      |
-| :---------------------- | :------------ | :----------------------------------------------------------------------------------------------- |
-| `APP_LOCALE`            | `zh-CN`       | Default UI language                                                                              |
-| `HEYBOX_TOPIC_ID`       | `12099`       | Default topic ID to monitor                                                                      |
-| `HEYBOX_DEVICE_ID`      | empty         | Heybox App API device ID, generated on startup when empty                                        |
-| `HEYBOX_COOKIE`         | empty         | Reserved Heybox cookie, usually not needed for public publish-time feeds                         |
-| `HEYBOX_USER_AGENT`     | empty         | Overrides the Heybox request User-Agent                                                          |
-| `HEYBOX_SIGNATURE_MODE` | `app`         | Heybox signing mode; `app` is verified for publish-time feeds, `web` is diagnostic fallback only |
-| `HEYBOX_POST_LIMIT`     | `20`          | Number of posts to read per poll                                                                 |
-| `HEYBOX_SORT_FILTER`    | empty         | Legacy-compatible sort setting; `create` maps to publish time, `hot-rank` maps to smart sort     |
-| `POLL_ENABLED`          | `false`       | Enables scheduled polling                                                                        |
-| `POLL_INTERVAL_MINUTES` | `1`           | Scheduled polling interval                                                                       |
-| `POLL_POST_LIMIT`       | `20`          | Number of posts to read per poll                                                                 |
-| `POLL_SORT`             | `publishTime` | Polling sort, supports `publishTime`, `smart`, and `replyTime`                                   |
-| `NOTIFIER_PROVIDER`     | `webhook`     | Reserved notification provider setting                                                           |
-| `NOTIFIER_WEBHOOK_URL`  | empty         | Reserved webhook URL                                                                             |
-| `PORT`                  | `8000`        | Local server port                                                                                |
+| Variable                | Default       | Description                                                                                        |
+| :---------------------- | :------------ | :------------------------------------------------------------------------------------------------- |
+| `APP_LOCALE`            | `zh-CN`       | Default UI language                                                                                |
+| `HEYBOX_TOPIC_ID`       | `12099`       | Default topic ID to monitor                                                                        |
+| `HEYBOX_DEVICE_ID`      | empty         | Heybox App API device ID, generated on startup when empty                                          |
+| `HEYBOX_COOKIE`         | empty         | Reserved Heybox cookie, usually not needed for public publish-time feeds                           |
+| `HEYBOX_USER_AGENT`     | empty         | Overrides the Heybox request User-Agent                                                            |
+| `HEYBOX_SIGNATURE_MODE` | `app`         | Heybox signing mode; `app` is verified for publish-time feeds, `web` is diagnostic fallback only   |
+| `HEYBOX_POST_LIMIT`     | `20`          | Number of posts to read per poll                                                                   |
+| `HEYBOX_SORT_FILTER`    | empty         | Legacy-compatible sort setting; `create` maps to publish time, `hot-rank` maps to smart sort       |
+| `POLL_ENABLED`          | `false`       | Enables scheduled polling                                                                          |
+| `POLL_INTERVAL_MINUTES` | `1`           | Scheduled polling interval                                                                         |
+| `POLL_POST_LIMIT`       | `20`          | Number of posts to read per poll                                                                   |
+| `POLL_SORT`             | `publishTime` | Polling sort, supports `publishTime`, `smart`, and `replyTime`                                     |
+| `NOTIFIER_PROVIDER`     | `webhook`     | Notification provider, supports `webhook`, `email`, and `disabled`; `email` is not implemented yet |
+| `NOTIFIER_WEBHOOK_URL`  | empty         | Required when `NOTIFIER_PROVIDER=webhook`; receives JSON notification payloads                     |
+| `PORT`                  | `8000`        | Local server port                                                                                  |
 
 ## License
 

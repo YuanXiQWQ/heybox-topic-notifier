@@ -42,7 +42,11 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
           };
 
           await storage.saveMatch(record);
-          await notifier.sendMatch();
+          const result = await notifier.sendMatch(record, settings);
+          await storage.markPostSeen(record.post.id);
+          if (result.sent) {
+            await storage.markMatchNotified(record.id, new Date().toISOString());
+          }
         }
       }
 

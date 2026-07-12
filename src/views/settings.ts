@@ -32,25 +32,10 @@ export function renderSettings(options: {
         </dl>
       </section>
       ${renderPollingSection(options.settings)}
+      ${renderNotificationSection(options.settings)}
       <section class="settings-group" aria-labelledby="global-settings-heading">
         <h2 id="global-settings-heading">${escapeHtml(messages.globalSettings)}</h2>
         <dl class="settings-list">
-          <div>
-            <dt>${escapeHtml(messages.notificationProvider)}</dt>
-            <dd>
-              <select name="notificationProvider">
-                ${
-    option("webhook", options.settings.notificationProvider, messages.notificationWebhook)
-  }
-                ${
-    option("email", options.settings.notificationProvider, messages.notificationEmail)
-  }
-                ${
-    option("disabled", options.settings.notificationProvider, messages.notificationDisabled)
-  }
-              </select>
-            </dd>
-          </div>
           <div>
             <dt>${escapeHtml(messages.theme)}</dt>
             <dd>
@@ -105,6 +90,102 @@ export function renderSettings(options: {
     themeColor: options.settings.themeColor,
     title: messages.settingsTitle,
   });
+}
+
+function renderNotificationSection(settings: AppSettings): string {
+  const messages = getMessages(settings.locale);
+
+  return `
+      <section class="settings-group" aria-labelledby="notification-settings-heading">
+        <h2 id="notification-settings-heading">${escapeHtml(messages.notificationSettings)}</h2>
+        <dl class="settings-list">
+          <div>
+            <dt>${escapeHtml(messages.notificationProvider)}</dt>
+            <dd>
+              <select name="notificationProvider" data-notification-provider-select>
+                ${option("webhook", settings.notificationProvider, messages.notificationWebhook)}
+                ${option("email", settings.notificationProvider, messages.notificationEmail)}
+                ${option("disabled", settings.notificationProvider, messages.notificationDisabled)}
+              </select>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="webhook-service"
+            data-notification-provider-field="webhook"
+          >
+            <dt>${escapeHtml(messages.notificationWebhookService)}</dt>
+            <dd>
+              <select name="notificationWebhookService" data-notification-webhook-service-select>
+                ${
+    option("serverChan", settings.notificationWebhookService, messages.notificationServerChan)
+  }
+                ${
+    option("custom", settings.notificationWebhookService, messages.notificationWebhookCustom)
+  }
+              </select>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="serverChan"
+            data-notification-provider-field="webhook"
+            data-notification-webhook-service-field="serverChan"
+          >
+            <dt>${escapeHtml(messages.notificationServerChanSendKey)}</dt>
+            <dd>
+              <div class="input-action-row">
+                <input
+                  name="notificationServerChanSendKey"
+                  value="${escapeHtml(settings.notificationServerChanSendKey)}"
+                  autocomplete="off"
+                >
+                <a
+                  class="button-link external-settings-link"
+                  href="https://sct.ftqq.com/sendkey"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>${escapeHtml(messages.configure)}</span>
+                  ${externalLinkIcon()}
+                </a>
+              </div>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="custom"
+            data-notification-provider-field="webhook"
+            data-notification-webhook-service-field="custom"
+          >
+            <dt>${escapeHtml(messages.notificationWebhookUrl)}</dt>
+            <dd>
+              <input
+                type="url"
+                name="notificationWebhookUrl"
+                value="${escapeHtml(settings.notificationWebhookUrl)}"
+                placeholder="https://"
+              >
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
+            data-notification-field="email"
+            data-notification-provider-field="email"
+          >
+            <dt>${escapeHtml(messages.notificationEmailAddress)}</dt>
+            <dd>
+              <input
+                type="email"
+                name="notificationEmailAddress"
+                value="${escapeHtml(settings.notificationEmailAddress)}"
+                placeholder="name@example.com"
+              >
+            </dd>
+          </div>
+        </dl>
+      </section>
+  `;
 }
 
 function renderPollingSection(settings: AppSettings): string {
@@ -490,5 +571,12 @@ function trashIcon(): string {
   return `<svg aria-hidden="true" viewBox="0 0 24 24">
     <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z"></path>
     <path d="M6 9h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"></path>
+  </svg>`;
+}
+
+function externalLinkIcon(): string {
+  return `<svg aria-hidden="true" viewBox="0 0 24 24">
+    <path d="M14 4h6v6h-2V7.4l-7.3 7.3-1.4-1.4L16.6 6H14V4Z"></path>
+    <path d="M5 5h6v2H7v10h10v-4h2v6H5V5Z"></path>
   </svg>`;
 }

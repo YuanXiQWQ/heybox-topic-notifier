@@ -6,6 +6,7 @@ import { renderDashboard } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
 import { applyMatchTableQuery, parseMatchTableQuery } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
+import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 
@@ -56,13 +57,22 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/run-now", async (c) => {
-    await context.poller.runOnce();
-    return c.redirect("/");
+    try {
+      await context.poller.runOnce();
+      return c.redirect("/");
+    } catch (error) {
+      return notificationErrorResponse(error);
+    }
   });
 
   app.post("/test-notify", async (c) => {
-    await context.notifier.sendTest();
-    return c.redirect("/");
+    const settings = await context.storage.getSettings();
+    try {
+      await context.notifier.sendTest(settings);
+      return c.redirect("/");
+    } catch (error) {
+      return notificationErrorResponse(error);
+    }
   });
 
   app.post("/matches/complete", async (c) => {
@@ -102,6 +112,24 @@ export function createRoutes(context: AppContext): Hono {
   return app;
 }
 
+function notificationErrorResponse(error: unknown): Response {
+  if (error instanceof NotificationConfigError) {
+    return new Response(error.message, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 400,
+    });
+  }
+
+  if (error instanceof NotificationDeliveryError) {
+    return new Response(error.message, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 502,
+    });
+  }
+
+  throw error;
+}
+
 function formValues(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   key: string,
@@ -130,7 +158,13 @@ export function settingsFromForm(
     commonKeywordRules,
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
+    notificationEmailAddress: String(form.notificationEmailAddress ?? "").trim(),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
+    notificationServerChanSendKey: String(form.notificationServerChanSendKey ?? "").trim(),
+    notificationWebhookService: normalizeNotificationWebhookService(
+      form.notificationWebhookService,
+    ),
+    notificationWebhookUrl: String(form.notificationWebhookUrl ?? "").trim(),
     polling: {
       intervalMinutes: normalizePositiveInteger(
         form.pollIntervalMinutes,
@@ -230,6 +264,12 @@ function normalizeNotificationProvider(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
 ): AppSettings["notificationProvider"] {
   return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
+}
+
+function normalizeNotificationWebhookService(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+): AppSettings["notificationWebhookService"] {
+  return value === "serverChan" ? "serverChan" : "custom";
 }
 
 function normalizePositiveInteger(

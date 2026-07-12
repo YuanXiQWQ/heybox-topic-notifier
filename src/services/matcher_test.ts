@@ -15,7 +15,11 @@ const settings: AppSettings = {
   ],
   darkMode: false,
   locale: "zh-CN",
+  notificationEmailAddress: "test@example.com",
   notificationProvider: "webhook",
+  notificationServerChanSendKey: "SCT-test",
+  notificationWebhookService: "custom",
+  notificationWebhookUrl: "https://example.com/webhook",
   polling: {
     intervalMinutes: 1,
     postLimit: 20,

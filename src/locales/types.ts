@@ -10,6 +10,7 @@ export type Messages = {
   batchOperation: string;
   completeMatch: string;
   commonTopic: string;
+  configure: string;
   dashboardSubtitle: string;
   dashboardTitle: string;
   darkMode: string;
@@ -39,9 +40,16 @@ export type Messages = {
   navHistory: string;
   navSettings: string;
   notificationDisabled: string;
+  notificationEmailAddress: string;
   notificationEmail: string;
   notificationProvider: string;
+  notificationServerChan: string;
+  notificationServerChanSendKey: string;
+  notificationSettings: string;
   notificationWebhook: string;
+  notificationWebhookCustom: string;
+  notificationWebhookService: string;
+  notificationWebhookUrl: string;
   globalSettings: string;
   pageSize: string;
   pollInterval: string;
