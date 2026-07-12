@@ -1,4 +1,4 @@
-import { buildHkey } from "./heybox_signer.ts";
+import { buildAppHkey, buildHkey, createHeyboxSignatureParams } from "./heybox_signer.ts";
 
 Deno.test("buildHkey matches captured Heybox topic feed request", () => {
   const hkey = buildHkey(
@@ -18,6 +18,42 @@ Deno.test("buildHkey matches captured Heybox topic menu request", () => {
   );
 
   assertEquals(hkey, "SZ3T237");
+});
+
+Deno.test("buildAppHkey matches translated app signer vector", () => {
+  const hkey = buildAppHkey(
+    "/bbs/app/topic/feeds",
+    1782848432,
+    "mcfuUBmVtL9fXAFIXoQsOLBYNOFFuzCt",
+  );
+
+  assertEquals(hkey, "UTFY980");
+});
+
+Deno.test("buildAppHkey normalizes app feed paths", () => {
+  const hkey = buildAppHkey(
+    "/bbs/app/feeds/",
+    1721618176,
+    "mcfuUBmVtL9fXAFIXoQsOLBYNOFFuzCt",
+  );
+
+  assertEquals(hkey, "9SZC880");
+});
+
+Deno.test("createHeyboxSignatureParams can emit app-style nonce", () => {
+  const signature = createHeyboxSignatureParams(
+    "/bbs/app/topic/feeds",
+    new Date(1782848432 * 1000),
+    () => 0,
+    "app",
+  );
+
+  assertEquals(signature.nonce, "00000000000000000000000000000000");
+  assertEquals(signature.time, 1782848432);
+  assertEquals(
+    signature.hkey,
+    buildAppHkey("/bbs/app/topic/feeds", signature.time, signature.nonce),
+  );
 });
 
 function assertEquals(actual: unknown, expected: unknown): void {

@@ -4,6 +4,7 @@ import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxHblogTopicSource } from "./heybox_hblog_topic_source.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
+import type { HeyboxSignatureMode } from "./heybox_signer.ts";
 import { createMockTopicSource } from "./mock_topic_source.ts";
 import { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
@@ -61,6 +62,7 @@ export function createAppContext() {
     ? createHeyboxTopicSource({
       cookie: Deno.env.get("HEYBOX_COOKIE") ?? undefined,
       deviceId: Deno.env.get("HEYBOX_DEVICE_ID") ?? undefined,
+      signatureMode: heyboxSignatureModeFromEnv(),
       userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
     })
     : config.topicSource === "heybox-hblog"
@@ -118,4 +120,9 @@ function pollSortFromEnv(): PollSort {
     default:
       return "publishTime";
   }
+}
+
+function heyboxSignatureModeFromEnv(): HeyboxSignatureMode | undefined {
+  const value = Deno.env.get("HEYBOX_SIGNATURE_MODE");
+  return value === "app" || value === "web" ? value : undefined;
 }

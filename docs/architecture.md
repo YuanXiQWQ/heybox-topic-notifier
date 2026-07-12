@@ -13,8 +13,11 @@ The production target is cloud-first:
 The app uses a replaceable `TopicSource` boundary:
 
 - `mock`: local demo data.
-- `heybox`: direct Heybox web/API request path. This is useful for diagnostics, but publish-time
-  sorting is not reliable because the server can fall back to smart sorting.
+- `heybox`: direct Heybox App API request path. It uses the App-style hkey signer and the verified
+  mobile parameter profile for `/bbs/app/topic/feeds`, including `sort_filter=create` for
+  publish-time order. For `publishTime`, the service requests a small `create` feed window and
+  orders that verified publish-time window by `create_at` before slicing, because Heybox can return
+  a few same-page items slightly out of timestamp order.
 - `heybox-hblog`: local development path that parses an already exported Xiaoheihe App hblog net
   log. It proves that App-side `sort_filter=create` responses can be parsed, but it is not the final
   cloud deployment model.
@@ -70,8 +73,8 @@ The worker returns:
 }
 ```
 
-The worker is responsible for proving that `publishTime` data really comes from the App-side
-publish-time feed, not from smart-sort results locally reordered by timestamp.
+Any source that serves `publishTime` must prove that data comes from Heybox publish-time order
+(`sort_filter=create`), not from smart-sort results locally reordered by timestamp.
 
 ## Free-Channel Constraint
 
@@ -80,9 +83,10 @@ The likely free split is:
 - Deno Deploy or another free edge/serverless tier for the main service.
 - A separate worker candidate that can be swapped in later.
 
+The preferred no-cost production path is the direct `heybox` source running inside the Deno service.
 Long-running cloud Android emulators usually need paid or fragile infrastructure. GitHub Actions can
-run scheduled jobs and Android emulators for experiments, but it should be treated as a worker
-candidate to validate rather than assumed as a stable always-on Android host.
+run scheduled jobs and Android emulators for experiments, but it should be treated as a fallback
+validation candidate rather than assumed as a stable always-on Android host.
 
 ## Worker Verification
 

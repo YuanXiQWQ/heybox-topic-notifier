@@ -1,6 +1,6 @@
 import type { PollSort, TopicPost } from "../models.ts";
 import type { TopicListOptions, TopicSource } from "./topic_source.ts";
-import { createHeyboxSignatureParams } from "./heybox_signer.ts";
+import { createHeyboxSignatureParams, type HeyboxSignatureMode } from "./heybox_signer.ts";
 
 export type HeyboxTopicSourceConfig = {
   appBuild?: string;
@@ -16,6 +16,7 @@ export type HeyboxTopicSourceConfig = {
   now?: () => Date;
   osVersion?: string;
   random?: () => number;
+  signatureMode?: HeyboxSignatureMode;
   timeZone?: string;
   userAgent?: string;
 };
@@ -24,15 +25,16 @@ const topicFeedsPath = "/bbs/app/topic/feeds";
 
 export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
-  const appBuild = config.appBuild ?? "1107";
-  const appVersion = config.appVersion ?? "1.3.390";
-  const channel = config.channel ?? "heybox";
-  const deviceInfo = config.deviceInfo ?? "FNE-AN00";
+  const appBuild = config.appBuild ?? "783";
+  const appVersion = config.appVersion ?? "1.3.232";
+  const channel = config.channel ?? "heybox_wandoujia";
+  const deviceInfo = config.deviceInfo ?? "M2104K10AC";
   const deviceId = config.deviceId ?? crypto.randomUUID().replaceAll("-", "");
-  const dw = config.dw ?? "617";
+  const dw = config.dw ?? "393";
   const fetchFn = config.fetchFn ?? fetch;
-  const heyboxId = config.heyboxId ?? "-1";
-  const osVersion = config.osVersion ?? "9";
+  const heyboxId = config.heyboxId ?? "";
+  const osVersion = config.osVersion ?? "14";
+  const signatureMode = config.signatureMode ?? "app";
   const timeZone = config.timeZone ?? "Asia/Shanghai";
   const userAgent = config.userAgent ??
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 " +
@@ -41,10 +43,12 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
   return {
     async listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
       const limit = normalizeLimit(options.limit);
+      const requestLimit = options.sort === "publishTime" ? Math.max(limit, 30) : limit;
       const signature = createHeyboxSignatureParams(
         topicFeedsPath,
         config.now?.() ?? new Date(),
         config.random,
+        signatureMode,
       );
       const url = new URL(topicFeedsPath, apiBaseUrl);
       const params: Record<string, string> = {
@@ -56,7 +60,7 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
         heybox_id: heyboxId,
         hkey: signature.hkey,
         imei: deviceId,
-        limit: String(limit),
+        limit: String(requestLimit),
         nonce: signature.nonce,
         offset: "0",
         os_type: "Android",
@@ -94,9 +98,20 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
       const payload = await response.json();
       assertHeyboxOk(payload);
       assertRequestedSortApplied(payload, options.sort);
-      return parseHeyboxTopicPosts(payload, topicId).slice(0, limit);
+      const posts = parseHeyboxTopicPosts(payload, topicId);
+      return orderPosts(posts, options.sort).slice(0, limit);
     },
   };
+}
+
+function orderPosts(posts: TopicPost[], sort: PollSort): TopicPost[] {
+  if (sort !== "publishTime") {
+    return posts;
+  }
+
+  return [...posts].sort((left, right) =>
+    Date.parse(right.publishedAt) - Date.parse(left.publishedAt)
+  );
 }
 
 export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicPost[] {

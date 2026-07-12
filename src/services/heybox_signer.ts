@@ -4,25 +4,33 @@ export type HeyboxSignatureParams = {
   time: number;
 };
 
+export type HeyboxSignatureMode = "app" | "web";
+
 const hkeyAlphabet = "AB45STUVWZEFGJ6CH01D237IXYPQRKLMN89";
+const appHkeyAlphabet = "23456789BCDFGHJKMNPQRTVWXY";
+const randomNonceAlphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const encoder = new TextEncoder();
 
 export function createHeyboxSignatureParams(
   path: string,
   now = new Date(),
   random = Math.random,
+  mode: HeyboxSignatureMode = "web",
 ): HeyboxSignatureParams {
   const time = Math.floor(now.getTime() / 1000);
-  const nonce = md5Hex(`${time}${random()}`).toUpperCase();
+  const nonce = mode === "app"
+    ? randomNonce(32, random)
+    : md5Hex(`${time}${random()}`).toUpperCase();
 
   return {
-    hkey: buildHkey(path, time, nonce),
+    hkey: mode === "app" ? buildAppHkey(path, time, nonce) : buildHkey(path, time, nonce),
     nonce,
     time,
   };
 }
 
 export function buildHkey(path: string, time: number, nonce: string): string {
-  const normalizedPath = `/${path.split("/").filter(Boolean).join("/")}/`;
+  const normalizedPath = normalizeHkeyPath(path);
   const parts = [
     encodeByPrefix(String(time + 1), hkeyAlphabet, -2),
     encodeByAlphabet(normalizedPath, hkeyAlphabet),
@@ -37,6 +45,57 @@ export function buildHkey(path: string, time: number, nonce: string): string {
     .padStart(2, "0");
 
   return `${encodeByPrefix(digest.slice(0, 5), hkeyAlphabet, -4)}${checksum}`;
+}
+
+export function buildAppHkey(path: string, time: number, nonce: string): string {
+  const normalizedPath = normalizeHkeyPath(path);
+  const key = encoder.encode(base64Encode(encoder.encode(normalizedPath)));
+  const timeWithNonceDigits = BigInt(time + countDigits(nonce));
+  const timeBytes = new Uint8Array(8);
+  timeBytes[4] = Number((timeWithNonceDigits >> 24n) & 0xffn);
+  timeBytes[5] = Number((timeWithNonceDigits >> 16n) & 0xffn);
+  timeBytes[6] = Number((timeWithNonceDigits >> 8n) & 0xffn);
+  timeBytes[7] = Number(timeWithNonceDigits & 0xffn);
+
+  const digest = hmacSha1(timeBytes, key);
+  const offset = digest[19] & 0x0f;
+  const value = signedInt32FromBigEndian(digest.subarray(offset, offset + 4));
+  const positiveValue = value & 0x7fffffff;
+  const alphabet = `${appHkeyAlphabet}${nonce.toUpperCase()}`;
+  const quotient = Math.trunc(positiveValue / 0x3a);
+  const hmacDerivedIndex = Number((1307386003n * BigInt((value >> 2) & 0x1fffffff) >> 40n) % 0x3an);
+  const prefix = [
+    alphabet[positiveValue - 0x3a * quotient],
+    alphabet[quotient % 0x3a],
+    alphabet[hmacDerivedIndex],
+    alphabet[Math.trunc(positiveValue / 0x2fa28) % 0x3a],
+    alphabet[Math.trunc(positiveValue / 0xacad10) % 0x3a],
+  ].join("");
+  const checksumValues = mixBytes(
+    prefix.slice(1).split("").map((char) => char.charCodeAt(0)),
+  );
+  const checksum = String(checksumValues.reduce((sum, value) => sum + value, 0) % 100)
+    .padStart(2, "0");
+
+  return `${prefix}${checksum}`;
+}
+
+function normalizeHkeyPath(path: string): string {
+  return `/${path.split("/").filter(Boolean).join("/")}/`;
+}
+
+function randomNonce(length: number, random: () => number): string {
+  return Array.from({ length }, () => {
+    const index = Math.min(
+      randomNonceAlphabet.length - 1,
+      Math.floor(Math.max(0, random()) * randomNonceAlphabet.length),
+    );
+    return randomNonceAlphabet[index];
+  }).join("");
+}
+
+function countDigits(value: string): number {
+  return Array.from(value).filter((char) => char >= "0" && char <= "9").length;
 }
 
 function encodeByPrefix(value: string, alphabet: string, end: number): string {
@@ -96,8 +155,127 @@ function mixG(value: number): number {
   return mixY(value) ^ mixD(value) ^ mixQ(value);
 }
 
+function hmacSha1(data: Uint8Array, key: Uint8Array): Uint8Array {
+  const blockSize = 64;
+  const normalizedKey = key.length > blockSize ? sha1(key) : key;
+  const paddedKey = new Uint8Array(blockSize);
+  paddedKey.set(normalizedKey);
+  const innerKey = new Uint8Array(blockSize);
+  const outerKey = new Uint8Array(blockSize);
+
+  for (let index = 0; index < blockSize; index += 1) {
+    innerKey[index] = paddedKey[index] ^ 0x36;
+    outerKey[index] = paddedKey[index] ^ 0x5c;
+  }
+
+  return sha1(concatBytes(outerKey, sha1(concatBytes(innerKey, data))));
+}
+
+function sha1(bytes: Uint8Array): Uint8Array {
+  const paddedLength = sha1PaddedLength(bytes.length);
+  const padded = new Uint8Array(paddedLength);
+  padded.set(bytes);
+  padded[bytes.length] = 0x80;
+
+  const view = new DataView(padded.buffer);
+  const bitLength = BigInt(bytes.length) * 8n;
+  view.setUint32(paddedLength - 8, Number((bitLength >> 32n) & 0xffffffffn));
+  view.setUint32(paddedLength - 4, Number(bitLength & 0xffffffffn));
+
+  let h0 = 0x67452301;
+  let h1 = 0xefcdab89;
+  let h2 = 0x98badcfe;
+  let h3 = 0x10325476;
+  let h4 = 0xc3d2e1f0;
+  const words = new Array<number>(80).fill(0);
+
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    for (let index = 0; index < 16; index += 1) {
+      words[index] = view.getUint32(offset + index * 4);
+    }
+    for (let index = 16; index < 80; index += 1) {
+      words[index] = rotateLeft(
+        words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16],
+        1,
+      );
+    }
+
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+
+    for (let index = 0; index < 80; index += 1) {
+      let f: number;
+      let k: number;
+      if (index < 20) {
+        f = (b & c) | (~b & d);
+        k = 0x5a827999;
+      } else if (index < 40) {
+        f = b ^ c ^ d;
+        k = 0x6ed9eba1;
+      } else if (index < 60) {
+        f = (b & c) | (b & d) | (c & d);
+        k = 0x8f1bbcdc;
+      } else {
+        f = b ^ c ^ d;
+        k = 0xca62c1d6;
+      }
+
+      const temp = unsignedAdd(rotateLeft(a, 5), f, e, k, words[index]);
+      e = d;
+      d = c;
+      c = rotateLeft(b, 30);
+      b = a;
+      a = temp;
+    }
+
+    h0 = unsignedAdd(h0, a);
+    h1 = unsignedAdd(h1, b);
+    h2 = unsignedAdd(h2, c);
+    h3 = unsignedAdd(h3, d);
+    h4 = unsignedAdd(h4, e);
+  }
+
+  const digest = new Uint8Array(20);
+  const digestView = new DataView(digest.buffer);
+  [h0, h1, h2, h3, h4].forEach((value, index) => digestView.setUint32(index * 4, value));
+  return digest;
+}
+
+function sha1PaddedLength(inputLength: number): number {
+  let length = inputLength + 1;
+  while (length % 64 !== 56) {
+    length += 1;
+  }
+  return length + 8;
+}
+
+function concatBytes(...chunks: Uint8Array[]): Uint8Array {
+  const bytes = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
+function base64Encode(bytes: Uint8Array): string {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+}
+
+function signedInt32FromBigEndian(bytes: Uint8Array): number {
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getInt32(0);
+}
+
 function md5Hex(value: string): string {
-  const bytes = new TextEncoder().encode(value);
+  const bytes = encoder.encode(value);
   const paddedLength = md5PaddedLength(bytes.length);
   const padded = new Uint8Array(paddedLength);
   padded.set(bytes);

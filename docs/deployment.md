@@ -60,11 +60,13 @@ Deno Deploy App 中按需配置：
 - `HEYBOX_DEVICE_ID`
 - `HEYBOX_COOKIE`
 - `HEYBOX_USER_AGENT`
+- `HEYBOX_SIGNATURE_MODE`
 - `HEYBOX_POST_LIMIT`
 - `HEYBOX_SORT_FILTER`
 - `POLL_ENABLED`
 - `NOTIFIER_PROVIDER`
 - `NOTIFIER_WEBHOOK_URL`
 
-真实小黑盒话题抓取可通过 `TOPIC_SOURCE=heybox` 启用。除非正在验证定时轮询，Production 和 Git Branch
-/ DEV 都建议先保持 `POLL_ENABLED=false`。
+真实小黑盒话题抓取可通过 `TOPIC_SOURCE=heybox` 启用。默认 `HEYBOX_SIGNATURE_MODE=app` 使用已验证的
+App API 发布时间列表；`web` 仅保留为诊断回退。除非正在验证定时轮询， Production 和 Git Branch / DEV
+都建议先保持 `POLL_ENABLED=false`。
