@@ -37,7 +37,13 @@ export function renderDashboard(options: {
       </article>
       <article>
         <span>${escapeHtml(messages.latestMatch)}</span>
-        <strong>${escapeHtml(latest?.post.title ?? "-")}</strong>
+        <strong>${
+    latest
+      ? `<a class="metric-link" href="${escapeHtml(latest.post.url)}">${
+        escapeHtml(latest.post.title)
+      }</a>`
+      : "-"
+  }</strong>
       </article>
       <article>
         <span>${escapeHtml(messages.totalMatches)}</span>
@@ -73,7 +79,9 @@ function renderPendingMatches(
           >
         </label>
       </td>
-      <td><a href="${escapeHtml(record.post.url)}">${escapeHtml(record.post.title)}</a></td>
+      <td><a class="pending-title-link" href="${escapeHtml(record.post.url)}">${
+    escapeHtml(record.post.title)
+  }</a></td>
       <td class="table-clip">${
     escapeHtml(truncateText(record.post.excerpt || record.post.body))
   }</td>
@@ -81,7 +89,7 @@ function renderPendingMatches(
       <td>${escapeHtml(formatHeyboxRelativeTime(record.matchedAt))}</td>
       <td>${escapeHtml(record.keyword)}</td>
       <td>${escapeHtml(locationLabel(record.location, messages))}</td>
-      <td>
+      <td class="table-action-cell">
         <button
           type="submit"
           class="icon-button"
@@ -103,7 +111,8 @@ function renderPendingMatches(
       ${
     table.totalRecords === 0 ? `<p>${escapeHtml(messages.emptyPendingPosts)}</p>` : `
         <form method="post" action="/matches/complete">
-          <table>
+          <table class="match-table">
+            ${renderMatchTableColumns()}
             <thead>
               <tr>
                 <th>
@@ -118,7 +127,7 @@ function renderPendingMatches(
                 <th>${escapeHtml(messages.matchedAt)}</th>
                 <th>${escapeHtml(messages.matchedKeyword)}</th>
                 <th>${escapeHtml(messages.matchLocationHeader)}</th>
-                <th>
+                <th class="table-action-cell">
                   <button
                     type="submit"
                     class="icon-button"
@@ -139,30 +148,61 @@ function renderPendingMatches(
   `;
 }
 
+function renderMatchTableColumns(): string {
+  return `
+            <colgroup>
+              <col class="match-table-col-2">
+              <col class="match-table-col-4">
+              <col class="match-table-col-10">
+              <col class="match-table-col-2">
+              <col class="match-table-col-2">
+              <col class="match-table-col-2">
+              <col class="match-table-col-2">
+              <col class="match-table-col-1">
+            </colgroup>`;
+}
+
 function renderTableFilters(
   path: string,
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
 ): string {
+  const isActive = table.range !== "all" || table.from !== "" || table.to !== "";
+
   return `
-    <form class="table-filter-form" method="get" action="${path}">
-      <span class="filter-icon" aria-hidden="true">${filterIcon()}</span>
-      <select name="range">
-        ${option("all", table.range, messages.filterAll)}
-        ${option("hour", table.range, messages.filterHour)}
-        ${option("day", table.range, messages.filterDay)}
-        ${option("week", table.range, messages.filterWeek)}
-        ${option("custom", table.range, messages.filterCustom)}
-      </select>
-      <input type="datetime-local" name="from" value="${escapeHtml(table.from)}" aria-label="${
+    <div class="table-filter-shell">
+      <input
+        class="filter-toggle-input"
+        type="checkbox"
+        id="pending-table-filter-toggle"
+        ${isActive ? "checked" : ""}
+      >
+      <label
+        class="filter-toggle"
+        for="pending-table-filter-toggle"
+        title="${escapeHtml(messages.filter)}"
+        aria-label="${escapeHtml(messages.filter)}"
+      >
+        ${filterIcon()}
+      </label>
+      <form class="table-filter-form" method="get" action="${path}">
+        <select name="range">
+          ${option("all", table.range, messages.filterAll)}
+          ${option("hour", table.range, messages.filterHour)}
+          ${option("day", table.range, messages.filterDay)}
+          ${option("week", table.range, messages.filterWeek)}
+          ${option("custom", table.range, messages.filterCustom)}
+        </select>
+        <input type="datetime-local" name="from" value="${escapeHtml(table.from)}" aria-label="${
     escapeHtml(messages.filterFrom)
   }">
-      <input type="datetime-local" name="to" value="${escapeHtml(table.to)}" aria-label="${
+        <input type="datetime-local" name="to" value="${escapeHtml(table.to)}" aria-label="${
     escapeHtml(messages.filterTo)
   }">
-      <input type="hidden" name="pageSize" value="${table.pageSize}">
-      <button type="submit" class="secondary">${escapeHtml(messages.filter)}</button>
-    </form>
+        <input type="hidden" name="pageSize" value="${table.pageSize}">
+        <button type="submit" class="secondary">${escapeHtml(messages.filter)}</button>
+      </form>
+    </div>
   `;
 }
 
