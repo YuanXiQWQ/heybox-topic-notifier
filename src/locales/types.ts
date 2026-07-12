@@ -23,6 +23,7 @@ export type Messages = {
   filterDay: string;
   filterFrom: string;
   filterHour: string;
+  filterRange: string;
   filterTo: string;
   filterWeek: string;
   historyTitle: string;
@@ -84,10 +85,18 @@ export type Messages = {
   postContent: string;
   postTitle: string;
   publishedAt: string;
+  relativeDaysAgo: string;
+  relativeHoursAgo: string;
+  relativeJustNow: string;
+  relativeMinutesAgo: string;
+  relativeSecondsAgo: string;
+  relativeYesterdayAt: string;
   matchedAt: string;
   runNow: string;
   saveSettings: string;
   selectKeywordToDelete: string;
+  selectMatchToComplete: string;
+  selectMatchToDelete: string;
   selectTopicToDelete: string;
   settingsTitle: string;
   testNotify: string;

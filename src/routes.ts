@@ -83,19 +83,21 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/matches/complete", async (c) => {
-    const form = await c.req.parseBody();
-    const ids = formValues(form, "matchId").map(String);
-    const matchIds = ids.length > 0
-      ? ids
-      : (await context.storage.listPendingMatches()).map((record) => record.id);
-    await context.storage.completeMatches(matchIds);
-    return c.redirect("/");
+    const form = await c.req.raw.formData();
+    const ids = form.getAll("matchId").map(String);
+    if (ids.length > 0) {
+      await context.storage.completeMatches(ids);
+    }
+    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
   });
 
   app.post("/matches/delete", async (c) => {
-    const form = await c.req.parseBody();
-    await context.storage.deleteMatches(formValues(form, "matchId").map(String));
-    return c.redirect("/history");
+    const form = await c.req.raw.formData();
+    const ids = form.getAll("matchId").map(String);
+    if (ids.length > 0) {
+      await context.storage.deleteMatches(ids);
+    }
+    return c.redirect(safeRedirectPath(form.get("returnTo"), "/history"));
   });
 
   app.get("/static/app.css", async () => {
@@ -139,15 +141,20 @@ function notificationErrorResponse(error: unknown): Response {
   throw error;
 }
 
-function formValues(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  key: string,
-): FormDataEntryValue[] {
-  const value = form[key];
-  if (Array.isArray(value)) {
-    return value;
+function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/history"): string {
+  if (typeof value !== "string") {
+    return fallback;
   }
-  return value === undefined ? [] : [value];
+
+  try {
+    const url = new URL(value, "http://local");
+    if (url.origin !== "http://local" || url.pathname !== fallback) {
+      return fallback;
+    }
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return fallback;
+  }
 }
 
 export function settingsFromForm(
