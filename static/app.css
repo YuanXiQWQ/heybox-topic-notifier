@@ -325,21 +325,22 @@ input[type="color"]::-moz-color-swatch {
 
 .table-filter-shell {
   align-items: center;
+  column-gap: 0;
   display: grid;
-  grid-template-columns: 24px 0fr;
-  gap: 8px;
+  grid-template-columns: 0fr 32px;
   justify-content: end;
-  min-width: 24px;
+  min-width: 32px;
   overflow: hidden;
-  transition: grid-template-columns 220ms ease;
+  transition: column-gap 220ms ease, grid-template-columns 220ms ease;
 }
 
 .table-filter-shell:not(:has(.filter-toggle-input:checked)) {
-  block-size: 24px;
+  block-size: 32px;
 }
 
 .table-filter-shell:has(.filter-toggle-input:checked) {
-  grid-template-columns: 24px 1fr;
+  column-gap: 8px;
+  grid-template-columns: 1fr 32px;
 }
 
 .filter-toggle-input {
@@ -356,6 +357,8 @@ input[type="color"]::-moz-color-swatch {
   color: var(--theme-strong);
   cursor: pointer;
   display: inline-flex;
+  grid-column: 2;
+  grid-row: 1;
   height: 32px;
   justify-content: center;
   list-style: none;
@@ -378,6 +381,8 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  grid-column: 1;
+  grid-row: 1;
   justify-content: flex-end;
   max-block-size: 120px;
   min-width: 0;
