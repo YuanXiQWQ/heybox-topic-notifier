@@ -164,6 +164,7 @@ export function settingsFromForm(
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
     notificationEmailAddress: String(form.notificationEmailAddress ?? "").trim(),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
+    notificationPushPlusToken: String(form.notificationPushPlusToken ?? "").trim(),
     notificationServerChanSendKey: String(form.notificationServerChanSendKey ?? "").trim(),
     notificationWebhookService: normalizeNotificationWebhookService(
       form.notificationWebhookService,

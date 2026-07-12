@@ -32,6 +32,7 @@ export type AppSettings = {
   locale: Locale;
   notificationEmailAddress: string;
   notificationProvider: "disabled" | "email" | "webhook";
+  notificationPushPlusToken: string;
   notificationServerChanSendKey: string;
   notificationWebhookService: NotificationWebhookService;
   notificationWebhookUrl: string;

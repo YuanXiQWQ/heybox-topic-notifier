@@ -42,6 +42,8 @@
   "notificationEmailAddress": "邮箱",
   "notificationEmail": "邮件",
   "notificationProvider": "通知方式",
+  "notificationPushPlus": "PushPlus",
+  "notificationPushPlusToken": "Token",
   "notificationServerChan": "Server酱",
   "notificationServerChanSendKey": "SendKey",
   "notificationSettings": "通知设置",

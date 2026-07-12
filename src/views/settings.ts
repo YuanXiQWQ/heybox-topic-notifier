@@ -164,6 +164,32 @@ function renderNotificationSection(settings: AppSettings): string {
           </div>
           <div
             class="notification-option-row"
+            data-notification-field="pushPlus"
+            data-notification-provider-field="webhook"
+            data-notification-webhook-service-field="pushPlus"
+          >
+            <dt>${escapeHtml(messages.notificationPushPlusToken)}</dt>
+            <dd>
+              <div class="input-action-row">
+                <input
+                  name="notificationPushPlusToken"
+                  value="${escapeHtml(settings.notificationPushPlusToken)}"
+                  autocomplete="off"
+                >
+                <a
+                  class="button-link external-settings-link"
+                  href="https://www.pushplus.plus/uc-dev.html"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>${escapeHtml(messages.configure)}</span>
+                  ${externalLinkIcon()}
+                </a>
+              </div>
+            </dd>
+          </div>
+          <div
+            class="notification-option-row"
             data-notification-field="wxPusher"
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="wxPusher"

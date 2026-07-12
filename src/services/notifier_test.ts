@@ -8,6 +8,7 @@ const settings: AppSettings = {
   locale: "zh-CN",
   notificationEmailAddress: "test@example.com",
   notificationProvider: "webhook",
+  notificationPushPlusToken: "pushplus-test",
   notificationServerChanSendKey: "SCT-test",
   notificationWebhookService: "custom",
   notificationWebhookUrl: "https://example.com/settings-webhook",
@@ -172,6 +173,51 @@ Deno.test("wxpusher service posts to the simple push API", async () => {
   assertEquals(body.content.includes("https://example.com/p1"), true);
 });
 
+Deno.test("pushplus service posts to the send API", async () => {
+  const requests: Request[] = [];
+  const notifier = createNotifier({
+    fetch: (input, init) => {
+      requests.push(new Request(input, init));
+      return Promise.resolve(new Response(JSON.stringify({ code: 200 }), { status: 200 }));
+    },
+  });
+
+  await notifier.sendMatch(record, {
+    ...settings,
+    notificationPushPlusToken: "pushplus-token",
+    notificationWebhookService: "pushPlus",
+    notificationWebhookUrl: "",
+  });
+
+  assertEquals(requests[0].url, "https://www.pushplus.plus/send/");
+  const body = await requests[0].json();
+  assertEquals(body.token, "pushplus-token");
+  assertEquals(body.template, "markdown");
+  assertEquals(body.title, "小黑盒命中：help");
+  assertEquals(body.content.includes("Need help"), true);
+  assertEquals(body.content.includes("https://example.com/p1"), true);
+});
+
+Deno.test("pushplus service reports business errors from the API", async () => {
+  const notifier = createNotifier({
+    fetch: () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ code: 903, msg: "invalid token" }), { status: 200 }),
+      ),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationPushPlusToken: "pushplus-token",
+        notificationWebhookService: "pushPlus",
+        notificationWebhookUrl: "",
+      }),
+    "PushPlus notification failed: invalid token",
+  );
+});
+
 Deno.test("wxpusher service reports business errors from the API", async () => {
   const notifier = createNotifier({
     fetch: () =>
@@ -213,6 +259,21 @@ Deno.test("server chan service requires a SendKey", async () => {
         notificationWebhookUrl: "",
       }),
     "Server酱 SendKey is required for webhook notifications.",
+  );
+});
+
+Deno.test("pushplus service requires a token", async () => {
+  const notifier = createNotifier({ webhookUrl: "" });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationPushPlusToken: "",
+        notificationWebhookService: "pushPlus",
+        notificationWebhookUrl: "",
+      }),
+    "PushPlus token is required for webhook notifications.",
   );
 });
 

@@ -29,6 +29,7 @@ export type NotifierOptions = {
   webhookUrl?: string;
 };
 
+const pushPlusSendUrl = "https://www.pushplus.plus/send/";
 const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
 
 export class NotificationConfigError extends Error {}
@@ -44,6 +45,7 @@ export function createNotifier(options: NotifierOptions = {}) {
       return await send({
         payload: matchPayload(record),
         provider: settings.notificationProvider,
+        pushPlusToken: settings.notificationPushPlusToken,
         serverChanSendKey: settings.notificationServerChanSendKey,
         webhookService: settings.notificationWebhookService,
         webhookUrl: settings.notificationWebhookUrl,
@@ -58,6 +60,7 @@ export function createNotifier(options: NotifierOptions = {}) {
           type: "test",
         },
         provider: settings.notificationProvider,
+        pushPlusToken: settings.notificationPushPlusToken,
         serverChanSendKey: settings.notificationServerChanSendKey,
         webhookService: settings.notificationWebhookService,
         webhookUrl: settings.notificationWebhookUrl,
@@ -69,6 +72,7 @@ export function createNotifier(options: NotifierOptions = {}) {
   async function send(options: {
     payload: NotificationPayload;
     provider: AppSettings["notificationProvider"];
+    pushPlusToken: string;
     serverChanSendKey: string;
     webhookService: AppSettings["notificationWebhookService"];
     webhookUrl: string;
@@ -80,6 +84,12 @@ export function createNotifier(options: NotifierOptions = {}) {
 
     if (options.provider === "email") {
       throw new NotificationConfigError("Email notifications are not implemented yet.");
+    }
+
+    if (options.webhookService === "pushPlus" && !options.pushPlusToken.trim()) {
+      throw new NotificationConfigError(
+        "PushPlus token is required for webhook notifications.",
+      );
     }
 
     if (options.webhookService === "wxPusher" && !options.wxPusherSpt.trim()) {
@@ -105,6 +115,7 @@ export function createNotifier(options: NotifierOptions = {}) {
     const response = await fetcher(targetWebhookUrl, {
       body: JSON.stringify(bodyForWebhook({
         payload: options.payload,
+        pushPlusToken: options.pushPlusToken,
         service: options.webhookService,
         url: targetWebhookUrl,
         wxPusherSpt: options.wxPusherSpt,
@@ -136,12 +147,16 @@ function targetUrlForWebhook(options: {
   webhookService: AppSettings["notificationWebhookService"];
   webhookUrl: string;
 }): string {
-  if (options.webhookService === "serverChan") {
-    return serverChanUrlFromSendKey(options.serverChanSendKey);
+  if (options.webhookService === "pushPlus") {
+    return pushPlusSendUrl;
   }
 
   if (options.webhookService === "wxPusher") {
     return wxPusherSimplePushUrl;
+  }
+
+  if (options.webhookService === "serverChan") {
+    return serverChanUrlFromSendKey(options.serverChanSendKey);
   }
 
   return options.webhookUrl.trim() || options.fallbackWebhookUrl.trim();
@@ -186,10 +201,20 @@ function matchPayload(record: MatchRecord): NotificationPayload {
 
 function bodyForWebhook(options: {
   payload: NotificationPayload;
+  pushPlusToken: string;
   service: AppSettings["notificationWebhookService"];
   url: string;
   wxPusherSpt: string;
 }): unknown {
+  if (options.service === "pushPlus") {
+    return {
+      content: notificationDescription(options.payload),
+      template: "markdown",
+      title: notificationTitle(options.payload),
+      token: options.pushPlusToken.trim(),
+    };
+  }
+
   if (options.service === "wxPusher") {
     return {
       content: notificationDescription(options.payload),
@@ -223,7 +248,9 @@ function assertWebhookAccepted(
   responseBody: string,
 ): void {
   if (service !== "wxPusher") {
-    return;
+    if (service !== "pushPlus") {
+      return;
+    }
   }
 
   let payload: unknown;
@@ -231,22 +258,27 @@ function assertWebhookAccepted(
     payload = JSON.parse(responseBody);
   } catch {
     throw new NotificationDeliveryError(
-      `WxPusher notification failed with an invalid response: ${responseBody}`,
+      `${serviceLabel(service)} notification failed with an invalid response: ${responseBody}`,
     );
   }
 
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    Number("code" in payload ? payload.code : undefined) === 1000
-  ) {
+  const expectedCode = service === "wxPusher" ? 1000 : 200;
+  if (isRecord(payload) && Number(payload.code) === expectedCode) {
     return;
   }
 
-  const message = typeof payload === "object" && payload !== null && "msg" in payload
+  const message = isRecord(payload) && typeof payload.msg !== "undefined"
     ? String(payload.msg)
     : responseBody;
-  throw new NotificationDeliveryError(`WxPusher notification failed: ${message}`);
+  throw new NotificationDeliveryError(`${serviceLabel(service)} notification failed: ${message}`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function serviceLabel(service: AppSettings["notificationWebhookService"]): string {
+  return service === "pushPlus" ? "PushPlus" : "WxPusher";
 }
 
 function notificationTitle(payload: NotificationPayload): string {

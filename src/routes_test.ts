@@ -12,6 +12,7 @@ const currentSettings: AppSettings = {
   locale: "zh-CN",
   notificationEmailAddress: "old@example.com",
   notificationProvider: "webhook",
+  notificationPushPlusToken: "pushplus-current",
   notificationServerChanSendKey: "SCT-current",
   notificationWebhookService: "custom",
   notificationWebhookUrl: "https://example.com/webhook",
@@ -58,6 +59,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     locale: "zh-CN",
     notificationEmailAddress: "new@example.com",
     notificationProvider: "email",
+    notificationPushPlusToken: "pushplus-new",
     notificationServerChanSendKey: "SCT-new",
     notificationWebhookService: "serverChan",
     notificationWebhookUrl: "https://example.com/new-webhook",
@@ -86,6 +88,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   assertEquals(settings.darkMode, true);
   assertEquals(settings.notificationEmailAddress, "new@example.com");
   assertEquals(settings.notificationProvider, "email");
+  assertEquals(settings.notificationPushPlusToken, "pushplus-new");
   assertEquals(settings.notificationServerChanSendKey, "SCT-new");
   assertEquals(settings.notificationWebhookService, "serverChan");
   assertEquals(settings.notificationWebhookUrl, "https://example.com/new-webhook");
@@ -107,6 +110,7 @@ Deno.test("settingsFromForm saves visible common keywords and submitted topic ke
     locale: "zh-CN",
     notificationEmailAddress: "old@example.com",
     notificationProvider: "webhook",
+    notificationPushPlusToken: "pushplus-current",
     notificationWebhookService: "custom",
     notificationWebhookUrl: "https://example.com/webhook",
     notificationWxPusherSpt: "SPT-current",
@@ -137,6 +141,7 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
     locale: "zh-CN",
     notificationEmailAddress: "old@example.com",
     notificationProvider: "webhook",
+    notificationPushPlusToken: "pushplus-current",
     notificationWebhookService: "custom",
     notificationWebhookUrl: "https://example.com/webhook",
     notificationWxPusherSpt: "SPT-current",

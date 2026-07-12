@@ -172,6 +172,9 @@ function normalizeSettings(
     notificationEmailAddress: typeof value.notificationEmailAddress === "string"
       ? value.notificationEmailAddress
       : defaultSettings.notificationEmailAddress,
+    notificationPushPlusToken: typeof value.notificationPushPlusToken === "string"
+      ? value.notificationPushPlusToken
+      : defaultSettings.notificationPushPlusToken,
     notificationServerChanSendKey: typeof value.notificationServerChanSendKey === "string"
       ? value.notificationServerChanSendKey
       : defaultSettings.notificationServerChanSendKey,

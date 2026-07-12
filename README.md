@@ -76,9 +76,10 @@ deno task check
 | `POLL_POST_LIMIT`               | `20`          | 每次轮询读取的帖子数量                                                 |
 | `POLL_SORT`                     | `publishTime` | 轮询排序方式，支持 `publishTime`、`smart`、`replyTime`                 |
 | `NOTIFIER_PROVIDER`             | `webhook`     | 通知方式，支持 `webhook`、`email`、`disabled`；`email` 暂未实现        |
-| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook 服务，支持 `custom`、`serverChan`、`wxPusher`                  |
+| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook 服务，支持 `custom`、`serverChan`、`pushPlus`、`wxPusher`      |
 | `NOTIFIER_WEBHOOK_URL`          | 空            | 自定义 Webhook 地址，仅 `NOTIFIER_WEBHOOK_SERVICE=custom` 时需要       |
 | `NOTIFIER_SERVER_CHAN_SEND_KEY` | 空            | Server酱 SendKey，仅 `NOTIFIER_WEBHOOK_SERVICE=serverChan` 时需要      |
+| `NOTIFIER_PUSHPLUS_TOKEN`       | 空            | PushPlus token，仅 `NOTIFIER_WEBHOOK_SERVICE=pushPlus` 时需要          |
 | `NOTIFIER_WXPUSHER_SPT`         | 空            | WxPusher SPT，仅 `NOTIFIER_WEBHOOK_SERVICE=wxPusher` 时需要            |
 | `PORT`                          | `8000`        | 本地服务端口                                                           |
 
@@ -168,9 +169,10 @@ deno task check
 | `POLL_POST_LIMIT`               | `20`          | Number of posts to read per poll                                                                   |
 | `POLL_SORT`                     | `publishTime` | Polling sort, supports `publishTime`, `smart`, and `replyTime`                                     |
 | `NOTIFIER_PROVIDER`             | `webhook`     | Notification provider, supports `webhook`, `email`, and `disabled`; `email` is not implemented yet |
-| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook service, supports `custom`, `serverChan`, and `wxPusher`                                   |
+| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook service, supports `custom`, `serverChan`, `pushPlus`, and `wxPusher`                       |
 | `NOTIFIER_WEBHOOK_URL`          | empty         | Custom webhook URL, required only when `NOTIFIER_WEBHOOK_SERVICE=custom`                           |
 | `NOTIFIER_SERVER_CHAN_SEND_KEY` | empty         | ServerChan SendKey, required only when `NOTIFIER_WEBHOOK_SERVICE=serverChan`                       |
+| `NOTIFIER_PUSHPLUS_TOKEN`       | empty         | PushPlus token, required only when `NOTIFIER_WEBHOOK_SERVICE=pushPlus`                             |
 | `NOTIFIER_WXPUSHER_SPT`         | empty         | WxPusher SPT, required only when `NOTIFIER_WEBHOOK_SERVICE=wxPusher`                               |
 | `PORT`                          | `8000`        | Local server port                                                                                  |
 

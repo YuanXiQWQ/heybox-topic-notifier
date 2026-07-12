@@ -30,6 +30,7 @@ export function createAppContext() {
       locale: normalizeLocale(Deno.env.get("APP_LOCALE")),
       notificationEmailAddress: Deno.env.get("NOTIFIER_EMAIL_ADDRESS") ?? "",
       notificationProvider: notificationProviderFromEnv(),
+      notificationPushPlusToken: Deno.env.get("NOTIFIER_PUSHPLUS_TOKEN") ?? "",
       notificationServerChanSendKey: Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_KEY") ?? "",
       notificationWebhookService: notificationWebhookServiceFromEnv(),
       notificationWebhookUrl: Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "",

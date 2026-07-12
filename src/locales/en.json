@@ -42,6 +42,8 @@
   "notificationEmailAddress": "Email address",
   "notificationEmail": "Email",
   "notificationProvider": "Notification provider",
+  "notificationPushPlus": "PushPlus",
+  "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
   "notificationServerChanSendKey": "SendKey",
   "notificationSettings": "Notification settings",

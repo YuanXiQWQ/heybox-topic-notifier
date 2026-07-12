@@ -12,6 +12,7 @@ const settings: AppSettings = {
   locale: "zh-CN",
   notificationEmailAddress: "test@example.com",
   notificationProvider: "webhook",
+  notificationPushPlusToken: "pushplus-test",
   notificationServerChanSendKey: "SCT-test",
   notificationWebhookService: "custom",
   notificationWebhookUrl: "https://example.com/webhook",

@@ -43,6 +43,8 @@ export type Messages = {
   notificationEmailAddress: string;
   notificationEmail: string;
   notificationProvider: string;
+  notificationPushPlus: string;
+  notificationPushPlusToken: string;
   notificationServerChan: string;
   notificationServerChanSendKey: string;
   notificationSettings: string;
