@@ -54,7 +54,7 @@ const postsByTopic: Record<string, TopicPost[]> = {
   "12099": [
     post("p1", { title: "common-hit in title" }),
     post("p2", { comments: ["topic-hit in comments"] }),
-    post("p3", { title: "common-hit already seen" }),
+    post("p3", { title: "common-hit already matched" }),
     post("p4", { title: "nothing" }),
   ],
   "999": [
@@ -67,7 +67,6 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
   const listedOptions: unknown[] = [];
   const records: MatchRecord[] = [];
   const notifiedMatches: string[] = [];
-  const seenPosts: string[] = [];
   let sentMatches = 0;
   let sentMatchCount = 0;
   let lastPollAt = "";
@@ -93,17 +92,22 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
     } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),
-      hasSeenPost: (postId: string) => Promise.resolve(postId === "p3"),
+      listHistory: () =>
+        Promise.resolve([
+          {
+            id: "12099:p3:common-hit:title",
+            keyword: "common-hit",
+            location: "title",
+            matchedAt: "2026-06-30T00:00:00.000Z",
+            post: postsByTopic["12099"][2],
+          },
+        ]),
       saveMatch: (record: MatchRecord) => {
         records.push(record);
         return Promise.resolve();
       },
       markMatchNotified: (id: string) => {
         notifiedMatches.push(id);
-        return Promise.resolve();
-      },
-      markPostSeen: (postId: string) => {
-        seenPosts.push(postId);
         return Promise.resolve();
       },
       setLastPollAt: (value: string) => {
@@ -124,7 +128,6 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
   assertEquals(new Set(records.map((record) => record.matchedAt)).size, 1);
   assertEquals(sentMatches, 1);
   assertEquals(sentMatchCount, 2);
-  assertEquals(seenPosts, ["p1", "p2"]);
   assertEquals(notifiedMatches, records.map((record) => record.id));
   if (!lastPollAt) {
     throw new Error("Expected last poll timestamp to be saved");
@@ -133,7 +136,6 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
 
 Deno.test("poller leaves matched posts retryable when notification fails", async () => {
   const records: MatchRecord[] = [];
-  const seenPosts: string[] = [];
   const notifiedMatches: string[] = [];
   const poller = createPoller({
     matcher: createMatcher(),
@@ -148,13 +150,9 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
     } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),
-      hasSeenPost: () => Promise.resolve(false),
+      listHistory: () => Promise.resolve([]),
       markMatchNotified: (id: string) => {
         notifiedMatches.push(id);
-        return Promise.resolve();
-      },
-      markPostSeen: (postId: string) => {
-        seenPosts.push(postId);
         return Promise.resolve();
       },
       saveMatch: (record: MatchRecord) => {
@@ -168,7 +166,6 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
   await assertRejects(() => poller.runOnce(), "webhook failed");
 
   assertEquals(records.map((record) => record.post.id), ["retry-me"]);
-  assertEquals(seenPosts, []);
   assertEquals(notifiedMatches, []);
 });
 

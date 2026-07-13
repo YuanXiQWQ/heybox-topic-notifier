@@ -16,6 +16,9 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
     async runOnce(): Promise<void> {
       const settings = await storage.getSettings();
       const enabledTopics = settings.topics.filter((topic) => topic.enabled && topic.id.trim());
+      const existingMatchedPostIds = new Set(
+        (await storage.listHistory()).map((record) => record.post.id),
+      );
       const matchedRecords: MatchRecord[] = [];
       const matchedPostIds = new Set<string>();
       const matchedAt = new Date().toISOString();
@@ -29,9 +32,9 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
 
         for (const post of posts) {
           const match = matcher.findMatch(post, keywordRules);
-          const alreadySeen = await storage.hasSeenPost(post.id);
+          const alreadyMatched = existingMatchedPostIds.has(post.id);
 
-          if (!match || alreadySeen || matchedPostIds.has(post.id)) {
+          if (!match || alreadyMatched || matchedPostIds.has(post.id)) {
             continue;
           }
 
@@ -46,6 +49,7 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
           await storage.saveMatch(record);
           matchedRecords.push(record);
           matchedPostIds.add(record.post.id);
+          existingMatchedPostIds.add(record.post.id);
         }
       }
 
@@ -54,7 +58,6 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
         const notifiedAt = new Date().toISOString();
 
         for (const record of matchedRecords) {
-          await storage.markPostSeen(record.post.id);
           if (result.sent) {
             await storage.markMatchNotified(record.id, notifiedAt);
           }
