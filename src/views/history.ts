@@ -25,7 +25,7 @@ export function renderHistory(options: {
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
     themeColor: options.settings.themeColor,
-    title: messages.historyTitle,
+    title: messages.appName,
   });
 }
 
@@ -52,6 +52,7 @@ function renderHistoryTable(
     messages,
     path: "/history",
     table,
+    titleLinkClass: "pending-title-link",
   });
 }
 

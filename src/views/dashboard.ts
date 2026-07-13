@@ -7,6 +7,7 @@ import { formatHeyboxRelativeTime } from "./time.ts";
 
 export function renderDashboard(options: {
   pendingTable: MatchTableResult;
+  returnTo: string;
   settings: AppSettings;
   state: AppState;
 }): string {
@@ -22,9 +23,11 @@ export function renderDashboard(options: {
       </div>
       <div class="actions">
         <form method="post" action="/run-now">
+          <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
           <button type="submit">${escapeHtml(messages.runNow)}</button>
         </form>
         <form method="post" action="/simulate-match">
+          <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
           <button type="submit" class="secondary">${escapeHtml(messages.simulateMatch)}</button>
         </form>
       </div>
@@ -38,9 +41,9 @@ export function renderDashboard(options: {
         <span>${escapeHtml(messages.latestMatch)}</span>
         <strong data-latest-match>${
     latest
-      ? `<a class="metric-link" href="${escapeHtml(latest.post.url)}">${
-        escapeHtml(latest.post.title)
-      }</a>`
+      ? `<a class="metric-link" href="${
+        escapeHtml(latest.post.url)
+      }" target="_blank" rel="noopener noreferrer">${escapeHtml(latest.post.title)}</a>`
       : "-"
   }</strong>
       </article>
@@ -177,6 +180,8 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         const link = document.createElement("a");
         link.className = "metric-link";
         link.href = match.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
         link.textContent = match.title;
         latestMatch.append(link);
       }

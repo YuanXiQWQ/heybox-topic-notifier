@@ -111,9 +111,9 @@ function renderRows(options: MatchRecordsSectionOptions): string {
           >
         </label>
       </td>
-      <td><a${titleClass} href="${escapeHtml(record.post.url)}">${
-      escapeHtml(record.post.title)
-    }</a></td>
+      <td><a${titleClass} href="${
+      escapeHtml(record.post.url)
+    }" target="_blank" rel="noopener noreferrer">${escapeHtml(record.post.title)}</a></td>
       <td class="table-clip">${
       escapeHtml(truncateText(record.post.excerpt || record.post.body))
     }</td>
