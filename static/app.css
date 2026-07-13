@@ -377,9 +377,14 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .next-poll-fill.is-resetting {
+  transition: width 440ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.next-poll-fill.is-resetting-from-left {
+  margin-left: 0;
   transition:
-    transform 300ms cubic-bezier(0.2, 0, 0, 1),
-    width 300ms linear;
+    transform 440ms cubic-bezier(0.2, 0, 0, 1),
+    width 440ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .next-poll-fill.is-jump {

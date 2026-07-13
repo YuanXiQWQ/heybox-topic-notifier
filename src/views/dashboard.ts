@@ -6,6 +6,7 @@ import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
 export function renderDashboard(options: {
+  initialNextPollProgress?: string;
   pendingTable: MatchTableResult;
   returnTo: string;
   settings: AppSettings;
@@ -14,7 +15,8 @@ export function renderDashboard(options: {
   const messages = getMessages(options.settings.locale);
   const latest = options.state.latestMatch;
   const lastPollAt = options.state.lastPollAt;
-  const nextPollProgress = nextPollProgressPercent(options.settings, lastPollAt);
+  const nextPollProgress = options.initialNextPollProgress ??
+    nextPollProgressPercent(options.settings, lastPollAt);
 
   const body = `
     <section class="page-heading">
@@ -25,6 +27,7 @@ export function renderDashboard(options: {
       <div class="actions">
         <form method="post" action="/run-now">
           <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
+          <input type="hidden" name="pollResetStart" value="" data-poll-reset-start>
           <button type="submit">${escapeHtml(messages.runNow)}</button>
         </form>
         <form method="post" action="/simulate-match">
@@ -150,13 +153,25 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       let resetAnimationTimers = [];
       let timestamp = parseTimestamp(lastPoll.dataset.lastPollAt);
       let hasSyncedDashboardState = false;
+      let isAnimatingNextPollReset = false;
 
       const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
       const pollUnitLabels = ${JSON.stringify(pollUnitLabels)};
+      const nextPollResetAnimationMs = 440;
+      const pollResetStorageKey = "heybox.nextPollResetWidth";
+      const initialPollResetStartWidth = consumeInitialPollResetStartWidth();
+      bindRunNowResetCapture();
       void refreshDashboardState();
       updateLastPoll();
-      updateNextPoll({ instant: true });
+      if (initialPollResetStartWidth === null) {
+        updateNextPoll({ instant: true });
+      } else {
+        animateNextPollReset({
+          preserveExistingFill: true,
+          startWidth: initialPollResetStartWidth,
+        });
+      }
       window.setInterval(updateLastPoll, 1000);
       window.setInterval(updateNextPoll, 250);
       window.setInterval(() => {
@@ -182,7 +197,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
             lastPoll.dataset.lastPollAt = state.lastPollAt;
             updateLastPoll();
             if (hasSyncedDashboardState) {
-              animateNextPollReset();
+              animateNextPollReset({ preserveExistingFill: false });
             } else {
               updateNextPoll({ instant: true });
             }
@@ -217,61 +232,164 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         nextPollPanel.dataset.pollEnabled = polling.enabled ? "true" : "false";
         nextPollPanel.dataset.pollIntervalUnit = polling.intervalUnit || "";
         nextPollPanel.dataset.pollIntervalValue = String(polling.intervalValue || "");
-        updateNextPoll({ instant: !hasSyncedDashboardState });
+        updateNextPoll({ instant: !hasSyncedDashboardState && !isAnimatingNextPollReset });
       }
 
       function updateNextPoll(options = {}) {
         if (!nextPollPanel || !nextPollFill || !nextPollRemaining) return;
-        if (options.instant) {
+        if (options.instant && !isAnimatingNextPollReset) {
           updateNextPollWithoutTransition();
           return;
         }
+        const nextState = getNextPollState();
+        if (!nextState) return;
+        if (!isAnimatingNextPollReset) {
+          nextPollFill.style.width = nextState.width;
+        }
+        nextPollRemaining.textContent = nextState.remaining;
+      }
+
+      function getNextPollState(options = {}) {
+        if (!nextPollPanel || !nextPollFill || !nextPollRemaining) return null;
         const enabled = nextPollPanel.dataset.pollEnabled === "true";
         const unit = nextPollPanel.dataset.pollIntervalUnit || "minute";
         const value = Number(nextPollPanel.dataset.pollIntervalValue || "0");
         const intervalMs = pollingIntervalMs(unit, value);
 
         if (!enabled || !Number.isFinite(timestamp) || intervalMs <= 0) {
-          nextPollFill.style.width = "0%";
-          nextPollRemaining.textContent = "-";
-          return;
+          return { remaining: "-", width: "0%" };
         }
 
-        const elapsedMs = Math.max(0, Date.now() - timestamp);
+        const elapsedMs = Math.max(0, Date.now() + (options.offsetMs || 0) - timestamp);
         const remainingMs = Math.max(0, intervalMs - elapsedMs);
         const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
-        nextPollFill.style.width = \`\${(progress * 100).toFixed(2)}%\`;
-        nextPollRemaining.textContent = formatRemaining(remainingMs);
+        return {
+          remaining: formatRemaining(remainingMs),
+          width: (progress * 100).toFixed(2) + "%",
+        };
       }
 
       function updateNextPollWithoutTransition() {
         const transition = nextPollFill.style.transition;
+        const wasAnimating = isAnimatingNextPollReset;
         nextPollFill.style.transition = "none";
+        isAnimatingNextPollReset = false;
         updateNextPoll();
+        isAnimatingNextPollReset = wasAnimating;
         nextPollFill.getBoundingClientRect();
         requestAnimationFrame(() => {
           nextPollFill.style.transition = transition;
         });
       }
 
-      function animateNextPollReset() {
-        if (!nextPollFill) return;
+      function animateNextPollReset(options = {}) {
+        if (!nextPollFill || !nextPollRemaining) return;
         for (const timer of resetAnimationTimers) clearTimeout(timer);
         resetAnimationTimers = [];
-        updateNextPoll();
+        const textState = getNextPollState();
+        const targetState = getNextPollState({ offsetMs: nextPollResetAnimationMs });
+        if (!textState || !targetState) return;
+        isAnimatingNextPollReset = true;
         nextPollFill.classList.add("is-resetting", "is-jump");
-        nextPollFill.style.transform = "translateX(-100vw)";
+        if (!options.preserveExistingFill) {
+          nextPollFill.classList.add("is-resetting-from-left");
+        }
+        nextPollFill.style.transform = "";
+        if (options.preserveExistingFill) {
+          nextPollFill.style.width = normalizePollWidth(options.startWidth) ||
+            normalizePollWidth(nextPollFill.style.width) ||
+            "0%";
+        } else {
+          nextPollFill.style.transform = "translateX(0)";
+          nextPollFill.style.width = "0%";
+        }
+        nextPollRemaining.textContent = textState.remaining;
         nextPollFill.getBoundingClientRect();
         nextPollFill.classList.remove("is-jump");
         requestAnimationFrame(() => {
-          updateNextPoll();
-          nextPollFill.style.transform = "translateX(0)";
+          nextPollFill.style.width = targetState.width;
+          if (!options.preserveExistingFill) {
+            const targetPercent = pollWidthPercent(targetState.width);
+            const targetShift = targetPercent > 0 ? ((100 - targetPercent) / targetPercent) * 100 : 0;
+            nextPollFill.style.transform = \`translateX(\${targetShift.toFixed(2)}%)\`;
+          }
+          const nextTextState = getNextPollState();
+          if (nextTextState) {
+            nextPollRemaining.textContent = nextTextState.remaining;
+          }
         });
         resetAnimationTimers.push(setTimeout(() => {
-          nextPollFill.classList.remove("is-resetting");
+          const finalState = getNextPollState();
+          nextPollFill.classList.add("is-jump");
+          isAnimatingNextPollReset = false;
           nextPollFill.style.transform = "";
-          updateNextPoll();
-        }, 320));
+          if (finalState) {
+            nextPollFill.style.width = finalState.width;
+            nextPollRemaining.textContent = finalState.remaining;
+          }
+          nextPollFill.classList.remove("is-resetting");
+          nextPollFill.classList.remove("is-resetting-from-left");
+          nextPollFill.getBoundingClientRect();
+          requestAnimationFrame(() => {
+            nextPollFill.classList.remove("is-jump");
+            updateNextPoll();
+          });
+        }, nextPollResetAnimationMs + 40));
+      }
+
+      function bindRunNowResetCapture() {
+        const runNowForm = document.querySelector('form[action="/run-now"]');
+        if (!runNowForm || !nextPollFill) return;
+        const resetStartInput = runNowForm.querySelector("[data-poll-reset-start]");
+        runNowForm.addEventListener("submit", () => {
+          const width = normalizePollWidth(nextPollFill.style.width) || "0%";
+          if (resetStartInput) {
+            resetStartInput.value = width.replace("%", "");
+          }
+          try {
+            sessionStorage.setItem(pollResetStorageKey, width);
+          } catch {
+            // The reset animation can still fall back to an empty bar.
+          }
+        });
+      }
+
+      function consumeInitialPollResetStartWidth() {
+        const url = new URL(location.href);
+        if (url.searchParams.get("pollReset") !== "1") return null;
+        const startWidthFromUrl = normalizePollWidth(url.searchParams.get("pollResetStart") + "%");
+        url.searchParams.delete("pollReset");
+        url.searchParams.delete("pollResetStart");
+        const search = url.searchParams.toString();
+        history.replaceState(history.state, "", url.pathname + (search ? "?" + search : "") + url.hash);
+        if (startWidthFromUrl) {
+          try {
+            sessionStorage.removeItem(pollResetStorageKey);
+          } catch {
+            // Ignore storage cleanup when storage is unavailable.
+          }
+          return startWidthFromUrl;
+        }
+        try {
+          const startWidth = sessionStorage.getItem(pollResetStorageKey);
+          sessionStorage.removeItem(pollResetStorageKey);
+          return normalizePollWidth(startWidth) || "0%";
+        } catch {
+          return "0%";
+        }
+      }
+
+      function normalizePollWidth(value) {
+        const match = String(value || "").trim().match(/^(\\d+(?:\\.\\d+)?)%$/);
+        if (!match) return null;
+        const width = Math.max(0, Math.min(100, Number(match[1])));
+        if (!Number.isFinite(width)) return null;
+        return width.toFixed(2) + "%";
+      }
+
+      function pollWidthPercent(value) {
+        const normalized = normalizePollWidth(value);
+        return normalized ? Number(normalized.replace("%", "")) : 0;
       }
 
       function formatRemaining(remainingMs) {
