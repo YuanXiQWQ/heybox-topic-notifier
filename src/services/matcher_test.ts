@@ -15,9 +15,26 @@ const settings: AppSettings = {
   ],
   darkMode: false,
   locale: "zh-CN",
+  notificationEmailAddress: "test@example.com",
+  notificationEmailApiToken: "email-api-token",
+  notificationEmailApiUrl: "https://example.com/email-api",
+  notificationEmailFrom: "from@example.com",
+  notificationEmailService: "smtp",
   notificationProvider: "webhook",
+  notificationPushPlusToken: "pushplus-test",
+  notificationServerChanSendKey: "SCT-test",
+  notificationSmtpHost: "smtp.example.com",
+  notificationSmtpPassword: "smtp-password",
+  notificationSmtpPort: 465,
+  notificationSmtpSecure: true,
+  notificationSmtpUsername: "smtp-user",
+  notificationWebhookService: "custom",
+  notificationWebhookUrl: "https://example.com/webhook",
+  notificationWxPusherSpt: "SPT-test",
   polling: {
-    intervalMinutes: 1,
+    enabled: true,
+    intervalUnit: "minute",
+    intervalValue: 1,
     postLimit: 20,
     sort: "publishTime",
   },
@@ -61,6 +78,66 @@ Deno.test("findMatch respects location checkboxes", () => {
     ...basePost,
     body: "正文里提到打不开，但这个规则只勾选了评论。",
   }, settings.commonKeywordRules);
+
+  if (match !== undefined) {
+    throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch defaults to case-insensitive matching", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "HELP: controller input is stuck",
+  }, [{ keyword: "help", locations: ["title"] }]);
+
+  if (match?.keyword !== "help" || match.location !== "title") {
+    throw new Error(`Expected help/title, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch treats plain keywords as literal contiguous text", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "A.......B",
+  }, [{ keyword: "AB", locations: ["title"] }]);
+
+  if (match !== undefined) {
+    throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch respects case-sensitive keyword rules", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "HELP: controller input is stuck",
+  }, [{ caseSensitive: true, keyword: "help", locations: ["title"] }]);
+
+  if (match !== undefined) {
+    throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch supports regex keyword rules", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "Version 1.2.3 crashes after launch",
+  }, [{ keyword: String.raw`\d+\.\d+\.\d+`, locations: ["title"], useRegex: true }]);
+
+  if (match?.keyword !== String.raw`\d+\.\d+\.\d+` || match.location !== "title") {
+    throw new Error(`Expected regex/title, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch ignores invalid regex keyword rules", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "Version 1.2.3 crashes after launch",
+  }, [{ keyword: "[", locations: ["title"], useRegex: true }]);
 
   if (match !== undefined) {
     throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);

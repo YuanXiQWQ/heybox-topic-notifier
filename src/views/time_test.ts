@@ -3,9 +3,18 @@ import { formatHeyboxRelativeTime } from "./time.ts";
 const now = new Date("2026-06-30T16:00:00.000Z");
 
 Deno.test("formatHeyboxRelativeTime formats recent relative times", () => {
+  assertEquals(formatHeyboxRelativeTime("2026-06-30T16:00:00.000Z", now), "刚刚");
   assertEquals(formatHeyboxRelativeTime("2026-06-30T15:59:57.000Z", now), "3 秒前");
   assertEquals(formatHeyboxRelativeTime("2026-06-30T15:57:00.000Z", now), "3 分钟前");
   assertEquals(formatHeyboxRelativeTime("2026-06-30T13:00:00.000Z", now), "3 小时前");
+});
+
+Deno.test("formatHeyboxRelativeTime uses localized relative messages", () => {
+  assertEquals(formatHeyboxRelativeTime("2026-06-30T16:00:00.000Z", now, "en"), "just now");
+  assertEquals(formatHeyboxRelativeTime("2026-06-30T15:59:57.000Z", now, "en"), "3 seconds ago");
+  assertEquals(formatHeyboxRelativeTime("2026-06-30T15:57:00.000Z", now, "en"), "3 minutes ago");
+  assertEquals(formatHeyboxRelativeTime("2026-06-30T13:00:00.000Z", now, "en"), "3 hours ago");
+  assertEquals(formatHeyboxRelativeTime("2026-06-27T16:00:00.000Z", now, "en"), "3 days ago");
 });
 
 Deno.test("formatHeyboxRelativeTime formats older China-time dates", () => {

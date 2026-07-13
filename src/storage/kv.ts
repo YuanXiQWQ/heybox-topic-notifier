@@ -4,22 +4,37 @@ import type {
   KeywordRule,
   MatchRecord,
   PollingSettings,
+  PollIntervalUnit,
   PollSort,
   TopicRule,
 } from "../models.ts";
+import {
+  normalizeNotificationEmailService,
+  normalizeNotificationWebhookService,
+} from "../notification_services.ts";
 
 const keys = {
   match: (id: string) => ["matches", id] as const,
-  seen: (postId: string) => ["seen", postId] as const,
   settings: ["settings"] as const,
   state: ["state"] as const,
 };
 
-export function createKvStorage(defaultSettings: AppSettings) {
-  let kvPromise: Promise<Deno.Kv> | undefined;
+type KvStore = {
+  delete(key: Deno.KvKey): Promise<void>;
+  get<T>(key: Deno.KvKey): Promise<{ value: T | null }>;
+  list<T>(selector: { prefix: Deno.KvKey }): AsyncIterable<{ value: T }>;
+  set(key: Deno.KvKey, value: unknown): Promise<unknown>;
+};
 
-  async function kv(): Promise<Deno.Kv> {
-    kvPromise ??= Deno.openKv();
+type KvStorageOptions = {
+  openKv?: () => Promise<KvStore>;
+};
+
+export function createKvStorage(defaultSettings: AppSettings, options: KvStorageOptions = {}) {
+  let kvPromise: Promise<KvStore> | undefined;
+
+  async function kv(): Promise<KvStore> {
+    kvPromise ??= options.openKv?.() ?? Deno.openKv();
     return await kvPromise;
   }
 
@@ -53,7 +68,7 @@ export function createKvStorage(defaultSettings: AppSettings) {
 
       return {
         lastPollAt: state.value?.lastPollAt,
-        latestMatch: latestMatchByPostTime(history),
+        latestMatch: latestMatchByMatchedTime(history),
         totalMatches: history.length,
       };
     },
@@ -69,18 +84,19 @@ export function createKvStorage(defaultSettings: AppSettings) {
         );
     },
 
-    async hasSeenPost(postId: string): Promise<boolean> {
-      const store = await kv();
-      const entry = await store.get<boolean>(keys.seen(postId));
-      return entry.value === true;
-    },
-
     async saveMatch(record: MatchRecord): Promise<void> {
       const store = await kv();
-      await store.atomic()
-        .set(keys.match(record.id), record)
-        .set(keys.seen(record.post.id), true)
-        .commit();
+      await store.set(keys.match(record.id), record);
+    },
+
+    async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
+      const store = await kv();
+      const entry = await store.get<MatchRecord>(keys.match(id));
+      if (!entry.value) {
+        return;
+      }
+
+      await store.set(keys.match(id), { ...entry.value, notifiedAt });
     },
 
     async completeMatches(ids: string[]): Promise<void> {
@@ -125,10 +141,10 @@ function compareIsoDesc(left: string, right: string): number {
   return right.localeCompare(left);
 }
 
-function latestMatchByPostTime(records: MatchRecord[]): MatchRecord | undefined {
+export function latestMatchByMatchedTime(records: MatchRecord[]): MatchRecord | undefined {
   return records.toSorted((left, right) =>
-    compareIsoDesc(left.post.publishedAt, right.post.publishedAt) ||
-    compareIsoDesc(left.matchedAt, right.matchedAt)
+    compareIsoDesc(left.matchedAt, right.matchedAt) ||
+    compareIsoDesc(left.post.publishedAt, right.post.publishedAt)
   )[0];
 }
 
@@ -156,6 +172,52 @@ function normalizeSettings(
     activeKeywordTarget: value.activeKeywordTarget ?? defaultSettings.activeKeywordTarget,
     commonKeywordRules,
     darkMode: typeof value.darkMode === "boolean" ? value.darkMode : defaultSettings.darkMode,
+    notificationEmailAddress: typeof value.notificationEmailAddress === "string"
+      ? value.notificationEmailAddress
+      : defaultSettings.notificationEmailAddress,
+    notificationEmailApiToken: typeof value.notificationEmailApiToken === "string"
+      ? value.notificationEmailApiToken
+      : defaultSettings.notificationEmailApiToken,
+    notificationEmailApiUrl: typeof value.notificationEmailApiUrl === "string"
+      ? value.notificationEmailApiUrl
+      : defaultSettings.notificationEmailApiUrl,
+    notificationEmailFrom: typeof value.notificationEmailFrom === "string"
+      ? value.notificationEmailFrom
+      : defaultSettings.notificationEmailFrom,
+    notificationEmailService: value.notificationEmailService
+      ? normalizeNotificationEmailService(value.notificationEmailService)
+      : defaultSettings.notificationEmailService,
+    notificationPushPlusToken: typeof value.notificationPushPlusToken === "string"
+      ? value.notificationPushPlusToken
+      : defaultSettings.notificationPushPlusToken,
+    notificationServerChanSendKey: typeof value.notificationServerChanSendKey === "string"
+      ? value.notificationServerChanSendKey
+      : defaultSettings.notificationServerChanSendKey,
+    notificationSmtpHost: typeof value.notificationSmtpHost === "string"
+      ? value.notificationSmtpHost
+      : defaultSettings.notificationSmtpHost,
+    notificationSmtpPassword: typeof value.notificationSmtpPassword === "string"
+      ? value.notificationSmtpPassword
+      : defaultSettings.notificationSmtpPassword,
+    notificationSmtpPort: normalizePositiveInteger(
+      value.notificationSmtpPort,
+      defaultSettings.notificationSmtpPort,
+    ),
+    notificationSmtpSecure: typeof value.notificationSmtpSecure === "boolean"
+      ? value.notificationSmtpSecure
+      : defaultSettings.notificationSmtpSecure,
+    notificationSmtpUsername: typeof value.notificationSmtpUsername === "string"
+      ? value.notificationSmtpUsername
+      : defaultSettings.notificationSmtpUsername,
+    notificationWebhookService: value.notificationWebhookService
+      ? normalizeNotificationWebhookService(value.notificationWebhookService)
+      : defaultSettings.notificationWebhookService,
+    notificationWebhookUrl: typeof value.notificationWebhookUrl === "string"
+      ? value.notificationWebhookUrl
+      : defaultSettings.notificationWebhookUrl,
+    notificationWxPusherSpt: typeof value.notificationWxPusherSpt === "string"
+      ? value.notificationWxPusherSpt
+      : defaultSettings.notificationWxPusherSpt,
     polling: normalizePollingSettings(value.polling, defaultSettings.polling),
     themeColor: normalizeThemeColor(value.themeColor, defaultSettings.themeColor),
     topics,
@@ -166,8 +228,21 @@ function normalizePollingSettings(
   value: Partial<PollingSettings> | undefined,
   fallback: PollingSettings,
 ): PollingSettings {
+  const legacyIntervalMinutes = (value as
+    | Partial<PollingSettings> & {
+      intervalMinutes?: unknown;
+    }
+    | undefined)?.intervalMinutes;
+  const intervalUnit = normalizePollIntervalUnit(value?.intervalUnit, fallback.intervalUnit);
+
   return {
-    intervalMinutes: normalizePositiveInteger(value?.intervalMinutes, fallback.intervalMinutes),
+    enabled: typeof value?.enabled === "boolean" ? value.enabled : fallback.enabled,
+    intervalUnit,
+    intervalValue: normalizePollIntervalValue(
+      value?.intervalValue ?? legacyIntervalMinutes,
+      intervalUnit,
+      fallback.intervalValue,
+    ),
     postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
     sort: normalizePollSort(value?.sort, fallback.sort),
   };
@@ -181,6 +256,22 @@ function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
   return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
 }
 
+function normalizePollIntervalUnit(value: unknown, fallback: PollIntervalUnit): PollIntervalUnit {
+  return value === "second" || value === "minute" || value === "hour" || value === "day" ||
+      value === "week" || value === "month"
+    ? value
+    : fallback;
+}
+
+function normalizePollIntervalValue(
+  value: unknown,
+  unit: PollIntervalUnit,
+  fallback: number,
+): number {
+  const intervalValue = normalizePositiveInteger(value, fallback);
+  return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
+}
+
 function normalizeThemeColor(value: unknown, fallback: string): string {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
     ? value.toLowerCase()
@@ -192,11 +283,11 @@ function normalizeKeywordRules(
   defaultKeywordRules: KeywordRule[],
 ): KeywordRule[] {
   if (value.commonKeywordRules) {
-    return value.commonKeywordRules;
+    return normalizeKeywordRuleList(value.commonKeywordRules);
   }
 
   if (value.keywordRules) {
-    return value.keywordRules;
+    return normalizeKeywordRuleList(value.keywordRules);
   }
 
   if (value.keywords) {
@@ -214,7 +305,10 @@ function normalizeTopics(
   defaultTopics: TopicRule[],
 ): TopicRule[] {
   if (value.topics && value.topics.length > 0) {
-    return value.topics;
+    return value.topics.map((topic) => ({
+      ...topic,
+      keywordRules: normalizeKeywordRuleList(topic.keywordRules),
+    }));
   }
 
   if (value.topicId) {
@@ -229,4 +323,13 @@ function normalizeTopics(
   }
 
   return defaultTopics;
+}
+
+function normalizeKeywordRuleList(rules: KeywordRule[]): KeywordRule[] {
+  return rules.map((rule) => ({
+    caseSensitive: rule.caseSensitive === true,
+    keyword: rule.keyword,
+    locations: rule.locations,
+    useRegex: rule.useRegex === true,
+  }));
 }

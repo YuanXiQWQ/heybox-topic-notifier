@@ -1,13 +1,36 @@
 import { Hono } from "@hono/hono";
-import { normalizeLocale } from "./locales/index.ts";
-import type { AppSettings, KeywordRule, MatchLocation, PollSort, TopicRule } from "./models.ts";
+import { getMessages, normalizeLocale } from "./locales/index.ts";
+import type {
+  AppSettings,
+  KeywordRule,
+  MatchLocation,
+  PollIntervalUnit,
+  PollSort,
+  TopicRule,
+} from "./models.ts";
+import {
+  normalizeNotificationEmailService,
+  normalizeNotificationWebhookService,
+} from "./notification_services.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
+import { renderPendingMatches } from "./views/dashboard.ts";
 import { renderHistory } from "./views/history.ts";
-import { applyMatchTableQuery, parseMatchTableQuery } from "./views/match_table.ts";
+import {
+  applyMatchTableQuery,
+  matchTableSignature,
+  parseMatchTableQuery,
+} from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
+import {
+  createRandomTestMatchRecord,
+  NotificationConfigError,
+  NotificationDeliveryError,
+} from "./services/notifier.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
+const pollResetParam = "pollReset";
+const pollResetStartParam = "pollResetStart";
 
 export function createRoutes(context: AppContext): Hono {
   const app = new Hono();
@@ -20,6 +43,7 @@ export function createRoutes(context: AppContext): Hono {
     }));
 
   app.get("/", async (c) => {
+    const url = new URL(c.req.url);
     const settings = await context.storage.getSettings();
     const state = await context.storage.getAppState();
     const pendingMatches = await context.storage.listPendingMatches();
@@ -27,7 +51,42 @@ export function createRoutes(context: AppContext): Hono {
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
-    return c.html(renderDashboard({ pendingTable, settings, state }));
+    return c.html(renderDashboard({
+      initialNextPollProgress: initialNextPollProgress(url.searchParams),
+      pendingTable,
+      returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
+      settings,
+      state,
+    }));
+  });
+
+  app.get("/dashboard-state", async (c) => {
+    const settings = await context.storage.getSettings();
+    const state = await context.storage.getAppState();
+    const pendingMatches = await context.storage.listPendingMatches();
+    const pendingTable = applyMatchTableQuery(
+      pendingMatches,
+      parseMatchTableQuery(new URL(c.req.url).searchParams),
+    );
+    const messages = getMessages(settings.locale);
+
+    return c.json({
+      lastPollAt: state.lastPollAt ?? null,
+      latestMatch: state.latestMatch
+        ? {
+          title: state.latestMatch.post.title,
+          url: state.latestMatch.post.url,
+        }
+        : null,
+      pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale),
+      pendingSignature: matchTableSignature(pendingTable),
+      polling: {
+        enabled: settings.polling.enabled,
+        intervalUnit: settings.polling.intervalUnit,
+        intervalValue: settings.polling.intervalValue,
+      },
+      totalMatches: state.totalMatches,
+    });
   });
 
   app.get("/settings", async (c) => {
@@ -56,35 +115,60 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/run-now", async (c) => {
-    await context.poller.runOnce();
-    return c.redirect("/");
+    const form = await formDataOrEmpty(c.req.raw);
+    try {
+      await context.poller.runOnce();
+      return c.redirect(
+        withPollResetFlag(safeRedirectPath(form.get("returnTo"), "/"), form.get("pollResetStart")),
+      );
+    } catch (error) {
+      return notificationErrorResponse(error);
+    }
+  });
+
+  app.post("/simulate-match", async (c) => {
+    const form = await formDataOrEmpty(c.req.raw);
+    const settings = await context.storage.getSettings();
+    await context.storage.saveMatch(createRandomTestMatchRecord(settings, 1, "simulation"));
+    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
   });
 
   app.post("/test-notify", async (c) => {
-    await context.notifier.sendTest();
-    return c.redirect("/");
+    const settings = await context.storage.getSettings();
+    try {
+      await context.notifier.sendTest(settings);
+      if (c.req.header("x-test-notify") === "1") {
+        return c.text(getMessages(settings.locale).testNotifySent);
+      }
+      return c.redirect("/");
+    } catch (error) {
+      return notificationErrorResponse(error);
+    }
   });
 
   app.post("/matches/complete", async (c) => {
-    const form = await c.req.parseBody();
-    const ids = formValues(form, "matchId").map(String);
-    const matchIds = ids.length > 0
-      ? ids
-      : (await context.storage.listPendingMatches()).map((record) => record.id);
-    await context.storage.completeMatches(matchIds);
-    return c.redirect("/");
+    const form = await c.req.raw.formData();
+    const ids = form.getAll("matchId").map(String);
+    if (ids.length > 0) {
+      await context.storage.completeMatches(ids);
+    }
+    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
   });
 
   app.post("/matches/delete", async (c) => {
-    const form = await c.req.parseBody();
-    await context.storage.deleteMatches(formValues(form, "matchId").map(String));
-    return c.redirect("/history");
+    const form = await c.req.raw.formData();
+    const ids = form.getAll("matchId").map(String);
+    if (ids.length > 0) {
+      await context.storage.deleteMatches(ids);
+    }
+    return c.redirect(safeRedirectPath(form.get("returnTo"), "/history"));
   });
 
   app.get("/static/app.css", async () => {
     const css = await Deno.readTextFile(new URL("../static/app.css", import.meta.url));
     return new Response(css, {
       headers: {
+        "cache-control": "no-store",
         "content-type": "text/css; charset=utf-8",
       },
     });
@@ -94,6 +178,7 @@ export function createRoutes(context: AppContext): Hono {
     const script = await Deno.readTextFile(new URL("../static/settings.js", import.meta.url));
     return new Response(script, {
       headers: {
+        "cache-control": "no-store",
         "content-type": "text/javascript; charset=utf-8",
       },
     });
@@ -102,15 +187,81 @@ export function createRoutes(context: AppContext): Hono {
   return app;
 }
 
-function formValues(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  key: string,
-): FormDataEntryValue[] {
-  const value = form[key];
-  if (Array.isArray(value)) {
-    return value;
+function notificationErrorResponse(error: unknown): Response {
+  if (error instanceof NotificationConfigError) {
+    return new Response(error.message, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 400,
+    });
   }
-  return value === undefined ? [] : [value];
+
+  if (error instanceof NotificationDeliveryError) {
+    return new Response(error.message, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 502,
+    });
+  }
+
+  throw error;
+}
+
+function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/history"): string {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  try {
+    const url = new URL(value, "http://local");
+    if (url.origin !== "http://local" || url.pathname !== fallback) {
+      return fallback;
+    }
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return fallback;
+  }
+}
+
+function withPollResetFlag(path: string, startWidth: FormDataEntryValue | null): string {
+  const url = new URL(path, "http://local");
+  url.searchParams.set(pollResetParam, "1");
+  const normalizedStartWidth = normalizePollResetStart(startWidth);
+  if (normalizedStartWidth) {
+    url.searchParams.set(pollResetStartParam, normalizedStartWidth);
+  }
+  return `${url.pathname}${url.search}`;
+}
+
+function withoutPollResetFlag(path: string): string {
+  const url = new URL(path, "http://local");
+  url.searchParams.delete(pollResetParam);
+  url.searchParams.delete(pollResetStartParam);
+  return `${url.pathname}${url.search}`;
+}
+
+function initialNextPollProgress(params: URLSearchParams): string | undefined {
+  if (params.get(pollResetParam) !== "1") {
+    return undefined;
+  }
+  return normalizePollResetStart(params.get(pollResetStartParam)) ?? "0";
+}
+
+function normalizePollResetStart(value: FormDataEntryValue | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  return String(Math.max(0, Math.min(100, parsed)));
+}
+
+async function formDataOrEmpty(request: Request): Promise<FormData> {
+  try {
+    return await request.formData();
+  } catch {
+    return new FormData();
+  }
 }
 
 export function settingsFromForm(
@@ -130,11 +281,39 @@ export function settingsFromForm(
     commonKeywordRules,
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
+    notificationEmailAddress: String(form.notificationEmailAddress ?? "").trim(),
+    notificationEmailApiToken: String(form.notificationEmailApiToken ?? ""),
+    notificationEmailApiUrl: String(form.notificationEmailApiUrl ?? "").trim(),
+    notificationEmailFrom: String(form.notificationEmailFrom ?? "").trim(),
+    notificationEmailService: normalizeNotificationEmailService(form.notificationEmailService),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
+    notificationPushPlusToken: String(
+      form.notificationPushPlusSecret ?? form.notificationPushPlusToken ?? "",
+    ).trim(),
+    notificationServerChanSendKey: String(form.notificationServerChanSendKey ?? "").trim(),
+    notificationSmtpHost: String(form.notificationSmtpHost ?? "").trim(),
+    notificationSmtpPassword: String(form.notificationSmtpPassword ?? ""),
+    notificationSmtpPort: normalizePositiveInteger(
+      form.notificationSmtpPort,
+      currentSettings.notificationSmtpPort,
+    ),
+    notificationSmtpSecure: form.notificationSmtpSecure === "on",
+    notificationSmtpUsername: String(form.notificationSmtpUsername ?? "").trim(),
+    notificationWebhookService: normalizeNotificationWebhookService(
+      form.notificationWebhookService,
+    ),
+    notificationWebhookUrl: String(form.notificationWebhookUrl ?? "").trim(),
+    notificationWxPusherSpt: String(form.notificationWxPusherSpt ?? "").trim(),
     polling: {
-      intervalMinutes: normalizePositiveInteger(
-        form.pollIntervalMinutes,
-        currentSettings.polling.intervalMinutes,
+      enabled: form.pollEnabled === "on",
+      intervalUnit: normalizePollIntervalUnit(
+        form.pollIntervalUnit,
+        currentSettings.polling.intervalUnit,
+      ),
+      intervalValue: normalizePollIntervalValue(
+        form.pollIntervalValue,
+        normalizePollIntervalUnit(form.pollIntervalUnit, currentSettings.polling.intervalUnit),
+        currentSettings.polling.intervalValue,
       ),
       postLimit: normalizePositiveInteger(form.pollPostLimit, currentSettings.polling.postLimit),
       sort: normalizePollSort(form.pollSort, currentSettings.polling.sort),
@@ -152,8 +331,10 @@ function keywordRulesFromForm(
     const locations = matchLocations.filter((location) =>
       form[`keyword_${index}_location_${location}`] === "on"
     );
+    const caseSensitive = form[`keyword_${index}_caseSensitive`] === "on";
+    const useRegex = form[`keyword_${index}_useRegex`] === "on";
 
-    return { keyword, locations };
+    return { caseSensitive, keyword, locations, useRegex };
   }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
 }
 
@@ -200,8 +381,10 @@ function keywordRulesFromJson(
       const locations = Array.isArray(rule?.locations)
         ? rule.locations.filter(isMatchLocation)
         : [];
+      const caseSensitive = rule?.caseSensitive === true;
+      const useRegex = rule?.useRegex === true;
 
-      return { keyword, locations };
+      return { caseSensitive, keyword, locations, useRegex };
     }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
   } catch {
     return undefined;
@@ -245,6 +428,25 @@ function normalizePollSort(
   fallback: PollSort,
 ): PollSort {
   return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
+}
+
+function normalizePollIntervalUnit(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  fallback: PollIntervalUnit,
+): PollIntervalUnit {
+  return value === "second" || value === "minute" || value === "hour" || value === "day" ||
+      value === "week" || value === "month"
+    ? value
+    : fallback;
+}
+
+function normalizePollIntervalValue(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  unit: PollIntervalUnit,
+  fallback: number,
+): number {
+  const intervalValue = normalizePositiveInteger(value, fallback);
+  return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
 }
 
 function normalizeThemeColor(
