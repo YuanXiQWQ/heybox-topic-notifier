@@ -723,15 +723,16 @@ dd {
 
 .dropdown-toggle {
   align-items: center;
+  align-self: stretch;
   background: transparent;
   border: 0;
   color: var(--heading);
   display: inline-flex;
   font-size: 18px;
   justify-content: center;
-  min-height: 28px;
+  min-height: 100%;
   padding: 0;
-  width: 28px;
+  width: 48px;
 }
 
 .dropdown-chevron {
@@ -819,7 +820,7 @@ dd {
 
 .topic-rule-row,
 .keyword-rule-row {
-  align-items: center;
+  align-items: stretch;
   display: grid;
   gap: 0;
   width: 100%;
@@ -840,8 +841,7 @@ dd {
   grid-template-columns:
     var(--rule-select-column)
     minmax(108px, 1.7fr)
-    minmax(108px, 1.25fr)
-    repeat(3, minmax(58px, 0.78fr))
+    repeat(4, minmax(86px, 0.9fr))
     var(--rule-action-column)
     var(--rule-action-column);
 }
@@ -894,11 +894,6 @@ dd {
   justify-content: center;
   text-align: center;
   overflow-wrap: anywhere;
-}
-
-.keyword-rule-head > div:nth-child(2) {
-  justify-content: flex-start;
-  text-align: left;
 }
 
 .keyword-rule-head > div:nth-child(3) {
@@ -985,11 +980,49 @@ dd {
   transform: translateY(0);
 }
 
+.topic-rule-row > div:has(> .icon-button),
+.topic-rule-row > div:has(> .text-action-button),
+.keyword-rule-row > div:has(> .icon-button),
+.keyword-rule-row > div:has(> .text-action-button) {
+  padding: 0;
+}
+
+.topic-rule-row > div > .icon-button,
+.topic-rule-row > div > .text-action-button,
+.keyword-rule-row > div > .icon-button,
+.keyword-rule-row > div > .text-action-button {
+  align-self: stretch;
+  border-radius: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
 .checkbox-cell {
   align-items: center;
+  box-sizing: border-box;
+  cursor: pointer;
   display: inline-flex;
   gap: 6px;
   justify-content: center;
+  min-height: 100%;
+  width: 100%;
+}
+
+.checkbox-cell:hover,
+.checkbox-cell:focus-within {
+  background: var(--theme-soft);
+}
+
+th:has(> .checkbox-cell),
+td:has(> .checkbox-cell) {
+  padding: 0;
+}
+
+th:has(> .checkbox-cell) > .checkbox-cell,
+td:has(> .checkbox-cell) > .checkbox-cell {
+  inset: 0;
+  padding: 14px 16px;
+  position: absolute;
 }
 
 .bulk-action-cell,
