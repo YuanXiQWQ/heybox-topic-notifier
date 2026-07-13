@@ -307,6 +307,58 @@ input[type="color"]::-moz-color-swatch {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.next-poll-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.next-poll-meta {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.next-poll-meta span {
+  font-weight: 700;
+}
+
+.next-poll-meta strong {
+  color: var(--theme-strong);
+  font-size: 15px;
+  min-width: 72px;
+  text-align: right;
+}
+
+.next-poll-track {
+  background: var(--border-soft);
+  border-radius: 999px;
+  height: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.next-poll-fill {
+  background: var(--theme-strong);
+  border-radius: inherit;
+  height: 100%;
+  margin-left: auto;
+  transition: width 240ms linear;
+  width: 100%;
+}
+
+.next-poll-fill.is-resetting {
+  transition:
+    transform 300ms cubic-bezier(0.2, 0, 0, 1),
+    width 300ms linear;
+}
+
+.next-poll-fill.is-jump {
+  transition: none;
+}
+
 .table-section {
   margin-top: 24px;
   position: relative;

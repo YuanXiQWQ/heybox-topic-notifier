@@ -40,6 +40,7 @@ export type Messages = {
   navDashboard: string;
   navHistory: string;
   navSettings: string;
+  nextPoll: string;
   notificationDisabled: string;
   notificationEmailAddress: string;
   notificationEmail: string;

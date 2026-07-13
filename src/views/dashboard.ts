@@ -52,6 +52,21 @@ export function renderDashboard(options: {
         <strong data-total-matches>${options.state.totalMatches}</strong>
       </article>
     </section>
+    <section
+      class="next-poll-panel"
+      data-next-poll-panel
+      data-poll-enabled="${options.settings.polling.enabled ? "true" : "false"}"
+      data-poll-interval-unit="${escapeHtml(options.settings.polling.intervalUnit)}"
+      data-poll-interval-value="${options.settings.polling.intervalValue}"
+    >
+      <div class="next-poll-meta">
+        <span>${escapeHtml(messages.nextPoll)}</span>
+        <strong data-next-poll-remaining>-</strong>
+      </div>
+      <div class="next-poll-track" aria-hidden="true">
+        <div class="next-poll-fill" data-next-poll-fill></div>
+      </div>
+    </section>
     ${renderPendingMatches(options.pendingTable, messages, options.settings.locale)}
     ${renderLastPollScript(messages)}
   `;
@@ -111,6 +126,14 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
     secondsAgo: messages.relativeSecondsAgo,
     yesterdayAt: messages.relativeYesterdayAt,
   };
+  const pollUnitLabels = {
+    day: messages.pollIntervalDay,
+    hour: messages.pollIntervalHour,
+    minute: messages.pollIntervalMinute,
+    month: messages.pollIntervalMonth,
+    second: messages.pollIntervalSecond,
+    week: messages.pollIntervalWeek,
+  };
 
   return `<script>
     (() => {
@@ -118,15 +141,22 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       if (!lastPoll) return;
 
       const latestMatch = document.querySelector("[data-latest-match]");
+      const nextPollPanel = document.querySelector("[data-next-poll-panel]");
+      const nextPollFill = document.querySelector("[data-next-poll-fill]");
+      const nextPollRemaining = document.querySelector("[data-next-poll-remaining]");
       let pendingSection = document.querySelector(".table-section");
       const totalMatches = document.querySelector("[data-total-matches]");
+      let resetAnimationTimers = [];
       let timestamp = parseTimestamp(lastPoll.dataset.lastPollAt);
 
       const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
+      const pollUnitLabels = ${JSON.stringify(pollUnitLabels)};
       void refreshDashboardState();
       updateLastPoll();
+      updateNextPoll();
       window.setInterval(updateLastPoll, 1000);
+      window.setInterval(updateNextPoll, 250);
       window.setInterval(() => {
         void refreshDashboardState();
       }, 1000);
@@ -149,11 +179,13 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
             timestamp = nextTimestamp;
             lastPoll.dataset.lastPollAt = state.lastPollAt;
             updateLastPoll();
+            animateNextPollReset();
           }
           updateLatestMatch(state.latestMatch);
           if (totalMatches && Number.isInteger(state.totalMatches)) {
             totalMatches.textContent = String(state.totalMatches);
           }
+          updatePollingSettings(state.polling);
           updatePendingSection(state.pendingHtml, state.pendingSignature);
         } catch {
           // Keep the last rendered state when the status request is transiently unavailable.
@@ -168,6 +200,95 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         if (!nextSection) return;
         pendingSection.replaceWith(nextSection);
         pendingSection = nextSection;
+      }
+
+      function updatePollingSettings(polling) {
+        if (!nextPollPanel || !polling) return;
+        nextPollPanel.dataset.pollEnabled = polling.enabled ? "true" : "false";
+        nextPollPanel.dataset.pollIntervalUnit = polling.intervalUnit || "";
+        nextPollPanel.dataset.pollIntervalValue = String(polling.intervalValue || "");
+        updateNextPoll();
+      }
+
+      function updateNextPoll() {
+        if (!nextPollPanel || !nextPollFill || !nextPollRemaining) return;
+        const enabled = nextPollPanel.dataset.pollEnabled === "true";
+        const unit = nextPollPanel.dataset.pollIntervalUnit || "minute";
+        const value = Number(nextPollPanel.dataset.pollIntervalValue || "0");
+        const intervalMs = pollingIntervalMs(unit, value);
+
+        if (!enabled || !Number.isFinite(timestamp) || intervalMs <= 0) {
+          nextPollFill.style.width = "0%";
+          nextPollRemaining.textContent = "-";
+          return;
+        }
+
+        const elapsedMs = Math.max(0, Date.now() - timestamp);
+        const remainingMs = Math.max(0, intervalMs - elapsedMs);
+        const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
+        nextPollFill.style.width = \`\${(progress * 100).toFixed(2)}%\`;
+        nextPollRemaining.textContent = formatRemaining(remainingMs);
+      }
+
+      function animateNextPollReset() {
+        if (!nextPollFill) return;
+        for (const timer of resetAnimationTimers) clearTimeout(timer);
+        resetAnimationTimers = [];
+        updateNextPoll();
+        nextPollFill.classList.add("is-resetting", "is-jump");
+        nextPollFill.style.transform = "translateX(-100vw)";
+        nextPollFill.getBoundingClientRect();
+        nextPollFill.classList.remove("is-jump");
+        requestAnimationFrame(() => {
+          updateNextPoll();
+          nextPollFill.style.transform = "translateX(0)";
+        });
+        resetAnimationTimers.push(setTimeout(() => {
+          nextPollFill.classList.remove("is-resetting");
+          nextPollFill.style.transform = "";
+          updateNextPoll();
+        }, 320));
+      }
+
+      function formatRemaining(remainingMs) {
+        const unit = remainingUnit(remainingMs);
+        const unitMs = pollingUnitMs(unit);
+        const count = Math.max(0, Math.ceil(remainingMs / unitMs));
+        const label = pollUnitLabels[unit] || pollUnitLabels.minute;
+        return \`\${count} \${label}\`;
+      }
+
+      function remainingUnit(remainingMs) {
+        if (remainingMs < pollingUnitMs("minute")) return "second";
+        if (remainingMs < pollingUnitMs("hour")) return "minute";
+        if (remainingMs < pollingUnitMs("day")) return "hour";
+        if (remainingMs < pollingUnitMs("week")) return "day";
+        if (remainingMs < pollingUnitMs("month")) return "week";
+        return "month";
+      }
+
+      function pollingIntervalMs(unit, value) {
+        const intervalValue = Math.max(1, Number.isFinite(value) ? value : 1);
+        if (unit === "second") return Math.max(3, intervalValue) * 1000;
+        return intervalValue * pollingUnitMs(unit);
+      }
+
+      function pollingUnitMs(unit) {
+        switch (unit) {
+          case "second":
+            return 1000;
+          case "hour":
+            return 60 * 60 * 1000;
+          case "day":
+            return 24 * 60 * 60 * 1000;
+          case "week":
+            return 7 * 24 * 60 * 60 * 1000;
+          case "month":
+            return 30 * 24 * 60 * 60 * 1000;
+          case "minute":
+          default:
+            return 60 * 1000;
+        }
       }
 
       function updateLatestMatch(match) {

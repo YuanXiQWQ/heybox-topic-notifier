@@ -106,7 +106,7 @@ Deno.test("settings and history pages keep the app tab title", () => {
 
   assertIncludes(historyHtml, "<title>小黑盒话题提醒</title>");
   assertIncludes(settingsHtml, "<title>小黑盒话题提醒</title>");
-  assertIncludes(historyHtml, "<h1>历史</h1>");
+  assertIncludes(historyHtml, "<h1>命中历史</h1>");
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 

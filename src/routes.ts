@@ -77,6 +77,11 @@ export function createRoutes(context: AppContext): Hono {
         : null,
       pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale),
       pendingSignature: matchTableSignature(pendingTable),
+      polling: {
+        enabled: settings.polling.enabled,
+        intervalUnit: settings.polling.intervalUnit,
+        intervalValue: settings.polling.intervalValue,
+      },
       totalMatches: state.totalMatches,
     });
   });
