@@ -948,6 +948,8 @@ table {
 
 .match-table {
   table-layout: fixed;
+  --match-cell-block-padding: 16px;
+  --match-row-height: 88px;
 }
 
 .match-table-col-2 {
@@ -971,9 +973,19 @@ td {
   border-bottom: 1px solid var(--border-soft);
   min-width: 0;
   padding: 14px 16px;
+  position: relative;
   text-align: left;
   vertical-align: middle;
   overflow-wrap: anywhere;
+}
+
+.match-table tbody tr,
+.match-table tbody td {
+  height: var(--match-row-height);
+}
+
+.match-table tbody td {
+  padding-block: calc(var(--match-cell-block-padding) / 2);
 }
 
 th:first-child,
@@ -989,9 +1001,45 @@ td:first-child .checkbox-cell {
   width: 100%;
 }
 
+.match-table-title-link,
+.table-cell-clip,
 .table-clip {
+  --table-clip-lines: 3;
+  box-sizing: border-box;
+  display: -webkit-box;
+  line-height: 1.35;
+  max-block-size: calc(1.35em * var(--table-clip-lines) + 2px);
+  overflow: hidden;
   overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--table-clip-lines);
+  line-clamp: var(--table-clip-lines);
   word-break: break-word;
+}
+
+.match-table tbody td:hover {
+  z-index: 3;
+}
+
+.match-table-title-link.is-overflowing:hover,
+.match-table-title-link.is-overflowing:focus-visible,
+.table-cell-clip.is-overflowing:hover,
+.table-cell-clip.is-overflowing:focus-visible,
+.table-clip.is-overflowing:hover,
+.table-clip.is-overflowing:focus-visible {
+  --table-clip-lines: 8;
+  background: var(--surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px var(--shadow-strong);
+  inset-inline: 8px;
+  max-block-size: calc(1.35em * var(--table-clip-lines) + 14px);
+  padding: 6px 8px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
 }
 
 .table-action-cell {
@@ -1071,6 +1119,11 @@ tr:last-child td {
 }
 
 @media (max-width: 620px) {
+  .match-table {
+    --match-cell-block-padding: 16px;
+    --match-row-height: 88px;
+  }
+
   .shell {
     padding-inline: 8px;
   }

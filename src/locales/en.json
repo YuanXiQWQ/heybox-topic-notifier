@@ -62,7 +62,7 @@
   "notificationSmtpPort": "SMTP port",
   "notificationSmtpSecure": "SSL/TLS",
   "notificationSmtpUsername": "SMTP username",
-  "notificationSimulatedPostContent": "Simulated match post",
+  "notificationSimulatedPostContent": "Simulated match post, random sample {seed}. This test content verifies match records.",
   "notificationSimulatedPostTitle": "Simulated match post (test {seed})",
   "notificationTestKeyword": "test keyword {seed}",
   "notificationTestPostContent": "Post {index} content, random sample {seed}. This test content verifies notification formatting, truncation, and omitted-post summaries.",

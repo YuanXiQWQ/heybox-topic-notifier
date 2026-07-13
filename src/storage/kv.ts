@@ -58,7 +58,7 @@ export function createKvStorage(defaultSettings: AppSettings) {
 
       return {
         lastPollAt: state.value?.lastPollAt,
-        latestMatch: latestMatchByPostTime(history),
+        latestMatch: latestMatchByMatchedTime(history),
         totalMatches: history.length,
       };
     },
@@ -142,10 +142,10 @@ function compareIsoDesc(left: string, right: string): number {
   return right.localeCompare(left);
 }
 
-function latestMatchByPostTime(records: MatchRecord[]): MatchRecord | undefined {
+export function latestMatchByMatchedTime(records: MatchRecord[]): MatchRecord | undefined {
   return records.toSorted((left, right) =>
-    compareIsoDesc(left.post.publishedAt, right.post.publishedAt) ||
-    compareIsoDesc(left.matchedAt, right.matchedAt)
+    compareIsoDesc(left.matchedAt, right.matchedAt) ||
+    compareIsoDesc(left.post.publishedAt, right.post.publishedAt)
   )[0];
 }
 

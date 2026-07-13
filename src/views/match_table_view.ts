@@ -89,15 +89,22 @@ export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): 
   }
     </section>
     ${renderFilterScript()}
+    ${records.length === 0 ? "" : renderOverflowScript()}
     ${records.length === 0 ? "" : renderSelectionScript(options.action)}
   `;
 }
 
 function renderRows(options: MatchRecordsSectionOptions): string {
   return options.table.records.map((record) => {
-    const titleClass = options.titleLinkClass
-      ? ` class="${escapeHtml(options.titleLinkClass)}"`
-      : "";
+    const titleClasses = ["match-table-title-link", options.titleLinkClass]
+      .filter((className): className is string => Boolean(className))
+      .join(" ");
+    const publishedAt = formatHeyboxRelativeTime(
+      record.post.publishedAt,
+      new Date(),
+      options.locale,
+    );
+    const matchedAt = formatHeyboxRelativeTime(record.matchedAt, new Date(), options.locale);
 
     return `
     <tr>
@@ -111,18 +118,18 @@ function renderRows(options: MatchRecordsSectionOptions): string {
           >
         </label>
       </td>
-      <td><a${titleClass} href="${
+      <td><a class="${escapeHtml(titleClasses)}" href="${
       escapeHtml(record.post.url)
     }" target="_blank" rel="noopener noreferrer">${escapeHtml(record.post.title)}</a></td>
-      <td class="table-clip">${
+      <td><span class="table-clip">${
       escapeHtml(truncateText(record.post.excerpt || record.post.body))
-    }</td>
-      <td>${
-      escapeHtml(formatHeyboxRelativeTime(record.post.publishedAt, new Date(), options.locale))
-    }</td>
-      <td>${escapeHtml(formatHeyboxRelativeTime(record.matchedAt, new Date(), options.locale))}</td>
-      <td>${escapeHtml(record.keyword)}</td>
-      <td>${escapeHtml(locationLabel(record.location, options.messages))}</td>
+    }</span></td>
+      <td><span class="table-cell-clip">${escapeHtml(publishedAt)}</span></td>
+      <td><span class="table-cell-clip">${escapeHtml(matchedAt)}</span></td>
+      <td><span class="table-cell-clip">${escapeHtml(record.keyword)}</span></td>
+      <td><span class="table-cell-clip">${
+      escapeHtml(locationLabel(record.location, options.messages))
+    }</span></td>
       <td class="table-action-cell">
         <button
           type="submit"
@@ -314,6 +321,39 @@ function renderFilterScript(): string {
           });
         }
         setCustomState({ instant: true });
+      }
+    })();
+  </script>`;
+}
+
+function renderOverflowScript(): string {
+  return `<script>
+    (() => {
+      const clippedSelector = ".match-table-title-link, .table-cell-clip, .table-clip";
+      const updateOverflowState = () => {
+        for (const element of document.querySelectorAll(clippedSelector)) {
+          if (!(element instanceof HTMLElement)) continue;
+          const wasOverflowing = element.classList.contains("is-overflowing");
+          element.classList.remove("is-overflowing");
+          const isOverflowing = element.scrollHeight > element.clientHeight + 1 ||
+            element.scrollWidth > element.clientWidth + 1;
+          element.classList.toggle("is-overflowing", isOverflowing);
+          if (isOverflowing && !wasOverflowing) {
+            element.setAttribute("tabindex", "0");
+          } else if (!isOverflowing) {
+            element.removeAttribute("tabindex");
+          }
+        }
+      };
+      const scheduleUpdate = () => requestAnimationFrame(updateOverflowState);
+      scheduleUpdate();
+      if (window.__matchTableOverflowScriptInstalled) return;
+      window.__matchTableOverflowScriptInstalled = true;
+      window.addEventListener("load", scheduleUpdate);
+      window.addEventListener("resize", scheduleUpdate);
+      if (window.ResizeObserver) {
+        const observer = new ResizeObserver(scheduleUpdate);
+        for (const table of document.querySelectorAll(".match-table")) observer.observe(table);
       }
     })();
   </script>`;

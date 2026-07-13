@@ -1,5 +1,5 @@
 import { getMessages } from "../locales/index.ts";
-import type { AppSettings, AppState } from "../models.ts";
+import type { AppSettings, AppState, PollIntervalUnit } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
@@ -14,6 +14,7 @@ export function renderDashboard(options: {
   const messages = getMessages(options.settings.locale);
   const latest = options.state.latestMatch;
   const lastPollAt = options.state.lastPollAt;
+  const nextPollProgress = nextPollProgressPercent(options.settings, lastPollAt);
 
   const body = `
     <section class="page-heading">
@@ -64,7 +65,7 @@ export function renderDashboard(options: {
         <strong data-next-poll-remaining>-</strong>
       </div>
       <div class="next-poll-track" aria-hidden="true">
-        <div class="next-poll-fill" data-next-poll-fill></div>
+        <div class="next-poll-fill" data-next-poll-fill style="width: ${nextPollProgress}%"></div>
       </div>
     </section>
     ${renderPendingMatches(options.pendingTable, messages, options.settings.locale)}
@@ -148,13 +149,14 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       const totalMatches = document.querySelector("[data-total-matches]");
       let resetAnimationTimers = [];
       let timestamp = parseTimestamp(lastPoll.dataset.lastPollAt);
+      let hasSyncedDashboardState = false;
 
       const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
       const pollUnitLabels = ${JSON.stringify(pollUnitLabels)};
       void refreshDashboardState();
       updateLastPoll();
-      updateNextPoll();
+      updateNextPoll({ instant: true });
       window.setInterval(updateLastPoll, 1000);
       window.setInterval(updateNextPoll, 250);
       window.setInterval(() => {
@@ -179,7 +181,11 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
             timestamp = nextTimestamp;
             lastPoll.dataset.lastPollAt = state.lastPollAt;
             updateLastPoll();
-            animateNextPollReset();
+            if (hasSyncedDashboardState) {
+              animateNextPollReset();
+            } else {
+              updateNextPoll({ instant: true });
+            }
           }
           updateLatestMatch(state.latestMatch);
           if (totalMatches && Number.isInteger(state.totalMatches)) {
@@ -187,6 +193,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
           }
           updatePollingSettings(state.polling);
           updatePendingSection(state.pendingHtml, state.pendingSignature);
+          hasSyncedDashboardState = true;
         } catch {
           // Keep the last rendered state when the status request is transiently unavailable.
         }
@@ -207,11 +214,15 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         nextPollPanel.dataset.pollEnabled = polling.enabled ? "true" : "false";
         nextPollPanel.dataset.pollIntervalUnit = polling.intervalUnit || "";
         nextPollPanel.dataset.pollIntervalValue = String(polling.intervalValue || "");
-        updateNextPoll();
+        updateNextPoll({ instant: !hasSyncedDashboardState });
       }
 
-      function updateNextPoll() {
+      function updateNextPoll(options = {}) {
         if (!nextPollPanel || !nextPollFill || !nextPollRemaining) return;
+        if (options.instant) {
+          updateNextPollWithoutTransition();
+          return;
+        }
         const enabled = nextPollPanel.dataset.pollEnabled === "true";
         const unit = nextPollPanel.dataset.pollIntervalUnit || "minute";
         const value = Number(nextPollPanel.dataset.pollIntervalValue || "0");
@@ -228,6 +239,16 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
         nextPollFill.style.width = \`\${(progress * 100).toFixed(2)}%\`;
         nextPollRemaining.textContent = formatRemaining(remainingMs);
+      }
+
+      function updateNextPollWithoutTransition() {
+        const transition = nextPollFill.style.transition;
+        nextPollFill.style.transition = "none";
+        updateNextPoll();
+        nextPollFill.getBoundingClientRect();
+        requestAnimationFrame(() => {
+          nextPollFill.style.transition = transition;
+        });
       }
 
       function animateNextPollReset() {
@@ -372,6 +393,49 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       }
     })();
   </script>`;
+}
+
+function nextPollProgressPercent(settings: AppSettings, lastPollAt: string | undefined): string {
+  const timestamp = Date.parse(lastPollAt ?? "");
+  const intervalMs = dashboardPollingIntervalMs(
+    settings.polling.intervalUnit,
+    settings.polling.intervalValue,
+  );
+
+  if (!settings.polling.enabled || !Number.isFinite(timestamp) || intervalMs <= 0) {
+    return "0";
+  }
+
+  const elapsedMs = Math.max(0, Date.now() - timestamp);
+  const remainingMs = Math.max(0, intervalMs - elapsedMs);
+  const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
+  return (progress * 100).toFixed(2);
+}
+
+function dashboardPollingIntervalMs(unit: PollIntervalUnit, value: number): number {
+  const intervalValue = Math.max(1, Number.isFinite(value) ? value : 1);
+  if (unit === "second") {
+    return Math.max(3, intervalValue) * 1000;
+  }
+  return intervalValue * dashboardPollingUnitMs(unit);
+}
+
+function dashboardPollingUnitMs(unit: PollIntervalUnit): number {
+  switch (unit) {
+    case "second":
+      return 1000;
+    case "hour":
+      return 60 * 60 * 1000;
+    case "day":
+      return 24 * 60 * 60 * 1000;
+    case "week":
+      return 7 * 24 * 60 * 60 * 1000;
+    case "month":
+      return 30 * 24 * 60 * 60 * 1000;
+    case "minute":
+    default:
+      return 60 * 1000;
+  }
 }
 
 function checkIcon(): string {

@@ -268,7 +268,8 @@ Deno.test("simulate match saves one randomized pending match", async () => {
   };
   assertEquals(record.post.url, "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/");
   assertEquals(record.post.title.startsWith("模拟命中帖（测试 "), true);
-  assertEquals(record.post.excerpt, "模拟命中帖");
+  assertEquals(record.post.excerpt.startsWith("模拟命中帖，随机样本 "), true);
+  assertEquals(record.post.excerpt.endsWith("这是一条用于验证命中记录的测试内容。"), true);
   assertEquals(record.keyword.startsWith("测试关键词 "), true);
 });
 

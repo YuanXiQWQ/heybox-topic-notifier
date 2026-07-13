@@ -452,7 +452,7 @@ export function createRandomTestMatchRecord(
   const publishedAt = new Date(now - randomInt(1, 360) * 60_000).toISOString();
   const uniqueId = `${now}:${number}:${seed}:${location}`;
   const excerpt = variant === "simulation"
-    ? messages.notificationSimulatedPostContent
+    ? templateText(messages.notificationSimulatedPostContent, { seed })
     : templateText(messages.notificationTestPostContent, {
       index: String(number),
       seed,

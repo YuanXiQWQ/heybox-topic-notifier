@@ -80,7 +80,7 @@ Deno.test("renderMatchRecordsSection opens post title links in a new tab", () =>
 
   assertIncludes(
     html,
-    `<a class="pending-title-link" href="https://example.com/title-link" target="_blank" rel="noopener noreferrer">title-link</a>`,
+    `<a class="match-table-title-link pending-title-link" href="https://example.com/title-link" target="_blank" rel="noopener noreferrer">title-link</a>`,
   );
 });
 
@@ -92,7 +92,7 @@ Deno.test("renderHistory keeps history post titles emphasized", () => {
 
   assertIncludes(
     html,
-    `<a class="pending-title-link" href="https://example.com/history-link" target="_blank" rel="noopener noreferrer">history-link</a>`,
+    `<a class="match-table-title-link pending-title-link" href="https://example.com/history-link" target="_blank" rel="noopener noreferrer">history-link</a>`,
   );
 });
 

@@ -18,6 +18,7 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
       const enabledTopics = settings.topics.filter((topic) => topic.enabled && topic.id.trim());
       const matchedRecords: MatchRecord[] = [];
       const matchedPostIds = new Set<string>();
+      const matchedAt = new Date().toISOString();
 
       for (const topic of enabledTopics) {
         const posts = await source.listLatestPosts(topic.id, {
@@ -34,7 +35,6 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
             continue;
           }
 
-          const matchedAt = new Date().toISOString();
           const record: MatchRecord = {
             id: `${topic.id}:${post.id}:${match.keyword}:${match.location}`,
             keyword: match.keyword,
