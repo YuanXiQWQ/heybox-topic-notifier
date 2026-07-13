@@ -84,6 +84,35 @@ Deno.test("renderMatchRecordsSection opens post title links in a new tab", () =>
   );
 });
 
+Deno.test("renderMatchRecordsSection marks timestamps for live relative updates", () => {
+  const match = record("relative-time", "2026-06-30T12:05:00.000Z");
+  match.post.publishedAt = "2026-06-30T12:00:00.000Z";
+  const html = renderMatchRecordsSection({
+    action: {
+      bulkButtonAttribute: "data-test-bulk",
+      emptySelectionMessage: "empty",
+      icon: "",
+      label: "complete",
+      rowCheckboxAttribute: "data-test-row",
+      selectAllAttribute: "data-test-all",
+    },
+    emptyMessage: "empty",
+    filterToggleId: "test-filter",
+    formAction: "/matches/complete",
+    heading: "heading",
+    headingId: "heading-id",
+    locale: "zh-CN",
+    messages: getMessages("zh-CN"),
+    path: "/",
+    table: table([match]),
+    titleLinkClass: "pending-title-link",
+  });
+
+  assertIncludes(html, `data-relative-time="2026-06-30T12:00:00.000Z"`);
+  assertIncludes(html, `data-relative-time="2026-06-30T12:05:00.000Z"`);
+  assertIncludes(html, `window.__matchTableRelativeTimeUpdate`);
+});
+
 Deno.test("renderHistory keeps history post titles emphasized", () => {
   const html = renderHistory({
     historyTable: table([record("history-link", "2026-06-30T12:00:00.000Z")]),

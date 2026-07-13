@@ -15,16 +15,26 @@ import {
 
 const keys = {
   match: (id: string) => ["matches", id] as const,
-  seen: (postId: string) => ["seen", postId] as const,
   settings: ["settings"] as const,
   state: ["state"] as const,
 };
 
-export function createKvStorage(defaultSettings: AppSettings) {
-  let kvPromise: Promise<Deno.Kv> | undefined;
+type KvStore = {
+  delete(key: Deno.KvKey): Promise<void>;
+  get<T>(key: Deno.KvKey): Promise<{ value: T | null }>;
+  list<T>(selector: { prefix: Deno.KvKey }): AsyncIterable<{ value: T }>;
+  set(key: Deno.KvKey, value: unknown): Promise<unknown>;
+};
 
-  async function kv(): Promise<Deno.Kv> {
-    kvPromise ??= Deno.openKv();
+type KvStorageOptions = {
+  openKv?: () => Promise<KvStore>;
+};
+
+export function createKvStorage(defaultSettings: AppSettings, options: KvStorageOptions = {}) {
+  let kvPromise: Promise<KvStore> | undefined;
+
+  async function kv(): Promise<KvStore> {
+    kvPromise ??= options.openKv?.() ?? Deno.openKv();
     return await kvPromise;
   }
 
@@ -74,20 +84,9 @@ export function createKvStorage(defaultSettings: AppSettings) {
         );
     },
 
-    async hasSeenPost(postId: string): Promise<boolean> {
-      const store = await kv();
-      const entry = await store.get<boolean>(keys.seen(postId));
-      return entry.value === true;
-    },
-
     async saveMatch(record: MatchRecord): Promise<void> {
       const store = await kv();
       await store.set(keys.match(record.id), record);
-    },
-
-    async markPostSeen(postId: string): Promise<void> {
-      const store = await kv();
-      await store.set(keys.seen(postId), true);
     },
 
     async markMatchNotified(id: string, notifiedAt: string): Promise<void> {

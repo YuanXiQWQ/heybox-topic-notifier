@@ -6,5 +6,6 @@ export type TopicListOptions = {
 };
 
 export type TopicSource = {
+  getPostDetails?(post: TopicPost): Promise<TopicPost>;
   listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]>;
 };
