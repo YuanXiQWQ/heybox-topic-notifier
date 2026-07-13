@@ -87,6 +87,10 @@ a:hover {
   font-weight: 700;
 }
 
+.brand:hover {
+  text-decoration: none;
+}
+
 .primary-nav {
   align-items: stretch;
   align-self: stretch;
