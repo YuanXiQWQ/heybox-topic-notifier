@@ -26,6 +26,8 @@
   "filterWeek": "一周",
   "globalSettings": "全局设置",
   "historyTitle": "命中历史",
+  "keywordCaseSensitive": "区分大小写",
+  "keywordRegex": "正则表达式",
   "keywords": "关键词",
   "lastPoll": "上次检查",
   "latestMatch": "最近命中",

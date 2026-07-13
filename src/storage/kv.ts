@@ -284,11 +284,11 @@ function normalizeKeywordRules(
   defaultKeywordRules: KeywordRule[],
 ): KeywordRule[] {
   if (value.commonKeywordRules) {
-    return value.commonKeywordRules;
+    return normalizeKeywordRuleList(value.commonKeywordRules);
   }
 
   if (value.keywordRules) {
-    return value.keywordRules;
+    return normalizeKeywordRuleList(value.keywordRules);
   }
 
   if (value.keywords) {
@@ -306,7 +306,10 @@ function normalizeTopics(
   defaultTopics: TopicRule[],
 ): TopicRule[] {
   if (value.topics && value.topics.length > 0) {
-    return value.topics;
+    return value.topics.map((topic) => ({
+      ...topic,
+      keywordRules: normalizeKeywordRuleList(topic.keywordRules),
+    }));
   }
 
   if (value.topicId) {
@@ -321,4 +324,13 @@ function normalizeTopics(
   }
 
   return defaultTopics;
+}
+
+function normalizeKeywordRuleList(rules: KeywordRule[]): KeywordRule[] {
+  return rules.map((rule) => ({
+    caseSensitive: rule.caseSensitive === true,
+    keyword: rule.keyword,
+    locations: rule.locations,
+    useRegex: rule.useRegex === true,
+  }));
 }

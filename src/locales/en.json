@@ -26,6 +26,8 @@
   "filterWeek": "One week",
   "globalSettings": "Global settings",
   "historyTitle": "Match history",
+  "keywordCaseSensitive": "Case sensitive",
+  "keywordRegex": "Regular expression",
   "keywords": "Keywords",
   "lastPoll": "Last poll",
   "latestMatch": "Latest match",

@@ -27,6 +27,8 @@ export type Messages = {
   filterTo: string;
   filterWeek: string;
   historyTitle: string;
+  keywordCaseSensitive: string;
+  keywordRegex: string;
   keywords: string;
   lastPoll: string;
   latestMatch: string;

@@ -291,8 +291,10 @@ function keywordRulesFromForm(
     const locations = matchLocations.filter((location) =>
       form[`keyword_${index}_location_${location}`] === "on"
     );
+    const caseSensitive = form[`keyword_${index}_caseSensitive`] === "on";
+    const useRegex = form[`keyword_${index}_useRegex`] === "on";
 
-    return { keyword, locations };
+    return { caseSensitive, keyword, locations, useRegex };
   }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
 }
 
@@ -339,8 +341,10 @@ function keywordRulesFromJson(
       const locations = Array.isArray(rule?.locations)
         ? rule.locations.filter(isMatchLocation)
         : [];
+      const caseSensitive = rule?.caseSensitive === true;
+      const useRegex = rule?.useRegex === true;
 
-      return { keyword, locations };
+      return { caseSensitive, keyword, locations, useRegex };
     }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
   } catch {
     return undefined;

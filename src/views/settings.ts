@@ -564,13 +564,13 @@ function renderKeywordSection(settings: AppSettings): string {
             ${renderKeywordRuleHeader(messages)}
             ${
     (rows.length > 0 ? rows : [{ keyword: "", locations: [] as MatchLocation[] }])
-      .map((rule, index) => renderKeywordRuleRow(rule, index)).join("")
+      .map((rule, index) => renderKeywordRuleRow(rule, index, messages)).join("")
   }
           </div>
         </div>
       </dd>
       <template data-keyword-row-template>
-        ${renderKeywordRuleRow({ keyword: "", locations: [] }, "__index__")}
+        ${renderKeywordRuleRow({ keyword: "", locations: [] }, "__index__", messages)}
       </template>
     </div>
   `;
@@ -722,16 +722,57 @@ function renderKeywordLocationHeader(label: string, location: MatchLocation): st
 }
 
 function renderKeywordRuleRow(
-  rule: { keyword: string; locations: MatchLocation[] },
+  rule: {
+    caseSensitive?: boolean;
+    keyword: string;
+    locations: MatchLocation[];
+    useRegex?: boolean;
+  },
   index: number | "__index__",
+  messages: ReturnType<typeof getMessages>,
 ): string {
+  const caseSensitiveLabel = escapeHtml(messages.keywordCaseSensitive);
+  const regexLabel = escapeHtml(messages.keywordRegex);
+
   return `
     <div class="keyword-rule-row keyword-rule-item" role="row" data-keyword-row>
       <label class="checkbox-cell" role="cell">
         <input type="checkbox" data-role="select-keyword-row">
       </label>
       <div role="cell">
-        <input name="keyword_${index}" value="${escapeHtml(rule.keyword)}">
+        <div class="keyword-input-shell">
+          <input name="keyword_${index}" value="${escapeHtml(rule.keyword)}">
+          <input
+            type="hidden"
+            name="keyword_${index}_caseSensitive"
+            value="${rule.caseSensitive ? "on" : ""}"
+            data-keyword-option="caseSensitive"
+          >
+          <input
+            type="hidden"
+            name="keyword_${index}_useRegex"
+            value="${rule.useRegex ? "on" : ""}"
+            data-keyword-option="useRegex"
+          >
+          <button
+            type="button"
+            class="keyword-option-button"
+            data-action="toggle-keyword-option"
+            data-option="caseSensitive"
+            aria-label="${caseSensitiveLabel}"
+            aria-pressed="${rule.caseSensitive ? "true" : "false"}"
+            data-tooltip="${caseSensitiveLabel}"
+          >Cc</button>
+          <button
+            type="button"
+            class="keyword-option-button"
+            data-action="toggle-keyword-option"
+            data-option="useRegex"
+            aria-label="${regexLabel}"
+            aria-pressed="${rule.useRegex ? "true" : "false"}"
+            data-tooltip="${regexLabel}"
+          >.*</button>
+        </div>
       </div>
       ${
     matchLocations.map((location) => `

@@ -7,8 +7,10 @@ import type {
 export type MatchLocation = "title" | "body" | "comments" | "replies";
 
 export type KeywordRule = {
+  caseSensitive?: boolean;
   keyword: string;
   locations: MatchLocation[];
+  useRegex?: boolean;
 };
 
 export type TopicRule = {
