@@ -315,7 +315,7 @@ Deno.test("simulate match preserves dashboard table query", async () => {
   assertEquals(response.headers.get("location"), "/?range=week&page=3&pageSize=50");
 });
 
-Deno.test("run now preserves dashboard table query", async () => {
+Deno.test("run now preserves dashboard table query and requests reset animation", async () => {
   const app = createRoutes({
     poller: {
       runOnce: () => Promise.resolve(),
@@ -323,6 +323,7 @@ Deno.test("run now preserves dashboard table query", async () => {
   } as unknown as AppContext);
   const form = new URLSearchParams();
   form.set("returnTo", "/?range=day&page=2&pageSize=100");
+  form.set("pollResetStart", "42.5");
 
   const response = await app.request("/run-now", {
     body: form,
@@ -330,7 +331,10 @@ Deno.test("run now preserves dashboard table query", async () => {
   });
 
   assertEquals(response.status, 302);
-  assertEquals(response.headers.get("location"), "/?range=day&page=2&pageSize=100");
+  assertEquals(
+    response.headers.get("location"),
+    "/?range=day&page=2&pageSize=100&pollReset=1&pollResetStart=42.5",
+  );
 });
 
 Deno.test("complete matches handles all selected ids and ignores empty submissions", async () => {

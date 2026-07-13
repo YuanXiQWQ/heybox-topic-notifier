@@ -29,6 +29,8 @@ import {
 } from "./services/notifier.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
+const pollResetParam = "pollReset";
+const pollResetStartParam = "pollResetStart";
 
 export function createRoutes(context: AppContext): Hono {
   const app = new Hono();
@@ -50,8 +52,9 @@ export function createRoutes(context: AppContext): Hono {
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
     return c.html(renderDashboard({
+      initialNextPollProgress: initialNextPollProgress(url.searchParams),
       pendingTable,
-      returnTo: `${url.pathname}${url.search}`,
+      returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
       settings,
       state,
     }));
@@ -115,7 +118,9 @@ export function createRoutes(context: AppContext): Hono {
     const form = await formDataOrEmpty(c.req.raw);
     try {
       await context.poller.runOnce();
-      return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
+      return c.redirect(
+        withPollResetFlag(safeRedirectPath(form.get("returnTo"), "/"), form.get("pollResetStart")),
+      );
     } catch (error) {
       return notificationErrorResponse(error);
     }
@@ -214,6 +219,41 @@ function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/hi
   } catch {
     return fallback;
   }
+}
+
+function withPollResetFlag(path: string, startWidth: FormDataEntryValue | null): string {
+  const url = new URL(path, "http://local");
+  url.searchParams.set(pollResetParam, "1");
+  const normalizedStartWidth = normalizePollResetStart(startWidth);
+  if (normalizedStartWidth) {
+    url.searchParams.set(pollResetStartParam, normalizedStartWidth);
+  }
+  return `${url.pathname}${url.search}`;
+}
+
+function withoutPollResetFlag(path: string): string {
+  const url = new URL(path, "http://local");
+  url.searchParams.delete(pollResetParam);
+  url.searchParams.delete(pollResetStartParam);
+  return `${url.pathname}${url.search}`;
+}
+
+function initialNextPollProgress(params: URLSearchParams): string | undefined {
+  if (params.get(pollResetParam) !== "1") {
+    return undefined;
+  }
+  return normalizePollResetStart(params.get(pollResetStartParam)) ?? "0";
+}
+
+function normalizePollResetStart(value: FormDataEntryValue | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  return String(Math.max(0, Math.min(100, parsed)));
 }
 
 async function formDataOrEmpty(request: Request): Promise<FormData> {

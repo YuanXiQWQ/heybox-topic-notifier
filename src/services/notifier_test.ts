@@ -248,6 +248,37 @@ Deno.test("disabled provider does not send a request", async () => {
   assertEquals(calls, 0);
 });
 
+Deno.test("webhook provider reports slow delivery as a timeout", async () => {
+  const notifier = createNotifier({
+    deliveryTimeoutMs: 1,
+    fetch: (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("aborted", "AbortError")),
+          { once: true },
+        );
+      }),
+  });
+
+  await assertRejects(
+    () => notifier.sendTest(settings),
+    "Webhook notification timed out after 1 ms.",
+  );
+});
+
+Deno.test("email provider reports slow SMTP delivery as a timeout", async () => {
+  const notifier = createNotifier({
+    deliveryTimeoutMs: 1,
+    emailSender: () => new Promise<void>(() => {}),
+  });
+
+  await assertRejects(
+    () => notifier.sendTest({ ...settings, notificationProvider: "email" }),
+    "Email notification timed out after 1 ms.",
+  );
+});
+
 Deno.test("server chan webhook receives title and desp fields", async () => {
   const requests: Request[] = [];
   const notifier = createNotifier({
@@ -366,7 +397,7 @@ Deno.test("pushplus service posts to the send API", async () => {
     notificationWebhookUrl: "",
   });
 
-  assertEquals(requests[0].url, "https://www.pushplus.plus/send/");
+  assertEquals(requests[0].url, "https://www.pushplus.plus/send");
   const body = await requests[0].json();
   assertEquals(body.token, "pushplus-token");
   assertEquals(body.template, "markdown");

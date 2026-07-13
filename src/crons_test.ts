@@ -1,4 +1,4 @@
-import { pollingIntervalMs, shouldPoll } from "./crons.ts";
+import { pollingIntervalMs, shouldPoll, shouldPollFromLastStart } from "./crons.ts";
 
 const fiveMinutes = { intervalUnit: "minute" as const, intervalValue: 5 };
 const threeSeconds = { intervalUnit: "second" as const, intervalValue: 3 };
@@ -27,6 +27,30 @@ Deno.test("pollingIntervalMs clamps second intervals to at least three seconds",
 
 Deno.test("shouldPoll runs when previous poll time is invalid", () => {
   assertEquals(shouldPoll("not-a-date", fiveMinutes, new Date("2026-06-30T12:00:00.000Z")), true);
+});
+
+Deno.test("shouldPollFromLastStart waits from a newer manual poll completion", () => {
+  const schedulerStart = new Date("2026-06-30T12:00:00.000Z").getTime();
+  const manualPollCompletedAt = "2026-06-30T12:04:00.000Z";
+
+  assertEquals(
+    shouldPollFromLastStart(
+      schedulerStart,
+      manualPollCompletedAt,
+      fiveMinutes,
+      new Date("2026-06-30T12:05:00.000Z"),
+    ),
+    false,
+  );
+  assertEquals(
+    shouldPollFromLastStart(
+      schedulerStart,
+      manualPollCompletedAt,
+      fiveMinutes,
+      new Date("2026-06-30T12:09:00.000Z"),
+    ),
+    true,
+  );
 });
 
 function assertEquals(actual: unknown, expected: unknown): void {

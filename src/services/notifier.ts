@@ -44,6 +44,7 @@ export type NotifyResult = {
 };
 
 export type NotifierOptions = {
+  deliveryTimeoutMs?: number;
   emailSender?: EmailSender;
   fetch?: typeof fetch;
   webhookUrl?: string;
@@ -67,11 +68,12 @@ type SmtpConfig = {
 
 type EmailSender = (message: EmailMessage, config: SmtpConfig) => Promise<void>;
 
-const pushPlusSendUrl = "https://www.pushplus.plus/send/";
+const pushPlusSendUrl = "https://www.pushplus.plus/send";
 const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
 const notificationContentLimit = 3600;
 const notificationContentPreviewLength = 60;
 const notificationTitlePreviewLength = 80;
+const notificationDeliveryTimeoutMs = 10_000;
 const testNotificationOverflowGuard = 300;
 const testNotificationUrl = "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/";
 const testMatchLocations: MatchRecord["location"][] = ["title", "body", "comments", "replies"];
@@ -83,6 +85,7 @@ export class NotificationConfigError extends Error {}
 export class NotificationDeliveryError extends Error {}
 
 export function createNotifier(options: NotifierOptions = {}) {
+  const deliveryTimeoutMs = normalizeDeliveryTimeoutMs(options.deliveryTimeoutMs);
   const emailSender = options.emailSender ?? sendSmtpEmail;
   const fetcher = options.fetch ?? fetch;
   const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
@@ -199,7 +202,7 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
-    const response = await fetcher(targetWebhookUrl, {
+    const response = await fetchWithDeliveryTimeout(fetcher, targetWebhookUrl, {
       body: JSON.stringify(bodyForWebhook({
         payload: options.payload,
         pushPlusToken: options.pushPlusToken,
@@ -211,6 +214,9 @@ export function createNotifier(options: NotifierOptions = {}) {
         "content-type": "application/json; charset=utf-8",
       },
       method: "POST",
+    }, {
+      label: "Webhook notification",
+      timeoutMs: deliveryTimeoutMs,
     });
 
     const responseBody = await response.text().catch(() => "");
@@ -262,9 +268,15 @@ export function createNotifier(options: NotifierOptions = {}) {
       return;
     }
 
-    await emailSender({
-      ...message,
-    }, smtpConfigForEmailService(options));
+    await withDeliveryTimeout(
+      emailSender({
+        ...message,
+      }, smtpConfigForEmailService(options)),
+      {
+        label: "Email notification",
+        timeoutMs: deliveryTimeoutMs,
+      },
+    );
   }
 
   async function sendEmailApiNotification(
@@ -284,10 +296,13 @@ export function createNotifier(options: NotifierOptions = {}) {
       headers.authorization = `Bearer ${apiToken.trim()}`;
     }
 
-    const response = await fetcher(url, {
+    const response = await fetchWithDeliveryTimeout(fetcher, url, {
       body: JSON.stringify(message),
       headers,
       method: "POST",
+    }, {
+      label: "Email API notification",
+      timeoutMs: deliveryTimeoutMs,
     });
     const responseBody = await response.text().catch(() => "");
     if (!response.ok) {
@@ -297,6 +312,70 @@ export function createNotifier(options: NotifierOptions = {}) {
         }`,
       );
     }
+  }
+}
+
+function normalizeDeliveryTimeoutMs(value: number | undefined): number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : notificationDeliveryTimeoutMs;
+}
+
+async function fetchWithDeliveryTimeout(
+  fetcher: typeof fetch,
+  input: string | URL | Request,
+  init: RequestInit,
+  options: { label: string; timeoutMs: number },
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, options.timeoutMs);
+
+  try {
+    return await fetcher(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new NotificationDeliveryError(
+        `${options.label} timed out after ${options.timeoutMs} ms.`,
+      );
+    }
+
+    throw new NotificationDeliveryError(
+      `${options.label} failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function withDeliveryTimeout<T>(
+  operation: Promise<T>,
+  options: { label: string; timeoutMs: number },
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(
+        new NotificationDeliveryError(
+          `${options.label} timed out after ${options.timeoutMs} ms.`,
+        ),
+      );
+    }, options.timeoutMs);
+  });
+
+  try {
+    return await Promise.race([operation, timeout]);
+  } catch (error) {
+    if (error instanceof NotificationDeliveryError) {
+      throw error;
+    }
+
+    throw new NotificationDeliveryError(
+      `${options.label} failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
