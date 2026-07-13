@@ -25,6 +25,7 @@
   color: var(--ink);
   color-scheme: light;
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  overflow-y: scroll;
   --rule-action-column: 54px;
   --rule-select-column: 96px;
   --settings-action-width: 120px;
@@ -86,9 +87,35 @@ a:hover {
   font-weight: 700;
 }
 
-nav {
-  display: flex;
-  gap: 16px;
+.primary-nav {
+  align-items: stretch;
+  align-self: stretch;
+  display: inline-flex;
+}
+
+.primary-nav a {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 100%;
+  min-width: 0;
+  padding: 0 16px;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+  white-space: nowrap;
+}
+
+.primary-nav a + a {
+  border-left: 1px solid var(--border);
+}
+
+.primary-nav a:hover,
+.primary-nav a:focus-visible {
+  background: var(--theme-soft);
+  text-decoration: none;
 }
 
 .shell {
@@ -1166,8 +1193,13 @@ tr:last-child td {
     padding: 16px 20px;
   }
 
-  nav {
-    flex-wrap: wrap;
+  .primary-nav {
+    align-self: stretch;
+  }
+
+  .primary-nav a {
+    flex: 1 1 0;
+    padding-inline: 10px;
   }
 
   .metrics {

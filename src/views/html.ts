@@ -35,7 +35,7 @@ export function renderLayout(options: {
   <body>
     <header class="topbar">
       <a class="brand" href="/">${escapeHtml(messages.appName)}</a>
-      <nav aria-label="Primary">
+      <nav class="primary-nav" aria-label="Primary">
         <a href="/">${escapeHtml(messages.navDashboard)}</a>
         <a href="/settings">${escapeHtml(messages.navSettings)}</a>
         <a href="/history">${escapeHtml(messages.navHistory)}</a>
