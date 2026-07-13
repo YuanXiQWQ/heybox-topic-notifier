@@ -7,25 +7,30 @@
 
 ---
 
-[小黑盒话题提醒](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
-是一个用于监控小黑盒话题帖子的轻量级 Deno
-应用。它会按关键词检查帖子标题、正文、评论和回复，并记录命中结果，供后续通知流程使用。
+[小黑盒话题提醒](https://heybox-topic-notifier.yuanxiqwq.deno.net/)（[dev](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)）
+是一个用于监控小黑盒话题帖子的轻量级 Deno 应用。它会定时读取真实话题帖子，
+按关键词规则检查标题、正文、评论和回复，并把命中结果记录到待处理列表与历史记录中。
 
 ## 项目状态
 
-项目仍处于 MVP 阶段。当前主线是：
+项目仍处于 MVP 阶段，但已经从早期占位数据切换到真实话题源。当前已具备：
 
 - 使用 Deno + Hono 提供管理后台
-- 直连小黑盒 App 发布时间接口获取真实帖子
-- 后续继续完善网页体验、通知通道和部署配置
+- 读取真实话题帖子，并支持按发布时间、智能排序或回复时间轮询
+- 配置多个话题、公共关键词规则和单话题关键词规则
+- 记录待处理命中、历史命中和轮询状态
+- 通过 Webhook、Server酱、PushPlus、WxPusher、邮件 API 或 SMTP 发送通知
+
+后续重点是部署配置、通知内容体验和更多稳定性验证。
 
 ## 功能
 
-- 仪表盘：查看轮询状态、累计命中数和最近一次命中
-- 设置页：配置话题 ID、关键词、匹配位置、界面语言和通知方式
-- 历史页：查看已命中的帖子记录
-- 手动检查：本地调试时主动触发一次匹配流程
-- 通知测试：为通知通道保留测试入口
+- 仪表盘：查看轮询状态、累计命中数、最近一次命中和待处理命中
+- 设置页：配置话题 ID、话题备注、轮询间隔、排序方式、界面语言和主题色
+- 关键词规则：支持公共规则、单话题规则、匹配位置、大小写匹配和正则匹配
+- 历史页：查看已命中的帖子记录，并支持批量完成或删除记录
+- 调试入口：手动检查、模拟命中和通知测试
+- 通知通道：支持自定义 Webhook、Server酱、PushPlus、WxPusher、邮件 API 和 SMTP
 
 ## 技术栈
 
@@ -57,41 +62,15 @@ http://localhost:8000
 deno task dev
 deno task start
 deno task check
+deno task clear-seen
 ```
 
-## 环境变量
+`clear-seen` 会清空已处理帖子标记，用于重新验证同一批帖子；生产环境中请谨慎运行。
 
-| 变量                            | 默认值        | 说明                                                                   |
-| :------------------------------ | :------------ | :--------------------------------------------------------------------- |
-| `APP_LOCALE`                    | `zh-CN`       | 默认界面语言                                                           |
-| `HEYBOX_TOPIC_ID`               | `12099`       | 默认监控的话题 ID                                                      |
-| `HEYBOX_DEVICE_ID`              | 空            | 小黑盒 App API 设备标识，留空则启动时生成                              |
-| `HEYBOX_COOKIE`                 | 空            | 预留小黑盒 Cookie，公开话题发布时间列表通常不需要                      |
-| `HEYBOX_USER_AGENT`             | 空            | 覆盖小黑盒请求 User-Agent                                              |
-| `HEYBOX_SIGNATURE_MODE`         | `app`         | 小黑盒签名模式，`app` 为已验证的发布时间接口模式，`web` 仅保留诊断用途 |
-| `HEYBOX_POST_LIMIT`             | `20`          | 每次轮询读取的帖子数量                                                 |
-| `HEYBOX_SORT_FILTER`            | 空            | 兼容旧配置；`create` 等价于发布时间，`hot-rank` 等价于智能排序         |
-| `POLL_ENABLED`                  | `false`       | 是否启用定时轮询                                                       |
-| `POLL_INTERVAL_MINUTES`         | `1`           | 定时轮询间隔                                                           |
-| `POLL_POST_LIMIT`               | `20`          | 每次轮询读取的帖子数量                                                 |
-| `POLL_SORT`                     | `publishTime` | 轮询排序方式，支持 `publishTime`、`smart`、`replyTime`                 |
-| `NOTIFIER_PROVIDER`             | `webhook`     | 通知方式，支持 `webhook`、`email`、`disabled`                          |
-| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook 服务，支持 `custom`、`serverChan`、`pushPlus`、`wxPusher`      |
-| `NOTIFIER_WEBHOOK_URL`          | 空            | 自定义 Webhook 地址，仅 `NOTIFIER_WEBHOOK_SERVICE=custom` 时需要       |
-| `NOTIFIER_SERVER_CHAN_SEND_KEY` | 空            | Server酱 SendKey，仅 `NOTIFIER_WEBHOOK_SERVICE=serverChan` 时需要      |
-| `NOTIFIER_PUSHPLUS_TOKEN`       | 空            | PushPlus token，仅 `NOTIFIER_WEBHOOK_SERVICE=pushPlus` 时需要          |
-| `NOTIFIER_WXPUSHER_SPT`         | 空            | WxPusher SPT，仅 `NOTIFIER_WEBHOOK_SERVICE=wxPusher` 时需要            |
-| `NOTIFIER_EMAIL_SERVICE`        | `smtp`        | 邮件发信方式，支持 `api`、`smtp`                                       |
-| `NOTIFIER_EMAIL_ADDRESS`        | 空            | 收件邮箱，仅 `NOTIFIER_PROVIDER=email` 时需要                          |
-| `NOTIFIER_EMAIL_API_URL`        | 空            | 邮件 API 地址，仅 `NOTIFIER_EMAIL_SERVICE=api` 时需要                  |
-| `NOTIFIER_EMAIL_API_TOKEN`      | 空            | 邮件 API Token，可选；会作为 Bearer Token 发送                         |
-| `NOTIFIER_EMAIL_FROM`           | 空            | 发件邮箱，留空时使用 `NOTIFIER_SMTP_USERNAME`                          |
-| `NOTIFIER_SMTP_HOST`            | 空            | SMTP 主机，仅 `NOTIFIER_PROVIDER=email` 时需要                         |
-| `NOTIFIER_SMTP_PORT`            | `465`         | SMTP 端口                                                              |
-| `NOTIFIER_SMTP_SECURE`          | `true`        | 是否使用直连 SSL/TLS                                                   |
-| `NOTIFIER_SMTP_USERNAME`        | 空            | SMTP 用户名                                                            |
-| `NOTIFIER_SMTP_PASSWORD`        | 空            | SMTP 密码或授权码                                                      |
-| `PORT`                          | `8000`        | 本地服务端口                                                           |
+## 部署
+
+Deno Deploy 配置见 [docs/deployment.md](docs/deployment.md)。仓库通过 `deno.json` 的 `deploy`
+配置指定入口；GitHub Actions 只负责运行检查，不负责部署应用。
 
 ## 许可证
 
@@ -108,26 +87,35 @@ deno task check
 
 ---
 
-[Heybox Topic Notifier](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/) is a lightweight
-Deno app for monitoring Heybox topic posts. It checks post titles, bodies, comments, and replies
-against keyword rules, then records matched results for the notification workflow.
+[Heybox Topic Notifier](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
+([dev](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)) is a lightweight Deno app for
+monitoring Heybox topic posts. It periodically reads real topic posts, checks titles, bodies,
+comments, and replies against keyword rules, then records matches in pending and history views.
 
 ## Status
 
-This project is still in the MVP stage. The current direction is:
+This project is still in the MVP stage, but it has moved from placeholder data to a real topic
+source. It currently provides:
 
 - Provide a management dashboard with Deno + Hono
-- Fetch real posts directly from the Heybox App publish-time topic API
-- Continue improving the web experience, notification channels, and deployment configuration
+- Read real topic posts and poll by publish time, smart sort, or reply time
+- Configure multiple topics, shared keyword rules, and topic-specific keyword rules
+- Record pending matches, historical matches, and polling state
+- Send notifications through Webhook, ServerChan, PushPlus, WxPusher, email API, or SMTP
+
+The next focus is deployment configuration, notification content quality, and more stability
+verification.
 
 ## Features
 
-- Dashboard: view poll status, total matches, and the latest match
-- Settings page: configure topic ID, keywords, match locations, UI language, and notification
-  provider
-- History page: review matched post records
-- Manual run: trigger one matching pass during local debugging
-- Notification test: keep a test entry point for notification channels
+- Dashboard: view poll status, total matches, the latest match, and pending matches
+- Settings page: configure topic IDs, notes, polling interval, sort mode, UI language, and theme
+  color
+- Keyword rules: support shared rules, topic-specific rules, match locations, case sensitivity, and
+  regular expressions
+- History page: review matched post records and batch-complete or delete records
+- Debug entries: manual run, simulated match, and notification test
+- Notification channels: custom Webhook, ServerChan, PushPlus, WxPusher, email API, and SMTP
 
 ## Stack
 
@@ -160,41 +148,16 @@ variables in your runtime environment.
 deno task dev
 deno task start
 deno task check
+deno task clear-seen
 ```
 
-## Environment Variables
+`clear-seen` clears processed-post markers so the same posts can be verified again; use it with care
+in production.
 
-| Variable                        | Default       | Description                                                                                      |
-| :------------------------------ | :------------ | :----------------------------------------------------------------------------------------------- |
-| `APP_LOCALE`                    | `zh-CN`       | Default UI language                                                                              |
-| `HEYBOX_TOPIC_ID`               | `12099`       | Default topic ID to monitor                                                                      |
-| `HEYBOX_DEVICE_ID`              | empty         | Heybox App API device ID, generated on startup when empty                                        |
-| `HEYBOX_COOKIE`                 | empty         | Reserved Heybox cookie, usually not needed for public publish-time feeds                         |
-| `HEYBOX_USER_AGENT`             | empty         | Overrides the Heybox request User-Agent                                                          |
-| `HEYBOX_SIGNATURE_MODE`         | `app`         | Heybox signing mode; `app` is verified for publish-time feeds, `web` is diagnostic fallback only |
-| `HEYBOX_POST_LIMIT`             | `20`          | Number of posts to read per poll                                                                 |
-| `HEYBOX_SORT_FILTER`            | empty         | Legacy-compatible sort setting; `create` maps to publish time, `hot-rank` maps to smart sort     |
-| `POLL_ENABLED`                  | `false`       | Enables scheduled polling                                                                        |
-| `POLL_INTERVAL_MINUTES`         | `1`           | Scheduled polling interval                                                                       |
-| `POLL_POST_LIMIT`               | `20`          | Number of posts to read per poll                                                                 |
-| `POLL_SORT`                     | `publishTime` | Polling sort, supports `publishTime`, `smart`, and `replyTime`                                   |
-| `NOTIFIER_PROVIDER`             | `webhook`     | Notification provider, supports `webhook`, `email`, and `disabled`                               |
-| `NOTIFIER_WEBHOOK_SERVICE`      | `custom`      | Webhook service, supports `custom`, `serverChan`, `pushPlus`, and `wxPusher`                     |
-| `NOTIFIER_WEBHOOK_URL`          | empty         | Custom webhook URL, required only when `NOTIFIER_WEBHOOK_SERVICE=custom`                         |
-| `NOTIFIER_SERVER_CHAN_SEND_KEY` | empty         | ServerChan SendKey, required only when `NOTIFIER_WEBHOOK_SERVICE=serverChan`                     |
-| `NOTIFIER_PUSHPLUS_TOKEN`       | empty         | PushPlus token, required only when `NOTIFIER_WEBHOOK_SERVICE=pushPlus`                           |
-| `NOTIFIER_WXPUSHER_SPT`         | empty         | WxPusher SPT, required only when `NOTIFIER_WEBHOOK_SERVICE=wxPusher`                             |
-| `NOTIFIER_EMAIL_SERVICE`        | `smtp`        | Email sending method, supports `api` and `smtp`                                                  |
-| `NOTIFIER_EMAIL_ADDRESS`        | empty         | Recipient email address, required only when `NOTIFIER_PROVIDER=email`                            |
-| `NOTIFIER_EMAIL_API_URL`        | empty         | Email API URL, required only when `NOTIFIER_EMAIL_SERVICE=api`                                   |
-| `NOTIFIER_EMAIL_API_TOKEN`      | empty         | Optional email API token, sent as a Bearer token                                                 |
-| `NOTIFIER_EMAIL_FROM`           | empty         | Sender email address; falls back to `NOTIFIER_SMTP_USERNAME`                                     |
-| `NOTIFIER_SMTP_HOST`            | empty         | SMTP host, required only when `NOTIFIER_PROVIDER=email`                                          |
-| `NOTIFIER_SMTP_PORT`            | `465`         | SMTP port                                                                                        |
-| `NOTIFIER_SMTP_SECURE`          | `true`        | Whether to use direct SSL/TLS                                                                    |
-| `NOTIFIER_SMTP_USERNAME`        | empty         | SMTP username                                                                                    |
-| `NOTIFIER_SMTP_PASSWORD`        | empty         | SMTP password or app authorization code                                                          |
-| `PORT`                          | `8000`        | Local server port                                                                                |
+## Deployment
+
+See [docs/deployment.md](docs/deployment.md) for Deno Deploy setup. The app entrypoint is defined by
+the `deploy` section in `deno.json`; GitHub Actions only runs checks and does not deploy the app.
 
 ## License
 
