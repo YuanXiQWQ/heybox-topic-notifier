@@ -7,6 +7,7 @@ let testNotifyStatusTimer;
 let lastSavedSignature = "";
 let reloadAfterSave = false;
 const notificationTransitionMs = 190;
+const dropdownStoragePrefix = "heybox-notifier.settings.dropdown.";
 
 function initSettingsEditors() {
   const topicEditor = document.querySelector("[data-topic-editor]");
@@ -280,21 +281,60 @@ function initPollingSettings() {
 }
 
 function initDropdown(editor, name) {
-  const panel = editor.querySelector(`[data-${name.slice(0, -1)}-panel]`);
-  const toggle = editor.querySelector(`[data-action="toggle-${name}"]`);
+  const panel = dropdownPanel(editor, name);
+  const toggle = dropdownToggle(editor, name);
   panel.hidden = false;
-  panel.setAttribute("aria-hidden", "true");
-  panel.inert = true;
+  setDropdownOpen(editor, name, storedDropdownOpen(name), { persist: false });
 
   toggle.addEventListener("click", () => {
     const className = `is-${name.slice(0, -1)}-open`;
     const isOpen = !editor.classList.contains(className);
-    editor.classList.toggle(className, isOpen);
-    panel.setAttribute("aria-hidden", String(!isOpen));
-    panel.inert = !isOpen;
-    toggle.setAttribute("aria-expanded", String(isOpen));
-    toggle.classList.toggle("is-open", isOpen);
+    setDropdownOpen(editor, name, isOpen, { persist: true });
   });
+}
+
+function setDropdownOpen(editor, name, isOpen, options = {}) {
+  const panel = dropdownPanel(editor, name);
+  const toggle = dropdownToggle(editor, name);
+  const className = `is-${name.slice(0, -1)}-open`;
+
+  editor.classList.toggle(className, isOpen);
+  panel.setAttribute("aria-hidden", String(!isOpen));
+  panel.inert = !isOpen;
+  toggle.setAttribute("aria-expanded", String(isOpen));
+  toggle.classList.toggle("is-open", isOpen);
+
+  if (options.persist) {
+    storeDropdownOpen(name, isOpen);
+  }
+}
+
+function dropdownPanel(editor, name) {
+  return editor.querySelector(`[data-${name.slice(0, -1)}-panel]`);
+}
+
+function dropdownToggle(editor, name) {
+  return editor.querySelector(`[data-action="toggle-${name}"]`);
+}
+
+function storedDropdownOpen(name) {
+  try {
+    return localStorage.getItem(dropdownStorageKey(name)) === "open";
+  } catch {
+    return false;
+  }
+}
+
+function storeDropdownOpen(name, isOpen) {
+  try {
+    localStorage.setItem(dropdownStorageKey(name), isOpen ? "open" : "closed");
+  } catch {
+    // Keep the dropdown usable when browser storage is unavailable.
+  }
+}
+
+function dropdownStorageKey(name) {
+  return `${dropdownStoragePrefix}${name}`;
 }
 
 function initTopicEditor(topicEditor, keywordEditor) {
@@ -999,13 +1039,7 @@ function fitKeywordSummary(summary) {
 }
 
 function openKeywordPanel(keywordEditor) {
-  const panel = keywordEditor.querySelector("[data-keyword-panel]");
-  const toggle = keywordEditor.querySelector("[data-action='toggle-keywords']");
-  keywordEditor.classList.add("is-keyword-open");
-  panel.setAttribute("aria-hidden", "false");
-  panel.inert = false;
-  toggle.setAttribute("aria-expanded", "true");
-  toggle.classList.add("is-open");
+  setDropdownOpen(keywordEditor, "keywords", true, { persist: true });
 }
 
 function findTopicRowById(topicEditor, id) {
