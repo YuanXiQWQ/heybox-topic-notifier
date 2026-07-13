@@ -37,16 +37,21 @@ export function registerCrons(context: AppContext): void {
   }, pollSchedulerTickMs);
 }
 
-function shouldPollFromLastStart(
+export function shouldPollFromLastStart(
   lastPollStartedAt: number | undefined,
   lastPollAt: string | undefined,
   polling: Pick<PollingSettings, "intervalUnit" | "intervalValue">,
+  now: Date = new Date(),
 ): boolean {
   if (lastPollStartedAt === undefined) {
-    return shouldPoll(lastPollAt, polling);
+    return shouldPoll(lastPollAt, polling, now);
   }
 
-  return Date.now() - lastPollStartedAt >= pollingIntervalMs(polling);
+  const lastPollTime = new Date(lastPollAt ?? "").getTime();
+  const lastPollBaseline = Number.isFinite(lastPollTime) ? lastPollTime : lastPollStartedAt;
+  const latestPollBaseline = Math.max(lastPollStartedAt, lastPollBaseline);
+
+  return now.getTime() - latestPollBaseline >= pollingIntervalMs(polling);
 }
 
 export function shouldPoll(
