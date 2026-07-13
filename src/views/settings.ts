@@ -92,7 +92,7 @@ export function renderSettings(options: {
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
     themeColor: options.settings.themeColor,
-    title: messages.settingsTitle,
+    title: messages.appName,
   });
 }
 

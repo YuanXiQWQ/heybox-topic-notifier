@@ -245,6 +245,71 @@ Deno.test("test notify ajax request returns a readable success message", async (
   assertEquals(await response.text(), "通知已发送");
 });
 
+Deno.test("simulate match saves one randomized pending match", async () => {
+  const saved: unknown[] = [];
+  const app = createRoutes({
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+      saveMatch: (record: unknown) => {
+        saved.push(record);
+        return Promise.resolve();
+      },
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/simulate-match", { method: "POST" });
+
+  assertEquals(response.status, 302);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(saved.length, 1);
+  const record = saved[0] as {
+    keyword: string;
+    post: { excerpt: string; title: string; url: string };
+  };
+  assertEquals(record.post.url, "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/");
+  assertEquals(record.post.title.startsWith("模拟命中帖（测试 "), true);
+  assertEquals(record.post.excerpt.startsWith("模拟命中帖，随机样本 "), true);
+  assertEquals(record.post.excerpt.endsWith("这是一条用于验证命中记录的测试内容。"), true);
+  assertEquals(record.keyword.startsWith("测试关键词 "), true);
+});
+
+Deno.test("simulate match preserves dashboard table query", async () => {
+  const app = createRoutes({
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+      saveMatch: () => Promise.resolve(),
+    },
+  } as unknown as AppContext);
+  const form = new URLSearchParams();
+  form.set("returnTo", "/?range=week&page=3&pageSize=50");
+
+  const response = await app.request("/simulate-match", {
+    body: form,
+    method: "POST",
+  });
+
+  assertEquals(response.status, 302);
+  assertEquals(response.headers.get("location"), "/?range=week&page=3&pageSize=50");
+});
+
+Deno.test("run now preserves dashboard table query", async () => {
+  const app = createRoutes({
+    poller: {
+      runOnce: () => Promise.resolve(),
+    },
+  } as unknown as AppContext);
+  const form = new URLSearchParams();
+  form.set("returnTo", "/?range=day&page=2&pageSize=100");
+
+  const response = await app.request("/run-now", {
+    body: form,
+    method: "POST",
+  });
+
+  assertEquals(response.status, 302);
+  assertEquals(response.headers.get("location"), "/?range=day&page=2&pageSize=100");
+});
+
 Deno.test("complete matches handles all selected ids and ignores empty submissions", async () => {
   const completed: string[][] = [];
   const app = createRoutes({

@@ -22,7 +22,11 @@ import {
   parseMatchTableQuery,
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
-import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
+import {
+  createRandomTestMatchRecord,
+  NotificationConfigError,
+  NotificationDeliveryError,
+} from "./services/notifier.ts";
 
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 
@@ -37,6 +41,7 @@ export function createRoutes(context: AppContext): Hono {
     }));
 
   app.get("/", async (c) => {
+    const url = new URL(c.req.url);
     const settings = await context.storage.getSettings();
     const state = await context.storage.getAppState();
     const pendingMatches = await context.storage.listPendingMatches();
@@ -44,7 +49,12 @@ export function createRoutes(context: AppContext): Hono {
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
-    return c.html(renderDashboard({ pendingTable, settings, state }));
+    return c.html(renderDashboard({
+      pendingTable,
+      returnTo: `${url.pathname}${url.search}`,
+      settings,
+      state,
+    }));
   });
 
   app.get("/dashboard-state", async (c) => {
@@ -67,6 +77,11 @@ export function createRoutes(context: AppContext): Hono {
         : null,
       pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale),
       pendingSignature: matchTableSignature(pendingTable),
+      polling: {
+        enabled: settings.polling.enabled,
+        intervalUnit: settings.polling.intervalUnit,
+        intervalValue: settings.polling.intervalValue,
+      },
       totalMatches: state.totalMatches,
     });
   });
@@ -97,12 +112,20 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/run-now", async (c) => {
+    const form = await formDataOrEmpty(c.req.raw);
     try {
       await context.poller.runOnce();
-      return c.redirect("/");
+      return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
     } catch (error) {
       return notificationErrorResponse(error);
     }
+  });
+
+  app.post("/simulate-match", async (c) => {
+    const form = await formDataOrEmpty(c.req.raw);
+    const settings = await context.storage.getSettings();
+    await context.storage.saveMatch(createRandomTestMatchRecord(settings, 1, "simulation"));
+    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
   });
 
   app.post("/test-notify", async (c) => {
@@ -190,6 +213,14 @@ function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/hi
     return `${url.pathname}${url.search}`;
   } catch {
     return fallback;
+  }
+}
+
+async function formDataOrEmpty(request: Request): Promise<FormData> {
+  try {
+    return await request.formData();
+  } catch {
+    return new FormData();
   }
 }
 

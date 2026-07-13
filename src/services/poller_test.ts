@@ -121,6 +121,7 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
     ["p1", "common-hit", "title"],
     ["p2", "topic-hit", "comments"],
   ]);
+  assertEquals(new Set(records.map((record) => record.matchedAt)).size, 1);
   assertEquals(sentMatches, 1);
   assertEquals(sentMatchCount, 2);
   assertEquals(seenPosts, ["p1", "p2"]);
