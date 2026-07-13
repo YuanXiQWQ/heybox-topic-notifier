@@ -63,10 +63,17 @@ Deno.test("health check returns deployment status without storage access", async
 Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => {
   const settings = settingsFromForm({
     activeKeywordTarget: "12099",
-    commonKeywordRulesJson: JSON.stringify([{ keyword: "new-common", locations: ["body"] }]),
+    commonKeywordRulesJson: JSON.stringify([{
+      caseSensitive: true,
+      keyword: "new-common",
+      locations: ["body"],
+      useRegex: true,
+    }]),
     darkMode: "on",
     keyword_0: "new-topic",
+    keyword_0_caseSensitive: "on",
     keyword_0_location_replies: "on",
+    keyword_0_useRegex: "",
     locale: "zh-CN",
     notificationEmailAddress: "new@example.com",
     notificationEmailApiToken: "new-api-token",
@@ -96,16 +103,25 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     topic_0_note: "蔚蓝",
     topic_1_enabled: "on",
     topic_1_id: "999",
-    topic_1_keywordRulesJson: JSON.stringify([{ keyword: "new-other", locations: ["comments"] }]),
+    topic_1_keywordRulesJson: JSON.stringify([{
+      keyword: "new-other",
+      locations: ["comments"],
+      useRegex: true,
+    }]),
     topic_1_note: "其它",
   }, currentSettings);
 
-  assertEquals(settings.commonKeywordRules, [{ keyword: "new-common", locations: ["body"] }]);
+  assertEquals(settings.commonKeywordRules, [{
+    caseSensitive: true,
+    keyword: "new-common",
+    locations: ["body"],
+    useRegex: true,
+  }]);
   assertEquals(settings.topics[0].keywordRules, [
-    { keyword: "new-topic", locations: ["replies"] },
+    { caseSensitive: true, keyword: "new-topic", locations: ["replies"], useRegex: false },
   ]);
   assertEquals(settings.topics[1].keywordRules, [
-    { keyword: "new-other", locations: ["comments"] },
+    { caseSensitive: false, keyword: "new-other", locations: ["comments"], useRegex: true },
   ]);
   assertEquals(settings.darkMode, true);
   assertEquals(settings.notificationEmailAddress, "new@example.com");
@@ -156,8 +172,10 @@ Deno.test("settingsFromForm saves visible common keywords and submitted topic ke
   const settings = settingsFromForm({
     activeKeywordTarget: "common",
     keyword_0: "visible-common",
+    keyword_0_caseSensitive: "",
     keyword_0_location_title: "on",
     keyword_0_location_body: "on",
+    keyword_0_useRegex: "on",
     locale: "zh-CN",
     notificationEmailAddress: "old@example.com",
     notificationProvider: "webhook",
@@ -176,10 +194,15 @@ Deno.test("settingsFromForm saves visible common keywords and submitted topic ke
   }, currentSettings);
 
   assertEquals(settings.commonKeywordRules, [
-    { keyword: "visible-common", locations: ["title", "body"] },
+    {
+      caseSensitive: false,
+      keyword: "visible-common",
+      locations: ["title", "body"],
+      useRegex: true,
+    },
   ]);
   assertEquals(settings.topics[0].keywordRules, [
-    { keyword: "submitted-topic", locations: ["title"] },
+    { caseSensitive: false, keyword: "submitted-topic", locations: ["title"], useRegex: false },
   ]);
 });
 

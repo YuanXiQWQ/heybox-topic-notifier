@@ -84,6 +84,66 @@ Deno.test("findMatch respects location checkboxes", () => {
   }
 });
 
+Deno.test("findMatch defaults to case-insensitive matching", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "HELP: controller input is stuck",
+  }, [{ keyword: "help", locations: ["title"] }]);
+
+  if (match?.keyword !== "help" || match.location !== "title") {
+    throw new Error(`Expected help/title, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch treats plain keywords as literal contiguous text", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "A.......B",
+  }, [{ keyword: "AB", locations: ["title"] }]);
+
+  if (match !== undefined) {
+    throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch respects case-sensitive keyword rules", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "HELP: controller input is stuck",
+  }, [{ caseSensitive: true, keyword: "help", locations: ["title"] }]);
+
+  if (match !== undefined) {
+    throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch supports regex keyword rules", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "Version 1.2.3 crashes after launch",
+  }, [{ keyword: String.raw`\d+\.\d+\.\d+`, locations: ["title"], useRegex: true }]);
+
+  if (match?.keyword !== String.raw`\d+\.\d+\.\d+` || match.location !== "title") {
+    throw new Error(`Expected regex/title, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch ignores invalid regex keyword rules", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "Version 1.2.3 crashes after launch",
+  }, [{ keyword: "[", locations: ["title"], useRegex: true }]);
+
+  if (match !== undefined) {
+    throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
+  }
+});
+
 Deno.test("findMatch can match comments independently", () => {
   const matcher = createMatcher();
   const match = matcher.findMatch({

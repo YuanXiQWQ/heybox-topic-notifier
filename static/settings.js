@@ -376,6 +376,12 @@ function initKeywordEditor(keywordEditor) {
       deleteKeywordRows(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
       scheduleAutoSave();
+      return;
+    }
+
+    if (button.dataset.action === "toggle-keyword-option") {
+      toggleKeywordOption(button);
+      scheduleAutoSave();
     }
   });
 
@@ -778,6 +784,8 @@ function keywordRowFromRule(keywordEditor, rule) {
   const fragment = template.content.cloneNode(true);
   const row = fragment.querySelector("[data-keyword-row]");
   row.querySelector("input[name^='keyword_']").value = rule.keyword ?? "";
+  setKeywordOption(row, "caseSensitive", rule.caseSensitive === true);
+  setKeywordOption(row, "useRegex", rule.useRegex === true);
   row.querySelectorAll("[name*='_location_']").forEach((input) => {
     const location = input.name.match(/_location_(.+)$/)?.[1];
     input.checked = Array.isArray(rule.locations) && rule.locations.includes(location);
@@ -807,11 +815,44 @@ function serializeKeywordRows(keywordEditor) {
           .filter((input) => input.checked)
           .map((input) => input.name.match(/_location_(.+)$/)?.[1])
           .filter(Boolean);
+        const caseSensitive = keywordOptionEnabled(row, "caseSensitive");
+        const useRegex = keywordOptionEnabled(row, "useRegex");
 
-        return { keyword, locations };
+        return { caseSensitive, keyword, locations, useRegex };
       })
       .filter((rule) => rule.keyword && rule.locations.length > 0),
   );
+}
+
+function toggleKeywordOption(button) {
+  const row = button.closest("[data-keyword-row]");
+  if (!row) {
+    return;
+  }
+
+  const option = button.dataset.option;
+  const isEnabled = button.getAttribute("aria-pressed") === "true";
+  setKeywordOption(row, option, !isEnabled);
+}
+
+function setKeywordOption(row, option, isEnabled) {
+  const input = row.querySelector(`[data-keyword-option="${option}"]`);
+  const button = row.querySelector(
+    `[data-action="toggle-keyword-option"][data-option="${option}"]`,
+  );
+
+  if (input instanceof HTMLInputElement) {
+    input.value = isEnabled ? "on" : "";
+  }
+
+  if (button instanceof HTMLButtonElement) {
+    button.setAttribute("aria-pressed", String(isEnabled));
+  }
+}
+
+function keywordOptionEnabled(row, option) {
+  const input = row.querySelector(`[data-keyword-option="${option}"]`);
+  return input instanceof HTMLInputElement && input.value === "on";
 }
 
 function insertKeywordRow(editor, actionButton) {
@@ -912,7 +953,9 @@ function updateActiveTopicSummary(topicEditor) {
 function updateKeywordSummary(keywordEditor) {
   const summary = keywordEditor.querySelector("[data-keyword-summary]");
   const keywords = Array.from(
-    keywordEditor.querySelectorAll("input[name^='keyword_']:not([name*='_location_'])"),
+    keywordEditor.querySelectorAll(
+      "input[name^='keyword_']:not([name*='_location_']):not([data-keyword-option])",
+    ),
   )
     .map((input) => input.value.trim())
     .filter(Boolean);

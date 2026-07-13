@@ -588,6 +588,11 @@ dt {
   padding: 0;
 }
 
+.settings-list:has(.keyword-option-button:hover),
+.settings-list:has(.keyword-option-button:focus-visible) {
+  overflow: visible;
+}
+
 .settings-list > div {
   align-items: center;
   border-bottom: 1px solid var(--border-soft);
@@ -761,12 +766,18 @@ dd {
   grid-template-rows: 1fr;
   margin: 14px -22px -18px;
   opacity: 1;
+  overflow: visible;
   transform: translateY(0);
 }
 
 .dropdown-panel-inner {
   min-height: 0;
   overflow: hidden;
+}
+
+.dropdown-settings-row.is-topic-open .dropdown-panel-inner,
+.dropdown-settings-row.is-keyword-open .dropdown-panel-inner {
+  overflow: visible;
 }
 
 .topic-rule-grid,
@@ -861,6 +872,85 @@ dd {
 .keyword-rule-head > div:nth-child(3) {
   justify-content: center;
   text-align: center;
+}
+
+.keyword-input-shell {
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
+  position: relative;
+  width: 100%;
+}
+
+.keyword-input-shell input:not([type="hidden"]) {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  padding-right: 66px;
+}
+
+.keyword-option-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  grid-row: 1;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0;
+  width: 28px;
+  z-index: 1;
+}
+
+.keyword-option-button[data-option="caseSensitive"] {
+  grid-column: 2;
+}
+
+.keyword-option-button[data-option="useRegex"] {
+  grid-column: 3;
+}
+
+.keyword-option-button:hover,
+.keyword-option-button[aria-pressed="true"] {
+  background: var(--theme-soft-strong);
+  color: var(--theme-strong);
+}
+
+.keyword-option-button[data-tooltip] {
+  position: relative;
+}
+
+.keyword-option-button[data-tooltip]::after {
+  background: var(--surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px var(--shadow-strong);
+  color: var(--ink);
+  content: attr(data-tooltip);
+  font-size: 13px;
+  font-weight: 500;
+  inset-inline-end: 0;
+  line-height: 1.35;
+  max-width: 180px;
+  opacity: 0;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  text-align: left;
+  top: calc(100% + 8px);
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.keyword-option-button[data-tooltip]:hover::after,
+.keyword-option-button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .checkbox-cell {

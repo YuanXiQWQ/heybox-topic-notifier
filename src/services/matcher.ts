@@ -16,9 +16,7 @@ export function createMatcher() {
         }
 
         for (const location of rule.locations) {
-          if (
-            locationText(post, location).toLocaleLowerCase().includes(keyword.toLocaleLowerCase())
-          ) {
+          if (matchesKeyword(locationText(post, location), keyword, rule)) {
             return { keyword, location };
           }
         }
@@ -27,6 +25,22 @@ export function createMatcher() {
       return undefined;
     },
   };
+}
+
+function matchesKeyword(text: string, keyword: string, rule: KeywordRule): boolean {
+  if (rule.useRegex) {
+    try {
+      return new RegExp(keyword, rule.caseSensitive ? "" : "i").test(text);
+    } catch {
+      return false;
+    }
+  }
+
+  if (rule.caseSensitive) {
+    return text.includes(keyword);
+  }
+
+  return text.toLocaleLowerCase().includes(keyword.toLocaleLowerCase());
 }
 
 function locationText(post: TopicPost, location: MatchLocation): string {
