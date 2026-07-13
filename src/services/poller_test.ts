@@ -134,6 +134,104 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
   }
 });
 
+Deno.test("poller refreshes existing matched post details without notifying again", async () => {
+  const oldPost = post("existing", {
+    publishedAt: "2026-07-13T01:20:00.000Z",
+    title: "common-hit",
+  });
+  const refreshedPost = post("existing", {
+    publishedAt: "2026-07-12T17:20:00.000Z",
+    title: "common-hit",
+  });
+  const existingRecord: MatchRecord = {
+    id: "12099:existing:common-hit:title",
+    keyword: "common-hit",
+    location: "title",
+    matchedAt: "2026-07-13T01:30:00.000Z",
+    notifiedAt: "2026-07-13T01:31:00.000Z",
+    post: oldPost,
+  };
+  const savedRecords: MatchRecord[] = [];
+  const detailedPostIds: string[] = [];
+  let sentMatches = 0;
+
+  const poller = createPoller({
+    matcher: createMatcher(),
+    notifier: {
+      sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendMatches: () => {
+        sentMatches += 1;
+        return Promise.resolve({ provider: "webhook", sent: true });
+      },
+      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+    } as ReturnType<typeof createNotifier>,
+    source: {
+      getPostDetails: (listedPost) => {
+        detailedPostIds.push(listedPost.id);
+        return Promise.resolve(refreshedPost);
+      },
+      listLatestPosts: () => Promise.resolve([oldPost]),
+    } as TopicSource,
+    storage: {
+      getSettings: () => Promise.resolve(settings),
+      listHistory: () => Promise.resolve([existingRecord]),
+      saveMatch: (record: MatchRecord) => {
+        savedRecords.push(record);
+        return Promise.resolve();
+      },
+      markMatchNotified: () => Promise.resolve(),
+      setLastPollAt: () => Promise.resolve(),
+    } as unknown as ReturnType<typeof createKvStorage>,
+  });
+
+  await poller.runOnce();
+
+  assertEquals(savedRecords, [{ ...existingRecord, post: refreshedPost }]);
+  assertEquals(detailedPostIds, ["existing"]);
+  assertEquals(sentMatches, 0);
+});
+
+Deno.test("poller saves detailed post time for new matches", async () => {
+  const listedPost = post("new-match", {
+    publishedAt: "2026-07-13T01:20:00.000Z",
+    title: "common-hit",
+  });
+  const detailedPost = post("new-match", {
+    publishedAt: "2026-07-12T17:20:00.000Z",
+    title: "common-hit",
+  });
+  const savedRecords: MatchRecord[] = [];
+
+  const poller = createPoller({
+    matcher: createMatcher(),
+    notifier: {
+      sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendMatches: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+    } as ReturnType<typeof createNotifier>,
+    source: {
+      getPostDetails: () => Promise.resolve(detailedPost),
+      listLatestPosts: () => Promise.resolve([listedPost]),
+    } as TopicSource,
+    storage: {
+      getSettings: () => Promise.resolve(settings),
+      listHistory: () => Promise.resolve([]),
+      saveMatch: (record: MatchRecord) => {
+        savedRecords.push(record);
+        return Promise.resolve();
+      },
+      markMatchNotified: () => Promise.resolve(),
+      setLastPollAt: () => Promise.resolve(),
+    } as unknown as ReturnType<typeof createKvStorage>,
+  });
+
+  await poller.runOnce();
+
+  assertEquals(savedRecords.map((record) => record.post), [detailedPost]);
+});
+
 Deno.test("poller leaves matched posts retryable when notification fails", async () => {
   const records: MatchRecord[] = [];
   const notifiedMatches: string[] = [];

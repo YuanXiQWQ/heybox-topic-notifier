@@ -34,17 +34,32 @@ Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
 });
 
 Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
-  let requestedUrl: URL | undefined;
+  const requestedUrls: URL[] = [];
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
     deviceId: "device-1",
     fetchFn: (input) => {
-      requestedUrl = new URL(String(input));
+      const url = new URL(String(input));
+      requestedUrls.push(url);
+
+      if (url.pathname === "/bbs/app/link/tree") {
+        return Promise.resolve(Response.json({
+          result: {
+            link: {
+              create_at: 1782842501,
+              linkid: 1,
+              title: "hello",
+            },
+          },
+          status: "ok",
+        }));
+      }
+
       return Promise.resolve(Response.json({
         result: {
           links: [
             {
-              create_at: 1782842501,
+              create_at: 1782850000,
               linkid: 1,
               title: "hello",
             },
@@ -63,37 +78,44 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
   });
 
   const posts = await source.listLatestPosts("12099", { limit: 3, sort: "smart" });
+  const detailedPost = await source.getPostDetails?.(posts[0]);
 
-  if (!requestedUrl) {
-    throw new Error("Expected request URL to be captured");
+  const topicFeedUrl = requestedUrls.find((url) => url.pathname === "/bbs/app/topic/feeds");
+  const detailUrl = requestedUrls.find((url) => url.pathname === "/bbs/app/link/tree");
+
+  if (!topicFeedUrl || !detailUrl) {
+    throw new Error("Expected topic feed and detail request URLs to be captured");
   }
 
-  assertEquals(requestedUrl.origin, "https://api.example.test");
-  assertEquals(requestedUrl.pathname, "/bbs/app/topic/feeds");
-  assertEquals(requestedUrl.searchParams.get("topic_id"), "12099");
-  assertEquals(requestedUrl.searchParams.get("imei"), "device-1");
-  assertEquals(requestedUrl.searchParams.get("limit"), "3");
-  assertEquals(requestedUrl.searchParams.get("sort_filter"), "hot-rank");
-  assertEquals(requestedUrl.searchParams.get("x_client_type"), "mobile");
-  assertEquals(requestedUrl.searchParams.get("x_app"), "heybox");
-  assertEquals(requestedUrl.searchParams.get("version"), "1.3.232");
-  assertEquals(requestedUrl.searchParams.get("build"), "783");
-  assertEquals(requestedUrl.searchParams.get("channel"), "heybox_wandoujia");
-  assertEquals(requestedUrl.searchParams.get("device_info"), "M2104K10AC");
-  assertEquals(requestedUrl.searchParams.get("os_version"), "14");
-  assertEquals(requestedUrl.searchParams.get("dw"), "393");
-  assertEquals(requestedUrl.searchParams.has("hkey"), true);
-  assertEquals(requestedUrl.searchParams.has("nonce"), true);
-  assertEquals(requestedUrl.searchParams.get("_time"), "1782848432");
+  assertEquals(topicFeedUrl.origin, "https://api.example.test");
+  assertEquals(topicFeedUrl.searchParams.get("topic_id"), "12099");
+  assertEquals(topicFeedUrl.searchParams.get("imei"), "device-1");
+  assertEquals(topicFeedUrl.searchParams.get("limit"), "3");
+  assertEquals(topicFeedUrl.searchParams.get("sort_filter"), "hot-rank");
+  assertEquals(topicFeedUrl.searchParams.get("x_client_type"), "mobile");
+  assertEquals(topicFeedUrl.searchParams.get("x_app"), "heybox");
+  assertEquals(topicFeedUrl.searchParams.get("version"), "1.3.232");
+  assertEquals(topicFeedUrl.searchParams.get("build"), "783");
+  assertEquals(topicFeedUrl.searchParams.get("channel"), "heybox_wandoujia");
+  assertEquals(topicFeedUrl.searchParams.get("device_info"), "M2104K10AC");
+  assertEquals(topicFeedUrl.searchParams.get("os_version"), "14");
+  assertEquals(topicFeedUrl.searchParams.get("dw"), "393");
+  assertEquals(topicFeedUrl.searchParams.has("hkey"), true);
+  assertEquals(topicFeedUrl.searchParams.has("nonce"), true);
+  assertEquals(topicFeedUrl.searchParams.get("_time"), "1782848432");
+  assertEquals(detailUrl.searchParams.get("link_id"), "1");
   assertEquals(posts[0].id, "1");
+  assertEquals(detailedPost?.publishedAt, "2026-06-30T18:01:41.000Z");
 });
 
 Deno.test("createHeyboxTopicSource orders publish-time feed before slicing", async () => {
-  let requestedUrl: URL | undefined;
+  let topicFeedUrl: URL | undefined;
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
     fetchFn: (input) => {
-      requestedUrl = new URL(String(input));
+      const url = new URL(String(input));
+
+      topicFeedUrl = url;
       return Promise.resolve(Response.json({
         result: {
           links: [
@@ -116,12 +138,12 @@ Deno.test("createHeyboxTopicSource orders publish-time feed before slicing", asy
 
   const posts = await source.listLatestPosts("12099", { limit: 2, sort: "publishTime" });
 
-  if (!requestedUrl) {
+  if (!topicFeedUrl) {
     throw new Error("Expected request URL to be captured");
   }
 
-  assertEquals(requestedUrl.searchParams.get("limit"), "30");
-  assertEquals(requestedUrl.searchParams.get("sort_filter"), "create");
+  assertEquals(topicFeedUrl.searchParams.get("limit"), "30");
+  assertEquals(topicFeedUrl.searchParams.get("sort_filter"), "create");
   assertEquals(posts.map((post) => post.id), ["newer", "middle"]);
 });
 

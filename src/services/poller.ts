@@ -16,9 +16,8 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
     async runOnce(): Promise<void> {
       const settings = await storage.getSettings();
       const enabledTopics = settings.topics.filter((topic) => topic.enabled && topic.id.trim());
-      const existingMatchedPostIds = new Set(
-        (await storage.listHistory()).map((record) => record.post.id),
-      );
+      const existingMatchesByPostId = matchesByPostId(await storage.listHistory());
+      const existingMatchedPostIds = new Set(existingMatchesByPostId.keys());
       const matchedRecords: MatchRecord[] = [];
       const matchedPostIds = new Set<string>();
       const matchedAt = new Date().toISOString();
@@ -31,19 +30,30 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
         const keywordRules = [...settings.commonKeywordRules, ...topic.keywordRules];
 
         for (const post of posts) {
-          const match = matcher.findMatch(post, keywordRules);
           const alreadyMatched = existingMatchedPostIds.has(post.id);
 
-          if (!match || alreadyMatched || matchedPostIds.has(post.id)) {
+          if (alreadyMatched) {
+            const refreshedPost = await resolvePostDetails(source, post);
+            await updateExistingMatchesPost(
+              storage,
+              existingMatchesByPostId.get(post.id) ?? [],
+              refreshedPost,
+            );
             continue;
           }
 
+          const match = matcher.findMatch(post, keywordRules);
+          if (!match || matchedPostIds.has(post.id)) {
+            continue;
+          }
+
+          const detailedPost = await resolvePostDetails(source, post);
           const record: MatchRecord = {
-            id: `${topic.id}:${post.id}:${match.keyword}:${match.location}`,
+            id: `${topic.id}:${detailedPost.id}:${match.keyword}:${match.location}`,
             keyword: match.keyword,
             location: match.location,
             matchedAt,
-            post,
+            post: detailedPost,
           };
 
           await storage.saveMatch(record);
@@ -67,4 +77,34 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
       await storage.setLastPollAt(new Date().toISOString());
     },
   };
+}
+
+async function resolvePostDetails(source: TopicSource, post: MatchRecord["post"]) {
+  return source.getPostDetails ? await source.getPostDetails(post) : post;
+}
+
+function matchesByPostId(records: MatchRecord[]): Map<string, MatchRecord[]> {
+  const result = new Map<string, MatchRecord[]>();
+
+  for (const record of records) {
+    const recordsWithPostId = result.get(record.post.id) ?? [];
+    recordsWithPostId.push(record);
+    result.set(record.post.id, recordsWithPostId);
+  }
+
+  return result;
+}
+
+async function updateExistingMatchesPost(
+  storage: ReturnType<typeof createKvStorage>,
+  records: MatchRecord[],
+  post: MatchRecord["post"],
+): Promise<void> {
+  for (const record of records) {
+    if (JSON.stringify(record.post) === JSON.stringify(post)) {
+      continue;
+    }
+
+    await storage.saveMatch({ ...record, post });
+  }
 }

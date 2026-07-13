@@ -22,6 +22,7 @@ export type HeyboxTopicSourceConfig = {
 };
 
 const topicFeedsPath = "/bbs/app/topic/feeds";
+const linkTreePath = "/bbs/app/link/tree";
 
 export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
@@ -41,36 +42,19 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
       "Safari/537.36 ApiMaxJia/1.0";
 
   return {
+    async getPostDetails(post: TopicPost): Promise<TopicPost> {
+      return await hydrateTopicPost(post);
+    },
+
     async listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
       const limit = normalizeLimit(options.limit);
       const requestLimit = options.sort === "publishTime" ? Math.max(limit, 30) : limit;
-      const signature = createHeyboxSignatureParams(
-        topicFeedsPath,
-        config.now?.() ?? new Date(),
-        config.random,
-        signatureMode,
-      );
       const url = new URL(topicFeedsPath, apiBaseUrl);
       const params: Record<string, string> = {
-        _time: String(signature.time),
-        build: appBuild,
-        channel,
-        device_info: deviceInfo,
-        dw,
-        heybox_id: heyboxId,
-        hkey: signature.hkey,
-        imei: deviceId,
+        ...signedRequestParams(topicFeedsPath),
         limit: String(requestLimit),
-        nonce: signature.nonce,
         offset: "0",
-        os_type: "Android",
-        os_version: osVersion,
-        time_zone: timeZone,
         topic_id: topicId,
-        version: appVersion,
-        x_app: "heybox",
-        x_client_type: "mobile",
-        x_os_type: "Android",
       };
 
       const sortFilter = heyboxSortFilter(options.sort);
@@ -102,6 +86,81 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
       return orderPosts(posts, options.sort).slice(0, limit);
     },
   };
+
+  function signedRequestParams(path: string): Record<string, string> {
+    const signature = createHeyboxSignatureParams(
+      path,
+      config.now?.() ?? new Date(),
+      config.random,
+      signatureMode,
+    );
+
+    return {
+      _time: String(signature.time),
+      build: appBuild,
+      channel,
+      device_info: deviceInfo,
+      dw,
+      heybox_id: heyboxId,
+      hkey: signature.hkey,
+      imei: deviceId,
+      nonce: signature.nonce,
+      os_type: "Android",
+      os_version: osVersion,
+      time_zone: timeZone,
+      version: appVersion,
+      x_app: "heybox",
+      x_client_type: "mobile",
+      x_os_type: "Android",
+    };
+  }
+
+  async function hydrateTopicPost(post: TopicPost): Promise<TopicPost> {
+    if (!post.id) {
+      return post;
+    }
+
+    try {
+      const detailPost = await fetchLinkDetailPost(post);
+      return detailPost ? mergeTopicPosts(post, detailPost) : post;
+    } catch {
+      return post;
+    }
+  }
+
+  async function fetchLinkDetailPost(post: TopicPost): Promise<TopicPost | undefined> {
+    const url = new URL(linkTreePath, apiBaseUrl);
+    const params: Record<string, string> = {
+      ...signedRequestParams(linkTreePath),
+      link_id: post.id,
+    };
+
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+
+    const response = await fetchFn(url, {
+      headers: {
+        accept: "application/json,text/plain,*/*",
+        referer: "http://api.maxjia.com/",
+        "user-agent": userAgent,
+        ...(config.cookie ? { cookie: config.cookie } : {}),
+      },
+    });
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const payload = await response.json();
+    assertHeyboxOk(payload);
+    const link = asRecord(asRecord(payload).result).link;
+    const record = asRecord(link);
+
+    return Object.keys(record).length > 0
+      ? postFromHeyboxRecord(record, topicIdFromPost(post))
+      : undefined;
+  }
 }
 
 function orderPosts(posts: TopicPost[], sort: PollSort): TopicPost[] {
@@ -119,23 +178,47 @@ export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicP
 
   return links.map((link) => {
     const record = asRecord(link);
-    const shareUrl = stringField(record, ["share_url", "url", "link", "web_url"]);
-    const webLinkId = linkIdFromUrl(shareUrl);
-    const id = webLinkId ||
-      stringField(record, ["linkid", "link_id", "post_id", "article_id", "id"]);
-
-    return {
-      body: stringField(record, ["content", "text", "body", "description"]),
-      commentReplies: textList(record, ["reply_list", "replies", "comment_replies"]),
-      comments: textList(record, ["comment_list", "comments", "hot_comments"]),
-      excerpt: stringField(record, ["description", "summary", "brief", "excerpt"]),
-      id,
-      publishedAt: timeField(record, ["create_at", "created_at", "publish_time", "timestamp"]),
-      title: stringField(record, ["title", "subject", "name"]),
-      url: webLinkId ? `https://www.xiaoheihe.cn/app/bbs/link/${webLinkId}` : shareUrl ||
-        `https://www.xiaoheihe.cn/app/topic/link/${topicId}`,
-    };
+    return postFromHeyboxRecord(record, topicId);
   }).filter((post) => post.id && (post.title || post.excerpt || post.body));
+}
+
+function postFromHeyboxRecord(record: Record<string, unknown>, topicId: string): TopicPost {
+  const shareUrl = stringField(record, ["share_url", "url", "link", "web_url"]);
+  const webLinkId = linkIdFromUrl(shareUrl);
+  const id = webLinkId ||
+    stringField(record, ["linkid", "link_id", "post_id", "article_id", "id"]);
+
+  return {
+    body: stringField(record, ["text", "content", "body", "description"]),
+    commentReplies: textList(record, ["reply_list", "replies", "comment_replies"]),
+    comments: textList(record, ["comment_list", "comments", "hot_comments"]),
+    excerpt: stringField(record, ["description", "summary", "brief", "excerpt"]),
+    id,
+    publishedAt: timeField(record, ["create_at", "created_at", "publish_time", "timestamp"]),
+    title: stringField(record, ["title", "subject", "name"]),
+    url: webLinkId ? `https://www.xiaoheihe.cn/app/bbs/link/${webLinkId}` : shareUrl ||
+      `https://www.xiaoheihe.cn/app/topic/link/${topicId}`,
+  };
+}
+
+function mergeTopicPosts(listPost: TopicPost, detailPost: TopicPost): TopicPost {
+  return {
+    body: detailPost.body || listPost.body,
+    commentReplies: detailPost.commentReplies.length > 0
+      ? detailPost.commentReplies
+      : listPost.commentReplies,
+    comments: detailPost.comments.length > 0 ? detailPost.comments : listPost.comments,
+    excerpt: detailPost.excerpt || listPost.excerpt,
+    id: listPost.id || detailPost.id,
+    publishedAt: detailPost.publishedAt || listPost.publishedAt,
+    title: detailPost.title || listPost.title,
+    url: listPost.url || detailPost.url,
+  };
+}
+
+function topicIdFromPost(post: TopicPost): string {
+  const [, topicId = ""] = post.url.match(/\/app\/topic\/link\/([^/?#]+)/) ?? [];
+  return topicId;
 }
 
 function assertHeyboxOk(payload: unknown): void {

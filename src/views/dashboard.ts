@@ -207,6 +207,9 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         if (!nextSection) return;
         pendingSection.replaceWith(nextSection);
         pendingSection = nextSection;
+        window.__matchTableFilterInit?.();
+        window.__matchTableRelativeTimeUpdate?.();
+        window.__matchTableOverflowUpdate?.();
       }
 
       function updatePollingSettings(polling) {

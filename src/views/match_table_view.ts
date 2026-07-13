@@ -1,5 +1,5 @@
-import type { Messages } from "../locales/types.ts";
-import type { Locale } from "../locales/types.ts";
+import { getMessages } from "../locales/index.ts";
+import type { Locale, Messages } from "../locales/types.ts";
 import type { MatchLocation } from "../models.ts";
 import { escapeHtml } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
@@ -36,8 +36,6 @@ export type MatchRecordsSectionOptions = {
 };
 
 export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): string {
-  const records = options.table.records;
-
   return `
     <section
       class="table-section"
@@ -89,22 +87,19 @@ export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): 
   }
     </section>
     ${renderFilterScript()}
-    ${records.length === 0 ? "" : renderOverflowScript()}
-    ${records.length === 0 ? "" : renderSelectionScript(options.action)}
+    ${renderRelativeTimeScript()}
+    ${renderOverflowScript()}
+    ${renderSelectionScript(options.action)}
   `;
 }
 
 function renderRows(options: MatchRecordsSectionOptions): string {
+  const now = new Date();
+
   return options.table.records.map((record) => {
     const titleClasses = ["match-table-title-link", options.titleLinkClass]
       .filter((className): className is string => Boolean(className))
       .join(" ");
-    const publishedAt = formatHeyboxRelativeTime(
-      record.post.publishedAt,
-      new Date(),
-      options.locale,
-    );
-    const matchedAt = formatHeyboxRelativeTime(record.matchedAt, new Date(), options.locale);
 
     return `
     <tr>
@@ -124,8 +119,8 @@ function renderRows(options: MatchRecordsSectionOptions): string {
       <td><span class="table-clip">${
       escapeHtml(truncateText(record.post.excerpt || record.post.body))
     }</span></td>
-      <td><span class="table-cell-clip">${escapeHtml(publishedAt)}</span></td>
-      <td><span class="table-cell-clip">${escapeHtml(matchedAt)}</span></td>
+      <td>${renderRelativeTimeCell(record.post.publishedAt, now, options.locale)}</td>
+      <td>${renderRelativeTimeCell(record.matchedAt, now, options.locale)}</td>
       <td><span class="table-cell-clip">${escapeHtml(record.keyword)}</span></td>
       <td><span class="table-cell-clip">${
       escapeHtml(locationLabel(record.location, options.messages))
@@ -143,6 +138,14 @@ function renderRows(options: MatchRecordsSectionOptions): string {
     </tr>
   `;
   }).join("");
+}
+
+function renderRelativeTimeCell(value: string, now: Date, locale: Locale): string {
+  return `<span class="table-cell-clip" data-relative-time="${
+    escapeHtml(value)
+  }" data-relative-time-locale="${escapeHtml(locale)}">${
+    escapeHtml(formatHeyboxRelativeTime(value, now, locale))
+  }</span>`;
 }
 
 function renderMatchTableColumns(): string {
@@ -276,54 +279,184 @@ function option(value: string, current: string, label: string): string {
 function renderFilterScript(): string {
   return `<script>
     (() => {
-      const forms = document.querySelectorAll("[data-match-filter-form]");
-      for (const form of forms) {
-        const range = form.querySelector("select[name='range']");
-        const dateInputs = Array.from(
-          form.querySelectorAll(".table-filter-date-field input"),
-        );
-        const transitionMs = 180;
-        let customTransitionToken = 0;
-        const setCustomState = (options = {}) => {
-          const token = ++customTransitionToken;
-          const isCustom = range?.value === "custom";
-          if (isCustom) {
-            form.classList.remove("is-custom-collapsed");
-            for (const input of dateInputs) input.disabled = false;
-            requestAnimationFrame(() => {
-              if (token === customTransitionToken) form.classList.add("is-custom");
-            });
-            return;
-          }
+      const initializeMatchFilters = () => {
+        const forms = document.querySelectorAll("[data-match-filter-form]");
+        for (const form of forms) {
+          if (form.dataset.matchFilterInitialized === "true") continue;
+          form.dataset.matchFilterInitialized = "true";
 
-          form.classList.remove("is-custom");
-          for (const input of dateInputs) input.disabled = true;
-          const collapse = () => {
-            if (token !== customTransitionToken) return;
-            form.classList.add("is-custom-collapsed");
-            if (options.submitAfterCollapse) form.requestSubmit();
-          };
-          if (options.instant) {
-            collapse();
-            return;
-          }
-          setTimeout(collapse, transitionMs);
-        };
-        const controls = form.querySelectorAll("[data-match-filter-control]");
-        for (const control of controls) {
-          control.addEventListener("change", () => {
-            if (control === range) {
-              setCustomState({ submitAfterCollapse: range.value !== "custom" });
-              if (range.value === "custom") return;
+          const range = form.querySelector("select[name='range']");
+          const dateInputs = Array.from(
+            form.querySelectorAll(".table-filter-date-field input"),
+          );
+          const transitionMs = 180;
+          let customTransitionToken = 0;
+          const setCustomState = (options = {}) => {
+            const token = ++customTransitionToken;
+            const isCustom = range?.value === "custom";
+            if (isCustom) {
+              form.classList.remove("is-custom-collapsed");
+              for (const input of dateInputs) input.disabled = false;
+              requestAnimationFrame(() => {
+                if (token === customTransitionToken) form.classList.add("is-custom");
+              });
               return;
             }
-            form.requestSubmit();
-          });
+
+            form.classList.remove("is-custom");
+            for (const input of dateInputs) input.disabled = true;
+            const collapse = () => {
+              if (token !== customTransitionToken) return;
+              form.classList.add("is-custom-collapsed");
+              if (options.submitAfterCollapse) form.requestSubmit();
+            };
+            if (options.instant) {
+              collapse();
+              return;
+            }
+            setTimeout(collapse, transitionMs);
+          };
+          const controls = form.querySelectorAll("[data-match-filter-control]");
+          for (const control of controls) {
+            control.addEventListener("change", () => {
+              if (control === range) {
+                setCustomState({ submitAfterCollapse: range.value !== "custom" });
+                if (range.value === "custom") return;
+                return;
+              }
+              form.requestSubmit();
+            });
+          }
+          setCustomState({ instant: true });
         }
-        setCustomState({ instant: true });
+      };
+
+      window.__matchTableFilterInit = initializeMatchFilters;
+      initializeMatchFilters();
+    })();
+  </script>`;
+}
+
+type RelativeTimeTemplates = {
+  daysAgo: string;
+  hoursAgo: string;
+  justNow: string;
+  minutesAgo: string;
+  secondsAgo: string;
+  yesterdayAt: string;
+};
+
+function renderRelativeTimeScript(): string {
+  return `<script>
+    (() => {
+      if (window.__matchTableRelativeTimeScriptInstalled) {
+        window.__matchTableRelativeTimeUpdate?.();
+        return;
+      }
+
+      window.__matchTableRelativeTimeScriptInstalled = true;
+      const relativeTemplates = ${JSON.stringify(relativeTimeTemplatesByLocale())};
+      const updateRelativeTimes = () => {
+        const nowMs = Date.now();
+        const now = new Date(nowMs);
+        for (const element of document.querySelectorAll("[data-relative-time]")) {
+          const rawValue = element.getAttribute("data-relative-time") || "";
+          const timestamp = Date.parse(rawValue);
+          if (!Number.isFinite(timestamp)) {
+            element.textContent = rawValue || "-";
+            continue;
+          }
+          const locale = element.getAttribute("data-relative-time-locale") === "en"
+            ? "en"
+            : "zh-CN";
+          element.textContent = formatRelativeTime(timestamp, nowMs, now, locale);
+        }
+        window.__matchTableOverflowUpdate?.();
+      };
+
+      window.__matchTableRelativeTimeUpdate = updateRelativeTimes;
+      updateRelativeTimes();
+      window.setInterval(updateRelativeTimes, 1000);
+
+      function formatRelativeTime(value, nowMs, now, locale) {
+        const date = new Date(value);
+        const templates = relativeTemplates[locale] || relativeTemplates["zh-CN"];
+        const diffSeconds = Math.max(0, Math.floor((nowMs - value) / 1000));
+
+        if (diffSeconds === 0) {
+          return templates.justNow;
+        }
+
+        if (diffSeconds < 60) {
+          return formatTemplate(templates.secondsAgo, { count: diffSeconds });
+        }
+
+        const diffMinutes = Math.floor(diffSeconds / 60);
+        if (diffMinutes < 60) {
+          return formatTemplate(templates.minutesAgo, { count: diffMinutes });
+        }
+
+        const diffHours = Math.floor(diffMinutes / 60);
+        if (diffHours < 24) {
+          return formatTemplate(templates.hoursAgo, { count: diffHours });
+        }
+
+        if (diffHours < 48) {
+          const time = formatInChina(date, { hour: "2-digit", minute: "2-digit" }, locale);
+          return formatTemplate(templates.yesterdayAt, { time });
+        }
+
+        const diffDays = Math.floor(diffHours / 24);
+        if (diffDays < 7) {
+          return formatTemplate(templates.daysAgo, { count: diffDays });
+        }
+
+        return formatInChina(
+          date,
+          sameChinaYear(date, now, locale)
+            ? { day: "2-digit", month: "2-digit" }
+            : { day: "2-digit", month: "2-digit", year: "numeric" },
+          locale,
+        );
+      }
+
+      function formatTemplate(template, values) {
+        return template.replaceAll(/\\{(\\w+)\\}/g, (placeholder, key) =>
+          values[key] === undefined ? placeholder : String(values[key])
+        );
+      }
+
+      function sameChinaYear(left, right, locale) {
+        return formatInChina(left, { year: "numeric" }, locale) ===
+          formatInChina(right, { year: "numeric" }, locale);
+      }
+
+      function formatInChina(date, options, locale) {
+        return new Intl.DateTimeFormat(locale, {
+          timeZone: "Asia/Shanghai",
+          ...options,
+        }).format(date).replaceAll("/", "-");
       }
     })();
   </script>`;
+}
+
+function relativeTimeTemplatesByLocale(): Record<Locale, RelativeTimeTemplates> {
+  return {
+    "zh-CN": relativeTimeTemplates(getMessages("zh-CN")),
+    en: relativeTimeTemplates(getMessages("en")),
+  };
+}
+
+function relativeTimeTemplates(messages: Messages): RelativeTimeTemplates {
+  return {
+    daysAgo: messages.relativeDaysAgo,
+    hoursAgo: messages.relativeHoursAgo,
+    justNow: messages.relativeJustNow,
+    minutesAgo: messages.relativeMinutesAgo,
+    secondsAgo: messages.relativeSecondsAgo,
+    yesterdayAt: messages.relativeYesterdayAt,
+  };
 }
 
 function renderOverflowScript(): string {
@@ -346,6 +479,7 @@ function renderOverflowScript(): string {
         }
       };
       const scheduleUpdate = () => requestAnimationFrame(updateOverflowState);
+      window.__matchTableOverflowUpdate = scheduleUpdate;
       scheduleUpdate();
       if (window.__matchTableOverflowScriptInstalled) return;
       window.__matchTableOverflowScriptInstalled = true;
