@@ -2,39 +2,67 @@ import type { AppContext } from "./services/app_context.ts";
 import type { PollingSettings } from "./models.ts";
 
 const pollSchedulerTickMs = 1000;
+const deployCronSchedule = "* * * * *";
 
-export function registerCrons(context: AppContext): void {
+export function createPollScheduler(context: Pick<AppContext, "poller" | "storage">) {
   let isPolling = false;
   let lastPollStartedAt: number | undefined;
 
-  const tick = async () => {
-    if (isPolling) {
-      return;
-    }
+  return {
+    async tick(): Promise<boolean> {
+      if (isPolling) {
+        return false;
+      }
 
-    const settings = await context.storage.getSettings();
-    if (!settings.polling.enabled) {
-      lastPollStartedAt = undefined;
-      return;
-    }
+      const settings = await context.storage.getSettings();
+      if (!settings.polling.enabled) {
+        lastPollStartedAt = undefined;
+        return false;
+      }
 
-    const state = await context.storage.getAppState();
-    if (!shouldPollFromLastStart(lastPollStartedAt, state.lastPollAt, settings.polling)) {
-      return;
-    }
+      const state = await context.storage.getAppState();
+      if (!shouldPollFromLastStart(lastPollStartedAt, state.lastPollAt, settings.polling)) {
+        return false;
+      }
 
-    isPolling = true;
-    lastPollStartedAt = Date.now();
-    try {
-      await context.poller.runOnce();
-    } finally {
-      isPolling = false;
-    }
+      isPolling = true;
+      lastPollStartedAt = Date.now();
+      try {
+        await context.poller.runOnce();
+        return true;
+      } catch (error) {
+        console.error("Scheduled poll failed", error);
+        return false;
+      } finally {
+        isPolling = false;
+      }
+    },
   };
+}
+
+export function registerCrons(context: AppContext): void {
+  if (isDenoDeploy() && typeof Deno.cron === "function") {
+    Deno.cron("poll heybox topics", deployCronSchedule, async () => {
+      await context.scheduler.tick();
+    });
+    return;
+  }
 
   setInterval(() => {
-    void tick();
+    void context.scheduler.tick();
   }, pollSchedulerTickMs);
+}
+
+function isDenoDeploy(): boolean {
+  try {
+    if (Deno.env.get("DENO_DEPLOYMENT_ID") || Deno.env.get("DENO_DEPLOY") === "true") {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 }
 
 export function shouldPollFromLastStart(

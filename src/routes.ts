@@ -44,6 +44,7 @@ export function createRoutes(context: AppContext): Hono {
 
   app.get("/", async (c) => {
     const url = new URL(c.req.url);
+    await context.scheduler?.tick();
     const settings = await context.storage.getSettings();
     const state = await context.storage.getAppState();
     const pendingMatches = await context.storage.listPendingMatches();
@@ -61,6 +62,7 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.get("/dashboard-state", async (c) => {
+    await context.scheduler?.tick();
     const settings = await context.storage.getSettings();
     const state = await context.storage.getAppState();
     const pendingMatches = await context.storage.listPendingMatches();

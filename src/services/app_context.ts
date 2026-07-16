@@ -4,6 +4,7 @@ import {
   normalizeNotificationEmailService,
   normalizeNotificationWebhookService,
 } from "../notification_services.ts";
+import { createPollScheduler } from "../crons.ts";
 import { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
@@ -79,12 +80,14 @@ export function createAppContext() {
     userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
   });
   const poller = createPoller({ matcher, notifier, source, storage });
+  const scheduler = createPollScheduler({ poller, storage });
 
   return {
     config,
     matcher,
     notifier,
     poller,
+    scheduler,
     source,
     storage,
   };
