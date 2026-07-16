@@ -73,7 +73,7 @@ const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/si
 const notificationContentLimit = 3600;
 const notificationContentPreviewLength = 60;
 const notificationTitlePreviewLength = 80;
-const notificationDeliveryTimeoutMs = 10_000;
+const defaultNotificationDeliveryTimeoutMs = 30_000;
 const testNotificationOverflowGuard = 300;
 const testNotificationUrl = "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/";
 const testMatchLocations: MatchRecord["location"][] = ["title", "body", "comments", "replies"];
@@ -85,9 +85,13 @@ export class NotificationConfigError extends Error {}
 export class NotificationDeliveryError extends Error {}
 
 export function createNotifier(options: NotifierOptions = {}) {
-  const deliveryTimeoutMs = normalizeDeliveryTimeoutMs(options.deliveryTimeoutMs);
+  const deliveryTimeoutMs = normalizeDeliveryTimeoutMs(
+    options.deliveryTimeoutMs ?? deliveryTimeoutMsFromEnv(),
+  );
   const emailSender = options.emailSender ?? sendSmtpEmail;
   const fetcher = options.fetch ?? fetch;
+  const pushPlusUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL")) ??
+    pushPlusSendUrl;
   const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
 
   return {
@@ -189,6 +193,7 @@ export function createNotifier(options: NotifierOptions = {}) {
     }
 
     const targetWebhookUrl = targetUrlForWebhook({
+      pushPlusUrl,
       fallbackWebhookUrl: webhookUrl,
       serverChanSendKey: options.serverChanSendKey,
       webhookService: options.webhookService,
@@ -215,7 +220,7 @@ export function createNotifier(options: NotifierOptions = {}) {
       },
       method: "POST",
     }, {
-      label: "Webhook notification",
+      label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
       timeoutMs: deliveryTimeoutMs,
     });
 
@@ -318,7 +323,28 @@ export function createNotifier(options: NotifierOptions = {}) {
 function normalizeDeliveryTimeoutMs(value: number | undefined): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0
     ? value
-    : notificationDeliveryTimeoutMs;
+    : defaultNotificationDeliveryTimeoutMs;
+}
+
+function deliveryTimeoutMsFromEnv(): number | undefined {
+  const seconds = Number(Deno.env.get("NOTIFIER_DELIVERY_TIMEOUT_SECONDS"));
+  return Number.isInteger(seconds) && seconds > 0 ? seconds * 1000 : undefined;
+}
+
+function normalizeEndpointUrl(value: string | undefined): string | undefined {
+  const url = value?.trim();
+  if (!url) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? parsed.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function fetchWithDeliveryTimeout(
@@ -402,12 +428,13 @@ function smtpConfigForEmailService(options: {
 
 function targetUrlForWebhook(options: {
   fallbackWebhookUrl: string;
+  pushPlusUrl: string;
   serverChanSendKey: string;
   webhookService: AppSettings["notificationWebhookService"];
   webhookUrl: string;
 }): string {
   if (options.webhookService === "pushPlus") {
-    return pushPlusSendUrl;
+    return options.pushPlusUrl;
   }
 
   if (options.webhookService === "wxPusher") {
@@ -419,6 +446,33 @@ function targetUrlForWebhook(options: {
   }
 
   return options.webhookUrl.trim() || options.fallbackWebhookUrl.trim();
+}
+
+function webhookDeliveryLabel(
+  service: AppSettings["notificationWebhookService"],
+  url: string,
+): string {
+  let hostname = "unknown host";
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    // Keep the original delivery error when the URL is malformed.
+  }
+
+  return `${webhookServiceLabel(service)} webhook notification to ${hostname}`;
+}
+
+function webhookServiceLabel(service: AppSettings["notificationWebhookService"]): string {
+  switch (service) {
+    case "pushPlus":
+      return "PushPlus";
+    case "wxPusher":
+      return "WxPusher";
+    case "serverChan":
+      return "ServerChan";
+    case "custom":
+      return "Custom";
+  }
 }
 
 function serverChanUrlFromSendKey(value: string): string {

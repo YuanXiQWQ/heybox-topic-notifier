@@ -263,7 +263,7 @@ Deno.test("webhook provider reports slow delivery as a timeout", async () => {
 
   await assertRejects(
     () => notifier.sendTest(settings),
-    "Webhook notification timed out after 1 ms.",
+    "Custom webhook notification to example.com timed out after 1 ms.",
   );
 });
 
@@ -404,6 +404,35 @@ Deno.test("pushplus service posts to the send API", async () => {
   assertEquals(body.title, "小黑盒命中：help");
   assertEquals(body.content.includes("Need help"), true);
   assertEquals(body.content.includes("https://example.com/p1"), true);
+});
+
+Deno.test("pushplus service supports a configured send API URL", async () => {
+  const requests: Request[] = [];
+  const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
+  Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
+  try {
+    const notifier = createNotifier({
+      fetch: (input, init) => {
+        requests.push(new Request(input, init));
+        return Promise.resolve(new Response(JSON.stringify({ code: 200 }), { status: 200 }));
+      },
+    });
+
+    await notifier.sendMatch(record, {
+      ...settings,
+      notificationPushPlusToken: "pushplus-token",
+      notificationWebhookService: "pushPlus",
+      notificationWebhookUrl: "",
+    });
+  } finally {
+    if (previousUrl === undefined) {
+      Deno.env.delete("NOTIFIER_PUSHPLUS_SEND_URL");
+    } else {
+      Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", previousUrl);
+    }
+  }
+
+  assertEquals(requests[0].url, "https://relay.example.com/pushplus");
 });
 
 Deno.test("pushplus service reports business errors from the API", async () => {
