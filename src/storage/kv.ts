@@ -8,6 +8,8 @@ import type {
   PollIntervalUnit,
   PollSort,
   TopicRule,
+  UserAccount,
+  UserSession,
 } from "../models.ts";
 import {
   normalizeNotificationEmailService,
@@ -15,9 +17,12 @@ import {
 } from "../notification_services.ts";
 
 const keys = {
-  match: (id: string) => ["matches", id] as const,
-  settings: ["settings"] as const,
-  state: ["state"] as const,
+  account: (id: string) => ["accounts", id] as const,
+  accountUsername: (username: string) => ["accountUsernames", normalizeUsername(username)] as const,
+  match: (userId: string, id: string) => ["userData", userId, "matches", id] as const,
+  session: (tokenHash: string) => ["sessions", tokenHash] as const,
+  settings: (userId: string) => ["userData", userId, "settings"] as const,
+  state: (userId: string) => ["userData", userId, "state"] as const,
 };
 
 type KvStore = {
@@ -39,113 +44,217 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
     return await kvPromise;
   }
 
-  async function listHistory(): Promise<MatchRecord[]> {
-    return historyFromRecords(await listMatchRecords());
-  }
-
-  async function listMatchRecords(): Promise<MatchRecord[]> {
+  async function listMatchRecords(userId: string): Promise<MatchRecord[]> {
     const store = await kv();
     const records: MatchRecord[] = [];
 
-    for await (const entry of store.list<MatchRecord>({ prefix: ["matches"] })) {
+    for await (
+      const entry of store.list<MatchRecord>({ prefix: ["userData", userId, "matches"] })
+    ) {
       records.push(entry.value);
     }
 
     return records;
   }
 
+  function forUser(userId: string) {
+    return {
+      async getSettings(): Promise<AppSettings> {
+        const store = await kv();
+        const entry = await store.get<Partial<AppSettings> & LegacySettings>(keys.settings(userId));
+        return normalizeSettings(entry.value, defaultSettings);
+      },
+
+      async saveSettings(settings: AppSettings): Promise<void> {
+        const store = await kv();
+        await store.set(keys.settings(userId), settings);
+      },
+
+      async getAppState(): Promise<AppState> {
+        const store = await kv();
+        const state = await store.get<AppState>(keys.state(userId));
+        const records = await listMatchRecords(userId);
+
+        return {
+          lastPollAt: state.value?.lastPollAt,
+          latestMatch: latestMatchByMatchedTime(records),
+          totalMatches: records.length,
+        };
+      },
+
+      async getDashboardSnapshot(): Promise<DashboardSnapshot> {
+        const store = await kv();
+        const settingsEntry = await store.get<Partial<AppSettings> & LegacySettings>(
+          keys.settings(userId),
+        );
+        const stateEntry = await store.get<AppState>(keys.state(userId));
+        const records = await listMatchRecords(userId);
+        const settings = normalizeSettings(settingsEntry.value, defaultSettings);
+
+        return {
+          pendingMatches: pendingFromRecords(records),
+          settings,
+          state: {
+            lastPollAt: stateEntry.value?.lastPollAt,
+            latestMatch: latestMatchByMatchedTime(records),
+            totalMatches: records.length,
+          },
+        };
+      },
+
+      async listHistory(): Promise<MatchRecord[]> {
+        return historyFromRecords(await listMatchRecords(userId));
+      },
+
+      async listPendingMatches(): Promise<MatchRecord[]> {
+        return pendingFromRecords(await listMatchRecords(userId));
+      },
+
+      async saveMatch(record: MatchRecord): Promise<void> {
+        const store = await kv();
+        await store.set(keys.match(userId, record.id), record);
+      },
+
+      async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
+        const store = await kv();
+        const entry = await store.get<MatchRecord>(keys.match(userId, id));
+        if (!entry.value) {
+          return;
+        }
+
+        await store.set(keys.match(userId, id), { ...entry.value, notifiedAt });
+      },
+
+      async completeMatches(ids: string[]): Promise<void> {
+        const store = await kv();
+        const completedAt = new Date().toISOString();
+        const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+
+        for (const id of uniqueIds) {
+          const entry = await store.get<MatchRecord>(keys.match(userId, id));
+          if (!entry.value) {
+            continue;
+          }
+
+          await store.set(keys.match(userId, id), { ...entry.value, completedAt });
+        }
+      },
+
+      async deleteMatches(ids: string[]): Promise<void> {
+        const store = await kv();
+        const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+
+        for (const id of uniqueIds) {
+          await store.delete(keys.match(userId, id));
+        }
+      },
+
+      async setLastPollAt(value: string): Promise<void> {
+        const store = await kv();
+        await store.set(keys.state(userId), { lastPollAt: value });
+      },
+    };
+  }
+
   return {
-    async getSettings(): Promise<AppSettings> {
+    forUser,
+
+    async getAccountById(id: string): Promise<UserAccount | undefined> {
       const store = await kv();
-      const entry = await store.get<Partial<AppSettings> & LegacySettings>(keys.settings);
-      return normalizeSettings(entry.value, defaultSettings);
+      const entry = await store.get<UserAccount>(keys.account(id));
+      return entry.value ?? undefined;
+    },
+
+    async getAccountByUsername(username: string): Promise<UserAccount | undefined> {
+      const store = await kv();
+      const accountId = await store.get<string>(keys.accountUsername(username));
+      if (!accountId.value) {
+        return undefined;
+      }
+
+      const account = await store.get<UserAccount>(keys.account(accountId.value));
+      return account.value ?? undefined;
+    },
+
+    async listAccounts(): Promise<UserAccount[]> {
+      const store = await kv();
+      const accounts: UserAccount[] = [];
+      for await (const entry of store.list<UserAccount>({ prefix: ["accounts"] })) {
+        accounts.push(entry.value);
+      }
+      return accounts;
+    },
+
+    async saveAccount(account: UserAccount): Promise<void> {
+      const store = await kv();
+      await store.set(keys.account(account.id), account);
+      await store.set(keys.accountUsername(account.username), account.id);
+    },
+
+    async getSession(tokenHash: string): Promise<UserSession | undefined> {
+      const store = await kv();
+      const entry = await store.get<UserSession>(keys.session(tokenHash));
+      return entry.value ?? undefined;
+    },
+
+    async saveSession(session: UserSession): Promise<void> {
+      const store = await kv();
+      await store.set(keys.session(session.tokenHash), session);
+    },
+
+    async deleteSession(tokenHash: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.session(tokenHash));
+    },
+
+    async getSettings(): Promise<AppSettings> {
+      return await forUser("default").getSettings();
     },
 
     async saveSettings(settings: AppSettings): Promise<void> {
-      const store = await kv();
-      await store.set(keys.settings, settings);
+      await forUser("default").saveSettings(settings);
     },
 
     async getAppState(): Promise<AppState> {
-      const store = await kv();
-      const state = await store.get<AppState>(keys.state);
-      const records = await listMatchRecords();
-
-      return {
-        lastPollAt: state.value?.lastPollAt,
-        latestMatch: latestMatchByMatchedTime(records),
-        totalMatches: records.length,
-      };
+      return await forUser("default").getAppState();
     },
 
     async getDashboardSnapshot(): Promise<DashboardSnapshot> {
-      const store = await kv();
-      const settingsEntry = await store.get<Partial<AppSettings> & LegacySettings>(keys.settings);
-      const stateEntry = await store.get<AppState>(keys.state);
-      const records = await listMatchRecords();
-      const settings = normalizeSettings(settingsEntry.value, defaultSettings);
-
-      return {
-        pendingMatches: pendingFromRecords(records),
-        settings,
-        state: {
-          lastPollAt: stateEntry.value?.lastPollAt,
-          latestMatch: latestMatchByMatchedTime(records),
-          totalMatches: records.length,
-        },
-      };
+      return await forUser("default").getDashboardSnapshot();
     },
 
-    listHistory,
+    async listHistory(): Promise<MatchRecord[]> {
+      return await forUser("default").listHistory();
+    },
 
     async listPendingMatches(): Promise<MatchRecord[]> {
-      return pendingFromRecords(await listMatchRecords());
+      return await forUser("default").listPendingMatches();
     },
 
     async saveMatch(record: MatchRecord): Promise<void> {
-      const store = await kv();
-      await store.set(keys.match(record.id), record);
+      await forUser("default").saveMatch(record);
     },
 
     async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
-      const store = await kv();
-      const entry = await store.get<MatchRecord>(keys.match(id));
-      if (!entry.value) {
-        return;
-      }
-
-      await store.set(keys.match(id), { ...entry.value, notifiedAt });
+      await forUser("default").markMatchNotified(id, notifiedAt);
     },
 
     async completeMatches(ids: string[]): Promise<void> {
-      const store = await kv();
-      const completedAt = new Date().toISOString();
-      const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
-
-      for (const id of uniqueIds) {
-        const entry = await store.get<MatchRecord>(keys.match(id));
-        if (!entry.value) {
-          continue;
-        }
-
-        await store.set(keys.match(id), { ...entry.value, completedAt });
-      }
+      await forUser("default").completeMatches(ids);
     },
 
     async deleteMatches(ids: string[]): Promise<void> {
-      const store = await kv();
-      const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
-
-      for (const id of uniqueIds) {
-        await store.delete(keys.match(id));
-      }
+      await forUser("default").deleteMatches(ids);
     },
 
     async setLastPollAt(value: string): Promise<void> {
-      const store = await kv();
-      await store.set(keys.state, { lastPollAt: value });
+      await forUser("default").setLastPollAt(value);
     },
   };
+}
+
+function normalizeUsername(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function historyFromRecords(records: MatchRecord[]): MatchRecord[] {

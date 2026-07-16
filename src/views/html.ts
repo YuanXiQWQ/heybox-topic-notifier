@@ -39,6 +39,9 @@ export function renderLayout(options: {
         <a href="/">${escapeHtml(messages.navDashboard)}</a>
         <a href="/settings">${escapeHtml(messages.navSettings)}</a>
         <a href="/history">${escapeHtml(messages.navHistory)}</a>
+        <form class="nav-logout" method="post" action="/logout">
+          <button class="nav-link-button" type="submit">退出</button>
+        </form>
       </nav>
     </header>
     <main class="shell">${options.body}</main>
