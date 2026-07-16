@@ -188,6 +188,7 @@ function initPollingSettings() {
   const enabledToggle = document.querySelector("[data-polling-enabled-toggle]");
   const intervalValueInput = document.querySelector("[data-polling-interval-value]");
   const intervalUnitSelect = document.querySelector("[data-polling-interval-unit]");
+  const subMinuteHint = document.querySelector("[data-polling-sub-minute-hint]");
   const section = document.querySelector("[data-polling-section]");
   const rows = Array.from(document.querySelectorAll("[data-polling-field]"));
 
@@ -256,6 +257,23 @@ function initPollingSettings() {
     return true;
   }
 
+  function syncSubMinuteHint() {
+    if (
+      !(subMinuteHint instanceof HTMLElement) ||
+      !(intervalValueInput instanceof HTMLInputElement) ||
+      !(intervalUnitSelect instanceof HTMLSelectElement)
+    ) {
+      return;
+    }
+
+    const intervalValue = Number(intervalValueInput.value);
+    subMinuteHint.hidden = !(
+      intervalUnitSelect.value === "second" &&
+      Number.isFinite(intervalValue) &&
+      intervalValue < 60
+    );
+  }
+
   function syncPollingFields(animate) {
     const token = ++transitionToken;
 
@@ -275,17 +293,25 @@ function initPollingSettings() {
 
   intervalValueInput?.addEventListener("change", () => {
     validateMinimumInterval();
+    syncSubMinuteHint();
   });
 
   intervalValueInput?.addEventListener("blur", () => {
     validateMinimumInterval();
+    syncSubMinuteHint();
+  });
+
+  intervalValueInput?.addEventListener("input", () => {
+    syncSubMinuteHint();
   });
 
   intervalUnitSelect?.addEventListener("change", () => {
     validateMinimumInterval();
+    syncSubMinuteHint();
   });
 
   validateMinimumInterval();
+  syncSubMinuteHint();
   syncPollingFields(false);
 }
 

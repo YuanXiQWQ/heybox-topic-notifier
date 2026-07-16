@@ -84,6 +84,7 @@
   "pollIntervalMinute": "分",
   "pollIntervalMonth": "月",
   "pollIntervalSecond": "秒",
+  "pollIntervalSubMinuteHint": "低于 1 分钟的轮询间隔仅前台在线生效；离线或后台时将按 1 分钟轮询。",
   "pollIntervalTooShort": "轮询间隔最低不得小于 3 秒。",
   "pollIntervalWeek": "周",
   "pollingSettings": "轮询设置",

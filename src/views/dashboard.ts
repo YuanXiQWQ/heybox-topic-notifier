@@ -155,6 +155,9 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       let timestamp = parseTimestamp(lastPoll.dataset.lastPollAt);
       let hasSyncedDashboardState = false;
       let isAnimatingNextPollReset = false;
+      let isDashboardStateRefreshInFlight = false;
+      let lastDueDashboardRefreshAt = 0;
+      let lastDueDashboardRefreshBaseline = "";
 
       const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
@@ -189,9 +192,11 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         lastPoll.textContent = formatRelativeTime(timestamp, locale);
       }
 
-      async function refreshDashboardState() {
+      async function refreshDashboardState(options = {}) {
+        if (isDashboardStateRefreshInFlight) return;
+        isDashboardStateRefreshInFlight = true;
         try {
-          const response = await fetch(\`/dashboard-state\${location.search}\`, { cache: "no-store" });
+          const response = await fetch(dashboardStateUrl(options), { cache: "no-store" });
           if (!response.ok) return;
           const state = await response.json();
           const nextTimestamp = parseTimestamp(state.lastPollAt);
@@ -214,7 +219,21 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
           hasSyncedDashboardState = true;
         } catch {
           // Keep the last rendered state when the status request is transiently unavailable.
+        } finally {
+          isDashboardStateRefreshInFlight = false;
         }
+      }
+
+      function dashboardStateUrl(options = {}) {
+        const url = new URL("/dashboard-state", location.origin);
+        const currentParams = new URLSearchParams(location.search);
+        for (const [key, value] of currentParams) {
+          url.searchParams.append(key, value);
+        }
+        if (options.tick) {
+          url.searchParams.set("tick", "1");
+        }
+        return url.pathname + url.search;
       }
 
       function updatePendingSection(html, signature) {
@@ -250,6 +269,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
           nextPollFill.style.width = nextState.width;
         }
         nextPollRemaining.textContent = nextState.remaining;
+        refreshDashboardWhenPollDue(nextState);
       }
 
       function getNextPollState(options = {}) {
@@ -260,16 +280,36 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         const intervalMs = pollingIntervalMs(unit, value);
 
         if (!enabled || !Number.isFinite(timestamp) || intervalMs <= 0) {
-          return { remaining: "-", width: "0%" };
+          return { intervalMs: 0, remaining: "-", remainingMs: Infinity, width: "0%" };
         }
 
         const elapsedMs = Math.max(0, Date.now() + (options.offsetMs || 0) - timestamp);
         const remainingMs = Math.max(0, intervalMs - elapsedMs);
         const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
         return {
+          intervalMs,
           remaining: formatRemaining(remainingMs),
+          remainingMs,
           width: (progress * 100).toFixed(2) + "%",
         };
+      }
+
+      function refreshDashboardWhenPollDue(nextState) {
+        if (document.visibilityState !== "visible" || nextState.remainingMs > 0) return;
+        if (isDashboardStateRefreshInFlight) return;
+        const baseline = lastPoll.dataset.lastPollAt || "";
+        if (!baseline) return;
+        const now = Date.now();
+        const retryMs = Math.max(3000, Math.min(nextState.intervalMs, dashboardStateRefreshMs));
+        if (
+          lastDueDashboardRefreshBaseline === baseline &&
+          now - lastDueDashboardRefreshAt < retryMs
+        ) {
+          return;
+        }
+        lastDueDashboardRefreshBaseline = baseline;
+        lastDueDashboardRefreshAt = now;
+        void refreshDashboardState({ tick: true });
       }
 
       function updateNextPollWithoutTransition() {

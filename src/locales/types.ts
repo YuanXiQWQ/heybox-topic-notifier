@@ -86,6 +86,7 @@ export type Messages = {
   pollIntervalMinute: string;
   pollIntervalMonth: string;
   pollIntervalSecond: string;
+  pollIntervalSubMinuteHint: string;
   pollIntervalTooShort: string;
   pollIntervalWeek: string;
   pollingSettings: string;

@@ -447,23 +447,30 @@ function renderPollingSection(settings: AppSettings): string {
           <div class="polling-option-row" data-polling-field="interval">
             <dt>${escapeHtml(messages.pollInterval)}</dt>
             <dd>
-              <div class="poll-interval-control">
-                <input
-                  type="number"
-                  name="pollIntervalValue"
-                  min="1"
-                  step="1"
-                  value="${settings.polling.intervalValue}"
-                  data-polling-interval-value
-                >
-                <select name="pollIntervalUnit" data-polling-interval-unit>
-                  ${option("second", settings.polling.intervalUnit, messages.pollIntervalSecond)}
-                  ${option("minute", settings.polling.intervalUnit, messages.pollIntervalMinute)}
-                  ${option("hour", settings.polling.intervalUnit, messages.pollIntervalHour)}
-                  ${option("day", settings.polling.intervalUnit, messages.pollIntervalDay)}
-                  ${option("week", settings.polling.intervalUnit, messages.pollIntervalWeek)}
-                  ${option("month", settings.polling.intervalUnit, messages.pollIntervalMonth)}
-                </select>
+              <div class="poll-interval-row">
+                <div class="poll-interval-control">
+                  <input
+                    type="number"
+                    name="pollIntervalValue"
+                    min="1"
+                    step="1"
+                    value="${settings.polling.intervalValue}"
+                    data-polling-interval-value
+                  >
+                  <select name="pollIntervalUnit" data-polling-interval-unit>
+                    ${option("second", settings.polling.intervalUnit, messages.pollIntervalSecond)}
+                    ${option("minute", settings.polling.intervalUnit, messages.pollIntervalMinute)}
+                    ${option("hour", settings.polling.intervalUnit, messages.pollIntervalHour)}
+                    ${option("day", settings.polling.intervalUnit, messages.pollIntervalDay)}
+                    ${option("week", settings.polling.intervalUnit, messages.pollIntervalWeek)}
+                    ${option("month", settings.polling.intervalUnit, messages.pollIntervalMonth)}
+                  </select>
+                </div>
+                <p
+                  class="field-hint"
+                  data-polling-sub-minute-hint
+                  ${isSubMinutePolling(settings) ? "" : "hidden"}
+                >${escapeHtml(messages.pollIntervalSubMinuteHint)}</p>
               </div>
             </dd>
           </div>
@@ -492,6 +499,10 @@ function renderPollingSection(settings: AppSettings): string {
         </dl>
       </section>
   `;
+}
+
+function isSubMinutePolling(settings: AppSettings): boolean {
+  return settings.polling.intervalUnit === "second" && settings.polling.intervalValue < 60;
 }
 
 function renderTopicSection(settings: AppSettings): string {

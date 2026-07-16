@@ -60,10 +60,15 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.get("/dashboard-state", async (c) => {
+    const url = new URL(c.req.url);
+    if (url.searchParams.get("tick") === "1") {
+      await context.scheduler?.tick();
+    }
+    url.searchParams.delete("tick");
     const { pendingMatches, settings, state } = await context.storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
-      parseMatchTableQuery(new URL(c.req.url).searchParams),
+      parseMatchTableQuery(url.searchParams),
     );
     const messages = getMessages(settings.locale);
 

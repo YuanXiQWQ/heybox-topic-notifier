@@ -84,6 +84,7 @@
   "pollIntervalMinute": "min",
   "pollIntervalMonth": "month",
   "pollIntervalSecond": "sec",
+  "pollIntervalSubMinuteHint": "Polling intervals under 1 minute only take effect while the page is open in the foreground; offline or background polling runs every 1 minute.",
   "pollIntervalTooShort": "Polling interval must be at least 3 seconds.",
   "pollIntervalWeek": "week",
   "pollingSettings": "Polling settings",
