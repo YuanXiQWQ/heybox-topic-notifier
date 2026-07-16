@@ -114,7 +114,10 @@ export type Messages = {
   settingsTitle: string;
   simulateMatch: string;
   testNotify: string;
+  testNotifyFailed: string;
+  testNotifySending: string;
   testNotifySent: string;
+  testNotifyViewError: string;
   theme: string;
   topic: string;
   topicEnabled: string;

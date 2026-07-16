@@ -44,9 +44,8 @@ export function createRoutes(context: AppContext): Hono {
 
   app.get("/", async (c) => {
     const url = new URL(c.req.url);
-    const settings = await context.storage.getSettings();
-    const state = await context.storage.getAppState();
-    const pendingMatches = await context.storage.listPendingMatches();
+    await context.scheduler?.tick();
+    const { pendingMatches, settings, state } = await context.storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
@@ -61,9 +60,7 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.get("/dashboard-state", async (c) => {
-    const settings = await context.storage.getSettings();
-    const state = await context.storage.getAppState();
-    const pendingMatches = await context.storage.listPendingMatches();
+    const { pendingMatches, settings, state } = await context.storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),

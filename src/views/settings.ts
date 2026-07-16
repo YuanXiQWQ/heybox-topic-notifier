@@ -117,9 +117,20 @@ function renderNotificationSection(settings: AppSettings): string {
                 <button
                   type="button"
                   data-test-notify-button
+                  data-test-notify-sending="${escapeHtml(messages.testNotifySending)}"
+                  data-test-notify-failed="${escapeHtml(messages.testNotifyFailed)}"
                   ${settings.notificationProvider === "disabled" ? "hidden" : ""}
                 >${escapeHtml(messages.testNotify)}</button>
-                <span class="inline-action-status" data-test-notify-status role="status"></span>
+                <span class="inline-action-status" data-test-notify-status role="status">
+                  <span data-test-notify-status-text></span>
+                  <a
+                    class="inline-action-link"
+                    data-test-notify-error-link
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    hidden
+                  >${externalLinkIcon()}${escapeHtml(messages.testNotifyViewError)}</a>
+                </span>
               </div>
             </dd>
           </div>

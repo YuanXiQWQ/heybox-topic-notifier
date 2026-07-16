@@ -49,6 +49,34 @@ Deno.test("deleteMatches removes records from match history", async () => {
   assertEquals(await storage.listHistory(), []);
 });
 
+Deno.test("getDashboardSnapshot reads matches once for state and pending rows", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  await storage.saveMatch(record("pending-id", {
+    matchedAt: "2026-07-12T10:00:00.000Z",
+    publishedAt: "2026-07-12T09:00:00.000Z",
+  }));
+  await storage.saveMatch({
+    ...record("completed-id", {
+      matchedAt: "2026-07-12T11:00:00.000Z",
+      publishedAt: "2026-07-12T10:00:00.000Z",
+    }),
+    completedAt: "2026-07-12T12:00:00.000Z",
+  });
+
+  kv.resetStats();
+
+  const snapshot = await storage.getDashboardSnapshot();
+
+  assertEquals(kv.listCalls, 1);
+  assertEquals(kv.getCalls, 2);
+  assertEquals(snapshot.state.totalMatches, 2);
+  assertEquals(snapshot.state.latestMatch?.id, "completed-id");
+  assertEquals(snapshot.pendingMatches.map((item) => item.id), ["pending-id"]);
+});
+
 function record(
   id: string,
   options: { matchedAt: string; publishedAt: string },
@@ -105,10 +133,13 @@ const defaultSettings: AppSettings = {
 
 class MemoryKv {
   #entries = new Map<string, { key: Deno.KvKey; value: unknown }>();
+  getCalls = 0;
+  listCalls = 0;
 
   get<T>(
     key: Deno.KvKey,
   ): Promise<{ key: Deno.KvKey; value: T | null; versionstamp: string | null }> {
+    this.getCalls += 1;
     const entry = this.#entries.get(this.#key(key));
     return Promise.resolve({
       key,
@@ -130,6 +161,7 @@ class MemoryKv {
   async *list<T>(
     selector: Deno.KvListSelector,
   ): AsyncIterableIterator<Deno.KvEntry<T>> {
+    this.listCalls += 1;
     const prefix = "prefix" in selector ? selector.prefix : [];
     for (const entry of this.#entries.values()) {
       if (!this.#startsWith(entry.key, prefix)) {
@@ -146,6 +178,11 @@ class MemoryKv {
 
   #key(key: Deno.KvKey): string {
     return JSON.stringify(key);
+  }
+
+  resetStats(): void {
+    this.getCalls = 0;
+    this.listCalls = 0;
   }
 
   #startsWith(key: Deno.KvKey, prefix: Deno.KvKey): boolean {

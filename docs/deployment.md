@@ -20,6 +20,10 @@ https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
 当前 `dev` 测试部署已经建立，稳定测试入口是 Git Branch / DEV URL。后续推送到 `dev`
 会触发测试部署更新，推送到 `main` 会触发 Production 更新。
 
+Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch timeline 和 Build。为了避免功能分支
+重复读取 KV、抓取小黑盒或发送通知，代码中的定时轮询只会在 `production` 和 `git-branch/dev` 这两个
+`DENO_TIMELINE` 上真正执行；其他 timeline 即使注册了 Cron，也会在 handler 开始时直接跳过。
+
 ## Deno Deploy 配置
 
 在 Deno Deploy App 中保持以下配置：
@@ -54,6 +58,8 @@ Deno Deploy App 中按需配置：
 - `POLL_POST_LIMIT`
 - `POLL_SORT`
 - `NOTIFIER_PROVIDER`
+- `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
+- `NOTIFIER_PUSHPLUS_SEND_URL`
 - `NOTIFIER_WEBHOOK_URL`
 
 真实小黑盒话题抓取是当前唯一运行数据源。默认 `HEYBOX_SIGNATURE_MODE=app` 使用已验证的 App API
