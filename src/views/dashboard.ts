@@ -138,6 +138,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
     second: messages.pollIntervalSecond,
     week: messages.pollIntervalWeek,
   };
+  const dashboardStateRefreshMs = 30_000;
 
   return `<script>
     (() => {
@@ -158,6 +159,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
       const pollUnitLabels = ${JSON.stringify(pollUnitLabels)};
+      const dashboardStateRefreshMs = ${dashboardStateRefreshMs};
       const nextPollResetAnimationMs = 440;
       const pollResetStorageKey = "heybox.nextPollResetWidth";
       const initialPollResetStartWidth = consumeInitialPollResetStartWidth();
@@ -175,8 +177,9 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       window.setInterval(updateLastPoll, 1000);
       window.setInterval(updateNextPoll, 250);
       window.setInterval(() => {
+        if (document.visibilityState !== "visible") return;
         void refreshDashboardState();
-      }, 1000);
+      }, dashboardStateRefreshMs);
 
       function updateLastPoll() {
         if (!Number.isFinite(timestamp)) {

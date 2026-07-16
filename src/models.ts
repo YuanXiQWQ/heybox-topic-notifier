@@ -86,3 +86,9 @@ export type AppState = {
   latestMatch?: MatchRecord;
   totalMatches: number;
 };
+
+export type DashboardSnapshot = {
+  pendingMatches: MatchRecord[];
+  settings: AppSettings;
+  state: AppState;
+};

@@ -3,6 +3,7 @@ import {
   pollingIntervalMs,
   shouldPoll,
   shouldPollFromLastStart,
+  shouldRunDeployCron,
 } from "./crons.ts";
 
 const fiveMinutes = { intervalUnit: "minute" as const, intervalValue: 5 };
@@ -102,6 +103,15 @@ Deno.test("poll scheduler swallows scheduled poll failures", async () => {
   );
 
   assertEquals(await scheduler.tick(), false);
+});
+
+Deno.test("deploy cron only runs on production and dev timelines", () => {
+  assertEquals(shouldRunDeployCron("production"), true);
+  assertEquals(shouldRunDeployCron("git-branch/dev"), true);
+  assertEquals(shouldRunDeployCron("git-branch/main"), false);
+  assertEquals(shouldRunDeployCron("git-branch/backend/cron-timeline-guard"), false);
+  assertEquals(shouldRunDeployCron("preview/abc123"), false);
+  assertEquals(shouldRunDeployCron(undefined), false);
 });
 
 function assertEquals(actual: unknown, expected: unknown): void {

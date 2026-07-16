@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   AppState,
+  DashboardSnapshot,
   KeywordRule,
   MatchRecord,
   PollingSettings,
@@ -39,6 +40,10 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
   }
 
   async function listHistory(): Promise<MatchRecord[]> {
+    return historyFromRecords(await listMatchRecords());
+  }
+
+  async function listMatchRecords(): Promise<MatchRecord[]> {
     const store = await kv();
     const records: MatchRecord[] = [];
 
@@ -46,7 +51,7 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
       records.push(entry.value);
     }
 
-    return records.toSorted((left, right) => right.matchedAt.localeCompare(left.matchedAt));
+    return records;
   }
 
   return {
@@ -64,24 +69,37 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
     async getAppState(): Promise<AppState> {
       const store = await kv();
       const state = await store.get<AppState>(keys.state);
-      const history = await listHistory();
+      const records = await listMatchRecords();
 
       return {
         lastPollAt: state.value?.lastPollAt,
-        latestMatch: latestMatchByMatchedTime(history),
-        totalMatches: history.length,
+        latestMatch: latestMatchByMatchedTime(records),
+        totalMatches: records.length,
+      };
+    },
+
+    async getDashboardSnapshot(): Promise<DashboardSnapshot> {
+      const store = await kv();
+      const settingsEntry = await store.get<Partial<AppSettings> & LegacySettings>(keys.settings);
+      const stateEntry = await store.get<AppState>(keys.state);
+      const records = await listMatchRecords();
+      const settings = normalizeSettings(settingsEntry.value, defaultSettings);
+
+      return {
+        pendingMatches: pendingFromRecords(records),
+        settings,
+        state: {
+          lastPollAt: stateEntry.value?.lastPollAt,
+          latestMatch: latestMatchByMatchedTime(records),
+          totalMatches: records.length,
+        },
       };
     },
 
     listHistory,
 
     async listPendingMatches(): Promise<MatchRecord[]> {
-      const history = await listHistory();
-      return history.filter((record) => !record.completedAt)
-        .toSorted((left, right) =>
-          compareIsoDesc(left.post.publishedAt, right.post.publishedAt) ||
-          compareIsoDesc(left.matchedAt, right.matchedAt)
-        );
+      return pendingFromRecords(await listMatchRecords());
     },
 
     async saveMatch(record: MatchRecord): Promise<void> {
@@ -128,6 +146,18 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
       await store.set(keys.state, { lastPollAt: value });
     },
   };
+}
+
+function historyFromRecords(records: MatchRecord[]): MatchRecord[] {
+  return records.toSorted((left, right) => right.matchedAt.localeCompare(left.matchedAt));
+}
+
+function pendingFromRecords(records: MatchRecord[]): MatchRecord[] {
+  return records.filter((record) => !record.completedAt)
+    .toSorted((left, right) =>
+      compareIsoDesc(left.post.publishedAt, right.post.publishedAt) ||
+      compareIsoDesc(left.matchedAt, right.matchedAt)
+    );
 }
 
 function compareIsoDesc(left: string, right: string): number {

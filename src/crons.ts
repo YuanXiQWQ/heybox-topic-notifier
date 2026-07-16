@@ -3,6 +3,7 @@ import type { PollingSettings } from "./models.ts";
 
 const pollSchedulerTickMs = 1000;
 const deployCronSchedule = "* * * * *";
+const deployCronAllowedTimelines = new Set(["production", "git-branch/dev"]);
 
 export function createPollScheduler(context: Pick<AppContext, "poller" | "storage">) {
   let isPolling = false;
@@ -43,6 +44,10 @@ export function createPollScheduler(context: Pick<AppContext, "poller" | "storag
 export function registerCrons(context: AppContext): void {
   if (isDenoDeploy() && typeof Deno.cron === "function") {
     Deno.cron("poll heybox topics", deployCronSchedule, async () => {
+      if (!shouldRunDeployCron(readDenoTimeline())) {
+        return;
+      }
+
       await context.scheduler.tick();
     });
     return;
@@ -51,6 +56,18 @@ export function registerCrons(context: AppContext): void {
   setInterval(() => {
     void context.scheduler.tick();
   }, pollSchedulerTickMs);
+}
+
+export function shouldRunDeployCron(timeline: string | undefined): boolean {
+  return timeline !== undefined && deployCronAllowedTimelines.has(timeline);
+}
+
+function readDenoTimeline(): string | undefined {
+  try {
+    return Deno.env.get("DENO_TIMELINE") ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isDenoDeploy(): boolean {
