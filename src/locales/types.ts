@@ -86,6 +86,7 @@ export type Messages = {
   pollIntervalMinute: string;
   pollIntervalMonth: string;
   pollIntervalSecond: string;
+  pollIntervalSubMinuteHint: string;
   pollIntervalTooShort: string;
   pollIntervalWeek: string;
   pollingSettings: string;
@@ -114,6 +115,8 @@ export type Messages = {
   settingsTitle: string;
   simulateMatch: string;
   testNotify: string;
+  testNotifyBackToSettings: string;
+  testNotifyErrorTitle: string;
   testNotifyFailed: string;
   testNotifySending: string;
   testNotifySent: string;

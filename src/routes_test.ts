@@ -337,6 +337,36 @@ Deno.test("run now preserves dashboard table query and requests reset animation"
   );
 });
 
+Deno.test("dashboard state ticks scheduler only when requested", async () => {
+  let ticks = 0;
+  const app = createRoutes({
+    scheduler: {
+      tick: () => {
+        ticks += 1;
+        return Promise.resolve(true);
+      },
+    },
+    storage: {
+      getDashboardSnapshot: () =>
+        Promise.resolve({
+          pendingMatches: [],
+          settings: currentSettings,
+          state: {
+            lastPollAt: "2026-07-16T08:00:00.000Z",
+            totalMatches: 0,
+          },
+        }),
+    },
+  } as unknown as AppContext);
+
+  const regularResponse = await app.request("/dashboard-state?page=2");
+  const tickedResponse = await app.request("/dashboard-state?page=2&tick=1");
+
+  assertEquals(regularResponse.status, 200);
+  assertEquals(tickedResponse.status, 200);
+  assertEquals(ticks, 1);
+});
+
 Deno.test("complete matches handles all selected ids and ignores empty submissions", async () => {
   const completed: string[][] = [];
   const app = createRoutes({
