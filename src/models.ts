@@ -92,3 +92,20 @@ export type DashboardSnapshot = {
   settings: AppSettings;
   state: AppState;
 };
+
+export type UserAccount = {
+  createdAt: string;
+  id: string;
+  passwordHash: string;
+  passwordIterations: number;
+  passwordSalt: string;
+  username: string;
+};
+
+export type UserSession = {
+  createdAt: string;
+  expiresAt: string;
+  tokenHash: string;
+  userId: string;
+  username: string;
+};

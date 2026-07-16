@@ -1,4 +1,5 @@
 import { Hono } from "@hono/hono";
+import { readAuthSession } from "./auth.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import type {
   AppSettings,
@@ -44,8 +45,9 @@ export function createRoutes(context: AppContext): Hono {
 
   app.get("/", async (c) => {
     const url = new URL(c.req.url);
+    const storage = await storageForRequest(c, context);
     await context.scheduler?.tick();
-    const { pendingMatches, settings, state } = await context.storage.getDashboardSnapshot();
+    const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
@@ -65,7 +67,8 @@ export function createRoutes(context: AppContext): Hono {
       await context.scheduler?.tick();
     }
     url.searchParams.delete("tick");
-    const { pendingMatches, settings, state } = await context.storage.getDashboardSnapshot();
+    const storage = await storageForRequest(c, context);
+    const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       parseMatchTableQuery(url.searchParams),
@@ -92,14 +95,16 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.get("/settings", async (c) => {
-    const settings = await context.storage.getSettings();
+    const storage = await storageForRequest(c, context);
+    const settings = await storage.getSettings();
     return c.html(renderSettings({ settings }));
   });
 
   app.post("/settings", async (c) => {
+    const storage = await storageForRequest(c, context);
     const form = await c.req.parseBody();
-    const currentSettings = await context.storage.getSettings();
-    await context.storage.saveSettings(settingsFromForm(form, currentSettings));
+    const currentSettings = await storage.getSettings();
+    await storage.saveSettings(settingsFromForm(form, currentSettings));
     if (c.req.header("x-autosave") === "1") {
       return new Response(null, { status: 204 });
     }
@@ -107,8 +112,9 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.get("/history", async (c) => {
-    const settings = await context.storage.getSettings();
-    const history = await context.storage.listHistory();
+    const storage = await storageForRequest(c, context);
+    const settings = await storage.getSettings();
+    const history = await storage.listHistory();
     const historyTable = applyMatchTableQuery(
       history,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
@@ -117,9 +123,14 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/run-now", async (c) => {
+    const storage = await optionalStorageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
     try {
-      await context.poller.runOnce();
+      if (storage) {
+        await context.poller.runOnce(storage);
+      } else {
+        await context.poller.runOnce();
+      }
       return c.redirect(
         withPollResetFlag(safeRedirectPath(form.get("returnTo"), "/"), form.get("pollResetStart")),
       );
@@ -129,14 +140,16 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/simulate-match", async (c) => {
+    const storage = await storageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
-    const settings = await context.storage.getSettings();
-    await context.storage.saveMatch(createRandomTestMatchRecord(settings, 1, "simulation"));
+    const settings = await storage.getSettings();
+    await storage.saveMatch(createRandomTestMatchRecord(settings, 1, "simulation"));
     return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
   });
 
   app.post("/test-notify", async (c) => {
-    const settings = await context.storage.getSettings();
+    const storage = await storageForRequest(c, context);
+    const settings = await storage.getSettings();
     try {
       await context.notifier.sendTest(settings);
       if (c.req.header("x-test-notify") === "1") {
@@ -149,19 +162,21 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/matches/complete", async (c) => {
+    const storage = await storageForRequest(c, context);
     const form = await c.req.raw.formData();
     const ids = form.getAll("matchId").map(String);
     if (ids.length > 0) {
-      await context.storage.completeMatches(ids);
+      await storage.completeMatches(ids);
     }
     return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
   });
 
   app.post("/matches/delete", async (c) => {
+    const storage = await storageForRequest(c, context);
     const form = await c.req.raw.formData();
     const ids = form.getAll("matchId").map(String);
     if (ids.length > 0) {
-      await context.storage.deleteMatches(ids);
+      await storage.deleteMatches(ids);
     }
     return c.redirect(safeRedirectPath(form.get("returnTo"), "/history"));
   });
@@ -187,6 +202,30 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   return app;
+}
+
+async function storageForRequest(
+  c: { req: { header(name: string): string | undefined } },
+  context: AppContext,
+) {
+  const storage = await optionalStorageForRequest(c, context);
+  if (!storage) {
+    throw new Error("Storage is not configured for this route.");
+  }
+  return storage;
+}
+
+async function optionalStorageForRequest(
+  c: { req: { header(name: string): string | undefined } },
+  context: AppContext,
+) {
+  const storage = (context as { storage?: AppContext["storage"] }).storage;
+  if (!storage) {
+    return undefined;
+  }
+
+  const session = await readAuthSession(c.req.header("cookie"), storage);
+  return "forUser" in storage ? storage.forUser(session?.userId ?? "default") : storage;
 }
 
 function notificationErrorResponse(error: unknown): Response {

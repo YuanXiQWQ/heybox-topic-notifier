@@ -77,6 +77,31 @@ Deno.test("getDashboardSnapshot reads matches once for state and pending rows", 
   assertEquals(snapshot.pendingMatches.map((item) => item.id), ["pending-id"]);
 });
 
+Deno.test("forUser isolates matches by account id", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+
+  await storage.forUser("alice").saveMatch(record("same-id", {
+    matchedAt: "2026-07-12T10:00:00.000Z",
+    publishedAt: "2026-07-12T09:00:00.000Z",
+  }));
+  await storage.forUser("bob").saveMatch(record("same-id", {
+    matchedAt: "2026-07-12T11:00:00.000Z",
+    publishedAt: "2026-07-12T10:00:00.000Z",
+  }));
+
+  assertEquals(
+    (await storage.forUser("alice").listHistory())[0].matchedAt,
+    "2026-07-12T10:00:00.000Z",
+  );
+  assertEquals(
+    (await storage.forUser("bob").listHistory())[0].matchedAt,
+    "2026-07-12T11:00:00.000Z",
+  );
+});
+
 function record(
   id: string,
   options: { matchedAt: string; publishedAt: string },

@@ -4,6 +4,15 @@ import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import type { TopicSource } from "./topic_source.ts";
 
+type PollStorage = Pick<
+  ReturnType<typeof createKvStorage>,
+  | "getSettings"
+  | "listHistory"
+  | "markMatchNotified"
+  | "saveMatch"
+  | "setLastPollAt"
+>;
+
 type PollerDependencies = {
   matcher: ReturnType<typeof createMatcher>;
   notifier: ReturnType<typeof createNotifier>;
@@ -13,10 +22,10 @@ type PollerDependencies = {
 
 export function createPoller({ matcher, notifier, source, storage }: PollerDependencies) {
   return {
-    async runOnce(): Promise<void> {
-      const settings = await storage.getSettings();
+    async runOnce(runStorage: PollStorage = storage): Promise<void> {
+      const settings = await runStorage.getSettings();
       const enabledTopics = settings.topics.filter((topic) => topic.enabled && topic.id.trim());
-      const existingMatchesByPostId = matchesByPostId(await storage.listHistory());
+      const existingMatchesByPostId = matchesByPostId(await runStorage.listHistory());
       const existingMatchedPostIds = new Set(existingMatchesByPostId.keys());
       const matchedRecords: MatchRecord[] = [];
       const matchedPostIds = new Set<string>();
@@ -35,7 +44,7 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
           if (alreadyMatched) {
             const refreshedPost = await resolvePostDetails(source, post);
             await updateExistingMatchesPost(
-              storage,
+              runStorage,
               existingMatchesByPostId.get(post.id) ?? [],
               refreshedPost,
             );
@@ -56,7 +65,7 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
             post: detailedPost,
           };
 
-          await storage.saveMatch(record);
+          await runStorage.saveMatch(record);
           matchedRecords.push(record);
           matchedPostIds.add(record.post.id);
           existingMatchedPostIds.add(record.post.id);
@@ -69,12 +78,12 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
 
         for (const record of matchedRecords) {
           if (result.sent) {
-            await storage.markMatchNotified(record.id, notifiedAt);
+            await runStorage.markMatchNotified(record.id, notifiedAt);
           }
         }
       }
 
-      await storage.setLastPollAt(new Date().toISOString());
+      await runStorage.setLastPollAt(new Date().toISOString());
     },
   };
 }
@@ -96,7 +105,7 @@ function matchesByPostId(records: MatchRecord[]): Map<string, MatchRecord[]> {
 }
 
 async function updateExistingMatchesPost(
-  storage: ReturnType<typeof createKvStorage>,
+  storage: Pick<PollStorage, "saveMatch">,
   records: MatchRecord[],
   post: MatchRecord["post"],
 ): Promise<void> {

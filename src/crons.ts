@@ -6,39 +6,69 @@ const deployCronSchedule = "* * * * *";
 const deployCronAllowedTimelines = new Set(["production", "git-branch/dev"]);
 
 export function createPollScheduler(context: Pick<AppContext, "poller" | "storage">) {
-  let isPolling = false;
-  let lastPollStartedAt: number | undefined;
+  const pollingUserIds = new Set<string>();
+  const lastPollStartedAtByUserId = new Map<string, number>();
 
   return {
     async tick(): Promise<boolean> {
-      if (isPolling) {
-        return false;
+      const userIds = await pollableUserIds(context.storage);
+      let didPoll = false;
+
+      for (const userId of userIds) {
+        didPoll = await tickUser(userId) || didPoll;
       }
 
-      const settings = await context.storage.getSettings();
-      if (!settings.polling.enabled) {
-        lastPollStartedAt = undefined;
-        return false;
-      }
-
-      const state = await context.storage.getAppState();
-      if (!shouldPollFromLastStart(lastPollStartedAt, state.lastPollAt, settings.polling)) {
-        return false;
-      }
-
-      isPolling = true;
-      lastPollStartedAt = Date.now();
-      try {
-        await context.poller.runOnce();
-        return true;
-      } catch (error) {
-        console.error("Scheduled poll failed", error);
-        return false;
-      } finally {
-        isPolling = false;
-      }
+      return didPoll;
     },
   };
+
+  async function tickUser(userId: string): Promise<boolean> {
+    if (pollingUserIds.has(userId)) {
+      return false;
+    }
+
+    const storage = storageForUser(context.storage, userId);
+    const settings = await storage.getSettings();
+    if (!settings.polling.enabled) {
+      lastPollStartedAtByUserId.delete(userId);
+      return false;
+    }
+
+    const state = await storage.getAppState();
+    if (
+      !shouldPollFromLastStart(
+        lastPollStartedAtByUserId.get(userId),
+        state.lastPollAt,
+        settings.polling,
+      )
+    ) {
+      return false;
+    }
+
+    pollingUserIds.add(userId);
+    lastPollStartedAtByUserId.set(userId, Date.now());
+    try {
+      await context.poller.runOnce(storage);
+      return true;
+    } catch (error) {
+      console.error(`Scheduled poll failed for user ${userId}`, error);
+      return false;
+    } finally {
+      pollingUserIds.delete(userId);
+    }
+  }
+}
+
+async function pollableUserIds(storage: AppContext["storage"]): Promise<string[]> {
+  if ("listAccounts" in storage) {
+    return (await storage.listAccounts()).map((account) => account.id);
+  }
+
+  return ["default"];
+}
+
+function storageForUser(storage: AppContext["storage"], userId: string) {
+  return "forUser" in storage ? storage.forUser(userId) : storage;
 }
 
 export function registerCrons(context: AppContext): void {

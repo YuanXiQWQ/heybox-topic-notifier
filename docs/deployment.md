@@ -38,8 +38,8 @@ Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch tim
 ## 数据库
 
 Deno Deploy App 已绑定 Deno KV 数据库。代码通过 `Deno.openKv()`
-读写设置、历史记录、轮询状态和已处理帖子标记；Deno Deploy 会按 timeline 隔离 Production 和 Git
-Branch 数据。
+读写账号、设置、历史记录、轮询状态和已处理帖子标记。账号密码以加盐 PBKDF2 哈希保存； 用户数据按用户
+ID 前缀隔离，Deno Deploy 还会按 timeline 隔离 Production 和 Git Branch 数据。
 
 ## 运行环境变量
 
@@ -61,6 +61,10 @@ Deno Deploy App 中按需配置：
 - `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
 - `NOTIFIER_PUSHPLUS_SEND_URL`
 - `NOTIFIER_WEBHOOK_URL`
+
+应用提供注册和登录页面。账号信息、登录会话，以及各账号的设置、命中记录、轮询状态、通知配置都存储在
+Deno KV 中，并按用户 ID 隔离。浏览器 Cookie 只保存随机 session token；服务端保存 token
+哈希和过期时间。
 
 真实小黑盒话题抓取是当前唯一运行数据源。默认 `HEYBOX_SIGNATURE_MODE=app` 使用已验证的 App API
 发布时间列表；`web` 仅保留为诊断回退。除非正在验证定时轮询，Production 和 Git Branch / DEV
