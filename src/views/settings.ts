@@ -126,8 +126,16 @@ function renderNotificationSection(settings: AppSettings): string {
                   <a
                     class="inline-action-link"
                     data-test-notify-error-link
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    data-error-app-name="${escapeHtml(messages.appName)}"
+                    data-error-dark-mode="${settings.darkMode ? "true" : "false"}"
+                    data-error-locale="${escapeHtml(settings.locale)}"
+                    data-error-nav-dashboard="${escapeHtml(messages.navDashboard)}"
+                    data-error-nav-history="${escapeHtml(messages.navHistory)}"
+                    data-error-nav-settings="${escapeHtml(messages.navSettings)}"
+                    data-error-return-label="${escapeHtml(messages.testNotifyBackToSettings)}"
+                    data-error-summary="${escapeHtml(messages.testNotifyFailed)}"
+                    data-error-theme-color="${escapeHtml(settings.themeColor)}"
+                    data-error-title="${escapeHtml(messages.testNotifyErrorTitle)}"
                     hidden
                   >${externalLinkIcon()}${escapeHtml(messages.testNotifyViewError)}</a>
                 </span>

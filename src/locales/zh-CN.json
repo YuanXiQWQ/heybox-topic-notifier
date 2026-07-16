@@ -112,6 +112,8 @@
   "settingsTitle": "设置",
   "simulateMatch": "模拟命中",
   "testNotify": "测试通知",
+  "testNotifyBackToSettings": "返回设置",
+  "testNotifyErrorTitle": "错误信息",
   "testNotifyFailed": "通知发送失败",
   "testNotifySending": "通知发送中...",
   "testNotifySent": "通知已发送",

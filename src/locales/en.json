@@ -112,6 +112,8 @@
   "settingsTitle": "Settings",
   "simulateMatch": "Simulate match",
   "testNotify": "Test notify",
+  "testNotifyBackToSettings": "Back to settings",
+  "testNotifyErrorTitle": "Error message",
   "testNotifyFailed": "Notification failed.",
   "testNotifySending": "Sending notification...",
   "testNotifySent": "Notification sent.",

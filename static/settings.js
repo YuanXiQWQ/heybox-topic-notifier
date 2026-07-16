@@ -707,10 +707,115 @@ function updateTestNotifyErrorLink(status, errorDetails) {
   }
 
   testNotifyErrorDetailsUrl = URL.createObjectURL(
-    new Blob([errorDetails], { type: "text/plain;charset=utf-8" }),
+    new Blob(
+      [renderTestNotifyErrorPage(errorLink, errorDetails)],
+      { type: "text/html;charset=utf-8" },
+    ),
   );
   errorLink.href = testNotifyErrorDetailsUrl;
   errorLink.hidden = false;
+}
+
+function renderTestNotifyErrorPage(errorLink, errorDetails) {
+  const appName = errorLink.dataset.errorAppName || document.title || "Heybox Topic Notifier";
+  const appOrigin = globalThis.location?.origin || "";
+  const colorMode = errorLink.dataset.errorDarkMode === "true" ? "dark" : "light";
+  const errorTitle = errorLink.dataset.errorTitle || "Error message";
+  const locale = errorLink.dataset.errorLocale || document.documentElement.lang || "zh-CN";
+  const generatedAt = new Date().toLocaleString();
+  const navDashboard = errorLink.dataset.errorNavDashboard || "Dashboard";
+  const navHistory = errorLink.dataset.errorNavHistory || "History";
+  const navSettings = errorLink.dataset.errorNavSettings || "Settings";
+  const returnLabel = errorLink.dataset.errorReturnLabel || navSettings;
+  const summary = errorLink.dataset.errorSummary || errorTitle;
+  const themeColor = errorLink.dataset.errorThemeColor || "#bd7fff";
+
+  return `<!doctype html>
+<html
+  lang="${escapeHtml(locale)}"
+  data-color-mode="${escapeHtml(colorMode)}"
+  style="--theme-color: ${escapeHtml(themeColor)}"
+>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(appName)}</title>
+  <link rel="icon" href="https://cdn.max-c.com/heybox/logo/app_251.png">
+  <link rel="stylesheet" href="${escapeHtml(appOrigin)}/static/app.css">
+  <style>
+    .error-detail-content {
+      background: var(--control-bg);
+      border: 1px solid var(--control-border);
+      border-radius: 6px;
+      box-sizing: border-box;
+      font: 15px/1.7 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      margin: 0;
+      min-height: 240px;
+      overflow: auto;
+      padding: 18px;
+      white-space: pre-wrap;
+      width: min(100%, 960px);
+      word-break: break-word;
+    }
+    .settings-list > div.error-detail-row {
+      grid-template-columns: 1fr;
+      padding: 22px;
+    }
+    .error-detail-row dd {
+      display: flex;
+      justify-content: center;
+      margin: 0;
+      min-width: 0;
+    }
+    .error-detail-actions {
+      display: flex;
+      justify-content: center;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="${escapeHtml(appOrigin)}/">${escapeHtml(appName)}</a>
+    <nav class="primary-nav" aria-label="Primary">
+      <a href="${escapeHtml(appOrigin)}/">${escapeHtml(navDashboard)}</a>
+      <a href="${escapeHtml(appOrigin)}/settings">${escapeHtml(navSettings)}</a>
+      <a href="${escapeHtml(appOrigin)}/history">${escapeHtml(navHistory)}</a>
+    </nav>
+  </header>
+  <main class="shell">
+    <section class="page-heading">
+      <div>
+        <h1>${escapeHtml(errorTitle)}</h1>
+        <p>${escapeHtml(summary)} - ${escapeHtml(generatedAt)}</p>
+      </div>
+    </section>
+    <section class="settings-group" aria-label="${escapeHtml(errorTitle)}">
+      <dl class="settings-list">
+        <div class="error-detail-row">
+          <dd><pre class="error-detail-content">${escapeHtml(errorDetails)}</pre></dd>
+        </div>
+      </dl>
+      <div class="error-detail-actions">
+        <a class="button-link" href="${escapeHtml(appOrigin)}/settings">${
+    escapeHtml(returnLabel)
+  }</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) =>
+    ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[char]);
 }
 
 function settingsSignature() {

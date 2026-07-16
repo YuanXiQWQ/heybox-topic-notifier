@@ -114,6 +114,8 @@ export type Messages = {
   settingsTitle: string;
   simulateMatch: string;
   testNotify: string;
+  testNotifyBackToSettings: string;
+  testNotifyErrorTitle: string;
   testNotifyFailed: string;
   testNotifySending: string;
   testNotifySent: string;
