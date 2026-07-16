@@ -3,6 +3,7 @@ let autoSaveKeywordEditor;
 let autoSaveTopicEditor;
 let autoSaveTimer;
 let autoSaveController;
+let testNotifyErrorDetailsUrl;
 let testNotifyStatusTimer;
 let lastSavedSignature = "";
 let reloadAfterSave = false;
@@ -165,11 +166,19 @@ function initNotificationSettings() {
     }
 
     testNotifyButton.disabled = true;
-    const saved = await saveSettingsNow();
-    if (saved) {
-      await sendTestNotification();
+    setTestNotifyStatus(testNotifyButton.dataset.testNotifySending ?? "", "pending", {
+      persistMs: 0,
+    });
+    try {
+      const saved = await saveSettingsNow();
+      if (saved) {
+        await sendTestNotification(testNotifyButton);
+      } else {
+        setTestNotifyStatus(testNotifyButton.dataset.testNotifyFailed ?? "", "error");
+      }
+    } finally {
+      testNotifyButton.disabled = false;
     }
-    testNotifyButton.disabled = false;
   });
 
   applyNotificationFields(visibleFields, false, ++transitionToken);
@@ -621,7 +630,9 @@ async function saveSettingsNow() {
   }
 }
 
-async function sendTestNotification() {
+async function sendTestNotification(testNotifyButton) {
+  const fallbackError = testNotifyButton?.dataset?.testNotifyFailed ?? "";
+
   try {
     const response = await fetch("/test-notify", {
       headers: { "x-test-notify": "1" },
@@ -629,31 +640,77 @@ async function sendTestNotification() {
     });
     const text = await response.text();
     if (response.ok) {
-      setTestNotifyStatus(text);
+      setTestNotifyStatus(text, "success");
     } else {
-      setAutoSaveStatus("error", text);
+      const statusLine = `HTTP ${response.status}${
+        response.statusText ? ` ${response.statusText}` : ""
+      }`;
+      setTestNotifyStatus(fallbackError, "error", {
+        errorDetails: [statusLine, text || fallbackError].join("\n\n"),
+      });
     }
-  } catch {
-    setAutoSaveStatus("error");
+  } catch (error) {
+    const errorDetails = error instanceof Error ? error.message : fallbackError;
+    setTestNotifyStatus(fallbackError, "error", { errorDetails });
   }
 }
 
-function setTestNotifyStatus(text) {
+function setTestNotifyStatus(text, state = "", options = {}) {
   const status = document.querySelector("[data-test-notify-status]");
   if (!status) {
     return;
   }
 
   clearTimeout(testNotifyStatusTimer);
-  status.textContent = text;
-
-  if (text) {
-    testNotifyStatusTimer = setTimeout(() => {
-      if (status.textContent === text) {
-        status.textContent = "";
-      }
-    }, 2200);
+  const statusText = status.querySelector("[data-test-notify-status-text]");
+  if (statusText) {
+    statusText.textContent = text;
+  } else {
+    status.textContent = text;
   }
+  updateTestNotifyErrorLink(status, state === "error" ? options.errorDetails : undefined);
+
+  if (state) {
+    status.dataset.state = state;
+  } else {
+    delete status.dataset.state;
+  }
+
+  const persistMs = options.persistMs ?? (state === "error" ? 0 : 2200);
+  if (text && persistMs > 0) {
+    testNotifyStatusTimer = setTimeout(() => {
+      const currentStatusText = status.querySelector("[data-test-notify-status-text]") ?? status;
+      if (currentStatusText.textContent === text) {
+        currentStatusText.textContent = "";
+        updateTestNotifyErrorLink(status);
+        delete status.dataset.state;
+      }
+    }, persistMs);
+  }
+}
+
+function updateTestNotifyErrorLink(status, errorDetails) {
+  const errorLink = status.querySelector("[data-test-notify-error-link]");
+  if (!(errorLink instanceof HTMLAnchorElement)) {
+    return;
+  }
+
+  if (testNotifyErrorDetailsUrl) {
+    URL.revokeObjectURL(testNotifyErrorDetailsUrl);
+    testNotifyErrorDetailsUrl = undefined;
+  }
+
+  if (!errorDetails) {
+    errorLink.hidden = true;
+    errorLink.removeAttribute("href");
+    return;
+  }
+
+  testNotifyErrorDetailsUrl = URL.createObjectURL(
+    new Blob([errorDetails], { type: "text/plain;charset=utf-8" }),
+  );
+  errorLink.href = testNotifyErrorDetailsUrl;
+  errorLink.hidden = false;
 }
 
 function settingsSignature() {

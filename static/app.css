@@ -211,7 +211,7 @@ select {
   align-items: center;
   display: flex;
   gap: 10px;
-  max-width: calc(var(--settings-control-width) + 250px);
+  max-width: min(100%, calc(var(--settings-control-width) + var(--settings-action-width) + 300px));
 }
 
 .notification-provider-row select {
@@ -227,12 +227,43 @@ select {
 }
 
 .inline-action-status {
+  align-items: center;
   color: var(--muted);
-  flex: 0 0 7em;
+  display: flex;
+  flex: 1 1 220px;
   font-size: 14px;
+  gap: 8px;
   min-height: 20px;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.inline-action-status[data-state="error"] {
+  color: #b42318;
+}
+
+:root[data-color-mode="dark"] .inline-action-status[data-state="error"] {
+  color: #ffb4ab;
+}
+
+.inline-action-link {
+  align-items: center;
+  color: var(--theme-strong);
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.inline-action-link:hover,
+.inline-action-link:focus-visible {
+  text-decoration: underline;
+}
+
+.inline-action-link svg {
+  fill: currentColor;
+  height: 14px;
+  width: 14px;
 }
 
 .input-action-row {
