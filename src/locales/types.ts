@@ -1,5 +1,14 @@
+/**
+ * @file 本文件定义多语言模块共享的类型。
+ */
+/**
+ * 应用支持的语言标识。
+ */
 export type Locale = "zh-CN" | "en";
 
+/**
+ * 应用所有可翻译文案字段的结构。
+ */
 export type Messages = {
   appDescription: string;
   appName: string;
