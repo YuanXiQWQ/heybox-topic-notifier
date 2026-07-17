@@ -44,11 +44,28 @@ export type NotifyResult = {
 };
 
 export type NotifierOptions = {
+  deliveryLogger?: DeliveryLogger;
   deliveryTimeoutMs?: number;
   emailSender?: EmailSender;
   fetch?: typeof fetch;
   webhookUrl?: string;
 };
+
+export type DeliveryLogEntry = {
+  deploymentId: string | null;
+  elapsedMs: number;
+  errorMessage: string | null;
+  errorName: string | null;
+  hostname: string;
+  method: string;
+  responseHeadersReceived: boolean;
+  service: string;
+  signalAborted: boolean;
+  startedAt: string;
+  status: number | null;
+};
+
+export type DeliveryLogger = (entry: DeliveryLogEntry) => void;
 
 type EmailMessage = {
   from: string;
@@ -90,8 +107,12 @@ export function createNotifier(options: NotifierOptions = {}) {
   );
   const emailSender = options.emailSender ?? sendSmtpEmail;
   const fetcher = options.fetch ?? fetch;
+  const deliveryLogger = options.deliveryLogger ?? logDelivery;
   const pushPlusUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL")) ??
     pushPlusSendUrl;
+  const wxPusherUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL")) ??
+    wxPusherSimplePushUrl;
+  const relayToken = Deno.env.get("NOTIFIER_RELAY_TOKEN")?.trim() ?? "";
   const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
 
   return {
@@ -198,6 +219,7 @@ export function createNotifier(options: NotifierOptions = {}) {
       serverChanSendKey: options.serverChanSendKey,
       webhookService: options.webhookService,
       webhookUrl: options.webhookUrl,
+      wxPusherUrl,
     });
     if (!targetWebhookUrl) {
       throw new NotificationConfigError(
@@ -207,33 +229,40 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
-    const response = await fetchWithDeliveryTimeout(fetcher, targetWebhookUrl, {
-      body: JSON.stringify(bodyForWebhook({
-        payload: options.payload,
-        pushPlusToken: options.pushPlusToken,
-        service: options.webhookService,
-        url: targetWebhookUrl,
-        wxPusherSpt: options.wxPusherSpt,
-      })),
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-      },
-      method: "POST",
-    }, {
-      label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
-      timeoutMs: deliveryTimeoutMs,
-    });
+    let response: Response;
+    try {
+      response = await fetchWithDeliveryTimeout(fetcher, targetWebhookUrl, {
+        body: JSON.stringify(bodyForWebhook({
+          payload: options.payload,
+          pushPlusToken: options.pushPlusToken,
+          service: options.webhookService,
+          url: targetWebhookUrl,
+          wxPusherSpt: options.wxPusherSpt,
+        })),
+        headers: headersForWebhook(options.webhookService, targetWebhookUrl, relayToken),
+        method: "POST",
+      }, {
+        label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
+        logger: deliveryLogger,
+        redactedSecrets: [relayToken],
+        service: webhookServiceLabel(options.webhookService),
+        timeoutMs: deliveryTimeoutMs,
+      });
+    } catch (error) {
+      throw redactNotificationDeliveryError(error, relayToken);
+    }
 
     const responseBody = await response.text().catch(() => "");
     if (!response.ok) {
+      const safeResponseBody = redactSecret(responseBody, relayToken);
       throw new NotificationDeliveryError(
         `Webhook notification failed with HTTP ${response.status}${
-          responseBody ? `: ${responseBody}` : ""
+          safeResponseBody ? `: ${safeResponseBody}` : ""
         }`,
       );
     }
 
-    assertWebhookAccepted(options.webhookService, responseBody);
+    assertWebhookAccepted(options.webhookService, responseBody, relayToken);
 
     return { provider: options.provider, sent: true };
   }
@@ -307,6 +336,9 @@ export function createNotifier(options: NotifierOptions = {}) {
       method: "POST",
     }, {
       label: "Email API notification",
+      logger: deliveryLogger,
+      redactedSecrets: [apiToken],
+      service: "Email API",
       timeoutMs: deliveryTimeoutMs,
     });
     const responseBody = await response.text().catch(() => "");
@@ -351,16 +383,60 @@ async function fetchWithDeliveryTimeout(
   fetcher: typeof fetch,
   input: string | URL | Request,
   init: RequestInit,
-  options: { label: string; timeoutMs: number },
+  options: {
+    label: string;
+    logger?: DeliveryLogger;
+    redactedSecrets?: string[];
+    service?: string;
+    timeoutMs: number;
+  },
 ): Promise<Response> {
   const controller = new AbortController();
+  const startedAtMs = Date.now();
+  const startedAt = new Date(startedAtMs).toISOString();
+  const hostname = hostnameForRequest(input);
+  const method = methodForRequest(input, init);
+  const logger = options.logger ?? logDelivery;
+  const service = options.service ?? options.label;
+  const redactedSecrets = options.redactedSecrets ?? [];
   const timeoutId = setTimeout(() => {
     controller.abort();
   }, options.timeoutMs);
 
   try {
-    return await fetcher(input, { ...init, signal: controller.signal });
+    const response = await fetcher(input, { ...init, signal: controller.signal });
+    logger({
+      deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? null,
+      elapsedMs: Date.now() - startedAtMs,
+      errorMessage: null,
+      errorName: null,
+      hostname,
+      method,
+      responseHeadersReceived: true,
+      service,
+      signalAborted: controller.signal.aborted,
+      startedAt,
+      status: response.status,
+    });
+    return response;
   } catch (error) {
+    const safeErrorMessage = redactSecrets(
+      error instanceof Error ? error.message : String(error),
+      redactedSecrets,
+    );
+    logger({
+      deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? null,
+      elapsedMs: Date.now() - startedAtMs,
+      errorMessage: safeErrorMessage,
+      errorName: error instanceof Error ? error.name : null,
+      hostname,
+      method,
+      responseHeadersReceived: false,
+      service,
+      signalAborted: controller.signal.aborted,
+      startedAt,
+      status: null,
+    });
     if (controller.signal.aborted) {
       throw new NotificationDeliveryError(
         `${options.label} timed out after ${options.timeoutMs} ms.`,
@@ -368,11 +444,27 @@ async function fetchWithDeliveryTimeout(
     }
 
     throw new NotificationDeliveryError(
-      `${options.label} failed: ${error instanceof Error ? error.message : String(error)}`,
+      `${options.label} failed: ${safeErrorMessage}`,
     );
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function hostnameForRequest(input: string | URL | Request): string {
+  try {
+    return new URL(input instanceof Request ? input.url : String(input)).hostname;
+  } catch {
+    return "unknown host";
+  }
+}
+
+function methodForRequest(input: string | URL | Request, init: RequestInit): string {
+  return String(init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+}
+
+function logDelivery(entry: DeliveryLogEntry): void {
+  console.info(JSON.stringify({ event: "notification_delivery", ...entry }));
 }
 
 async function withDeliveryTimeout<T>(
@@ -432,13 +524,14 @@ function targetUrlForWebhook(options: {
   serverChanSendKey: string;
   webhookService: AppSettings["notificationWebhookService"];
   webhookUrl: string;
+  wxPusherUrl: string;
 }): string {
   if (options.webhookService === "pushPlus") {
     return options.pushPlusUrl;
   }
 
   if (options.webhookService === "wxPusher") {
-    return wxPusherSimplePushUrl;
+    return options.wxPusherUrl;
   }
 
   if (options.webhookService === "serverChan") {
@@ -446,6 +539,79 @@ function targetUrlForWebhook(options: {
   }
 
   return options.webhookUrl.trim() || options.fallbackWebhookUrl.trim();
+}
+
+function headersForWebhook(
+  service: AppSettings["notificationWebhookService"],
+  targetWebhookUrl: string,
+  relayToken: string,
+): HeadersInit {
+  const headers: Record<string, string> = {
+    "content-type": "application/json; charset=utf-8",
+  };
+  const token = relayTokenForWebhook(service, targetWebhookUrl, relayToken);
+  if (token) {
+    headers.authorization = `Bearer ${token}`;
+  }
+
+  return headers;
+}
+
+function relayTokenForWebhook(
+  service: AppSettings["notificationWebhookService"],
+  targetWebhookUrl: string,
+  relayToken: string,
+): string | undefined {
+  if (!usesRelayWebhookUrl(service, targetWebhookUrl)) {
+    return undefined;
+  }
+
+  if (!relayToken) {
+    throw new NotificationConfigError(relayTokenConfigErrorMessage(service));
+  }
+
+  return relayToken;
+}
+
+function usesRelayWebhookUrl(
+  service: AppSettings["notificationWebhookService"],
+  targetWebhookUrl: string,
+): boolean {
+  if (service === "pushPlus") {
+    return targetWebhookUrl !== pushPlusSendUrl;
+  }
+
+  if (service === "wxPusher") {
+    return targetWebhookUrl !== wxPusherSimplePushUrl;
+  }
+
+  return false;
+}
+
+function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookService"]): string {
+  return service === "pushPlus"
+    ? "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_PUSHPLUS_SEND_URL."
+    : "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_WXPUSHER_SEND_URL.";
+}
+
+function redactNotificationDeliveryError(error: unknown, relayToken: string): unknown {
+  if (error instanceof NotificationDeliveryError) {
+    return new NotificationDeliveryError(redactSecret(error.message, relayToken));
+  }
+
+  return error;
+}
+
+function redactSecret(value: string, secret: string): string {
+  if (!secret) {
+    return value;
+  }
+
+  return value.replaceAll(secret, "[已隐藏]");
+}
+
+function redactSecrets(value: string, secrets: string[]): string {
+  return secrets.reduce((current, secret) => redactSecret(current, secret), value);
 }
 
 function webhookDeliveryLabel(
@@ -456,7 +622,7 @@ function webhookDeliveryLabel(
   try {
     hostname = new URL(url).hostname;
   } catch {
-    // Keep the original delivery error when the URL is malformed.
+    // URL 格式错误时保留原始投递错误。
   }
 
   return `${webhookServiceLabel(service)} webhook notification to ${hostname}`;
@@ -662,6 +828,7 @@ function isServerChanUrl(value: string): boolean {
 function assertWebhookAccepted(
   service: AppSettings["notificationWebhookService"],
   responseBody: string,
+  relayToken = "",
 ): void {
   if (service !== "wxPusher") {
     if (service !== "pushPlus") {
@@ -674,7 +841,9 @@ function assertWebhookAccepted(
     payload = JSON.parse(responseBody);
   } catch {
     throw new NotificationDeliveryError(
-      `${serviceLabel(service)} notification failed with an invalid response: ${responseBody}`,
+      `${serviceLabel(service)} notification failed with an invalid response: ${
+        redactSecret(responseBody, relayToken)
+      }`,
     );
   }
 
@@ -686,7 +855,9 @@ function assertWebhookAccepted(
   const message = isRecord(payload) && typeof payload.msg !== "undefined"
     ? String(payload.msg)
     : responseBody;
-  throw new NotificationDeliveryError(`${serviceLabel(service)} notification failed: ${message}`);
+  throw new NotificationDeliveryError(
+    `${serviceLabel(service)} notification failed: ${redactSecret(message, relayToken)}`,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -59,7 +59,9 @@ Deno Deploy App 中按需配置：
 - `POLL_SORT`
 - `NOTIFIER_PROVIDER`
 - `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
+- `NOTIFIER_RELAY_TOKEN`
 - `NOTIFIER_PUSHPLUS_SEND_URL`
+- `NOTIFIER_WXPUSHER_SEND_URL`
 - `NOTIFIER_WEBHOOK_URL`
 
 应用提供注册和登录页面。账号信息、登录会话，以及各账号的设置、命中记录、轮询状态、通知配置都存储在
@@ -69,6 +71,21 @@ Deno KV 中，并按用户 ID 隔离。浏览器 Cookie 只保存随机 session 
 真实小黑盒话题抓取是当前唯一运行数据源。默认 `HEYBOX_SIGNATURE_MODE=app` 使用已验证的 App API
 发布时间列表；`web` 仅保留为诊断回退。除非正在验证定时轮询，Production 和 Git Branch / DEV
 都建议先保持 `POLL_ENABLED=false`。
+
+## 通知中转
+
+如果 Deno Deploy 不能直接访问 PushPlus 或 WxPusher，可以先部署免费的 Cloudflare Worker
+中转。仓库中的 `workers/notification-relay.js` 固定提供 `/pushplus` 和 `/wxpusher`
+两个转发入口，并使用 `Authorization: Bearer <token>` 鉴权；完整步骤见
+[workers/README.md](../workers/README.md)。
+
+Deno Deploy 侧配置示例：
+
+```env
+NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
+NOTIFIER_WXPUSHER_SEND_URL=https://<your-worker>.workers.dev/wxpusher
+NOTIFIER_RELAY_TOKEN=<same-random-secret>
+```
 
 ## 验证
 
