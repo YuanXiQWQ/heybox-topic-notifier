@@ -1,3 +1,6 @@
+/**
+ * @file 本文件负责创建应用业务路由并解析设置表单。
+ */
 import { Hono } from "@hono/hono";
 import { readAuthSession } from "./auth.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
@@ -29,10 +32,25 @@ import {
   NotificationDeliveryError,
 } from "./services/notifier.ts";
 
+/**
+ * 设置表单中支持的关键词匹配位置。
+ */
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
+/**
+ * 手动轮询后用于触发前端进度条重置的查询参数名。
+ */
 const pollResetParam = "pollReset";
+/**
+ * 手动轮询前进度条起始宽度查询参数名。
+ */
 const pollResetStartParam = "pollResetStart";
 
+/**
+ * 创建应用业务路由。
+ *
+ * @param context 应用运行时上下文。
+ * @return Hono 路由应用。
+ */
 export function createRoutes(context: AppContext): Hono {
   const app = new Hono();
 
@@ -204,6 +222,13 @@ export function createRoutes(context: AppContext): Hono {
   return app;
 }
 
+/**
+ * 获取当前请求对应的用户存储，缺失存储时抛错。
+ *
+ * @param c Hono 请求上下文的最小结构。
+ * @param context 应用运行时上下文。
+ * @return 当前请求用户作用域存储。
+ */
 async function storageForRequest(
   c: { req: { header(name: string): string | undefined } },
   context: AppContext,
@@ -215,6 +240,13 @@ async function storageForRequest(
   return storage;
 }
 
+/**
+ * 获取当前请求对应的用户存储，缺失存储时返回 undefined。
+ *
+ * @param c Hono 请求上下文的最小结构。
+ * @param context 应用运行时上下文。
+ * @return 当前请求用户作用域存储。
+ */
 async function optionalStorageForRequest(
   c: { req: { header(name: string): string | undefined } },
   context: AppContext,
@@ -228,6 +260,12 @@ async function optionalStorageForRequest(
   return "forUser" in storage ? storage.forUser(session?.userId ?? "default") : storage;
 }
 
+/**
+ * 将通知相关错误转换为 HTTP 响应。
+ *
+ * @param error 原始错误。
+ * @return 错误响应。
+ */
 function notificationErrorResponse(error: unknown): Response {
   if (error instanceof NotificationConfigError) {
     return new Response(error.message, {
@@ -246,6 +284,13 @@ function notificationErrorResponse(error: unknown): Response {
   throw error;
 }
 
+/**
+ * 规范化表单中的返回路径。
+ *
+ * @param value 原始返回路径。
+ * @param fallback 允许的兜底路径。
+ * @return 安全的返回路径。
+ */
 function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/history"): string {
   if (typeof value !== "string") {
     return fallback;
@@ -262,6 +307,13 @@ function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/hi
   }
 }
 
+/**
+ * 给路径追加轮询重置标记。
+ *
+ * @param path 原始路径。
+ * @param startWidth 进度条起始宽度。
+ * @return 带轮询重置标记的路径。
+ */
 function withPollResetFlag(path: string, startWidth: FormDataEntryValue | null): string {
   const url = new URL(path, "http://local");
   url.searchParams.set(pollResetParam, "1");
@@ -272,6 +324,12 @@ function withPollResetFlag(path: string, startWidth: FormDataEntryValue | null):
   return `${url.pathname}${url.search}`;
 }
 
+/**
+ * 移除路径中的轮询重置标记。
+ *
+ * @param path 原始路径。
+ * @return 移除轮询重置标记后的路径。
+ */
 function withoutPollResetFlag(path: string): string {
   const url = new URL(path, "http://local");
   url.searchParams.delete(pollResetParam);
@@ -279,6 +337,12 @@ function withoutPollResetFlag(path: string): string {
   return `${url.pathname}${url.search}`;
 }
 
+/**
+ * 从查询参数中读取初始下次轮询进度。
+ *
+ * @param params URL 查询参数。
+ * @return 初始进度百分比，未指定时返回 undefined。
+ */
 function initialNextPollProgress(params: URLSearchParams): string | undefined {
   if (params.get(pollResetParam) !== "1") {
     return undefined;
@@ -286,6 +350,12 @@ function initialNextPollProgress(params: URLSearchParams): string | undefined {
   return normalizePollResetStart(params.get(pollResetStartParam)) ?? "0";
 }
 
+/**
+ * 规范化轮询重置起始宽度。
+ *
+ * @param value 原始起始宽度。
+ * @return 0 到 100 之间的宽度字符串。
+ */
 function normalizePollResetStart(value: FormDataEntryValue | null): string | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -297,6 +367,12 @@ function normalizePollResetStart(value: FormDataEntryValue | null): string | und
   return String(Math.max(0, Math.min(100, parsed)));
 }
 
+/**
+ * 读取请求表单，读取失败时返回空表单。
+ *
+ * @param request 原始请求。
+ * @return 表单数据。
+ */
 async function formDataOrEmpty(request: Request): Promise<FormData> {
   try {
     return await request.formData();
@@ -305,6 +381,13 @@ async function formDataOrEmpty(request: Request): Promise<FormData> {
   }
 }
 
+/**
+ * 从表单数据生成应用设置。
+ *
+ * @param form 表单数据。
+ * @param currentSettings 当前应用设置。
+ * @return 新的应用设置。
+ */
 export function settingsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   currentSettings: AppSettings,
@@ -364,6 +447,12 @@ export function settingsFromForm(
   };
 }
 
+/**
+ * 从表单字段中解析关键词规则。
+ *
+ * @param form 表单数据。
+ * @return 关键词规则列表。
+ */
 function keywordRulesFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
 ): KeywordRule[] {
@@ -379,6 +468,15 @@ function keywordRulesFromForm(
   }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
 }
 
+/**
+ * 从表单字段中解析话题规则。
+ *
+ * @param form 表单数据。
+ * @param currentSettings 当前应用设置。
+ * @param activeKeywordTarget 当前正在编辑关键词的目标。
+ * @param activeKeywordRules 当前活动关键词规则。
+ * @return 话题规则列表。
+ */
 function topicsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   currentSettings: AppSettings,
@@ -404,6 +502,12 @@ function topicsFromForm(
   }).filter((topic) => topic.id.length > 0);
 }
 
+/**
+ * 从 JSON 字符串中解析关键词规则。
+ *
+ * @param value 表单中的 JSON 字段值。
+ * @return 关键词规则列表，无法解析时返回 undefined。
+ */
 function keywordRulesFromJson(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
 ): KeywordRule[] | undefined {
@@ -432,10 +536,23 @@ function keywordRulesFromJson(
   }
 }
 
+/**
+ * 判断值是否为合法匹配位置。
+ *
+ * @param value 待判断值。
+ * @return 是合法匹配位置时返回 true。
+ */
 function isMatchLocation(value: unknown): value is MatchLocation {
   return value === "title" || value === "body" || value === "comments" || value === "replies";
 }
 
+/**
+ * 从表单字段名中提取索引列表。
+ *
+ * @param form 表单数据。
+ * @param pattern 字段名匹配正则。
+ * @return 按升序排列的索引列表。
+ */
 function formIndexes(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   pattern: RegExp,
@@ -450,12 +567,25 @@ function formIndexes(
   ).toSorted((left, right) => left - right);
 }
 
+/**
+ * 规范化通知渠道。
+ *
+ * @param value 表单字段值。
+ * @return 合法通知渠道。
+ */
 function normalizeNotificationProvider(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
 ): AppSettings["notificationProvider"] {
   return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
 }
 
+/**
+ * 规范化正整数表单字段。
+ *
+ * @param value 表单字段值。
+ * @param fallback 兜底值。
+ * @return 合法正整数。
+ */
 function normalizePositiveInteger(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
   fallback: number,
@@ -464,6 +594,13 @@ function normalizePositiveInteger(
   return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : fallback;
 }
 
+/**
+ * 规范化轮询排序方式。
+ *
+ * @param value 表单字段值。
+ * @param fallback 兜底排序方式。
+ * @return 合法轮询排序方式。
+ */
 function normalizePollSort(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
   fallback: PollSort,
@@ -471,6 +608,13 @@ function normalizePollSort(
   return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
 }
 
+/**
+ * 规范化轮询间隔单位。
+ *
+ * @param value 表单字段值。
+ * @param fallback 兜底轮询间隔单位。
+ * @return 合法轮询间隔单位。
+ */
 function normalizePollIntervalUnit(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
   fallback: PollIntervalUnit,
@@ -481,6 +625,14 @@ function normalizePollIntervalUnit(
     : fallback;
 }
 
+/**
+ * 规范化轮询间隔数值。
+ *
+ * @param value 表单字段值。
+ * @param unit 轮询间隔单位。
+ * @param fallback 兜底间隔数值。
+ * @return 合法轮询间隔数值。
+ */
 function normalizePollIntervalValue(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
   unit: PollIntervalUnit,
@@ -490,6 +642,13 @@ function normalizePollIntervalValue(
   return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
 }
 
+/**
+ * 规范化主题颜色。
+ *
+ * @param value 表单字段值。
+ * @param fallback 兜底主题颜色。
+ * @return 合法主题颜色。
+ */
 function normalizeThemeColor(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
   fallback: string,

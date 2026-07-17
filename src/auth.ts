@@ -1,15 +1,27 @@
+/**
+ * @file 本文件提供登录、注册、会话读取和认证中间件。
+ */
 import { Hono } from "@hono/hono";
 import type { MiddlewareHandler } from "@hono/hono";
 import type { UserAccount } from "./models.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 
+/**
+ * 认证模块使用的存储类型。
+ */
 type Storage = ReturnType<typeof createKvStorage>;
 
+/**
+ * 已认证会话信息。
+ */
 export type AuthSession = {
   userId: string;
   username: string;
 };
 
+/**
+ * 认证模块配置选项。
+ */
 export type AuthOptions = {
   cookieName?: string;
   exemptPaths?: string[];
@@ -18,6 +30,9 @@ export type AuthOptions = {
   sessionMaxAgeSeconds?: number;
 };
 
+/**
+ * 规范化后的认证配置。
+ */
 type AuthConfig = {
   cookieName: string;
   exemptPaths: Set<string>;
@@ -26,12 +41,34 @@ type AuthConfig = {
   sessionMaxAgeSeconds: number;
 };
 
+/**
+ * 默认登录 Cookie 名称。
+ */
 const defaultCookieName = "heybox_session";
+/**
+ * 默认登录路径。
+ */
 const defaultLoginPath = "/login";
+/**
+ * 默认注册路径。
+ */
 const defaultRegisterPath = "/register";
+/**
+ * 默认会话有效期秒数。
+ */
 const defaultSessionMaxAgeSeconds = 60 * 60 * 24 * 30;
+/**
+ * 密码 PBKDF2 迭代次数。
+ */
 const passwordIterations = 210_000;
 
+/**
+ * 创建认证中间件。
+ *
+ * @param storage 应用存储。
+ * @param options 认证配置选项。
+ * @return Hono 中间件。
+ */
 export function createAuthMiddleware(
   storage: Storage,
   options: AuthOptions = {},
@@ -59,6 +96,13 @@ export function createAuthMiddleware(
   };
 }
 
+/**
+ * 创建登录、注册和退出路由。
+ *
+ * @param storage 应用存储。
+ * @param options 认证配置选项。
+ * @return 认证路由应用。
+ */
 export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): Hono {
   const config = authConfig(options);
   const app = new Hono();
@@ -155,6 +199,14 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
   return app;
 }
 
+/**
+ * 从 Cookie 中读取已认证会话。
+ *
+ * @param cookieHeader Cookie 请求头。
+ * @param storage 应用存储。
+ * @param options 认证配置选项。
+ * @return 有效认证会话，不存在或过期时返回 undefined。
+ */
 export async function readAuthSession(
   cookieHeader: string | undefined,
   storage: Storage,
@@ -180,6 +232,12 @@ export async function readAuthSession(
   return { userId: session.userId, username: session.username };
 }
 
+/**
+ * 合并认证选项和默认值。
+ *
+ * @param options 认证配置选项。
+ * @return 规范化后的认证配置。
+ */
 function authConfig(options: AuthOptions): AuthConfig {
   const loginPath = options.loginPath ?? defaultLoginPath;
   const registerPath = options.registerPath ?? defaultRegisterPath;
@@ -195,6 +253,16 @@ function authConfig(options: AuthOptions): AuthConfig {
   };
 }
 
+/**
+ * 创建会话并返回带会话 Cookie 的重定向响应。
+ *
+ * @param requestUrl 当前请求 URL。
+ * @param location 重定向目标。
+ * @param account 用户账号。
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @return 重定向响应。
+ */
 async function redirectWithSession(
   requestUrl: string,
   location: string,
@@ -229,16 +297,33 @@ async function redirectWithSession(
   });
 }
 
+/**
+ * 创建随机会话令牌。
+ *
+ * @return Base64URL 编码的会话令牌。
+ */
 function createSessionToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return base64UrlEncode(bytes);
 }
 
+/**
+ * 计算会话令牌哈希。
+ *
+ * @param token 会话令牌。
+ * @return Base64URL 编码的令牌哈希。
+ */
 async function sessionTokenHash(token: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
   return base64UrlEncode(new Uint8Array(digest));
 }
 
+/**
+ * 对密码进行加盐哈希。
+ *
+ * @param password 原始密码。
+ * @return 密码哈希和盐。
+ */
 async function hashPassword(
   password: string,
 ): Promise<Pick<UserAccount, "passwordHash" | "passwordSalt">> {
@@ -251,6 +336,13 @@ async function hashPassword(
   };
 }
 
+/**
+ * 校验密码是否匹配账号密码哈希。
+ *
+ * @param password 原始密码。
+ * @param account 用户账号。
+ * @return 密码匹配时返回 true。
+ */
 async function verifyPassword(password: string, account: UserAccount): Promise<boolean> {
   const hash = await derivePasswordHash(
     password,
@@ -260,6 +352,14 @@ async function verifyPassword(password: string, account: UserAccount): Promise<b
   return constantTimeEquals(base64UrlEncode(hash), account.passwordHash);
 }
 
+/**
+ * 使用 PBKDF2 派生密码哈希。
+ *
+ * @param password 原始密码。
+ * @param salt 密码盐。
+ * @param iterations 迭代次数。
+ * @return 派生出的密码哈希字节。
+ */
 async function derivePasswordHash(
   password: string,
   salt: Uint8Array,
@@ -280,12 +380,24 @@ async function derivePasswordHash(
   return new Uint8Array(bits);
 }
 
+/**
+ * 将字节数组复制为 ArrayBuffer。
+ *
+ * @param value 原始字节数组。
+ * @return 复制后的 ArrayBuffer。
+ */
 function arrayBufferFromBytes(value: Uint8Array): ArrayBuffer {
   const buffer = new ArrayBuffer(value.byteLength);
   new Uint8Array(buffer).set(value);
   return buffer;
 }
 
+/**
+ * 渲染登录或注册页面。
+ *
+ * @param options 认证页面渲染选项。
+ * @return 完整认证页面 HTML。
+ */
 function renderAuthPage(options: {
   action: string;
   error?: string;
@@ -361,10 +473,22 @@ function renderAuthPage(options: {
 </html>`;
 }
 
+/**
+ * 获取登录错误提示。
+ *
+ * @param value 错误代码。
+ * @return 登录错误提示，不需要展示时返回 undefined。
+ */
 function loginErrorMessage(value: string | null): string | undefined {
   return value === "invalid" ? "用户名或密码不正确。" : undefined;
 }
 
+/**
+ * 获取注册错误提示。
+ *
+ * @param value 错误代码。
+ * @return 注册错误提示，不需要展示时返回 undefined。
+ */
 function registerErrorMessage(value: string | null): string | undefined {
   switch (value) {
     case "exists":
@@ -378,6 +502,13 @@ function registerErrorMessage(value: string | null): string | undefined {
   }
 }
 
+/**
+ * 校验注册输入。
+ *
+ * @param username 用户名。
+ * @param password 密码。
+ * @return 错误代码，校验通过时返回 undefined。
+ */
 function validateRegistration(username: string, password: string): string | undefined {
   if (!/^[a-z0-9_-]{3,40}$/.test(username)) {
     return "username";
@@ -390,6 +521,12 @@ function validateRegistration(username: string, password: string): string | unde
   return undefined;
 }
 
+/**
+ * 规范化认证完成后的返回路径。
+ *
+ * @param value 原始返回路径。
+ * @return 安全的站内返回路径。
+ */
 function safeReturnTo(value: string | null): string {
   if (!value) {
     return "/";
@@ -410,14 +547,32 @@ function safeReturnTo(value: string | null): string {
   }
 }
 
+/**
+ * 拼接 URL 的路径和查询参数。
+ *
+ * @param url URL 对象。
+ * @return 路径和查询参数。
+ */
 function pathWithSearch(url: URL): string {
   return `${url.pathname}${url.search}`;
 }
 
+/**
+ * 规范化用户名。
+ *
+ * @param value 原始用户名。
+ * @return 小写并去除首尾空白后的用户名。
+ */
 function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/**
+ * 解析 Cookie 请求头。
+ *
+ * @param value Cookie 请求头。
+ * @return Cookie 名值映射。
+ */
 function parseCookies(value: string | undefined): Map<string, string> {
   const cookies = new Map<string, string>();
   for (const part of value?.split(";") ?? []) {
@@ -430,6 +585,14 @@ function parseCookies(value: string | undefined): Map<string, string> {
   return cookies;
 }
 
+/**
+ * 序列化 Set-Cookie 响应头值。
+ *
+ * @param name Cookie 名称。
+ * @param value Cookie 值。
+ * @param options Cookie 选项。
+ * @return Set-Cookie 头值。
+ */
 function serializeCookie(
   name: string,
   value: string,
@@ -451,6 +614,12 @@ function serializeCookie(
   ].filter(Boolean).join("; ");
 }
 
+/**
+ * 将字节数组编码为 Base64URL 字符串。
+ *
+ * @param value 待编码字节。
+ * @return Base64URL 字符串。
+ */
 function base64UrlEncode(value: Uint8Array): string {
   return btoa(String.fromCharCode(...value))
     .replaceAll("+", "-")
@@ -458,12 +627,25 @@ function base64UrlEncode(value: Uint8Array): string {
     .replaceAll("=", "");
 }
 
+/**
+ * 将 Base64URL 字符串解码为字节数组。
+ *
+ * @param value Base64URL 字符串。
+ * @return 解码后的字节数组。
+ */
 function base64UrlDecode(value: string): Uint8Array {
   const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
   return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
 
+/**
+ * 使用常量时间比较两个字符串。
+ *
+ * @param left 左侧字符串。
+ * @param right 右侧字符串。
+ * @return 两个字符串相等时返回 true。
+ */
 function constantTimeEquals(left: string, right: string): boolean {
   const encoder = new TextEncoder();
   const leftBytes = encoder.encode(left);
@@ -478,6 +660,12 @@ function constantTimeEquals(left: string, right: string): boolean {
   return diff === 0;
 }
 
+/**
+ * 转义 HTML 文本。
+ *
+ * @param value 原始文本。
+ * @return 转义后的 HTML 文本。
+ */
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")

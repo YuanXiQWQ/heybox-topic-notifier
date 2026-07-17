@@ -1,8 +1,14 @@
+/**
+ * @file 本文件验证业务路由和设置表单解析逻辑。
+ */
 import { createRoutes, settingsFromForm } from "./routes.ts";
 import type { AppSettings } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { NotificationConfigError } from "./services/notifier.ts";
 
+/**
+ * 路由测试使用的当前应用设置。
+ */
 const currentSettings: AppSettings = {
   activeKeywordTarget: "common",
   commonKeywordRules: [
@@ -469,6 +475,13 @@ Deno.test("match redirects reject paths outside their table", async () => {
   assertEquals(deleted, [["old-first"]]);
 });
 
+/**
+ * 断言两个值的 JSON 表示相等。
+ *
+ * @param actual 实际值。
+ * @param expected 期望值。
+ * @return 断言通过时无返回值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);

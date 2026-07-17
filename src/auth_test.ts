@@ -1,3 +1,6 @@
+/**
+ * @file 本文件验证认证中间件和登录注册路由行为。
+ */
 import { Hono } from "@hono/hono";
 import { createAuthMiddleware, createAuthRoutes, readAuthSession } from "./auth.ts";
 import type { UserAccount, UserSession } from "./models.ts";
@@ -88,6 +91,12 @@ Deno.test("auth middleware accepts a valid session cookie", async () => {
   assertEquals(await response.text(), "settings");
 });
 
+/**
+ * 创建认证测试应用。
+ *
+ * @param storage 测试存储。
+ * @return Hono 测试应用。
+ */
 function createTestApp(storage = createMemoryStorage()): Hono {
   const app = new Hono();
   app.route("/", createAuthRoutes(storage));
@@ -97,6 +106,11 @@ function createTestApp(storage = createMemoryStorage()): Hono {
   return app;
 }
 
+/**
+ * 创建认证测试使用的内存存储。
+ *
+ * @return 带会话记录能力的内存存储。
+ */
 function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   savedSessions: UserSession[];
 } {
@@ -124,6 +138,12 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       return Promise.resolve();
     },
     getSession: (tokenHash: string) => Promise.resolve(sessionsByTokenHash.get(tokenHash)),
+    /**
+     * 保存测试会话并记录保存历史。
+     *
+     * @param session 用户会话。
+     * @return 保存完成后的 Promise。
+     */
     saveSession(session: UserSession) {
       savedSessions.push(session);
       sessionsByTokenHash.set(session.tokenHash, session);
@@ -136,6 +156,14 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   } as unknown as ReturnType<typeof createKvStorage> & { savedSessions: UserSession[] };
 }
 
+/**
+ * 提交注册请求。
+ *
+ * @param app Hono 测试应用。
+ * @param username 用户名。
+ * @param password 密码。
+ * @return 注册响应。
+ */
 function register(app: Hono, username: string, password: string): Promise<Response> {
   return Promise.resolve(
     app.request("/register", {
@@ -145,6 +173,13 @@ function register(app: Hono, username: string, password: string): Promise<Respon
   );
 }
 
+/**
+ * 断言两个值的 JSON 表示相等。
+ *
+ * @param actual 实际值。
+ * @param expected 期望值。
+ * @return 断言通过时无返回值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);
