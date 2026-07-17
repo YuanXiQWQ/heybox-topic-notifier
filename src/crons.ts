@@ -123,11 +123,11 @@ function storageForUser(storage: AppContext["storage"], userId: string) {
  * 注册运行环境对应的轮询定时任务。
  *
  * @param context 应用运行时上下文。
- * @return 无返回值。
+ * @return 注册完成后的 Promise。
  */
-export function registerCrons(context: AppContext): void {
+export async function registerCrons(context: AppContext): Promise<void> {
   if (isDenoDeploy() && typeof Deno.cron === "function") {
-    Deno.cron("poll heybox topics", deployCronSchedule, async () => {
+    await Deno.cron("poll heybox topics", deployCronSchedule, async () => {
       if (!shouldRunDeployCron(readDenoTimeline())) {
         return;
       }

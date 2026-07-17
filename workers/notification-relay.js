@@ -11,6 +11,7 @@ const upstreamUrlByPath = {
   '/wxpusher': 'https://wxpusher.zjiecode.com/api/send/message/simple-push',
 };
 
+// noinspection JSUnusedGlobalSymbols
 export default {
   /**
    * 处理 Cloudflare Worker fetch 事件。
@@ -159,15 +160,19 @@ function allowedServerChanUpstream(value) {
  *
  * @param {Object} body 响应体对象。
  * @param {number} status HTTP 状态码。
- * @param {Object} headers 额外响应头。
+ * @param {Record<string, string>} headers 额外响应头。
  * @return {Response} JSON 响应。
  */
 function jsonResponse(body, status = 200, headers = {}) {
+  const responseHeaders = new Headers({
+    'content-type': 'application/json; charset=utf-8',
+  });
+  for (const [name, value] of Object.entries(headers)) {
+    responseHeaders.set(name, value);
+  }
+
   return new Response(JSON.stringify(body), {
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      ...headers,
-    },
+    headers: responseHeaders,
     status,
   });
 }

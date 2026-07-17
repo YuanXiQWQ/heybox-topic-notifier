@@ -76,8 +76,17 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
    * @return KV 存储实例。
    */
   async function kv(): Promise<KvStore> {
-    kvPromise ??= options.openKv?.() ?? Deno.openKv();
+    kvPromise ??= openKvStore();
     return await kvPromise;
+  }
+
+  /**
+   * 打开 KV 存储并返回其初始化 Promise。
+   *
+   * @return KV 存储初始化 Promise。
+   */
+  function openKvStore(): Promise<KvStore> {
+    return options.openKv?.() ?? Deno.openKv();
   }
 
   /**

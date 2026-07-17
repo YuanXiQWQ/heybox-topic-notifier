@@ -3,6 +3,7 @@
  */
 import type { AppSettings, MatchRecord, TopicPost } from "../models.ts";
 import type { createKvStorage } from "../storage/kv.ts";
+import { assertEquals, assertRejects } from "../test_helpers.ts";
 import { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
@@ -295,39 +296,4 @@ function post(id: string, overrides: Partial<TopicPost>): TopicPost {
     url: `https://example.com/${id}`,
     ...overrides,
   };
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
-}
-
-/**
- * 断言异步函数会抛出指定错误信息。
- *
- * @param fn 待执行的异步函数。
- * @param message 期望的错误信息。
- * @return 断言通过时无返回值。
- */
-async function assertRejects(fn: () => Promise<unknown>, message: string): Promise<void> {
-  try {
-    await fn();
-  } catch (error) {
-    if (error instanceof Error && error.message === message) {
-      return;
-    }
-    throw error;
-  }
-
-  throw new Error(`Expected rejection with message: ${message}`);
 }
