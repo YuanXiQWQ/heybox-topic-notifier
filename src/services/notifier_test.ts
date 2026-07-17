@@ -30,7 +30,7 @@ const settings: AppSettings = {
     postLimit: 20,
     sort: "publishTime",
   },
-  themeColor: "#bd7fff",
+  themeColor: "#BD7FFF",
   topics: [],
 };
 
@@ -53,7 +53,8 @@ const record: MatchRecord = {
 
 function createNotifier(options: Parameters<typeof createRealNotifier>[0] = {}) {
   return createRealNotifier({
-    deliveryLogger: () => {},
+    deliveryLogger: () => {
+    },
     ...options,
   });
 }
@@ -318,7 +319,9 @@ Deno.test("webhook provider reports slow delivery as a timeout", async () => {
 Deno.test("email provider reports slow SMTP delivery as a timeout", async () => {
   const notifier = createNotifier({
     deliveryTimeoutMs: 1,
-    emailSender: () => new Promise<void>(() => {}),
+    emailSender: () =>
+      new Promise<void>(() => {
+      }),
   });
 
   await assertRejects(

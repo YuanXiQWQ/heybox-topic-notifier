@@ -15,12 +15,13 @@
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"]
+      "tags": [
+        "recommended"
+      ]
     }
   },
   "deploy": {
     "runtime": {
-      "type": "dynamic",
       "entrypoint": "./src/main.ts"
     }
   }

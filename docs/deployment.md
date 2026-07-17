@@ -20,8 +20,7 @@ https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
 当前 `dev` 测试部署已经建立，稳定测试入口是 Git Branch / DEV URL。后续推送到 `dev`
 会触发测试部署更新，推送到 `main` 会触发 Production 更新。
 
-Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch timeline 和 Build。为了避免功能分支
-重复读取 KV、抓取小黑盒或发送通知，代码中的定时轮询只会在 `production` 和 `git-branch/dev` 这两个
+Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch timeline 和 Build。为了避免功能分支 重复读取 KV、抓取小黑盒或发送通知，代码中的定时轮询只会在 `production` 和 `git-branch/dev` 这两个
 `DENO_TIMELINE` 上真正执行；其他 timeline 即使注册了 Cron，也会在 handler 开始时直接跳过。
 
 ## Deno Deploy 配置
@@ -38,8 +37,7 @@ Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch tim
 ## 数据库
 
 Deno Deploy App 已绑定 Deno KV 数据库。代码通过 `Deno.openKv()`
-读写账号、设置、历史记录、轮询状态和已处理帖子标记。账号密码以加盐 PBKDF2 哈希保存； 用户数据按用户
-ID 前缀隔离，Deno Deploy 还会按 timeline 隔离 Production 和 Git Branch 数据。
+读写账号、设置、历史记录、轮询状态和已处理帖子标记。账号密码以加盐 PBKDF2 哈希保存； 用户数据按用户 ID 前缀隔离，Deno Deploy 还会按 timeline 隔离 Production 和 Git Branch 数据。
 
 ## 运行环境变量
 
@@ -65,18 +63,13 @@ Deno Deploy App 中按需配置：
 - `NOTIFIER_SERVER_CHAN_SEND_URL`
 - `NOTIFIER_WEBHOOK_URL`
 
-应用提供注册和登录页面。账号信息、登录会话，以及各账号的设置、命中记录、轮询状态、通知配置都存储在
-Deno KV 中，并按用户 ID 隔离。浏览器 Cookie 只保存随机 session token；服务端保存 token
-哈希和过期时间。
+应用提供注册和登录页面。账号信息、登录会话，以及各账号的设置、命中记录、轮询状态、通知配置都存储在 Deno KV 中，并按用户 ID 隔离。浏览器 Cookie 只保存随机 session token；服务端保存 token 哈希和过期时间。
 
-真实小黑盒话题抓取是当前唯一运行数据源。默认 `HEYBOX_SIGNATURE_MODE=app` 使用已验证的 App API
-发布时间列表；`web` 仅保留为诊断回退。除非正在验证定时轮询，Production 和 Git Branch / DEV
-都建议先保持 `POLL_ENABLED=false`。
+真实小黑盒话题抓取是当前唯一运行数据源。默认 `HEYBOX_SIGNATURE_MODE=app` 使用已验证的 App API 发布时间列表；`web` 仅保留为诊断回退。除非正在验证定时轮询，Production 和 Git Branch / DEV 都建议先保持 `POLL_ENABLED=false`。
 
 ## 通知中转
 
-如果 Deno Deploy 不能直接访问 PushPlus、WxPusher 或 Server酱，可以先部署免费的 Cloudflare Worker
-中转。仓库中的 `workers/notification-relay.js` 固定提供 `/pushplus`、`/wxpusher` 和 `/serverchan`
+如果 Deno Deploy 不能直接访问 PushPlus、WxPusher 或 Server酱，可以先部署免费的 Cloudflare Worker 中转。仓库中的 `workers/notification-relay.js` 固定提供 `/pushplus`、`/wxpusher` 和 `/serverchan`
 三个转发入口，并使用 `Authorization: Bearer <token>` 鉴权；完整步骤见
 [workers/README.md](../workers/README.md)。
 

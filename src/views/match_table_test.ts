@@ -110,7 +110,7 @@ Deno.test("renderMatchRecordsSection marks timestamps for live relative updates"
 
   assertIncludes(html, `data-relative-time="2026-06-30T12:00:00.000Z"`);
   assertIncludes(html, `data-relative-time="2026-06-30T12:05:00.000Z"`);
-  assertIncludes(html, `window.__matchTableRelativeTimeUpdate`);
+  assertIncludes(html, `window["__matchTableRelativeTimeUpdate"]`);
 });
 
 Deno.test("renderHistory keeps history post titles emphasized", () => {

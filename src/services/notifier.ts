@@ -97,9 +97,11 @@ const testMatchLocations: MatchRecord["location"][] = ["title", "body", "comment
 const markdownHardBreak = "  \n";
 const markdownSeparator = "\n\n---\n\n";
 
-export class NotificationConfigError extends Error {}
+export class NotificationConfigError extends Error {
+}
 
-export class NotificationDeliveryError extends Error {}
+export class NotificationDeliveryError extends Error {
+}
 
 export function createNotifier(options: NotifierOptions = {}) {
   const deliveryTimeoutMs = normalizeDeliveryTimeoutMs(

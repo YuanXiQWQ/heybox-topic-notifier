@@ -61,7 +61,7 @@ export function formatHeyboxRelativeTime(
 
 function formatTemplate(template: string, values: Record<string, string | number>): string {
   return template.replaceAll(
-    /\{(\w+)\}/g,
+    /\{(\w+)}/g,
     (placeholder, key) => values[key] === undefined ? placeholder : String(values[key]),
   );
 }
