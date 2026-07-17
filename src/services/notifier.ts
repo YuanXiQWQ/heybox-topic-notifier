@@ -211,31 +211,37 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
-    const response = await fetchWithDeliveryTimeout(fetcher, targetWebhookUrl, {
-      body: JSON.stringify(bodyForWebhook({
-        payload: options.payload,
-        pushPlusToken: options.pushPlusToken,
-        service: options.webhookService,
-        url: targetWebhookUrl,
-        wxPusherSpt: options.wxPusherSpt,
-      })),
-      headers: headersForWebhook(options.webhookService, targetWebhookUrl, relayToken),
-      method: "POST",
-    }, {
-      label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
-      timeoutMs: deliveryTimeoutMs,
-    });
+    let response: Response;
+    try {
+      response = await fetchWithDeliveryTimeout(fetcher, targetWebhookUrl, {
+        body: JSON.stringify(bodyForWebhook({
+          payload: options.payload,
+          pushPlusToken: options.pushPlusToken,
+          service: options.webhookService,
+          url: targetWebhookUrl,
+          wxPusherSpt: options.wxPusherSpt,
+        })),
+        headers: headersForWebhook(options.webhookService, targetWebhookUrl, relayToken),
+        method: "POST",
+      }, {
+        label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
+        timeoutMs: deliveryTimeoutMs,
+      });
+    } catch (error) {
+      throw redactNotificationDeliveryError(error, relayToken);
+    }
 
     const responseBody = await response.text().catch(() => "");
     if (!response.ok) {
+      const safeResponseBody = redactSecret(responseBody, relayToken);
       throw new NotificationDeliveryError(
         `Webhook notification failed with HTTP ${response.status}${
-          responseBody ? `: ${responseBody}` : ""
+          safeResponseBody ? `: ${safeResponseBody}` : ""
         }`,
       );
     }
 
-    assertWebhookAccepted(options.webhookService, responseBody);
+    assertWebhookAccepted(options.webhookService, responseBody, relayToken);
 
     return { provider: options.provider, sent: true };
   }
@@ -459,22 +465,34 @@ function headersForWebhook(
   const headers: Record<string, string> = {
     "content-type": "application/json; charset=utf-8",
   };
-  if (shouldAttachRelayToken(service, targetWebhookUrl, relayToken)) {
-    headers.authorization = `Bearer ${relayToken}`;
+  const token = relayTokenForWebhook(service, targetWebhookUrl, relayToken);
+  if (token) {
+    headers.authorization = `Bearer ${token}`;
   }
 
   return headers;
 }
 
-function shouldAttachRelayToken(
+function relayTokenForWebhook(
   service: AppSettings["notificationWebhookService"],
   targetWebhookUrl: string,
   relayToken: string,
-): boolean {
-  if (!relayToken) {
-    return false;
+): string | undefined {
+  if (!usesRelayWebhookUrl(service, targetWebhookUrl)) {
+    return undefined;
   }
 
+  if (!relayToken) {
+    throw new NotificationConfigError(relayTokenConfigErrorMessage(service));
+  }
+
+  return relayToken;
+}
+
+function usesRelayWebhookUrl(
+  service: AppSettings["notificationWebhookService"],
+  targetWebhookUrl: string,
+): boolean {
   if (service === "pushPlus") {
     return targetWebhookUrl !== pushPlusSendUrl;
   }
@@ -484,6 +502,28 @@ function shouldAttachRelayToken(
   }
 
   return false;
+}
+
+function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookService"]): string {
+  return service === "pushPlus"
+    ? "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_PUSHPLUS_SEND_URL."
+    : "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_WXPUSHER_SEND_URL.";
+}
+
+function redactNotificationDeliveryError(error: unknown, relayToken: string): unknown {
+  if (error instanceof NotificationDeliveryError) {
+    return new NotificationDeliveryError(redactSecret(error.message, relayToken));
+  }
+
+  return error;
+}
+
+function redactSecret(value: string, secret: string): string {
+  if (!secret) {
+    return value;
+  }
+
+  return value.replaceAll(secret, "[已隐藏]");
 }
 
 function webhookDeliveryLabel(
@@ -700,6 +740,7 @@ function isServerChanUrl(value: string): boolean {
 function assertWebhookAccepted(
   service: AppSettings["notificationWebhookService"],
   responseBody: string,
+  relayToken = "",
 ): void {
   if (service !== "wxPusher") {
     if (service !== "pushPlus") {
@@ -712,7 +753,9 @@ function assertWebhookAccepted(
     payload = JSON.parse(responseBody);
   } catch {
     throw new NotificationDeliveryError(
-      `${serviceLabel(service)} notification failed with an invalid response: ${responseBody}`,
+      `${serviceLabel(service)} notification failed with an invalid response: ${
+        redactSecret(responseBody, relayToken)
+      }`,
     );
   }
 
@@ -724,7 +767,9 @@ function assertWebhookAccepted(
   const message = isRecord(payload) && typeof payload.msg !== "undefined"
     ? String(payload.msg)
     : responseBody;
-  throw new NotificationDeliveryError(`${serviceLabel(service)} notification failed: ${message}`);
+  throw new NotificationDeliveryError(
+    `${serviceLabel(service)} notification failed: ${redactSecret(message, relayToken)}`,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

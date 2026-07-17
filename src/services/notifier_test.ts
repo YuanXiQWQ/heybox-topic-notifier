@@ -406,6 +406,51 @@ Deno.test("pushplus service posts to the send API", async () => {
   assertEquals(body.content.includes("https://example.com/p1"), true);
 });
 
+Deno.test("relay token is not sent to official pushplus and wxpusher APIs", async () => {
+  const requests: Request[] = [];
+  const previousPushPlusUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
+  const previousWxPusherUrl = Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.delete("NOTIFIER_PUSHPLUS_SEND_URL");
+  Deno.env.delete("NOTIFIER_WXPUSHER_SEND_URL");
+  Deno.env.set("NOTIFIER_RELAY_TOKEN", "relay-secret");
+  try {
+    const notifier = createNotifier({
+      fetch: (input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return Promise.resolve(
+          request.url.includes("wxpusher")
+            ? new Response(JSON.stringify({ code: 1000 }), { status: 200 })
+            : new Response(JSON.stringify({ code: 200 }), { status: 200 }),
+        );
+      },
+    });
+
+    await notifier.sendMatch(record, {
+      ...settings,
+      notificationPushPlusToken: "pushplus-token",
+      notificationWebhookService: "pushPlus",
+      notificationWebhookUrl: "",
+    });
+    await notifier.sendMatch(record, {
+      ...settings,
+      notificationWebhookService: "wxPusher",
+      notificationWebhookUrl: "",
+      notificationWxPusherSpt: "SPT123",
+    });
+  } finally {
+    restoreEnv("NOTIFIER_PUSHPLUS_SEND_URL", previousPushPlusUrl);
+    restoreEnv("NOTIFIER_WXPUSHER_SEND_URL", previousWxPusherUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
+
+  assertEquals(requests[0].url, "https://www.pushplus.plus/send");
+  assertEquals(requests[0].headers.get("authorization"), null);
+  assertEquals(requests[1].url, "https://wxpusher.zjiecode.com/api/send/message/simple-push");
+  assertEquals(requests[1].headers.get("authorization"), null);
+});
+
 Deno.test("pushplus service supports a configured relay URL with authorization", async () => {
   const requests: Request[] = [];
   const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
@@ -464,6 +509,70 @@ Deno.test("wxpusher service supports a configured relay URL with authorization",
   assertEquals(requests[0].headers.get("authorization"), "Bearer relay-secret");
 });
 
+Deno.test("pushplus relay URL requires a relay token before sending", async () => {
+  let calls = 0;
+  const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
+  Deno.env.delete("NOTIFIER_RELAY_TOKEN");
+  try {
+    const notifier = createNotifier({
+      fetch: () => {
+        calls += 1;
+        return Promise.resolve(new Response(JSON.stringify({ code: 200 }), { status: 200 }));
+      },
+    });
+
+    await assertRejects(
+      () =>
+        notifier.sendMatch(record, {
+          ...settings,
+          notificationPushPlusToken: "pushplus-token",
+          notificationWebhookService: "pushPlus",
+          notificationWebhookUrl: "",
+        }),
+      "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_PUSHPLUS_SEND_URL.",
+    );
+  } finally {
+    restoreEnv("NOTIFIER_PUSHPLUS_SEND_URL", previousUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
+
+  assertEquals(calls, 0);
+});
+
+Deno.test("wxpusher relay URL requires a relay token before sending", async () => {
+  let calls = 0;
+  const previousUrl = Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.set("NOTIFIER_WXPUSHER_SEND_URL", "https://relay.example.com/wxpusher");
+  Deno.env.delete("NOTIFIER_RELAY_TOKEN");
+  try {
+    const notifier = createNotifier({
+      fetch: () => {
+        calls += 1;
+        return Promise.resolve(new Response(JSON.stringify({ code: 1000 }), { status: 200 }));
+      },
+    });
+
+    await assertRejects(
+      () =>
+        notifier.sendMatch(record, {
+          ...settings,
+          notificationWebhookService: "wxPusher",
+          notificationWebhookUrl: "",
+          notificationWxPusherSpt: "SPT123",
+        }),
+      "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_WXPUSHER_SEND_URL.",
+    );
+  } finally {
+    restoreEnv("NOTIFIER_WXPUSHER_SEND_URL", previousUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
+
+  assertEquals(calls, 0);
+});
+
 Deno.test("relay token is not sent to custom webhooks", async () => {
   const requests: Request[] = [];
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
@@ -486,6 +595,41 @@ Deno.test("relay token is not sent to custom webhooks", async () => {
   }
 
   assertEquals(requests[0].headers.get("authorization"), null);
+});
+
+Deno.test("relay token is redacted from delivery errors", async () => {
+  const relayToken = "relay-secret-to-hide";
+  const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
+  Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
+  try {
+    const notifier = createNotifier({
+      fetch: () =>
+        Promise.resolve(
+          new Response(`Unauthorized ${relayToken}`, { status: 401 }),
+        ),
+    });
+
+    try {
+      await notifier.sendMatch(record, {
+        ...settings,
+        notificationPushPlusToken: "pushplus-token",
+        notificationWebhookService: "pushPlus",
+        notificationWebhookUrl: "",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      assertEquals(message.includes(relayToken), false);
+      assertEquals(message.includes("[已隐藏]"), true);
+      return;
+    }
+
+    throw new Error("Expected relay delivery error.");
+  } finally {
+    restoreEnv("NOTIFIER_PUSHPLUS_SEND_URL", previousUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
 });
 
 Deno.test("pushplus service reports business errors from the API", async () => {
