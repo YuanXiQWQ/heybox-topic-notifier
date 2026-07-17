@@ -1,3 +1,6 @@
+/**
+ * @file 本文件负责渲染命中记录表格及其筛选、分页、选择交互脚本。
+ */
 import { getMessages } from "../locales/index.ts";
 import type { Locale, Messages } from "../locales/types.ts";
 import type { MatchLocation } from "../models.ts";
@@ -12,6 +15,9 @@ import {
 import { truncateText } from "./text.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
+/**
+ * 命中记录表格批量操作配置。
+ */
 export type MatchTableAction = {
   bulkButtonAttribute: string;
   emptySelectionMessage: string;
@@ -21,6 +27,9 @@ export type MatchTableAction = {
   selectAllAttribute: string;
 };
 
+/**
+ * 命中记录表格区块渲染选项。
+ */
 export type MatchRecordsSectionOptions = {
   action: MatchTableAction;
   emptyMessage: string;
@@ -35,6 +44,12 @@ export type MatchRecordsSectionOptions = {
   titleLinkClass?: string;
 };
 
+/**
+ * 渲染命中记录表格区块。
+ *
+ * @param options 表格区块渲染选项。
+ * @return 命中记录表格区块 HTML。
+ */
 export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): string {
   return `
     <section
@@ -93,6 +108,12 @@ export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): 
   `;
 }
 
+/**
+ * 渲染命中记录表格行。
+ *
+ * @param options 表格区块渲染选项。
+ * @return 表格行 HTML。
+ */
 function renderRows(options: MatchRecordsSectionOptions): string {
   const now = new Date();
 
@@ -140,6 +161,14 @@ function renderRows(options: MatchRecordsSectionOptions): string {
   }).join("");
 }
 
+/**
+ * 渲染带前端相对时间刷新标记的时间单元格。
+ *
+ * @param value 时间字符串。
+ * @param now 当前时间。
+ * @param locale 当前语言标识。
+ * @return 时间单元格 HTML。
+ */
 function renderRelativeTimeCell(value: string, now: Date, locale: Locale): string {
   return `<span class="table-cell-clip" data-relative-time="${
     escapeHtml(value)
@@ -148,6 +177,11 @@ function renderRelativeTimeCell(value: string, now: Date, locale: Locale): strin
   }</span>`;
 }
 
+/**
+ * 渲染命中记录表格列宽定义。
+ *
+ * @return 表格列定义 HTML。
+ */
 function renderMatchTableColumns(): string {
   return `
             <colgroup>
@@ -162,6 +196,12 @@ function renderMatchTableColumns(): string {
             </colgroup>`;
 }
 
+/**
+ * 渲染表格筛选控件。
+ *
+ * @param options 表格区块渲染选项。
+ * @return 表格筛选控件 HTML。
+ */
 function renderTableFilters(options: MatchRecordsSectionOptions): string {
   const table = options.table;
   const messages = options.messages;
@@ -226,6 +266,14 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
   `;
 }
 
+/**
+ * 渲染表格分页控件。
+ *
+ * @param path 页面路径。
+ * @param table 表格计算结果。
+ * @param messages 当前语言文案。
+ * @return 分页控件 HTML。
+ */
 function renderPagination(path: string, table: MatchTableResult, messages: Messages): string {
   const pageLinks = compactPages(table.page, table.totalPages).map((page) => {
     if (page === "...") {
@@ -255,6 +303,13 @@ function renderPagination(path: string, table: MatchTableResult, messages: Messa
   `;
 }
 
+/**
+ * 获取命中位置展示文案。
+ *
+ * @param location 命中位置。
+ * @param messages 当前语言文案。
+ * @return 命中位置展示文案。
+ */
 function locationLabel(location: MatchLocation | undefined, messages: Messages): string {
   switch (location) {
     case "title":
@@ -270,12 +325,25 @@ function locationLabel(location: MatchLocation | undefined, messages: Messages):
   }
 }
 
+/**
+ * 渲染 select 选项。
+ *
+ * @param value 选项值。
+ * @param current 当前选中值。
+ * @param label 选项文案。
+ * @return option HTML。
+ */
 function option(value: string, current: string, label: string): string {
   return `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${
     escapeHtml(label)
   }</option>`;
 }
 
+/**
+ * 渲染表格筛选前端脚本。
+ *
+ * @return 筛选交互脚本 HTML。
+ */
 function renderFilterScript(): string {
   return `<script>
     (() => {
@@ -337,6 +405,9 @@ function renderFilterScript(): string {
   </script>`;
 }
 
+/**
+ * 前端相对时间文案模板。
+ */
 type RelativeTimeTemplates = {
   daysAgo: string;
   hoursAgo: string;
@@ -346,6 +417,11 @@ type RelativeTimeTemplates = {
   yesterdayAt: string;
 };
 
+/**
+ * 渲染相对时间自动刷新脚本。
+ *
+ * @return 相对时间脚本 HTML。
+ */
 function renderRelativeTimeScript(): string {
   return `<script>
     (() => {
@@ -445,6 +521,11 @@ function renderRelativeTimeScript(): string {
   </script>`;
 }
 
+/**
+ * 获取各语言的前端相对时间模板。
+ *
+ * @return 按语言分组的相对时间模板。
+ */
 function relativeTimeTemplatesByLocale(): Record<Locale, RelativeTimeTemplates> {
   return {
     "zh-CN": relativeTimeTemplates(getMessages("zh-CN")),
@@ -452,6 +533,12 @@ function relativeTimeTemplatesByLocale(): Record<Locale, RelativeTimeTemplates> 
   };
 }
 
+/**
+ * 从完整文案中提取相对时间模板。
+ *
+ * @param messages 当前语言文案。
+ * @return 相对时间模板。
+ */
 function relativeTimeTemplates(messages: Messages): RelativeTimeTemplates {
   return {
     daysAgo: messages.relativeDaysAgo,
@@ -463,6 +550,11 @@ function relativeTimeTemplates(messages: Messages): RelativeTimeTemplates {
   };
 }
 
+/**
+ * 渲染表格溢出检测脚本。
+ *
+ * @return 溢出检测脚本 HTML。
+ */
 function renderOverflowScript(): string {
   return `<script>
     (() => {
@@ -497,12 +589,23 @@ function renderOverflowScript(): string {
   </script>`;
 }
 
+/**
+ * 渲染筛选图标。
+ *
+ * @return 筛选图标 SVG。
+ */
 function filterIcon(): string {
   return `<svg aria-hidden="true" viewBox="0 0 24 24">
     <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"></path>
   </svg>`;
 }
 
+/**
+ * 渲染表格行选择和批量操作脚本。
+ *
+ * @param action 表格批量操作配置。
+ * @return 选择交互脚本 HTML。
+ */
 function renderSelectionScript(action: MatchTableAction): string {
   const selectAllSelector = `[${action.selectAllAttribute}]`;
   const rowCheckboxSelector = `[${action.rowCheckboxAttribute}]`;

@@ -1,3 +1,6 @@
+/**
+ * @file 本文件负责渲染设置页面及其通知、轮询、话题和关键词配置区域。
+ */
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
 import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "../models.ts";
@@ -7,8 +10,17 @@ import {
 } from "../notification_services.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 
+/**
+ * 设置页可配置的关键词匹配位置列表。
+ */
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 
+/**
+ * 渲染设置页面。
+ *
+ * @param options 设置页渲染选项。
+ * @return 完整设置页面 HTML。
+ */
 export function renderSettings(options: {
   settings: AppSettings;
 }): string {
@@ -96,6 +108,12 @@ export function renderSettings(options: {
   });
 }
 
+/**
+ * 渲染通知设置区域。
+ *
+ * @param settings 应用设置。
+ * @return 通知设置区域 HTML。
+ */
 function renderNotificationSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
 
@@ -419,6 +437,12 @@ function renderNotificationSection(settings: AppSettings): string {
   `;
 }
 
+/**
+ * 渲染轮询设置区域。
+ *
+ * @param settings 应用设置。
+ * @return 轮询设置区域 HTML。
+ */
 function renderPollingSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
 
@@ -501,10 +525,22 @@ function renderPollingSection(settings: AppSettings): string {
   `;
 }
 
+/**
+ * 判断是否配置了低于一分钟的轮询间隔。
+ *
+ * @param settings 应用设置。
+ * @return 低于一分钟时返回 true。
+ */
 function isSubMinutePolling(settings: AppSettings): boolean {
   return settings.polling.intervalUnit === "second" && settings.polling.intervalValue < 60;
 }
 
+/**
+ * 渲染话题设置区域。
+ *
+ * @param settings 应用设置。
+ * @return 话题设置区域 HTML。
+ */
 function renderTopicSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
   const activeTopic = findActiveTopic(settings);
@@ -561,6 +597,12 @@ function renderTopicSection(settings: AppSettings): string {
   `;
 }
 
+/**
+ * 渲染关键词设置区域。
+ *
+ * @param settings 应用设置。
+ * @return 关键词设置区域 HTML。
+ */
 function renderKeywordSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
   const rows = activeKeywordRules(settings);
@@ -606,6 +648,12 @@ function renderKeywordSection(settings: AppSettings): string {
   `;
 }
 
+/**
+ * 渲染话题规则表头。
+ *
+ * @param messages 当前语言文案。
+ * @return 话题规则表头 HTML。
+ */
 function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string {
   return `
     <div class="topic-rule-row topic-rule-head" role="row">
@@ -648,6 +696,14 @@ function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string
   `;
 }
 
+/**
+ * 渲染单条话题规则行。
+ *
+ * @param topic 话题规则。
+ * @param index 话题行索引。
+ * @param messages 当前语言文案。
+ * @return 话题规则行 HTML。
+ */
 function renderTopicRuleRow(
   topic: TopicRule,
   index: number | "__index__",
@@ -709,6 +765,12 @@ function renderTopicRuleRow(
   `;
 }
 
+/**
+ * 渲染关键词规则表头。
+ *
+ * @param messages 当前语言文案。
+ * @return 关键词规则表头 HTML。
+ */
 function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): string {
   return `
     <div class="keyword-rule-row keyword-rule-head" role="row">
@@ -742,6 +804,13 @@ function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): stri
   `;
 }
 
+/**
+ * 渲染关键词匹配位置表头。
+ *
+ * @param label 位置展示文案。
+ * @param location 匹配位置。
+ * @return 匹配位置表头 HTML。
+ */
 function renderKeywordLocationHeader(label: string, location: MatchLocation): string {
   return `
       <label class="checkbox-cell location-bulk-cell" role="columnheader">
@@ -751,6 +820,14 @@ function renderKeywordLocationHeader(label: string, location: MatchLocation): st
   `;
 }
 
+/**
+ * 渲染单条关键词规则行。
+ *
+ * @param rule 关键词规则。
+ * @param index 关键词行索引。
+ * @param messages 当前语言文案。
+ * @return 关键词规则行 HTML。
+ */
 function renderKeywordRuleRow(
   rule: {
     caseSensitive?: boolean;
@@ -835,15 +912,34 @@ function renderKeywordRuleRow(
   `;
 }
 
+/**
+ * 查找当前正在编辑关键词的话题。
+ *
+ * @param settings 应用设置。
+ * @return 活动话题，不存在时返回 undefined。
+ */
 function findActiveTopic(settings: AppSettings): TopicRule | undefined {
   return settings.topics.find((topic) => topic.id === settings.activeKeywordTarget);
 }
 
+/**
+ * 获取当前活动目标的关键词规则。
+ *
+ * @param settings 应用设置。
+ * @return 当前活动关键词规则列表。
+ */
 function activeKeywordRules(settings: AppSettings): KeywordRule[] {
   const activeTopic = findActiveTopic(settings);
   return activeTopic?.keywordRules ?? settings.commonKeywordRules;
 }
 
+/**
+ * 生成话题设置摘要。
+ *
+ * @param settings 应用设置。
+ * @param activeTopic 当前活动话题。
+ * @return 话题摘要文本。
+ */
 function topicSummary(settings: AppSettings, activeTopic: TopicRule | undefined): string {
   const messages = getMessages(settings.locale);
 
@@ -858,6 +954,12 @@ function topicSummary(settings: AppSettings, activeTopic: TopicRule | undefined)
   return activeTopic.note || activeTopic.id || messages.commonTopic;
 }
 
+/**
+ * 渲染关键词摘要。
+ *
+ * @param keywords 关键词列表。
+ * @return 关键词摘要 HTML。
+ */
 function renderKeywordSummary(keywords: string[]): string {
   const visibleKeywords = keywords.slice(0, 5);
   const suffix = keywords.length > visibleKeywords.length ? "..." : "";
@@ -873,12 +975,25 @@ function renderKeywordSummary(keywords: string[]): string {
   }${suffix}`;
 }
 
+/**
+ * 渲染 select 选项。
+ *
+ * @param value 选项值。
+ * @param current 当前选中值。
+ * @param label 选项文案。
+ * @return option HTML。
+ */
 function option(value: string, current: string, label: string): string {
   return `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${
     escapeHtml(label)
   }</option>`;
 }
 
+/**
+ * 渲染删除图标。
+ *
+ * @return 删除图标 SVG。
+ */
 function trashIcon(): string {
   return `<svg aria-hidden="true" viewBox="0 0 24 24">
     <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z"></path>
@@ -886,6 +1001,11 @@ function trashIcon(): string {
   </svg>`;
 }
 
+/**
+ * 渲染外链图标。
+ *
+ * @return 外链图标 SVG。
+ */
 function externalLinkIcon(): string {
   return `<svg aria-hidden="true" viewBox="0 0 24 24">
     <path d="M14 4h6v6h-2V7.4l-7.3 7.3-1.4-1.4L16.6 6H14V4Z"></path>
