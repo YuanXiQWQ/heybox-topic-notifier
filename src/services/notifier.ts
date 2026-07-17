@@ -92,6 +92,9 @@ export function createNotifier(options: NotifierOptions = {}) {
   const fetcher = options.fetch ?? fetch;
   const pushPlusUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL")) ??
     pushPlusSendUrl;
+  const wxPusherUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL")) ??
+    wxPusherSimplePushUrl;
+  const relayToken = Deno.env.get("NOTIFIER_RELAY_TOKEN")?.trim() ?? "";
   const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
 
   return {
@@ -198,6 +201,7 @@ export function createNotifier(options: NotifierOptions = {}) {
       serverChanSendKey: options.serverChanSendKey,
       webhookService: options.webhookService,
       webhookUrl: options.webhookUrl,
+      wxPusherUrl,
     });
     if (!targetWebhookUrl) {
       throw new NotificationConfigError(
@@ -215,9 +219,7 @@ export function createNotifier(options: NotifierOptions = {}) {
         url: targetWebhookUrl,
         wxPusherSpt: options.wxPusherSpt,
       })),
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-      },
+      headers: headersForWebhook(options.webhookService, targetWebhookUrl, relayToken),
       method: "POST",
     }, {
       label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
@@ -432,13 +434,14 @@ function targetUrlForWebhook(options: {
   serverChanSendKey: string;
   webhookService: AppSettings["notificationWebhookService"];
   webhookUrl: string;
+  wxPusherUrl: string;
 }): string {
   if (options.webhookService === "pushPlus") {
     return options.pushPlusUrl;
   }
 
   if (options.webhookService === "wxPusher") {
-    return wxPusherSimplePushUrl;
+    return options.wxPusherUrl;
   }
 
   if (options.webhookService === "serverChan") {
@@ -446,6 +449,41 @@ function targetUrlForWebhook(options: {
   }
 
   return options.webhookUrl.trim() || options.fallbackWebhookUrl.trim();
+}
+
+function headersForWebhook(
+  service: AppSettings["notificationWebhookService"],
+  targetWebhookUrl: string,
+  relayToken: string,
+): HeadersInit {
+  const headers: Record<string, string> = {
+    "content-type": "application/json; charset=utf-8",
+  };
+  if (shouldAttachRelayToken(service, targetWebhookUrl, relayToken)) {
+    headers.authorization = `Bearer ${relayToken}`;
+  }
+
+  return headers;
+}
+
+function shouldAttachRelayToken(
+  service: AppSettings["notificationWebhookService"],
+  targetWebhookUrl: string,
+  relayToken: string,
+): boolean {
+  if (!relayToken) {
+    return false;
+  }
+
+  if (service === "pushPlus") {
+    return targetWebhookUrl !== pushPlusSendUrl;
+  }
+
+  if (service === "wxPusher") {
+    return targetWebhookUrl !== wxPusherSimplePushUrl;
+  }
+
+  return false;
 }
 
 function webhookDeliveryLabel(
@@ -456,7 +494,7 @@ function webhookDeliveryLabel(
   try {
     hostname = new URL(url).hostname;
   } catch {
-    // Keep the original delivery error when the URL is malformed.
+    // URL 格式错误时保留原始投递错误。
   }
 
   return `${webhookServiceLabel(service)} webhook notification to ${hostname}`;
