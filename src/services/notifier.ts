@@ -112,6 +112,7 @@ export function createNotifier(options: NotifierOptions = {}) {
     pushPlusSendUrl;
   const wxPusherUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL")) ??
     wxPusherSimplePushUrl;
+  const serverChanUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL"));
   const relayToken = Deno.env.get("NOTIFIER_RELAY_TOKEN")?.trim() ?? "";
   const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
 
@@ -213,10 +214,17 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
+    if (options.webhookService === "serverChan" && !options.serverChanSendKey.trim()) {
+      throw new NotificationConfigError(
+        "Server酱 SendKey is required for webhook notifications.",
+      );
+    }
+
     const targetWebhookUrl = targetUrlForWebhook({
       pushPlusUrl,
       fallbackWebhookUrl: webhookUrl,
       serverChanSendKey: options.serverChanSendKey,
+      serverChanUrl,
       webhookService: options.webhookService,
       webhookUrl: options.webhookUrl,
       wxPusherUrl,
@@ -229,6 +237,11 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
+    const redactedSecrets = webhookRedactedSecrets({
+      relayToken,
+      serverChanSendKey: options.serverChanSendKey,
+      service: options.webhookService,
+    });
     let response: Response;
     try {
       response = await fetchWithDeliveryTimeout(fetcher, targetWebhookUrl, {
@@ -239,22 +252,28 @@ export function createNotifier(options: NotifierOptions = {}) {
           url: targetWebhookUrl,
           wxPusherSpt: options.wxPusherSpt,
         })),
-        headers: headersForWebhook(options.webhookService, targetWebhookUrl, relayToken),
+        headers: headersForWebhook({
+          relayToken,
+          serverChanSendKey: options.serverChanSendKey,
+          serverChanUrl,
+          service: options.webhookService,
+          targetWebhookUrl,
+        }),
         method: "POST",
       }, {
         label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
         logger: deliveryLogger,
-        redactedSecrets: [relayToken],
+        redactedSecrets,
         service: webhookServiceLabel(options.webhookService),
         timeoutMs: deliveryTimeoutMs,
       });
     } catch (error) {
-      throw redactNotificationDeliveryError(error, relayToken);
+      throw redactNotificationDeliveryError(error, redactedSecrets);
     }
 
     const responseBody = await response.text().catch(() => "");
     if (!response.ok) {
-      const safeResponseBody = redactSecret(responseBody, relayToken);
+      const safeResponseBody = redactSecrets(responseBody, redactedSecrets);
       throw new NotificationDeliveryError(
         `Webhook notification failed with HTTP ${response.status}${
           safeResponseBody ? `: ${safeResponseBody}` : ""
@@ -262,7 +281,7 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
-    assertWebhookAccepted(options.webhookService, responseBody, relayToken);
+    assertWebhookAccepted(options.webhookService, responseBody, redactedSecrets);
 
     return { provider: options.provider, sent: true };
   }
@@ -522,6 +541,7 @@ function targetUrlForWebhook(options: {
   fallbackWebhookUrl: string;
   pushPlusUrl: string;
   serverChanSendKey: string;
+  serverChanUrl?: string;
   webhookService: AppSettings["notificationWebhookService"];
   webhookUrl: string;
   wxPusherUrl: string;
@@ -535,68 +555,100 @@ function targetUrlForWebhook(options: {
   }
 
   if (options.webhookService === "serverChan") {
+    if (options.serverChanUrl) {
+      return options.serverChanUrl;
+    }
+
     return serverChanUrlFromSendKey(options.serverChanSendKey);
   }
 
   return options.webhookUrl.trim() || options.fallbackWebhookUrl.trim();
 }
 
-function headersForWebhook(
-  service: AppSettings["notificationWebhookService"],
-  targetWebhookUrl: string,
-  relayToken: string,
-): HeadersInit {
+function headersForWebhook(options: {
+  relayToken: string;
+  serverChanSendKey: string;
+  serverChanUrl?: string;
+  service: AppSettings["notificationWebhookService"];
+  targetWebhookUrl: string;
+}): HeadersInit {
   const headers: Record<string, string> = {
     "content-type": "application/json; charset=utf-8",
   };
-  const token = relayTokenForWebhook(service, targetWebhookUrl, relayToken);
+  const token = relayTokenForWebhook(options);
   if (token) {
     headers.authorization = `Bearer ${token}`;
+  }
+
+  if (usesServerChanRelayUrl(options)) {
+    headers["x-serverchan-send-key"] = options.serverChanSendKey.trim();
   }
 
   return headers;
 }
 
-function relayTokenForWebhook(
-  service: AppSettings["notificationWebhookService"],
-  targetWebhookUrl: string,
-  relayToken: string,
-): string | undefined {
-  if (!usesRelayWebhookUrl(service, targetWebhookUrl)) {
+function relayTokenForWebhook(options: {
+  relayToken: string;
+  serverChanUrl?: string;
+  service: AppSettings["notificationWebhookService"];
+  targetWebhookUrl: string;
+}): string | undefined {
+  if (!usesRelayWebhookUrl(options)) {
     return undefined;
   }
 
-  if (!relayToken) {
-    throw new NotificationConfigError(relayTokenConfigErrorMessage(service));
+  if (!options.relayToken) {
+    throw new NotificationConfigError(relayTokenConfigErrorMessage(options.service));
   }
 
-  return relayToken;
+  return options.relayToken;
 }
 
-function usesRelayWebhookUrl(
-  service: AppSettings["notificationWebhookService"],
-  targetWebhookUrl: string,
-): boolean {
-  if (service === "pushPlus") {
-    return targetWebhookUrl !== pushPlusSendUrl;
+function usesRelayWebhookUrl(options: {
+  serverChanUrl?: string;
+  service: AppSettings["notificationWebhookService"];
+  targetWebhookUrl: string;
+}): boolean {
+  if (options.service === "pushPlus") {
+    return options.targetWebhookUrl !== pushPlusSendUrl;
   }
 
-  if (service === "wxPusher") {
-    return targetWebhookUrl !== wxPusherSimplePushUrl;
+  if (options.service === "wxPusher") {
+    return options.targetWebhookUrl !== wxPusherSimplePushUrl;
+  }
+
+  if (options.service === "serverChan") {
+    return usesServerChanRelayUrl(options);
   }
 
   return false;
 }
 
-function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookService"]): string {
-  return service === "pushPlus"
-    ? "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_PUSHPLUS_SEND_URL."
-    : "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_WXPUSHER_SEND_URL.";
+function usesServerChanRelayUrl(options: {
+  serverChanUrl?: string;
+  service: AppSettings["notificationWebhookService"];
+  targetWebhookUrl: string;
+}): boolean {
+  return options.service === "serverChan" && Boolean(options.serverChanUrl) &&
+    options.targetWebhookUrl === options.serverChanUrl;
 }
 
-function redactNotificationDeliveryError(error: unknown, relayToken: string): unknown {
+function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookService"]): string {
+  switch (service) {
+    case "pushPlus":
+      return "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_PUSHPLUS_SEND_URL.";
+    case "wxPusher":
+      return "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_WXPUSHER_SEND_URL.";
+    case "serverChan":
+      return "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_SERVER_CHAN_SEND_URL.";
+    case "custom":
+      return "NOTIFIER_RELAY_TOKEN is required for relay notifications.";
+  }
+}
+
+function redactNotificationDeliveryError(error: unknown, redactedSecrets: string[]): unknown {
   if (error instanceof NotificationDeliveryError) {
-    return new NotificationDeliveryError(redactSecret(error.message, relayToken));
+    return new NotificationDeliveryError(redactSecrets(error.message, redactedSecrets));
   }
 
   return error;
@@ -612,6 +664,17 @@ function redactSecret(value: string, secret: string): string {
 
 function redactSecrets(value: string, secrets: string[]): string {
   return secrets.reduce((current, secret) => redactSecret(current, secret), value);
+}
+
+function webhookRedactedSecrets(options: {
+  relayToken: string;
+  serverChanSendKey: string;
+  service: AppSettings["notificationWebhookService"];
+}): string[] {
+  return [
+    options.relayToken,
+    options.service === "serverChan" ? options.serverChanSendKey.trim() : "",
+  ].filter(Boolean);
 }
 
 function webhookDeliveryLabel(
@@ -828,7 +891,7 @@ function isServerChanUrl(value: string): boolean {
 function assertWebhookAccepted(
   service: AppSettings["notificationWebhookService"],
   responseBody: string,
-  relayToken = "",
+  redactedSecrets: string[] = [],
 ): void {
   if (service !== "wxPusher") {
     if (service !== "pushPlus") {
@@ -842,7 +905,7 @@ function assertWebhookAccepted(
   } catch {
     throw new NotificationDeliveryError(
       `${serviceLabel(service)} notification failed with an invalid response: ${
-        redactSecret(responseBody, relayToken)
+        redactSecrets(responseBody, redactedSecrets)
       }`,
     );
   }
@@ -856,7 +919,7 @@ function assertWebhookAccepted(
     ? String(payload.msg)
     : responseBody;
   throw new NotificationDeliveryError(
-    `${serviceLabel(service)} notification failed: ${redactSecret(message, relayToken)}`,
+    `${serviceLabel(service)} notification failed: ${redactSecrets(message, redactedSecrets)}`,
   );
 }
 
