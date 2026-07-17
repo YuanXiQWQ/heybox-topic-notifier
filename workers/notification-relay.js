@@ -1,6 +1,6 @@
 const upstreamUrlByPath = {
-  "/pushplus": "https://www.pushplus.plus/send",
-  "/wxpusher": "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+  '/pushplus': 'https://www.pushplus.plus/send',
+  '/wxpusher': 'https://wxpusher.zjiecode.com/api/send/message/simple-push',
 };
 
 export default {
@@ -11,43 +11,47 @@ export default {
 
 export async function handleRelayRequest(request, env, upstreamFetch = fetch) {
   const url = new URL(request.url);
-  if (url.pathname === "/healthz") {
-    return jsonResponse({ status: "ok" });
+  if (url.pathname === '/healthz') {
+    return jsonResponse({status: 'ok'});
   }
 
-  const upstreamUrl = upstreamUrlByPath[url.pathname];
+  const upstreamUrl = upstreamUrlForRequest(url.pathname, request);
   if (!upstreamUrl) {
-    return jsonResponse({ error: "not_found" }, 404);
+    return jsonResponse({error: 'not_found'}, 404);
   }
 
-  if (request.method !== "POST") {
-    return jsonResponse({ error: "method_not_allowed" }, 405, {
-      allow: "POST",
+  if (request.method !== 'POST') {
+    return jsonResponse({error: 'method_not_allowed'}, 405, {
+      allow: 'POST',
     });
   }
 
-  const relayToken = typeof env?.RELAY_TOKEN === "string" ? env.RELAY_TOKEN.trim() : "";
+  const relayToken = typeof env?.RELAY_TOKEN === 'string' ? env.RELAY_TOKEN.trim() : '';
   if (!relayToken) {
-    return jsonResponse({ error: "relay_token_not_configured" }, 500);
+    return jsonResponse({error: 'relay_token_not_configured'}, 500);
   }
 
-  const authorization = request.headers.get("authorization") ?? "";
+  const authorization = request.headers.get('authorization') ?? '';
   if (!constantTimeEqual(authorization, `Bearer ${relayToken}`)) {
-    return jsonResponse({ error: "unauthorized" }, 401);
+    return jsonResponse({error: 'unauthorized'}, 401);
+  }
+
+  if (upstreamUrl instanceof Response) {
+    return upstreamUrl;
   }
 
   const upstreamResponse = await upstreamFetch(upstreamUrl, {
     body: await request.text(),
     headers: {
-      "content-type": request.headers.get("content-type") ?? "application/json; charset=utf-8",
+      'content-type': request.headers.get('content-type') ?? 'application/json; charset=utf-8',
     },
-    method: "POST",
+    method: 'POST',
   });
 
   const headers = new Headers();
-  const contentType = upstreamResponse.headers.get("content-type");
+  const contentType = upstreamResponse.headers.get('content-type');
   if (contentType) {
-    headers.set("content-type", contentType);
+    headers.set('content-type', contentType);
   }
 
   return new Response(upstreamResponse.body, {
@@ -57,10 +61,55 @@ export async function handleRelayRequest(request, env, upstreamFetch = fetch) {
   });
 }
 
+function upstreamUrlForRequest(pathname, request) {
+  if (pathname === '/serverchan') {
+    return serverChanUpstreamUrl(request.headers.get('x-serverchan-send-key') ?? '');
+  }
+
+  return upstreamUrlByPath[pathname] ?? '';
+}
+
+function serverChanUpstreamUrl(value) {
+  const sendKey = value.trim();
+  if (!sendKey) {
+    return jsonResponse({error: 'serverchan_send_key_required'}, 400);
+  }
+
+  if (!isSafeServerChanSendKey(sendKey)) {
+    return jsonResponse({error: 'invalid_serverchan_send_key'}, 400);
+  }
+
+  const serverChan3Uid = sendKey.match(/^sctp(\d+)t/i)?.[1];
+  const upstreamUrl = serverChan3Uid
+      ? `https://${serverChan3Uid}.push.ft07.com/send/${sendKey}.send`
+      : `https://sctapi.ftqq.com/${sendKey}.send`;
+
+  return allowedServerChanUpstream(upstreamUrl)
+      ? upstreamUrl
+      : jsonResponse({error: 'invalid_serverchan_send_key'}, 400);
+}
+
+function isSafeServerChanSendKey(value) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+    return false;
+  }
+
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+function allowedServerChanUpstream(value) {
+  try {
+    const hostname = new URL(value).hostname;
+    return hostname === 'sctapi.ftqq.com' || /^\d+\.push\.ft07\.com$/.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
 function jsonResponse(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), {
     headers: {
-      "content-type": "application/json; charset=utf-8",
+      'content-type': 'application/json; charset=utf-8',
       ...headers,
     },
     status,

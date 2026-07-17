@@ -113,9 +113,7 @@ Deno.test("createHeyboxTopicSource orders publish-time feed before slicing", asy
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
     fetchFn: (input) => {
-      const url = new URL(String(input));
-
-      topicFeedUrl = url;
+      topicFeedUrl = new URL(String(input));
       return Promise.resolve(Response.json({
         result: {
           links: [

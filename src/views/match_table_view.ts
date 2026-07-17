@@ -331,7 +331,7 @@ function renderFilterScript(): string {
         }
       };
 
-      window.__matchTableFilterInit = initializeMatchFilters;
+      window["__matchTableFilterInit"] = initializeMatchFilters;
       initializeMatchFilters();
     })();
   </script>`;
@@ -349,38 +349,42 @@ type RelativeTimeTemplates = {
 function renderRelativeTimeScript(): string {
   return `<script>
     (() => {
-      if (window.__matchTableRelativeTimeScriptInstalled) {
-        window.__matchTableRelativeTimeUpdate?.();
+      const installedKey = '__matchTableRelativeTimeScriptInstalled';
+      const updateKey = '__matchTableRelativeTimeUpdate';
+      const overflowUpdateKey = '__matchTableOverflowUpdate';
+
+      if (window[installedKey]) {
+        window[updateKey]?.();
         return;
       }
 
-      window.__matchTableRelativeTimeScriptInstalled = true;
+      window[installedKey] = true;
       const relativeTemplates = ${JSON.stringify(relativeTimeTemplatesByLocale())};
       const updateRelativeTimes = () => {
         const nowMs = Date.now();
         const now = new Date(nowMs);
-        for (const element of document.querySelectorAll("[data-relative-time]")) {
-          const rawValue = element.getAttribute("data-relative-time") || "";
+        for (const element of document.querySelectorAll('[data-relative-time]')) {
+          const rawValue = element.getAttribute('data-relative-time') || '';
           const timestamp = Date.parse(rawValue);
           if (!Number.isFinite(timestamp)) {
-            element.textContent = rawValue || "-";
+            element.textContent = rawValue || '-';
             continue;
           }
-          const locale = element.getAttribute("data-relative-time-locale") === "en"
-            ? "en"
-            : "zh-CN";
+          const locale = element.getAttribute('data-relative-time-locale') === 'en'
+            ? 'en'
+            : 'zh-CN';
           element.textContent = formatRelativeTime(timestamp, nowMs, now, locale);
         }
-        window.__matchTableOverflowUpdate?.();
+        window[overflowUpdateKey]?.();
       };
 
-      window.__matchTableRelativeTimeUpdate = updateRelativeTimes;
+      window[updateKey] = updateRelativeTimes;
       updateRelativeTimes();
       window.setInterval(updateRelativeTimes, 1000);
 
       function formatRelativeTime(value, nowMs, now, locale) {
         const date = new Date(value);
-        const templates = relativeTemplates[locale] || relativeTemplates["zh-CN"];
+        const templates = relativeTemplates[locale] || relativeTemplates['zh-CN'];
         const diffSeconds = Math.max(0, Math.floor((nowMs - value) / 1000));
 
         if (diffSeconds === 0) {
@@ -402,7 +406,7 @@ function renderRelativeTimeScript(): string {
         }
 
         if (diffHours < 48) {
-          const time = formatInChina(date, { hour: "2-digit", minute: "2-digit" }, locale);
+          const time = formatInChina(date, { hour: '2-digit', minute: '2-digit' }, locale);
           return formatTemplate(templates.yesterdayAt, { time });
         }
 
@@ -414,8 +418,8 @@ function renderRelativeTimeScript(): string {
         return formatInChina(
           date,
           sameChinaYear(date, now, locale)
-            ? { day: "2-digit", month: "2-digit" }
-            : { day: "2-digit", month: "2-digit", year: "numeric" },
+            ? { day: '2-digit', month: '2-digit' }
+            : { day: '2-digit', month: '2-digit', year: 'numeric' },
           locale,
         );
       }
@@ -427,15 +431,15 @@ function renderRelativeTimeScript(): string {
       }
 
       function sameChinaYear(left, right, locale) {
-        return formatInChina(left, { year: "numeric" }, locale) ===
-          formatInChina(right, { year: "numeric" }, locale);
+        return formatInChina(left, { year: 'numeric' }, locale) ===
+          formatInChina(right, { year: 'numeric' }, locale);
       }
 
       function formatInChina(date, options, locale) {
         return new Intl.DateTimeFormat(locale, {
-          timeZone: "Asia/Shanghai",
+          timeZone: 'Asia/Shanghai',
           ...options,
-        }).format(date).replaceAll("/", "-");
+        }).format(date).replaceAll('/', '-');
       }
     })();
   </script>`;
@@ -479,10 +483,10 @@ function renderOverflowScript(): string {
         }
       };
       const scheduleUpdate = () => requestAnimationFrame(updateOverflowState);
-      window.__matchTableOverflowUpdate = scheduleUpdate;
+      window["__matchTableOverflowUpdate"] = scheduleUpdate;
       scheduleUpdate();
-      if (window.__matchTableOverflowScriptInstalled) return;
-      window.__matchTableOverflowScriptInstalled = true;
+      if (window["__matchTableOverflowScriptInstalled"]) return;
+      window["__matchTableOverflowScriptInstalled"] = true;
       window.addEventListener("load", scheduleUpdate);
       window.addEventListener("resize", scheduleUpdate);
       if (window.ResizeObserver) {
@@ -510,9 +514,11 @@ function renderSelectionScript(action: MatchTableAction): string {
       const rowCheckboxSelector = ${JSON.stringify(rowCheckboxSelector)};
       const bulkButtonSelector = ${JSON.stringify(bulkButtonSelector)};
       const scriptKey = \`selection:\${selectAllSelector}:\${rowCheckboxSelector}:\${bulkButtonSelector}\`;
-      window.__matchTableSelectionScripts ??= new Set();
-      if (window.__matchTableSelectionScripts.has(scriptKey)) return;
-      window.__matchTableSelectionScripts.add(scriptKey);
+      const scriptsKey = "__matchTableSelectionScripts";
+      const installedScripts = window[scriptsKey] ?? new Set();
+      window[scriptsKey] = installedScripts;
+      if (installedScripts.has(scriptKey)) return;
+      installedScripts.add(scriptKey);
 
       document.addEventListener("change", (event) => {
         const target = event.target;

@@ -5,38 +5,38 @@ let autoSaveTimer;
 let autoSaveController;
 let testNotifyErrorDetailsUrl;
 let testNotifyStatusTimer;
-let lastSavedSignature = "";
+let lastSavedSignature = '';
 let reloadAfterSave = false;
 const notificationTransitionMs = 190;
-const dropdownStoragePrefix = "heybox-notifier.settings.dropdown.";
+const dropdownStoragePrefix = 'heybox-notifier.settings.dropdown.';
 
 function initSettingsEditors() {
-  const topicEditor = document.querySelector("[data-topic-editor]");
-  const keywordEditor = document.querySelector("[data-keyword-editor]");
+  const topicEditor = document.querySelector('[data-topic-editor]');
+  const keywordEditor = document.querySelector('[data-keyword-editor]');
 
   if (!topicEditor || !keywordEditor) {
     return;
   }
 
-  initDropdown(topicEditor, "topics");
-  initDropdown(keywordEditor, "keywords");
+  initDropdown(topicEditor, 'topics');
+  initDropdown(keywordEditor, 'keywords');
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
   initNotificationSettings();
   initPollingSettings();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
-  initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
+  initAutoSave(topicEditor.closest('form'), topicEditor, keywordEditor);
   updateKeywordSummary(keywordEditor);
 }
 
 function initNotificationSettings() {
-  const providerSelect = document.querySelector("[data-notification-provider-select]");
-  const emailServiceSelect = document.querySelector("[data-notification-email-service-select]");
-  const serviceSelect = document.querySelector("[data-notification-webhook-service-select]");
-  const testNotifyButton = document.querySelector("[data-test-notify-button]");
-  const testNotifyStatus = document.querySelector("[data-test-notify-status]");
-  const rows = Array.from(document.querySelectorAll("[data-notification-field]"));
+  const providerSelect = document.querySelector('[data-notification-provider-select]');
+  const emailServiceSelect = document.querySelector('[data-notification-email-service-select]');
+  const serviceSelect = document.querySelector('[data-notification-webhook-service-select]');
+  const testNotifyButton = document.querySelector('[data-test-notify-button]');
+  const testNotifyStatus = document.querySelector('[data-test-notify-status]');
+  const rows = Array.from(document.querySelectorAll('[data-notification-field]'));
 
   if (!(providerSelect instanceof HTMLSelectElement)) {
     return;
@@ -46,35 +46,35 @@ function initNotificationSettings() {
   let transitionToken = 0;
 
   function desiredNotificationFields() {
-    if (providerSelect.value === "email") {
+    if (providerSelect.value === 'email') {
       const fields = [
-        "email-service",
-        "email-address",
-        "email-from",
+        'email-service',
+        'email-address',
+        'email-from',
       ];
 
-      if (emailServiceSelect?.value === "api") {
-        fields.push("email-api-url", "email-api-token");
+      if (emailServiceSelect?.value === 'api') {
+        fields.push('email-api-url', 'email-api-token');
       } else {
         fields.push(
-          "smtp-host",
-          "smtp-port",
-          "smtp-secure",
-          "smtp-username",
-          "smtp-password",
+            'smtp-host',
+            'smtp-port',
+            'smtp-secure',
+            'smtp-username',
+            'smtp-password',
         );
       }
 
       return new Set(fields);
     }
 
-    if (providerSelect.value !== "webhook") {
+    if (providerSelect.value !== 'webhook') {
       return new Set();
     }
 
     return new Set([
-      "webhook-service",
-      serviceSelect?.value || "custom",
+      'webhook-service',
+      serviceSelect?.value || 'custom',
     ]);
   }
 
@@ -87,18 +87,18 @@ function initNotificationSettings() {
     row.dataset.notificationTransitionToken = String(token);
 
     if (!animate) {
-      row.classList.remove("is-collapsed");
+      row.classList.remove('is-collapsed');
       return;
     }
 
-    row.classList.add("is-collapsed");
+    row.classList.add('is-collapsed');
     row.getBoundingClientRect();
-    row.classList.remove("is-collapsed");
+    row.classList.remove('is-collapsed');
   }
 
   function hideRow(row, animate, token) {
     row.dataset.notificationTransitionToken = String(token);
-    row.classList.add("is-collapsed");
+    row.classList.add('is-collapsed');
 
     if (!animate) {
       row.hidden = true;
@@ -107,8 +107,8 @@ function initNotificationSettings() {
 
     setTimeout(() => {
       if (
-        row.dataset.notificationTransitionToken === String(token) &&
-        row.classList.contains("is-collapsed")
+          row.dataset.notificationTransitionToken === String(token) &&
+          row.classList.contains('is-collapsed')
       ) {
         row.hidden = true;
       }
@@ -125,12 +125,12 @@ function initNotificationSettings() {
     }
 
     if (testNotifyButton instanceof HTMLButtonElement) {
-      testNotifyButton.hidden = providerSelect.value === "disabled";
+      testNotifyButton.hidden = providerSelect.value === 'disabled';
       if (testNotifyStatus instanceof HTMLElement) {
         testNotifyStatus.hidden = testNotifyButton.hidden;
       }
       if (testNotifyButton.hidden) {
-        setTestNotifyStatus("");
+        setTestNotifyStatus('');
       }
     }
   }
@@ -144,29 +144,29 @@ function initNotificationSettings() {
     visibleFields = targetFields;
   }
 
-  providerSelect.addEventListener("change", () => {
+  providerSelect.addEventListener('change', () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  emailServiceSelect?.addEventListener("change", () => {
+  emailServiceSelect?.addEventListener('change', () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  serviceSelect?.addEventListener("change", () => {
+  serviceSelect?.addEventListener('change', () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  testNotifyButton?.addEventListener("click", async (event) => {
+  testNotifyButton?.addEventListener('click', async (event) => {
     event.preventDefault();
     if (!(testNotifyButton instanceof HTMLButtonElement)) {
       return;
     }
 
     testNotifyButton.disabled = true;
-    setTestNotifyStatus(testNotifyButton.dataset.testNotifySending ?? "", "pending", {
+    setTestNotifyStatus(testNotifyButton.dataset.testNotifySending ?? '', 'pending', {
       persistMs: 0,
     });
     try {
@@ -174,7 +174,7 @@ function initNotificationSettings() {
       if (saved) {
         await sendTestNotification(testNotifyButton);
       } else {
-        setTestNotifyStatus(testNotifyButton.dataset.testNotifyFailed ?? "", "error");
+        setTestNotifyStatus(testNotifyButton.dataset.testNotifyFailed ?? '', 'error');
       }
     } finally {
       testNotifyButton.disabled = false;
@@ -185,12 +185,12 @@ function initNotificationSettings() {
 }
 
 function initPollingSettings() {
-  const enabledToggle = document.querySelector("[data-polling-enabled-toggle]");
-  const intervalValueInput = document.querySelector("[data-polling-interval-value]");
-  const intervalUnitSelect = document.querySelector("[data-polling-interval-unit]");
-  const subMinuteHint = document.querySelector("[data-polling-sub-minute-hint]");
-  const section = document.querySelector("[data-polling-section]");
-  const rows = Array.from(document.querySelectorAll("[data-polling-field]"));
+  const enabledToggle = document.querySelector('[data-polling-enabled-toggle]');
+  const intervalValueInput = document.querySelector('[data-polling-interval-value]');
+  const intervalUnitSelect = document.querySelector('[data-polling-interval-unit]');
+  const subMinuteHint = document.querySelector('[data-polling-sub-minute-hint]');
+  const section = document.querySelector('[data-polling-section]');
+  const rows = Array.from(document.querySelectorAll('[data-polling-field]'));
 
   if (!(enabledToggle instanceof HTMLInputElement)) {
     return;
@@ -203,18 +203,18 @@ function initPollingSettings() {
     row.dataset.pollingTransitionToken = String(token);
 
     if (!animate) {
-      row.classList.remove("is-collapsed");
+      row.classList.remove('is-collapsed');
       return;
     }
 
-    row.classList.add("is-collapsed");
+    row.classList.add('is-collapsed');
     row.getBoundingClientRect();
-    row.classList.remove("is-collapsed");
+    row.classList.remove('is-collapsed');
   }
 
   function hideRow(row, animate, token) {
     row.dataset.pollingTransitionToken = String(token);
-    row.classList.add("is-collapsed");
+    row.classList.add('is-collapsed');
 
     if (!animate) {
       row.hidden = true;
@@ -223,8 +223,8 @@ function initPollingSettings() {
 
     setTimeout(() => {
       if (
-        row.dataset.pollingTransitionToken === String(token) &&
-        row.classList.contains("is-collapsed")
+          row.dataset.pollingTransitionToken === String(token) &&
+          row.classList.contains('is-collapsed')
       ) {
         row.hidden = true;
       }
@@ -233,21 +233,21 @@ function initPollingSettings() {
 
   function validateMinimumInterval() {
     if (
-      !(intervalValueInput instanceof HTMLInputElement) ||
-      !(intervalUnitSelect instanceof HTMLSelectElement)
+        !(intervalValueInput instanceof HTMLInputElement) ||
+        !(intervalUnitSelect instanceof HTMLSelectElement)
     ) {
       return true;
     }
 
-    intervalValueInput.min = intervalUnitSelect.value === "second" ? "3" : "1";
+    intervalValueInput.min = intervalUnitSelect.value === 'second' ? '3' : '1';
 
     const intervalValue = Number(intervalValueInput.value);
     if (
-      intervalUnitSelect.value === "second" &&
-      Number.isFinite(intervalValue) &&
-      intervalValue < 3
+        intervalUnitSelect.value === 'second' &&
+        Number.isFinite(intervalValue) &&
+        intervalValue < 3
     ) {
-      intervalValueInput.value = "3";
+      intervalValueInput.value = '3';
       if (section instanceof HTMLElement) {
         showToast(section, section.dataset.pollingIntervalTooShort);
       }
@@ -259,18 +259,18 @@ function initPollingSettings() {
 
   function syncSubMinuteHint() {
     if (
-      !(subMinuteHint instanceof HTMLElement) ||
-      !(intervalValueInput instanceof HTMLInputElement) ||
-      !(intervalUnitSelect instanceof HTMLSelectElement)
+        !(subMinuteHint instanceof HTMLElement) ||
+        !(intervalValueInput instanceof HTMLInputElement) ||
+        !(intervalUnitSelect instanceof HTMLSelectElement)
     ) {
       return;
     }
 
     const intervalValue = Number(intervalValueInput.value);
     subMinuteHint.hidden = !(
-      intervalUnitSelect.value === "second" &&
-      Number.isFinite(intervalValue) &&
-      intervalValue < 60
+        intervalUnitSelect.value === 'second' &&
+        Number.isFinite(intervalValue) &&
+        intervalValue < 60
     );
   }
 
@@ -286,26 +286,26 @@ function initPollingSettings() {
     }
   }
 
-  enabledToggle.addEventListener("change", () => {
+  enabledToggle.addEventListener('change', () => {
     syncPollingFields(true);
     scheduleAutoSave();
   });
 
-  intervalValueInput?.addEventListener("change", () => {
+  intervalValueInput?.addEventListener('change', () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
 
-  intervalValueInput?.addEventListener("blur", () => {
+  intervalValueInput?.addEventListener('blur', () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
 
-  intervalValueInput?.addEventListener("input", () => {
+  intervalValueInput?.addEventListener('input', () => {
     syncSubMinuteHint();
   });
 
-  intervalUnitSelect?.addEventListener("change", () => {
+  intervalUnitSelect?.addEventListener('change', () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
@@ -319,12 +319,12 @@ function initDropdown(editor, name) {
   const panel = dropdownPanel(editor, name);
   const toggle = dropdownToggle(editor, name);
   panel.hidden = false;
-  setDropdownOpen(editor, name, storedDropdownOpen(name), { persist: false });
+  setDropdownOpen(editor, name, storedDropdownOpen(name), {persist: false});
 
-  toggle.addEventListener("click", () => {
+  toggle.addEventListener('click', () => {
     const className = `is-${name.slice(0, -1)}-open`;
     const isOpen = !editor.classList.contains(className);
-    setDropdownOpen(editor, name, isOpen, { persist: true });
+    setDropdownOpen(editor, name, isOpen, {persist: true});
   });
 }
 
@@ -334,10 +334,10 @@ function setDropdownOpen(editor, name, isOpen, options = {}) {
   const className = `is-${name.slice(0, -1)}-open`;
 
   editor.classList.toggle(className, isOpen);
-  panel.setAttribute("aria-hidden", String(!isOpen));
+  panel.setAttribute('aria-hidden', String(!isOpen));
   panel.inert = !isOpen;
-  toggle.setAttribute("aria-expanded", String(isOpen));
-  toggle.classList.toggle("is-open", isOpen);
+  toggle.setAttribute('aria-expanded', String(isOpen));
+  toggle.classList.toggle('is-open', isOpen);
 
   if (options.persist) {
     storeDropdownOpen(name, isOpen);
@@ -354,7 +354,7 @@ function dropdownToggle(editor, name) {
 
 function storedDropdownOpen(name) {
   try {
-    return localStorage.getItem(dropdownStorageKey(name)) === "open";
+    return localStorage.getItem(dropdownStorageKey(name)) === 'open';
   } catch {
     return false;
   }
@@ -362,7 +362,7 @@ function storedDropdownOpen(name) {
 
 function storeDropdownOpen(name, isOpen) {
   try {
-    localStorage.setItem(dropdownStorageKey(name), isOpen ? "open" : "closed");
+    localStorage.setItem(dropdownStorageKey(name), isOpen ? 'open' : 'closed');
   } catch {
     // Keep the dropdown usable when browser storage is unavailable.
   }
@@ -373,31 +373,31 @@ function dropdownStorageKey(name) {
 }
 
 function initTopicEditor(topicEditor, keywordEditor) {
-  topicEditor.addEventListener("click", (event) => {
+  topicEditor.addEventListener('click', (event) => {
     const button = actionButtonFromEvent(event);
     if (!button) {
       return;
     }
 
-    if (button.dataset.action === "insert-topic") {
+    if (button.dataset.action === 'insert-topic') {
       insertTopicRow(topicEditor, button);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === "delete-topics") {
+    if (button.dataset.action === 'delete-topics') {
       deleteTopicRows(topicEditor, keywordEditor, button);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === "edit-topic-keywords") {
+    if (button.dataset.action === 'edit-topic-keywords') {
       switchKeywordTarget(topicEditor, keywordEditor, button);
       scheduleAutoSave();
     }
   });
 
-  topicEditor.addEventListener("change", (event) => {
+  topicEditor.addEventListener('change', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) {
       return;
@@ -405,20 +405,20 @@ function initTopicEditor(topicEditor, keywordEditor) {
 
     let shouldSave = false;
 
-    if (target.matches("[data-role='select-all-topics']")) {
-      topicEditor.querySelectorAll("[data-role='select-topic-row']").forEach((checkbox) => {
+    if (target.matches('[data-role=\'select-all-topics\']')) {
+      topicEditor.querySelectorAll('[data-role=\'select-topic-row\']').forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
     }
 
-    if (target.matches("[data-role='enable-all-topics']")) {
-      topicEditor.querySelectorAll("[data-role='topic-enabled']").forEach((checkbox) => {
+    if (target.matches('[data-role=\'enable-all-topics\']')) {
+      topicEditor.querySelectorAll('[data-role=\'topic-enabled\']').forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
       shouldSave = true;
     }
 
-    if (target.matches("[data-role='topic-enabled']")) {
+    if (target.matches('[data-role=\'topic-enabled\']')) {
       shouldSave = true;
     }
 
@@ -427,40 +427,40 @@ function initTopicEditor(topicEditor, keywordEditor) {
     }
   });
 
-  topicEditor.addEventListener("input", () => {
+  topicEditor.addEventListener('input', () => {
     updateActiveTopicSummary(topicEditor);
     scheduleAutoSave();
   });
 }
 
 function initKeywordEditor(keywordEditor) {
-  keywordEditor.addEventListener("click", (event) => {
+  keywordEditor.addEventListener('click', (event) => {
     const button = actionButtonFromEvent(event);
     if (!button) {
       return;
     }
 
-    if (button.dataset.action === "insert-keyword") {
+    if (button.dataset.action === 'insert-keyword') {
       insertKeywordRow(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === "delete-keywords") {
+    if (button.dataset.action === 'delete-keywords') {
       deleteKeywordRows(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === "toggle-keyword-option") {
+    if (button.dataset.action === 'toggle-keyword-option') {
       toggleKeywordOption(button);
       scheduleAutoSave();
     }
   });
 
-  keywordEditor.addEventListener("change", (event) => {
+  keywordEditor.addEventListener('change', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) {
       return;
@@ -468,23 +468,23 @@ function initKeywordEditor(keywordEditor) {
 
     let shouldSave = false;
 
-    if (target.matches("[data-role='select-all-keywords']")) {
-      keywordEditor.querySelectorAll("[data-role='select-keyword-row']").forEach((checkbox) => {
+    if (target.matches('[data-role=\'select-all-keywords\']')) {
+      keywordEditor.querySelectorAll('[data-role=\'select-keyword-row\']').forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
     }
 
-    if (target.matches("[data-role='select-keyword-location']")) {
+    if (target.matches('[data-role=\'select-keyword-location\']')) {
       const location = target.dataset.location;
       keywordEditor
-        .querySelectorAll(`[name$="_location_${location}"]`)
-        .forEach((checkbox) => {
-          checkbox.checked = target.checked;
-        });
+          .querySelectorAll(`[name$="_location_${location}"]`)
+          .forEach((checkbox) => {
+            checkbox.checked = target.checked;
+          });
       shouldSave = true;
     }
 
-    if (target.name.includes("_location_")) {
+    if (target.name.includes('_location_')) {
       shouldSave = true;
     }
 
@@ -494,7 +494,7 @@ function initKeywordEditor(keywordEditor) {
     }
   });
 
-  keywordEditor.addEventListener("input", () => {
+  keywordEditor.addEventListener('input', () => {
     updateKeywordSummary(keywordEditor);
     scheduleAutoSave();
   });
@@ -506,15 +506,15 @@ function actionButtonFromEvent(event) {
     return undefined;
   }
 
-  const button = target.closest("[data-action]");
+  const button = target.closest('[data-action]');
   return button instanceof HTMLButtonElement ? button : undefined;
 }
 
 function initKeywordRuleStorage(topicEditor, keywordEditor) {
-  const activeTarget = activeKeywordTargetInput().value || "common";
+  const activeTarget = activeKeywordTargetInput().value || 'common';
   const commonInput = commonKeywordRulesInput();
 
-  if (activeTarget === "common") {
+  if (activeTarget === 'common') {
     commonInput.value = serializeKeywordRows(keywordEditor);
   } else {
     const activeRow = findActiveTopicRow(topicEditor, activeTarget);
@@ -523,35 +523,35 @@ function initKeywordRuleStorage(topicEditor, keywordEditor) {
     }
   }
 
-  topicEditor.dataset.commonKeywords = commonInput.value || "[]";
-  topicEditor.closest("form")?.addEventListener("submit", () => {
+  topicEditor.dataset.commonKeywords = commonInput.value || '[]';
+  topicEditor.closest('form')?.addEventListener('submit', () => {
     persistCurrentKeywordRows(topicEditor, keywordEditor);
   });
 }
 
 function commonKeywordRulesInput() {
-  return document.querySelector("[data-common-keyword-rules]");
+  return document.querySelector('[data-common-keyword-rules]');
 }
 
 function findActiveTopicRow(topicEditor, activeTarget) {
   return topicEditor.querySelector('[data-topic-row][data-active-keyword-target="true"]') ??
-    findTopicRowById(topicEditor, activeTarget);
+      findTopicRowById(topicEditor, activeTarget);
 }
 
 function initThemePicker() {
-  const colorInput = document.querySelector("[data-theme-color-input]");
-  const darkModeInput = document.querySelector("[data-dark-mode-input]");
+  const colorInput = document.querySelector('[data-theme-color-input]');
+  const darkModeInput = document.querySelector('[data-dark-mode-input]');
 
   if (colorInput instanceof HTMLInputElement) {
-    colorInput.addEventListener("input", () => {
-      document.documentElement.style.setProperty("--theme-color", colorInput.value);
+    colorInput.addEventListener('input', () => {
+      document.documentElement.style.setProperty('--theme-color', colorInput.value);
       scheduleAutoSave();
     });
   }
 
   if (darkModeInput instanceof HTMLInputElement) {
-    darkModeInput.addEventListener("change", () => {
-      document.documentElement.dataset.colorMode = darkModeInput.checked ? "dark" : "light";
+    darkModeInput.addEventListener('change', () => {
+      document.documentElement.dataset.colorMode = darkModeInput.checked ? 'dark' : 'light';
       scheduleAutoSave();
     });
   }
@@ -567,12 +567,12 @@ function initAutoSave(form, topicEditor, keywordEditor) {
   autoSaveKeywordEditor = keywordEditor;
   lastSavedSignature = settingsSignature();
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     void saveSettingsNow();
   });
 
-  form.addEventListener("input", (event) => {
+  form.addEventListener('input', (event) => {
     if (isEditorEvent(event)) {
       return;
     }
@@ -580,13 +580,13 @@ function initAutoSave(form, topicEditor, keywordEditor) {
     scheduleAutoSave();
   });
 
-  form.addEventListener("change", (event) => {
+  form.addEventListener('change', (event) => {
     if (isEditorEvent(event)) {
       return;
     }
 
     const target = event.target;
-    if (target instanceof HTMLSelectElement && target.name === "locale") {
+    if (target instanceof HTMLSelectElement && target.name === 'locale') {
       reloadAfterSave = true;
     }
 
@@ -597,7 +597,7 @@ function initAutoSave(form, topicEditor, keywordEditor) {
 function isEditorEvent(event) {
   const target = event.target;
   return target instanceof Element &&
-    Boolean(target.closest("[data-topic-editor], [data-keyword-editor]"));
+      Boolean(target.closest('[data-topic-editor], [data-keyword-editor]'));
 }
 
 function scheduleAutoSave() {
@@ -626,75 +626,76 @@ async function saveSettingsNow() {
 
   autoSaveController?.abort();
   autoSaveController = new AbortController();
-  setAutoSaveStatus("saving");
+  setAutoSaveStatus('saving');
 
   try {
     const response = await fetch(autoSaveForm.action, {
       body: new FormData(autoSaveForm),
-      headers: { "x-autosave": "1" },
-      method: autoSaveForm.method || "post",
+      headers: {'x-autosave': '1'},
+      method: autoSaveForm.method || 'post',
       signal: autoSaveController.signal,
     });
 
     if (!response.ok) {
-      throw new Error(`Save failed with ${response.status}`);
+      setAutoSaveStatus('error');
+      return false;
     }
 
     lastSavedSignature = signature;
-    setAutoSaveStatus("saved");
+    setAutoSaveStatus('saved');
     if (reloadAfterSave) {
       location.reload();
     }
     return true;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
+    if (error instanceof DOMException && error.name === 'AbortError') {
       return false;
     }
 
-    setAutoSaveStatus("error");
+    setAutoSaveStatus('error');
     return false;
   }
 }
 
 async function sendTestNotification(testNotifyButton) {
-  const fallbackError = testNotifyButton?.dataset?.testNotifyFailed ?? "";
+  const fallbackError = testNotifyButton?.dataset?.testNotifyFailed ?? '';
 
   try {
-    const response = await fetch("/test-notify", {
-      headers: { "x-test-notify": "1" },
-      method: "POST",
+    const response = await fetch('/test-notify', {
+      headers: {'x-test-notify': '1'},
+      method: 'POST',
     });
     const text = await response.text();
     if (response.ok) {
-      setTestNotifyStatus(text, "success");
+      setTestNotifyStatus(text, 'success');
     } else {
       const statusLine = `HTTP ${response.status}${
-        response.statusText ? ` ${response.statusText}` : ""
+          response.statusText ? ` ${response.statusText}` : ''
       }`;
-      setTestNotifyStatus(fallbackError, "error", {
-        errorDetails: [statusLine, text || fallbackError].join("\n\n"),
+      setTestNotifyStatus(fallbackError, 'error', {
+        errorDetails: [statusLine, text || fallbackError].join('\n\n'),
       });
     }
   } catch (error) {
     const errorDetails = error instanceof Error ? error.message : fallbackError;
-    setTestNotifyStatus(fallbackError, "error", { errorDetails });
+    setTestNotifyStatus(fallbackError, 'error', {errorDetails});
   }
 }
 
-function setTestNotifyStatus(text, state = "", options = {}) {
-  const status = document.querySelector("[data-test-notify-status]");
+function setTestNotifyStatus(text, state = '', options = {}) {
+  const status = document.querySelector('[data-test-notify-status]');
   if (!status) {
     return;
   }
 
   clearTimeout(testNotifyStatusTimer);
-  const statusText = status.querySelector("[data-test-notify-status-text]");
+  const statusText = status.querySelector('[data-test-notify-status-text]');
   if (statusText) {
     statusText.textContent = text;
   } else {
     status.textContent = text;
   }
-  updateTestNotifyErrorLink(status, state === "error" ? options.errorDetails : undefined);
+  updateTestNotifyErrorLink(status, state === 'error' ? options.errorDetails : undefined);
 
   if (state) {
     status.dataset.state = state;
@@ -702,12 +703,12 @@ function setTestNotifyStatus(text, state = "", options = {}) {
     delete status.dataset.state;
   }
 
-  const persistMs = options.persistMs ?? (state === "error" ? 0 : 2200);
+  const persistMs = options.persistMs ?? (state === 'error' ? 0 : 2200);
   if (text && persistMs > 0) {
     testNotifyStatusTimer = setTimeout(() => {
-      const currentStatusText = status.querySelector("[data-test-notify-status-text]") ?? status;
+      const currentStatusText = status.querySelector('[data-test-notify-status-text]') ?? status;
       if (currentStatusText.textContent === text) {
-        currentStatusText.textContent = "";
+        currentStatusText.textContent = '';
         updateTestNotifyErrorLink(status);
         delete status.dataset.state;
       }
@@ -716,7 +717,7 @@ function setTestNotifyStatus(text, state = "", options = {}) {
 }
 
 function updateTestNotifyErrorLink(status, errorDetails) {
-  const errorLink = status.querySelector("[data-test-notify-error-link]");
+  const errorLink = status.querySelector('[data-test-notify-error-link]');
   if (!(errorLink instanceof HTMLAnchorElement)) {
     return;
   }
@@ -728,33 +729,33 @@ function updateTestNotifyErrorLink(status, errorDetails) {
 
   if (!errorDetails) {
     errorLink.hidden = true;
-    errorLink.removeAttribute("href");
+    errorLink.removeAttribute('href');
     return;
   }
 
   testNotifyErrorDetailsUrl = URL.createObjectURL(
-    new Blob(
-      [renderTestNotifyErrorPage(errorLink, errorDetails)],
-      { type: "text/html;charset=utf-8" },
-    ),
+      new Blob(
+          [renderTestNotifyErrorPage(errorLink, errorDetails)],
+          {type: 'text/html;charset=utf-8'},
+      ),
   );
   errorLink.href = testNotifyErrorDetailsUrl;
   errorLink.hidden = false;
 }
 
 function renderTestNotifyErrorPage(errorLink, errorDetails) {
-  const appName = errorLink.dataset.errorAppName || document.title || "Heybox Topic Notifier";
-  const appOrigin = globalThis.location?.origin || "";
-  const colorMode = errorLink.dataset.errorDarkMode === "true" ? "dark" : "light";
-  const errorTitle = errorLink.dataset.errorTitle || "Error message";
-  const locale = errorLink.dataset.errorLocale || document.documentElement.lang || "zh-CN";
+  const appName = errorLink.dataset.errorAppName || document.title || 'Heybox Topic Notifier';
+  const appOrigin = globalThis.location?.origin || '';
+  const colorMode = errorLink.dataset.errorDarkMode === 'true' ? 'dark' : 'light';
+  const errorTitle = errorLink.dataset.errorTitle || 'Error message';
+  const locale = errorLink.dataset.errorLocale || document.documentElement.lang || 'zh-CN';
   const generatedAt = new Date().toLocaleString();
-  const navDashboard = errorLink.dataset.errorNavDashboard || "Dashboard";
-  const navHistory = errorLink.dataset.errorNavHistory || "History";
-  const navSettings = errorLink.dataset.errorNavSettings || "Settings";
+  const navDashboard = errorLink.dataset.errorNavDashboard || 'Dashboard';
+  const navHistory = errorLink.dataset.errorNavHistory || 'History';
+  const navSettings = errorLink.dataset.errorNavSettings || 'Settings';
   const returnLabel = errorLink.dataset.errorReturnLabel || navSettings;
   const summary = errorLink.dataset.errorSummary || errorTitle;
-  const themeColor = errorLink.dataset.errorThemeColor || "#bd7fff";
+  const themeColor = errorLink.dataset.errorThemeColor || '#BD7FFF';
 
   return `<!doctype html>
 <html
@@ -824,7 +825,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
       </dl>
       <div class="error-detail-actions">
         <a class="button-link" href="${escapeHtml(appOrigin)}/settings">${
-    escapeHtml(returnLabel)
+      escapeHtml(returnLabel)
   }</a>
       </div>
     </section>
@@ -835,46 +836,50 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) =>
-    ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    })[char]);
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        '\'': '&#39;',
+      })[char]);
 }
 
 function settingsSignature() {
   if (!autoSaveForm) {
-    return "";
+    return '';
   }
 
-  return new URLSearchParams(new FormData(autoSaveForm)).toString();
+  const params = new URLSearchParams();
+  for (const [key, value] of new FormData(autoSaveForm).entries()) {
+    params.append(key, String(value));
+  }
+  return params.toString();
 }
 
 function setAutoSaveStatus(state, text) {
-  const status = document.querySelector("[data-autosave-status]");
+  const status = document.querySelector('[data-autosave-status]');
   if (!status || !autoSaveForm) {
     return;
   }
 
   status.dataset.state = state;
   status.textContent = text ??
-    autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
-    "";
+      autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
+      '';
 }
 
 function insertTopicRow(editor, actionButton) {
-  const template = editor.querySelector("[data-topic-row-template]");
-  const grid = editor.querySelector(".topic-rule-grid");
-  const row = actionButton.closest("[data-topic-row]");
+  const template = editor.querySelector('[data-topic-row-template]');
+  const grid = editor.querySelector('.topic-rule-grid');
+  const row = actionButton.closest('[data-topic-row]');
   const fragment = template.content.cloneNode(true);
-  const newRow = fragment.querySelector("[data-topic-row]");
+  const newRow = fragment.querySelector('[data-topic-row]');
 
   if (row) {
     row.after(newRow);
   } else {
-    const firstRow = grid.querySelector("[data-topic-row]");
+    const firstRow = grid.querySelector('[data-topic-row]');
     if (firstRow) {
       firstRow.before(newRow);
     } else {
@@ -883,17 +888,17 @@ function insertTopicRow(editor, actionButton) {
   }
 
   reindexTopicRows(editor);
-  newRow.querySelector("[data-topic-id-input]").focus();
+  newRow.querySelector('[data-topic-id-input]').focus();
 }
 
 function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
-  const selectedRows = Array.from(topicEditor.querySelectorAll("[data-topic-row]"))
-    .filter((row) => row.querySelector("[data-role='select-topic-row']")?.checked);
+  const selectedRows = Array.from(topicEditor.querySelectorAll('[data-topic-row]'))
+      .filter((row) => row.querySelector('[data-role=\'select-topic-row\']')?.checked);
 
   if (selectedRows.length > 0) {
     selectedRows.forEach((row) => row.remove());
   } else {
-    const row = actionButton.closest("[data-topic-row]");
+    const row = actionButton.closest('[data-topic-row]');
     if (!row) {
       showToast(topicEditor, topicEditor.dataset.deleteMessage);
       return;
@@ -906,7 +911,7 @@ function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
   reindexTopicRows(topicEditor);
 
   const activeTarget = activeKeywordTargetInput().value;
-  if (activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)) {
+  if (activeTarget !== 'common' && !findTopicRowById(topicEditor, activeTarget)) {
     switchKeywordTarget(topicEditor, keywordEditor, commonKeywordButton(topicEditor));
   }
 
@@ -914,22 +919,22 @@ function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
 }
 
 function ensureAtLeastOneTopicRow(editor) {
-  if (editor.querySelector("[data-topic-row]")) {
+  if (editor.querySelector('[data-topic-row]')) {
     return;
   }
 
-  const template = editor.querySelector("[data-topic-row-template]");
-  const grid = editor.querySelector(".topic-rule-grid");
+  const template = editor.querySelector('[data-topic-row-template]');
+  const grid = editor.querySelector('.topic-rule-grid');
   grid.append(template.content.cloneNode(true));
 }
 
 function reindexTopicRows(editor) {
-  editor.querySelectorAll("[data-role='select-all-topics']").forEach((checkbox) => {
+  editor.querySelectorAll('[data-role=\'select-all-topics\']').forEach((checkbox) => {
     checkbox.checked = false;
   });
 
-  editor.querySelectorAll("[data-topic-row]").forEach((row, index) => {
-    row.querySelectorAll("input").forEach((input) => {
+  editor.querySelectorAll('[data-topic-row]').forEach((row, index) => {
+    row.querySelectorAll('input').forEach((input) => {
       if (!input.name) {
         return;
       }
@@ -942,19 +947,19 @@ function reindexTopicRows(editor) {
 function switchKeywordTarget(topicEditor, keywordEditor, button) {
   persistCurrentKeywordRows(topicEditor, keywordEditor);
 
-  const row = button.closest("[data-topic-row]");
-  const target = row ? row.querySelector("[data-topic-id-input]").value.trim() : "common";
-  topicEditor.querySelectorAll("[data-topic-row]").forEach((topicRow) => {
-    topicRow.dataset.activeKeywordTarget = "false";
+  const row = button.closest('[data-topic-row]');
+  const target = row ? row.querySelector('[data-topic-id-input]').value.trim() : 'common';
+  topicEditor.querySelectorAll('[data-topic-row]').forEach((topicRow) => {
+    topicRow.dataset.activeKeywordTarget = 'false';
   });
   if (row) {
-    row.dataset.activeKeywordTarget = "true";
+    row.dataset.activeKeywordTarget = 'true';
   }
-  activeKeywordTargetInput().value = target || "common";
+  activeKeywordTargetInput().value = target || 'common';
 
   const rules = row
-    ? parseRules(topicKeywordRulesValue(row))
-    : parseRules(commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords);
+      ? parseRules(topicKeywordRulesValue(row))
+      : parseRules(commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords);
 
   replaceKeywordRows(keywordEditor, rules);
   updateActiveTopicSummary(topicEditor);
@@ -963,10 +968,10 @@ function switchKeywordTarget(topicEditor, keywordEditor, button) {
 }
 
 function persistCurrentKeywordRows(topicEditor, keywordEditor) {
-  const activeTarget = activeKeywordTargetInput().value || "common";
+  const activeTarget = activeKeywordTargetInput().value || 'common';
   const serialized = serializeKeywordRows(keywordEditor);
 
-  if (activeTarget === "common") {
+  if (activeTarget === 'common') {
     topicEditor.dataset.commonKeywords = serialized;
     commonKeywordRulesInput().value = serialized;
     return;
@@ -979,14 +984,14 @@ function persistCurrentKeywordRows(topicEditor, keywordEditor) {
 }
 
 function topicKeywordRulesValue(row) {
-  return row.querySelector("[data-topic-keyword-rules]")?.value ??
-    row.querySelector("[data-action='edit-topic-keywords']")?.dataset.topicKeywords ??
-    "[]";
+  return row.querySelector('[data-topic-keyword-rules]')?.value ??
+      row.querySelector('[data-action=\'edit-topic-keywords\']')?.dataset.topicKeywords ??
+      '[]';
 }
 
 function setTopicKeywordRules(row, serialized) {
-  const input = row.querySelector("[data-topic-keyword-rules]");
-  const button = row.querySelector("[data-action='edit-topic-keywords']");
+  const input = row.querySelector('[data-topic-keyword-rules]');
+  const button = row.querySelector('[data-action=\'edit-topic-keywords\']');
   if (input) {
     input.value = serialized;
   }
@@ -996,10 +1001,10 @@ function setTopicKeywordRules(row, serialized) {
 }
 
 function replaceKeywordRows(keywordEditor, rules) {
-  const grid = keywordEditor.querySelector(".keyword-rule-grid");
-  keywordEditor.querySelectorAll("[data-keyword-row]").forEach((row) => row.remove());
+  const grid = keywordEditor.querySelector('.keyword-rule-grid');
+  keywordEditor.querySelectorAll('[data-keyword-row]').forEach((row) => row.remove());
 
-  const normalizedRules = rules.length > 0 ? rules : [{ keyword: "", locations: [] }];
+  const normalizedRules = rules.length > 0 ? rules : [{keyword: '', locations: []}];
   normalizedRules.forEach((rule) => {
     grid.append(keywordRowFromRule(keywordEditor, rule));
   });
@@ -1008,13 +1013,13 @@ function replaceKeywordRows(keywordEditor, rules) {
 }
 
 function keywordRowFromRule(keywordEditor, rule) {
-  const template = keywordEditor.querySelector("[data-keyword-row-template]");
+  const template = keywordEditor.querySelector('[data-keyword-row-template]');
   const fragment = template.content.cloneNode(true);
-  const row = fragment.querySelector("[data-keyword-row]");
-  row.querySelector("input[name^='keyword_']").value = rule.keyword ?? "";
-  setKeywordOption(row, "caseSensitive", rule.caseSensitive === true);
-  setKeywordOption(row, "useRegex", rule.useRegex === true);
-  row.querySelectorAll("[name*='_location_']").forEach((input) => {
+  const row = fragment.querySelector('[data-keyword-row]');
+  row.querySelector('input[name^=\'keyword_\']').value = rule.keyword ?? '';
+  setKeywordOption(row, 'caseSensitive', rule.caseSensitive === true);
+  setKeywordOption(row, 'useRegex', rule.useRegex === true);
+  row.querySelectorAll('[name*=\'_location_\']').forEach((input) => {
     const location = input.name.match(/_location_(.+)$/)?.[1];
     input.checked = Array.isArray(rule.locations) && rule.locations.includes(location);
   });
@@ -1036,62 +1041,62 @@ function parseRules(value) {
 
 function serializeKeywordRows(keywordEditor) {
   return JSON.stringify(
-    Array.from(keywordEditor.querySelectorAll("[data-keyword-row]"))
-      .map((row) => {
-        const keyword = row.querySelector("input[name^='keyword_']").value.trim();
-        const locations = Array.from(row.querySelectorAll("[name*='_location_']"))
-          .filter((input) => input.checked)
-          .map((input) => input.name.match(/_location_(.+)$/)?.[1])
-          .filter(Boolean);
-        const caseSensitive = keywordOptionEnabled(row, "caseSensitive");
-        const useRegex = keywordOptionEnabled(row, "useRegex");
+      Array.from(keywordEditor.querySelectorAll('[data-keyword-row]'))
+          .map((row) => {
+            const keyword = row.querySelector('input[name^=\'keyword_\']').value.trim();
+            const locations = Array.from(row.querySelectorAll('[name*=\'_location_\']'))
+                .filter((input) => input.checked)
+                .map((input) => input.name.match(/_location_(.+)$/)?.[1])
+                .filter(Boolean);
+            const caseSensitive = keywordOptionEnabled(row, 'caseSensitive');
+            const useRegex = keywordOptionEnabled(row, 'useRegex');
 
-        return { caseSensitive, keyword, locations, useRegex };
-      })
-      .filter((rule) => rule.keyword && rule.locations.length > 0),
+            return {caseSensitive, keyword, locations, useRegex};
+          })
+          .filter((rule) => rule.keyword && rule.locations.length > 0),
   );
 }
 
 function toggleKeywordOption(button) {
-  const row = button.closest("[data-keyword-row]");
+  const row = button.closest('[data-keyword-row]');
   if (!row) {
     return;
   }
 
   const option = button.dataset.option;
-  const isEnabled = button.getAttribute("aria-pressed") === "true";
+  const isEnabled = button.getAttribute('aria-pressed') === 'true';
   setKeywordOption(row, option, !isEnabled);
 }
 
 function setKeywordOption(row, option, isEnabled) {
   const input = row.querySelector(`[data-keyword-option="${option}"]`);
   const button = row.querySelector(
-    `[data-action="toggle-keyword-option"][data-option="${option}"]`,
+      `[data-action="toggle-keyword-option"][data-option="${option}"]`,
   );
 
   if (input instanceof HTMLInputElement) {
-    input.value = isEnabled ? "on" : "";
+    input.value = isEnabled ? 'on' : '';
   }
 
   if (button instanceof HTMLButtonElement) {
-    button.setAttribute("aria-pressed", String(isEnabled));
+    button.setAttribute('aria-pressed', String(isEnabled));
   }
 }
 
 function keywordOptionEnabled(row, option) {
   const input = row.querySelector(`[data-keyword-option="${option}"]`);
-  return input instanceof HTMLInputElement && input.value === "on";
+  return input instanceof HTMLInputElement && input.value === 'on';
 }
 
 function insertKeywordRow(editor, actionButton) {
-  const grid = editor.querySelector(".keyword-rule-grid");
-  const row = actionButton.closest("[data-keyword-row]");
-  const newRow = keywordRowFromRule(editor, { keyword: "", locations: [] });
+  const grid = editor.querySelector('.keyword-rule-grid');
+  const row = actionButton.closest('[data-keyword-row]');
+  const newRow = keywordRowFromRule(editor, {keyword: '', locations: []});
 
   if (row) {
     row.after(newRow);
   } else {
-    const firstRow = grid.querySelector("[data-keyword-row]");
+    const firstRow = grid.querySelector('[data-keyword-row]');
     if (firstRow) {
       firstRow.before(newRow);
     } else {
@@ -1100,17 +1105,17 @@ function insertKeywordRow(editor, actionButton) {
   }
 
   reindexKeywordRows(editor);
-  newRow.querySelector("input[name^='keyword_']").focus();
+  newRow.querySelector('input[name^=\'keyword_\']').focus();
 }
 
 function deleteKeywordRows(editor, actionButton) {
-  const selectedRows = Array.from(editor.querySelectorAll("[data-keyword-row]"))
-    .filter((row) => row.querySelector("[data-role='select-keyword-row']")?.checked);
+  const selectedRows = Array.from(editor.querySelectorAll('[data-keyword-row]'))
+      .filter((row) => row.querySelector('[data-role=\'select-keyword-row\']')?.checked);
 
   if (selectedRows.length > 0) {
     selectedRows.forEach((row) => row.remove());
   } else {
-    const row = actionButton.closest("[data-keyword-row]");
+    const row = actionButton.closest('[data-keyword-row]');
     if (!row) {
       showToast(editor, editor.dataset.deleteMessage);
       return;
@@ -1124,24 +1129,24 @@ function deleteKeywordRows(editor, actionButton) {
 }
 
 function ensureAtLeastOneKeywordRow(editor) {
-  if (editor.querySelector("[data-keyword-row]")) {
+  if (editor.querySelector('[data-keyword-row]')) {
     return;
   }
 
-  const grid = editor.querySelector(".keyword-rule-grid");
-  grid.append(keywordRowFromRule(editor, { keyword: "", locations: [] }));
+  const grid = editor.querySelector('.keyword-rule-grid');
+  grid.append(keywordRowFromRule(editor, {keyword: '', locations: []}));
 }
 
 function reindexKeywordRows(editor) {
-  editor.querySelectorAll("[data-role='select-all-keywords']").forEach((checkbox) => {
+  editor.querySelectorAll('[data-role=\'select-all-keywords\']').forEach((checkbox) => {
     checkbox.checked = false;
   });
-  editor.querySelectorAll("[data-role='select-keyword-location']").forEach((checkbox) => {
+  editor.querySelectorAll('[data-role=\'select-keyword-location\']').forEach((checkbox) => {
     checkbox.checked = false;
   });
 
-  editor.querySelectorAll("[data-keyword-row]").forEach((row, index) => {
-    row.querySelectorAll("input").forEach((input) => {
+  editor.querySelectorAll('[data-keyword-row]').forEach((row, index) => {
+    row.querySelectorAll('input').forEach((input) => {
       if (!input.name) {
         return;
       }
@@ -1152,19 +1157,19 @@ function reindexKeywordRows(editor) {
 }
 
 function updateActiveTopicSummary(topicEditor) {
-  const activeTarget = activeKeywordTargetInput().value || "common";
-  const summary = topicEditor.querySelector("[data-topic-summary]");
+  const activeTarget = activeKeywordTargetInput().value || 'common';
+  const summary = topicEditor.querySelector('[data-topic-summary]');
 
-  if (activeTarget === "common") {
-    topicEditor.querySelectorAll("[data-topic-row]").forEach((row) => {
-      row.dataset.activeKeywordTarget = "false";
+  if (activeTarget === 'common') {
+    topicEditor.querySelectorAll('[data-topic-row]').forEach((row) => {
+      row.dataset.activeKeywordTarget = 'false';
     });
     summary.textContent = summary.dataset.commonLabel;
     return;
   }
 
   const activeRow = topicEditor.querySelector(
-    '[data-topic-row][data-active-keyword-target="true"]',
+      '[data-topic-row][data-active-keyword-target="true"]',
   );
   const row = activeRow ?? findTopicRowById(topicEditor, activeTarget);
   if (!row) {
@@ -1172,46 +1177,46 @@ function updateActiveTopicSummary(topicEditor) {
     return;
   }
 
-  const id = row.querySelector("[data-topic-id-input]").value.trim();
-  const note = row.querySelector("[data-topic-note-input]").value.trim();
-  activeKeywordTargetInput().value = id || "common";
+  const id = row.querySelector('[data-topic-id-input]').value.trim();
+  const note = row.querySelector('[data-topic-note-input]').value.trim();
+  activeKeywordTargetInput().value = id || 'common';
   summary.textContent = note && id ? `${note}（${id}）` : note || id || summary.dataset.commonLabel;
 }
 
 function updateKeywordSummary(keywordEditor) {
-  const summary = keywordEditor.querySelector("[data-keyword-summary]");
+  const summary = keywordEditor.querySelector('[data-keyword-summary]');
   const keywords = Array.from(
-    keywordEditor.querySelectorAll(
-      "input[name^='keyword_']:not([name*='_location_']):not([data-keyword-option])",
-    ),
-  )
-    .map((input) => input.value.trim())
-    .filter(Boolean);
+          keywordEditor.querySelectorAll(
+              'input[name^=\'keyword_\']:not([name*=\'_location_\']):not([data-keyword-option])',
+          ),
+      )
+      .map((input) => input.value.trim())
+      .filter(Boolean);
 
-  summary.textContent = "";
+  summary.textContent = '';
   keywords.slice(0, 5).forEach((keyword, index) => {
     if (index > 0) {
-      const separator = document.createElement("span");
-      separator.className = "summary-separator";
-      separator.textContent = "|";
+      const separator = document.createElement('span');
+      separator.className = 'summary-separator';
+      separator.textContent = '|';
       summary.append(separator);
     }
 
-    const item = document.createElement("span");
-    item.dataset.keywordSummaryItem = "true";
+    const item = document.createElement('span');
+    item.dataset.keywordSummaryItem = 'true';
     item.textContent = keyword;
     summary.append(item);
   });
 
   if (keywords.length > 5) {
-    summary.append("...");
+    summary.append('...');
   }
 
   fitKeywordSummary(summary);
 }
 
 function fitKeywordSummary(summary) {
-  const items = Array.from(summary.querySelectorAll("[data-keyword-summary-item]"));
+  const items = Array.from(summary.querySelectorAll('[data-keyword-summary-item]'));
   for (const item of items.toReversed()) {
     if (summary.scrollWidth <= summary.clientWidth) {
       return;
@@ -1219,47 +1224,47 @@ function fitKeywordSummary(summary) {
 
     const previous = item.previousElementSibling;
     item.remove();
-    if (previous?.classList.contains("summary-separator")) {
+    if (previous?.classList.contains('summary-separator')) {
       previous.remove();
     }
-    summary.append("...");
+    summary.append('...');
   }
 }
 
 function openKeywordPanel(keywordEditor) {
-  setDropdownOpen(keywordEditor, "keywords", true, { persist: true });
+  setDropdownOpen(keywordEditor, 'keywords', true, {persist: true});
 }
 
 function findTopicRowById(topicEditor, id) {
-  return Array.from(topicEditor.querySelectorAll("[data-topic-row]"))
-    .find((row) => row.querySelector("[data-topic-id-input]").value.trim() === id);
+  return Array.from(topicEditor.querySelectorAll('[data-topic-row]'))
+      .find((row) => row.querySelector('[data-topic-id-input]').value.trim() === id);
 }
 
 function commonKeywordButton(topicEditor) {
   return topicEditor.querySelector(
-    '[data-action="edit-topic-keywords"][data-keyword-target="common"]',
+      '[data-action="edit-topic-keywords"][data-keyword-target="common"]',
   );
 }
 
 function activeKeywordTargetInput() {
-  return document.querySelector("[data-active-keyword-target]");
+  return document.querySelector('[data-active-keyword-target]');
 }
 
 function showToast(editor, message) {
-  const existing = editor.querySelector("[data-keyword-toast]");
+  const existing = editor.querySelector('[data-keyword-toast]');
   if (existing) {
     existing.remove();
   }
 
-  const toast = document.createElement("div");
-  toast.className = "keyword-toast";
-  toast.dataset.keywordToast = "true";
-  toast.setAttribute("role", "status");
+  const toast = document.createElement('div');
+  toast.className = 'keyword-toast';
+  toast.dataset.keywordToast = 'true';
+  toast.setAttribute('role', 'status');
   toast.textContent = message;
   editor.append(toast);
 
   setTimeout(() => {
-    toast.classList.add("is-hiding");
+    toast.classList.add('is-hiding');
   }, 1800);
 
   setTimeout(() => {
@@ -1267,4 +1272,4 @@ function showToast(editor, message) {
   }, 2200);
 }
 
-document.addEventListener("DOMContentLoaded", initSettingsEditors);
+document.addEventListener('DOMContentLoaded', initSettingsEditors);

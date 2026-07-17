@@ -30,7 +30,7 @@ const settings: AppSettings = {
     postLimit: 20,
     sort: "publishTime",
   },
-  themeColor: "#bd7fff",
+  themeColor: "#BD7FFF",
   topics: [],
 };
 
@@ -53,7 +53,8 @@ const record: MatchRecord = {
 
 function createNotifier(options: Parameters<typeof createRealNotifier>[0] = {}) {
   return createRealNotifier({
-    deliveryLogger: () => {},
+    deliveryLogger: () => {
+    },
     ...options,
   });
 }
@@ -318,7 +319,9 @@ Deno.test("webhook provider reports slow delivery as a timeout", async () => {
 Deno.test("email provider reports slow SMTP delivery as a timeout", async () => {
   const notifier = createNotifier({
     deliveryTimeoutMs: 1,
-    emailSender: () => new Promise<void>(() => {}),
+    emailSender: () =>
+      new Promise<void>(() => {
+      }),
   });
 
   await assertRejects(
@@ -366,8 +369,149 @@ Deno.test("server chan service builds the webhook URL from SendKey", async () =>
   });
 
   assertEquals(requests[0].url, "https://sctapi.ftqq.com/SCT123.send");
+  assertEquals(requests[0].headers.get("authorization"), null);
+  assertEquals(requests[0].headers.get("x-serverchan-send-key"), null);
   const body = await requests[0].json();
   assertEquals(body.title, "小黑盒命中：help");
+});
+
+Deno.test("server chan service supports a configured relay URL with authorization", async () => {
+  const requests: Request[] = [];
+  const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.set("NOTIFIER_SERVER_CHAN_SEND_URL", "https://relay.example.com/serverchan");
+  Deno.env.set("NOTIFIER_RELAY_TOKEN", "relay-secret");
+  try {
+    const notifier = createNotifier({
+      fetch: (input, init) => {
+        requests.push(new Request(input, init));
+        return Promise.resolve(new Response(JSON.stringify({ code: 0 }), { status: 200 }));
+      },
+    });
+
+    await notifier.sendMatch(record, {
+      ...settings,
+      notificationServerChanSendKey: "SCT123",
+      notificationWebhookService: "serverChan",
+      notificationWebhookUrl: "",
+    });
+  } finally {
+    restoreEnv("NOTIFIER_SERVER_CHAN_SEND_URL", previousUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
+
+  assertEquals(requests[0].url, "https://relay.example.com/serverchan");
+  assertEquals(requests[0].headers.get("authorization"), "Bearer relay-secret");
+  assertEquals(requests[0].headers.get("x-serverchan-send-key"), "SCT123");
+  const body = await requests[0].json();
+  assertEquals(body.title, "小黑盒命中：help");
+  assertEquals(body.desp.includes("Need help"), true);
+  assertEquals("sendkey" in body, false);
+});
+
+Deno.test("server chan relay URL requires a relay token before sending", async () => {
+  let calls = 0;
+  const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.set("NOTIFIER_SERVER_CHAN_SEND_URL", "https://relay.example.com/serverchan");
+  Deno.env.delete("NOTIFIER_RELAY_TOKEN");
+  try {
+    const notifier = createNotifier({
+      fetch: () => {
+        calls += 1;
+        return Promise.resolve(new Response(JSON.stringify({ code: 0 }), { status: 200 }));
+      },
+    });
+
+    await assertRejects(
+      () =>
+        notifier.sendMatch(record, {
+          ...settings,
+          notificationServerChanSendKey: "SCT123",
+          notificationWebhookService: "serverChan",
+          notificationWebhookUrl: "",
+        }),
+      "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_SERVER_CHAN_SEND_URL.",
+    );
+  } finally {
+    restoreEnv("NOTIFIER_SERVER_CHAN_SEND_URL", previousUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
+
+  assertEquals(calls, 0);
+});
+
+Deno.test("server chan relay redacts send key and relay token from errors and logs", async () => {
+  const relayToken = "relay-secret-to-hide";
+  const sendKey = "SCTSECRET";
+  const logs: DeliveryLogEntry[] = [];
+  const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.set("NOTIFIER_SERVER_CHAN_SEND_URL", "https://relay.example.com/serverchan");
+  Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
+  try {
+    const notifier = createNotifier({
+      deliveryLogger: (entry) => logs.push(entry),
+      fetch: () => Promise.reject(new TypeError(`failed ${relayToken} ${sendKey}`)),
+    });
+
+    try {
+      await notifier.sendMatch(record, {
+        ...settings,
+        notificationServerChanSendKey: sendKey,
+        notificationWebhookService: "serverChan",
+        notificationWebhookUrl: "",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const serializedLogs = JSON.stringify(logs);
+      assertEquals(message.includes(relayToken), false);
+      assertEquals(message.includes(sendKey), false);
+      assertEquals(serializedLogs.includes(relayToken), false);
+      assertEquals(serializedLogs.includes(sendKey), false);
+      assertEquals(serializedLogs.includes("[已隐藏]"), true);
+      return;
+    }
+
+    throw new Error("Expected Server酱 relay delivery error.");
+  } finally {
+    restoreEnv("NOTIFIER_SERVER_CHAN_SEND_URL", previousUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
+});
+
+Deno.test("server chan relay redacts send key and relay token from HTTP response errors", async () => {
+  const relayToken = "relay-secret-in-response";
+  const sendKey = "SCTRESPONSE";
+  const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.set("NOTIFIER_SERVER_CHAN_SEND_URL", "https://relay.example.com/serverchan");
+  Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
+  try {
+    const notifier = createNotifier({
+      fetch: () => Promise.resolve(new Response(`bad ${relayToken} ${sendKey}`, { status: 502 })),
+    });
+
+    try {
+      await notifier.sendMatch(record, {
+        ...settings,
+        notificationServerChanSendKey: sendKey,
+        notificationWebhookService: "serverChan",
+        notificationWebhookUrl: "",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      assertEquals(message.includes(relayToken), false);
+      assertEquals(message.includes(sendKey), false);
+      assertEquals(message.includes("[已隐藏]"), true);
+      return;
+    }
+
+    throw new Error("Expected Server酱 relay HTTP delivery error.");
+  } finally {
+    restoreEnv("NOTIFIER_SERVER_CHAN_SEND_URL", previousUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
 });
 
 Deno.test("server chan 3 webhook receives title and desp fields", async () => {

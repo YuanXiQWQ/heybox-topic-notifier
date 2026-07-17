@@ -136,6 +136,8 @@ function mixBytes(values: number[]): number[] {
 }
 
 function mixV(value: number): number {
+  // 小黑盒签名算法需要按字节做有限域乘法，这里的按位运算是有意为之。
+  // noinspection JSBitwiseOperatorUsage
   return (128 & value) ? (255 & ((value << 1) ^ 27)) : value << 1;
 }
 

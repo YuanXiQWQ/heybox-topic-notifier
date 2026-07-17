@@ -4,9 +4,10 @@
 
 - `POST /pushplus` -> `https://www.pushplus.plus/send`
 - `POST /wxpusher` -> `https://wxpusher.zjiecode.com/api/send/message/simple-push`
+- `POST /serverchan` -> Server酱官方接口
 - `GET /healthz` 健康检查
 
-它不会接受任意目标 URL，因此不能被当成开放代理使用。
+它不会接受任意目标 URL，因此不能被当成开放代理使用。 Server酱入口只接受安全的 SendKey，并按项目现有规则构造官方地址。
 
 ## 部署步骤
 
@@ -19,13 +20,20 @@
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://<your-worker>.workers.dev/wxpusher
+NOTIFIER_SERVER_CHAN_SEND_URL=https://<your-worker>.workers.dev/serverchan
 NOTIFIER_RELAY_TOKEN=<same-random-secret>
 ```
 
-项目侧只有在 PushPlus/WxPusher 发送地址被改成非官方地址时，才会发送：
+项目侧只有在 PushPlus、WxPusher 或 Server酱发送地址被改成中转地址时，才会发送：
 
 ```http
 Authorization: Bearer <NOTIFIER_RELAY_TOKEN>
+```
+
+Server酱中转还会通过专用请求头传递 SendKey：
+
+```http
+X-ServerChan-Send-Key: <serverchan-send-key>
 ```
 
 ## 控制台测试
@@ -46,4 +54,14 @@ curl -i "https://<your-worker>.workers.dev/wxpusher" \
   -H "Authorization: Bearer <same-random-secret>" \
   -H "Content-Type: application/json" \
   --data '{"spt":"<wxpusher-spt>","summary":"relay test","content":"hello","contentType":1}'
+```
+
+Server酱测试：
+
+```bash
+curl -i "https://<your-worker>.workers.dev/serverchan" \
+  -H "Authorization: Bearer <same-random-secret>" \
+  -H "X-ServerChan-Send-Key: <serverchan-send-key>" \
+  -H "Content-Type: application/json" \
+  --data '{"title":"relay test","desp":"hello"}'
 ```
