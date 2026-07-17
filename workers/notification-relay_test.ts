@@ -1,3 +1,6 @@
+/**
+ * @file 本文件验证通知中继 Worker 的转发、鉴权和错误处理行为。
+ */
 import { handleRelayRequest } from "./notification-relay.js";
 
 Deno.test("notification relay forwards pushplus requests with fixed upstream URL", async () => {
@@ -210,6 +213,12 @@ Deno.test("notification relay exposes a health check", async () => {
   assertEquals(await response.json(), { status: "ok" });
 });
 
+/**
+ * 断言两个值的 JSON 表示完全一致。
+ *
+ * @param {unknown} actual 实际值。
+ * @param {unknown} expected 期望值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);
