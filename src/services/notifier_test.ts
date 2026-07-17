@@ -1,5 +1,6 @@
 import type { AppSettings, MatchRecord } from "../models.ts";
-import { createNotifier } from "./notifier.ts";
+import { createNotifier as createRealNotifier } from "./notifier.ts";
+import type { DeliveryLogEntry } from "./notifier.ts";
 
 const settings: AppSettings = {
   activeKeywordTarget: "common",
@@ -50,6 +51,13 @@ const record: MatchRecord = {
   },
 };
 
+function createNotifier(options: Parameters<typeof createRealNotifier>[0] = {}) {
+  return createRealNotifier({
+    deliveryLogger: () => {},
+    ...options,
+  });
+}
+
 const secondRecord: MatchRecord = {
   id: "12099:p2:guide:body",
   keyword: "guide",
@@ -89,6 +97,46 @@ Deno.test("sendMatch posts a JSON webhook payload", async () => {
   assertEquals(body.type, "match");
   assertEquals(body.match.keyword, "help");
   assertEquals(body.match.post.url, "https://example.com/p1");
+});
+
+Deno.test("delivery logs omit tokens, query strings, and request bodies", async () => {
+  const logs: DeliveryLogEntry[] = [];
+  const notifier = createNotifier({
+    deliveryLogger: (entry) => logs.push(entry),
+    fetch: (input) => {
+      const url = String(input);
+      return Promise.resolve(
+        url.includes("pushplus")
+          ? new Response(JSON.stringify({ code: 200 }), { status: 200 })
+          : new Response(null, { status: 204 }),
+      );
+    },
+  });
+
+  await notifier.sendMatch(record, {
+    ...settings,
+    notificationWebhookService: "custom",
+    notificationWebhookUrl: "https://example.com/webhook?token=query-secret",
+  });
+  await notifier.sendMatch(record, {
+    ...settings,
+    notificationPushPlusToken: "pushplus-secret-token",
+    notificationWebhookService: "pushPlus",
+    notificationWebhookUrl: "",
+  });
+
+  const serializedLogs = JSON.stringify(logs);
+  assertEquals(logs.length, 2);
+  assertEquals(logs[0].hostname, "example.com");
+  assertEquals(logs[0].method, "POST");
+  assertEquals(logs[0].responseHeadersReceived, true);
+  assertEquals(logs[0].service, "Custom");
+  assertEquals(logs[0].status, 204);
+  assertEquals(logs[1].hostname, "www.pushplus.plus");
+  assertEquals(logs[1].service, "PushPlus");
+  assertEquals(serializedLogs.includes("query-secret"), false);
+  assertEquals(serializedLogs.includes("pushplus-secret-token"), false);
+  assertEquals(serializedLogs.includes("Need help"), false);
 });
 
 Deno.test("sendMatches posts one localized markdown summary", async () => {
@@ -599,16 +647,50 @@ Deno.test("relay token is not sent to custom webhooks", async () => {
 
 Deno.test("relay token is redacted from delivery errors", async () => {
   const relayToken = "relay-secret-to-hide";
+  const logs: DeliveryLogEntry[] = [];
   const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
   Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
   Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
   try {
     const notifier = createNotifier({
-      fetch: () =>
-        Promise.resolve(
-          new Response(`Unauthorized ${relayToken}`, { status: 401 }),
-        ),
+      deliveryLogger: (entry) => logs.push(entry),
+      fetch: () => Promise.reject(new TypeError(`network failed ${relayToken}`)),
+    });
+
+    try {
+      await notifier.sendMatch(record, {
+        ...settings,
+        notificationPushPlusToken: "pushplus-token",
+        notificationWebhookService: "pushPlus",
+        notificationWebhookUrl: "",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const serializedLogs = JSON.stringify(logs);
+      assertEquals(message.includes(relayToken), false);
+      assertEquals(message.includes("[已隐藏]"), true);
+      assertEquals(serializedLogs.includes(relayToken), false);
+      assertEquals(serializedLogs.includes("[已隐藏]"), true);
+      return;
+    }
+
+    throw new Error("Expected relay delivery error.");
+  } finally {
+    restoreEnv("NOTIFIER_PUSHPLUS_SEND_URL", previousUrl);
+    restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);
+  }
+});
+
+Deno.test("relay token is redacted from HTTP response errors", async () => {
+  const relayToken = "relay-secret-in-response";
+  const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
+  const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
+  Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
+  Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
+  try {
+    const notifier = createNotifier({
+      fetch: () => Promise.resolve(new Response(`Unauthorized ${relayToken}`, { status: 401 })),
     });
 
     try {
@@ -625,7 +707,7 @@ Deno.test("relay token is redacted from delivery errors", async () => {
       return;
     }
 
-    throw new Error("Expected relay delivery error.");
+    throw new Error("Expected relay HTTP delivery error.");
   } finally {
     restoreEnv("NOTIFIER_PUSHPLUS_SEND_URL", previousUrl);
     restoreEnv("NOTIFIER_RELAY_TOKEN", previousToken);

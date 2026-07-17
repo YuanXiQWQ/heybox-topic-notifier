@@ -44,11 +44,28 @@ export type NotifyResult = {
 };
 
 export type NotifierOptions = {
+  deliveryLogger?: DeliveryLogger;
   deliveryTimeoutMs?: number;
   emailSender?: EmailSender;
   fetch?: typeof fetch;
   webhookUrl?: string;
 };
+
+export type DeliveryLogEntry = {
+  deploymentId: string | null;
+  elapsedMs: number;
+  errorMessage: string | null;
+  errorName: string | null;
+  hostname: string;
+  method: string;
+  responseHeadersReceived: boolean;
+  service: string;
+  signalAborted: boolean;
+  startedAt: string;
+  status: number | null;
+};
+
+export type DeliveryLogger = (entry: DeliveryLogEntry) => void;
 
 type EmailMessage = {
   from: string;
@@ -90,6 +107,7 @@ export function createNotifier(options: NotifierOptions = {}) {
   );
   const emailSender = options.emailSender ?? sendSmtpEmail;
   const fetcher = options.fetch ?? fetch;
+  const deliveryLogger = options.deliveryLogger ?? logDelivery;
   const pushPlusUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL")) ??
     pushPlusSendUrl;
   const wxPusherUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL")) ??
@@ -225,6 +243,9 @@ export function createNotifier(options: NotifierOptions = {}) {
         method: "POST",
       }, {
         label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
+        logger: deliveryLogger,
+        redactedSecrets: [relayToken],
+        service: webhookServiceLabel(options.webhookService),
         timeoutMs: deliveryTimeoutMs,
       });
     } catch (error) {
@@ -315,6 +336,9 @@ export function createNotifier(options: NotifierOptions = {}) {
       method: "POST",
     }, {
       label: "Email API notification",
+      logger: deliveryLogger,
+      redactedSecrets: [apiToken],
+      service: "Email API",
       timeoutMs: deliveryTimeoutMs,
     });
     const responseBody = await response.text().catch(() => "");
@@ -359,16 +383,60 @@ async function fetchWithDeliveryTimeout(
   fetcher: typeof fetch,
   input: string | URL | Request,
   init: RequestInit,
-  options: { label: string; timeoutMs: number },
+  options: {
+    label: string;
+    logger?: DeliveryLogger;
+    redactedSecrets?: string[];
+    service?: string;
+    timeoutMs: number;
+  },
 ): Promise<Response> {
   const controller = new AbortController();
+  const startedAtMs = Date.now();
+  const startedAt = new Date(startedAtMs).toISOString();
+  const hostname = hostnameForRequest(input);
+  const method = methodForRequest(input, init);
+  const logger = options.logger ?? logDelivery;
+  const service = options.service ?? options.label;
+  const redactedSecrets = options.redactedSecrets ?? [];
   const timeoutId = setTimeout(() => {
     controller.abort();
   }, options.timeoutMs);
 
   try {
-    return await fetcher(input, { ...init, signal: controller.signal });
+    const response = await fetcher(input, { ...init, signal: controller.signal });
+    logger({
+      deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? null,
+      elapsedMs: Date.now() - startedAtMs,
+      errorMessage: null,
+      errorName: null,
+      hostname,
+      method,
+      responseHeadersReceived: true,
+      service,
+      signalAborted: controller.signal.aborted,
+      startedAt,
+      status: response.status,
+    });
+    return response;
   } catch (error) {
+    const safeErrorMessage = redactSecrets(
+      error instanceof Error ? error.message : String(error),
+      redactedSecrets,
+    );
+    logger({
+      deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? null,
+      elapsedMs: Date.now() - startedAtMs,
+      errorMessage: safeErrorMessage,
+      errorName: error instanceof Error ? error.name : null,
+      hostname,
+      method,
+      responseHeadersReceived: false,
+      service,
+      signalAborted: controller.signal.aborted,
+      startedAt,
+      status: null,
+    });
     if (controller.signal.aborted) {
       throw new NotificationDeliveryError(
         `${options.label} timed out after ${options.timeoutMs} ms.`,
@@ -376,11 +444,27 @@ async function fetchWithDeliveryTimeout(
     }
 
     throw new NotificationDeliveryError(
-      `${options.label} failed: ${error instanceof Error ? error.message : String(error)}`,
+      `${options.label} failed: ${safeErrorMessage}`,
     );
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function hostnameForRequest(input: string | URL | Request): string {
+  try {
+    return new URL(input instanceof Request ? input.url : String(input)).hostname;
+  } catch {
+    return "unknown host";
+  }
+}
+
+function methodForRequest(input: string | URL | Request, init: RequestInit): string {
+  return String(init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+}
+
+function logDelivery(entry: DeliveryLogEntry): void {
+  console.info(JSON.stringify({ event: "notification_delivery", ...entry }));
 }
 
 async function withDeliveryTimeout<T>(
@@ -524,6 +608,10 @@ function redactSecret(value: string, secret: string): string {
   }
 
   return value.replaceAll(secret, "[已隐藏]");
+}
+
+function redactSecrets(value: string, secrets: string[]): string {
+  return secrets.reduce((current, secret) => redactSecret(current, secret), value);
 }
 
 function webhookDeliveryLabel(
