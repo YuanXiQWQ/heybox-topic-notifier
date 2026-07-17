@@ -1,53 +1,98 @@
+/**
+ * @file 本文件定义应用页面的基础样式、设置页布局和响应式交互样式。
+ */
 :root{
+  /* 主题主色。 */
   --theme-color: #BD7FFF;
+  /* 强调态主题色。 */
   --theme-strong: color-mix(in srgb, var(--theme-color) 82%, var(--ink) 18%);
+  /* 链接使用的主题色。 */
   --theme-link: color-mix(in srgb, var(--theme-color) 76%, var(--link-base) 24%);
+  /* 轻量主题背景色。 */
   --theme-soft: color-mix(in srgb, var(--theme-color) 8%, var(--surface-soft-base));
+  /* 较强的轻量主题背景色。 */
   --theme-soft-strong: color-mix(in srgb, var(--theme-color) 14%, var(--surface-soft-base));
+  /* 主题边框色。 */
   --theme-border: color-mix(in srgb, var(--theme-color) 22%, var(--border));
+  /* 页面背景色。 */
   --bg: color-mix(in srgb, var(--theme-color) 5%, #f6f7f8);
+  /* 默认边框色。 */
   --border: #DFE4EA;
+  /* 弱化边框色。 */
   --border-soft: #E8EDF2;
+  /* 表单控件背景色。 */
   --control-bg: #FFF;
+  /* 表单控件边框色。 */
   --control-border: #CDD6DF;
+  /* 标题文字色。 */
   --heading: #17202A;
+  /* 正文文字色。 */
   --ink: #1D232A;
+  /* 链接基础色。 */
   --link-base: #0B4F87;
+  /* 弱化文字色。 */
   --muted: #506070;
+  /* 较强的弱化文字色。 */
   --muted-strong: #405060;
+  /* 占位文本颜色。 */
   --placeholder: #9AA7B4;
+  /* 次级按钮背景色。 */
   --secondary-button: color-mix(in srgb, var(--theme-color) 54%, var(--muted-strong) 46%);
+  /* 强投影颜色。 */
   --shadow-strong: rgba(23, 32, 42, 0.18);
+  /* 主内容表面色。 */
   --surface: #FFF;
+  /* 轻量内容表面基础色。 */
   --surface-soft-base: #F6F7F8;
+  /* Toast 背景色。 */
   --toast-bg: #17202A;
   background: var(--bg);
   color: var(--ink);
   color-scheme: light;
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
   overflow-y: scroll;
+  /* 规则表操作列宽。 */
   --rule-action-column: 54px;
+  /* 规则表选择列宽。 */
   --rule-select-column: 96px;
+  /* 设置项操作区宽度。 */
   --settings-action-width: 120px;
+  /* 设置项控件区宽度。 */
   --settings-control-width: 360px;
 }
 
 :root[data-color-mode="dark"]{
+  /* 暗色模式页面背景色。 */
   --bg: color-mix(in srgb, var(--theme-color) 7%, #101317);
+  /* 暗色模式默认边框色。 */
   --border: #313842;
+  /* 暗色模式弱化边框色。 */
   --border-soft: #27303A;
+  /* 暗色模式表单控件背景色。 */
   --control-bg: #151A20;
+  /* 暗色模式表单控件边框色。 */
   --control-border: #4A5462;
+  /* 暗色模式标题文字色。 */
   --heading: #F2F5F8;
+  /* 暗色模式正文文字色。 */
   --ink: #E7EBEF;
+  /* 暗色模式链接基础色。 */
   --link-base: #B9D9FF;
+  /* 暗色模式弱化文字色。 */
   --muted: #A8B3BF;
+  /* 暗色模式较强的弱化文字色。 */
   --muted-strong: #C4CBD3;
+  /* 暗色模式占位文本颜色。 */
   --placeholder: #778390;
+  /* 暗色模式次级按钮背景色。 */
   --secondary-button: color-mix(in srgb, var(--theme-color) 48%, var(--muted-strong) 52%);
+  /* 暗色模式强投影颜色。 */
   --shadow-strong: rgba(0, 0, 0, 0.36);
+  /* 暗色模式主内容表面色。 */
   --surface: #171C22;
+  /* 暗色模式轻量内容表面基础色。 */
   --surface-soft-base: #1F252D;
+  /* 暗色模式 Toast 背景色。 */
   --toast-bg: #F2F5F8;
   color-scheme: dark;
 }

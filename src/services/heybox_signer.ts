@@ -1,16 +1,46 @@
+/**
+ * @file 本文件负责生成小黑盒接口请求所需的签名参数。
+ */
+/**
+ * 小黑盒请求签名参数。
+ */
 export type HeyboxSignatureParams = {
   hkey: string;
   nonce: string;
   time: number;
 };
 
+/**
+ * 小黑盒签名算法模式。
+ */
 export type HeyboxSignatureMode = "app" | "web";
 
+/**
+ * Web 端 hkey 编码使用的字符表。
+ */
 const hkeyAlphabet = "AB45STUVWZEFGJ6CH01D237IXYPQRKLMN89";
+/**
+ * App 端 hkey 编码使用的基础字符表。
+ */
 const appHkeyAlphabet = "23456789BCDFGHJKMNPQRTVWXY";
+/**
+ * 随机 nonce 允许使用的字符表。
+ */
 const randomNonceAlphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+/**
+ * 复用的 UTF-8 文本编码器。
+ */
 const encoder = new TextEncoder();
 
+/**
+ * 创建小黑盒请求签名参数。
+ *
+ * @param path 请求路径。
+ * @param now 当前时间，默认使用系统当前时间。
+ * @param random 随机数函数，默认使用 Math.random。
+ * @param mode 签名模式，默认使用 Web 模式。
+ * @return 可附加到请求参数中的签名信息。
+ */
 export function createHeyboxSignatureParams(
   path: string,
   now = new Date(),
@@ -29,6 +59,14 @@ export function createHeyboxSignatureParams(
   };
 }
 
+/**
+ * 构建 Web 模式的小黑盒 hkey。
+ *
+ * @param path 请求路径。
+ * @param time 秒级时间戳。
+ * @param nonce 请求随机串。
+ * @return Web 模式 hkey。
+ */
 export function buildHkey(path: string, time: number, nonce: string): string {
   const normalizedPath = normalizeHkeyPath(path);
   const parts = [
@@ -47,6 +85,14 @@ export function buildHkey(path: string, time: number, nonce: string): string {
   return `${encodeByPrefix(digest.slice(0, 5), hkeyAlphabet, -4)}${checksum}`;
 }
 
+/**
+ * 构建 App 模式的小黑盒 hkey。
+ *
+ * @param path 请求路径。
+ * @param time 秒级时间戳。
+ * @param nonce 请求随机串。
+ * @return App 模式 hkey。
+ */
 export function buildAppHkey(path: string, time: number, nonce: string): string {
   const normalizedPath = normalizeHkeyPath(path);
   const key = encoder.encode(base64Encode(encoder.encode(normalizedPath)));
@@ -80,10 +126,23 @@ export function buildAppHkey(path: string, time: number, nonce: string): string 
   return `${prefix}${checksum}`;
 }
 
+/**
+ * 将请求路径归一化为 hkey 计算所需格式。
+ *
+ * @param path 原始请求路径。
+ * @return 首尾带斜杠且去除空片段的路径。
+ */
 function normalizeHkeyPath(path: string): string {
   return `/${path.split("/").filter(Boolean).join("/")}/`;
 }
 
+/**
+ * 生成指定长度的随机 nonce。
+ *
+ * @param length nonce 长度。
+ * @param random 随机数函数。
+ * @return 随机 nonce 字符串。
+ */
 function randomNonce(length: number, random: () => number): string {
   return Array.from({ length }, () => {
     const index = Math.min(
@@ -94,19 +153,46 @@ function randomNonce(length: number, random: () => number): string {
   }).join("");
 }
 
+/**
+ * 统计字符串中的数字字符数量。
+ *
+ * @param value 待统计字符串。
+ * @return 数字字符数量。
+ */
 function countDigits(value: string): number {
   return Array.from(value).filter((char) => char >= "0" && char <= "9").length;
 }
 
+/**
+ * 使用字符表前缀对字符串进行编码。
+ *
+ * @param value 待编码字符串。
+ * @param alphabet 编码字符表。
+ * @param end 字符表切片结束位置。
+ * @return 编码后的字符串。
+ */
 function encodeByPrefix(value: string, alphabet: string, end: number): string {
   const prefix = alphabet.slice(0, end);
   return Array.from(value, (char) => prefix[char.charCodeAt(0) % prefix.length]).join("");
 }
 
+/**
+ * 使用指定字符表对字符串进行编码。
+ *
+ * @param value 待编码字符串。
+ * @param alphabet 编码字符表。
+ * @return 编码后的字符串。
+ */
 function encodeByAlphabet(value: string, alphabet: string): string {
   return Array.from(value, (char) => alphabet[char.charCodeAt(0) % alphabet.length]).join("");
 }
 
+/**
+ * 交错拼接多个字符串片段。
+ *
+ * @param parts 待交错拼接的字符串片段。
+ * @return 交错拼接后的字符串。
+ */
 function interleave(parts: string[]): string {
   const maxLength = Math.max(...parts.map((part) => part.length));
   let value = "";
@@ -122,6 +208,12 @@ function interleave(parts: string[]): string {
   return value;
 }
 
+/**
+ * 对字节值执行签名算法需要的混合变换。
+ *
+ * @param values 待混合的字节值数组。
+ * @return 混合后的字节值数组。
+ */
 function mixBytes(values: number[]): number[] {
   const mixed = [0, 0, 0, 0];
   mixed[0] = mixG(values[0]) ^ mixY(values[1]) ^ mixD(values[2]) ^ mixQ(values[3]);
@@ -135,28 +227,65 @@ function mixBytes(values: number[]): number[] {
   return values;
 }
 
+/**
+ * 执行有限域乘以 x 的字节混合。
+ *
+ * @param value 待混合字节值。
+ * @return 混合后的字节值。
+ */
 function mixV(value: number): number {
   // 小黑盒签名算法需要按字节做有限域乘法，这里的按位运算是有意为之。
   // noinspection JSBitwiseOperatorUsage
   return (128 & value) ? (255 & ((value << 1) ^ 27)) : value << 1;
 }
 
+/**
+ * 执行 Q 轮字节混合。
+ *
+ * @param value 待混合字节值。
+ * @return 混合后的字节值。
+ */
 function mixQ(value: number): number {
   return mixV(value) ^ value;
 }
 
+/**
+ * 执行 D 轮字节混合。
+ *
+ * @param value 待混合字节值。
+ * @return 混合后的字节值。
+ */
 function mixD(value: number): number {
   return mixQ(mixV(value));
 }
 
+/**
+ * 执行 Y 轮字节混合。
+ *
+ * @param value 待混合字节值。
+ * @return 混合后的字节值。
+ */
 function mixY(value: number): number {
   return mixD(mixQ(mixV(value)));
 }
 
+/**
+ * 执行 G 轮字节混合。
+ *
+ * @param value 待混合字节值。
+ * @return 混合后的字节值。
+ */
 function mixG(value: number): number {
   return mixY(value) ^ mixD(value) ^ mixQ(value);
 }
 
+/**
+ * 计算 HMAC-SHA1 摘要。
+ *
+ * @param data 待签名数据。
+ * @param key HMAC 密钥。
+ * @return SHA1 摘要字节。
+ */
 function hmacSha1(data: Uint8Array, key: Uint8Array): Uint8Array {
   const blockSize = 64;
   const normalizedKey = key.length > blockSize ? sha1(key) : key;
@@ -173,6 +302,12 @@ function hmacSha1(data: Uint8Array, key: Uint8Array): Uint8Array {
   return sha1(concatBytes(outerKey, sha1(concatBytes(innerKey, data))));
 }
 
+/**
+ * 计算 SHA1 摘要。
+ *
+ * @param bytes 待摘要字节。
+ * @return SHA1 摘要字节。
+ */
 function sha1(bytes: Uint8Array): Uint8Array {
   const paddedLength = sha1PaddedLength(bytes.length);
   const padded = new Uint8Array(paddedLength);
@@ -246,6 +381,12 @@ function sha1(bytes: Uint8Array): Uint8Array {
   return digest;
 }
 
+/**
+ * 计算 SHA1 填充后的消息长度。
+ *
+ * @param inputLength 原始输入长度。
+ * @return 填充后的总字节长度。
+ */
 function sha1PaddedLength(inputLength: number): number {
   let length = inputLength + 1;
   while (length % 64 !== 56) {
@@ -254,6 +395,12 @@ function sha1PaddedLength(inputLength: number): number {
   return length + 8;
 }
 
+/**
+ * 拼接多个字节数组。
+ *
+ * @param chunks 待拼接的字节数组列表。
+ * @return 拼接后的字节数组。
+ */
 function concatBytes(...chunks: Uint8Array[]): Uint8Array {
   const bytes = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
   let offset = 0;
@@ -264,6 +411,12 @@ function concatBytes(...chunks: Uint8Array[]): Uint8Array {
   return bytes;
 }
 
+/**
+ * 将字节数组编码为 Base64 字符串。
+ *
+ * @param bytes 待编码字节。
+ * @return Base64 编码结果。
+ */
 function base64Encode(bytes: Uint8Array): string {
   let binary = "";
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
@@ -272,10 +425,22 @@ function base64Encode(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/**
+ * 按大端序读取有符号 32 位整数。
+ *
+ * @param bytes 包含 32 位整数的字节数组。
+ * @return 读取出的有符号整数。
+ */
 function signedInt32FromBigEndian(bytes: Uint8Array): number {
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getInt32(0);
 }
 
+/**
+ * 计算字符串的 MD5 十六进制摘要。
+ *
+ * @param value 待摘要字符串。
+ * @return MD5 十六进制摘要。
+ */
 function md5Hex(value: string): string {
   const bytes = encoder.encode(value);
   const paddedLength = md5PaddedLength(bytes.length);
@@ -340,6 +505,12 @@ function md5Hex(value: string): string {
   return [a0, b0, c0, d0].map(littleEndianHex).join("");
 }
 
+/**
+ * 计算 MD5 填充后的消息长度。
+ *
+ * @param inputLength 原始输入长度。
+ * @return 填充后的总字节长度。
+ */
 function md5PaddedLength(inputLength: number): number {
   let length = inputLength + 1;
   while (length % 64 !== 56) {
@@ -348,20 +519,42 @@ function md5PaddedLength(inputLength: number): number {
   return length + 8;
 }
 
+/**
+ * 执行无符号 32 位加法。
+ *
+ * @param values 需要相加的数值列表。
+ * @return 无符号 32 位加法结果。
+ */
 function unsignedAdd(...values: number[]): number {
   return values.reduce((sum, value) => (sum + value) >>> 0, 0);
 }
 
+/**
+ * 对 32 位数值执行循环左移。
+ *
+ * @param value 待移位数值。
+ * @param shift 左移位数。
+ * @return 循环左移后的数值。
+ */
 function rotateLeft(value: number, shift: number): number {
   return ((value << shift) | (value >>> (32 - shift))) >>> 0;
 }
 
+/**
+ * 将 32 位数值输出为小端十六进制字符串。
+ *
+ * @param value 待转换数值。
+ * @return 小端顺序的十六进制字符串。
+ */
 function littleEndianHex(value: number): string {
   return [0, 8, 16, 24]
     .map((shift) => ((value >>> shift) & 0xff).toString(16).padStart(2, "0"))
     .join("");
 }
 
+/**
+ * MD5 每轮循环左移位数表。
+ */
 const md5S = [
   7,
   12,
@@ -429,6 +622,9 @@ const md5S = [
   21,
 ];
 
+/**
+ * MD5 每轮使用的正弦常量表。
+ */
 const md5K = Array.from(
   { length: 64 },
   (_, index) => Math.floor(Math.abs(Math.sin(index + 1)) * 0x100000000) >>> 0,

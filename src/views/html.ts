@@ -1,6 +1,15 @@
+/**
+ * @file 本文件提供基础 HTML 转义和页面布局渲染工具。
+ */
 import { getMessages } from "../locales/index.ts";
 import type { Locale } from "../locales/types.ts";
 
+/**
+ * 转义 HTML 文本。
+ *
+ * @param value 原始文本。
+ * @return 转义后的 HTML 文本。
+ */
 export function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -10,6 +19,12 @@ export function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+/**
+ * 渲染应用基础页面布局。
+ *
+ * @param options 页面布局选项。
+ * @return 完整 HTML 页面。
+ */
 export function renderLayout(options: {
   body: string;
   darkMode: boolean;

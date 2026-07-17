@@ -1,10 +1,19 @@
+/**
+ * @file 本文件负责构建并发送 Webhook、邮件和测试通知。
+ */
 import type { AppSettings, MatchRecord } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
 import { truncateText } from "../views/text.ts";
 import { formatHeyboxRelativeTime } from "../views/time.ts";
 
+/**
+ * 通知载荷类型。
+ */
 type NotifyKind = "match" | "matches";
 
+/**
+ * 通知投递时使用的统一载荷结构。
+ */
 type NotificationPayload = {
   html?: string;
   title?: string;
@@ -25,6 +34,9 @@ type NotificationPayload = {
   matches?: MatchRecord[];
 };
 
+/**
+ * 通知请求类型。
+ */
 export type NotificationRequest =
   | {
     type: "match";
@@ -38,11 +50,17 @@ export type NotificationRequest =
     type: "test";
   };
 
+/**
+ * 通知发送结果。
+ */
 export type NotifyResult = {
   provider: AppSettings["notificationProvider"];
   sent: boolean;
 };
 
+/**
+ * 通知器创建选项。
+ */
 export type NotifierOptions = {
   deliveryLogger?: DeliveryLogger;
   deliveryTimeoutMs?: number;
@@ -51,6 +69,9 @@ export type NotifierOptions = {
   webhookUrl?: string;
 };
 
+/**
+ * 通知投递日志记录。
+ */
 export type DeliveryLogEntry = {
   deploymentId: string | null;
   elapsedMs: number;
@@ -65,8 +86,14 @@ export type DeliveryLogEntry = {
   status: number | null;
 };
 
+/**
+ * 通知投递日志记录器。
+ */
 export type DeliveryLogger = (entry: DeliveryLogEntry) => void;
 
+/**
+ * 邮件消息结构。
+ */
 type EmailMessage = {
   from: string;
   html: string;
@@ -75,6 +102,9 @@ type EmailMessage = {
   to: string;
 };
 
+/**
+ * SMTP 连接配置。
+ */
 type SmtpConfig = {
   host: string;
   password: string;
@@ -83,26 +113,74 @@ type SmtpConfig = {
   username: string;
 };
 
+/**
+ * 邮件发送函数类型。
+ */
 type EmailSender = (message: EmailMessage, config: SmtpConfig) => Promise<void>;
 
+/**
+ * PushPlus 默认发送地址。
+ */
 const pushPlusSendUrl = "https://www.pushplus.plus/send";
+/**
+ * WxPusher 默认简易发送地址。
+ */
 const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
+/**
+ * 通知正文最大长度。
+ */
 const notificationContentLimit = 3600;
+/**
+ * 通知正文预览长度。
+ */
 const notificationContentPreviewLength = 60;
+/**
+ * 通知标题预览长度。
+ */
 const notificationTitlePreviewLength = 80;
+/**
+ * 默认通知投递超时时间。
+ */
 const defaultNotificationDeliveryTimeoutMs = 30_000;
+/**
+ * 测试通知生成记录数量的保护上限。
+ */
 const testNotificationOverflowGuard = 300;
+/**
+ * 测试通知中使用的示例帖子链接。
+ */
 const testNotificationUrl = "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/";
+/**
+ * 测试通知可随机使用的命中位置。
+ */
 const testMatchLocations: MatchRecord["location"][] = ["title", "body", "comments", "replies"];
+/**
+ * Markdown 硬换行标记。
+ */
 const markdownHardBreak = "  \n";
+/**
+ * Markdown 多条命中之间的分隔符。
+ */
 const markdownSeparator = "\n\n---\n\n";
 
+/**
+ * 通知配置错误。
+ */
 export class NotificationConfigError extends Error {
 }
 
+/**
+ * 通知投递错误。
+ */
 export class NotificationDeliveryError extends Error {
 }
 
+/**
+ * 创建通知器。
+ *
+ * @param options 通知器创建选项。
+ * @return 包含各类通知发送方法的通知器对象。
+ */
 export function createNotifier(options: NotifierOptions = {}) {
   const deliveryTimeoutMs = normalizeDeliveryTimeoutMs(
     options.deliveryTimeoutMs ?? deliveryTimeoutMsFromEnv(),
@@ -119,18 +197,45 @@ export function createNotifier(options: NotifierOptions = {}) {
   const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
 
   return {
+    /**
+     * 发送单条命中通知。
+     *
+     * @param record 命中记录。
+     * @param settings 应用设置。
+     * @return 通知发送结果。
+     */
     async sendMatch(record: MatchRecord, settings: AppSettings): Promise<NotifyResult> {
       return await sendNotification({ record, type: "match" }, settings);
     },
 
+    /**
+     * 发送批量命中通知。
+     *
+     * @param records 命中记录列表。
+     * @param settings 应用设置。
+     * @return 通知发送结果。
+     */
     async sendMatches(records: MatchRecord[], settings: AppSettings): Promise<NotifyResult> {
       return await sendNotification({ records, type: "matches" }, settings);
     },
 
+    /**
+     * 发送测试通知。
+     *
+     * @param settings 应用设置。
+     * @return 通知发送结果。
+     */
     async sendTest(settings: AppSettings): Promise<NotifyResult> {
       return await sendNotification({ type: "test" }, settings);
     },
 
+    /**
+     * 根据通知请求发送通知。
+     *
+     * @param notification 通知请求。
+     * @param settings 应用设置。
+     * @return 通知发送结果。
+     */
     async sendNotification(
       notification: NotificationRequest,
       settings: AppSettings,
@@ -139,6 +244,13 @@ export function createNotifier(options: NotifierOptions = {}) {
     },
   };
 
+  /**
+   * 将通知请求转换为载荷并执行投递。
+   *
+   * @param notification 通知请求。
+   * @param settings 应用设置。
+   * @return 通知发送结果。
+   */
   async function sendNotification(
     notification: NotificationRequest,
     settings: AppSettings,
@@ -151,6 +263,13 @@ export function createNotifier(options: NotifierOptions = {}) {
     return await sendPayload(deliveryOptions(settings, payload));
   }
 
+  /**
+   * 将应用设置和通知载荷转换为投递选项。
+   *
+   * @param settings 应用设置。
+   * @param payload 通知载荷。
+   * @return 通知投递选项。
+   */
   function deliveryOptions(
     settings: AppSettings,
     payload: NotificationPayload,
@@ -194,6 +313,12 @@ export function createNotifier(options: NotifierOptions = {}) {
     };
   }
 
+  /**
+   * 根据通知渠道发送载荷。
+   *
+   * @param options 通知投递选项。
+   * @return 通知发送结果。
+   */
   async function sendPayload(options: ReturnType<typeof deliveryOptions>): Promise<NotifyResult> {
     if (options.provider === "disabled") {
       return { provider: options.provider, sent: false };
@@ -288,6 +413,12 @@ export function createNotifier(options: NotifierOptions = {}) {
     return { provider: options.provider, sent: true };
   }
 
+  /**
+   * 发送邮件通知。
+   *
+   * @param options 邮件通知投递选项。
+   * @return 邮件发送完成后的 Promise。
+   */
   async function sendEmailNotification(options: {
     emailAddress: string;
     emailApiToken: string;
@@ -334,6 +465,14 @@ export function createNotifier(options: NotifierOptions = {}) {
     );
   }
 
+  /**
+   * 通过邮件 API 发送邮件通知。
+   *
+   * @param message 邮件消息。
+   * @param apiUrl 邮件 API 地址。
+   * @param apiToken 邮件 API 令牌。
+   * @return 邮件 API 投递完成后的 Promise。
+   */
   async function sendEmailApiNotification(
     message: EmailMessage,
     apiUrl: string,
@@ -373,17 +512,34 @@ export function createNotifier(options: NotifierOptions = {}) {
   }
 }
 
+/**
+ * 规范化通知投递超时时间。
+ *
+ * @param value 待规范化的超时时间。
+ * @return 可用的超时时间毫秒数。
+ */
 function normalizeDeliveryTimeoutMs(value: number | undefined): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0
     ? value
     : defaultNotificationDeliveryTimeoutMs;
 }
 
+/**
+ * 从环境变量读取通知投递超时时间。
+ *
+ * @return 超时时间毫秒数，未配置或不合法时返回 undefined。
+ */
 function deliveryTimeoutMsFromEnv(): number | undefined {
   const seconds = Number(Deno.env.get("NOTIFIER_DELIVERY_TIMEOUT_SECONDS"));
   return Number.isInteger(seconds) && seconds > 0 ? seconds * 1000 : undefined;
 }
 
+/**
+ * 规范化通知端点 URL。
+ *
+ * @param value 待规范化的 URL 字符串。
+ * @return 合法的 HTTP(S) URL，无法规范化时返回 undefined。
+ */
 function normalizeEndpointUrl(value: string | undefined): string | undefined {
   const url = value?.trim();
   if (!url) {
@@ -400,6 +556,15 @@ function normalizeEndpointUrl(value: string | undefined): string | undefined {
   }
 }
 
+/**
+ * 带超时和日志记录地执行 fetch 投递。
+ *
+ * @param fetcher fetch 实现。
+ * @param input 请求地址或请求对象。
+ * @param init 请求初始化参数。
+ * @param options 投递超时、日志和脱敏选项。
+ * @return fetch 响应。
+ */
 async function fetchWithDeliveryTimeout(
   fetcher: typeof fetch,
   input: string | URL | Request,
@@ -472,6 +637,12 @@ async function fetchWithDeliveryTimeout(
   }
 }
 
+/**
+ * 从请求输入中提取主机名。
+ *
+ * @param input 请求地址或请求对象。
+ * @return 主机名，无法解析时返回 unknown host。
+ */
 function hostnameForRequest(input: string | URL | Request): string {
   try {
     return new URL(input instanceof Request ? input.url : String(input)).hostname;
@@ -480,14 +651,34 @@ function hostnameForRequest(input: string | URL | Request): string {
   }
 }
 
+/**
+ * 从请求输入和初始化参数中提取 HTTP 方法。
+ *
+ * @param input 请求地址或请求对象。
+ * @param init 请求初始化参数。
+ * @return 大写的 HTTP 方法。
+ */
 function methodForRequest(input: string | URL | Request, init: RequestInit): string {
   return String(init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
 }
 
+/**
+ * 输出通知投递日志。
+ *
+ * @param entry 通知投递日志记录。
+ * @return 无返回值。
+ */
 function logDelivery(entry: DeliveryLogEntry): void {
   console.info(JSON.stringify({ event: "notification_delivery", ...entry }));
 }
 
+/**
+ * 为任意异步投递操作增加超时控制。
+ *
+ * @param operation 待执行的异步操作。
+ * @param options 超时配置。
+ * @return 异步操作的结果。
+ */
 async function withDeliveryTimeout<T>(
   operation: Promise<T>,
   options: { label: string; timeoutMs: number },
@@ -518,6 +709,12 @@ async function withDeliveryTimeout<T>(
   }
 }
 
+/**
+ * 从邮件通知选项中构建 SMTP 配置。
+ *
+ * @param options 邮件通知配置。
+ * @return SMTP 连接配置。
+ */
 function smtpConfigForEmailService(options: {
   smtpHost: string;
   smtpPassword: string;
@@ -539,6 +736,12 @@ function smtpConfigForEmailService(options: {
   };
 }
 
+/**
+ * 根据 Webhook 服务类型解析最终投递地址。
+ *
+ * @param options Webhook 地址和服务配置。
+ * @return 最终投递 URL。
+ */
 function targetUrlForWebhook(options: {
   fallbackWebhookUrl: string;
   pushPlusUrl: string;
@@ -567,6 +770,12 @@ function targetUrlForWebhook(options: {
   return options.webhookUrl.trim() || options.fallbackWebhookUrl.trim();
 }
 
+/**
+ * 构建 Webhook 请求头。
+ *
+ * @param options Webhook 服务和中继配置。
+ * @return Webhook 请求头。
+ */
 function headersForWebhook(options: {
   relayToken: string;
   serverChanSendKey: string;
@@ -589,6 +798,12 @@ function headersForWebhook(options: {
   return headers;
 }
 
+/**
+ * 根据 Webhook 地址判断并返回所需的中继令牌。
+ *
+ * @param options Webhook 服务和中继配置。
+ * @return 中继令牌，不需要中继时返回 undefined。
+ */
 function relayTokenForWebhook(options: {
   relayToken: string;
   serverChanUrl?: string;
@@ -606,6 +821,12 @@ function relayTokenForWebhook(options: {
   return options.relayToken;
 }
 
+/**
+ * 判断当前 Webhook 是否使用自定义中继地址。
+ *
+ * @param options Webhook 服务和地址配置。
+ * @return 使用中继地址时返回 true。
+ */
 function usesRelayWebhookUrl(options: {
   serverChanUrl?: string;
   service: AppSettings["notificationWebhookService"];
@@ -626,6 +847,12 @@ function usesRelayWebhookUrl(options: {
   return false;
 }
 
+/**
+ * 判断 ServerChan 是否使用自定义中继地址。
+ *
+ * @param options ServerChan 地址配置。
+ * @return 使用 ServerChan 中继地址时返回 true。
+ */
 function usesServerChanRelayUrl(options: {
   serverChanUrl?: string;
   service: AppSettings["notificationWebhookService"];
@@ -635,6 +862,12 @@ function usesServerChanRelayUrl(options: {
     options.targetWebhookUrl === options.serverChanUrl;
 }
 
+/**
+ * 生成缺失中继令牌时的配置错误信息。
+ *
+ * @param service Webhook 服务类型。
+ * @return 配置错误信息。
+ */
 function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookService"]): string {
   switch (service) {
     case "pushPlus":
@@ -648,6 +881,13 @@ function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookS
   }
 }
 
+/**
+ * 对通知投递错误信息执行脱敏。
+ *
+ * @param error 原始错误。
+ * @param redactedSecrets 需要脱敏的敏感值列表。
+ * @return 脱敏后的错误。
+ */
 function redactNotificationDeliveryError(error: unknown, redactedSecrets: string[]): unknown {
   if (error instanceof NotificationDeliveryError) {
     return new NotificationDeliveryError(redactSecrets(error.message, redactedSecrets));
@@ -656,6 +896,13 @@ function redactNotificationDeliveryError(error: unknown, redactedSecrets: string
   return error;
 }
 
+/**
+ * 从字符串中隐藏单个敏感值。
+ *
+ * @param value 原始字符串。
+ * @param secret 需要隐藏的敏感值。
+ * @return 脱敏后的字符串。
+ */
 function redactSecret(value: string, secret: string): string {
   if (!secret) {
     return value;
@@ -664,10 +911,23 @@ function redactSecret(value: string, secret: string): string {
   return value.replaceAll(secret, "[已隐藏]");
 }
 
+/**
+ * 从字符串中隐藏多个敏感值。
+ *
+ * @param value 原始字符串。
+ * @param secrets 需要隐藏的敏感值列表。
+ * @return 脱敏后的字符串。
+ */
 function redactSecrets(value: string, secrets: string[]): string {
   return secrets.reduce((current, secret) => redactSecret(current, secret), value);
 }
 
+/**
+ * 收集 Webhook 投递日志和错误中需要脱敏的敏感值。
+ *
+ * @param options Webhook 服务和密钥配置。
+ * @return 需要脱敏的敏感值列表。
+ */
 function webhookRedactedSecrets(options: {
   relayToken: string;
   serverChanSendKey: string;
@@ -679,6 +939,13 @@ function webhookRedactedSecrets(options: {
   ].filter(Boolean);
 }
 
+/**
+ * 生成 Webhook 投递日志标签。
+ *
+ * @param service Webhook 服务类型。
+ * @param url 投递地址。
+ * @return 投递日志标签。
+ */
 function webhookDeliveryLabel(
   service: AppSettings["notificationWebhookService"],
   url: string,
@@ -693,6 +960,12 @@ function webhookDeliveryLabel(
   return `${webhookServiceLabel(service)} webhook notification to ${hostname}`;
 }
 
+/**
+ * 获取 Webhook 服务展示名称。
+ *
+ * @param service Webhook 服务类型。
+ * @return 服务展示名称。
+ */
 function webhookServiceLabel(service: AppSettings["notificationWebhookService"]): string {
   switch (service) {
     case "pushPlus":
@@ -706,6 +979,12 @@ function webhookServiceLabel(service: AppSettings["notificationWebhookService"])
   }
 }
 
+/**
+ * 根据 ServerChan SendKey 构建发送地址。
+ *
+ * @param value ServerChan SendKey 或完整 URL。
+ * @return ServerChan 发送地址。
+ */
 function serverChanUrlFromSendKey(value: string): string {
   const sendKey = value.trim();
   if (!sendKey) {
@@ -724,6 +1003,12 @@ function serverChanUrlFromSendKey(value: string): string {
   return `https://sctapi.ftqq.com/${sendKey}.send`;
 }
 
+/**
+ * 将单条命中记录转换为通知载荷。
+ *
+ * @param record 命中记录。
+ * @return 单条命中通知载荷。
+ */
 function matchPayload(record: MatchRecord): NotificationPayload {
   return {
     match: {
@@ -743,6 +1028,13 @@ function matchPayload(record: MatchRecord): NotificationPayload {
   };
 }
 
+/**
+ * 根据通知请求创建通知载荷。
+ *
+ * @param notification 通知请求。
+ * @param settings 应用设置。
+ * @return 通知载荷；无内容可发送时返回 undefined。
+ */
 function payloadForNotification(
   notification: NotificationRequest,
   settings: AppSettings,
@@ -759,6 +1051,14 @@ function payloadForNotification(
   }
 }
 
+/**
+ * 将多条命中记录转换为批量通知载荷。
+ *
+ * @param records 命中记录列表。
+ * @param settings 应用设置。
+ * @param title 通知标题。
+ * @return 批量通知载荷。
+ */
 function matchesPayload(
   records: MatchRecord[],
   settings: AppSettings,
@@ -775,6 +1075,12 @@ function matchesPayload(
   };
 }
 
+/**
+ * 创建测试通知载荷。
+ *
+ * @param settings 应用设置。
+ * @return 测试通知载荷。
+ */
 function testMatchesPayload(settings: AppSettings): NotificationPayload {
   const messages = getMessages(settings.locale);
   return matchesPayload(
@@ -784,6 +1090,12 @@ function testMatchesPayload(settings: AppSettings): NotificationPayload {
   );
 }
 
+/**
+ * 创建测试通知使用的命中记录列表。
+ *
+ * @param settings 应用设置。
+ * @return 测试命中记录列表。
+ */
 function testMatchRecords(settings: AppSettings): MatchRecord[] {
   const records: MatchRecord[] = [];
 
@@ -804,6 +1116,14 @@ function testMatchRecords(settings: AppSettings): MatchRecord[] {
   return records;
 }
 
+/**
+ * 创建一条随机测试命中记录。
+ *
+ * @param settings 应用设置。
+ * @param number 测试记录序号。
+ * @param variant 测试记录用途。
+ * @return 随机测试命中记录。
+ */
 export function createRandomTestMatchRecord(
   settings: AppSettings,
   number = 1,
@@ -846,6 +1166,12 @@ export function createRandomTestMatchRecord(
   };
 }
 
+/**
+ * 根据 Webhook 服务类型构建请求体。
+ *
+ * @param options Webhook 载荷和服务配置。
+ * @return Webhook 请求体。
+ */
 function bodyForWebhook(options: {
   payload: NotificationPayload;
   pushPlusToken: string;
@@ -881,6 +1207,12 @@ function bodyForWebhook(options: {
   return options.payload;
 }
 
+/**
+ * 判断 URL 是否为 ServerChan 官方发送地址。
+ *
+ * @param value 待判断 URL。
+ * @return 是 ServerChan 地址时返回 true。
+ */
 function isServerChanUrl(value: string): boolean {
   try {
     const hostname = new URL(value).hostname;
@@ -890,6 +1222,15 @@ function isServerChanUrl(value: string): boolean {
   }
 }
 
+/**
+ * 校验第三方 Webhook 服务是否接受通知。
+ *
+ * @param service Webhook 服务类型。
+ * @param responseBody Webhook 响应正文。
+ * @param redactedSecrets 需要脱敏的敏感值列表。
+ * @return 校验通过时无返回值。
+ * @throws 第三方服务返回失败或非法响应时抛出错误。
+ */
 function assertWebhookAccepted(
   service: AppSettings["notificationWebhookService"],
   responseBody: string,
@@ -925,14 +1266,32 @@ function assertWebhookAccepted(
   );
 }
 
+/**
+ * 判断未知值是否为对象记录。
+ *
+ * @param value 待判断值。
+ * @return 是非空对象时返回 true。
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/**
+ * 获取第三方通知服务的错误展示名称。
+ *
+ * @param service Webhook 服务类型。
+ * @return 错误展示名称。
+ */
 function serviceLabel(service: AppSettings["notificationWebhookService"]): string {
   return service === "pushPlus" ? "PushPlus" : "WxPusher";
 }
 
+/**
+ * 生成通知标题。
+ *
+ * @param payload 通知载荷。
+ * @return 通知标题。
+ */
 function notificationTitle(payload: NotificationPayload): string {
   if (payload.title) {
     return payload.title;
@@ -941,6 +1300,12 @@ function notificationTitle(payload: NotificationPayload): string {
   return `小黑盒命中：${payload.match?.keyword ?? "关键词"}`;
 }
 
+/**
+ * 生成通知 Markdown 文本。
+ *
+ * @param payload 通知载荷。
+ * @return 通知文本。
+ */
 function notificationDescription(payload: NotificationPayload): string {
   if (payload.type === "matches") {
     return payload.text;
@@ -960,6 +1325,12 @@ function notificationDescription(payload: NotificationPayload): string {
   ].join("\n");
 }
 
+/**
+ * 生成通知 HTML 内容。
+ *
+ * @param payload 通知载荷。
+ * @return 通知 HTML。
+ */
 function notificationHtml(payload: NotificationPayload): string {
   if (payload.html) {
     return payload.html;
@@ -969,6 +1340,15 @@ function notificationHtml(payload: NotificationPayload): string {
   return `<p>${escapeHtml(body).replaceAll("\n", "<br>")}</p>`;
 }
 
+/**
+ * 生成批量命中通知的 HTML 内容。
+ *
+ * @param records 命中记录列表。
+ * @param settings 应用设置。
+ * @param text 已生成的 Markdown 文本。
+ * @param now 当前时间。
+ * @return 批量通知 HTML。
+ */
 function matchesHtml(
   records: MatchRecord[],
   settings: AppSettings,
@@ -999,6 +1379,14 @@ function matchesHtml(
   ].filter(Boolean).join("<hr>");
 }
 
+/**
+ * 生成批量命中通知的 Markdown 文本。
+ *
+ * @param records 命中记录列表。
+ * @param settings 应用设置。
+ * @param now 当前时间。
+ * @return 批量通知 Markdown 文本。
+ */
 function matchesDescription(
   records: MatchRecord[],
   settings: AppSettings,
@@ -1033,6 +1421,14 @@ function matchesDescription(
     : body;
 }
 
+/**
+ * 生成单条命中记录的 Markdown 片段。
+ *
+ * @param record 命中记录。
+ * @param settings 应用设置。
+ * @param now 当前时间。
+ * @return 单条命中 Markdown 片段。
+ */
 function matchMarkdown(record: MatchRecord, settings: AppSettings, now: Date): string {
   const content = truncateText(
     record.post.excerpt || record.post.body || "-",
@@ -1047,6 +1443,14 @@ function matchMarkdown(record: MatchRecord, settings: AppSettings, now: Date): s
   ].join(markdownHardBreak);
 }
 
+/**
+ * 生成命中记录的元信息文本行。
+ *
+ * @param record 命中记录。
+ * @param settings 应用设置。
+ * @param now 当前时间。
+ * @return 元信息文本行。
+ */
 function matchMetadataLine(record: MatchRecord, settings: AppSettings, now: Date): string {
   const messages = getMessages(settings.locale);
   return `${messages.publishedAt}：${
@@ -1056,10 +1460,23 @@ function matchMetadataLine(record: MatchRecord, settings: AppSettings, now: Date
   }`;
 }
 
+/**
+ * 转义 Markdown 链接文本。
+ *
+ * @param value 原始链接文本。
+ * @return 转义后的链接文本。
+ */
 function escapeMarkdownLinkText(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
 }
 
+/**
+ * 获取命中位置的本地化展示文本。
+ *
+ * @param location 命中位置。
+ * @param messages 当前语言文案。
+ * @return 命中位置展示文本。
+ */
 function matchLocationLabel(
   location: MatchRecord["location"],
   messages: ReturnType<typeof getMessages>,
@@ -1076,10 +1493,24 @@ function matchLocationLabel(
   }
 }
 
+/**
+ * 填充更多命中记录提示文本。
+ *
+ * @param template 提示文本模板。
+ * @param count 被省略的命中数量。
+ * @return 填充后的提示文本。
+ */
 function moreMatchesText(template: string, count: number): string {
   return template.replace("{count}", String(count));
 }
 
+/**
+ * 使用键值替换简单文本模板。
+ *
+ * @param template 文本模板。
+ * @param values 替换变量映射。
+ * @return 替换后的文本。
+ */
 function templateText(template: string, values: Record<string, string>): string {
   return Object.entries(values).reduce(
     (text, [key, value]) => text.replaceAll(`{${key}}`, value),
@@ -1087,6 +1518,12 @@ function templateText(template: string, values: Record<string, string>): string 
   );
 }
 
+/**
+ * 统计通知文本中实际渲染的命中数量。
+ *
+ * @param text 通知 Markdown 文本。
+ * @return 已渲染命中数量。
+ */
 function countRenderedMatches(text: string): number {
   const sections = text.split(markdownSeparator);
   const omittedPattern = /^(?:及另外 \d+ 条帖子|and \d+ more posts)$/;
@@ -1094,22 +1531,48 @@ function countRenderedMatches(text: string): number {
     .length;
 }
 
+/**
+ * 从通知文本中提取被省略的命中数量。
+ *
+ * @param text 通知 Markdown 文本。
+ * @param template 更多命中提示模板。
+ * @return 被省略的命中数量。
+ */
 function omittedMatchCount(text: string, template: string): number {
   const pattern = escapeRegExp(template).replace("\\{count\\}", "(\\d+)");
   const match = text.match(new RegExp(pattern));
   return match ? Number(match[1]) : 0;
 }
 
+/**
+ * 转义正则表达式特殊字符。
+ *
+ * @param value 原始字符串。
+ * @return 可安全放入正则表达式的字符串。
+ */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * 生成闭区间随机整数。
+ *
+ * @param min 最小值。
+ * @param max 最大值。
+ * @return 随机整数。
+ */
 function randomInt(min: number, max: number): number {
   const lower = Math.ceil(min);
   const upper = Math.floor(max);
   return Math.floor(Math.random() * (upper - lower + 1)) + lower;
 }
 
+/**
+ * 转义 HTML 文本。
+ *
+ * @param value 原始文本。
+ * @return 转义后的 HTML 文本。
+ */
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -1119,10 +1582,23 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+/**
+ * 转义 HTML 属性值。
+ *
+ * @param value 原始属性值。
+ * @return 转义后的属性值。
+ */
 function escapeAttribute(value: string): string {
   return escapeHtml(value);
 }
 
+/**
+ * 通过 SMTP 协议发送邮件。
+ *
+ * @param message 邮件消息。
+ * @param config SMTP 连接配置。
+ * @return 邮件发送完成后的 Promise。
+ */
 async function sendSmtpEmail(message: EmailMessage, config: SmtpConfig): Promise<void> {
   let connection: Deno.Conn | Deno.TlsConn | undefined;
   try {
@@ -1158,11 +1634,22 @@ async function sendSmtpEmail(message: EmailMessage, config: SmtpConfig): Promise
   }
 }
 
+/**
+ * 创建 SMTP 会话读写封装。
+ *
+ * @param connection SMTP 网络连接。
+ * @return SMTP 会话操作方法。
+ */
 function createSmtpSession(connection: Deno.Conn | Deno.TlsConn) {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buffer = "";
 
+  /**
+   * 从 SMTP 连接中读取一行响应。
+   *
+   * @return 响应行文本。
+   */
   async function readLine(): Promise<string> {
     while (!buffer.includes("\n")) {
       const chunk = new Uint8Array(1024);
@@ -1179,6 +1666,11 @@ function createSmtpSession(connection: Deno.Conn | Deno.TlsConn) {
     return line;
   }
 
+  /**
+   * 读取完整 SMTP 响应。
+   *
+   * @return SMTP 响应码和响应文本。
+   */
   async function response(): Promise<{ code: number; text: string }> {
     const lines: string[] = [];
     let code = 0;
@@ -1193,6 +1685,12 @@ function createSmtpSession(connection: Deno.Conn | Deno.TlsConn) {
     }
   }
 
+  /**
+   * 读取响应并校验响应码。
+   *
+   * @param expected 允许的响应码列表。
+   * @return 校验通过时无返回值。
+   */
   async function expect(expected: number[]): Promise<void> {
     const result = await response();
     if (!expected.includes(result.code)) {
@@ -1200,10 +1698,23 @@ function createSmtpSession(connection: Deno.Conn | Deno.TlsConn) {
     }
   }
 
+  /**
+   * 写入 SMTP DATA 数据段。
+   *
+   * @param value 邮件原始内容。
+   * @return 写入完成后的 Promise。
+   */
   async function data(value: string): Promise<void> {
     await connection.write(encoder.encode(`${dotStuff(value)}\r\n.\r\n`));
   }
 
+  /**
+   * 发送 SMTP 命令并校验响应码。
+   *
+   * @param value SMTP 命令文本。
+   * @param expected 允许的响应码列表。
+   * @return 命令完成后的 Promise。
+   */
   async function command(value: string, expected: number[]): Promise<void> {
     await connection.write(encoder.encode(`${value}\r\n`));
     await expect(expected);
@@ -1212,6 +1723,12 @@ function createSmtpSession(connection: Deno.Conn | Deno.TlsConn) {
   return { command, data, expect };
 }
 
+/**
+ * 构建 multipart 邮件 MIME 内容。
+ *
+ * @param message 邮件消息。
+ * @return MIME 原始文本。
+ */
 function mimeMessage(message: EmailMessage): string {
   const boundary = `heybox-${crypto.randomUUID()}`;
   return [
@@ -1235,20 +1752,44 @@ function mimeMessage(message: EmailMessage): string {
   ].join("\r\n");
 }
 
+/**
+ * 从邮件地址中提取 SMTP 信封地址。
+ *
+ * @param value 原始邮件地址。
+ * @return 清理后的信封地址。
+ */
 function envelopeAddress(value: string): string {
   const trimmed = value.trim();
   const bracketMatch = trimmed.match(/<([^<>]+)>$/);
   return (bracketMatch?.[1] ?? trimmed).replaceAll(/[\r\n<>]/g, "");
 }
 
+/**
+ * 清理邮件头字段值。
+ *
+ * @param value 原始邮件头字段值。
+ * @return 清理后的字段值。
+ */
 function headerValue(value: string): string {
   return value.replaceAll(/[\r\n]+/g, " ").trim();
 }
 
+/**
+ * 编码邮件头字段值。
+ *
+ * @param value 原始字段值。
+ * @return MIME 编码后的字段值。
+ */
 function encodedHeader(value: string): string {
   return `=?UTF-8?B?${base64(value)}?=`;
 }
 
+/**
+ * 将字符串编码为 Base64。
+ *
+ * @param value 原始字符串。
+ * @return Base64 编码结果。
+ */
 function base64(value: string): string {
   const bytes = new TextEncoder().encode(value);
   let binary = "";
@@ -1258,6 +1799,12 @@ function base64(value: string): string {
   return btoa(binary);
 }
 
+/**
+ * 对 SMTP DATA 内容执行点转义。
+ *
+ * @param value 原始 DATA 内容。
+ * @return 点转义后的内容。
+ */
 function dotStuff(value: string): string {
   return value.replace(/(^|\r?\n)\./g, "$1..");
 }

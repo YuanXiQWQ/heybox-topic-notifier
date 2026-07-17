@@ -1,3 +1,6 @@
+/**
+ * @file 本文件验证轮询调度器和 Deno Deploy Cron timeline 判断逻辑。
+ */
 import {
   createPollScheduler,
   pollingIntervalMs,
@@ -6,7 +9,13 @@ import {
   shouldRunDeployCron,
 } from "./crons.ts";
 
+/**
+ * 五分钟轮询测试配置。
+ */
 const fiveMinutes = { intervalUnit: "minute" as const, intervalValue: 5 };
+/**
+ * 三秒轮询测试配置。
+ */
 const threeSeconds = { intervalUnit: "second" as const, intervalValue: 3 };
 
 Deno.test("shouldPoll runs when no previous poll exists", () => {
@@ -114,6 +123,13 @@ Deno.test("deploy cron only runs on production and dev timelines", () => {
   assertEquals(shouldRunDeployCron(undefined), false);
 });
 
+/**
+ * 断言两个值严格相等。
+ *
+ * @param actual 实际值。
+ * @param expected 期望值。
+ * @return 断言通过时无返回值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   if (actual !== expected) {
     throw new Error(`Expected ${String(expected)}, got ${String(actual)}`);

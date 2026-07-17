@@ -1,3 +1,6 @@
+/**
+ * @file 本文件验证轮询器的帖子拉取、匹配、通知和历史更新逻辑。
+ */
 import type { AppSettings, MatchRecord, TopicPost } from "../models.ts";
 import type { createKvStorage } from "../storage/kv.ts";
 import { createMatcher } from "./matcher.ts";
@@ -5,6 +8,9 @@ import type { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
 import type { TopicSource } from "./topic_source.ts";
 
+/**
+ * 轮询器测试使用的应用设置。
+ */
 const settings: AppSettings = {
   activeKeywordTarget: "common",
   commonKeywordRules: [{ keyword: "common-hit", locations: ["title"] }],
@@ -50,6 +56,9 @@ const settings: AppSettings = {
   ],
 };
 
+/**
+ * 按话题 ID 组织的测试帖子列表。
+ */
 const postsByTopic: Record<string, TopicPost[]> = {
   "12099": [
     post("p1", { title: "common-hit in title" }),
@@ -267,6 +276,13 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
   assertEquals(notifiedMatches, []);
 });
 
+/**
+ * 创建测试帖子。
+ *
+ * @param id 帖子 ID。
+ * @param overrides 需要覆盖的帖子字段。
+ * @return 测试帖子。
+ */
 function post(id: string, overrides: Partial<TopicPost>): TopicPost {
   return {
     body: "",
@@ -281,6 +297,13 @@ function post(id: string, overrides: Partial<TopicPost>): TopicPost {
   };
 }
 
+/**
+ * 断言两个值的 JSON 表示相等。
+ *
+ * @param actual 实际值。
+ * @param expected 期望值。
+ * @return 断言通过时无返回值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);
@@ -289,6 +312,13 @@ function assertEquals(actual: unknown, expected: unknown): void {
   }
 }
 
+/**
+ * 断言异步函数会抛出指定错误信息。
+ *
+ * @param fn 待执行的异步函数。
+ * @param message 期望的错误信息。
+ * @return 断言通过时无返回值。
+ */
 async function assertRejects(fn: () => Promise<unknown>, message: string): Promise<void> {
   try {
     await fn();

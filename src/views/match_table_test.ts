@@ -1,3 +1,6 @@
+/**
+ * @file 本文件验证命中记录表格查询、分页和页面渲染行为。
+ */
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, MatchRecord } from "../models.ts";
 import { renderHistory } from "./history.ts";
@@ -139,6 +142,12 @@ Deno.test("settings and history pages keep the app tab title", () => {
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 
+/**
+ * 创建表格测试数据。
+ *
+ * @param records 命中记录列表。
+ * @return 表格计算结果。
+ */
 function table(records: MatchRecord[]): MatchTableResult {
   return {
     from: "",
@@ -152,6 +161,13 @@ function table(records: MatchRecord[]): MatchTableResult {
   };
 }
 
+/**
+ * 创建测试命中记录。
+ *
+ * @param id 记录 ID。
+ * @param matchedAt 命中时间。
+ * @return 测试命中记录。
+ */
 function record(id: string, matchedAt: string): MatchRecord {
   return {
     id,
@@ -171,6 +187,11 @@ function record(id: string, matchedAt: string): MatchRecord {
   };
 }
 
+/**
+ * 创建测试使用的应用设置。
+ *
+ * @return 应用设置。
+ */
 function settings(): AppSettings {
   return {
     activeKeywordTarget: "common",
@@ -205,6 +226,13 @@ function settings(): AppSettings {
   };
 }
 
+/**
+ * 断言两个值的 JSON 表示相等。
+ *
+ * @param actual 实际值。
+ * @param expected 期望值。
+ * @return 断言通过时无返回值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);
@@ -213,6 +241,13 @@ function assertEquals(actual: unknown, expected: unknown): void {
   }
 }
 
+/**
+ * 断言字符串包含指定片段。
+ *
+ * @param actual 实际字符串。
+ * @param expected 期望包含的片段。
+ * @return 断言通过时无返回值。
+ */
 function assertIncludes(actual: string, expected: string): void {
   if (!actual.includes(expected)) {
     throw new Error(`Expected output to include ${expected}`);
