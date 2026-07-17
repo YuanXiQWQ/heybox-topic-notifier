@@ -1,3 +1,6 @@
+/**
+ * @file 本文件验证小黑盒话题数据源的请求构建和响应解析逻辑。
+ */
 import { createHeyboxTopicSource, parseHeyboxTopicPosts } from "./heybox_topic_source.ts";
 
 Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
@@ -215,6 +218,13 @@ Deno.test("createHeyboxTopicSource throws on failed Heybox response", async () =
   );
 });
 
+/**
+ * 断言异步函数会抛出指定错误信息。
+ *
+ * @param fn 待执行的异步函数。
+ * @param expectedMessage 期望的错误信息。
+ * @return 断言通过时无返回值。
+ */
 async function assertRejects(fn: () => Promise<unknown>, expectedMessage: string): Promise<void> {
   try {
     await fn();
@@ -228,6 +238,13 @@ async function assertRejects(fn: () => Promise<unknown>, expectedMessage: string
   throw new Error(`Expected ${expectedMessage}`);
 }
 
+/**
+ * 断言两个值的 JSON 表示相等。
+ *
+ * @param actual 实际值。
+ * @param expected 期望值。
+ * @return 断言通过时无返回值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);

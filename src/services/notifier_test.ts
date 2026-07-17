@@ -1,7 +1,13 @@
+/**
+ * @file 本文件验证通知器在 Webhook、邮件、测试通知和错误场景下的行为。
+ */
 import type { AppSettings, MatchRecord } from "../models.ts";
 import { createNotifier as createRealNotifier } from "./notifier.ts";
 import type { DeliveryLogEntry } from "./notifier.ts";
 
+/**
+ * 通知器测试使用的基础应用设置。
+ */
 const settings: AppSettings = {
   activeKeywordTarget: "common",
   commonKeywordRules: [],
@@ -34,6 +40,9 @@ const settings: AppSettings = {
   topics: [],
 };
 
+/**
+ * 通知器测试使用的基础命中记录。
+ */
 const record: MatchRecord = {
   id: "12099:p1:help:title",
   keyword: "help",
@@ -51,6 +60,12 @@ const record: MatchRecord = {
   },
 };
 
+/**
+ * 创建带默认静默日志记录器的通知器。
+ *
+ * @param options 通知器创建选项。
+ * @return 测试通知器实例。
+ */
 function createNotifier(options: Parameters<typeof createRealNotifier>[0] = {}) {
   return createRealNotifier({
     deliveryLogger: () => {
@@ -59,6 +74,9 @@ function createNotifier(options: Parameters<typeof createRealNotifier>[0] = {}) 
   });
 }
 
+/**
+ * 通知器批量通知测试使用的第二条命中记录。
+ */
 const secondRecord: MatchRecord = {
   id: "12099:p2:guide:body",
   keyword: "guide",
@@ -985,6 +1003,13 @@ Deno.test("email API provider requires an API URL", async () => {
   );
 });
 
+/**
+ * 断言两个值的 JSON 表示相等。
+ *
+ * @param actual 实际值。
+ * @param expected 期望值。
+ * @return 断言通过时无返回值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);
@@ -993,6 +1018,13 @@ function assertEquals(actual: unknown, expected: unknown): void {
   }
 }
 
+/**
+ * 断言异步函数会抛出指定错误信息。
+ *
+ * @param fn 待执行的异步函数。
+ * @param message 期望的错误信息。
+ * @return 断言通过时无返回值。
+ */
 async function assertRejects(fn: () => Promise<unknown>, message: string): Promise<void> {
   try {
     await fn();
@@ -1006,6 +1038,13 @@ async function assertRejects(fn: () => Promise<unknown>, message: string): Promi
   throw new Error(`Expected rejection with message: ${message}`);
 }
 
+/**
+ * 恢复环境变量到指定值。
+ *
+ * @param name 环境变量名称。
+ * @param value 要恢复的环境变量值，undefined 表示删除。
+ * @return 无返回值。
+ */
 function restoreEnv(name: string, value: string | undefined): void {
   if (value === undefined) {
     Deno.env.delete(name);

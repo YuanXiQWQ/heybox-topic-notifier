@@ -1,7 +1,13 @@
+/**
+ * @file 本文件实现小黑盒话题帖子数据源。
+ */
 import type { PollSort, TopicPost } from "../models.ts";
 import type { TopicListOptions, TopicSource } from "./topic_source.ts";
 import { createHeyboxSignatureParams, type HeyboxSignatureMode } from "./heybox_signer.ts";
 
+/**
+ * 小黑盒话题数据源配置。
+ */
 export type HeyboxTopicSourceConfig = {
   appBuild?: string;
   apiBaseUrl?: string;
@@ -21,9 +27,21 @@ export type HeyboxTopicSourceConfig = {
   userAgent?: string;
 };
 
+/**
+ * 小黑盒话题信息流接口路径。
+ */
 const topicFeedsPath = "/bbs/app/topic/feeds";
+/**
+ * 小黑盒帖子详情接口路径。
+ */
 const linkTreePath = "/bbs/app/link/tree";
 
+/**
+ * 创建小黑盒话题帖子数据源。
+ *
+ * @param config 小黑盒接口请求配置。
+ * @return 话题帖子数据源实现。
+ */
 export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
   const appBuild = config.appBuild ?? "783";
@@ -42,10 +60,23 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
       "Safari/537.36 ApiMaxJia/1.0";
 
   return {
+    /**
+     * 获取帖子详情并与列表帖子合并。
+     *
+     * @param post 列表接口返回的帖子。
+     * @return 补全详情后的帖子。
+     */
     async getPostDetails(post: TopicPost): Promise<TopicPost> {
       return await hydrateTopicPost(post);
     },
 
+    /**
+     * 拉取指定话题的最新帖子列表。
+     *
+     * @param topicId 小黑盒话题 ID。
+     * @param options 列表拉取选项。
+     * @return 解析后的帖子列表。
+     */
     async listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
       const limit = normalizeLimit(options.limit);
       const requestLimit = options.sort === "publishTime" ? Math.max(limit, 30) : limit;
@@ -87,6 +118,12 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
     },
   };
 
+  /**
+   * 构建带签名的小黑盒请求参数。
+   *
+   * @param path 请求路径。
+   * @return 请求查询参数。
+   */
   function signedRequestParams(path: string): Record<string, string> {
     const signature = createHeyboxSignatureParams(
       path,
@@ -115,6 +152,12 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
     };
   }
 
+  /**
+   * 尝试通过详情接口补全帖子内容。
+   *
+   * @param post 待补全帖子。
+   * @return 补全后的帖子；补全失败时返回原帖子。
+   */
   async function hydrateTopicPost(post: TopicPost): Promise<TopicPost> {
     if (!post.id) {
       return post;
@@ -128,6 +171,12 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
     }
   }
 
+  /**
+   * 请求帖子详情接口并解析详情帖子。
+   *
+   * @param post 列表接口返回的帖子。
+   * @return 详情帖子，接口无可用内容时返回 undefined。
+   */
   async function fetchLinkDetailPost(post: TopicPost): Promise<TopicPost | undefined> {
     const url = new URL(linkTreePath, apiBaseUrl);
     const params: Record<string, string> = {
@@ -163,6 +212,13 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
   }
 }
 
+/**
+ * 按指定排序方式整理帖子列表。
+ *
+ * @param posts 待排序帖子列表。
+ * @param sort 目标排序方式。
+ * @return 排序后的帖子列表。
+ */
 function orderPosts(posts: TopicPost[], sort: PollSort): TopicPost[] {
   if (sort !== "publishTime") {
     return posts;
@@ -173,6 +229,13 @@ function orderPosts(posts: TopicPost[], sort: PollSort): TopicPost[] {
   );
 }
 
+/**
+ * 从小黑盒接口响应中解析话题帖子列表。
+ *
+ * @param payload 小黑盒接口响应。
+ * @param topicId 当前话题 ID。
+ * @return 解析得到的有效帖子列表。
+ */
 export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicPost[] {
   const links = arrayAt(payload, ["result", "links"]);
 
@@ -182,6 +245,13 @@ export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicP
   }).filter((post) => post.id && (post.title || post.excerpt || post.body));
 }
 
+/**
+ * 将小黑盒帖子记录转换为应用内帖子结构。
+ *
+ * @param record 小黑盒帖子原始记录。
+ * @param topicId 当前话题 ID。
+ * @return 应用内帖子结构。
+ */
 function postFromHeyboxRecord(record: Record<string, unknown>, topicId: string): TopicPost {
   const shareUrl = stringField(record, ["share_url", "url", "link", "web_url"]);
   const webLinkId = linkIdFromUrl(shareUrl);
@@ -201,6 +271,13 @@ function postFromHeyboxRecord(record: Record<string, unknown>, topicId: string):
   };
 }
 
+/**
+ * 合并列表帖子和详情帖子。
+ *
+ * @param listPost 列表接口返回的帖子。
+ * @param detailPost 详情接口返回的帖子。
+ * @return 合并后的帖子。
+ */
 function mergeTopicPosts(listPost: TopicPost, detailPost: TopicPost): TopicPost {
   return {
     body: detailPost.body || listPost.body,
@@ -216,11 +293,24 @@ function mergeTopicPosts(listPost: TopicPost, detailPost: TopicPost): TopicPost 
   };
 }
 
+/**
+ * 从帖子 URL 中提取话题 ID。
+ *
+ * @param post 待提取话题 ID 的帖子。
+ * @return 话题 ID，无法提取时返回空字符串。
+ */
 function topicIdFromPost(post: TopicPost): string {
   const [, topicId = ""] = post.url.match(/\/app\/topic\/link\/([^/?#]+)/) ?? [];
   return topicId;
 }
 
+/**
+ * 校验小黑盒接口响应是否成功。
+ *
+ * @param payload 小黑盒接口响应。
+ * @return 校验通过时无返回值。
+ * @throws 接口状态非 ok 时抛出错误。
+ */
 function assertHeyboxOk(payload: unknown): void {
   const record = asRecord(payload);
   if (record.status === "ok") {
@@ -233,10 +323,22 @@ function assertHeyboxOk(payload: unknown): void {
   throw new Error(`Heybox topic feed request failed: ${message}`);
 }
 
+/**
+ * 规范化帖子拉取数量。
+ *
+ * @param value 外部传入的数量。
+ * @return 合法的帖子拉取数量。
+ */
 function normalizeLimit(value: number | undefined): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 20;
 }
 
+/**
+ * 将应用排序方式转换为小黑盒接口排序参数。
+ *
+ * @param sort 应用内排序方式。
+ * @return 小黑盒接口 sort_filter 参数值。
+ */
 export function heyboxSortFilter(sort: PollSort): string {
   switch (sort) {
     case "smart":
@@ -248,6 +350,14 @@ export function heyboxSortFilter(sort: PollSort): string {
   }
 }
 
+/**
+ * 校验小黑盒响应中是否支持并应用了请求的排序方式。
+ *
+ * @param payload 小黑盒接口响应。
+ * @param sort 请求的排序方式。
+ * @return 校验通过时无返回值。
+ * @throws 响应排序选项不包含请求排序时抛出错误。
+ */
 function assertRequestedSortApplied(payload: unknown, sort: PollSort): void {
   const expectedSortFilter = heyboxSortFilter(sort);
   const sortFilters = arrayAt(payload, ["result", "sort_filter"]);
@@ -266,10 +376,23 @@ function assertRequestedSortApplied(payload: unknown, sort: PollSort): void {
   }
 }
 
+/**
+ * 将未知值安全转换为记录对象。
+ *
+ * @param value 待转换值。
+ * @return 记录对象，无法转换时返回空对象。
+ */
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
 
+/**
+ * 按路径从未知结构中读取数组。
+ *
+ * @param value 根对象。
+ * @param path 属性路径。
+ * @return 路径对应的数组，不存在或不是数组时返回空数组。
+ */
 function arrayAt(value: unknown, path: string[]): unknown[] {
   let current = value;
 
@@ -280,6 +403,13 @@ function arrayAt(value: unknown, path: string[]): unknown[] {
   return Array.isArray(current) ? current : [];
 }
 
+/**
+ * 从记录对象的候选字段中读取字符串值。
+ *
+ * @param record 待读取的记录对象。
+ * @param keys 候选字段名列表。
+ * @return 第一个可用的字符串值。
+ */
 function stringField(record: Record<string, unknown>, keys: string[]): string {
   for (const key of keys) {
     const value = record[key];
@@ -294,6 +424,12 @@ function stringField(record: Record<string, unknown>, keys: string[]): string {
   return "";
 }
 
+/**
+ * 从链接中提取小黑盒帖子 ID。
+ *
+ * @param value 待解析链接。
+ * @return 提取到的帖子 ID，无法提取时返回空字符串。
+ */
 function linkIdFromUrl(value: string): string {
   if (!value) {
     return "";
@@ -313,6 +449,13 @@ function linkIdFromUrl(value: string): string {
   }
 }
 
+/**
+ * 从记录对象中读取并规范化时间字段。
+ *
+ * @param record 待读取的记录对象。
+ * @param keys 候选时间字段名列表。
+ * @return ISO 时间字符串或原始字符串时间。
+ */
 function timeField(record: Record<string, unknown>, keys: string[]): string {
   const value = stringField(record, keys);
   const numericValue = Number(value);
@@ -324,6 +467,13 @@ function timeField(record: Record<string, unknown>, keys: string[]): string {
   return value || new Date(0).toISOString();
 }
 
+/**
+ * 从记录对象的候选数组字段中提取文本列表。
+ *
+ * @param record 待读取的记录对象。
+ * @param keys 候选数组字段名列表。
+ * @return 提取出的非空文本列表。
+ */
 function textList(record: Record<string, unknown>, keys: string[]): string[] {
   return keys.flatMap((key) => {
     const value = record[key];
@@ -335,6 +485,12 @@ function textList(record: Record<string, unknown>, keys: string[]): string[] {
   });
 }
 
+/**
+ * 从未知值中提取文本内容。
+ *
+ * @param value 待提取文本的值。
+ * @return 提取出的文本，无法提取时返回空字符串。
+ */
 function textFromUnknown(value: unknown): string {
   if (typeof value === "string") {
     return value.trim();
