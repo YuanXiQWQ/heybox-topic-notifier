@@ -19,6 +19,6 @@ const context = createAppContext();
 app.route("/", createAuthRoutes(context.storage));
 app.use("*", createAuthMiddleware(context.storage));
 app.route("/", createRoutes(context));
-registerCrons(context);
+await registerCrons(context);
 
 Deno.serve({ port: context.config.port }, app.fetch);

@@ -844,7 +844,7 @@ async function saveSettingsNow() {
 
   try {
     const response = await fetch(autoSaveForm.action, {
-      body: new FormData(autoSaveForm),
+      body: formDataFromForm(autoSaveForm),
       headers: {'x-autosave': '1'},
       method: autoSaveForm.method || 'post',
       signal: autoSaveController.signal,
@@ -906,7 +906,7 @@ async function sendTestNotification(testNotifyButton) {
  *
  * @param {string} text 状态文案。
  * @param {string} state 状态类型。
- * @param {Object} options 状态展示选项。
+ * @param {Object} [options] 状态展示选项。
  */
 function setTestNotifyStatus(text, state = '', options = {}) {
   const status = document.querySelector('[data-test-notify-status]');
@@ -946,7 +946,7 @@ function setTestNotifyStatus(text, state = '', options = {}) {
  * 更新测试通知错误详情链接。
  *
  * @param {HTMLElement} status 测试通知状态容器。
- * @param {string|undefined} errorDetails 错误详情文本。
+ * @param {string|undefined} [errorDetails] 错误详情文本。
  */
 function updateTestNotifyErrorLink(status, errorDetails) {
   const errorLink = status.querySelector('[data-test-notify-error-link]');
@@ -1101,17 +1101,30 @@ function settingsSignature() {
   }
 
   const params = new URLSearchParams();
-  for (const [key, value] of new FormData(autoSaveForm).entries()) {
+  for (const [key, value] of formDataFromForm(autoSaveForm).entries()) {
     params.append(key, String(value));
   }
   return params.toString();
 }
 
 /**
+ * 从浏览器表单创建 FormData。
+ *
+ * 此脚本在浏览器执行；Deno 的 FormData 类型声明缺少 HTMLFormElement 重载。
+ *
+ * @param {HTMLFormElement} form 表单元素。
+ * @return {FormData} 表单数据。
+ */
+function formDataFromForm(form) {
+  // noinspection JSCheckFunctionSignatures
+  return new FormData(form);
+}
+
+/**
  * 更新自动保存状态文案。
  *
  * @param {string} state 自动保存状态。
- * @param {string|undefined} text 自定义状态文案。
+ * @param {string|undefined} [text] 自定义状态文案。
  */
 function setAutoSaveStatus(state, text) {
   const status = document.querySelector('[data-autosave-status]');
@@ -1633,8 +1646,18 @@ function openKeywordPanel(keywordEditor) {
  * @return {HTMLElement|undefined} 匹配的话题规则行。
  */
 function findTopicRowById(topicEditor, id) {
-  return Array.from(topicEditor.querySelectorAll('[data-topic-row]'))
-      .find((row) => row.querySelector('[data-topic-id-input]').value.trim() === id);
+  for (const row of topicEditor.querySelectorAll('[data-topic-row]')) {
+    if (!(row instanceof HTMLElement)) {
+      continue;
+    }
+
+    const idInput = row.querySelector('[data-topic-id-input]');
+    if (idInput instanceof HTMLInputElement && idInput.value.trim() === id) {
+      return row;
+    }
+  }
+
+  return undefined;
 }
 
 /**
