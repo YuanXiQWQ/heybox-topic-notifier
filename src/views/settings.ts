@@ -50,12 +50,14 @@ export function renderSettings(options: {
         <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
-    ${renderAccountSection(
-    options.settings,
-    options.account,
-    options.accountStatus,
-    options.csrfToken,
-  )}
+    ${
+    renderAccountSection(
+      options.settings,
+      options.account,
+      options.accountStatus,
+      options.csrfToken,
+    )
+  }
     <form
       method="post"
       action="/settings"
@@ -454,7 +456,10 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationServerChanSendKey"
-                  value="${escapeHtml(settings.notificationServerChanSendKey)}"
+                  value=""
+                  placeholder="${
+    secretInputPlaceholder(settings.notificationServerChanSendKey, messages)
+  }"
                   autocomplete="off"
                 >
                 <a
@@ -481,7 +486,10 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationPushPlusSecret"
-                  value="${escapeHtml(settings.notificationPushPlusToken)}"
+                  value=""
+                  placeholder="${
+    secretInputPlaceholder(settings.notificationPushPlusToken, messages)
+  }"
                   autocomplete="off"
                 >
                 <a
@@ -508,9 +516,15 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationWxPusherSpt"
-                  value="${escapeHtml(settings.notificationWxPusherSpt)}"
+                  value=""
+                  placeholder="${
+    secretInputPlaceholder(
+      settings.notificationWxPusherSpt,
+      messages,
+      "SPT_xxx",
+    )
+  }"
                   autocomplete="off"
-                  placeholder="SPT_xxx"
                 >
                 <a
                   class="button-link external-settings-link"
@@ -535,8 +549,10 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationWebhookUrl"
-                value="${escapeHtml(settings.notificationWebhookUrl)}"
-                placeholder="https://"
+                value=""
+                placeholder="${
+    secretInputPlaceholder(settings.notificationWebhookUrl, messages, "https://")
+  }"
                 autocomplete="off"
               >
             </dd>
@@ -616,7 +632,10 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationEmailApiToken"
-                value="${escapeHtml(settings.notificationEmailApiToken)}"
+                value=""
+                placeholder="${
+    secretInputPlaceholder(settings.notificationEmailApiToken, messages)
+  }"
                 autocomplete="off"
               >
             </dd>
@@ -693,7 +712,8 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationSmtpPassword"
-                value="${escapeHtml(settings.notificationSmtpPassword)}"
+                value=""
+                placeholder="${secretInputPlaceholder(settings.notificationSmtpPassword, messages)}"
                 autocomplete="off"
               >
             </dd>
@@ -1239,6 +1259,22 @@ function renderKeywordSummary(keywords: string[]): string {
       `<span data-keyword-summary-item>${escapeHtml(keyword)}</span>`
     ).join('<span class="summary-separator">|</span>')
   }${suffix}`;
+}
+
+/**
+ * 生成敏感配置输入框的占位提示。
+ *
+ * @param value 当前已保存的敏感配置。
+ * @param messages 当前语言文案。
+ * @param emptyPlaceholder 未配置时使用的占位提示。
+ * @return 已转义的占位提示。
+ */
+function secretInputPlaceholder(
+  value: string,
+  messages: ReturnType<typeof getMessages>,
+  emptyPlaceholder = "",
+): string {
+  return escapeHtml(value.trim() ? messages.configuredSecretPlaceholder : emptyPlaceholder);
 }
 
 /**

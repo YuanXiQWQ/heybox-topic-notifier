@@ -243,6 +243,28 @@ Deno.test("settingsFromForm disables polling when switch is off", () => {
   });
 });
 
+Deno.test("settingsFromForm preserves existing notification secrets when submitted blank", () => {
+  const settings = settingsFromForm({
+    activeKeywordTarget: "common",
+    notificationEmailApiToken: "",
+    notificationPushPlusSecret: "",
+    notificationServerChanSendKey: "   ",
+    notificationSmtpPassword: "",
+    notificationWebhookUrl: "",
+    notificationWxPusherSpt: "",
+  }, currentSettings);
+
+  assertEquals(settings.notificationEmailApiToken, currentSettings.notificationEmailApiToken);
+  assertEquals(settings.notificationPushPlusToken, currentSettings.notificationPushPlusToken);
+  assertEquals(
+    settings.notificationServerChanSendKey,
+    currentSettings.notificationServerChanSendKey,
+  );
+  assertEquals(settings.notificationSmtpPassword, currentSettings.notificationSmtpPassword);
+  assertEquals(settings.notificationWebhookUrl, currentSettings.notificationWebhookUrl);
+  assertEquals(settings.notificationWxPusherSpt, currentSettings.notificationWxPusherSpt);
+});
+
 Deno.test("settingsFromForm saves visible common keywords and submitted topic keywords", () => {
   const settings = settingsFromForm({
     activeKeywordTarget: "common",

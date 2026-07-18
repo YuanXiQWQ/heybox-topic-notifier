@@ -153,6 +153,27 @@ Deno.test("settings and history pages keep the app tab title", () => {
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 
+Deno.test("renderSettings does not expose notification secrets", () => {
+  const appSettings = {
+    ...settings(),
+    notificationEmailApiToken: "email-api-token-secret",
+    notificationPushPlusToken: "pushplus-token-secret",
+    notificationServerChanSendKey: "server-chan-sendkey-secret",
+    notificationSmtpPassword: "smtp-password-secret",
+    notificationWebhookUrl: "https://example.com/webhook/secret-token",
+    notificationWxPusherSpt: "wxpusher-spt-secret",
+  };
+  const html = renderSettings({ csrfToken: testCsrfToken, settings: appSettings });
+
+  assertIncludes(html, "已配置，留空保留");
+  assertNotIncludes(html, appSettings.notificationEmailApiToken);
+  assertNotIncludes(html, appSettings.notificationPushPlusToken);
+  assertNotIncludes(html, appSettings.notificationServerChanSendKey);
+  assertNotIncludes(html, appSettings.notificationSmtpPassword);
+  assertNotIncludes(html, appSettings.notificationWebhookUrl);
+  assertNotIncludes(html, appSettings.notificationWxPusherSpt);
+});
+
 /**
  * 创建表格测试数据。
  *
@@ -262,5 +283,18 @@ function assertEquals(actual: unknown, expected: unknown): void {
 function assertIncludes(actual: string, expected: string): void {
   if (!actual.includes(expected)) {
     throw new Error(`Expected output to include ${expected}`);
+  }
+}
+
+/**
+ * 断言字符串不包含指定片段。
+ *
+ * @param actual 实际字符串。
+ * @param expected 不期望出现的片段。
+ * @return 断言通过时无返回值。
+ */
+function assertNotIncludes(actual: string, expected: string): void {
+  if (actual.includes(expected)) {
+    throw new Error(`Expected output not to include ${expected}`);
   }
 }

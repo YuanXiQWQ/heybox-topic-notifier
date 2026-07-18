@@ -755,17 +755,29 @@ export function settingsFromForm(
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
     notificationEmailAddress: String(form.notificationEmailAddress ?? "").trim(),
-    notificationEmailApiToken: String(form.notificationEmailApiToken ?? ""),
+    notificationEmailApiToken: secretValueFromForm(
+      form.notificationEmailApiToken,
+      currentSettings.notificationEmailApiToken,
+    ),
     notificationEmailApiUrl: String(form.notificationEmailApiUrl ?? "").trim(),
     notificationEmailFrom: String(form.notificationEmailFrom ?? "").trim(),
     notificationEmailService: normalizeNotificationEmailService(form.notificationEmailService),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
-    notificationPushPlusToken: String(
-      form.notificationPushPlusSecret ?? form.notificationPushPlusToken ?? "",
-    ).trim(),
-    notificationServerChanSendKey: String(form.notificationServerChanSendKey ?? "").trim(),
+    notificationPushPlusToken: secretValueFromForm(
+      form.notificationPushPlusSecret ?? form.notificationPushPlusToken,
+      currentSettings.notificationPushPlusToken,
+      true,
+    ),
+    notificationServerChanSendKey: secretValueFromForm(
+      form.notificationServerChanSendKey,
+      currentSettings.notificationServerChanSendKey,
+      true,
+    ),
     notificationSmtpHost: String(form.notificationSmtpHost ?? "").trim(),
-    notificationSmtpPassword: String(form.notificationSmtpPassword ?? ""),
+    notificationSmtpPassword: secretValueFromForm(
+      form.notificationSmtpPassword,
+      currentSettings.notificationSmtpPassword,
+    ),
     notificationSmtpPort: normalizePositiveInteger(
       form.notificationSmtpPort,
       currentSettings.notificationSmtpPort,
@@ -775,8 +787,16 @@ export function settingsFromForm(
     notificationWebhookService: normalizeNotificationWebhookService(
       form.notificationWebhookService,
     ),
-    notificationWebhookUrl: String(form.notificationWebhookUrl ?? "").trim(),
-    notificationWxPusherSpt: String(form.notificationWxPusherSpt ?? "").trim(),
+    notificationWebhookUrl: secretValueFromForm(
+      form.notificationWebhookUrl,
+      currentSettings.notificationWebhookUrl,
+      true,
+    ),
+    notificationWxPusherSpt: secretValueFromForm(
+      form.notificationWxPusherSpt,
+      currentSettings.notificationWxPusherSpt,
+      true,
+    ),
     polling: {
       enabled: form.pollEnabled === "on",
       intervalUnit: normalizePollIntervalUnit(
@@ -794,6 +814,24 @@ export function settingsFromForm(
     themeColor: normalizeThemeColor(form.themeColor, currentSettings.themeColor),
     topics,
   };
+}
+
+/**
+ * 从表单读取敏感配置，空提交时保留当前值。
+ *
+ * @param value 表单提交值。
+ * @param currentValue 当前已保存的敏感配置。
+ * @param trim 是否在判断前后去除首尾空白。
+ * @return 新的敏感配置值。
+ */
+function secretValueFromForm(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  currentValue: string,
+  trim = false,
+): string {
+  const submitted = String(value ?? "");
+  const normalized = trim ? submitted.trim() : submitted;
+  return normalized.length > 0 ? normalized : currentValue;
 }
 
 /**
