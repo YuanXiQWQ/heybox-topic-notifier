@@ -25,6 +25,8 @@ export type AuthSession = {
 export type AuthOptions = {
   cookieName?: string;
   exemptPaths?: string[];
+  loginLockoutSeconds?: number;
+  maxLoginFailures?: number;
   loginPath?: string;
   registerPath?: string;
   sessionMaxAgeSeconds?: number;
@@ -36,6 +38,8 @@ export type AuthOptions = {
 type AuthConfig = {
   cookieName: string;
   exemptPaths: Set<string>;
+  loginLockoutSeconds: number;
+  maxLoginFailures: number;
   loginPath: string;
   registerPath: string;
   sessionMaxAgeSeconds: number;
@@ -57,6 +61,14 @@ const defaultRegisterPath = "/register";
  * 默认会话有效期秒数。
  */
 const defaultSessionMaxAgeSeconds = 60 * 60 * 24 * 30;
+/**
+ * 默认登录失败锁定时长（秒）。
+ */
+const defaultLoginLockoutSeconds = 60 * 15;
+/**
+ * 默认允许的连续登录失败次数。
+ */
+const defaultMaxLoginFailures = 5;
 /**
  * 密码 PBKDF2 迭代次数。
  */
@@ -124,13 +136,35 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
+    const canRateLimit = validUsername(username);
+    const loginFailure = canRateLimit ? await storage.getLoginFailure(username) : undefined;
+
+    if (isLoginLocked(loginFailure)) {
+      return loginRateLimitedRedirect(config.loginPath, returnTo);
+    }
+
     const account = await storage.getAccountByUsername(username);
 
     if (!account || !(await verifyPassword(password, account))) {
+      const failure = canRateLimit
+        ? await storage.recordLoginFailure(
+          username,
+          config.maxLoginFailures,
+          config.loginLockoutSeconds * 1000,
+        )
+        : undefined;
+      if (isLoginLocked(failure)) {
+        return loginRateLimitedRedirect(config.loginPath, returnTo);
+      }
+
       return c.redirect(
         `${config.loginPath}?error=invalid&returnTo=${encodeURIComponent(returnTo)}`,
         303,
       );
+    }
+
+    if (canRateLimit) {
+      await storage.clearLoginFailures(username);
     }
 
     return await redirectWithSession(c.req.url, returnTo, account, storage, config);
@@ -247,6 +281,8 @@ function authConfig(options: AuthOptions): AuthConfig {
     exemptPaths: new Set(
       options.exemptPaths ?? ["/healthz", loginPath, registerPath, "/static/app.css"],
     ),
+    loginLockoutSeconds: options.loginLockoutSeconds ?? defaultLoginLockoutSeconds,
+    maxLoginFailures: options.maxLoginFailures ?? defaultMaxLoginFailures,
     loginPath,
     registerPath,
     sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ?? defaultSessionMaxAgeSeconds,
@@ -480,7 +516,40 @@ function renderAuthPage(options: {
  * @return 登录错误提示，不需要展示时返回 undefined。
  */
 function loginErrorMessage(value: string | null): string | undefined {
-  return value === "invalid" ? "用户名或密码不正确。" : undefined;
+  switch (value) {
+    case "invalid":
+      return "用户名或密码不正确。";
+    case "rateLimited":
+      return "登录失败次数过多，请 15 分钟后再试。";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * 判断登录失败记录是否仍在锁定期内。
+ *
+ * @param failure 登录失败记录。
+ * @return 当前仍被锁定时返回 true。
+ */
+function isLoginLocked(failure: { lockedUntil?: string } | undefined): boolean {
+  return failure?.lockedUntil !== undefined && Date.parse(failure.lockedUntil) > Date.now();
+}
+
+/**
+ * 创建登录频率受限时的重定向响应。
+ *
+ * @param loginPath 登录路径。
+ * @param returnTo 登录成功后的返回路径。
+ * @return 重定向响应。
+ */
+function loginRateLimitedRedirect(loginPath: string, returnTo: string): Response {
+  return new Response(null, {
+    headers: {
+      location: `${loginPath}?error=rateLimited&returnTo=${encodeURIComponent(returnTo)}`,
+    },
+    status: 303,
+  });
 }
 
 /**
@@ -510,7 +579,7 @@ function registerErrorMessage(value: string | null): string | undefined {
  * @return 错误代码，校验通过时返回 undefined。
  */
 function validateRegistration(username: string, password: string): string | undefined {
-  if (!/^[a-z0-9_-]{3,40}$/.test(username)) {
+  if (!validUsername(username)) {
     return "username";
   }
 
@@ -519,6 +588,16 @@ function validateRegistration(username: string, password: string): string | unde
   }
 
   return undefined;
+}
+
+/**
+ * 判断用户名是否符合账号规则。
+ *
+ * @param username 用户名。
+ * @return 用户名有效时返回 true。
+ */
+function validUsername(username: string): boolean {
+  return /^[a-z0-9_-]{3,40}$/.test(username);
 }
 
 /**

@@ -25,10 +25,36 @@ import {
 const keys = {
   account: (id: string) => ["accounts", id] as const,
   accountUsername: (username: string) => ["accountUsernames", normalizeUsername(username)] as const,
+  loginFailure: (username: string) => ["loginFailures", normalizeUsername(username)] as const,
   match: (userId: string, id: string) => ["userData", userId, "matches", id] as const,
   session: (tokenHash: string) => ["sessions", tokenHash] as const,
   settings: (userId: string) => ["userData", userId, "settings"] as const,
   state: (userId: string) => ["userData", userId, "state"] as const,
+};
+
+/**
+ * 登录失败计数及锁定状态。
+ */
+type LoginFailure = {
+  failures: number;
+  lockedUntil?: string;
+};
+
+/**
+ * KV 原子操作需要使用的版本检查项。
+ */
+type KvCheck = {
+  key: Deno.KvKey;
+  versionstamp: string | null;
+};
+
+/**
+ * KV 原子写入操作。
+ */
+type KvAtomicOperation = {
+  check(check: KvCheck): KvAtomicOperation;
+  commit(): Promise<{ ok: boolean }>;
+  set(key: Deno.KvKey, value: unknown, options?: { expireIn?: number }): KvAtomicOperation;
 };
 
 /**
@@ -42,7 +68,7 @@ type KvStore = {
   /**
    * 读取指定 KV 键。
    */
-  get<T>(key: Deno.KvKey): Promise<{ value: T | null }>;
+  get<T>(key: Deno.KvKey): Promise<{ value: T | null; versionstamp: string | null }>;
   /**
    * 按前缀列出 KV 条目。
    */
@@ -50,7 +76,13 @@ type KvStore = {
   /**
    * 写入指定 KV 键值。
    */
-  set(key: Deno.KvKey, value: unknown): Promise<unknown>;
+  set(key: Deno.KvKey, value: unknown, options?: { expireIn?: number }): Promise<unknown>;
+  /**
+   * 创建原子读写操作。
+   *
+   * @return 原子读写操作。
+   */
+  atomic(): KvAtomicOperation;
 };
 
 /**
@@ -331,6 +363,71 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
       const store = await kv();
       await store.set(keys.account(account.id), account);
       await store.set(keys.accountUsername(account.username), account.id);
+    },
+
+    /**
+     * 获取指定用户名的登录失败状态。
+     *
+     * @param username 用户名。
+     * @return 登录失败状态，不存在时返回 undefined。
+     */
+    async getLoginFailure(username: string): Promise<LoginFailure | undefined> {
+      const store = await kv();
+      const entry = await store.get<LoginFailure>(keys.loginFailure(username));
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 原子记录一次失败登录，并在达到阈值时锁定账号。
+     *
+     * @param username 用户名。
+     * @param maxFailures 允许的最大连续失败次数。
+     * @param lockoutMs 锁定和失败记录的有效时间（毫秒）。
+     * @return 更新后的登录失败状态。
+     */
+    async recordLoginFailure(
+      username: string,
+      maxFailures: number,
+      lockoutMs: number,
+    ): Promise<LoginFailure> {
+      const store = await kv();
+      const key = keys.loginFailure(username);
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const entry = await store.get<LoginFailure>(key);
+        const previous = entry.value;
+        const now = Date.now();
+        if (previous?.lockedUntil && Date.parse(previous.lockedUntil) > now) {
+          return previous;
+        }
+
+        const failures = (previous?.failures ?? 0) + 1;
+        const next: LoginFailure = { failures };
+        if (failures >= maxFailures) {
+          next.lockedUntil = new Date(now + lockoutMs).toISOString();
+        }
+
+        const result = await store.atomic()
+          .check({ key, versionstamp: entry.versionstamp })
+          .set(key, next, { expireIn: lockoutMs })
+          .commit();
+        if (result.ok) {
+          return next;
+        }
+      }
+
+      throw new Error("Could not record a login failure after concurrent updates.");
+    },
+
+    /**
+     * 清除指定用户名的登录失败记录。
+     *
+     * @param username 用户名。
+     * @return 清除完成后的 Promise。
+     */
+    async clearLoginFailures(username: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.loginFailure(username));
     },
 
     /**

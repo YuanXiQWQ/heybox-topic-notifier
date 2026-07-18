@@ -173,7 +173,8 @@ const defaultSettings: AppSettings = {
  * 测试使用的内存 KV 实现。
  */
 class MemoryKv {
-  #entries = new Map<string, { key: Deno.KvKey; value: unknown }>();
+  #entries = new Map<string, { key: Deno.KvKey; value: unknown; versionstamp: string }>();
+  #version = 0;
   /**
    * get 调用次数。
    */
@@ -197,7 +198,7 @@ class MemoryKv {
     return Promise.resolve({
       key,
       value: entry ? entry.value as T : null,
-      versionstamp: entry ? "1" : null,
+      versionstamp: entry?.versionstamp ?? null,
     });
   }
 
@@ -208,9 +209,53 @@ class MemoryKv {
    * @param value 待写入值。
    * @return KV 提交结果。
    */
-  set(key: Deno.KvKey, value: unknown): Promise<Deno.KvCommitResult> {
-    this.#entries.set(this.#key(key), { key, value });
-    return Promise.resolve({ ok: true, versionstamp: "1" });
+  set(
+    key: Deno.KvKey,
+    value: unknown,
+    _options?: { expireIn?: number },
+  ): Promise<Deno.KvCommitResult> {
+    const versionstamp = this.#nextVersionstamp();
+    this.#entries.set(this.#key(key), { key, value, versionstamp });
+    return Promise.resolve({ ok: true, versionstamp });
+  }
+
+  /**
+   * 创建内存 KV 的原子操作。
+   *
+   * @return 内存 KV 原子操作。
+   */
+  atomic(): MemoryKvAtomicOperation {
+    const checks: { key: Deno.KvKey; versionstamp: string | null }[] = [];
+    const sets: { key: Deno.KvKey; value: unknown }[] = [];
+    const operation: MemoryKvAtomicOperation = {
+      check: (check: { key: Deno.KvKey; versionstamp: string | null }) => {
+        checks.push(check);
+        return operation;
+      },
+      set: (key: Deno.KvKey, value: unknown, _options?: { expireIn?: number }) => {
+        sets.push({ key, value });
+        return operation;
+      },
+      commit: () => {
+        const valid = checks.every((check) => {
+          const entry = this.#entries.get(this.#key(check.key));
+          return (entry?.versionstamp ?? null) === check.versionstamp;
+        });
+        if (!valid) {
+          return Promise.resolve({ ok: false });
+        }
+
+        for (const set of sets) {
+          this.#entries.set(this.#key(set.key), {
+            key: set.key,
+            value: set.value,
+            versionstamp: this.#nextVersionstamp(),
+          });
+        }
+        return Promise.resolve({ ok: true });
+      },
+    };
+    return operation;
   }
 
   /**
@@ -243,7 +288,7 @@ class MemoryKv {
       yield {
         key: entry.key,
         value: entry.value as T,
-        versionstamp: "1",
+        versionstamp: entry.versionstamp,
       };
     }
   }
@@ -256,6 +301,16 @@ class MemoryKv {
    */
   #key(key: Deno.KvKey): string {
     return JSON.stringify(key);
+  }
+
+  /**
+   * 生成下一个内存 KV 版本戳。
+   *
+   * @return 新版本戳。
+   */
+  #nextVersionstamp(): string {
+    this.#version += 1;
+    return String(this.#version);
   }
 
   /**
@@ -279,6 +334,19 @@ class MemoryKv {
     return prefix.every((part, index) => key[index] === part);
   }
 }
+
+/**
+ * 内存 KV 的原子操作。
+ */
+type MemoryKvAtomicOperation = {
+  check(check: { key: Deno.KvKey; versionstamp: string | null }): MemoryKvAtomicOperation;
+  commit(): Promise<{ ok: boolean }>;
+  set(
+    key: Deno.KvKey,
+    value: unknown,
+    options?: { expireIn?: number },
+  ): MemoryKvAtomicOperation;
+};
 
 /**
  * 断言两个值的 JSON 表示相等。

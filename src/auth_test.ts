@@ -79,6 +79,26 @@ Deno.test("auth routes login existing users", async () => {
   assertEquals(session?.username, "alice");
 });
 
+Deno.test("auth routes lock repeated failed login attempts", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+  await register(app, "alice", "correct-password");
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const response = await login(app, "alice", "incorrect-password");
+    assertEquals(response.headers.get("location"), "/login?error=invalid&returnTo=%2F");
+  }
+
+  const lockedResponse = await login(app, "alice", "incorrect-password");
+  const blockedCorrectPasswordResponse = await login(app, "alice", "correct-password");
+
+  assertEquals(lockedResponse.headers.get("location"), "/login?error=rateLimited&returnTo=%2F");
+  assertEquals(
+    blockedCorrectPasswordResponse.headers.get("location"),
+    "/login?error=rateLimited&returnTo=%2F",
+  );
+});
+
 Deno.test("auth middleware accepts a valid session cookie", async () => {
   const app = createTestApp();
   const registerResponse = await register(app, "alice", "correct-password");
@@ -116,6 +136,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
 } {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
+  const loginFailuresByUsername = new Map<string, { failures: number; lockedUntil?: string }>();
   const sessionsByTokenHash = new Map<string, UserSession>();
   const savedSessions: UserSession[] = [];
 
@@ -135,6 +156,25 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     saveAccount: (account: UserAccount) => {
       accountsById.set(account.id, account);
       accountIdsByUsername.set(account.username.trim().toLowerCase(), account.id);
+      return Promise.resolve();
+    },
+    getLoginFailure: (username: string) =>
+      Promise.resolve(loginFailuresByUsername.get(username.trim().toLowerCase())),
+    recordLoginFailure: (username: string, maxFailures: number, lockoutMs: number) => {
+      const key = username.trim().toLowerCase();
+      const previous = loginFailuresByUsername.get(key);
+      const failures = (previous?.failures ?? 0) + 1;
+      const failure = {
+        failures,
+        ...(failures >= maxFailures
+          ? { lockedUntil: new Date(Date.now() + lockoutMs).toISOString() }
+          : {}),
+      };
+      loginFailuresByUsername.set(key, failure);
+      return Promise.resolve(failure);
+    },
+    clearLoginFailures: (username: string) => {
+      loginFailuresByUsername.delete(username.trim().toLowerCase());
       return Promise.resolve();
     },
     getSession: (tokenHash: string) => Promise.resolve(sessionsByTokenHash.get(tokenHash)),
@@ -167,6 +207,23 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
 function register(app: Hono, username: string, password: string): Promise<Response> {
   return Promise.resolve(
     app.request("/register", {
+      body: new URLSearchParams({ password, username }),
+      method: "POST",
+    }),
+  );
+}
+
+/**
+ * 提交登录请求。
+ *
+ * @param app Hono 测试应用。
+ * @param username 用户名。
+ * @param password 密码。
+ * @return 登录响应。
+ */
+function login(app: Hono, username: string, password: string): Promise<Response> {
+  return Promise.resolve(
+    app.request("/login", {
       body: new URLSearchParams({ password, username }),
       method: "POST",
     }),
