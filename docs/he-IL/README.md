@@ -1,3 +1,5 @@
+<div dir="rtl" lang="he-IL" align="right">
+
 # מודיע נושאי Heybox
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
@@ -10,7 +12,7 @@
 
 ---
 
-<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
+&rlm;<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
 הוא יישום Deno קל לניטור פוסטים של נושאי Heybox. הוא קורא באופן תקופתי פוסטים אמיתיים של נושאים
 בהתאם להגדרות של כל חשבון, בודק כותרות, גוף טקסט, תגובות ותשובות מול כללי מילות מפתח, מתעד התאמות
 בתצוגות ממתינות והיסטוריה, ושולח התראות דרך הערוץ שהוגדר.
@@ -33,26 +35,24 @@
 
 ## מחסנית טכנולוגית
 
-- Deno 2 + TypeScript
-- Hono
-- Deno KV
-- Deno.cron + מתזמן טיימר מקומי
-- HTML שמרונדר בצד השרת + JavaScript/CSS רגילים
+- &rlm;Deno 2 + TypeScript
+- &rlm;Hono
+- &rlm;Deno KV
+- &rlm;Deno.cron + מתזמן טיימר מקומי
+- &rlm;HTML שמרונדר בצד השרת + JavaScript/CSS רגילים
 - סקריפט Cloudflare Workers לממסר התראות
 
 ## פיתוח מקומי
 
 הפעל את שרת הפיתוח:
 
-```powershell
-deno task dev
-```
+<pre dir='ltr' align='left'><code class='language-powershell'>deno task dev
+</code></pre>
 
 לאחר מכן פתח:
 
-```text
-http://localhost:8000
-```
+<pre dir='ltr' align='left'><code class='language-text'>http://localhost:8000
+</code></pre>
 
 כדי לעקוף את ברירות המחדל, השתמש ב-`.env.example` כהפניה והגדר את משתני הסביבה המתאימים בסביבת
 הריצה שלך. רשום חשבון בביקור הראשון; משתני הסביבה רק מאתחלים ברירות מחדל עבור חשבונות חדשים או
@@ -66,12 +66,11 @@ http://localhost:8000
 
 ## פקודות
 
-```powershell
-deno task dev
+<pre dir='ltr' align='left'><code class='language-powershell'>deno task dev
 deno task start
 deno task check
 deno task clear-seen
-```
+</code></pre>
 
 `clear-seen` מנקה סמנים של פוסטים שכבר עובדו, כדי שאפשר יהיה לאמת שוב את אותם פוסטים; השתמש בו
 בזהירות בסביבת ייצור.
@@ -86,3 +85,5 @@ Git בשם `dev`. ראה [worker](./worker.md) להגדרת Worker של ממסר
 ## רישיון
 
 פרויקט זה מורשה תחת [GNU Affero General Public License v3.0](../../LICENSE).
+
+</div>

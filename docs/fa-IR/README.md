@@ -1,3 +1,5 @@
+<div dir="rtl" lang="fa-IR" align="right">
+
 # اعلان‌کنندهٔ موضوعات Heybox
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
@@ -10,7 +12,7 @@
 
 ---
 
-<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
+&rlm;<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
 یک برنامهٔ سبک Deno برای پایش پست‌های موضوعی Heybox است. این برنامه به‌صورت دوره‌ای، مطابق تنظیمات
 هر حساب، پست‌های واقعی موضوعات را می‌خواند، عنوان‌ها، متن‌ها، دیدگاه‌ها و پاسخ‌ها را با قواعد کلمات
 کلیدی بررسی می‌کند، تطابق‌ها را در نماهای در انتظار و تاریخچه ثبت می‌کند و اعلان‌ها را از طریق کانال
@@ -37,26 +39,24 @@
 
 ## پشتهٔ فناوری
 
-- Deno 2 + TypeScript
-- Hono
-- Deno KV
-- Deno.cron + زمان‌بند تایمر محلی
-- HTML رندرشده در سمت سرور + JavaScript/CSS ساده
+- &rlm;Deno 2 + TypeScript
+- &rlm;Hono
+- &rlm;Deno KV
+- &rlm;Deno.cron + زمان‌بند تایمر محلی
+- &rlm;HTML رندرشده در سمت سرور + JavaScript/CSS ساده
 - اسکریپت Cloudflare Workers برای رلهٔ اعلان‌ها
 
 ## توسعهٔ محلی
 
 سرور توسعه را شروع کنید:
 
-```powershell
-deno task dev
-```
+<pre dir='ltr' align='left'><code class='language-powershell'>deno task dev
+</code></pre>
 
 سپس باز کنید:
 
-```text
-http://localhost:8000
-```
+<pre dir='ltr' align='left'><code class='language-text'>http://localhost:8000
+</code></pre>
 
 برای بازنویسی مقدارهای پیش‌فرض، از `.env.example` به‌عنوان مرجع استفاده کنید و متغیرهای محیطی متناظر
 را در محیط اجرای خود تنظیم کنید. در نخستین بازدید یک حساب ثبت کنید؛ متغیرهای محیطی فقط مقدارهای
@@ -72,12 +72,11 @@ http://localhost:8000
 
 ## فرمان‌ها
 
-```powershell
-deno task dev
+<pre dir='ltr' align='left'><code class='language-powershell'>deno task dev
 deno task start
 deno task check
 deno task clear-seen
-```
+</code></pre>
 
 `clear-seen` نشانگرهای پست‌های پردازش‌شده را پاک می‌کند تا همان پست‌ها دوباره قابل بررسی باشند؛ در
 محیط تولید با احتیاط از آن استفاده کنید.
@@ -93,3 +92,5 @@ deno task clear-seen
 ## مجوز
 
 این پروژه تحت [GNU Affero General Public License v3.0](../../LICENSE) مجوزدهی شده است.
+
+</div>

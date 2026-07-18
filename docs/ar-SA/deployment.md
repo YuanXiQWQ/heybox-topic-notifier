@@ -1,3 +1,5 @@
+<div dir="rtl" lang="ar-SA" align="right">
+
 # تعليمات النشر
 
 يستخدم هذا المشروع تكامل GitHub في Deno Deploy للنشر، ولا يستخدم GitHub Actions لنشر التطبيق. يقتصر دور GitHub Actions على تشغيل
@@ -7,15 +9,14 @@
 
 ينشئ Deno Deploy خطوطًا زمنية مختلفة لنفس App:
 
-- `main`: نشر الإصدار الرسمي، ويُوجَّه إلى Production URL
-- `dev`: نشر اختبار ما قبل الإصدار، ويُوجَّه إلى Git Branch / DEV URL
+- &rlm;`main`: نشر الإصدار الرسمي، ويُوجَّه إلى Production URL
+- &rlm;`dev`: نشر اختبار ما قبل الإصدار، ويُوجَّه إلى Git Branch / DEV URL
 
 عندما يكون اسم App الحالي هو `heybox-topic-notifier`، تكون صيغة URL المتفق عليها تقريبًا:
 
-```text
-https://heybox-topic-notifier.yuanxiqwq.deno.net
+<pre dir='ltr' align='left'><code class='language-text'>https://heybox-topic-notifier.yuanxiqwq.deno.net
 https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
-```
+</code></pre>
 
 تم إنشاء نشر الاختبار الحالي لـ `dev` بالفعل، ونقطة الدخول المستقرة للاختبار هي Git Branch / DEV URL. ستؤدي عمليات push اللاحقة إلى `dev`
 إلى تحديث نشر الاختبار، بينما ستؤدي عمليات push إلى `main` إلى تحديث Production.
@@ -29,10 +30,10 @@ https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
 
 حافظ على الإعدادات التالية في Deno Deploy App:
 
-- Repository: `YuanXiQWQ/heybox-topic-notifier`
-- App Directory: root directory
-- Entrypoint: `./src/deploy.ts`
-- Config Source: `deno.json deploy section`
+- &rlm;Repository: `YuanXiQWQ/heybox-topic-notifier`
+- &rlm;App Directory: root directory
+- &rlm;Entrypoint: `./src/deploy.ts`
+- &rlm;Config Source: `deno.json deploy section`
 
 إعداد `deploy` داخل `deno.json` هو المصدر الوحيد لإعدادات المستودع الخاصة بمدخل النشر.
 
@@ -85,19 +86,19 @@ hash ووقت الانتهاء.
 
 مثال إعدادات جهة Deno Deploy:
 
-```env
-NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
-NOTIFIER_WXPUSHER_SEND_URL=https://<your-worker>.workers.dev/wxpusher
-NOTIFIER_SERVER_CHAN_SEND_URL=https://<your-worker>.workers.dev/serverchan
-NOTIFIER_RELAY_TOKEN=<same-random-secret>
-```
+<pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
+NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
+NOTIFIER_SERVER_CHAN_SEND_URL=https://&lt;your-worker&gt;.workers.dev/serverchan
+NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
+</code></pre>
 
 ## التحقق
 
 بعد اكتمال النشر، افتح:
 
-```text
-/healthz
-```
+<pre dir='ltr' align='left'><code class='language-text'>/healthz
+</code></pre>
 
 إذا أعاد `status: ok` فهذا يعني أن عملية الخدمة قد بدأت، وأن فحص الصحة لا يقرأ Deno KV.
+
+</div>

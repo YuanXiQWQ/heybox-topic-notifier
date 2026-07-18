@@ -1,3 +1,5 @@
+<div dir="rtl" lang="he-IL" align="right">
+
 # הוראות פריסה
 
 הפרויקט הזה נפרס באמצעות שילוב GitHub של Deno Deploy, ואינו משתמש ב-GitHub Actions לפריסת היישום. GitHub Actions אחראי רק להרצת
@@ -7,15 +9,14 @@
 
 Deno Deploy יוצר timelines שונים עבור אותה App:
 
-- `main`: פריסת גרסה רשמית, מנותבת אל Production URL
-- `dev`: פריסת בדיקה לפני פרסום, מנותבת אל Git Branch / DEV URL
+- &rlm;`main`: פריסת גרסה רשמית, מנותבת אל Production URL
+- &rlm;`dev`: פריסת בדיקה לפני פרסום, מנותבת אל Git Branch / DEV URL
 
 כאשר שם ה-App הנוכחי הוא `heybox-topic-notifier`, מוסכמת ה-URL היא בערך:
 
-```text
-https://heybox-topic-notifier.yuanxiqwq.deno.net
+<pre dir='ltr' align='left'><code class='language-text'>https://heybox-topic-notifier.yuanxiqwq.deno.net
 https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
-```
+</code></pre>
 
 פריסת הבדיקה הנוכחית של `dev` כבר נוצרה, ונקודת הכניסה היציבה לבדיקה היא Git Branch / DEV URL. push עתידי אל `dev`
 יפעיל עדכון של פריסת הבדיקה, ו-push אל `main` יפעיל עדכון Production.
@@ -30,10 +31,10 @@ https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
 
 שמרו על ההגדרות הבאות ב-Deno Deploy App:
 
-- Repository: `YuanXiQWQ/heybox-topic-notifier`
-- App Directory: root directory
-- Entrypoint: `./src/deploy.ts`
-- Config Source: `deno.json deploy section`
+- &rlm;Repository: `YuanXiQWQ/heybox-topic-notifier`
+- &rlm;App Directory: root directory
+- &rlm;Entrypoint: `./src/deploy.ts`
+- &rlm;Config Source: `deno.json deploy section`
 
 הגדרת deploy בתוך `deno.json` היא מקור הגדרות המאגר היחיד עבור נקודת הכניסה לפריסה.
 
@@ -57,7 +58,7 @@ ID, ו-Deno Deploy גם מפריד נתוני Production ו-Git Branch לפי ti
 - התראות דוא"ל: `NOTIFIER_EMAIL_SERVICE`, `NOTIFIER_EMAIL_ADDRESS`, `NOTIFIER_EMAIL_FROM`,
   `NOTIFIER_EMAIL_API_URL`, `NOTIFIER_EMAIL_API_TOKEN`, `NOTIFIER_SMTP_HOST`,
   `NOTIFIER_SMTP_PORT`, `NOTIFIER_SMTP_SECURE`, `NOTIFIER_SMTP_USERNAME`, `NOTIFIER_SMTP_PASSWORD`
-- Relay להתראות: `NOTIFIER_PUSHPLUS_SEND_URL`, `NOTIFIER_WXPUSHER_SEND_URL`,
+- &rlm;Relay להתראות: `NOTIFIER_PUSHPLUS_SEND_URL`, `NOTIFIER_WXPUSHER_SEND_URL`,
   `NOTIFIER_SERVER_CHAN_SEND_URL`, `NOTIFIER_RELAY_TOKEN`
 - רשימת הרשאה יוצאת לאבטחה: `OUTBOUND_ALLOWED_HOSTS`
 
@@ -86,19 +87,19 @@ Deno KV ומבודדים לפי user ID. ה-Browser Cookie שומר רק session
 
 דוגמת הגדרה בצד Deno Deploy:
 
-```env
-NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
-NOTIFIER_WXPUSHER_SEND_URL=https://<your-worker>.workers.dev/wxpusher
-NOTIFIER_SERVER_CHAN_SEND_URL=https://<your-worker>.workers.dev/serverchan
-NOTIFIER_RELAY_TOKEN=<same-random-secret>
-```
+<pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
+NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
+NOTIFIER_SERVER_CHAN_SEND_URL=https://&lt;your-worker&gt;.workers.dev/serverchan
+NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
+</code></pre>
 
 ## אימות
 
 לאחר השלמת הפריסה, בקרו ב:
 
-```text
-/healthz
-```
+<pre dir='ltr' align='left'><code class='language-text'>/healthz
+</code></pre>
 
 החזרת `status: ok` פירושה שתהליך השירות התחיל, ובדיקת הבריאות אינה קוראת את Deno KV.
+
+</div>

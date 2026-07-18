@@ -1,11 +1,13 @@
+<div dir="rtl" lang="he-IL" align="right">
+
 # Worker לתיווך התראות
 
 `notification-relay.js` הוא relay קל לשימוש עם Cloudflare Workers, והוא מספק רק:
 
-- `POST /pushplus` -> `https://www.pushplus.plus/send`
-- `POST /wxpusher` -> `https://wxpusher.zjiecode.com/api/send/message/simple-push`
-- `POST /serverchan` -> הממשק הרשמי של Server酱
-- `GET /healthz` בדיקת בריאות
+- &rlm;`POST /pushplus` -> `https://www.pushplus.plus/send`
+- &rlm;`POST /wxpusher` -> `https://wxpusher.zjiecode.com/api/send/message/simple-push`
+- &rlm;`POST /serverchan` -> הממשק הרשמי של Server酱
+- &rlm;`GET /healthz` בדיקת בריאות
 
 הוא אינו מקבל URL יעד שרירותי, ולכן אי אפשר להשתמש בו כ-open proxy. נקודת הכניסה של Server酱 מקבלת רק
 SendKey בטוח, ובונה את הכתובת הרשמית לפי הכללים הקיימים של הפרויקט.
@@ -18,51 +20,47 @@ SendKey בטוח, ובונה את הכתובת הרשמית לפי הכללים 
 4. לאחר הפריסה, בקרו ב-`https://<your-worker>.workers.dev/healthz` ואשרו שמוחזר `{"status":"ok"}`.
 5. הגדירו את Deno Deploy:
 
-```env
-NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
-NOTIFIER_WXPUSHER_SEND_URL=https://<your-worker>.workers.dev/wxpusher
-NOTIFIER_SERVER_CHAN_SEND_URL=https://<your-worker>.workers.dev/serverchan
-NOTIFIER_RELAY_TOKEN=<same-random-secret>
-```
+<pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
+NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
+NOTIFIER_SERVER_CHAN_SEND_URL=https://&lt;your-worker&gt;.workers.dev/serverchan
+NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
+</code></pre>
 
 צד הפרויקט ישלח את הדבר הבא רק כאשר כתובת השליחה של PushPlus, WxPusher או Server酱 שונתה לכתובת ה-relay:
 
-```http
-Authorization: Bearer <NOTIFIER_RELAY_TOKEN>
-```
+<pre dir='ltr' align='left'><code class='language-http'>Authorization: Bearer &lt;NOTIFIER_RELAY_TOKEN&gt;
+</code></pre>
 
 ה-relay של Server酱 גם מעביר את ה-SendKey דרך כותרת בקשה ייעודית:
 
-```http
-X-ServerChan-Send-Key: <serverchan-send-key>
-```
+<pre dir='ltr' align='left'><code class='language-http'>X-ServerChan-Send-Key: &lt;serverchan-send-key&gt;
+</code></pre>
 
 ## בדיקת קונסול
 
 אפשר לבדוק קודם בקונסולת ה-Worker או עם curl מקומי אם האימות פועל:
 
-```bash
-curl -i "https://<your-worker>.workers.dev/pushplus" \
-  -H "Authorization: Bearer <same-random-secret>" \
+<pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/pushplus" \
+  -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "Content-Type: application/json" \
-  --data '{"token":"<pushplus-token>","title":"relay test","content":"hello","template":"markdown"}'
-```
+  --data '{"token":"&lt;pushplus-token&gt;","title":"relay test","content":"hello","template":"markdown"}'
+</code></pre>
 
 בדיקת WxPusher:
 
-```bash
-curl -i "https://<your-worker>.workers.dev/wxpusher" \
-  -H "Authorization: Bearer <same-random-secret>" \
+<pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/wxpusher" \
+  -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "Content-Type: application/json" \
-  --data '{"spt":"<wxpusher-spt>","summary":"relay test","content":"hello","contentType":1}'
-```
+  --data '{"spt":"&lt;wxpusher-spt&gt;","summary":"relay test","content":"hello","contentType":1}'
+</code></pre>
 
 בדיקת Server酱:
 
-```bash
-curl -i "https://<your-worker>.workers.dev/serverchan" \
-  -H "Authorization: Bearer <same-random-secret>" \
-  -H "X-ServerChan-Send-Key: <serverchan-send-key>" \
+<pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/serverchan" \
+  -H "Authorization: Bearer &lt;same-random-secret&gt;" \
+  -H "X-ServerChan-Send-Key: &lt;serverchan-send-key&gt;" \
   -H "Content-Type: application/json" \
   --data '{"title":"relay test","desp":"hello"}'
-```
+</code></pre>
+
+</div>
