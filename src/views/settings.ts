@@ -1,15 +1,43 @@
+/**
+ * @file 本文件负责渲染设置页面及其通知、轮询、话题和关键词配置区域。
+ */
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
-import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "../models.ts";
+import type { AppSettings, KeywordRule, MatchLocation, TopicRule, UserAccount } from "../models.ts";
 import {
   notificationEmailServices,
   notificationWebhookServices,
 } from "../notification_services.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 
+/**
+ * 设置页可配置的关键词匹配位置列表。
+ */
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 
+export type AccountStatus = {
+  code:
+    | "notFound"
+    | "password"
+    | "samePassword"
+    | "confirmPassword"
+    | "currentPassword"
+    | "updated"
+    | "username"
+    | "exists";
+  mode?: "password" | "username";
+  type: "error" | "success";
+};
+
+/**
+ * 渲染设置页面。
+ *
+ * @param options 设置页渲染选项。
+ * @return 完整设置页面 HTML。
+ */
 export function renderSettings(options: {
+  account?: Pick<UserAccount, "username">;
+  accountStatus?: AccountStatus;
   settings: AppSettings;
 }): string {
   const messages = getMessages(options.settings.locale);
@@ -20,6 +48,7 @@ export function renderSettings(options: {
         <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
+    ${renderAccountSection(options.settings, options.account, options.accountStatus)}
     <form
       method="post"
       action="/settings"
@@ -84,7 +113,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
-    <script src="/static/settings.js?v=20260712-email-service" defer></script>
+    <script src="/static/settings.js?v=20260718-account-settings" defer></script>
   `;
 
   return renderLayout({
@@ -94,6 +123,250 @@ export function renderSettings(options: {
     themeColor: options.settings.themeColor,
     title: messages.appName,
   });
+}
+
+/**
+ * 渲染通知设置区域。
+ *
+ * @param settings 应用设置。
+ * @param account 当前登录账户，未登录时为 undefined。
+ * @param status 账户操作后的状态信息，未发生操作时为 undefined。
+ * @return 通知设置区域 HTML。
+ */
+function renderAccountSection(
+  settings: AppSettings,
+  account: Pick<UserAccount, "username"> | undefined,
+  status: AccountStatus | undefined,
+): string {
+  const messages = getMessages(settings.locale);
+  const actionStatusMessage = status && accountStatusField(status) === "action"
+    ? accountStatusMessage(status, messages)
+    : undefined;
+  const statusState = status?.type === "error" && accountStatusField(status) === "action"
+    ? 'data-state="error"'
+    : "";
+  const escapedUsername = escapeHtml(account?.username ?? "");
+  const initialMode = accountInitialMode(status);
+  const accountActionsHidden = initialMode ? "" : "hidden";
+  const currentPasswordHidden = initialMode ? "" : "hidden";
+  const currentPasswordCollapsed = initialMode ? "" : "is-collapsed";
+  const passwordFieldsHidden = initialMode === "password" ? "" : "hidden";
+  const passwordFieldsCollapsed = initialMode === "password" ? "" : "is-collapsed";
+
+  return `
+    <form
+      method="post"
+      action="/account"
+      data-account-form
+      data-account-initial-mode="${initialMode ?? ""}"
+      data-account-password-invalid="${escapeHtml(messages.accountPasswordCurrentInvalid)}"
+      data-account-password-required="${escapeHtml(messages.accountPasswordVerificationRequired)}"
+      data-account-password-verified="${escapeHtml(messages.accountPasswordVerified)}"
+    >
+      <section class="settings-group" aria-labelledby="account-settings-heading">
+        <h2 id="account-settings-heading">${escapeHtml(messages.accountSettings)}</h2>
+        <dl class="settings-list">
+          <div>
+            <dt>${escapeHtml(messages.accountUsername)}</dt>
+            <dd>
+              <input type="hidden" name="accountAction" value="" data-account-action-input>
+              <div class="account-username-row">
+                <input
+                  name="username"
+                  value="${escapedUsername}"
+                  autocomplete="username"
+                  data-account-username-input
+                  data-account-username-original="${escapedUsername}"
+                  readonly
+                  required
+                >
+                <div class="account-mode-buttons" data-account-mode-buttons>
+                  <button type="button" class="secondary" data-account-mode="username">
+                    ${escapeHtml(messages.accountEditUsername)}
+                  </button>
+                  <button type="button" class="secondary" data-account-mode="password">
+                    ${escapeHtml(messages.accountEditPassword)}
+                  </button>
+                </div>
+                ${accountFieldStatusHtml("username", status, messages)}
+              </div>
+            </dd>
+          </div>
+          <div
+            class="account-option-row ${currentPasswordCollapsed}"
+            data-account-current-password-row
+            ${currentPasswordHidden}
+          >
+            <dt>${escapeHtml(messages.accountCurrentPassword)}</dt>
+            <dd>
+              <div class="input-action-row account-password-check-row">
+                <input
+                  type="password"
+                  name="currentPassword"
+                  autocomplete="current-password"
+                  data-account-current-password-input
+                >
+                <button type="button" data-account-verify-button>
+                  ${escapeHtml(messages.accountVerifyPassword)}
+                </button>
+                ${accountFieldStatusHtml("currentPassword", status, messages)}
+              </div>
+            </dd>
+          </div>
+          <div
+            class="account-option-row ${passwordFieldsCollapsed}"
+            data-account-new-password-row
+            ${passwordFieldsHidden}
+          >
+            <dt>${escapeHtml(messages.accountNewPassword)}</dt>
+            <dd>
+              <div class="account-single-input-row">
+                <input
+                  type="password"
+                  name="newPassword"
+                  autocomplete="new-password"
+                  data-account-unlocked-field
+                  disabled
+                >
+                ${accountFieldStatusHtml("newPassword", status, messages)}
+              </div>
+            </dd>
+          </div>
+          <div
+            class="account-option-row ${passwordFieldsCollapsed}"
+            data-account-new-password-row
+            ${passwordFieldsHidden}
+          >
+            <dt>${escapeHtml(messages.accountConfirmPassword)}</dt>
+            <dd>
+              <div class="account-single-input-row">
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  autocomplete="new-password"
+                  data-account-unlocked-field
+                  disabled
+                >
+                ${accountFieldStatusHtml("confirmPassword", status, messages)}
+              </div>
+            </dd>
+          </div>
+        </dl>
+        <div class="form-actions account-form-actions">
+          <div class="account-edit-actions" data-account-actions ${accountActionsHidden}>
+            <button type="submit" data-account-save-button disabled>
+              ${escapeHtml(messages.accountSave)}
+            </button>
+            <button type="button" class="secondary" data-account-cancel-button>
+              ${escapeHtml(messages.accountCancel)}
+            </button>
+          </div>
+          <span
+            class="inline-action-status"
+            data-account-status
+            ${statusState}
+            ${actionStatusMessage ? "" : "hidden"}
+            role="status"
+          >${escapeHtml(actionStatusMessage ?? "")}</span>
+        </div>
+      </section>
+    </form>
+  `;
+}
+
+type AccountStatusField =
+  | "action"
+  | "confirmPassword"
+  | "currentPassword"
+  | "newPassword"
+  | "username";
+
+function accountFieldStatusHtml(
+  field: AccountStatusField,
+  status: AccountStatus | undefined,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const statusField = status ? accountStatusField(status) : undefined;
+  const statusMessage = status && statusField === field
+    ? accountStatusMessage(status, messages)
+    : undefined;
+  const fieldAttribute = field === "currentPassword"
+    ? "data-account-current-password-status"
+    : field === "newPassword"
+    ? "data-account-new-password-status"
+    : field === "confirmPassword"
+    ? "data-account-confirm-password-status"
+    : field === "username"
+    ? "data-account-username-status"
+    : "";
+
+  return `<span
+    class="inline-action-status account-field-status"
+    ${fieldAttribute}
+    ${status?.type === "error" && statusField === field ? 'data-state="error"' : ""}
+    ${statusMessage ? "" : "hidden"}
+    role="status"
+  >${escapeHtml(statusMessage ?? "")}</span>`;
+}
+
+function accountStatusField(status: AccountStatus): AccountStatusField {
+  switch (status.code) {
+    case "confirmPassword":
+      return "confirmPassword";
+    case "currentPassword":
+      return "currentPassword";
+    case "exists":
+    case "username":
+      return "username";
+    case "password":
+    case "samePassword":
+      return "newPassword";
+    case "notFound":
+    case "updated":
+      return "action";
+  }
+}
+
+function accountInitialMode(
+  status: AccountStatus | undefined,
+): "password" | "username" | undefined {
+  if (!status || status.type !== "error") {
+    return undefined;
+  }
+
+  if (status.mode) {
+    return status.mode;
+  }
+
+  const field = accountStatusField(status);
+  if (field === "username") {
+    return "username";
+  }
+  if (field === "confirmPassword" || field === "newPassword") {
+    return "password";
+  }
+  return undefined;
+}
+
+function accountStatusMessage(status: AccountStatus, messages: ReturnType<typeof getMessages>) {
+  switch (status.code) {
+    case "currentPassword":
+      return messages.accountPasswordCurrentInvalid;
+    case "exists":
+      return messages.accountUsernameExists;
+    case "confirmPassword":
+      return messages.accountPasswordConfirmationMismatch;
+    case "notFound":
+      return messages.accountNotFound;
+    case "password":
+      return messages.accountPasswordMinLength;
+    case "samePassword":
+      return messages.accountPasswordUnchanged;
+    case "updated":
+      return messages.accountUpdated;
+    case "username":
+      return messages.accountUsernameInvalid;
+  }
 }
 
 function renderNotificationSection(settings: AppSettings): string {
@@ -117,9 +390,28 @@ function renderNotificationSection(settings: AppSettings): string {
                 <button
                   type="button"
                   data-test-notify-button
+                  data-test-notify-sending="${escapeHtml(messages.testNotifySending)}"
+                  data-test-notify-failed="${escapeHtml(messages.testNotifyFailed)}"
                   ${settings.notificationProvider === "disabled" ? "hidden" : ""}
                 >${escapeHtml(messages.testNotify)}</button>
-                <span class="inline-action-status" data-test-notify-status role="status"></span>
+                <span class="inline-action-status" data-test-notify-status role="status">
+                  <span data-test-notify-status-text></span>
+                  <a
+                    class="inline-action-link"
+                    data-test-notify-error-link
+                    data-error-app-name="${escapeHtml(messages.appName)}"
+                    data-error-dark-mode="${settings.darkMode ? "true" : "false"}"
+                    data-error-locale="${escapeHtml(settings.locale)}"
+                    data-error-nav-dashboard="${escapeHtml(messages.navDashboard)}"
+                    data-error-nav-history="${escapeHtml(messages.navHistory)}"
+                    data-error-nav-settings="${escapeHtml(messages.navSettings)}"
+                    data-error-return-label="${escapeHtml(messages.testNotifyBackToSettings)}"
+                    data-error-summary="${escapeHtml(messages.testNotifyFailed)}"
+                    data-error-theme-color="${escapeHtml(settings.themeColor)}"
+                    data-error-title="${escapeHtml(messages.testNotifyErrorTitle)}"
+                    hidden
+                  >${externalLinkIcon()}${escapeHtml(messages.testNotifyViewError)}</a>
+                </span>
               </div>
             </dd>
           </div>
@@ -400,6 +692,12 @@ function renderNotificationSection(settings: AppSettings): string {
   `;
 }
 
+/**
+ * 渲染轮询设置区域。
+ *
+ * @param settings 应用设置。
+ * @return 轮询设置区域 HTML。
+ */
 function renderPollingSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
 
@@ -428,23 +726,30 @@ function renderPollingSection(settings: AppSettings): string {
           <div class="polling-option-row" data-polling-field="interval">
             <dt>${escapeHtml(messages.pollInterval)}</dt>
             <dd>
-              <div class="poll-interval-control">
-                <input
-                  type="number"
-                  name="pollIntervalValue"
-                  min="1"
-                  step="1"
-                  value="${settings.polling.intervalValue}"
-                  data-polling-interval-value
-                >
-                <select name="pollIntervalUnit" data-polling-interval-unit>
-                  ${option("second", settings.polling.intervalUnit, messages.pollIntervalSecond)}
-                  ${option("minute", settings.polling.intervalUnit, messages.pollIntervalMinute)}
-                  ${option("hour", settings.polling.intervalUnit, messages.pollIntervalHour)}
-                  ${option("day", settings.polling.intervalUnit, messages.pollIntervalDay)}
-                  ${option("week", settings.polling.intervalUnit, messages.pollIntervalWeek)}
-                  ${option("month", settings.polling.intervalUnit, messages.pollIntervalMonth)}
-                </select>
+              <div class="poll-interval-row">
+                <div class="poll-interval-control">
+                  <input
+                    type="number"
+                    name="pollIntervalValue"
+                    min="1"
+                    step="1"
+                    value="${settings.polling.intervalValue}"
+                    data-polling-interval-value
+                  >
+                  <select name="pollIntervalUnit" data-polling-interval-unit>
+                    ${option("second", settings.polling.intervalUnit, messages.pollIntervalSecond)}
+                    ${option("minute", settings.polling.intervalUnit, messages.pollIntervalMinute)}
+                    ${option("hour", settings.polling.intervalUnit, messages.pollIntervalHour)}
+                    ${option("day", settings.polling.intervalUnit, messages.pollIntervalDay)}
+                    ${option("week", settings.polling.intervalUnit, messages.pollIntervalWeek)}
+                    ${option("month", settings.polling.intervalUnit, messages.pollIntervalMonth)}
+                  </select>
+                </div>
+                <p
+                  class="field-hint"
+                  data-polling-sub-minute-hint
+                  ${isSubMinutePolling(settings) ? "" : "hidden"}
+                >${escapeHtml(messages.pollIntervalSubMinuteHint)}</p>
               </div>
             </dd>
           </div>
@@ -475,6 +780,22 @@ function renderPollingSection(settings: AppSettings): string {
   `;
 }
 
+/**
+ * 判断是否配置了低于一分钟的轮询间隔。
+ *
+ * @param settings 应用设置。
+ * @return 低于一分钟时返回 true。
+ */
+function isSubMinutePolling(settings: AppSettings): boolean {
+  return settings.polling.intervalUnit === "second" && settings.polling.intervalValue < 60;
+}
+
+/**
+ * 渲染话题设置区域。
+ *
+ * @param settings 应用设置。
+ * @return 话题设置区域 HTML。
+ */
 function renderTopicSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
   const activeTopic = findActiveTopic(settings);
@@ -531,6 +852,12 @@ function renderTopicSection(settings: AppSettings): string {
   `;
 }
 
+/**
+ * 渲染关键词设置区域。
+ *
+ * @param settings 应用设置。
+ * @return 关键词设置区域 HTML。
+ */
 function renderKeywordSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
   const rows = activeKeywordRules(settings);
@@ -576,6 +903,12 @@ function renderKeywordSection(settings: AppSettings): string {
   `;
 }
 
+/**
+ * 渲染话题规则表头。
+ *
+ * @param messages 当前语言文案。
+ * @return 话题规则表头 HTML。
+ */
 function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string {
   return `
     <div class="topic-rule-row topic-rule-head" role="row">
@@ -618,6 +951,14 @@ function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string
   `;
 }
 
+/**
+ * 渲染单条话题规则行。
+ *
+ * @param topic 话题规则。
+ * @param index 话题行索引。
+ * @param messages 当前语言文案。
+ * @return 话题规则行 HTML。
+ */
 function renderTopicRuleRow(
   topic: TopicRule,
   index: number | "__index__",
@@ -679,6 +1020,12 @@ function renderTopicRuleRow(
   `;
 }
 
+/**
+ * 渲染关键词规则表头。
+ *
+ * @param messages 当前语言文案。
+ * @return 关键词规则表头 HTML。
+ */
 function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): string {
   return `
     <div class="keyword-rule-row keyword-rule-head" role="row">
@@ -712,6 +1059,13 @@ function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): stri
   `;
 }
 
+/**
+ * 渲染关键词匹配位置表头。
+ *
+ * @param label 位置展示文案。
+ * @param location 匹配位置。
+ * @return 匹配位置表头 HTML。
+ */
 function renderKeywordLocationHeader(label: string, location: MatchLocation): string {
   return `
       <label class="checkbox-cell location-bulk-cell" role="columnheader">
@@ -721,6 +1075,14 @@ function renderKeywordLocationHeader(label: string, location: MatchLocation): st
   `;
 }
 
+/**
+ * 渲染单条关键词规则行。
+ *
+ * @param rule 关键词规则。
+ * @param index 关键词行索引。
+ * @param messages 当前语言文案。
+ * @return 关键词规则行 HTML。
+ */
 function renderKeywordRuleRow(
   rule: {
     caseSensitive?: boolean;
@@ -805,15 +1167,34 @@ function renderKeywordRuleRow(
   `;
 }
 
+/**
+ * 查找当前正在编辑关键词的话题。
+ *
+ * @param settings 应用设置。
+ * @return 活动话题，不存在时返回 undefined。
+ */
 function findActiveTopic(settings: AppSettings): TopicRule | undefined {
   return settings.topics.find((topic) => topic.id === settings.activeKeywordTarget);
 }
 
+/**
+ * 获取当前活动目标的关键词规则。
+ *
+ * @param settings 应用设置。
+ * @return 当前活动关键词规则列表。
+ */
 function activeKeywordRules(settings: AppSettings): KeywordRule[] {
   const activeTopic = findActiveTopic(settings);
   return activeTopic?.keywordRules ?? settings.commonKeywordRules;
 }
 
+/**
+ * 生成话题设置摘要。
+ *
+ * @param settings 应用设置。
+ * @param activeTopic 当前活动话题。
+ * @return 话题摘要文本。
+ */
 function topicSummary(settings: AppSettings, activeTopic: TopicRule | undefined): string {
   const messages = getMessages(settings.locale);
 
@@ -828,6 +1209,12 @@ function topicSummary(settings: AppSettings, activeTopic: TopicRule | undefined)
   return activeTopic.note || activeTopic.id || messages.commonTopic;
 }
 
+/**
+ * 渲染关键词摘要。
+ *
+ * @param keywords 关键词列表。
+ * @return 关键词摘要 HTML。
+ */
 function renderKeywordSummary(keywords: string[]): string {
   const visibleKeywords = keywords.slice(0, 5);
   const suffix = keywords.length > visibleKeywords.length ? "..." : "";
@@ -843,12 +1230,25 @@ function renderKeywordSummary(keywords: string[]): string {
   }${suffix}`;
 }
 
+/**
+ * 渲染 select 选项。
+ *
+ * @param value 选项值。
+ * @param current 当前选中值。
+ * @param label 选项文案。
+ * @return option HTML。
+ */
 function option(value: string, current: string, label: string): string {
   return `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${
     escapeHtml(label)
   }</option>`;
 }
 
+/**
+ * 渲染删除图标。
+ *
+ * @return 删除图标 SVG。
+ */
 function trashIcon(): string {
   return `<svg aria-hidden="true" viewBox="0 0 24 24">
     <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z"></path>
@@ -856,6 +1256,11 @@ function trashIcon(): string {
   </svg>`;
 }
 
+/**
+ * 渲染外链图标。
+ *
+ * @return 外链图标 SVG。
+ */
 function externalLinkIcon(): string {
   return `<svg aria-hidden="true" viewBox="0 0 24 24">
     <path d="M14 4h6v6h-2V7.4l-7.3 7.3-1.4-1.4L16.6 6H14V4Z"></path>

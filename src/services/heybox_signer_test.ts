@@ -1,3 +1,6 @@
+/**
+ * @file 本文件验证小黑盒签名算法的固定样例输出。
+ */
 import { buildAppHkey, buildHkey, createHeyboxSignatureParams } from "./heybox_signer.ts";
 
 Deno.test("buildHkey matches captured Heybox topic feed request", () => {
@@ -56,6 +59,13 @@ Deno.test("createHeyboxSignatureParams can emit app-style nonce", () => {
   );
 });
 
+/**
+ * 断言两个值严格相等。
+ *
+ * @param actual 实际值。
+ * @param expected 期望值。
+ * @return 断言通过时无返回值。
+ */
 function assertEquals(actual: unknown, expected: unknown): void {
   if (actual !== expected) {
     throw new Error(`Expected ${expected}, got ${actual}`);

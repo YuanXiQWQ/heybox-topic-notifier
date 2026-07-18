@@ -1,6 +1,12 @@
+/**
+ * @file 本文件验证关键词匹配器的文本、位置、大小写和正则匹配逻辑。
+ */
 import { createMatcher } from "./matcher.ts";
 import type { AppSettings, TopicPost } from "../models.ts";
 
+/**
+ * 匹配器测试使用的应用设置。
+ */
 const settings: AppSettings = {
   activeKeywordTarget: "common",
   commonKeywordRules: [
@@ -49,6 +55,9 @@ const settings: AppSettings = {
   ],
 };
 
+/**
+ * 匹配器测试使用的基础帖子。
+ */
 const basePost: TopicPost = {
   body: "这里是帖子正文。",
   commentReplies: ["这里是评论回复。"],

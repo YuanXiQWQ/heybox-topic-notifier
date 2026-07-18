@@ -1,8 +1,53 @@
+/**
+ * @file 本文件定义多语言模块共享的类型。
+ */
+/**
+ * 应用支持的语言标识。
+ */
 export type Locale = "zh-CN" | "en";
 
+/**
+ * 应用所有可翻译文案字段的结构。
+ */
 export type Messages = {
   appDescription: string;
   appName: string;
+  accountConfirmPassword: string;
+  accountCurrentPassword: string;
+  accountCancel: string;
+  accountEditPassword: string;
+  accountEditUsername: string;
+  accountNewPassword: string;
+  accountNotFound: string;
+  accountPasswordConfirmationMismatch: string;
+  accountPasswordCurrentInvalid: string;
+  accountPasswordMinLength: string;
+  accountPasswordUnchanged: string;
+  accountPasswordVerified: string;
+  accountPasswordVerificationRequired: string;
+  accountSave: string;
+  accountSettings: string;
+  accountUpdated: string;
+  accountUsername: string;
+  accountUsernameExists: string;
+  accountUsernameInvalid: string;
+  accountVerifyPassword: string;
+  authConfirmPassword: string;
+  authCreateAccount: string;
+  authExistingAccountLogin: string;
+  authInvalidCredentials: string;
+  authLanguage: string;
+  authLanguageButton: string;
+  authLogin: string;
+  authLoginRateLimited: string;
+  authNavigation: string;
+  authPassword: string;
+  authPasswordConfirmationMismatch: string;
+  authPasswordMinLength: string;
+  authRegister: string;
+  authUsername: string;
+  authUsernameExists: string;
+  authUsernameInvalid: string;
   allRows: string;
   autoSaveError: string;
   autoSaveSaved: string;
@@ -41,6 +86,7 @@ export type Messages = {
   matchedKeyword: string;
   navDashboard: string;
   navHistory: string;
+  navLogout: string;
   navSettings: string;
   nextPoll: string;
   notificationDisabled: string;
@@ -86,6 +132,7 @@ export type Messages = {
   pollIntervalMinute: string;
   pollIntervalMonth: string;
   pollIntervalSecond: string;
+  pollIntervalSubMinuteHint: string;
   pollIntervalTooShort: string;
   pollIntervalWeek: string;
   pollingSettings: string;
@@ -114,7 +161,12 @@ export type Messages = {
   settingsTitle: string;
   simulateMatch: string;
   testNotify: string;
+  testNotifyBackToSettings: string;
+  testNotifyErrorTitle: string;
+  testNotifyFailed: string;
+  testNotifySending: string;
   testNotifySent: string;
+  testNotifyViewError: string;
   theme: string;
   topic: string;
   topicEnabled: string;

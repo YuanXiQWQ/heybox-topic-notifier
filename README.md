@@ -56,6 +56,10 @@ http://localhost:8000
 
 如果需要覆盖默认配置，可以参考 `.env.example` 并在运行环境中设置对应环境变量。
 
+应用提供注册和登录页面。每个账号拥有独立的设置、命中记录、轮询状态和通知配置；公开同一个部署链接时，
+不同用户的数据互不共享。用户密码以加盐 PBKDF2 哈希保存到 Deno KV，不保存明文密码；登录会话也存储在
+Deno KV，浏览器 Cookie 里只保存随机 session token。
+
 ## 常用命令
 
 ```powershell
@@ -141,6 +145,11 @@ http://localhost:8000
 
 To override the defaults, use `.env.example` as a reference and set the corresponding environment
 variables in your runtime environment.
+
+The app provides registration and login pages. Each account has isolated settings, match history,
+polling state, and notification configuration, so users sharing the same deployment URL do not share
+data. User passwords are stored in Deno KV as salted PBKDF2 hashes, not plaintext. Login sessions
+are stored in Deno KV, and the browser cookie only contains a random session token.
 
 ## Commands
 

@@ -1,8 +1,22 @@
+/**
+ * @file 本文件提供小黑盒帖子时间的相对时间格式化能力。
+ */
 import { getMessages } from "../locales/index.ts";
 import type { Locale } from "../locales/types.ts";
 
+/**
+ * 小黑盒帖子时间展示使用的中国时区。
+ */
 const chinaTimeZone = "Asia/Shanghai";
 
+/**
+ * 将时间格式化为小黑盒风格的相对时间。
+ *
+ * @param value 原始时间字符串。
+ * @param now 当前时间。
+ * @param locale 文案语言。
+ * @return 格式化后的相对时间文本。
+ */
 export function formatHeyboxRelativeTime(
   value: string,
   now: Date = new Date(),
@@ -59,17 +73,39 @@ export function formatHeyboxRelativeTime(
   );
 }
 
+/**
+ * 使用键值替换相对时间文案模板。
+ *
+ * @param template 文案模板。
+ * @param values 替换变量映射。
+ * @return 替换后的文案。
+ */
 function formatTemplate(template: string, values: Record<string, string | number>): string {
   return template.replaceAll(
-    /\{(\w+)\}/g,
+    /\{(\w+)}/g,
     (placeholder, key) => values[key] === undefined ? placeholder : String(values[key]),
   );
 }
 
+/**
+ * 判断两个时间在中国时区下是否属于同一年。
+ *
+ * @param left 左侧时间。
+ * @param right 右侧时间。
+ * @return 同一年时返回 true。
+ */
 function sameChinaYear(left: Date, right: Date): boolean {
   return formatInChina(left, { year: "numeric" }) === formatInChina(right, { year: "numeric" });
 }
 
+/**
+ * 按中国时区格式化日期。
+ *
+ * @param date 待格式化日期。
+ * @param options 日期格式化选项。
+ * @param locale 文案语言。
+ * @return 格式化后的日期字符串。
+ */
 function formatInChina(
   date: Date,
   options: Intl.DateTimeFormatOptions,

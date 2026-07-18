@@ -1,10 +1,17 @@
+/**
+ * @file 本文件验证轮询器的帖子拉取、匹配、通知和历史更新逻辑。
+ */
 import type { AppSettings, MatchRecord, TopicPost } from "../models.ts";
 import type { createKvStorage } from "../storage/kv.ts";
+import { assertEquals, assertRejects } from "../test_helpers.ts";
 import { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
 import type { TopicSource } from "./topic_source.ts";
 
+/**
+ * 轮询器测试使用的应用设置。
+ */
 const settings: AppSettings = {
   activeKeywordTarget: "common",
   commonKeywordRules: [{ keyword: "common-hit", locations: ["title"] }],
@@ -50,6 +57,9 @@ const settings: AppSettings = {
   ],
 };
 
+/**
+ * 按话题 ID 组织的测试帖子列表。
+ */
 const postsByTopic: Record<string, TopicPost[]> = {
   "12099": [
     post("p1", { title: "common-hit in title" }),
@@ -267,6 +277,13 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
   assertEquals(notifiedMatches, []);
 });
 
+/**
+ * 创建测试帖子。
+ *
+ * @param id 帖子 ID。
+ * @param overrides 需要覆盖的帖子字段。
+ * @return 测试帖子。
+ */
 function post(id: string, overrides: Partial<TopicPost>): TopicPost {
   return {
     body: "",
@@ -279,25 +296,4 @@ function post(id: string, overrides: Partial<TopicPost>): TopicPost {
     url: `https://example.com/${id}`,
     ...overrides,
   };
-}
-
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
-}
-
-async function assertRejects(fn: () => Promise<unknown>, message: string): Promise<void> {
-  try {
-    await fn();
-  } catch (error) {
-    if (error instanceof Error && error.message === message) {
-      return;
-    }
-    throw error;
-  }
-
-  throw new Error(`Expected rejection with message: ${message}`);
 }

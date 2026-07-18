@@ -1,3 +1,6 @@
+/**
+ * @file 本文件负责渲染仪表盘页面和轮询进度交互脚本。
+ */
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, AppState, PollIntervalUnit } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
@@ -5,6 +8,12 @@ import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
+/**
+ * 渲染仪表盘页面。
+ *
+ * @param options 仪表盘渲染选项。
+ * @return 完整仪表盘页面 HTML。
+ */
 export function renderDashboard(options: {
   initialNextPollProgress?: string;
   pendingTable: MatchTableResult;
@@ -84,6 +93,13 @@ export function renderDashboard(options: {
   });
 }
 
+/**
+ * 渲染最后轮询时间展示。
+ *
+ * @param lastPollAt 最后轮询时间。
+ * @param locale 当前语言标识。
+ * @return 最后轮询时间 HTML。
+ */
 function renderLastPoll(lastPollAt: string | undefined, locale: AppSettings["locale"]): string {
   if (!lastPollAt) {
     return `<strong data-last-poll-at="" data-last-poll-locale="${escapeHtml(locale)}">-</strong>`;
@@ -94,6 +110,14 @@ function renderLastPoll(lastPollAt: string | undefined, locale: AppSettings["loc
   }">${escapeHtml(formatHeyboxRelativeTime(lastPollAt, new Date(), locale))}</strong>`;
 }
 
+/**
+ * 渲染待处理命中记录表格。
+ *
+ * @param table 待处理表格数据。
+ * @param messages 当前语言文案。
+ * @param locale 当前语言标识。
+ * @return 待处理命中记录表格 HTML。
+ */
 export function renderPendingMatches(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
@@ -121,6 +145,12 @@ export function renderPendingMatches(
   });
 }
 
+/**
+ * 渲染仪表盘最后轮询时间和下次轮询进度脚本。
+ *
+ * @param messages 当前语言文案。
+ * @return 仪表盘交互脚本 HTML。
+ */
 function renderLastPollScript(messages: ReturnType<typeof getMessages>): string {
   const relativeTemplates = {
     daysAgo: messages.relativeDaysAgo,
@@ -138,6 +168,10 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
     second: messages.pollIntervalSecond,
     week: messages.pollIntervalWeek,
   };
+  /**
+   * 仪表盘状态后台刷新间隔。
+   */
+  const dashboardStateRefreshMs = 30_000;
 
   return `<script>
     (() => {
@@ -154,10 +188,14 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       let timestamp = parseTimestamp(lastPoll.dataset.lastPollAt);
       let hasSyncedDashboardState = false;
       let isAnimatingNextPollReset = false;
+      let isDashboardStateRefreshInFlight = false;
+      let lastDueDashboardRefreshAt = 0;
+      let lastDueDashboardRefreshBaseline = "";
 
       const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
       const pollUnitLabels = ${JSON.stringify(pollUnitLabels)};
+      const dashboardStateRefreshMs = ${dashboardStateRefreshMs};
       const nextPollResetAnimationMs = 440;
       const pollResetStorageKey = "heybox.nextPollResetWidth";
       const initialPollResetStartWidth = consumeInitialPollResetStartWidth();
@@ -175,8 +213,9 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       window.setInterval(updateLastPoll, 1000);
       window.setInterval(updateNextPoll, 250);
       window.setInterval(() => {
+        if (document.visibilityState !== "visible") return;
         void refreshDashboardState();
-      }, 1000);
+      }, dashboardStateRefreshMs);
 
       function updateLastPoll() {
         if (!Number.isFinite(timestamp)) {
@@ -187,8 +226,10 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       }
 
       async function refreshDashboardState() {
+        if (isDashboardStateRefreshInFlight) return;
+        isDashboardStateRefreshInFlight = true;
         try {
-          const response = await fetch(\`/dashboard-state\${location.search}\`, { cache: "no-store" });
+          const response = await fetch(dashboardStateUrl(), { cache: "no-store" });
           if (!response.ok) return;
           const state = await response.json();
           const nextTimestamp = parseTimestamp(state.lastPollAt);
@@ -211,7 +252,18 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
           hasSyncedDashboardState = true;
         } catch {
           // Keep the last rendered state when the status request is transiently unavailable.
+        } finally {
+          isDashboardStateRefreshInFlight = false;
         }
+      }
+
+      function dashboardStateUrl() {
+        const url = new URL("/dashboard-state", location.origin);
+        const currentParams = new URLSearchParams(location.search);
+        for (const [key, value] of currentParams) {
+          url.searchParams.append(key, value);
+        }
+        return url.pathname + url.search;
       }
 
       function updatePendingSection(html, signature) {
@@ -222,9 +274,9 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         if (!nextSection) return;
         pendingSection.replaceWith(nextSection);
         pendingSection = nextSection;
-        window.__matchTableFilterInit?.();
-        window.__matchTableRelativeTimeUpdate?.();
-        window.__matchTableOverflowUpdate?.();
+        window["__matchTableFilterInit"]?.();
+        window["__matchTableRelativeTimeUpdate"]?.();
+        window["__matchTableOverflowUpdate"]?.();
       }
 
       function updatePollingSettings(polling) {
@@ -247,6 +299,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
           nextPollFill.style.width = nextState.width;
         }
         nextPollRemaining.textContent = nextState.remaining;
+        refreshDashboardWhenPollDue(nextState);
       }
 
       function getNextPollState(options = {}) {
@@ -257,16 +310,36 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         const intervalMs = pollingIntervalMs(unit, value);
 
         if (!enabled || !Number.isFinite(timestamp) || intervalMs <= 0) {
-          return { remaining: "-", width: "0%" };
+          return { intervalMs: 0, remaining: "-", remainingMs: Infinity, width: "0%" };
         }
 
         const elapsedMs = Math.max(0, Date.now() + (options.offsetMs || 0) - timestamp);
         const remainingMs = Math.max(0, intervalMs - elapsedMs);
         const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
         return {
+          intervalMs,
           remaining: formatRemaining(remainingMs),
+          remainingMs,
           width: (progress * 100).toFixed(2) + "%",
         };
+      }
+
+      function refreshDashboardWhenPollDue(nextState) {
+        if (document.visibilityState !== "visible" || nextState.remainingMs > 0) return;
+        if (isDashboardStateRefreshInFlight) return;
+        const baseline = lastPoll.dataset.lastPollAt || "";
+        if (!baseline) return;
+        const now = Date.now();
+        const retryMs = Math.max(3000, Math.min(nextState.intervalMs, dashboardStateRefreshMs));
+        if (
+          lastDueDashboardRefreshBaseline === baseline &&
+          now - lastDueDashboardRefreshAt < retryMs
+        ) {
+          return;
+        }
+        lastDueDashboardRefreshBaseline = baseline;
+        lastDueDashboardRefreshAt = now;
+        void refreshDashboardState();
       }
 
       function updateNextPollWithoutTransition() {
@@ -516,6 +589,13 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
   </script>`;
 }
 
+/**
+ * 计算下次轮询进度条初始百分比。
+ *
+ * @param settings 应用设置。
+ * @param lastPollAt 最后轮询时间。
+ * @return 进度百分比字符串。
+ */
 function nextPollProgressPercent(settings: AppSettings, lastPollAt: string | undefined): string {
   const timestamp = Date.parse(lastPollAt ?? "");
   const intervalMs = dashboardPollingIntervalMs(
@@ -533,6 +613,13 @@ function nextPollProgressPercent(settings: AppSettings, lastPollAt: string | und
   return (progress * 100).toFixed(2);
 }
 
+/**
+ * 计算仪表盘轮询间隔毫秒数。
+ *
+ * @param unit 轮询间隔单位。
+ * @param value 轮询间隔数值。
+ * @return 轮询间隔毫秒数。
+ */
 function dashboardPollingIntervalMs(unit: PollIntervalUnit, value: number): number {
   const intervalValue = Math.max(1, Number.isFinite(value) ? value : 1);
   if (unit === "second") {
@@ -541,6 +628,12 @@ function dashboardPollingIntervalMs(unit: PollIntervalUnit, value: number): numb
   return intervalValue * dashboardPollingUnitMs(unit);
 }
 
+/**
+ * 获取轮询单位对应的毫秒数。
+ *
+ * @param unit 轮询间隔单位。
+ * @return 单位毫秒数。
+ */
 function dashboardPollingUnitMs(unit: PollIntervalUnit): number {
   switch (unit) {
     case "second":
@@ -559,6 +652,11 @@ function dashboardPollingUnitMs(unit: PollIntervalUnit): number {
   }
 }
 
+/**
+ * 渲染完成操作图标。
+ *
+ * @return 完成图标 SVG。
+ */
 function checkIcon(): string {
   return `<svg aria-hidden="true" viewBox="0 0 24 24">
     <path d="M9.2 16.6 4.9 12.3l-1.4 1.4 5.7 5.7L21 7.6 19.6 6.2 9.2 16.6Z"></path>
