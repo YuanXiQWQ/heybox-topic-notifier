@@ -4,6 +4,7 @@
 import { Hono } from "@hono/hono";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
 import { createRoutes } from "./routes.ts";
+import { createSecurityHeadersMiddleware } from "./security/headers.ts";
 import { createAppContext } from "./services/app_context.ts";
 
 /**
@@ -16,6 +17,7 @@ export function createApplication() {
   const context = createAppContext();
   const authOptions = { defaultLocale: context.config.defaultSettings.locale };
 
+  app.use("*", createSecurityHeadersMiddleware());
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
   app.route("/", createRoutes(context));
