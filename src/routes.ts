@@ -86,8 +86,17 @@ export function createRoutes(context: AppContext): Hono {
 
   app.get("/dashboard-state", async (c) => {
     const url = new URL(c.req.url);
+    const shouldTick = url.searchParams.get("tick") === "1";
     url.searchParams.delete("tick");
     const storage = await storageForRequest(c, context);
+    if (shouldTick) {
+      const session = await authSessionForRequest(c, context);
+      if (session) {
+        await context.scheduler.tickUser(session.userId);
+      } else {
+        await context.scheduler.tick();
+      }
+    }
     const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,

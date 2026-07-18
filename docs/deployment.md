@@ -21,9 +21,10 @@ https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
 会触发测试部署更新，推送到 `main` 会触发 Production 更新。
 
 Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch timeline 和 Build。为了避免 Preview
-和 Git Branch timeline 重复读取 KV、抓取小黑盒或发送通知，部署入口只会在 `DENO_TIMELINE=production`
-且 `POLL_ENABLED=true` 时注册并执行 Cron。普通页面请求、根路径、健康检查和 Warm up
-请求不会触发自动轮询。
+和普通功能分支重复读取 KV、抓取小黑盒或发送通知，部署入口会在顶层声明 Cron，但 handler 只会在
+`DENO_TIMELINE=production` 或 `DENO_TIMELINE=git-branch/dev` 时继续执行。普通页面请求、根路径、
+健康检查和 Warm up
+请求不会触发自动轮询；前台页面低于一分钟的到点查询会通过受控状态接口触发当前账号调度。
 
 ## Deno Deploy 配置
 
@@ -81,8 +82,8 @@ Deno KV 中，并按用户 ID 隔离。浏览器 Cookie 只保存随机 session 
 哈希和过期时间。
 
 真实小黑盒话题抓取是当前唯一运行数据源。默认 `HEYBOX_SIGNATURE_MODE=app` 使用已验证的 App API
-发布时间列表；`web` 仅保留为诊断回退。除非正在验证定时轮询，Production 和 Git Branch / DEV
-都建议先保持 `POLL_ENABLED=false`。
+发布时间列表；`web` 仅保留为诊断回退。`POLL_ENABLED`
+只作为新账号或默认账号的初始轮询开关；是否实际抓取， 以各账号设置页中的“启用轮询”为准。
 
 ## 通知中转
 

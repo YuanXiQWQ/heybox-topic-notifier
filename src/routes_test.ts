@@ -571,7 +571,7 @@ Deno.test("run now preserves dashboard table query and requests reset animation"
   );
 });
 
-Deno.test("dashboard state does not tick scheduler", async () => {
+Deno.test("dashboard state ticks scheduler only when requested", async () => {
   let ticks = 0;
   const app = createRoutes({
     scheduler: {
@@ -598,7 +598,7 @@ Deno.test("dashboard state does not tick scheduler", async () => {
 
   assertEquals(regularResponse.status, 200);
   assertEquals(tickedResponse.status, 200);
-  assertEquals(ticks, 0);
+  assertEquals(ticks, 1);
 });
 
 Deno.test("complete matches handles all selected ids and ignores empty submissions", async () => {
