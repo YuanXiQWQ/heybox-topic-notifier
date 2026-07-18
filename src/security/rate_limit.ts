@@ -3,6 +3,7 @@
  */
 import type { RateLimitHit } from "../storage/kv.ts";
 import { logSecurityAuditEvent } from "./audit_log.ts";
+import { base64UrlEncode } from "./crypto_utils.ts";
 
 /**
  * 频率限制策略。
@@ -180,17 +181,4 @@ function rateLimitExceededResponse(hit: RateLimitHit): Response {
 async function hashedIdentifier(identifier: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identifier));
   return base64UrlEncode(new Uint8Array(digest));
-}
-
-/**
- * 将字节数组编码为 Base64URL 字符串。
- *
- * @param value 待编码字节。
- * @return Base64URL 字符串。
- */
-function base64UrlEncode(value: Uint8Array): string {
-  return btoa(String.fromCharCode(...value))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
 }

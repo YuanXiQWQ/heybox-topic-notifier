@@ -10,7 +10,7 @@ import { createAppContext } from "./services/app_context.ts";
 /**
  * 创建应用实例和运行时上下文。
  *
- * @return {{ app: Hono; context: ReturnType<typeof createAppContext> }} 应用实例和运行时上下文。
+ * @return 应用实例和运行时上下文。
  */
 export function createApplication() {
   const app = new Hono();

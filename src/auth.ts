@@ -17,6 +17,8 @@ import {
   withCsrfCookie,
 } from "./security/csrf.ts";
 import { auditText, logSecurityAuditEvent } from "./security/audit_log.ts";
+import { parseCookies } from "./security/cookies.ts";
+import { base64UrlEncode, constantTimeEquals } from "./security/crypto_utils.ts";
 import {
   clientRateLimitIdentifier,
   publicRateLimitPolicies,
@@ -1000,24 +1002,6 @@ export function normalizeUsername(value: string): string {
 }
 
 /**
- * 解析 Cookie 请求头。
- *
- * @param value Cookie 请求头。
- * @return Cookie 名值映射。
- */
-function parseCookies(value: string | undefined): Map<string, string> {
-  const cookies = new Map<string, string>();
-  for (const part of value?.split(";") ?? []) {
-    const separatorIndex = part.indexOf("=");
-    if (separatorIndex < 0) {
-      continue;
-    }
-    cookies.set(part.slice(0, separatorIndex).trim(), part.slice(separatorIndex + 1).trim());
-  }
-  return cookies;
-}
-
-/**
  * 序列化 Set-Cookie 响应头值。
  *
  * @param name Cookie 名称。
@@ -1047,19 +1031,6 @@ function serializeCookie(
 }
 
 /**
- * 将字节数组编码为 Base64URL 字符串。
- *
- * @param value 待编码字节。
- * @return Base64URL 字符串。
- */
-function base64UrlEncode(value: Uint8Array): string {
-  return btoa(String.fromCharCode(...value))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-/**
  * 将 Base64URL 字符串解码为字节数组。
  *
  * @param value Base64URL 字符串。
@@ -1069,27 +1040,6 @@ function base64UrlDecode(value: string): Uint8Array {
   const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
   return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
-}
-
-/**
- * 使用常量时间比较两个字符串。
- *
- * @param left 左侧字符串。
- * @param right 右侧字符串。
- * @return 两个字符串相等时返回 true。
- */
-function constantTimeEquals(left: string, right: string): boolean {
-  const encoder = new TextEncoder();
-  const leftBytes = encoder.encode(left);
-  const rightBytes = encoder.encode(right);
-  let diff = leftBytes.length ^ rightBytes.length;
-  const length = Math.max(leftBytes.length, rightBytes.length);
-
-  for (let index = 0; index < length; index += 1) {
-    diff |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
-  }
-
-  return diff === 0;
 }
 
 /**

@@ -139,6 +139,7 @@ function storageForUser(storage: AppContext["storage"], userId: string) {
  * 注册运行环境对应的轮询定时任务。
  *
  * @param context 应用运行时上下文。
+ * @param options 定时任务注册选项。
  */
 export function registerCrons(context: AppContext, options: CronRegistrationOptions = {}): void {
   const isDeploy = options.isDenoDeploy ?? isDenoDeploy;

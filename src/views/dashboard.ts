@@ -128,6 +128,7 @@ function renderLastPoll(lastPollAt: string | undefined, locale: AppSettings["loc
  * @param table 待处理表格数据。
  * @param messages 当前语言文案。
  * @param locale 当前语言标识。
+ * @param csrfToken CSRF 令牌。
  * @return 待处理命中记录表格 HTML。
  */
 export function renderPendingMatches(

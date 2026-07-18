@@ -12,6 +12,8 @@ Deno.cron("poll heybox topics", deployCronSchedule, async () => {
   }
 
   await context.scheduler.tick();
+}).catch((error) => {
+  console.error("Deno Deploy Cron 注册失败。", error);
 });
 
 Deno.serve({ port: context.config.port }, app.fetch);

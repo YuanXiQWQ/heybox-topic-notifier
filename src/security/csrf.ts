@@ -2,6 +2,8 @@
  * @file 本文件提供 CSRF 双提交令牌的生成、渲染和校验能力。
  */
 import { logSecurityAuditEvent } from "./audit_log.ts";
+import { parseCookies } from "./cookies.ts";
+import { base64UrlEncode, constantTimeEquals } from "./crypto_utils.ts";
 
 /**
  * CSRF Cookie 名称。
@@ -195,60 +197,4 @@ function serializeCsrfCookie(token: string, requestUrl: string): string {
     "HttpOnly",
     secure ? "Secure" : "",
   ].filter(Boolean).join("; ");
-}
-
-/**
- * 解析 Cookie 请求头。
- *
- * @param {string | undefined} value Cookie 请求头。
- * @return {Map<string, string>} Cookie 名值映射。
- */
-function parseCookies(value: string | undefined): Map<string, string> {
-  const cookies = new Map<string, string>();
-  for (const part of value?.split(";") ?? []) {
-    const separatorIndex = part.indexOf("=");
-    if (separatorIndex < 0) {
-      continue;
-    }
-    cookies.set(part.slice(0, separatorIndex).trim(), part.slice(separatorIndex + 1).trim());
-  }
-  return cookies;
-}
-
-/**
- * 使用常量时间比较两个字符串。
- *
- * @param {string | undefined} left 左侧字符串。
- * @param {string} right 右侧字符串。
- * @return {boolean} 两个字符串相等时返回 true。
- */
-function constantTimeEquals(left: string | undefined, right: string): boolean {
-  if (!left) {
-    return false;
-  }
-
-  const encoder = new TextEncoder();
-  const leftBytes = encoder.encode(left);
-  const rightBytes = encoder.encode(right);
-  let diff = leftBytes.length ^ rightBytes.length;
-  const length = Math.max(leftBytes.length, rightBytes.length);
-
-  for (let index = 0; index < length; index += 1) {
-    diff |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
-  }
-
-  return diff === 0;
-}
-
-/**
- * 将字节数组编码为 Base64URL 字符串。
- *
- * @param {Uint8Array} value 待编码字节。
- * @return {string} Base64URL 字符串。
- */
-function base64UrlEncode(value: Uint8Array): string {
-  return btoa(String.fromCharCode(...value))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
 }

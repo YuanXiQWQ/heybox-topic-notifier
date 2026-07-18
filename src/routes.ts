@@ -393,20 +393,12 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/simulate-match", async (c) => {
-    const storage = await storageForRequest(c, context);
-    const form = await formDataOrEmpty(c.req.raw);
-    if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse(c.req.raw);
-    }
-    const rateLimitResponse = await rateLimitResponseForRequest(
-      c,
-      context,
-      publicRateLimitPolicies.debugOperation,
-    );
-    if (rateLimitResponse) {
-      return rateLimitResponse;
+    const debugRequest = await debugOperationRequest(c, context);
+    if (debugRequest.response) {
+      return debugRequest.response;
     }
 
+    const { form, storage } = debugRequest;
     const settings = await storage.getSettings();
     try {
       await context.poller.recordMatches(
@@ -421,20 +413,12 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.post("/test-notify", async (c) => {
-    const storage = await storageForRequest(c, context);
-    const form = await formDataOrEmpty(c.req.raw);
-    if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse(c.req.raw);
-    }
-    const rateLimitResponse = await rateLimitResponseForRequest(
-      c,
-      context,
-      publicRateLimitPolicies.debugOperation,
-    );
-    if (rateLimitResponse) {
-      return rateLimitResponse;
+    const debugRequest = await debugOperationRequest(c, context);
+    if (debugRequest.response) {
+      return debugRequest.response;
     }
 
+    const { storage } = debugRequest;
     const settings = await storage.getSettings();
     try {
       await context.notifier.sendTest(settings);
@@ -718,6 +702,35 @@ function normalizePollResetStart(value: FormDataEntryValue | null): string | und
     return undefined;
   }
   return String(Math.max(0, Math.min(100, parsed)));
+}
+
+/**
+ * 读取调试类 POST 请求并完成 CSRF 与限流检查。
+ *
+ * @param c Hono 请求上下文。
+ * @param context 应用上下文。
+ * @return 调试请求上下文；包含 response 时应直接返回该响应。
+ */
+async function debugOperationRequest(
+  c: Context,
+  context: AppContext,
+): Promise<{
+  form: FormData;
+  response?: Response;
+  storage: Awaited<ReturnType<typeof storageForRequest>>;
+}> {
+  const storage = await storageForRequest(c, context);
+  const form = await formDataOrEmpty(c.req.raw);
+  if (!validCsrfForRequest(c, form)) {
+    return { form, response: csrfForbiddenResponse(c.req.raw), storage };
+  }
+
+  const response = await rateLimitResponseForRequest(
+    c,
+    context,
+    publicRateLimitPolicies.debugOperation,
+  );
+  return { form, response, storage };
 }
 
 /**

@@ -210,7 +210,7 @@ function regexQuantifierAt(pattern: string, index: number): RegexQuantifier | un
     return undefined;
   }
 
-  const match = pattern.slice(index).match(/^\{(\d+)(?:,(\d*))?\}\??/);
+  const match = pattern.slice(index).match(/^\{(\d+)(?:,(\d*))?}\??/);
   if (!match) {
     return undefined;
   }

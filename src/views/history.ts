@@ -27,12 +27,14 @@ export function renderHistory(options: {
         <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
-    ${renderHistoryTable(
-    options.historyTable,
-    messages,
-    options.settings.locale,
-    options.csrfToken,
-  )}
+    ${
+    renderHistoryTable(
+      options.historyTable,
+      messages,
+      options.settings.locale,
+      options.csrfToken,
+    )
+  }
   `;
 
   return renderLayout({
@@ -51,6 +53,7 @@ export function renderHistory(options: {
  * @param table 历史表格数据。
  * @param messages 当前语言文案。
  * @param locale 当前语言标识。
+ * @param csrfToken CSRF 令牌。
  * @return 历史表格 HTML。
  */
 function renderHistoryTable(
