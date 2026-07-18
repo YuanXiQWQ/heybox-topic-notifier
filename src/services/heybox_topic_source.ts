@@ -35,6 +35,18 @@ const topicFeedsPath = "/bbs/app/topic/feeds";
  * 小黑盒帖子详情接口路径。
  */
 const linkTreePath = "/bbs/app/link/tree";
+/**
+ * 小黑盒网页端可信来源。
+ */
+const trustedHeyboxWebOrigin = "https://www.xiaoheihe.cn";
+/**
+ * 允许提取帖子 ID 的小黑盒域名。
+ */
+const trustedHeyboxLinkIdHostnames = ["api.xiaoheihe.cn", "www.xiaoheihe.cn"];
+/**
+ * 允许作为帖子展示链接的网页路径前缀。
+ */
+const trustedHeyboxPostPathPrefixes = ["/app/bbs/link/", "/app/topic/link/"];
 
 /**
  * 创建小黑盒话题帖子数据源。
@@ -257,6 +269,7 @@ function postFromHeyboxRecord(record: Record<string, unknown>, topicId: string):
   const webLinkId = linkIdFromUrl(shareUrl);
   const id = webLinkId ||
     stringField(record, ["linkid", "link_id", "post_id", "article_id", "id"]);
+  const url = safeHeyboxPostUrl(webLinkId, shareUrl, topicId);
 
   return {
     body: stringField(record, ["text", "content", "body", "description"]),
@@ -266,9 +279,71 @@ function postFromHeyboxRecord(record: Record<string, unknown>, topicId: string):
     id,
     publishedAt: timeField(record, ["create_at", "created_at", "publish_time", "timestamp"]),
     title: stringField(record, ["title", "subject", "name"]),
-    url: webLinkId ? `https://www.xiaoheihe.cn/app/bbs/link/${webLinkId}` : shareUrl ||
-      `https://www.xiaoheihe.cn/app/topic/link/${topicId}`,
+    url,
   };
+}
+
+/**
+ * 生成安全可信的小黑盒帖子展示链接。
+ *
+ * @param {string} linkId 从分享链接中提取到的小黑盒帖子 ID。
+ * @param {string} shareUrl 小黑盒接口返回的分享链接。
+ * @param {string} topicId 当前话题 ID。
+ * @return {string} 可安全放入页面 href 的帖子链接。
+ */
+function safeHeyboxPostUrl(linkId: string, shareUrl: string, topicId: string): string {
+  if (linkId.trim()) {
+    return heyboxPostUrlFromLinkId(linkId);
+  }
+
+  return trustedHeyboxShareUrl(shareUrl) ?? heyboxTopicFallbackUrl(topicId);
+}
+
+/**
+ * 根据帖子 ID 构建官方网页帖子链接。
+ *
+ * @param {string} linkId 小黑盒帖子 ID。
+ * @return {string} 官方网页帖子链接。
+ */
+function heyboxPostUrlFromLinkId(linkId: string): string {
+  return `${trustedHeyboxWebOrigin}/app/bbs/link/${encodeURIComponent(linkId.trim())}`;
+}
+
+/**
+ * 根据话题 ID 构建官方网页回退链接。
+ *
+ * @param {string} topicId 小黑盒话题 ID。
+ * @return {string} 官方网页话题链接。
+ */
+function heyboxTopicFallbackUrl(topicId: string): string {
+  return `${trustedHeyboxWebOrigin}/app/topic/link/${encodeURIComponent(topicId.trim())}`;
+}
+
+/**
+ * 校验接口返回的分享链接是否为可信小黑盒网页链接。
+ *
+ * @param {string} value 待校验的分享链接。
+ * @return {string | undefined} 可信分享链接；不可信时返回 undefined。
+ */
+function trustedHeyboxShareUrl(value: string): string | undefined {
+  if (!value.trim()) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.origin !== trustedHeyboxWebOrigin) {
+      return undefined;
+    }
+
+    if (!trustedHeyboxPostPathPrefixes.some((prefix) => url.pathname.startsWith(prefix))) {
+      return undefined;
+    }
+
+    return url.toString();
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -437,6 +512,10 @@ function linkIdFromUrl(value: string): string {
 
   try {
     const url = new URL(value);
+    if (url.protocol !== "https:" || !trustedHeyboxLinkIdHostnames.includes(url.hostname)) {
+      return "";
+    }
+
     const queryLinkId = url.searchParams.get("link_id");
     if (queryLinkId) {
       return queryLinkId;

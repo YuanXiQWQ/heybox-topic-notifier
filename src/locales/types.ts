@@ -55,6 +55,7 @@ export type Messages = {
   batchOperation: string;
   completeMatch: string;
   commonTopic: string;
+  configuredSecretPlaceholder: string;
   configure: string;
   dashboardSubtitle: string;
   dashboardTitle: string;

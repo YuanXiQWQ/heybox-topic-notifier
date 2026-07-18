@@ -3,6 +3,13 @@
  */
 import type { Hono } from "@hono/hono";
 import type { UserAccount } from "./models.ts";
+import { csrfCookieName, csrfFieldName } from "./security/csrf.ts";
+import type { RateLimitHit } from "./storage/kv.ts";
+
+/**
+ * 测试请求使用的固定 CSRF 令牌。
+ */
+export const testCsrfToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /**
  * 断言两个值的 JSON 表示相等。
@@ -66,6 +73,79 @@ export function addUniqueAccount(
 }
 
 /**
+ * 创建测试用的内存频率限制记录器。
+ *
+ * @return {object} 内存频率限制记录能力。
+ */
+export function createMemoryRateLimitRecorder(): {
+  recordRateLimitHit(
+    keyParts: readonly string[],
+    limit: number,
+    windowMs: number,
+  ): Promise<RateLimitHit>;
+} {
+  const entries = new Map<string, { count: number; resetAt: string }>();
+
+  return {
+    /**
+     * 记录一次内存频率限制命中。
+     *
+     * @param {readonly string[]} keyParts 频率限制键片段。
+     * @param {number} limit 当前窗口允许的最大次数。
+     * @param {number} windowMs 限流窗口毫秒数。
+     * @return {Promise<RateLimitHit>} 频率限制命中结果。
+     */
+    recordRateLimitHit(
+      keyParts: readonly string[],
+      limit: number,
+      windowMs: number,
+    ): Promise<RateLimitHit> {
+      const key = JSON.stringify(keyParts);
+      const now = Date.now();
+      const previous = entries.get(key);
+      const previousResetAt = Date.parse(previous?.resetAt ?? "");
+      const hasActiveWindow = Number.isFinite(previousResetAt) && previousResetAt > now;
+      const resetAtMs = hasActiveWindow ? previousResetAt : now + windowMs;
+      const count = hasActiveWindow ? (previous?.count ?? 0) + 1 : 1;
+      const resetAt = new Date(resetAtMs).toISOString();
+      entries.set(key, { count, resetAt });
+
+      return Promise.resolve({
+        allowed: count <= limit,
+        count,
+        limit,
+        resetAt,
+        retryAfterSeconds: Math.max(1, Math.ceil((resetAtMs - now) / 1000)),
+      });
+    },
+  };
+}
+
+/**
+ * 为测试表单追加 CSRF 字段。
+ *
+ * @param {URLSearchParams} body 原始表单。
+ * @return {URLSearchParams} 追加 CSRF 字段后的表单。
+ */
+export function testCsrfForm(body = new URLSearchParams()): URLSearchParams {
+  body.set(csrfFieldName, testCsrfToken);
+  return body;
+}
+
+/**
+ * 为测试请求头追加 CSRF Cookie。
+ *
+ * @param {Record<string, string>} headers 原始请求头。
+ * @return {Record<string, string>} 追加 CSRF Cookie 后的请求头。
+ */
+export function testCsrfHeaders(headers: Record<string, string> = {}): Record<string, string> {
+  return {
+    ...headers,
+    cookie: [headers.cookie, `${csrfCookieName}=${testCsrfToken}`].filter(Boolean).join("; "),
+  };
+}
+
+/**
  * 提交登录请求。
  *
  * @param {Hono} app Hono 测试应用。
@@ -76,7 +156,8 @@ export function addUniqueAccount(
 export function submitLogin(app: Hono, username: string, password: string): Promise<Response> {
   return Promise.resolve(
     app.request("/login", {
-      body: new URLSearchParams({ password, username }),
+      body: testCsrfForm(new URLSearchParams({ password, username })),
+      headers: testCsrfHeaders(),
       method: "POST",
     }),
   );
@@ -99,7 +180,8 @@ export function submitRegistration(
 ): Promise<Response> {
   return Promise.resolve(
     app.request("/register", {
-      body: new URLSearchParams({ confirmPassword, password, username }),
+      body: testCsrfForm(new URLSearchParams({ confirmPassword, password, username })),
+      headers: testCsrfHeaders(),
       method: "POST",
     }),
   );

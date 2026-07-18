@@ -72,6 +72,54 @@ const postsByTopic: Record<string, TopicPost[]> = {
   ],
 };
 
+Deno.test("recordMatches saves provided matches and marks successful notifications", async () => {
+  const record: MatchRecord = {
+    id: "simulation:test:title",
+    keyword: "simulation-keyword",
+    location: "title",
+    matchedAt: "2026-07-18T10:00:00.000Z",
+    post: post("simulation", { title: "simulation-keyword in title" }),
+  };
+  const savedRecords: MatchRecord[] = [];
+  const sentRecords: MatchRecord[][] = [];
+  const notifiedMatches: string[] = [];
+
+  const poller = createPoller({
+    matcher: createMatcher(),
+    notifier: {
+      sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendMatches: (records: MatchRecord[]) => {
+        sentRecords.push(records);
+        return Promise.resolve({ provider: "webhook", sent: true });
+      },
+      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+    } as ReturnType<typeof createNotifier>,
+    source: {
+      listLatestPosts: () => Promise.resolve([]),
+    } as TopicSource,
+    storage: {
+      getSettings: () => Promise.resolve(settings),
+      listHistory: () => Promise.resolve([]),
+      markMatchNotified: (id: string) => {
+        notifiedMatches.push(id);
+        return Promise.resolve();
+      },
+      saveMatch: (match: MatchRecord) => {
+        savedRecords.push(match);
+        return Promise.resolve();
+      },
+      setLastPollAt: () => Promise.resolve(),
+    } as unknown as ReturnType<typeof createKvStorage>,
+  });
+
+  await poller.recordMatches([record]);
+
+  assertEquals(savedRecords, [record]);
+  assertEquals(sentRecords, [[record]]);
+  assertEquals(notifiedMatches, [record.id]);
+});
+
 Deno.test("poller combines common and topic keywords for enabled topics", async () => {
   const listedTopicIds: string[] = [];
   const listedOptions: unknown[] = [];

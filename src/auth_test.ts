@@ -8,8 +8,11 @@ import type { createKvStorage } from "./storage/kv.ts";
 import {
   addUniqueAccount,
   assertEquals,
+  createMemoryRateLimitRecorder,
   submitLogin as login,
   submitRegistration as register,
+  testCsrfForm,
+  testCsrfHeaders,
 } from "./test_helpers.ts";
 
 Deno.test("auth middleware redirects protected pages to login", async () => {
@@ -77,7 +80,11 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
     username: "Alice",
   });
 
-  const response = await app.request("/register", { body: form, method: "POST" });
+  const response = await app.request("/register", {
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
   const account = await storage.getAccountByUsername("alice");
   const session = await readAuthSession(response.headers.get("set-cookie") ?? "", storage);
 
@@ -115,6 +122,60 @@ Deno.test("auth routes reject registrations with mismatched passwords", async ()
   assertEquals(await storage.getAccountByUsername("alice"), undefined);
 });
 
+Deno.test("auth routes reject registration without a valid CSRF token", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+
+  const response = await app.request("/register", {
+    body: new URLSearchParams({
+      confirmPassword: "correct-password",
+      password: "correct-password",
+      username: "alice",
+    }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 403);
+  assertEquals(await storage.getAccountByUsername("alice"), undefined);
+});
+
+Deno.test("auth routes rate limit registration attempts by client", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+  const headers = testCsrfHeaders({ "x-forwarded-for": "203.0.113.10" });
+
+  for (let index = 0; index < 5; index += 1) {
+    const response = await app.request("/register", {
+      body: testCsrfForm(
+        new URLSearchParams({
+          confirmPassword: "correct-password",
+          password: "correct-password",
+          username: `user-${index}`,
+        }),
+      ),
+      headers,
+      method: "POST",
+    });
+    assertEquals(response.status, 303);
+  }
+
+  const limitedResponse = await app.request("/register", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        confirmPassword: "correct-password",
+        password: "correct-password",
+        username: "too-many",
+      }),
+    ),
+    headers,
+    method: "POST",
+  });
+
+  assertEquals(limitedResponse.status, 429);
+  assertEquals(limitedResponse.headers.get("retry-after") !== null, true);
+  assertEquals(await storage.getAccountByUsername("too-many"), undefined);
+});
+
 Deno.test("auth routes atomically create only one account for concurrent registrations", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
@@ -141,7 +202,11 @@ Deno.test("auth routes login existing users", async () => {
     username: "alice",
   });
 
-  const response = await app.request("/login", { body: form, method: "POST" });
+  const response = await app.request("/login", {
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
   const session = await readAuthSession(response.headers.get("set-cookie") ?? "", storage);
 
   assertEquals(response.status, 303);
@@ -216,6 +281,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   const savedSessions: UserSession[] = [];
 
   return {
+    ...createMemoryRateLimitRecorder(),
     savedSessions,
     forUser: () =>
       ({}) as ReturnType<typeof createKvStorage>["forUser"] extends (

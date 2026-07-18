@@ -8,6 +8,7 @@ import {
   notificationEmailServices,
   notificationWebhookServices,
 } from "../notification_services.ts";
+import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 
 /**
@@ -38,6 +39,7 @@ export type AccountStatus = {
 export function renderSettings(options: {
   account?: Pick<UserAccount, "username">;
   accountStatus?: AccountStatus;
+  csrfToken: string;
   settings: AppSettings;
 }): string {
   const messages = getMessages(options.settings.locale);
@@ -48,7 +50,14 @@ export function renderSettings(options: {
         <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
-    ${renderAccountSection(options.settings, options.account, options.accountStatus)}
+    ${
+    renderAccountSection(
+      options.settings,
+      options.account,
+      options.accountStatus,
+      options.csrfToken,
+    )
+  }
     <form
       method="post"
       action="/settings"
@@ -57,6 +66,7 @@ export function renderSettings(options: {
       data-autosave-saved="${escapeHtml(messages.autoSaveSaved)}"
       data-autosave-error="${escapeHtml(messages.autoSaveError)}"
     >
+      ${csrfHiddenInput(options.csrfToken)}
       <section class="settings-group" aria-labelledby="post-settings-heading">
         <h2 id="post-settings-heading">${escapeHtml(messages.postSettings)}</h2>
         <dl class="settings-list" data-settings-list>
@@ -118,6 +128,7 @@ export function renderSettings(options: {
 
   return renderLayout({
     body,
+    csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
     themeColor: options.settings.themeColor,
@@ -126,17 +137,19 @@ export function renderSettings(options: {
 }
 
 /**
- * 渲染通知设置区域。
+ * 渲染账户设置区域。
  *
  * @param settings 应用设置。
  * @param account 当前登录账户，未登录时为 undefined。
  * @param status 账户操作后的状态信息，未发生操作时为 undefined。
- * @return 通知设置区域 HTML。
+ * @param csrfToken CSRF 令牌。
+ * @return 账户设置区域 HTML。
  */
 function renderAccountSection(
   settings: AppSettings,
   account: Pick<UserAccount, "username"> | undefined,
   status: AccountStatus | undefined,
+  csrfToken: string,
 ): string {
   const messages = getMessages(settings.locale);
   const actionStatusMessage = status && accountStatusField(status) === "action"
@@ -163,6 +176,7 @@ function renderAccountSection(
       data-account-password-required="${escapeHtml(messages.accountPasswordVerificationRequired)}"
       data-account-password-verified="${escapeHtml(messages.accountPasswordVerified)}"
     >
+      ${csrfHiddenInput(csrfToken)}
       <section class="settings-group" aria-labelledby="account-settings-heading">
         <h2 id="account-settings-heading">${escapeHtml(messages.accountSettings)}</h2>
         <dl class="settings-list">
@@ -443,7 +457,10 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationServerChanSendKey"
-                  value="${escapeHtml(settings.notificationServerChanSendKey)}"
+                  value=""
+                  placeholder="${
+    secretInputPlaceholder(settings.notificationServerChanSendKey, messages)
+  }"
                   autocomplete="off"
                 >
                 <a
@@ -470,7 +487,10 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationPushPlusSecret"
-                  value="${escapeHtml(settings.notificationPushPlusToken)}"
+                  value=""
+                  placeholder="${
+    secretInputPlaceholder(settings.notificationPushPlusToken, messages)
+  }"
                   autocomplete="off"
                 >
                 <a
@@ -497,9 +517,15 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationWxPusherSpt"
-                  value="${escapeHtml(settings.notificationWxPusherSpt)}"
+                  value=""
+                  placeholder="${
+    secretInputPlaceholder(
+      settings.notificationWxPusherSpt,
+      messages,
+      "SPT_xxx",
+    )
+  }"
                   autocomplete="off"
-                  placeholder="SPT_xxx"
                 >
                 <a
                   class="button-link external-settings-link"
@@ -524,8 +550,10 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationWebhookUrl"
-                value="${escapeHtml(settings.notificationWebhookUrl)}"
-                placeholder="https://"
+                value=""
+                placeholder="${
+    secretInputPlaceholder(settings.notificationWebhookUrl, messages, "https://")
+  }"
                 autocomplete="off"
               >
             </dd>
@@ -605,7 +633,10 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationEmailApiToken"
-                value="${escapeHtml(settings.notificationEmailApiToken)}"
+                value=""
+                placeholder="${
+    secretInputPlaceholder(settings.notificationEmailApiToken, messages)
+  }"
                 autocomplete="off"
               >
             </dd>
@@ -682,7 +713,8 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationSmtpPassword"
-                value="${escapeHtml(settings.notificationSmtpPassword)}"
+                value=""
+                placeholder="${secretInputPlaceholder(settings.notificationSmtpPassword, messages)}"
                 autocomplete="off"
               >
             </dd>
@@ -1228,6 +1260,22 @@ function renderKeywordSummary(keywords: string[]): string {
       `<span data-keyword-summary-item>${escapeHtml(keyword)}</span>`
     ).join('<span class="summary-separator">|</span>')
   }${suffix}`;
+}
+
+/**
+ * 生成敏感配置输入框的占位提示。
+ *
+ * @param value 当前已保存的敏感配置。
+ * @param messages 当前语言文案。
+ * @param emptyPlaceholder 未配置时使用的占位提示。
+ * @return 已转义的占位提示。
+ */
+function secretInputPlaceholder(
+  value: string,
+  messages: ReturnType<typeof getMessages>,
+  emptyPlaceholder = "",
+): string {
+  return escapeHtml(value.trim() ? messages.configuredSecretPlaceholder : emptyPlaceholder);
 }
 
 /**

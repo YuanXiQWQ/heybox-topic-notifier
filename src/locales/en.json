@@ -44,6 +44,7 @@
   "batchOperation": "Bulk actions",
   "completeMatch": "Mark done",
   "commonTopic": "Common",
+  "configuredSecretPlaceholder": "Configured, leave blank to keep",
   "configure": "Configure",
   "dashboardSubtitle": "Poll status, recent matches, and notification checks.",
   "dashboardTitle": "Topic monitor",

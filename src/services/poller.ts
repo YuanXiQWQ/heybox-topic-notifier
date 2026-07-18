@@ -1,7 +1,7 @@
 /**
  * @file 本文件负责轮询话题帖子、匹配关键词并触发通知。
  */
-import type { MatchRecord } from "../models.ts";
+import type { AppSettings, MatchRecord } from "../models.ts";
 import type { createKvStorage } from "../storage/kv.ts";
 import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
@@ -37,6 +37,23 @@ type PollerDependencies = {
  */
 export function createPoller({ matcher, notifier, source, storage }: PollerDependencies) {
   return {
+    /**
+     * 记录已经确认的命中并触发真实通知流程。
+     *
+     * @param records 命中记录列表。
+     * @param runStorage 本次记录使用的存储实现，默认使用创建轮询器时传入的存储。
+     * @param runSettings 本次记录使用的应用设置，未传入时从存储读取。
+     * @return 记录和通知完成后的 Promise。
+     */
+    async recordMatches(
+      records: MatchRecord[],
+      runStorage: PollStorage = storage,
+      runSettings?: AppSettings,
+    ): Promise<void> {
+      const settings = runSettings ?? await runStorage.getSettings();
+      await saveAndNotifyMatches(runStorage, notifier, records, settings);
+    },
+
     /**
      * 执行一次话题帖子轮询。
      *
@@ -86,27 +103,83 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
             post: detailedPost,
           };
 
-          await runStorage.saveMatch(record);
+          await saveMatchRecord(runStorage, record);
           matchedRecords.push(record);
           matchedPostIds.add(record.post.id);
           existingMatchedPostIds.add(record.post.id);
         }
       }
 
-      if (matchedRecords.length > 0) {
-        const result = await notifier.sendMatches(matchedRecords, settings);
-        const notifiedAt = new Date().toISOString();
-
-        for (const record of matchedRecords) {
-          if (result.sent) {
-            await runStorage.markMatchNotified(record.id, notifiedAt);
-          }
-        }
-      }
+      await notifyMatchedRecords(runStorage, notifier, matchedRecords, settings);
 
       await runStorage.setLastPollAt(new Date().toISOString());
     },
   };
+}
+
+/**
+ * 保存命中记录并触发真实通知流程。
+ *
+ * @param storage 用于保存和标记命中记录的存储能力。
+ * @param notifier 用于发送命中通知的通知器。
+ * @param records 命中记录列表。
+ * @param settings 应用设置。
+ * @return 保存和通知完成后的 Promise。
+ */
+async function saveAndNotifyMatches(
+  storage: Pick<PollStorage, "markMatchNotified" | "saveMatch">,
+  notifier: ReturnType<typeof createNotifier>,
+  records: MatchRecord[],
+  settings: AppSettings,
+): Promise<void> {
+  for (const record of records) {
+    await saveMatchRecord(storage, record);
+  }
+
+  await notifyMatchedRecords(storage, notifier, records, settings);
+}
+
+/**
+ * 保存单条命中记录。
+ *
+ * @param storage 用于保存命中记录的存储能力。
+ * @param record 命中记录。
+ * @return 保存完成后的 Promise。
+ */
+async function saveMatchRecord(
+  storage: Pick<PollStorage, "saveMatch">,
+  record: MatchRecord,
+): Promise<void> {
+  await storage.saveMatch(record);
+}
+
+/**
+ * 批量发送命中通知并标记成功投递的记录。
+ *
+ * @param storage 用于标记通知状态的存储能力。
+ * @param notifier 用于发送命中通知的通知器。
+ * @param records 命中记录列表。
+ * @param settings 应用设置。
+ * @return 通知流程完成后的 Promise。
+ */
+async function notifyMatchedRecords(
+  storage: Pick<PollStorage, "markMatchNotified">,
+  notifier: ReturnType<typeof createNotifier>,
+  records: MatchRecord[],
+  settings: AppSettings,
+): Promise<void> {
+  if (records.length === 0) {
+    return;
+  }
+
+  const result = await notifier.sendMatches(records, settings);
+  const notifiedAt = new Date().toISOString();
+
+  for (const record of records) {
+    if (result.sent) {
+      await storage.markMatchNotified(record.id, notifiedAt);
+    }
+  }
 }
 
 /**

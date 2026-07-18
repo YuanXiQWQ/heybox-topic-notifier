@@ -45,6 +45,14 @@ const notificationTransitionMs = 190;
  * 设置页下拉面板状态在本地存储中的键前缀。
  */
 const dropdownStoragePrefix = "heybox-notifier.settings.dropdown.";
+/**
+ * CSRF 表单字段名称。
+ */
+const csrfFieldName = "csrfToken";
+/**
+ * CSRF 请求头名称。
+ */
+const csrfHeaderName = "x-csrf-token";
 
 /**
  * 初始化设置页所有编辑器。
@@ -623,7 +631,7 @@ function initAccountSettings() {
       body.set("currentPassword", currentPasswordInput.value);
       const response = await fetch("/account/verify-password", {
         body,
-        headers: { "content-type": "application/x-www-form-urlencoded" },
+        headers: csrfRequestHeaders({ "content-type": "application/x-www-form-urlencoded" }),
         method: "POST",
       });
 
@@ -1128,7 +1136,7 @@ async function saveSettingsNow() {
   try {
     const response = await fetch(autoSaveForm.action, {
       body: formDataFromForm(autoSaveForm),
-      headers: { "x-autosave": "1" },
+      headers: csrfRequestHeaders({ "x-autosave": "1" }),
       method: autoSaveForm.method || "post",
       signal: autoSaveController.signal,
     });
@@ -1164,7 +1172,7 @@ async function sendTestNotification(testNotifyButton) {
 
   try {
     const response = await fetch("/test-notify", {
-      headers: { "x-test-notify": "1" },
+      headers: csrfRequestHeaders({ "x-test-notify": "1" }),
       method: "POST",
     });
     const text = await response.text();
@@ -1182,6 +1190,27 @@ async function sendTestNotification(testNotifyButton) {
     const errorDetails = error instanceof Error ? error.message : fallbackError;
     setTestNotifyStatus(fallbackError, "error", { errorDetails });
   }
+}
+
+/**
+ * 构建包含 CSRF 令牌的请求头。
+ *
+ * @param {Record<string, string>} headers 原始请求头。
+ * @return {Record<string, string>} 合并 CSRF 令牌后的请求头。
+ */
+function csrfRequestHeaders(headers = {}) {
+  const token = currentCsrfToken();
+  return token ? { ...headers, [csrfHeaderName]: token } : headers;
+}
+
+/**
+ * 从当前页面隐藏字段读取 CSRF 令牌。
+ *
+ * @return {string} 当前页面 CSRF 令牌。
+ */
+function currentCsrfToken() {
+  const input = document.querySelector(`input[name="${csrfFieldName}"]`);
+  return input instanceof HTMLInputElement ? input.value : "";
 }
 
 /**

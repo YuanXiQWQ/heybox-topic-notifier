@@ -3,6 +3,7 @@
  */
 import { getMessages } from "../locales/index.ts";
 import type { Locale } from "../locales/types.ts";
+import { csrfHiddenInput } from "../security/csrf.ts";
 
 /**
  * 转义 HTML 文本。
@@ -27,6 +28,7 @@ export function escapeHtml(value: string): string {
  */
 export function renderLayout(options: {
   body: string;
+  csrfToken: string;
   darkMode: boolean;
   locale: Locale;
   themeColor: string;
@@ -55,6 +57,7 @@ export function renderLayout(options: {
         <a href="/settings">${escapeHtml(messages.navSettings)}</a>
         <a href="/history">${escapeHtml(messages.navHistory)}</a>
         <form class="nav-logout" method="post" action="/logout">
+          ${csrfHiddenInput(options.csrfToken)}
           <button class="nav-link-button" type="submit">${escapeHtml(messages.navLogout)}</button>
         </form>
       </nav>

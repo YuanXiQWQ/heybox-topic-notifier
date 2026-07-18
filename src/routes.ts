@@ -1,7 +1,7 @@
 /**
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
-import { Hono } from "@hono/hono";
+import { type Context, Hono } from "@hono/hono";
 import {
   hashPassword,
   normalizeUsername,
@@ -10,6 +10,22 @@ import {
   verifyPassword,
 } from "./auth.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
+import {
+  csrfForbiddenResponse,
+  csrfHeaderName,
+  csrfTokenForRequest,
+  submittedCsrfToken,
+  verifyCsrfToken,
+  withCsrfCookie,
+} from "./security/csrf.ts";
+import { auditText, logSecurityAuditEvent } from "./security/audit_log.ts";
+import {
+  clientRateLimitIdentifier,
+  publicRateLimitPolicies,
+  rateLimitExceededResponseFor,
+  type RateLimitPolicy,
+  userRateLimitIdentifier,
+} from "./security/rate_limit.ts";
 import type {
   AppSettings,
   KeywordRule,
@@ -75,44 +91,95 @@ export function createRoutes(context: AppContext): Hono {
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
-    return c.html(renderDashboard({
-      initialNextPollProgress: initialNextPollProgress(url.searchParams),
-      pendingTable,
-      returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
-      settings,
-      state,
-    }));
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(
+      c.html(renderDashboard({
+        csrfToken: csrf.token,
+        initialNextPollProgress: initialNextPollProgress(url.searchParams),
+        pendingTable,
+        returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
+        settings,
+        state,
+      })),
+      csrf,
+    );
   });
 
   app.get("/dashboard-state", async (c) => {
     const url = new URL(c.req.url);
     url.searchParams.delete("tick");
     const storage = await storageForRequest(c, context);
+    return await dashboardStateResponse(c, storage, url.searchParams);
+  });
+
+  app.post("/dashboard-state/tick", async (c) => {
+    if (!validCsrfForRequest(c, {})) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitResponseForRequest(
+      c,
+      context,
+      publicRateLimitPolicies.manualPoll,
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const session = await authSessionForRequest(c, context);
+    if (session) {
+      await context.scheduler.tickUser(session.userId);
+    } else {
+      await context.scheduler.tick();
+    }
+
+    const url = new URL(c.req.url);
+    const storage = await storageForRequest(c, context);
+    return await dashboardStateResponse(c, storage, url.searchParams);
+  });
+
+  /**
+   * 返回仪表盘状态 JSON。
+   *
+   * @param {Context} c Hono 请求上下文。
+   * @param {Awaited<ReturnType<typeof storageForRequest>>} storage 当前用户作用域存储。
+   * @param {URLSearchParams} searchParams 仪表盘表格查询参数。
+   * @return {Promise<Response>} 仪表盘状态 JSON 响应。
+   */
+  async function dashboardStateResponse(
+    c: Context,
+    storage: Awaited<ReturnType<typeof storageForRequest>>,
+    searchParams: URLSearchParams,
+  ): Promise<Response> {
     const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
-      parseMatchTableQuery(url.searchParams),
+      parseMatchTableQuery(searchParams),
     );
     const messages = getMessages(settings.locale);
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
 
-    return c.json({
-      lastPollAt: state.lastPollAt ?? null,
-      latestMatch: state.latestMatch
-        ? {
-          title: state.latestMatch.post.title,
-          url: state.latestMatch.post.url,
-        }
-        : null,
-      pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale),
-      pendingSignature: matchTableSignature(pendingTable),
-      polling: {
-        enabled: settings.polling.enabled,
-        intervalUnit: settings.polling.intervalUnit,
-        intervalValue: settings.polling.intervalValue,
-      },
-      totalMatches: state.totalMatches,
-    });
-  });
+    return withCsrfCookie(
+      c.json({
+        lastPollAt: state.lastPollAt ?? null,
+        latestMatch: state.latestMatch
+          ? {
+            title: state.latestMatch.post.title,
+            url: state.latestMatch.post.url,
+          }
+          : null,
+        pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale, csrf.token),
+        pendingSignature: matchTableSignature(pendingTable),
+        polling: {
+          enabled: settings.polling.enabled,
+          intervalUnit: settings.polling.intervalUnit,
+          intervalValue: settings.polling.intervalValue,
+        },
+        totalMatches: state.totalMatches,
+      }),
+      csrf,
+    );
+  }
 
   app.get("/settings", async (c) => {
     const url = new URL(c.req.url);
@@ -120,11 +187,16 @@ export function createRoutes(context: AppContext): Hono {
     const session = await authSessionForRequest(c, context);
     const settings = await storage.getSettings();
     const account = session ? await context.storage.getAccountById(session.userId) : undefined;
-    return c.html(renderSettings({
-      account,
-      accountStatus: accountStatusFromSearch(url.searchParams),
-      settings,
-    }));
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(
+      c.html(renderSettings({
+        account,
+        accountStatus: accountStatusFromSearch(url.searchParams),
+        csrfToken: csrf.token,
+        settings,
+      })),
+      csrf,
+    );
   });
 
   app.post("/account", async (c) => {
@@ -144,6 +216,19 @@ export function createRoutes(context: AppContext): Hono {
     const currentPassword = String(form.currentPassword ?? "");
     const newPassword = String(form.newPassword ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
+
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
     if (accountAction !== "username" && accountAction !== "password") {
       return c.redirect("/settings", 303);
@@ -187,6 +272,14 @@ export function createRoutes(context: AppContext): Hono {
         return c.redirect(accountSettingsRedirect("notFound"), 303);
       }
 
+      logSecurityAuditEvent({
+        code: "password_changed",
+        level: "warn",
+        message: "账号密码已修改。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+
       return c.redirect("/settings?account=updated", 303);
     }
 
@@ -205,6 +298,19 @@ export function createRoutes(context: AppContext): Hono {
     }
 
     const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const currentPassword = String(form.currentPassword ?? "");
     return new Response(null, {
       status: await verifyPassword(currentPassword, account) ? 204 : 403,
@@ -214,8 +320,28 @@ export function createRoutes(context: AppContext): Hono {
   app.post("/settings", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
     const currentSettings = await storage.getSettings();
-    await storage.saveSettings(settingsFromForm(form, currentSettings));
+    const nextSettings = settingsFromForm(form, currentSettings);
+    await storage.saveSettings(nextSettings);
+    const session = await authSessionForRequest(c, context);
+    logSecurityAuditEvent({
+      code: "settings_changed",
+      details: {
+        autosave: c.req.header("x-autosave") === "1",
+        emailService: nextSettings.notificationEmailService,
+        notificationProvider: nextSettings.notificationProvider,
+        pollingEnabled: nextSettings.polling.enabled,
+        webhookService: nextSettings.notificationWebhookService,
+      },
+      level: "info",
+      message: "应用设置已保存。",
+      request: c.req.raw,
+      userId: session?.userId,
+    });
     if (c.req.header("x-autosave") === "1") {
       return new Response(null, { status: 204 });
     }
@@ -230,12 +356,28 @@ export function createRoutes(context: AppContext): Hono {
       history,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
-    return c.html(renderHistory({ historyTable, settings }));
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(
+      c.html(renderHistory({ csrfToken: csrf.token, historyTable, settings })),
+      csrf,
+    );
   });
 
   app.post("/run-now", async (c) => {
     const storage = await optionalStorageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+    const rateLimitResponse = await rateLimitResponseForRequest(
+      c,
+      context,
+      publicRateLimitPolicies.manualPoll,
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     try {
       if (storage) {
         await context.poller.runOnce(storage);
@@ -246,20 +388,37 @@ export function createRoutes(context: AppContext): Hono {
         withPollResetFlag(safeRedirectPath(form.get("returnTo"), "/"), form.get("pollResetStart")),
       );
     } catch (error) {
-      return notificationErrorResponse(error);
+      return notificationErrorResponse(error, c.req.raw);
     }
   });
 
   app.post("/simulate-match", async (c) => {
-    const storage = await storageForRequest(c, context);
-    const form = await formDataOrEmpty(c.req.raw);
+    const debugRequest = await debugOperationRequest(c, context);
+    if (debugRequest.response) {
+      return debugRequest.response;
+    }
+
+    const { form, storage } = debugRequest;
     const settings = await storage.getSettings();
-    await storage.saveMatch(createRandomTestMatchRecord(settings, 1, "simulation"));
-    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
+    try {
+      await context.poller.recordMatches(
+        [createRandomTestMatchRecord(settings, 1, "simulation")],
+        storage,
+        settings,
+      );
+      return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
+    } catch (error) {
+      return notificationErrorResponse(error, c.req.raw);
+    }
   });
 
   app.post("/test-notify", async (c) => {
-    const storage = await storageForRequest(c, context);
+    const debugRequest = await debugOperationRequest(c, context);
+    if (debugRequest.response) {
+      return debugRequest.response;
+    }
+
+    const { storage } = debugRequest;
     const settings = await storage.getSettings();
     try {
       await context.notifier.sendTest(settings);
@@ -268,13 +427,17 @@ export function createRoutes(context: AppContext): Hono {
       }
       return c.redirect("/");
     } catch (error) {
-      return notificationErrorResponse(error);
+      return notificationErrorResponse(error, c.req.raw);
     }
   });
 
   app.post("/matches/complete", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await c.req.raw.formData();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
     const ids = form.getAll("matchId").map(String);
     if (ids.length > 0) {
       await storage.completeMatches(ids);
@@ -285,6 +448,10 @@ export function createRoutes(context: AppContext): Hono {
   app.post("/matches/delete", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await c.req.raw.formData();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
     const ids = form.getAll("matchId").map(String);
     if (ids.length > 0) {
       await storage.deleteMatches(ids);
@@ -407,8 +574,16 @@ function isAccountErrorCode(value: string | null): value is AccountErrorCode {
     value === "username";
 }
 
-function notificationErrorResponse(error: unknown): Response {
+function notificationErrorResponse(error: unknown, request?: Request): Response {
   if (error instanceof NotificationConfigError) {
+    logSecurityAuditEvent({
+      code: "notification_config_rejected",
+      details: { errorName: error.name },
+      level: "warn",
+      message: `通知配置被拒绝：${auditText(error.message)}`,
+      request,
+    });
+
     return new Response(error.message, {
       headers: { "content-type": "text/plain; charset=utf-8" },
       status: 400,
@@ -416,6 +591,17 @@ function notificationErrorResponse(error: unknown): Response {
   }
 
   if (error instanceof NotificationDeliveryError) {
+    logSecurityAuditEvent({
+      code: "notification_delivery_failed",
+      details: {
+        errorName: error.name,
+        upstreamStatus: error.upstreamStatus ?? "",
+      },
+      level: "warn",
+      message: `通知投递失败：${auditText(error.message)}`,
+      request,
+    });
+
     return new Response(error.message, {
       headers: { "content-type": "text/plain; charset=utf-8" },
       status: notificationDeliveryStatus(error),
@@ -519,6 +705,80 @@ function normalizePollResetStart(value: FormDataEntryValue | null): string | und
 }
 
 /**
+ * 读取调试类 POST 请求并完成 CSRF 与限流检查。
+ *
+ * @param c Hono 请求上下文。
+ * @param context 应用上下文。
+ * @return 调试请求上下文；包含 response 时应直接返回该响应。
+ */
+async function debugOperationRequest(
+  c: Context,
+  context: AppContext,
+): Promise<{
+  form: FormData;
+  response?: Response;
+  storage: Awaited<ReturnType<typeof storageForRequest>>;
+}> {
+  const storage = await storageForRequest(c, context);
+  const form = await formDataOrEmpty(c.req.raw);
+  if (!validCsrfForRequest(c, form)) {
+    return { form, response: csrfForbiddenResponse(c.req.raw), storage };
+  }
+
+  const response = await rateLimitResponseForRequest(
+    c,
+    context,
+    publicRateLimitPolicies.debugOperation,
+  );
+  return { form, response, storage };
+}
+
+/**
+ * 根据当前会话或客户端地址执行频率限制检查。
+ *
+ * @param c Hono 请求上下文的最小结构。
+ * @param context 应用上下文。
+ * @param policy 频率限制策略。
+ * @return 未触发限制时返回 undefined，否则返回 429 响应。
+ */
+async function rateLimitResponseForRequest(
+  c: { req: { header(name: string): string | undefined; raw: Request } },
+  context: AppContext,
+  policy: RateLimitPolicy,
+): Promise<Response | undefined> {
+  const storage = (context as { storage?: AppContext["storage"] }).storage;
+  const canReadSession = typeof (storage as { getSession?: unknown } | undefined)?.getSession ===
+    "function";
+  const session = canReadSession
+    ? await readAuthSession(c.req.header("cookie"), context.storage)
+    : undefined;
+  const identifier = session
+    ? userRateLimitIdentifier(session.userId)
+    : clientRateLimitIdentifier((name) => c.req.header(name));
+  return await rateLimitExceededResponseFor(storage, policy, identifier, {
+    request: c.req.raw,
+    userId: session?.userId,
+  });
+}
+
+/**
+ * 校验当前请求携带的 CSRF 令牌。
+ *
+ * @param {{ req: { header(name: string): string | undefined } }} c Hono 请求上下文的最小结构。
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]> | FormData} form 表单数据。
+ * @return {boolean} CSRF 令牌有效时返回 true。
+ */
+function validCsrfForRequest(
+  c: { req: { header(name: string): string | undefined } },
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]> | FormData,
+): boolean {
+  return verifyCsrfToken(
+    c.req.header("cookie"),
+    submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+  );
+}
+
+/**
  * 读取请求表单，读取失败时返回空表单。
  *
  * @param request 原始请求。
@@ -557,17 +817,29 @@ export function settingsFromForm(
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
     notificationEmailAddress: String(form.notificationEmailAddress ?? "").trim(),
-    notificationEmailApiToken: String(form.notificationEmailApiToken ?? ""),
+    notificationEmailApiToken: secretValueFromForm(
+      form.notificationEmailApiToken,
+      currentSettings.notificationEmailApiToken,
+    ),
     notificationEmailApiUrl: String(form.notificationEmailApiUrl ?? "").trim(),
     notificationEmailFrom: String(form.notificationEmailFrom ?? "").trim(),
     notificationEmailService: normalizeNotificationEmailService(form.notificationEmailService),
     notificationProvider: normalizeNotificationProvider(form.notificationProvider),
-    notificationPushPlusToken: String(
-      form.notificationPushPlusSecret ?? form.notificationPushPlusToken ?? "",
-    ).trim(),
-    notificationServerChanSendKey: String(form.notificationServerChanSendKey ?? "").trim(),
+    notificationPushPlusToken: secretValueFromForm(
+      form.notificationPushPlusSecret ?? form.notificationPushPlusToken,
+      currentSettings.notificationPushPlusToken,
+      true,
+    ),
+    notificationServerChanSendKey: secretValueFromForm(
+      form.notificationServerChanSendKey,
+      currentSettings.notificationServerChanSendKey,
+      true,
+    ),
     notificationSmtpHost: String(form.notificationSmtpHost ?? "").trim(),
-    notificationSmtpPassword: String(form.notificationSmtpPassword ?? ""),
+    notificationSmtpPassword: secretValueFromForm(
+      form.notificationSmtpPassword,
+      currentSettings.notificationSmtpPassword,
+    ),
     notificationSmtpPort: normalizePositiveInteger(
       form.notificationSmtpPort,
       currentSettings.notificationSmtpPort,
@@ -577,8 +849,16 @@ export function settingsFromForm(
     notificationWebhookService: normalizeNotificationWebhookService(
       form.notificationWebhookService,
     ),
-    notificationWebhookUrl: String(form.notificationWebhookUrl ?? "").trim(),
-    notificationWxPusherSpt: String(form.notificationWxPusherSpt ?? "").trim(),
+    notificationWebhookUrl: secretValueFromForm(
+      form.notificationWebhookUrl,
+      currentSettings.notificationWebhookUrl,
+      true,
+    ),
+    notificationWxPusherSpt: secretValueFromForm(
+      form.notificationWxPusherSpt,
+      currentSettings.notificationWxPusherSpt,
+      true,
+    ),
     polling: {
       enabled: form.pollEnabled === "on",
       intervalUnit: normalizePollIntervalUnit(
@@ -596,6 +876,24 @@ export function settingsFromForm(
     themeColor: normalizeThemeColor(form.themeColor, currentSettings.themeColor),
     topics,
   };
+}
+
+/**
+ * 从表单读取敏感配置，空提交时保留当前值。
+ *
+ * @param value 表单提交值。
+ * @param currentValue 当前已保存的敏感配置。
+ * @param trim 是否在判断前后去除首尾空白。
+ * @return 新的敏感配置值。
+ */
+function secretValueFromForm(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+  currentValue: string,
+  trim = false,
+): string {
+  const submitted = String(value ?? "");
+  const normalized = trim ? submitted.trim() : submitted;
+  return normalized.length > 0 ? normalized : currentValue;
 }
 
 /**

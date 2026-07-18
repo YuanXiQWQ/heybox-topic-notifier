@@ -154,6 +154,24 @@ Deno.test("updateAccount rejects an existing username without changing the accou
   assertEquals((await storage.getAccountByUsername("bob"))?.id, "bob-id");
 });
 
+Deno.test("recordRateLimitHit blocks requests after the configured limit", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+
+  const first = await storage.recordRateLimitHit(["registration", "client"], 2, 60_000);
+  const second = await storage.recordRateLimitHit(["registration", "client"], 2, 60_000);
+  const third = await storage.recordRateLimitHit(["registration", "client"], 2, 60_000);
+
+  assertEquals(first.allowed, true);
+  assertEquals(second.allowed, true);
+  assertEquals(third.allowed, false);
+  assertEquals(third.count, 3);
+  assertEquals(third.limit, 2);
+  assertEquals(third.retryAfterSeconds > 0, true);
+});
+
 /**
  * 创建测试命中记录。
  *
