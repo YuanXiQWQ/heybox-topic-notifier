@@ -18,6 +18,7 @@ import {
   verifyCsrfToken,
   withCsrfCookie,
 } from "./security/csrf.ts";
+import { auditText, logSecurityAuditEvent } from "./security/audit_log.ts";
 import {
   clientRateLimitIdentifier,
   publicRateLimitPolicies,
@@ -113,7 +114,7 @@ export function createRoutes(context: AppContext): Hono {
 
   app.post("/dashboard-state/tick", async (c) => {
     if (!validCsrfForRequest(c, {})) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
 
     const rateLimitResponse = await rateLimitResponseForRequest(
@@ -217,12 +218,13 @@ export function createRoutes(context: AppContext): Hono {
     const confirmPassword = String(form.confirmPassword ?? "");
 
     if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
     const rateLimitResponse = await rateLimitExceededResponseFor(
       context.storage,
       publicRateLimitPolicies.accountSensitiveOperation,
       userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
     );
     if (rateLimitResponse) {
       return rateLimitResponse;
@@ -270,6 +272,14 @@ export function createRoutes(context: AppContext): Hono {
         return c.redirect(accountSettingsRedirect("notFound"), 303);
       }
 
+      logSecurityAuditEvent({
+        code: "password_changed",
+        level: "warn",
+        message: "账号密码已修改。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+
       return c.redirect("/settings?account=updated", 303);
     }
 
@@ -289,12 +299,13 @@ export function createRoutes(context: AppContext): Hono {
 
     const form = await c.req.parseBody();
     if (!validCsrfForRequest(c, form)) {
-      return new Response(null, { status: 403 });
+      return csrfForbiddenResponse(c.req.raw);
     }
     const rateLimitResponse = await rateLimitExceededResponseFor(
       context.storage,
       publicRateLimitPolicies.accountSensitiveOperation,
       userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
     );
     if (rateLimitResponse) {
       return rateLimitResponse;
@@ -310,11 +321,27 @@ export function createRoutes(context: AppContext): Hono {
     const storage = await storageForRequest(c, context);
     const form = await c.req.parseBody();
     if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
 
     const currentSettings = await storage.getSettings();
-    await storage.saveSettings(settingsFromForm(form, currentSettings));
+    const nextSettings = settingsFromForm(form, currentSettings);
+    await storage.saveSettings(nextSettings);
+    const session = await authSessionForRequest(c, context);
+    logSecurityAuditEvent({
+      code: "settings_changed",
+      details: {
+        autosave: c.req.header("x-autosave") === "1",
+        emailService: nextSettings.notificationEmailService,
+        notificationProvider: nextSettings.notificationProvider,
+        pollingEnabled: nextSettings.polling.enabled,
+        webhookService: nextSettings.notificationWebhookService,
+      },
+      level: "info",
+      message: "应用设置已保存。",
+      request: c.req.raw,
+      userId: session?.userId,
+    });
     if (c.req.header("x-autosave") === "1") {
       return new Response(null, { status: 204 });
     }
@@ -340,7 +367,7 @@ export function createRoutes(context: AppContext): Hono {
     const storage = await optionalStorageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
     if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
     const rateLimitResponse = await rateLimitResponseForRequest(
       c,
@@ -361,7 +388,7 @@ export function createRoutes(context: AppContext): Hono {
         withPollResetFlag(safeRedirectPath(form.get("returnTo"), "/"), form.get("pollResetStart")),
       );
     } catch (error) {
-      return notificationErrorResponse(error);
+      return notificationErrorResponse(error, c.req.raw);
     }
   });
 
@@ -369,7 +396,7 @@ export function createRoutes(context: AppContext): Hono {
     const storage = await storageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
     if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
     const rateLimitResponse = await rateLimitResponseForRequest(
       c,
@@ -389,7 +416,7 @@ export function createRoutes(context: AppContext): Hono {
       );
       return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
     } catch (error) {
-      return notificationErrorResponse(error);
+      return notificationErrorResponse(error, c.req.raw);
     }
   });
 
@@ -397,7 +424,7 @@ export function createRoutes(context: AppContext): Hono {
     const storage = await storageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
     if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
     const rateLimitResponse = await rateLimitResponseForRequest(
       c,
@@ -416,7 +443,7 @@ export function createRoutes(context: AppContext): Hono {
       }
       return c.redirect("/");
     } catch (error) {
-      return notificationErrorResponse(error);
+      return notificationErrorResponse(error, c.req.raw);
     }
   });
 
@@ -424,7 +451,7 @@ export function createRoutes(context: AppContext): Hono {
     const storage = await storageForRequest(c, context);
     const form = await c.req.raw.formData();
     if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
 
     const ids = form.getAll("matchId").map(String);
@@ -438,7 +465,7 @@ export function createRoutes(context: AppContext): Hono {
     const storage = await storageForRequest(c, context);
     const form = await c.req.raw.formData();
     if (!validCsrfForRequest(c, form)) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
 
     const ids = form.getAll("matchId").map(String);
@@ -563,8 +590,16 @@ function isAccountErrorCode(value: string | null): value is AccountErrorCode {
     value === "username";
 }
 
-function notificationErrorResponse(error: unknown): Response {
+function notificationErrorResponse(error: unknown, request?: Request): Response {
   if (error instanceof NotificationConfigError) {
+    logSecurityAuditEvent({
+      code: "notification_config_rejected",
+      details: { errorName: error.name },
+      level: "warn",
+      message: `通知配置被拒绝：${auditText(error.message)}`,
+      request,
+    });
+
     return new Response(error.message, {
       headers: { "content-type": "text/plain; charset=utf-8" },
       status: 400,
@@ -572,6 +607,17 @@ function notificationErrorResponse(error: unknown): Response {
   }
 
   if (error instanceof NotificationDeliveryError) {
+    logSecurityAuditEvent({
+      code: "notification_delivery_failed",
+      details: {
+        errorName: error.name,
+        upstreamStatus: error.upstreamStatus ?? "",
+      },
+      level: "warn",
+      message: `通知投递失败：${auditText(error.message)}`,
+      request,
+    });
+
     return new Response(error.message, {
       headers: { "content-type": "text/plain; charset=utf-8" },
       status: notificationDeliveryStatus(error),
@@ -683,7 +729,7 @@ function normalizePollResetStart(value: FormDataEntryValue | null): string | und
  * @return 未触发限制时返回 undefined，否则返回 429 响应。
  */
 async function rateLimitResponseForRequest(
-  c: { req: { header(name: string): string | undefined } },
+  c: { req: { header(name: string): string | undefined; raw: Request } },
   context: AppContext,
   policy: RateLimitPolicy,
 ): Promise<Response | undefined> {
@@ -696,7 +742,10 @@ async function rateLimitResponseForRequest(
   const identifier = session
     ? userRateLimitIdentifier(session.userId)
     : clientRateLimitIdentifier((name) => c.req.header(name));
-  return await rateLimitExceededResponseFor(storage, policy, identifier);
+  return await rateLimitExceededResponseFor(storage, policy, identifier, {
+    request: c.req.raw,
+    userId: session?.userId,
+  });
 }
 
 /**

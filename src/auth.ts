@@ -16,6 +16,7 @@ import {
   verifyCsrfToken,
   withCsrfCookie,
 } from "./security/csrf.ts";
+import { auditText, logSecurityAuditEvent } from "./security/audit_log.ts";
 import {
   clientRateLimitIdentifier,
   publicRateLimitPolicies,
@@ -169,7 +170,7 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         submittedCsrfToken(form, c.req.header(csrfHeaderName)),
       )
     ) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
@@ -179,6 +180,14 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const loginFailure = canRateLimit ? await storage.getLoginFailure(username) : undefined;
 
     if (isLoginLocked(loginFailure)) {
+      logSecurityAuditEvent({
+        code: "login_locked",
+        details: { username: auditText(username) },
+        level: "warn",
+        message: "登录已处于临时锁定状态，已拒绝本次尝试。",
+        request: c.req.raw,
+      });
+
       return loginRateLimitedRedirect(config.loginPath, returnTo, locale);
     }
 
@@ -193,8 +202,30 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         )
         : undefined;
       if (isLoginLocked(failure)) {
+        logSecurityAuditEvent({
+          code: "login_lockout_triggered",
+          details: {
+            failures: failure?.failures ?? "",
+            username: auditText(username),
+          },
+          level: "warn",
+          message: "登录失败次数过多，已触发临时锁定。",
+          request: c.req.raw,
+        });
+
         return loginRateLimitedRedirect(config.loginPath, returnTo, locale);
       }
+
+      logSecurityAuditEvent({
+        code: "login_failed",
+        details: {
+          failures: failure?.failures ?? "",
+          username: auditText(username),
+        },
+        level: "warn",
+        message: "登录失败：用户名或密码不正确。",
+        request: c.req.raw,
+      });
 
       return c.redirect(
         authPagePath(config.loginPath, locale, { error: "invalid", returnTo }),
@@ -238,12 +269,13 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         submittedCsrfToken(form, c.req.header(csrfHeaderName)),
       )
     ) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
     const rateLimitResponse = await rateLimitExceededResponseFor(
       storage,
       publicRateLimitPolicies.registration,
       clientRateLimitIdentifier((name) => c.req.header(name)),
+      { request: c.req.raw },
     );
     if (rateLimitResponse) {
       return rateLimitResponse;
@@ -286,7 +318,7 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         submittedCsrfToken(form, c.req.header(csrfHeaderName)),
       )
     ) {
-      return csrfForbiddenResponse();
+      return csrfForbiddenResponse(c.req.raw);
     }
 
     const token = parseCookies(c.req.header("cookie")).get(config.cookieName);

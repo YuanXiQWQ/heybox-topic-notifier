@@ -2,6 +2,7 @@
  * @file 本文件提供公开部署下的轻量服务端频率限制能力。
  */
 import type { RateLimitHit } from "../storage/kv.ts";
+import { logSecurityAuditEvent } from "./audit_log.ts";
 
 /**
  * 频率限制策略。
@@ -21,6 +22,14 @@ type RateLimitStorage = {
     limit: number,
     windowMs: number,
   ) => Promise<RateLimitHit>;
+};
+
+/**
+ * 频率限制审计日志上下文。
+ */
+type RateLimitAuditContext = {
+  request?: Request;
+  userId?: string;
 };
 
 /**
@@ -80,12 +89,14 @@ export const publicRateLimitPolicies = {
  * @param storage 支持频率限制计数的存储对象。
  * @param policy 频率限制策略。
  * @param identifier 访问者标识。
+ * @param auditContext 审计日志上下文。
  * @return 未触发限制时返回 undefined，否则返回 429 响应。
  */
 export async function rateLimitExceededResponseFor(
   storage: RateLimitStorage | undefined,
   policy: RateLimitPolicy,
   identifier: string,
+  auditContext: RateLimitAuditContext = {},
 ): Promise<Response | undefined> {
   if (!storage?.recordRateLimitHit) {
     return undefined;
@@ -93,6 +104,24 @@ export async function rateLimitExceededResponseFor(
 
   const keyParts = [policy.scope, await hashedIdentifier(identifier)];
   const hit = await storage.recordRateLimitHit(keyParts, policy.limit, policy.windowMs);
+  if (!hit.allowed) {
+    logSecurityAuditEvent({
+      code: "rate_limit_exceeded",
+      details: {
+        count: hit.count,
+        identifierHash: keyParts[1],
+        limit: hit.limit,
+        resetAt: hit.resetAt,
+        retryAfterSeconds: hit.retryAfterSeconds,
+        scope: policy.scope,
+      },
+      level: "warn",
+      message: `限流已触发：${policy.scope}。`,
+      request: auditContext.request,
+      userId: auditContext.userId,
+    });
+  }
+
   return hit.allowed ? undefined : rateLimitExceededResponse(hit);
 }
 

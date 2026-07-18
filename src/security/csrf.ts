@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供 CSRF 双提交令牌的生成、渲染和校验能力。
  */
+import { logSecurityAuditEvent } from "./audit_log.ts";
 
 /**
  * CSRF Cookie 名称。
@@ -127,9 +128,19 @@ export function submittedCsrfToken(
 /**
  * 创建 CSRF 校验失败响应。
  *
+ * @param {Request | undefined} request 触发失败的请求。
  * @return {Response} CSRF 校验失败响应。
  */
-export function csrfForbiddenResponse(): Response {
+export function csrfForbiddenResponse(request?: Request): Response {
+  if (request) {
+    logSecurityAuditEvent({
+      code: "csrf_rejected",
+      level: "warn",
+      message: "CSRF 校验失败，已拒绝请求。",
+      request,
+    });
+  }
+
   return new Response("Invalid CSRF token.", {
     headers: { "content-type": "text/plain; charset=utf-8" },
     status: 403,
