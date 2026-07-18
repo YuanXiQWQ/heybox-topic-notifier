@@ -36,6 +36,70 @@ Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
   ]);
 });
 
+Deno.test("parseHeyboxTopicPosts rejects untrusted post share URLs", () => {
+  const posts = parseHeyboxTopicPosts({
+    result: {
+      links: [
+        {
+          id: "unsafe-protocol",
+          share_url: "javascript:alert(1)",
+          title: "unsafe protocol",
+        },
+        {
+          id: "unsafe-host",
+          share_url: "https://evil.example.com/app/bbs/link/unsafe-host",
+          title: "unsafe host",
+        },
+        {
+          id: "unsafe-http",
+          share_url: "http://www.xiaoheihe.cn/app/bbs/link/unsafe-http",
+          title: "unsafe http",
+        },
+      ],
+    },
+    status: "ok",
+  }, "topic/unsafe");
+
+  assertEquals(posts.map((post) => post.url), [
+    "https://www.xiaoheihe.cn/app/topic/link/topic%2Funsafe",
+    "https://www.xiaoheihe.cn/app/topic/link/topic%2Funsafe",
+    "https://www.xiaoheihe.cn/app/topic/link/topic%2Funsafe",
+  ]);
+});
+
+Deno.test("parseHeyboxTopicPosts keeps trusted Heybox post share URLs", () => {
+  const posts = parseHeyboxTopicPosts({
+    result: {
+      links: [
+        {
+          id: "trusted-topic",
+          share_url: "https://www.xiaoheihe.cn/app/topic/link/12099?tab=hot#latest",
+          title: "trusted topic",
+        },
+      ],
+    },
+    status: "ok",
+  }, "12099");
+
+  assertEquals(posts[0].url, "https://www.xiaoheihe.cn/app/topic/link/12099?tab=hot#latest");
+});
+
+Deno.test("parseHeyboxTopicPosts encodes extracted link IDs in post URLs", () => {
+  const posts = parseHeyboxTopicPosts({
+    result: {
+      links: [
+        {
+          share_url: "https://api.xiaoheihe.cn/share?link_id=abc%2F..%2F%3Cscript%3E",
+          title: "encoded link id",
+        },
+      ],
+    },
+    status: "ok",
+  }, "12099");
+
+  assertEquals(posts[0].url, "https://www.xiaoheihe.cn/app/bbs/link/abc%2F..%2F%3Cscript%3E");
+});
+
 Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
   const requestedUrls: URL[] = [];
   const source = createHeyboxTopicSource({
