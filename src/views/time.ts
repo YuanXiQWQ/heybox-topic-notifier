@@ -66,7 +66,7 @@ export function formatHeyboxRelativeTime(
 
   return formatInChina(
     date,
-    sameChinaYear(date, now)
+    sameChinaYear(date, now, locale)
       ? { day: "2-digit", month: "2-digit" }
       : { day: "2-digit", month: "2-digit", year: "numeric" },
     locale,
@@ -92,10 +92,12 @@ function formatTemplate(template: string, values: Record<string, string | number
  *
  * @param left 左侧时间。
  * @param right 右侧时间。
+ * @param locale 文案语言。
  * @return 同一年时返回 true。
  */
-function sameChinaYear(left: Date, right: Date): boolean {
-  return formatInChina(left, { year: "numeric" }) === formatInChina(right, { year: "numeric" });
+function sameChinaYear(left: Date, right: Date, locale: Locale): boolean {
+  return formatInChina(left, { year: "numeric" }, locale) ===
+    formatInChina(right, { year: "numeric" }, locale);
 }
 
 /**

@@ -2,7 +2,7 @@
  * @file 本文件负责渲染命中记录表格及其筛选、分页、选择交互脚本。
  */
 import { getMessages } from "../locales/index.ts";
-import type { Locale, Messages } from "../locales/types.ts";
+import { type Locale, locales, type Messages } from "../locales/types.ts";
 import type { MatchLocation } from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml } from "./html.ts";
@@ -530,10 +530,9 @@ function renderRelativeTimeScript(): string {
  * @return 按语言分组的相对时间模板。
  */
 function relativeTimeTemplatesByLocale(): Record<Locale, RelativeTimeTemplates> {
-  return {
-    "zh-CN": relativeTimeTemplates(getMessages("zh-CN")),
-    en: relativeTimeTemplates(getMessages("en")),
-  };
+  return Object.fromEntries(
+    locales.map((locale) => [locale, relativeTimeTemplates(getMessages(locale))]),
+  ) as Record<Locale, RelativeTimeTemplates>;
 }
 
 /**

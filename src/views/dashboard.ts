@@ -207,7 +207,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       let lastDueDashboardRefreshAt = 0;
       let lastDueDashboardRefreshBaseline = "";
 
-      const locale = lastPoll.dataset.lastPollLocale === "en" ? "en" : "zh-CN";
+      const locale = lastPoll.dataset.lastPollLocale || "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
       const pollUnitLabels = ${JSON.stringify(pollUnitLabels)};
       const dashboardStateRefreshMs = ${dashboardStateRefreshMs};
@@ -601,7 +601,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
 
         return formatInChina(
           date,
-          sameChinaYear(date, new Date())
+          sameChinaYear(date, new Date(), locale)
             ? { day: "2-digit", month: "2-digit" }
             : { day: "2-digit", month: "2-digit", year: "numeric" },
           locale,
@@ -614,9 +614,9 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         );
       }
 
-      function sameChinaYear(left, right) {
-        return formatInChina(left, { year: "numeric" }) ===
-          formatInChina(right, { year: "numeric" });
+      function sameChinaYear(left, right, locale) {
+        return formatInChina(left, { year: "numeric" }, locale) ===
+          formatInChina(right, { year: "numeric" }, locale);
       }
 
       function formatInChina(date, options, locale) {
