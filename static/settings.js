@@ -32,7 +32,7 @@ let testNotifyStatusTimer;
 /**
  * 最近一次成功保存的表单签名。
  */
-let lastSavedSignature = '';
+let lastSavedSignature = "";
 /**
  * 保存成功后是否需要刷新页面。
  */
@@ -44,28 +44,29 @@ const notificationTransitionMs = 190;
 /**
  * 设置页下拉面板状态在本地存储中的键前缀。
  */
-const dropdownStoragePrefix = 'heybox-notifier.settings.dropdown.';
+const dropdownStoragePrefix = "heybox-notifier.settings.dropdown.";
 
 /**
  * 初始化设置页所有编辑器。
  */
 function initSettingsEditors() {
-  const topicEditor = document.querySelector('[data-topic-editor]');
-  const keywordEditor = document.querySelector('[data-keyword-editor]');
+  const topicEditor = document.querySelector("[data-topic-editor]");
+  const keywordEditor = document.querySelector("[data-keyword-editor]");
 
   if (!topicEditor || !keywordEditor) {
     return;
   }
 
-  initDropdown(topicEditor, 'topics');
-  initDropdown(keywordEditor, 'keywords');
+  initDropdown(topicEditor, "topics");
+  initDropdown(keywordEditor, "keywords");
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
   initNotificationSettings();
   initPollingSettings();
+  initAccountSettings();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
-  initAutoSave(topicEditor.closest('form'), topicEditor, keywordEditor);
+  initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
   updateKeywordSummary(keywordEditor);
 }
 
@@ -73,12 +74,12 @@ function initSettingsEditors() {
  * 初始化通知设置联动和测试通知交互。
  */
 function initNotificationSettings() {
-  const providerSelect = document.querySelector('[data-notification-provider-select]');
-  const emailServiceSelect = document.querySelector('[data-notification-email-service-select]');
-  const serviceSelect = document.querySelector('[data-notification-webhook-service-select]');
-  const testNotifyButton = document.querySelector('[data-test-notify-button]');
-  const testNotifyStatus = document.querySelector('[data-test-notify-status]');
-  const rows = Array.from(document.querySelectorAll('[data-notification-field]'));
+  const providerSelect = document.querySelector("[data-notification-provider-select]");
+  const emailServiceSelect = document.querySelector("[data-notification-email-service-select]");
+  const serviceSelect = document.querySelector("[data-notification-webhook-service-select]");
+  const testNotifyButton = document.querySelector("[data-test-notify-button]");
+  const testNotifyStatus = document.querySelector("[data-test-notify-status]");
+  const rows = Array.from(document.querySelectorAll("[data-notification-field]"));
 
   if (!(providerSelect instanceof HTMLSelectElement)) {
     return;
@@ -93,35 +94,35 @@ function initNotificationSettings() {
    * @return {Set<string>} 需要显示的通知字段名称集合。
    */
   function desiredNotificationFields() {
-    if (providerSelect.value === 'email') {
+    if (providerSelect.value === "email") {
       const fields = [
-        'email-service',
-        'email-address',
-        'email-from',
+        "email-service",
+        "email-address",
+        "email-from",
       ];
 
-      if (emailServiceSelect?.value === 'api') {
-        fields.push('email-api-url', 'email-api-token');
+      if (emailServiceSelect?.value === "api") {
+        fields.push("email-api-url", "email-api-token");
       } else {
         fields.push(
-            'smtp-host',
-            'smtp-port',
-            'smtp-secure',
-            'smtp-username',
-            'smtp-password',
+          "smtp-host",
+          "smtp-port",
+          "smtp-secure",
+          "smtp-username",
+          "smtp-password",
         );
       }
 
       return new Set(fields);
     }
 
-    if (providerSelect.value !== 'webhook') {
+    if (providerSelect.value !== "webhook") {
       return new Set();
     }
 
     return new Set([
-      'webhook-service',
-      serviceSelect?.value || 'custom',
+      "webhook-service",
+      serviceSelect?.value || "custom",
     ]);
   }
 
@@ -147,13 +148,13 @@ function initNotificationSettings() {
     row.dataset.notificationTransitionToken = String(token);
 
     if (!animate) {
-      row.classList.remove('is-collapsed');
+      row.classList.remove("is-collapsed");
       return;
     }
 
-    row.classList.add('is-collapsed');
+    row.classList.add("is-collapsed");
     row.getBoundingClientRect();
-    row.classList.remove('is-collapsed');
+    row.classList.remove("is-collapsed");
   }
 
   /**
@@ -165,7 +166,7 @@ function initNotificationSettings() {
    */
   function hideRow(row, animate, token) {
     row.dataset.notificationTransitionToken = String(token);
-    row.classList.add('is-collapsed');
+    row.classList.add("is-collapsed");
 
     if (!animate) {
       row.hidden = true;
@@ -174,8 +175,8 @@ function initNotificationSettings() {
 
     setTimeout(() => {
       if (
-          row.dataset.notificationTransitionToken === String(token) &&
-          row.classList.contains('is-collapsed')
+        row.dataset.notificationTransitionToken === String(token) &&
+        row.classList.contains("is-collapsed")
       ) {
         row.hidden = true;
       }
@@ -199,12 +200,12 @@ function initNotificationSettings() {
     }
 
     if (testNotifyButton instanceof HTMLButtonElement) {
-      testNotifyButton.hidden = providerSelect.value === 'disabled';
+      testNotifyButton.hidden = providerSelect.value === "disabled";
       if (testNotifyStatus instanceof HTMLElement) {
         testNotifyStatus.hidden = testNotifyButton.hidden;
       }
       if (testNotifyButton.hidden) {
-        setTestNotifyStatus('');
+        setTestNotifyStatus("");
       }
     }
   }
@@ -223,29 +224,29 @@ function initNotificationSettings() {
     visibleFields = targetFields;
   }
 
-  providerSelect.addEventListener('change', () => {
+  providerSelect.addEventListener("change", () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  emailServiceSelect?.addEventListener('change', () => {
+  emailServiceSelect?.addEventListener("change", () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  serviceSelect?.addEventListener('change', () => {
+  serviceSelect?.addEventListener("change", () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  testNotifyButton?.addEventListener('click', async (event) => {
+  testNotifyButton?.addEventListener("click", async (event) => {
     event.preventDefault();
     if (!(testNotifyButton instanceof HTMLButtonElement)) {
       return;
     }
 
     testNotifyButton.disabled = true;
-    setTestNotifyStatus(testNotifyButton.dataset.testNotifySending ?? '', 'pending', {
+    setTestNotifyStatus(testNotifyButton.dataset.testNotifySending ?? "", "pending", {
       persistMs: 0,
     });
     try {
@@ -253,7 +254,7 @@ function initNotificationSettings() {
       if (saved) {
         await sendTestNotification(testNotifyButton);
       } else {
-        setTestNotifyStatus(testNotifyButton.dataset.testNotifyFailed ?? '', 'error');
+        setTestNotifyStatus(testNotifyButton.dataset.testNotifyFailed ?? "", "error");
       }
     } finally {
       testNotifyButton.disabled = false;
@@ -267,12 +268,12 @@ function initNotificationSettings() {
  * 初始化轮询设置联动。
  */
 function initPollingSettings() {
-  const enabledToggle = document.querySelector('[data-polling-enabled-toggle]');
-  const intervalValueInput = document.querySelector('[data-polling-interval-value]');
-  const intervalUnitSelect = document.querySelector('[data-polling-interval-unit]');
-  const subMinuteHint = document.querySelector('[data-polling-sub-minute-hint]');
-  const section = document.querySelector('[data-polling-section]');
-  const rows = Array.from(document.querySelectorAll('[data-polling-field]'));
+  const enabledToggle = document.querySelector("[data-polling-enabled-toggle]");
+  const intervalValueInput = document.querySelector("[data-polling-interval-value]");
+  const intervalUnitSelect = document.querySelector("[data-polling-interval-unit]");
+  const subMinuteHint = document.querySelector("[data-polling-sub-minute-hint]");
+  const section = document.querySelector("[data-polling-section]");
+  const rows = Array.from(document.querySelectorAll("[data-polling-field]"));
 
   if (!(enabledToggle instanceof HTMLInputElement)) {
     return;
@@ -292,13 +293,13 @@ function initPollingSettings() {
     row.dataset.pollingTransitionToken = String(token);
 
     if (!animate) {
-      row.classList.remove('is-collapsed');
+      row.classList.remove("is-collapsed");
       return;
     }
 
-    row.classList.add('is-collapsed');
+    row.classList.add("is-collapsed");
     row.getBoundingClientRect();
-    row.classList.remove('is-collapsed');
+    row.classList.remove("is-collapsed");
   }
 
   /**
@@ -310,7 +311,7 @@ function initPollingSettings() {
    */
   function hideRow(row, animate, token) {
     row.dataset.pollingTransitionToken = String(token);
-    row.classList.add('is-collapsed');
+    row.classList.add("is-collapsed");
 
     if (!animate) {
       row.hidden = true;
@@ -319,8 +320,8 @@ function initPollingSettings() {
 
     setTimeout(() => {
       if (
-          row.dataset.pollingTransitionToken === String(token) &&
-          row.classList.contains('is-collapsed')
+        row.dataset.pollingTransitionToken === String(token) &&
+        row.classList.contains("is-collapsed")
       ) {
         row.hidden = true;
       }
@@ -334,21 +335,21 @@ function initPollingSettings() {
    */
   function validateMinimumInterval() {
     if (
-        !(intervalValueInput instanceof HTMLInputElement) ||
-        !(intervalUnitSelect instanceof HTMLSelectElement)
+      !(intervalValueInput instanceof HTMLInputElement) ||
+      !(intervalUnitSelect instanceof HTMLSelectElement)
     ) {
       return true;
     }
 
-    intervalValueInput.min = intervalUnitSelect.value === 'second' ? '3' : '1';
+    intervalValueInput.min = intervalUnitSelect.value === "second" ? "3" : "1";
 
     const intervalValue = Number(intervalValueInput.value);
     if (
-        intervalUnitSelect.value === 'second' &&
-        Number.isFinite(intervalValue) &&
-        intervalValue < 3
+      intervalUnitSelect.value === "second" &&
+      Number.isFinite(intervalValue) &&
+      intervalValue < 3
     ) {
-      intervalValueInput.value = '3';
+      intervalValueInput.value = "3";
       if (section instanceof HTMLElement) {
         showToast(section, section.dataset.pollingIntervalTooShort);
       }
@@ -363,18 +364,18 @@ function initPollingSettings() {
    */
   function syncSubMinuteHint() {
     if (
-        !(subMinuteHint instanceof HTMLElement) ||
-        !(intervalValueInput instanceof HTMLInputElement) ||
-        !(intervalUnitSelect instanceof HTMLSelectElement)
+      !(subMinuteHint instanceof HTMLElement) ||
+      !(intervalValueInput instanceof HTMLInputElement) ||
+      !(intervalUnitSelect instanceof HTMLSelectElement)
     ) {
       return;
     }
 
     const intervalValue = Number(intervalValueInput.value);
     subMinuteHint.hidden = !(
-        intervalUnitSelect.value === 'second' &&
-        Number.isFinite(intervalValue) &&
-        intervalValue < 60
+      intervalUnitSelect.value === "second" &&
+      Number.isFinite(intervalValue) &&
+      intervalValue < 60
     );
   }
 
@@ -395,26 +396,26 @@ function initPollingSettings() {
     }
   }
 
-  enabledToggle.addEventListener('change', () => {
+  enabledToggle.addEventListener("change", () => {
     syncPollingFields(true);
     scheduleAutoSave();
   });
 
-  intervalValueInput?.addEventListener('change', () => {
+  intervalValueInput?.addEventListener("change", () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
 
-  intervalValueInput?.addEventListener('blur', () => {
+  intervalValueInput?.addEventListener("blur", () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
 
-  intervalValueInput?.addEventListener('input', () => {
+  intervalValueInput?.addEventListener("input", () => {
     syncSubMinuteHint();
   });
 
-  intervalUnitSelect?.addEventListener('change', () => {
+  intervalUnitSelect?.addEventListener("change", () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
@@ -422,6 +423,288 @@ function initPollingSettings() {
   validateMinimumInterval();
   syncSubMinuteHint();
   syncPollingFields(false);
+}
+
+/**
+ * 初始化账户设置编辑流程。
+ */
+function initAccountSettings() {
+  const form = document.querySelector("[data-account-form]");
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+
+  const actionInput = form.querySelector("[data-account-action-input]");
+  const usernameInput = form.querySelector("[data-account-username-input]");
+  const usernameStatus = form.querySelector("[data-account-username-status]");
+  const currentPasswordRow = form.querySelector("[data-account-current-password-row]");
+  const currentPasswordInput = form.querySelector("[data-account-current-password-input]");
+  const currentPasswordStatus = form.querySelector("[data-account-current-password-status]");
+  const newPasswordStatus = form.querySelector("[data-account-new-password-status]");
+  const confirmPasswordStatus = form.querySelector("[data-account-confirm-password-status]");
+  const newPasswordRows = Array.from(form.querySelectorAll("[data-account-new-password-row]"));
+  const unlockedFields = Array.from(form.querySelectorAll("[data-account-unlocked-field]"));
+  const actions = form.querySelector("[data-account-actions]");
+  const saveButton = form.querySelector("[data-account-save-button]");
+  const cancelButton = form.querySelector("[data-account-cancel-button]");
+  const verifyButton = form.querySelector("[data-account-verify-button]");
+  const actionStatus = form.querySelector("[data-account-status]");
+  const fieldStatuses = Array.from(form.querySelectorAll(".account-field-status"));
+  let mode = form.dataset.accountInitialMode || "";
+  let passwordVerified = false;
+  let transitionToken = 0;
+
+  if (
+    !(actionInput instanceof HTMLInputElement) ||
+    !(usernameInput instanceof HTMLInputElement) ||
+    !(currentPasswordRow instanceof HTMLElement) ||
+    !(currentPasswordInput instanceof HTMLInputElement) ||
+    !(actions instanceof HTMLElement) ||
+    !(saveButton instanceof HTMLButtonElement)
+  ) {
+    return;
+  }
+
+  actionInput.value = mode;
+  lockAccountTargets();
+
+  form.querySelectorAll("[data-account-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button instanceof HTMLButtonElement) {
+        selectAccountMode(button.dataset.accountMode || "");
+      }
+    });
+  });
+
+  cancelButton?.addEventListener("click", () => {
+    resetAccountEditor();
+  });
+
+  currentPasswordInput.addEventListener("input", () => {
+    passwordVerified = false;
+    lockAccountTargets();
+    clearStatus(currentPasswordStatus);
+  });
+
+  usernameInput.addEventListener("input", () => {
+    clearStatus(usernameStatus);
+  });
+
+  unlockedFields.forEach((field) => {
+    field.addEventListener("input", () => {
+      if (!(field instanceof HTMLInputElement)) {
+        return;
+      }
+
+      if (field.name === "newPassword") {
+        clearStatus(newPasswordStatus);
+      }
+      if (field.name === "confirmPassword") {
+        clearStatus(confirmPasswordStatus);
+      }
+    });
+  });
+
+  verifyButton?.addEventListener("click", async () => {
+    await verifyCurrentPassword();
+  });
+
+  form.addEventListener("submit", (event) => {
+    if (!mode) {
+      event.preventDefault();
+      return;
+    }
+
+    if (!passwordVerified) {
+      event.preventDefault();
+      setStatus(
+        currentPasswordStatus,
+        form.dataset.accountPasswordRequired || "",
+        "error",
+      );
+      currentPasswordInput.focus();
+    }
+  });
+
+  function selectAccountMode(nextMode) {
+    if (nextMode !== "username" && nextMode !== "password") {
+      return;
+    }
+
+    mode = nextMode;
+    passwordVerified = false;
+    actionInput.value = nextMode;
+    usernameInput.value = usernameInput.dataset.accountUsernameOriginal || usernameInput.value;
+    currentPasswordInput.value = "";
+    clearUnlockedPasswordFields();
+    clearAllAccountStatuses();
+    lockAccountTargets();
+    showAccountElement(actions, true, ++transitionToken);
+    showAccountElement(currentPasswordRow, true, ++transitionToken);
+
+    if (mode === "password") {
+      newPasswordRows.forEach((row) => showAccountElement(row, true, ++transitionToken));
+    } else {
+      newPasswordRows.forEach((row) => hideAccountElement(row, true, ++transitionToken));
+    }
+
+    currentPasswordInput.focus();
+  }
+
+  function resetAccountEditor() {
+    mode = "";
+    passwordVerified = false;
+    actionInput.value = "";
+    usernameInput.value = usernameInput.dataset.accountUsernameOriginal || usernameInput.value;
+    currentPasswordInput.value = "";
+    clearUnlockedPasswordFields();
+    clearAllAccountStatuses();
+    lockAccountTargets();
+    hideAccountElement(actions, true, ++transitionToken);
+    hideAccountElement(currentPasswordRow, true, ++transitionToken);
+    newPasswordRows.forEach((row) => hideAccountElement(row, true, ++transitionToken));
+  }
+
+  function lockAccountTargets() {
+    usernameInput.readOnly = true;
+    saveButton.disabled = true;
+    unlockedFields.forEach((field) => {
+      if (field instanceof HTMLInputElement) {
+        field.disabled = true;
+      }
+    });
+  }
+
+  function unlockSelectedTarget() {
+    if (mode === "username") {
+      usernameInput.readOnly = false;
+      usernameInput.focus();
+    }
+
+    if (mode === "password") {
+      unlockedFields.forEach((field) => {
+        if (field instanceof HTMLInputElement) {
+          field.disabled = false;
+        }
+      });
+      const firstPasswordField = unlockedFields.find((field) => field instanceof HTMLInputElement);
+      firstPasswordField?.focus();
+    }
+
+    saveButton.disabled = false;
+  }
+
+  function clearUnlockedPasswordFields() {
+    unlockedFields.forEach((field) => {
+      if (field instanceof HTMLInputElement) {
+        field.value = "";
+      }
+    });
+  }
+
+  async function verifyCurrentPassword() {
+    if (!(verifyButton instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    if (!currentPasswordInput.value) {
+      setStatus(
+        currentPasswordStatus,
+        form.dataset.accountPasswordRequired || "",
+        "error",
+      );
+      currentPasswordInput.focus();
+      return;
+    }
+
+    verifyButton.disabled = true;
+    try {
+      const body = new URLSearchParams();
+      body.set("currentPassword", currentPasswordInput.value);
+      const response = await fetch("/account/verify-password", {
+        body,
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        method: "POST",
+      });
+
+      if (response.ok) {
+        passwordVerified = true;
+        setStatus(
+          currentPasswordStatus,
+          form.dataset.accountPasswordVerified || "",
+          "success",
+        );
+        unlockSelectedTarget();
+      } else {
+        passwordVerified = false;
+        lockAccountTargets();
+        setStatus(
+          currentPasswordStatus,
+          form.dataset.accountPasswordInvalid || "",
+          "error",
+        );
+        currentPasswordInput.focus();
+      }
+    } finally {
+      verifyButton.disabled = false;
+    }
+  }
+
+  function showAccountElement(element, animate, token) {
+    element.hidden = false;
+    element.dataset.accountTransitionToken = String(token);
+
+    if (!animate) {
+      element.classList.remove("is-collapsed");
+      return;
+    }
+
+    element.classList.add("is-collapsed");
+    element.getBoundingClientRect();
+    element.classList.remove("is-collapsed");
+  }
+
+  function hideAccountElement(element, animate, token) {
+    element.dataset.accountTransitionToken = String(token);
+    element.classList.add("is-collapsed");
+
+    if (!animate) {
+      element.hidden = true;
+      return;
+    }
+
+    setTimeout(() => {
+      if (
+        element.dataset.accountTransitionToken === String(token) &&
+        element.classList.contains("is-collapsed")
+      ) {
+        element.hidden = true;
+      }
+    }, notificationTransitionMs);
+  }
+
+  function setStatus(element, message, state) {
+    if (!(element instanceof HTMLElement)) {
+      return;
+    }
+
+    element.textContent = message;
+    element.hidden = message.length === 0;
+    if (state === "error") {
+      element.dataset.state = "error";
+    } else {
+      delete element.dataset.state;
+    }
+  }
+
+  function clearStatus(element) {
+    setStatus(element, "", "success");
+  }
+
+  function clearAllAccountStatuses() {
+    clearStatus(actionStatus);
+    fieldStatuses.forEach((status) => clearStatus(status));
+  }
 }
 
 /**
@@ -434,12 +717,12 @@ function initDropdown(editor, name) {
   const panel = dropdownPanel(editor, name);
   const toggle = dropdownToggle(editor, name);
   panel.hidden = false;
-  setDropdownOpen(editor, name, storedDropdownOpen(name), {persist: false});
+  setDropdownOpen(editor, name, storedDropdownOpen(name), { persist: false });
 
-  toggle.addEventListener('click', () => {
+  toggle.addEventListener("click", () => {
     const className = `is-${name.slice(0, -1)}-open`;
     const isOpen = !editor.classList.contains(className);
-    setDropdownOpen(editor, name, isOpen, {persist: true});
+    setDropdownOpen(editor, name, isOpen, { persist: true });
   });
 }
 
@@ -457,10 +740,10 @@ function setDropdownOpen(editor, name, isOpen, options = {}) {
   const className = `is-${name.slice(0, -1)}-open`;
 
   editor.classList.toggle(className, isOpen);
-  panel.setAttribute('aria-hidden', String(!isOpen));
+  panel.setAttribute("aria-hidden", String(!isOpen));
   panel.inert = !isOpen;
-  toggle.setAttribute('aria-expanded', String(isOpen));
-  toggle.classList.toggle('is-open', isOpen);
+  toggle.setAttribute("aria-expanded", String(isOpen));
+  toggle.classList.toggle("is-open", isOpen);
 
   if (options.persist) {
     storeDropdownOpen(name, isOpen);
@@ -497,7 +780,7 @@ function dropdownToggle(editor, name) {
  */
 function storedDropdownOpen(name) {
   try {
-    return localStorage.getItem(dropdownStorageKey(name)) === 'open';
+    return localStorage.getItem(dropdownStorageKey(name)) === "open";
   } catch {
     return false;
   }
@@ -511,7 +794,7 @@ function storedDropdownOpen(name) {
  */
 function storeDropdownOpen(name, isOpen) {
   try {
-    localStorage.setItem(dropdownStorageKey(name), isOpen ? 'open' : 'closed');
+    localStorage.setItem(dropdownStorageKey(name), isOpen ? "open" : "closed");
   } catch {
     // Keep the dropdown usable when browser storage is unavailable.
   }
@@ -534,31 +817,31 @@ function dropdownStorageKey(name) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function initTopicEditor(topicEditor, keywordEditor) {
-  topicEditor.addEventListener('click', (event) => {
+  topicEditor.addEventListener("click", (event) => {
     const button = actionButtonFromEvent(event);
     if (!button) {
       return;
     }
 
-    if (button.dataset.action === 'insert-topic') {
+    if (button.dataset.action === "insert-topic") {
       insertTopicRow(topicEditor, button);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === 'delete-topics') {
+    if (button.dataset.action === "delete-topics") {
       deleteTopicRows(topicEditor, keywordEditor, button);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === 'edit-topic-keywords') {
+    if (button.dataset.action === "edit-topic-keywords") {
       switchKeywordTarget(topicEditor, keywordEditor, button);
       scheduleAutoSave();
     }
   });
 
-  topicEditor.addEventListener('change', (event) => {
+  topicEditor.addEventListener("change", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) {
       return;
@@ -566,20 +849,20 @@ function initTopicEditor(topicEditor, keywordEditor) {
 
     let shouldSave = false;
 
-    if (target.matches('[data-role=\'select-all-topics\']')) {
-      topicEditor.querySelectorAll('[data-role=\'select-topic-row\']').forEach((checkbox) => {
+    if (target.matches("[data-role='select-all-topics']")) {
+      topicEditor.querySelectorAll("[data-role='select-topic-row']").forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
     }
 
-    if (target.matches('[data-role=\'enable-all-topics\']')) {
-      topicEditor.querySelectorAll('[data-role=\'topic-enabled\']').forEach((checkbox) => {
+    if (target.matches("[data-role='enable-all-topics']")) {
+      topicEditor.querySelectorAll("[data-role='topic-enabled']").forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
       shouldSave = true;
     }
 
-    if (target.matches('[data-role=\'topic-enabled\']')) {
+    if (target.matches("[data-role='topic-enabled']")) {
       shouldSave = true;
     }
 
@@ -588,7 +871,7 @@ function initTopicEditor(topicEditor, keywordEditor) {
     }
   });
 
-  topicEditor.addEventListener('input', () => {
+  topicEditor.addEventListener("input", () => {
     updateActiveTopicSummary(topicEditor);
     scheduleAutoSave();
   });
@@ -600,33 +883,33 @@ function initTopicEditor(topicEditor, keywordEditor) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function initKeywordEditor(keywordEditor) {
-  keywordEditor.addEventListener('click', (event) => {
+  keywordEditor.addEventListener("click", (event) => {
     const button = actionButtonFromEvent(event);
     if (!button) {
       return;
     }
 
-    if (button.dataset.action === 'insert-keyword') {
+    if (button.dataset.action === "insert-keyword") {
       insertKeywordRow(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === 'delete-keywords') {
+    if (button.dataset.action === "delete-keywords") {
       deleteKeywordRows(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === 'toggle-keyword-option') {
+    if (button.dataset.action === "toggle-keyword-option") {
       toggleKeywordOption(button);
       scheduleAutoSave();
     }
   });
 
-  keywordEditor.addEventListener('change', (event) => {
+  keywordEditor.addEventListener("change", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) {
       return;
@@ -634,23 +917,23 @@ function initKeywordEditor(keywordEditor) {
 
     let shouldSave = false;
 
-    if (target.matches('[data-role=\'select-all-keywords\']')) {
-      keywordEditor.querySelectorAll('[data-role=\'select-keyword-row\']').forEach((checkbox) => {
+    if (target.matches("[data-role='select-all-keywords']")) {
+      keywordEditor.querySelectorAll("[data-role='select-keyword-row']").forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
     }
 
-    if (target.matches('[data-role=\'select-keyword-location\']')) {
+    if (target.matches("[data-role='select-keyword-location']")) {
       const location = target.dataset.location;
       keywordEditor
-          .querySelectorAll(`[name$="_location_${location}"]`)
-          .forEach((checkbox) => {
-            checkbox.checked = target.checked;
-          });
+        .querySelectorAll(`[name$="_location_${location}"]`)
+        .forEach((checkbox) => {
+          checkbox.checked = target.checked;
+        });
       shouldSave = true;
     }
 
-    if (target.name.includes('_location_')) {
+    if (target.name.includes("_location_")) {
       shouldSave = true;
     }
 
@@ -660,7 +943,7 @@ function initKeywordEditor(keywordEditor) {
     }
   });
 
-  keywordEditor.addEventListener('input', () => {
+  keywordEditor.addEventListener("input", () => {
     updateKeywordSummary(keywordEditor);
     scheduleAutoSave();
   });
@@ -678,7 +961,7 @@ function actionButtonFromEvent(event) {
     return undefined;
   }
 
-  const button = target.closest('[data-action]');
+  const button = target.closest("[data-action]");
   return button instanceof HTMLButtonElement ? button : undefined;
 }
 
@@ -689,10 +972,10 @@ function actionButtonFromEvent(event) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function initKeywordRuleStorage(topicEditor, keywordEditor) {
-  const activeTarget = activeKeywordTargetInput().value || 'common';
+  const activeTarget = activeKeywordTargetInput().value || "common";
   const commonInput = commonKeywordRulesInput();
 
-  if (activeTarget === 'common') {
+  if (activeTarget === "common") {
     commonInput.value = serializeKeywordRows(keywordEditor);
   } else {
     const activeRow = findActiveTopicRow(topicEditor, activeTarget);
@@ -701,8 +984,8 @@ function initKeywordRuleStorage(topicEditor, keywordEditor) {
     }
   }
 
-  topicEditor.dataset.commonKeywords = commonInput.value || '[]';
-  topicEditor.closest('form')?.addEventListener('submit', () => {
+  topicEditor.dataset.commonKeywords = commonInput.value || "[]";
+  topicEditor.closest("form")?.addEventListener("submit", () => {
     persistCurrentKeywordRows(topicEditor, keywordEditor);
   });
 }
@@ -713,7 +996,7 @@ function initKeywordRuleStorage(topicEditor, keywordEditor) {
  * @return {HTMLInputElement} 通用关键词规则输入框。
  */
 function commonKeywordRulesInput() {
-  return document.querySelector('[data-common-keyword-rules]');
+  return document.querySelector("[data-common-keyword-rules]");
 }
 
 /**
@@ -725,26 +1008,26 @@ function commonKeywordRulesInput() {
  */
 function findActiveTopicRow(topicEditor, activeTarget) {
   return topicEditor.querySelector('[data-topic-row][data-active-keyword-target="true"]') ??
-      findTopicRowById(topicEditor, activeTarget);
+    findTopicRowById(topicEditor, activeTarget);
 }
 
 /**
  * 初始化主题色和暗色模式控件。
  */
 function initThemePicker() {
-  const colorInput = document.querySelector('[data-theme-color-input]');
-  const darkModeInput = document.querySelector('[data-dark-mode-input]');
+  const colorInput = document.querySelector("[data-theme-color-input]");
+  const darkModeInput = document.querySelector("[data-dark-mode-input]");
 
   if (colorInput instanceof HTMLInputElement) {
-    colorInput.addEventListener('input', () => {
-      document.documentElement.style.setProperty('--theme-color', colorInput.value);
+    colorInput.addEventListener("input", () => {
+      document.documentElement.style.setProperty("--theme-color", colorInput.value);
       scheduleAutoSave();
     });
   }
 
   if (darkModeInput instanceof HTMLInputElement) {
-    darkModeInput.addEventListener('change', () => {
-      document.documentElement.dataset.colorMode = darkModeInput.checked ? 'dark' : 'light';
+    darkModeInput.addEventListener("change", () => {
+      document.documentElement.dataset.colorMode = darkModeInput.checked ? "dark" : "light";
       scheduleAutoSave();
     });
   }
@@ -767,12 +1050,12 @@ function initAutoSave(form, topicEditor, keywordEditor) {
   autoSaveKeywordEditor = keywordEditor;
   lastSavedSignature = settingsSignature();
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener("submit", (event) => {
     event.preventDefault();
     void saveSettingsNow();
   });
 
-  form.addEventListener('input', (event) => {
+  form.addEventListener("input", (event) => {
     if (isEditorEvent(event)) {
       return;
     }
@@ -780,13 +1063,13 @@ function initAutoSave(form, topicEditor, keywordEditor) {
     scheduleAutoSave();
   });
 
-  form.addEventListener('change', (event) => {
+  form.addEventListener("change", (event) => {
     if (isEditorEvent(event)) {
       return;
     }
 
     const target = event.target;
-    if (target instanceof HTMLSelectElement && target.name === 'locale') {
+    if (target instanceof HTMLSelectElement && target.name === "locale") {
       reloadAfterSave = true;
     }
 
@@ -803,7 +1086,7 @@ function initAutoSave(form, topicEditor, keywordEditor) {
 function isEditorEvent(event) {
   const target = event.target;
   return target instanceof Element &&
-      Boolean(target.closest('[data-topic-editor], [data-keyword-editor]'));
+    Boolean(target.closest("[data-topic-editor], [data-keyword-editor]"));
 }
 
 /**
@@ -840,33 +1123,33 @@ async function saveSettingsNow() {
 
   autoSaveController?.abort();
   autoSaveController = new AbortController();
-  setAutoSaveStatus('saving');
+  setAutoSaveStatus("saving");
 
   try {
     const response = await fetch(autoSaveForm.action, {
       body: formDataFromForm(autoSaveForm),
-      headers: {'x-autosave': '1'},
-      method: autoSaveForm.method || 'post',
+      headers: { "x-autosave": "1" },
+      method: autoSaveForm.method || "post",
       signal: autoSaveController.signal,
     });
 
     if (!response.ok) {
-      setAutoSaveStatus('error');
+      setAutoSaveStatus("error");
       return false;
     }
 
     lastSavedSignature = signature;
-    setAutoSaveStatus('saved');
+    setAutoSaveStatus("saved");
     if (reloadAfterSave) {
       location.reload();
     }
     return true;
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
+    if (error instanceof DOMException && error.name === "AbortError") {
       return false;
     }
 
-    setAutoSaveStatus('error');
+    setAutoSaveStatus("error");
     return false;
   }
 }
@@ -877,27 +1160,27 @@ async function saveSettingsNow() {
  * @param {HTMLButtonElement} testNotifyButton 测试通知按钮。
  */
 async function sendTestNotification(testNotifyButton) {
-  const fallbackError = testNotifyButton?.dataset?.testNotifyFailed ?? '';
+  const fallbackError = testNotifyButton?.dataset?.testNotifyFailed ?? "";
 
   try {
-    const response = await fetch('/test-notify', {
-      headers: {'x-test-notify': '1'},
-      method: 'POST',
+    const response = await fetch("/test-notify", {
+      headers: { "x-test-notify": "1" },
+      method: "POST",
     });
     const text = await response.text();
     if (response.ok) {
-      setTestNotifyStatus(text, 'success');
+      setTestNotifyStatus(text, "success");
     } else {
       const statusLine = `HTTP ${response.status}${
-          response.statusText ? ` ${response.statusText}` : ''
+        response.statusText ? ` ${response.statusText}` : ""
       }`;
-      setTestNotifyStatus(fallbackError, 'error', {
-        errorDetails: [statusLine, text || fallbackError].join('\n\n'),
+      setTestNotifyStatus(fallbackError, "error", {
+        errorDetails: [statusLine, text || fallbackError].join("\n\n"),
       });
     }
   } catch (error) {
     const errorDetails = error instanceof Error ? error.message : fallbackError;
-    setTestNotifyStatus(fallbackError, 'error', {errorDetails});
+    setTestNotifyStatus(fallbackError, "error", { errorDetails });
   }
 }
 
@@ -908,20 +1191,20 @@ async function sendTestNotification(testNotifyButton) {
  * @param {string} state 状态类型。
  * @param {Object} [options] 状态展示选项。
  */
-function setTestNotifyStatus(text, state = '', options = {}) {
-  const status = document.querySelector('[data-test-notify-status]');
+function setTestNotifyStatus(text, state = "", options = {}) {
+  const status = document.querySelector("[data-test-notify-status]");
   if (!status) {
     return;
   }
 
   clearTimeout(testNotifyStatusTimer);
-  const statusText = status.querySelector('[data-test-notify-status-text]');
+  const statusText = status.querySelector("[data-test-notify-status-text]");
   if (statusText) {
     statusText.textContent = text;
   } else {
     status.textContent = text;
   }
-  updateTestNotifyErrorLink(status, state === 'error' ? options.errorDetails : undefined);
+  updateTestNotifyErrorLink(status, state === "error" ? options.errorDetails : undefined);
 
   if (state) {
     status.dataset.state = state;
@@ -929,12 +1212,12 @@ function setTestNotifyStatus(text, state = '', options = {}) {
     delete status.dataset.state;
   }
 
-  const persistMs = options.persistMs ?? (state === 'error' ? 0 : 2200);
+  const persistMs = options.persistMs ?? (state === "error" ? 0 : 2200);
   if (text && persistMs > 0) {
     testNotifyStatusTimer = setTimeout(() => {
-      const currentStatusText = status.querySelector('[data-test-notify-status-text]') ?? status;
+      const currentStatusText = status.querySelector("[data-test-notify-status-text]") ?? status;
       if (currentStatusText.textContent === text) {
-        currentStatusText.textContent = '';
+        currentStatusText.textContent = "";
         updateTestNotifyErrorLink(status);
         delete status.dataset.state;
       }
@@ -949,7 +1232,7 @@ function setTestNotifyStatus(text, state = '', options = {}) {
  * @param {string|undefined} [errorDetails] 错误详情文本。
  */
 function updateTestNotifyErrorLink(status, errorDetails) {
-  const errorLink = status.querySelector('[data-test-notify-error-link]');
+  const errorLink = status.querySelector("[data-test-notify-error-link]");
   if (!(errorLink instanceof HTMLAnchorElement)) {
     return;
   }
@@ -961,15 +1244,15 @@ function updateTestNotifyErrorLink(status, errorDetails) {
 
   if (!errorDetails) {
     errorLink.hidden = true;
-    errorLink.removeAttribute('href');
+    errorLink.removeAttribute("href");
     return;
   }
 
   testNotifyErrorDetailsUrl = URL.createObjectURL(
-      new Blob(
-          [renderTestNotifyErrorPage(errorLink, errorDetails)],
-          {type: 'text/html;charset=utf-8'},
-      ),
+    new Blob(
+      [renderTestNotifyErrorPage(errorLink, errorDetails)],
+      { type: "text/html;charset=utf-8" },
+    ),
   );
   errorLink.href = testNotifyErrorDetailsUrl;
   errorLink.hidden = false;
@@ -983,18 +1266,18 @@ function updateTestNotifyErrorLink(status, errorDetails) {
  * @return {string} 错误详情 HTML 页面。
  */
 function renderTestNotifyErrorPage(errorLink, errorDetails) {
-  const appName = errorLink.dataset.errorAppName || document.title || 'Heybox Topic Notifier';
-  const appOrigin = globalThis.location?.origin || '';
-  const colorMode = errorLink.dataset.errorDarkMode === 'true' ? 'dark' : 'light';
-  const errorTitle = errorLink.dataset.errorTitle || 'Error message';
-  const locale = errorLink.dataset.errorLocale || document.documentElement.lang || 'zh-CN';
+  const appName = errorLink.dataset.errorAppName || document.title || "Heybox Topic Notifier";
+  const appOrigin = globalThis.location?.origin || "";
+  const colorMode = errorLink.dataset.errorDarkMode === "true" ? "dark" : "light";
+  const errorTitle = errorLink.dataset.errorTitle || "Error message";
+  const locale = errorLink.dataset.errorLocale || document.documentElement.lang || "zh-CN";
   const generatedAt = new Date().toLocaleString();
-  const navDashboard = errorLink.dataset.errorNavDashboard || 'Dashboard';
-  const navHistory = errorLink.dataset.errorNavHistory || 'History';
-  const navSettings = errorLink.dataset.errorNavSettings || 'Settings';
+  const navDashboard = errorLink.dataset.errorNavDashboard || "Dashboard";
+  const navHistory = errorLink.dataset.errorNavHistory || "History";
+  const navSettings = errorLink.dataset.errorNavSettings || "Settings";
   const returnLabel = errorLink.dataset.errorReturnLabel || navSettings;
   const summary = errorLink.dataset.errorSummary || errorTitle;
-  const themeColor = errorLink.dataset.errorThemeColor || '#BD7FFF';
+  const themeColor = errorLink.dataset.errorThemeColor || "#BD7FFF";
 
   return `<!doctype html>
 <html
@@ -1064,7 +1347,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
       </dl>
       <div class="error-detail-actions">
         <a class="button-link" href="${escapeHtml(appOrigin)}/settings">${
-      escapeHtml(returnLabel)
+    escapeHtml(returnLabel)
   }</a>
       </div>
     </section>
@@ -1081,13 +1364,13 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
  */
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) =>
-      ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        '\'': '&#39;',
-      })[char]);
+    ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[char]);
 }
 
 /**
@@ -1097,7 +1380,7 @@ function escapeHtml(value) {
  */
 function settingsSignature() {
   if (!autoSaveForm) {
-    return '';
+    return "";
   }
 
   const params = new URLSearchParams();
@@ -1127,15 +1410,15 @@ function formDataFromForm(form) {
  * @param {string|undefined} [text] 自定义状态文案。
  */
 function setAutoSaveStatus(state, text) {
-  const status = document.querySelector('[data-autosave-status]');
+  const status = document.querySelector("[data-autosave-status]");
   if (!status || !autoSaveForm) {
     return;
   }
 
   status.dataset.state = state;
   status.textContent = text ??
-      autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
-      '';
+    autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
+    "";
 }
 
 /**
@@ -1145,16 +1428,16 @@ function setAutoSaveStatus(state, text) {
  * @param {HTMLButtonElement} actionButton 触发插入的操作按钮。
  */
 function insertTopicRow(editor, actionButton) {
-  const template = editor.querySelector('[data-topic-row-template]');
-  const grid = editor.querySelector('.topic-rule-grid');
-  const row = actionButton.closest('[data-topic-row]');
+  const template = editor.querySelector("[data-topic-row-template]");
+  const grid = editor.querySelector(".topic-rule-grid");
+  const row = actionButton.closest("[data-topic-row]");
   const fragment = template.content.cloneNode(true);
-  const newRow = fragment.querySelector('[data-topic-row]');
+  const newRow = fragment.querySelector("[data-topic-row]");
 
   if (row) {
     row.after(newRow);
   } else {
-    const firstRow = grid.querySelector('[data-topic-row]');
+    const firstRow = grid.querySelector("[data-topic-row]");
     if (firstRow) {
       firstRow.before(newRow);
     } else {
@@ -1163,7 +1446,7 @@ function insertTopicRow(editor, actionButton) {
   }
 
   reindexTopicRows(editor);
-  newRow.querySelector('[data-topic-id-input]').focus();
+  newRow.querySelector("[data-topic-id-input]").focus();
 }
 
 /**
@@ -1174,13 +1457,13 @@ function insertTopicRow(editor, actionButton) {
  * @param {HTMLButtonElement} actionButton 触发删除的操作按钮。
  */
 function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
-  const selectedRows = Array.from(topicEditor.querySelectorAll('[data-topic-row]'))
-      .filter((row) => row.querySelector('[data-role=\'select-topic-row\']')?.checked);
+  const selectedRows = Array.from(topicEditor.querySelectorAll("[data-topic-row]"))
+    .filter((row) => row.querySelector("[data-role='select-topic-row']")?.checked);
 
   if (selectedRows.length > 0) {
     selectedRows.forEach((row) => row.remove());
   } else {
-    const row = actionButton.closest('[data-topic-row]');
+    const row = actionButton.closest("[data-topic-row]");
     if (!row) {
       showToast(topicEditor, topicEditor.dataset.deleteMessage);
       return;
@@ -1193,7 +1476,7 @@ function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
   reindexTopicRows(topicEditor);
 
   const activeTarget = activeKeywordTargetInput().value;
-  if (activeTarget !== 'common' && !findTopicRowById(topicEditor, activeTarget)) {
+  if (activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)) {
     switchKeywordTarget(topicEditor, keywordEditor, commonKeywordButton(topicEditor));
   }
 
@@ -1206,12 +1489,12 @@ function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
  * @param {HTMLElement} editor 话题编辑器元素。
  */
 function ensureAtLeastOneTopicRow(editor) {
-  if (editor.querySelector('[data-topic-row]')) {
+  if (editor.querySelector("[data-topic-row]")) {
     return;
   }
 
-  const template = editor.querySelector('[data-topic-row-template]');
-  const grid = editor.querySelector('.topic-rule-grid');
+  const template = editor.querySelector("[data-topic-row-template]");
+  const grid = editor.querySelector(".topic-rule-grid");
   grid.append(template.content.cloneNode(true));
 }
 
@@ -1221,12 +1504,12 @@ function ensureAtLeastOneTopicRow(editor) {
  * @param {HTMLElement} editor 话题编辑器元素。
  */
 function reindexTopicRows(editor) {
-  editor.querySelectorAll('[data-role=\'select-all-topics\']').forEach((checkbox) => {
+  editor.querySelectorAll("[data-role='select-all-topics']").forEach((checkbox) => {
     checkbox.checked = false;
   });
 
-  editor.querySelectorAll('[data-topic-row]').forEach((row, index) => {
-    row.querySelectorAll('input').forEach((input) => {
+  editor.querySelectorAll("[data-topic-row]").forEach((row, index) => {
+    row.querySelectorAll("input").forEach((input) => {
       if (!input.name) {
         return;
       }
@@ -1246,19 +1529,19 @@ function reindexTopicRows(editor) {
 function switchKeywordTarget(topicEditor, keywordEditor, button) {
   persistCurrentKeywordRows(topicEditor, keywordEditor);
 
-  const row = button.closest('[data-topic-row]');
-  const target = row ? row.querySelector('[data-topic-id-input]').value.trim() : 'common';
-  topicEditor.querySelectorAll('[data-topic-row]').forEach((topicRow) => {
-    topicRow.dataset.activeKeywordTarget = 'false';
+  const row = button.closest("[data-topic-row]");
+  const target = row ? row.querySelector("[data-topic-id-input]").value.trim() : "common";
+  topicEditor.querySelectorAll("[data-topic-row]").forEach((topicRow) => {
+    topicRow.dataset.activeKeywordTarget = "false";
   });
   if (row) {
-    row.dataset.activeKeywordTarget = 'true';
+    row.dataset.activeKeywordTarget = "true";
   }
-  activeKeywordTargetInput().value = target || 'common';
+  activeKeywordTargetInput().value = target || "common";
 
   const rules = row
-      ? parseRules(topicKeywordRulesValue(row))
-      : parseRules(commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords);
+    ? parseRules(topicKeywordRulesValue(row))
+    : parseRules(commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords);
 
   replaceKeywordRows(keywordEditor, rules);
   updateActiveTopicSummary(topicEditor);
@@ -1273,10 +1556,10 @@ function switchKeywordTarget(topicEditor, keywordEditor, button) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function persistCurrentKeywordRows(topicEditor, keywordEditor) {
-  const activeTarget = activeKeywordTargetInput().value || 'common';
+  const activeTarget = activeKeywordTargetInput().value || "common";
   const serialized = serializeKeywordRows(keywordEditor);
 
-  if (activeTarget === 'common') {
+  if (activeTarget === "common") {
     topicEditor.dataset.commonKeywords = serialized;
     commonKeywordRulesInput().value = serialized;
     return;
@@ -1295,9 +1578,9 @@ function persistCurrentKeywordRows(topicEditor, keywordEditor) {
  * @return {string} 序列化后的关键词规则。
  */
 function topicKeywordRulesValue(row) {
-  return row.querySelector('[data-topic-keyword-rules]')?.value ??
-      row.querySelector('[data-action=\'edit-topic-keywords\']')?.dataset.topicKeywords ??
-      '[]';
+  return row.querySelector("[data-topic-keyword-rules]")?.value ??
+    row.querySelector("[data-action='edit-topic-keywords']")?.dataset.topicKeywords ??
+    "[]";
 }
 
 /**
@@ -1307,8 +1590,8 @@ function topicKeywordRulesValue(row) {
  * @param {string} serialized 序列化后的关键词规则。
  */
 function setTopicKeywordRules(row, serialized) {
-  const input = row.querySelector('[data-topic-keyword-rules]');
-  const button = row.querySelector('[data-action=\'edit-topic-keywords\']');
+  const input = row.querySelector("[data-topic-keyword-rules]");
+  const button = row.querySelector("[data-action='edit-topic-keywords']");
   if (input) {
     input.value = serialized;
   }
@@ -1324,10 +1607,10 @@ function setTopicKeywordRules(row, serialized) {
  * @param {Array<Object>} rules 关键词规则数组。
  */
 function replaceKeywordRows(keywordEditor, rules) {
-  const grid = keywordEditor.querySelector('.keyword-rule-grid');
-  keywordEditor.querySelectorAll('[data-keyword-row]').forEach((row) => row.remove());
+  const grid = keywordEditor.querySelector(".keyword-rule-grid");
+  keywordEditor.querySelectorAll("[data-keyword-row]").forEach((row) => row.remove());
 
-  const normalizedRules = rules.length > 0 ? rules : [{keyword: '', locations: []}];
+  const normalizedRules = rules.length > 0 ? rules : [{ keyword: "", locations: [] }];
   normalizedRules.forEach((rule) => {
     grid.append(keywordRowFromRule(keywordEditor, rule));
   });
@@ -1343,13 +1626,13 @@ function replaceKeywordRows(keywordEditor, rules) {
  * @return {HTMLElement} 新创建的关键词行元素。
  */
 function keywordRowFromRule(keywordEditor, rule) {
-  const template = keywordEditor.querySelector('[data-keyword-row-template]');
+  const template = keywordEditor.querySelector("[data-keyword-row-template]");
   const fragment = template.content.cloneNode(true);
-  const row = fragment.querySelector('[data-keyword-row]');
-  row.querySelector('input[name^=\'keyword_\']').value = rule.keyword ?? '';
-  setKeywordOption(row, 'caseSensitive', rule.caseSensitive === true);
-  setKeywordOption(row, 'useRegex', rule.useRegex === true);
-  row.querySelectorAll('[name*=\'_location_\']').forEach((input) => {
+  const row = fragment.querySelector("[data-keyword-row]");
+  row.querySelector("input[name^='keyword_']").value = rule.keyword ?? "";
+  setKeywordOption(row, "caseSensitive", rule.caseSensitive === true);
+  setKeywordOption(row, "useRegex", rule.useRegex === true);
+  row.querySelectorAll("[name*='_location_']").forEach((input) => {
     const location = input.name.match(/_location_(.+)$/)?.[1];
     input.checked = Array.isArray(rule.locations) && rule.locations.includes(location);
   });
@@ -1383,19 +1666,19 @@ function parseRules(value) {
  */
 function serializeKeywordRows(keywordEditor) {
   return JSON.stringify(
-      Array.from(keywordEditor.querySelectorAll('[data-keyword-row]'))
-          .map((row) => {
-            const keyword = row.querySelector('input[name^=\'keyword_\']').value.trim();
-            const locations = Array.from(row.querySelectorAll('[name*=\'_location_\']'))
-                .filter((input) => input.checked)
-                .map((input) => input.name.match(/_location_(.+)$/)?.[1])
-                .filter(Boolean);
-            const caseSensitive = keywordOptionEnabled(row, 'caseSensitive');
-            const useRegex = keywordOptionEnabled(row, 'useRegex');
+    Array.from(keywordEditor.querySelectorAll("[data-keyword-row]"))
+      .map((row) => {
+        const keyword = row.querySelector("input[name^='keyword_']").value.trim();
+        const locations = Array.from(row.querySelectorAll("[name*='_location_']"))
+          .filter((input) => input.checked)
+          .map((input) => input.name.match(/_location_(.+)$/)?.[1])
+          .filter(Boolean);
+        const caseSensitive = keywordOptionEnabled(row, "caseSensitive");
+        const useRegex = keywordOptionEnabled(row, "useRegex");
 
-            return {caseSensitive, keyword, locations, useRegex};
-          })
-          .filter((rule) => rule.keyword && rule.locations.length > 0),
+        return { caseSensitive, keyword, locations, useRegex };
+      })
+      .filter((rule) => rule.keyword && rule.locations.length > 0),
   );
 }
 
@@ -1405,13 +1688,13 @@ function serializeKeywordRows(keywordEditor) {
  * @param {HTMLButtonElement} button 选项按钮。
  */
 function toggleKeywordOption(button) {
-  const row = button.closest('[data-keyword-row]');
+  const row = button.closest("[data-keyword-row]");
   if (!row) {
     return;
   }
 
   const option = button.dataset.option;
-  const isEnabled = button.getAttribute('aria-pressed') === 'true';
+  const isEnabled = button.getAttribute("aria-pressed") === "true";
   setKeywordOption(row, option, !isEnabled);
 }
 
@@ -1425,15 +1708,15 @@ function toggleKeywordOption(button) {
 function setKeywordOption(row, option, isEnabled) {
   const input = row.querySelector(`[data-keyword-option="${option}"]`);
   const button = row.querySelector(
-      `[data-action="toggle-keyword-option"][data-option="${option}"]`,
+    `[data-action="toggle-keyword-option"][data-option="${option}"]`,
   );
 
   if (input instanceof HTMLInputElement) {
-    input.value = isEnabled ? 'on' : '';
+    input.value = isEnabled ? "on" : "";
   }
 
   if (button instanceof HTMLButtonElement) {
-    button.setAttribute('aria-pressed', String(isEnabled));
+    button.setAttribute("aria-pressed", String(isEnabled));
   }
 }
 
@@ -1446,7 +1729,7 @@ function setKeywordOption(row, option, isEnabled) {
  */
 function keywordOptionEnabled(row, option) {
   const input = row.querySelector(`[data-keyword-option="${option}"]`);
-  return input instanceof HTMLInputElement && input.value === 'on';
+  return input instanceof HTMLInputElement && input.value === "on";
 }
 
 /**
@@ -1456,14 +1739,14 @@ function keywordOptionEnabled(row, option) {
  * @param {HTMLButtonElement} actionButton 触发插入的操作按钮。
  */
 function insertKeywordRow(editor, actionButton) {
-  const grid = editor.querySelector('.keyword-rule-grid');
-  const row = actionButton.closest('[data-keyword-row]');
-  const newRow = keywordRowFromRule(editor, {keyword: '', locations: []});
+  const grid = editor.querySelector(".keyword-rule-grid");
+  const row = actionButton.closest("[data-keyword-row]");
+  const newRow = keywordRowFromRule(editor, { keyword: "", locations: [] });
 
   if (row) {
     row.after(newRow);
   } else {
-    const firstRow = grid.querySelector('[data-keyword-row]');
+    const firstRow = grid.querySelector("[data-keyword-row]");
     if (firstRow) {
       firstRow.before(newRow);
     } else {
@@ -1472,7 +1755,7 @@ function insertKeywordRow(editor, actionButton) {
   }
 
   reindexKeywordRows(editor);
-  newRow.querySelector('input[name^=\'keyword_\']').focus();
+  newRow.querySelector("input[name^='keyword_']").focus();
 }
 
 /**
@@ -1482,13 +1765,13 @@ function insertKeywordRow(editor, actionButton) {
  * @param {HTMLButtonElement} actionButton 触发删除的操作按钮。
  */
 function deleteKeywordRows(editor, actionButton) {
-  const selectedRows = Array.from(editor.querySelectorAll('[data-keyword-row]'))
-      .filter((row) => row.querySelector('[data-role=\'select-keyword-row\']')?.checked);
+  const selectedRows = Array.from(editor.querySelectorAll("[data-keyword-row]"))
+    .filter((row) => row.querySelector("[data-role='select-keyword-row']")?.checked);
 
   if (selectedRows.length > 0) {
     selectedRows.forEach((row) => row.remove());
   } else {
-    const row = actionButton.closest('[data-keyword-row]');
+    const row = actionButton.closest("[data-keyword-row]");
     if (!row) {
       showToast(editor, editor.dataset.deleteMessage);
       return;
@@ -1507,12 +1790,12 @@ function deleteKeywordRows(editor, actionButton) {
  * @param {HTMLElement} editor 关键词编辑器元素。
  */
 function ensureAtLeastOneKeywordRow(editor) {
-  if (editor.querySelector('[data-keyword-row]')) {
+  if (editor.querySelector("[data-keyword-row]")) {
     return;
   }
 
-  const grid = editor.querySelector('.keyword-rule-grid');
-  grid.append(keywordRowFromRule(editor, {keyword: '', locations: []}));
+  const grid = editor.querySelector(".keyword-rule-grid");
+  grid.append(keywordRowFromRule(editor, { keyword: "", locations: [] }));
 }
 
 /**
@@ -1521,15 +1804,15 @@ function ensureAtLeastOneKeywordRow(editor) {
  * @param {HTMLElement} editor 关键词编辑器元素。
  */
 function reindexKeywordRows(editor) {
-  editor.querySelectorAll('[data-role=\'select-all-keywords\']').forEach((checkbox) => {
+  editor.querySelectorAll("[data-role='select-all-keywords']").forEach((checkbox) => {
     checkbox.checked = false;
   });
-  editor.querySelectorAll('[data-role=\'select-keyword-location\']').forEach((checkbox) => {
+  editor.querySelectorAll("[data-role='select-keyword-location']").forEach((checkbox) => {
     checkbox.checked = false;
   });
 
-  editor.querySelectorAll('[data-keyword-row]').forEach((row, index) => {
-    row.querySelectorAll('input').forEach((input) => {
+  editor.querySelectorAll("[data-keyword-row]").forEach((row, index) => {
+    row.querySelectorAll("input").forEach((input) => {
       if (!input.name) {
         return;
       }
@@ -1545,19 +1828,19 @@ function reindexKeywordRows(editor) {
  * @param {HTMLElement} topicEditor 话题编辑器元素。
  */
 function updateActiveTopicSummary(topicEditor) {
-  const activeTarget = activeKeywordTargetInput().value || 'common';
-  const summary = topicEditor.querySelector('[data-topic-summary]');
+  const activeTarget = activeKeywordTargetInput().value || "common";
+  const summary = topicEditor.querySelector("[data-topic-summary]");
 
-  if (activeTarget === 'common') {
-    topicEditor.querySelectorAll('[data-topic-row]').forEach((row) => {
-      row.dataset.activeKeywordTarget = 'false';
+  if (activeTarget === "common") {
+    topicEditor.querySelectorAll("[data-topic-row]").forEach((row) => {
+      row.dataset.activeKeywordTarget = "false";
     });
     summary.textContent = summary.dataset.commonLabel;
     return;
   }
 
   const activeRow = topicEditor.querySelector(
-      '[data-topic-row][data-active-keyword-target="true"]',
+    '[data-topic-row][data-active-keyword-target="true"]',
   );
   const row = activeRow ?? findTopicRowById(topicEditor, activeTarget);
   if (!row) {
@@ -1565,9 +1848,9 @@ function updateActiveTopicSummary(topicEditor) {
     return;
   }
 
-  const id = row.querySelector('[data-topic-id-input]').value.trim();
-  const note = row.querySelector('[data-topic-note-input]').value.trim();
-  activeKeywordTargetInput().value = id || 'common';
+  const id = row.querySelector("[data-topic-id-input]").value.trim();
+  const note = row.querySelector("[data-topic-note-input]").value.trim();
+  activeKeywordTargetInput().value = id || "common";
   summary.textContent = note && id ? `${note}（${id}）` : note || id || summary.dataset.commonLabel;
 }
 
@@ -1577,32 +1860,32 @@ function updateActiveTopicSummary(topicEditor) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function updateKeywordSummary(keywordEditor) {
-  const summary = keywordEditor.querySelector('[data-keyword-summary]');
+  const summary = keywordEditor.querySelector("[data-keyword-summary]");
   const keywords = Array.from(
-          keywordEditor.querySelectorAll(
-              'input[name^=\'keyword_\']:not([name*=\'_location_\']):not([data-keyword-option])',
-          ),
-      )
-      .map((input) => input.value.trim())
-      .filter(Boolean);
+    keywordEditor.querySelectorAll(
+      "input[name^='keyword_']:not([name*='_location_']):not([data-keyword-option])",
+    ),
+  )
+    .map((input) => input.value.trim())
+    .filter(Boolean);
 
-  summary.textContent = '';
+  summary.textContent = "";
   keywords.slice(0, 5).forEach((keyword, index) => {
     if (index > 0) {
-      const separator = document.createElement('span');
-      separator.className = 'summary-separator';
-      separator.textContent = '|';
+      const separator = document.createElement("span");
+      separator.className = "summary-separator";
+      separator.textContent = "|";
       summary.append(separator);
     }
 
-    const item = document.createElement('span');
-    item.dataset.keywordSummaryItem = 'true';
+    const item = document.createElement("span");
+    item.dataset.keywordSummaryItem = "true";
     item.textContent = keyword;
     summary.append(item);
   });
 
   if (keywords.length > 5) {
-    summary.append('...');
+    summary.append("...");
   }
 
   fitKeywordSummary(summary);
@@ -1614,7 +1897,7 @@ function updateKeywordSummary(keywordEditor) {
  * @param {HTMLElement} summary 关键词摘要元素。
  */
 function fitKeywordSummary(summary) {
-  const items = Array.from(summary.querySelectorAll('[data-keyword-summary-item]'));
+  const items = Array.from(summary.querySelectorAll("[data-keyword-summary-item]"));
   for (const item of items.toReversed()) {
     if (summary.scrollWidth <= summary.clientWidth) {
       return;
@@ -1622,10 +1905,10 @@ function fitKeywordSummary(summary) {
 
     const previous = item.previousElementSibling;
     item.remove();
-    if (previous?.classList.contains('summary-separator')) {
+    if (previous?.classList.contains("summary-separator")) {
       previous.remove();
     }
-    summary.append('...');
+    summary.append("...");
   }
 }
 
@@ -1635,7 +1918,7 @@ function fitKeywordSummary(summary) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function openKeywordPanel(keywordEditor) {
-  setDropdownOpen(keywordEditor, 'keywords', true, {persist: true});
+  setDropdownOpen(keywordEditor, "keywords", true, { persist: true });
 }
 
 /**
@@ -1646,12 +1929,12 @@ function openKeywordPanel(keywordEditor) {
  * @return {HTMLElement|undefined} 匹配的话题规则行。
  */
 function findTopicRowById(topicEditor, id) {
-  for (const row of topicEditor.querySelectorAll('[data-topic-row]')) {
+  for (const row of topicEditor.querySelectorAll("[data-topic-row]")) {
     if (!(row instanceof HTMLElement)) {
       continue;
     }
 
-    const idInput = row.querySelector('[data-topic-id-input]');
+    const idInput = row.querySelector("[data-topic-id-input]");
     if (idInput instanceof HTMLInputElement && idInput.value.trim() === id) {
       return row;
     }
@@ -1668,7 +1951,7 @@ function findTopicRowById(topicEditor, id) {
  */
 function commonKeywordButton(topicEditor) {
   return topicEditor.querySelector(
-      '[data-action="edit-topic-keywords"][data-keyword-target="common"]',
+    '[data-action="edit-topic-keywords"][data-keyword-target="common"]',
   );
 }
 
@@ -1678,7 +1961,7 @@ function commonKeywordButton(topicEditor) {
  * @return {HTMLInputElement} 当前活动关键词目标输入框。
  */
 function activeKeywordTargetInput() {
-  return document.querySelector('[data-active-keyword-target]');
+  return document.querySelector("[data-active-keyword-target]");
 }
 
 /**
@@ -1688,20 +1971,20 @@ function activeKeywordTargetInput() {
  * @param {string|undefined} message 提示消息。
  */
 function showToast(editor, message) {
-  const existing = editor.querySelector('[data-keyword-toast]');
+  const existing = editor.querySelector("[data-keyword-toast]");
   if (existing) {
     existing.remove();
   }
 
-  const toast = document.createElement('div');
-  toast.className = 'keyword-toast';
-  toast.dataset.keywordToast = 'true';
-  toast.setAttribute('role', 'status');
+  const toast = document.createElement("div");
+  toast.className = "keyword-toast";
+  toast.dataset.keywordToast = "true";
+  toast.setAttribute("role", "status");
   toast.textContent = message;
   editor.append(toast);
 
   setTimeout(() => {
-    toast.classList.add('is-hiding');
+    toast.classList.add("is-hiding");
   }, 1800);
 
   setTimeout(() => {
@@ -1709,4 +1992,4 @@ function showToast(editor, message) {
   }, 2200);
 }
 
-document.addEventListener('DOMContentLoaded', initSettingsEditors);
+document.addEventListener("DOMContentLoaded", initSettingsEditors);

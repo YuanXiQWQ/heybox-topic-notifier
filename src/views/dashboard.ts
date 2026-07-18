@@ -225,11 +225,11 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         lastPoll.textContent = formatRelativeTime(timestamp, locale);
       }
 
-      async function refreshDashboardState(options = {}) {
+      async function refreshDashboardState() {
         if (isDashboardStateRefreshInFlight) return;
         isDashboardStateRefreshInFlight = true;
         try {
-          const response = await fetch(dashboardStateUrl(options), { cache: "no-store" });
+          const response = await fetch(dashboardStateUrl(), { cache: "no-store" });
           if (!response.ok) return;
           const state = await response.json();
           const nextTimestamp = parseTimestamp(state.lastPollAt);
@@ -257,14 +257,11 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         }
       }
 
-      function dashboardStateUrl(options = {}) {
+      function dashboardStateUrl() {
         const url = new URL("/dashboard-state", location.origin);
         const currentParams = new URLSearchParams(location.search);
         for (const [key, value] of currentParams) {
           url.searchParams.append(key, value);
-        }
-        if (options.tick) {
-          url.searchParams.set("tick", "1");
         }
         return url.pathname + url.search;
       }
@@ -342,7 +339,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         }
         lastDueDashboardRefreshBaseline = baseline;
         lastDueDashboardRefreshAt = now;
-        void refreshDashboardState({ tick: true });
+        void refreshDashboardState();
       }
 
       function updateNextPollWithoutTransition() {

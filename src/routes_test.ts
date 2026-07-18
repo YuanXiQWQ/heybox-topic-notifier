@@ -1,10 +1,18 @@
 /**
  * @file 本文件验证业务路由和设置表单解析逻辑。
  */
+import { Hono } from "@hono/hono";
 import { createRoutes, settingsFromForm } from "./routes.ts";
-import type { AppSettings } from "./models.ts";
+import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
+import type { AppSettings, UserAccount, UserSession } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
-import { NotificationConfigError } from "./services/notifier.ts";
+import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
+import {
+  addUniqueAccount,
+  assertEquals,
+  submitLogin as login,
+  submitRegistration as register,
+} from "./test_helpers.ts";
 
 /**
  * 路由测试使用的当前应用设置。
@@ -56,14 +64,70 @@ const currentSettings: AppSettings = {
   ],
 };
 
+/**
+ * 账户相关路由测试使用的内存存储能力。
+ */
+type AccountRouteStorage = {
+  clearLoginFailures(username: string): Promise<void>;
+  createAccount(account: UserAccount): Promise<boolean>;
+  deleteSession(tokenHash: string): Promise<void>;
+  getAccountById(id: string): Promise<UserAccount | undefined>;
+  getAccountByUsername(username: string): Promise<UserAccount | undefined>;
+  getLoginFailure(username: string): Promise<undefined>;
+  getSession(tokenHash: string): Promise<UserSession | undefined>;
+  recordLoginFailure(
+    username: string,
+    maxFailures: number,
+    lockoutMs: number,
+  ): Promise<{ failures: number }>;
+  saveSession(session: UserSession): Promise<void>;
+  updateAccount(account: UserAccount): Promise<boolean>;
+};
+
 Deno.test("health check returns deployment status without storage access", async () => {
-  const app = createRoutes({} as AppContext);
+  let ticks = 0;
+  const app = createRoutes({
+    scheduler: {
+      tick: () => {
+        ticks += 1;
+        return Promise.resolve(true);
+      },
+    },
+  } as unknown as AppContext);
   const response = await app.request("/healthz");
   const body = await response.json();
 
   assertEquals(response.status, 200);
   assertEquals(body.status, "ok");
   assertEquals(body.service, "heybox-topic-notifier");
+  assertEquals(ticks, 0);
+});
+
+Deno.test("root page does not tick scheduler", async () => {
+  let ticks = 0;
+  const app = createRoutes({
+    scheduler: {
+      tick: () => {
+        ticks += 1;
+        return Promise.resolve(true);
+      },
+    },
+    storage: {
+      getDashboardSnapshot: () =>
+        Promise.resolve({
+          pendingMatches: [],
+          settings: currentSettings,
+          state: {
+            totalMatches: 0,
+          },
+        }),
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/");
+
+  assertEquals(response.status, 200);
+  assertEquals(ticks, 0);
 });
 
 Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => {
@@ -239,6 +303,145 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
   assertEquals(settings.topics[1].keywordRules, currentSettings.topics[1].keywordRules);
 });
 
+Deno.test("account route updates username for the signed-in user after password confirmation", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const form = new URLSearchParams({
+    accountAction: "username",
+    currentPassword: "correct-password",
+    username: "YuanXi",
+  });
+
+  const response = await app.request("/account", {
+    body: form,
+    headers: { cookie: registerResponse.headers.get("set-cookie") ?? "" },
+    method: "POST",
+  });
+  const loginResponse = await login(app, "yuanxi", "correct-password");
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?account=updated");
+  assertEquals(await storage.getAccountByUsername("alice"), undefined);
+  assertEquals((await storage.getAccountByUsername("yuanxi"))?.username, "yuanxi");
+  assertEquals(loginResponse.headers.get("location"), "/");
+});
+
+Deno.test("account route updates password for the signed-in user after password confirmation", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const form = new URLSearchParams({
+    accountAction: "password",
+    confirmPassword: "new-password",
+    currentPassword: "correct-password",
+    newPassword: "new-password",
+  });
+
+  const response = await app.request("/account", {
+    body: form,
+    headers: { cookie: registerResponse.headers.get("set-cookie") ?? "" },
+    method: "POST",
+  });
+  const loginResponse = await login(app, "alice", "new-password");
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?account=updated");
+  assertEquals(loginResponse.headers.get("location"), "/");
+});
+
+Deno.test("account route rejects duplicate usernames", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const aliceResponse = await register(app, "alice", "correct-password");
+  await register(app, "bob", "correct-password");
+
+  const response = await app.request("/account", {
+    body: new URLSearchParams({
+      accountAction: "username",
+      currentPassword: "correct-password",
+      username: "bob",
+    }),
+    headers: { cookie: aliceResponse.headers.get("set-cookie") ?? "" },
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/settings?accountError=exists&accountMode=username",
+  );
+  assertEquals((await storage.getAccountByUsername("alice"))?.id !== undefined, true);
+  assertEquals((await storage.getAccountByUsername("bob"))?.username, "bob");
+});
+
+Deno.test("account route rejects password changes without a valid current password", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+
+  const response = await app.request("/account", {
+    body: new URLSearchParams({
+      accountAction: "password",
+      confirmPassword: "new-password",
+      currentPassword: "wrong-password",
+      newPassword: "new-password",
+    }),
+    headers: { cookie: registerResponse.headers.get("set-cookie") ?? "" },
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/settings?accountError=currentPassword&accountMode=password",
+  );
+});
+
+Deno.test("account route rejects password changes that reuse the current password", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+
+  const response = await app.request("/account", {
+    body: new URLSearchParams({
+      accountAction: "password",
+      confirmPassword: "correct-password",
+      currentPassword: "correct-password",
+      newPassword: "correct-password",
+    }),
+    headers: { cookie: registerResponse.headers.get("set-cookie") ?? "" },
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/settings?accountError=samePassword&accountMode=password",
+  );
+});
+
+Deno.test("account password verification endpoint checks the signed-in user's password", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+
+  const accepted = await app.request("/account/verify-password", {
+    body: new URLSearchParams({ currentPassword: "correct-password" }),
+    headers: { cookie },
+    method: "POST",
+  });
+  const rejected = await app.request("/account/verify-password", {
+    body: new URLSearchParams({ currentPassword: "wrong-password" }),
+    headers: { cookie },
+    method: "POST",
+  });
+
+  assertEquals(accepted.status, 204);
+  assertEquals(rejected.status, 403);
+});
+
 Deno.test("test notify returns a readable configuration error", async () => {
   const app = createRoutes({
     notifier: {
@@ -253,6 +456,31 @@ Deno.test("test notify returns a readable configuration error", async () => {
 
   assertEquals(response.status, 400);
   assertEquals(await response.text(), "missing webhook");
+});
+
+Deno.test("test notify preserves upstream rate limit status", async () => {
+  const app = createRoutes({
+    notifier: {
+      sendTest: () =>
+        Promise.reject(
+          new NotificationDeliveryError(
+            'Webhook notification failed with HTTP 429: {"error":"Too Many Requests"}',
+            429,
+          ),
+        ),
+    },
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/test-notify", { method: "POST" });
+
+  assertEquals(response.status, 429);
+  assertEquals(
+    await response.text(),
+    'Webhook notification failed with HTTP 429: {"error":"Too Many Requests"}',
+  );
 });
 
 Deno.test("test notify ajax request returns a readable success message", async () => {
@@ -343,7 +571,7 @@ Deno.test("run now preserves dashboard table query and requests reset animation"
   );
 });
 
-Deno.test("dashboard state ticks scheduler only when requested", async () => {
+Deno.test("dashboard state does not tick scheduler", async () => {
   let ticks = 0;
   const app = createRoutes({
     scheduler: {
@@ -370,7 +598,7 @@ Deno.test("dashboard state ticks scheduler only when requested", async () => {
 
   assertEquals(regularResponse.status, 200);
   assertEquals(tickedResponse.status, 200);
-  assertEquals(ticks, 1);
+  assertEquals(ticks, 0);
 });
 
 Deno.test("complete matches handles all selected ids and ignores empty submissions", async () => {
@@ -476,16 +704,60 @@ Deno.test("match redirects reject paths outside their table", async () => {
 });
 
 /**
- * 断言两个值的 JSON 表示相等。
+ * 创建包含认证和业务路由的测试应用。
  *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
+ * @param storage 账户与路由测试使用的内存存储。
+ * @return 配置完成的 Hono 测试应用。
  */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
+function createAccountRouteApp(storage: AccountRouteStorage): Hono {
+  const app = new Hono();
+  app.route("/", createAuthRoutes(storage as never));
+  app.use("*", createAuthMiddleware(storage as never));
+  app.route("/", createRoutes({ storage } as unknown as AppContext));
+  return app;
+}
+function createAccountRouteStorage(): AccountRouteStorage {
+  const accountsById = new Map<string, UserAccount>();
+  const accountIdsByUsername = new Map<string, string>();
+  const sessionsByTokenHash = new Map<string, UserSession>();
+
+  return {
+    createAccount: (account: UserAccount) =>
+      Promise.resolve(addUniqueAccount(accountsById, accountIdsByUsername, account)),
+    updateAccount: (account: UserAccount) => {
+      const currentAccount = accountsById.get(account.id);
+      if (!currentAccount) {
+        return Promise.resolve(false);
+      }
+
+      const currentUsername = currentAccount.username.trim().toLowerCase();
+      const nextUsername = account.username.trim().toLowerCase();
+      const existingId = accountIdsByUsername.get(nextUsername);
+      if (existingId && existingId !== account.id) {
+        return Promise.resolve(false);
+      }
+
+      accountIdsByUsername.delete(currentUsername);
+      accountIdsByUsername.set(nextUsername, account.id);
+      accountsById.set(account.id, { ...account, username: nextUsername });
+      return Promise.resolve(true);
+    },
+    getAccountById: (id: string) => Promise.resolve(accountsById.get(id)),
+    getAccountByUsername: (username: string) => {
+      const id = accountIdsByUsername.get(username.trim().toLowerCase());
+      return Promise.resolve(id ? accountsById.get(id) : undefined);
+    },
+    getLoginFailure: () => Promise.resolve(undefined),
+    recordLoginFailure: () => Promise.resolve({ failures: 1 }),
+    clearLoginFailures: () => Promise.resolve(),
+    getSession: (tokenHash: string) => Promise.resolve(sessionsByTokenHash.get(tokenHash)),
+    saveSession: (session: UserSession) => {
+      sessionsByTokenHash.set(session.tokenHash, session);
+      return Promise.resolve();
+    },
+    deleteSession: (tokenHash: string) => {
+      sessionsByTokenHash.delete(tokenHash);
+      return Promise.resolve();
+    },
+  };
 }

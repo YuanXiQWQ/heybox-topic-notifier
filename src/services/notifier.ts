@@ -173,6 +173,16 @@ export class NotificationConfigError extends Error {
  * 通知投递错误。
  */
 export class NotificationDeliveryError extends Error {
+  /**
+   * 创建通知投递错误。
+   *
+   * @param message 错误消息。
+   * @param upstreamStatus 上游通知服务返回的 HTTP 状态码。
+   */
+  constructor(message: string, readonly upstreamStatus?: number) {
+    super(message);
+    this.name = "NotificationDeliveryError";
+  }
 }
 
 /**
@@ -405,6 +415,7 @@ export function createNotifier(options: NotifierOptions = {}) {
         `Webhook notification failed with HTTP ${response.status}${
           safeResponseBody ? `: ${safeResponseBody}` : ""
         }`,
+        response.status,
       );
     }
 
@@ -507,6 +518,7 @@ export function createNotifier(options: NotifierOptions = {}) {
         `Email API notification failed with HTTP ${response.status}${
           responseBody ? `: ${responseBody}` : ""
         }`,
+        response.status,
       );
     }
   }
@@ -890,7 +902,10 @@ function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookS
  */
 function redactNotificationDeliveryError(error: unknown, redactedSecrets: string[]): unknown {
   if (error instanceof NotificationDeliveryError) {
-    return new NotificationDeliveryError(redactSecrets(error.message, redactedSecrets));
+    return new NotificationDeliveryError(
+      redactSecrets(error.message, redactedSecrets),
+      error.upstreamStatus,
+    );
   }
 
   return error;
