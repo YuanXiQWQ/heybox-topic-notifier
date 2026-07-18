@@ -65,7 +65,7 @@ Deno.test("auth routes select anonymous page locale from browser language", asyn
   const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals(html.includes('lang="en"'), true);
+  assertEquals(html.includes('lang="en-CA"'), true);
   assertEquals(html.includes("Register"), true);
   assertEquals(html.includes("Confirm password"), true);
 });
