@@ -20,9 +20,10 @@ https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
 当前 `dev` 测试部署已经建立，稳定测试入口是 Git Branch / DEV URL。后续推送到 `dev`
 会触发测试部署更新，推送到 `main` 会触发 Production 更新。
 
-Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch timeline 和 Build。为了避免功能分支
-重复读取 KV、抓取小黑盒或发送通知，代码只会在 `production` 和 `git-branch/dev` 这两个
-`DENO_TIMELINE` 上注册并执行定时轮询；其他 timeline 不注册 Cron。
+Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch timeline 和 Build。为了避免 Preview
+和 Git Branch timeline 重复读取 KV、抓取小黑盒或发送通知，部署入口只会在 `DENO_TIMELINE=production`
+且 `POLL_ENABLED=true` 时注册并执行 Cron。普通页面请求、根路径、健康检查和 Warm up
+请求不会触发自动轮询。
 
 ## Deno Deploy 配置
 
@@ -30,7 +31,7 @@ Deno Deploy 的 GitHub 集成可能会为功能分支 push 创建 Git Branch tim
 
 - Repository: `YuanXiQWQ/heybox-topic-notifier`
 - App Directory: root directory
-- Entrypoint: `./src/main.ts`
+- Entrypoint: `./src/deploy.ts`
 - Config Source: `deno.json deploy section`
 
 `deno.json` 中的 deploy 配置是部署入口的唯一仓库配置来源。

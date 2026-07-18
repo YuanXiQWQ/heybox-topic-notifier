@@ -11,11 +11,19 @@ const pollSchedulerTickMs = 1000;
 /**
  * Deno Deploy Cron 运行频率。
  */
-const deployCronSchedule = "* * * * *";
+export const deployCronSchedule = "* * * * *";
 /**
- * 允许运行 Deno Deploy Cron 的 timeline 集合。
+ * 允许运行 Deno Deploy Cron 的正式 timeline。
  */
-const deployCronAllowedTimelines = new Set(["production", "git-branch/dev"]);
+const deployCronTimeline = "production";
+
+/**
+ * 本地定时器注册依赖。
+ */
+type CronRegistrationOptions = {
+  isDenoDeploy?: () => boolean;
+  setInterval?: typeof setInterval;
+};
 
 /**
  * 创建轮询调度器。
@@ -123,21 +131,18 @@ function storageForUser(storage: AppContext["storage"], userId: string) {
  * 注册运行环境对应的轮询定时任务。
  *
  * @param context 应用运行时上下文。
- * @return 注册完成后的 Promise。
  */
-export async function registerCrons(context: AppContext): Promise<void> {
-  if (isDenoDeploy()) {
-    if (!shouldRunDeployCron(readDenoTimeline()) || typeof Deno.cron !== "function") {
-      return;
-    }
-
-    await Deno.cron("poll heybox topics", deployCronSchedule, async () => {
-      await context.scheduler.tick();
-    });
+export function registerCrons(context: AppContext, options: CronRegistrationOptions = {}): void {
+  const isDeploy = options.isDenoDeploy ?? isDenoDeploy;
+  if (isDeploy()) {
+    return;
+  }
+  if (!context.config.defaultSettings.polling.enabled) {
     return;
   }
 
-  setInterval(() => {
+  const registerInterval = options.setInterval ?? setInterval;
+  registerInterval(() => {
     void context.scheduler.tick();
   }, pollSchedulerTickMs);
 }
@@ -148,8 +153,11 @@ export async function registerCrons(context: AppContext): Promise<void> {
  * @param timeline Deno Deploy timeline。
  * @return 允许运行时返回 true。
  */
-export function shouldRunDeployCron(timeline: string | undefined): boolean {
-  return timeline !== undefined && deployCronAllowedTimelines.has(timeline);
+export function shouldRunDeployCron(
+  timeline: string | undefined,
+  pollEnabled: boolean,
+): boolean {
+  return pollEnabled && timeline === deployCronTimeline;
 }
 
 /**
@@ -157,7 +165,7 @@ export function shouldRunDeployCron(timeline: string | undefined): boolean {
  *
  * @return timeline 值，读取失败或未配置时返回 undefined。
  */
-function readDenoTimeline(): string | undefined {
+export function readDenoTimeline(): string | undefined {
   try {
     return Deno.env.get("DENO_TIMELINE") ?? undefined;
   } catch {

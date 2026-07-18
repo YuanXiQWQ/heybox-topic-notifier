@@ -70,7 +70,6 @@ export function createRoutes(context: AppContext): Hono {
   app.get("/", async (c) => {
     const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
-    await context.scheduler?.tick();
     const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
@@ -87,9 +86,6 @@ export function createRoutes(context: AppContext): Hono {
 
   app.get("/dashboard-state", async (c) => {
     const url = new URL(c.req.url);
-    if (url.searchParams.get("tick") === "1") {
-      await context.scheduler?.tick();
-    }
     url.searchParams.delete("tick");
     const storage = await storageForRequest(c, context);
     const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
@@ -422,11 +418,21 @@ function notificationErrorResponse(error: unknown): Response {
   if (error instanceof NotificationDeliveryError) {
     return new Response(error.message, {
       headers: { "content-type": "text/plain; charset=utf-8" },
-      status: 502,
+      status: notificationDeliveryStatus(error),
     });
   }
 
   throw error;
+}
+
+/**
+ * 将通知投递错误转换为页面响应状态码。
+ *
+ * @param error 通知投递错误。
+ * @return 页面响应状态码。
+ */
+function notificationDeliveryStatus(error: NotificationDeliveryError): number {
+  return error.upstreamStatus === 429 ? 429 : 502;
 }
 
 /**

@@ -4,6 +4,7 @@
 import {
   createPollScheduler,
   pollingIntervalMs,
+  registerCrons,
   shouldPoll,
   shouldPollFromLastStart,
   shouldRunDeployCron,
@@ -114,13 +115,66 @@ Deno.test("poll scheduler swallows scheduled poll failures", async () => {
   assertEquals(await scheduler.tick(), false);
 });
 
-Deno.test("deploy cron only runs on production and dev timelines", () => {
-  assertEquals(shouldRunDeployCron("production"), true);
-  assertEquals(shouldRunDeployCron("git-branch/dev"), true);
-  assertEquals(shouldRunDeployCron("git-branch/main"), false);
-  assertEquals(shouldRunDeployCron("git-branch/backend/cron-timeline-guard"), false);
-  assertEquals(shouldRunDeployCron("preview/abc123"), false);
-  assertEquals(shouldRunDeployCron(undefined), false);
+Deno.test("deploy cron only runs on production when polling is enabled", () => {
+  assertEquals(shouldRunDeployCron("production", true), true);
+  assertEquals(shouldRunDeployCron("production", false), false);
+  assertEquals(shouldRunDeployCron("preview", true), false);
+  assertEquals(shouldRunDeployCron("preview/abc123", true), false);
+  assertEquals(shouldRunDeployCron("git-branch/dev", true), false);
+  assertEquals(shouldRunDeployCron("git-branch/main", true), false);
+  assertEquals(shouldRunDeployCron(undefined, true), false);
+});
+
+Deno.test("local cron registration respects POLL_ENABLED=false", () => {
+  let intervals = 0;
+
+  registerCrons(
+    {
+      config: {
+        defaultSettings: {
+          polling: { enabled: false },
+        },
+      },
+      scheduler: {
+        tick: () => Promise.resolve(true),
+      },
+    } as Parameters<typeof registerCrons>[0],
+    {
+      isDenoDeploy: () => false,
+      setInterval: (() => {
+        intervals += 1;
+        return undefined as unknown as ReturnType<typeof setInterval>;
+      }) as typeof setInterval,
+    },
+  );
+
+  assertEquals(intervals, 0);
+});
+
+Deno.test("local cron registration starts when polling is enabled", () => {
+  let intervals = 0;
+
+  registerCrons(
+    {
+      config: {
+        defaultSettings: {
+          polling: { enabled: true },
+        },
+      },
+      scheduler: {
+        tick: () => Promise.resolve(true),
+      },
+    } as Parameters<typeof registerCrons>[0],
+    {
+      isDenoDeploy: () => false,
+      setInterval: (() => {
+        intervals += 1;
+        return undefined as unknown as ReturnType<typeof setInterval>;
+      }) as typeof setInterval,
+    },
+  );
+
+  assertEquals(intervals, 1);
 });
 
 /**

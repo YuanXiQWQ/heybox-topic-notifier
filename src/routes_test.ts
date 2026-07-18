@@ -6,7 +6,7 @@ import { createRoutes, settingsFromForm } from "./routes.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
 import type { AppSettings, UserAccount, UserSession } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
-import { NotificationConfigError } from "./services/notifier.ts";
+import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
 import {
   addUniqueAccount,
   assertEquals,
@@ -85,13 +85,49 @@ type AccountRouteStorage = {
 };
 
 Deno.test("health check returns deployment status without storage access", async () => {
-  const app = createRoutes({} as AppContext);
+  let ticks = 0;
+  const app = createRoutes({
+    scheduler: {
+      tick: () => {
+        ticks += 1;
+        return Promise.resolve(true);
+      },
+    },
+  } as unknown as AppContext);
   const response = await app.request("/healthz");
   const body = await response.json();
 
   assertEquals(response.status, 200);
   assertEquals(body.status, "ok");
   assertEquals(body.service, "heybox-topic-notifier");
+  assertEquals(ticks, 0);
+});
+
+Deno.test("root page does not tick scheduler", async () => {
+  let ticks = 0;
+  const app = createRoutes({
+    scheduler: {
+      tick: () => {
+        ticks += 1;
+        return Promise.resolve(true);
+      },
+    },
+    storage: {
+      getDashboardSnapshot: () =>
+        Promise.resolve({
+          pendingMatches: [],
+          settings: currentSettings,
+          state: {
+            totalMatches: 0,
+          },
+        }),
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/");
+
+  assertEquals(response.status, 200);
+  assertEquals(ticks, 0);
 });
 
 Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => {
@@ -422,6 +458,31 @@ Deno.test("test notify returns a readable configuration error", async () => {
   assertEquals(await response.text(), "missing webhook");
 });
 
+Deno.test("test notify preserves upstream rate limit status", async () => {
+  const app = createRoutes({
+    notifier: {
+      sendTest: () =>
+        Promise.reject(
+          new NotificationDeliveryError(
+            'Webhook notification failed with HTTP 429: {"error":"Too Many Requests"}',
+            429,
+          ),
+        ),
+    },
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/test-notify", { method: "POST" });
+
+  assertEquals(response.status, 429);
+  assertEquals(
+    await response.text(),
+    'Webhook notification failed with HTTP 429: {"error":"Too Many Requests"}',
+  );
+});
+
 Deno.test("test notify ajax request returns a readable success message", async () => {
   const app = createRoutes({
     notifier: {
@@ -510,7 +571,7 @@ Deno.test("run now preserves dashboard table query and requests reset animation"
   );
 });
 
-Deno.test("dashboard state ticks scheduler only when requested", async () => {
+Deno.test("dashboard state does not tick scheduler", async () => {
   let ticks = 0;
   const app = createRoutes({
     scheduler: {
@@ -537,7 +598,7 @@ Deno.test("dashboard state ticks scheduler only when requested", async () => {
 
   assertEquals(regularResponse.status, 200);
   assertEquals(tickedResponse.status, 200);
-  assertEquals(ticks, 1);
+  assertEquals(ticks, 0);
 });
 
 Deno.test("complete matches handles all selected ids and ignores empty submissions", async () => {
