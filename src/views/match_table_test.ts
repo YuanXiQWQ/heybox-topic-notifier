@@ -9,6 +9,11 @@ import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { renderSettings } from "./settings.ts";
 
+/**
+ * 视图测试使用的固定 CSRF 令牌。
+ */
+const testCsrfToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
 Deno.test("parseMatchTableQuery normalizes unsupported values", () => {
   const query = parseMatchTableQuery(new URLSearchParams("range=bad&page=-1&pageSize=777"));
 
@@ -69,6 +74,7 @@ Deno.test("renderMatchRecordsSection opens post title links in a new tab", () =>
       rowCheckboxAttribute: "data-test-row",
       selectAllAttribute: "data-test-all",
     },
+    csrfToken: testCsrfToken,
     emptyMessage: "empty",
     filterToggleId: "test-filter",
     formAction: "/matches/complete",
@@ -85,6 +91,7 @@ Deno.test("renderMatchRecordsSection opens post title links in a new tab", () =>
     html,
     `<a class="match-table-title-link pending-title-link" href="https://example.com/title-link" target="_blank" rel="noopener noreferrer">title-link</a>`,
   );
+  assertIncludes(html, `<input type="hidden" name="csrfToken" value="${testCsrfToken}">`);
 });
 
 Deno.test("renderMatchRecordsSection marks timestamps for live relative updates", () => {
@@ -99,6 +106,7 @@ Deno.test("renderMatchRecordsSection marks timestamps for live relative updates"
       rowCheckboxAttribute: "data-test-row",
       selectAllAttribute: "data-test-all",
     },
+    csrfToken: testCsrfToken,
     emptyMessage: "empty",
     filterToggleId: "test-filter",
     formAction: "/matches/complete",
@@ -119,6 +127,7 @@ Deno.test("renderMatchRecordsSection marks timestamps for live relative updates"
 
 Deno.test("renderHistory keeps history post titles emphasized", () => {
   const html = renderHistory({
+    csrfToken: testCsrfToken,
     historyTable: table([record("history-link", "2026-06-30T12:00:00.000Z")]),
     settings: settings(),
   });
@@ -132,10 +141,11 @@ Deno.test("renderHistory keeps history post titles emphasized", () => {
 Deno.test("settings and history pages keep the app tab title", () => {
   const appSettings = settings();
   const historyHtml = renderHistory({
+    csrfToken: testCsrfToken,
     historyTable: table([]),
     settings: appSettings,
   });
-  const settingsHtml = renderSettings({ settings: appSettings });
+  const settingsHtml = renderSettings({ csrfToken: testCsrfToken, settings: appSettings });
 
   assertIncludes(historyHtml, "<title>小黑盒话题提醒</title>");
   assertIncludes(settingsHtml, "<title>小黑盒话题提醒</title>");

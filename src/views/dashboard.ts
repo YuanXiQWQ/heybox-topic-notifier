@@ -3,6 +3,7 @@
  */
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, AppState, PollIntervalUnit } from "../models.ts";
+import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
@@ -15,6 +16,7 @@ import { formatHeyboxRelativeTime } from "./time.ts";
  * @return 完整仪表盘页面 HTML。
  */
 export function renderDashboard(options: {
+  csrfToken: string;
   initialNextPollProgress?: string;
   pendingTable: MatchTableResult;
   returnTo: string;
@@ -35,11 +37,13 @@ export function renderDashboard(options: {
       </div>
       <div class="actions">
         <form method="post" action="/run-now">
+          ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
           <input type="hidden" name="pollResetStart" value="" data-poll-reset-start>
           <button type="submit">${escapeHtml(messages.runNow)}</button>
         </form>
         <form method="post" action="/simulate-match">
+          ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
           <button type="submit" class="secondary">${escapeHtml(messages.simulateMatch)}</button>
         </form>
@@ -80,12 +84,18 @@ export function renderDashboard(options: {
         <div class="next-poll-fill" data-next-poll-fill style="width: ${nextPollProgress}%"></div>
       </div>
     </section>
-    ${renderPendingMatches(options.pendingTable, messages, options.settings.locale)}
+    ${renderPendingMatches(
+    options.pendingTable,
+    messages,
+    options.settings.locale,
+    options.csrfToken,
+  )}
     ${renderLastPollScript(messages)}
   `;
 
   return renderLayout({
     body,
+    csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
     themeColor: options.settings.themeColor,
@@ -122,6 +132,7 @@ export function renderPendingMatches(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
   locale: AppSettings["locale"],
+  csrfToken: string,
 ): string {
   return renderMatchRecordsSection({
     action: {
@@ -137,6 +148,7 @@ export function renderPendingMatches(
     formAction: "/matches/complete",
     heading: messages.pendingPosts,
     headingId: "pending-posts-heading",
+    csrfToken,
     locale,
     messages,
     path: "/",

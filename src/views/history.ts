@@ -14,6 +14,7 @@ import { renderMatchRecordsSection } from "./match_table_view.ts";
  * @return 完整历史页面 HTML。
  */
 export function renderHistory(options: {
+  csrfToken: string;
   historyTable: MatchTableResult;
   settings: AppSettings;
 }): string {
@@ -26,11 +27,17 @@ export function renderHistory(options: {
         <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
-    ${renderHistoryTable(options.historyTable, messages, options.settings.locale)}
+    ${renderHistoryTable(
+    options.historyTable,
+    messages,
+    options.settings.locale,
+    options.csrfToken,
+  )}
   `;
 
   return renderLayout({
     body,
+    csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
     themeColor: options.settings.themeColor,
@@ -50,6 +57,7 @@ function renderHistoryTable(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
   locale: AppSettings["locale"],
+  csrfToken: string,
 ): string {
   return renderMatchRecordsSection({
     action: {
@@ -65,6 +73,7 @@ function renderHistoryTable(
     formAction: "/matches/delete",
     heading: messages.historyTitle,
     headingId: "history-table-heading",
+    csrfToken,
     locale,
     messages,
     path: "/history",

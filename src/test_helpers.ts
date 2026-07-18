@@ -3,6 +3,12 @@
  */
 import type { Hono } from "@hono/hono";
 import type { UserAccount } from "./models.ts";
+import { csrfCookieName, csrfFieldName } from "./security/csrf.ts";
+
+/**
+ * 测试请求使用的固定 CSRF 令牌。
+ */
+export const testCsrfToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /**
  * 断言两个值的 JSON 表示相等。
@@ -66,6 +72,30 @@ export function addUniqueAccount(
 }
 
 /**
+ * 为测试表单追加 CSRF 字段。
+ *
+ * @param {URLSearchParams} body 原始表单。
+ * @return {URLSearchParams} 追加 CSRF 字段后的表单。
+ */
+export function testCsrfForm(body = new URLSearchParams()): URLSearchParams {
+  body.set(csrfFieldName, testCsrfToken);
+  return body;
+}
+
+/**
+ * 为测试请求头追加 CSRF Cookie。
+ *
+ * @param {Record<string, string>} headers 原始请求头。
+ * @return {Record<string, string>} 追加 CSRF Cookie 后的请求头。
+ */
+export function testCsrfHeaders(headers: Record<string, string> = {}): Record<string, string> {
+  return {
+    ...headers,
+    cookie: [headers.cookie, `${csrfCookieName}=${testCsrfToken}`].filter(Boolean).join("; "),
+  };
+}
+
+/**
  * 提交登录请求。
  *
  * @param {Hono} app Hono 测试应用。
@@ -76,7 +106,8 @@ export function addUniqueAccount(
 export function submitLogin(app: Hono, username: string, password: string): Promise<Response> {
   return Promise.resolve(
     app.request("/login", {
-      body: new URLSearchParams({ password, username }),
+      body: testCsrfForm(new URLSearchParams({ password, username })),
+      headers: testCsrfHeaders(),
       method: "POST",
     }),
   );
@@ -99,7 +130,8 @@ export function submitRegistration(
 ): Promise<Response> {
   return Promise.resolve(
     app.request("/register", {
-      body: new URLSearchParams({ confirmPassword, password, username }),
+      body: testCsrfForm(new URLSearchParams({ confirmPassword, password, username })),
+      headers: testCsrfHeaders(),
       method: "POST",
     }),
   );

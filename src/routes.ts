@@ -10,6 +10,14 @@ import {
   verifyPassword,
 } from "./auth.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
+import {
+  csrfForbiddenResponse,
+  csrfHeaderName,
+  csrfTokenForRequest,
+  submittedCsrfToken,
+  verifyCsrfToken,
+  withCsrfCookie,
+} from "./security/csrf.ts";
 import type {
   AppSettings,
   KeywordRule,
@@ -75,13 +83,15 @@ export function createRoutes(context: AppContext): Hono {
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
-    return c.html(renderDashboard({
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(c.html(renderDashboard({
+      csrfToken: csrf.token,
       initialNextPollProgress: initialNextPollProgress(url.searchParams),
       pendingTable,
       returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
       settings,
       state,
-    }));
+    })), csrf);
   });
 
   app.get("/dashboard-state", async (c) => {
@@ -103,8 +113,9 @@ export function createRoutes(context: AppContext): Hono {
       parseMatchTableQuery(url.searchParams),
     );
     const messages = getMessages(settings.locale);
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
 
-    return c.json({
+    return withCsrfCookie(c.json({
       lastPollAt: state.lastPollAt ?? null,
       latestMatch: state.latestMatch
         ? {
@@ -112,7 +123,7 @@ export function createRoutes(context: AppContext): Hono {
           url: state.latestMatch.post.url,
         }
         : null,
-      pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale),
+      pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale, csrf.token),
       pendingSignature: matchTableSignature(pendingTable),
       polling: {
         enabled: settings.polling.enabled,
@@ -120,7 +131,7 @@ export function createRoutes(context: AppContext): Hono {
         intervalValue: settings.polling.intervalValue,
       },
       totalMatches: state.totalMatches,
-    });
+    }), csrf);
   });
 
   app.get("/settings", async (c) => {
@@ -129,11 +140,13 @@ export function createRoutes(context: AppContext): Hono {
     const session = await authSessionForRequest(c, context);
     const settings = await storage.getSettings();
     const account = session ? await context.storage.getAccountById(session.userId) : undefined;
-    return c.html(renderSettings({
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(c.html(renderSettings({
       account,
       accountStatus: accountStatusFromSearch(url.searchParams),
+      csrfToken: csrf.token,
       settings,
-    }));
+    })), csrf);
   });
 
   app.post("/account", async (c) => {
@@ -153,6 +166,10 @@ export function createRoutes(context: AppContext): Hono {
     const currentPassword = String(form.currentPassword ?? "");
     const newPassword = String(form.newPassword ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
+
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse();
+    }
 
     if (accountAction !== "username" && accountAction !== "password") {
       return c.redirect("/settings", 303);
@@ -214,6 +231,10 @@ export function createRoutes(context: AppContext): Hono {
     }
 
     const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return new Response(null, { status: 403 });
+    }
+
     const currentPassword = String(form.currentPassword ?? "");
     return new Response(null, {
       status: await verifyPassword(currentPassword, account) ? 204 : 403,
@@ -223,6 +244,10 @@ export function createRoutes(context: AppContext): Hono {
   app.post("/settings", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse();
+    }
+
     const currentSettings = await storage.getSettings();
     await storage.saveSettings(settingsFromForm(form, currentSettings));
     if (c.req.header("x-autosave") === "1") {
@@ -239,12 +264,17 @@ export function createRoutes(context: AppContext): Hono {
       history,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
-    return c.html(renderHistory({ historyTable, settings }));
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(c.html(renderHistory({ csrfToken: csrf.token, historyTable, settings })), csrf);
   });
 
   app.post("/run-now", async (c) => {
     const storage = await optionalStorageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse();
+    }
+
     try {
       if (storage) {
         await context.poller.runOnce(storage);
@@ -262,6 +292,10 @@ export function createRoutes(context: AppContext): Hono {
   app.post("/simulate-match", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse();
+    }
+
     const settings = await storage.getSettings();
     try {
       await context.poller.recordMatches(
@@ -277,6 +311,11 @@ export function createRoutes(context: AppContext): Hono {
 
   app.post("/test-notify", async (c) => {
     const storage = await storageForRequest(c, context);
+    const form = await formDataOrEmpty(c.req.raw);
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse();
+    }
+
     const settings = await storage.getSettings();
     try {
       await context.notifier.sendTest(settings);
@@ -292,6 +331,10 @@ export function createRoutes(context: AppContext): Hono {
   app.post("/matches/complete", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await c.req.raw.formData();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse();
+    }
+
     const ids = form.getAll("matchId").map(String);
     if (ids.length > 0) {
       await storage.completeMatches(ids);
@@ -302,6 +345,10 @@ export function createRoutes(context: AppContext): Hono {
   app.post("/matches/delete", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await c.req.raw.formData();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse();
+    }
+
     const ids = form.getAll("matchId").map(String);
     if (ids.length > 0) {
       await storage.deleteMatches(ids);
@@ -533,6 +580,23 @@ function normalizePollResetStart(value: FormDataEntryValue | null): string | und
     return undefined;
   }
   return String(Math.max(0, Math.min(100, parsed)));
+}
+
+/**
+ * 校验当前请求携带的 CSRF 令牌。
+ *
+ * @param {{ req: { header(name: string): string | undefined } }} c Hono 请求上下文的最小结构。
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]> | FormData} form 表单数据。
+ * @return {boolean} CSRF 令牌有效时返回 true。
+ */
+function validCsrfForRequest(
+  c: { req: { header(name: string): string | undefined } },
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]> | FormData,
+): boolean {
+  return verifyCsrfToken(
+    c.req.header("cookie"),
+    submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+  );
 }
 
 /**

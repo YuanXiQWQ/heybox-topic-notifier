@@ -7,6 +7,15 @@ import { getMessages } from "./locales/index.ts";
 import { languageOptions } from "./locales/languages.ts";
 import type { Locale, Messages } from "./locales/types.ts";
 import type { UserAccount } from "./models.ts";
+import {
+  csrfForbiddenResponse,
+  csrfHiddenInput,
+  csrfHeaderName,
+  csrfTokenForRequest,
+  submittedCsrfToken,
+  verifyCsrfToken,
+  withCsrfCookie,
+} from "./security/csrf.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 
 /**
@@ -130,8 +139,10 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const url = new URL(c.req.url);
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const messages = getMessages(locale);
-    return c.html(renderAuthPage({
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(c.html(renderAuthPage({
       action: authPagePath(config.loginPath, locale),
+      csrfToken: csrf.token,
       error: loginErrorMessage(url.searchParams.get("error"), messages),
       heading: messages.authLogin,
       locale,
@@ -139,11 +150,20 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       mode: "login",
       returnTo: safeReturnTo(url.searchParams.get("returnTo")),
       submitLabel: messages.authLogin,
-    }));
+    })), csrf);
   });
 
   app.post(config.loginPath, async (c) => {
     const form = await c.req.parseBody();
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse();
+    }
+
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
@@ -186,8 +206,10 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const url = new URL(c.req.url);
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const messages = getMessages(locale);
-    return c.html(renderAuthPage({
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(c.html(renderAuthPage({
       action: authPagePath(config.registerPath, locale),
+      csrfToken: csrf.token,
       error: registerErrorMessage(url.searchParams.get("error"), messages),
       heading: messages.authRegister,
       locale,
@@ -195,11 +217,20 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       mode: "register",
       returnTo: safeReturnTo(url.searchParams.get("returnTo")),
       submitLabel: messages.authCreateAccount,
-    }));
+    })), csrf);
   });
 
   app.post(config.registerPath, async (c) => {
     const form = await c.req.parseBody();
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse();
+    }
+
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
@@ -230,6 +261,16 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
   });
 
   app.post("/logout", async (c) => {
+    const form = await c.req.parseBody().catch(() => ({}));
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse();
+    }
+
     const token = parseCookies(c.req.header("cookie")).get(config.cookieName);
     if (token) {
       await storage.deleteSession(await sessionTokenHash(token));
@@ -457,6 +498,7 @@ function arrayBufferFromBytes(value: Uint8Array): ArrayBuffer {
  */
 function renderAuthPage(options: {
   action: string;
+  csrfToken: string;
   error?: string;
   heading: string;
   locale: Locale;
@@ -620,6 +662,7 @@ function renderAuthPage(options: {
       <section class="auth-panel">
         <h1>${escapeHtml(options.heading)}</h1>
         <form method="post" action="${escapeHtml(options.action)}">
+          ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
           <div class="auth-fields">
             <label>

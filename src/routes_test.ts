@@ -12,6 +12,8 @@ import {
   assertEquals,
   submitLogin as login,
   submitRegistration as register,
+  testCsrfForm,
+  testCsrfHeaders,
 } from "./test_helpers.ts";
 
 /**
@@ -303,6 +305,27 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
   assertEquals(settings.topics[1].keywordRules, currentSettings.topics[1].keywordRules);
 });
 
+Deno.test("settings route rejects saves without a valid CSRF token", async () => {
+  let saved = false;
+  const app = createRoutes({
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
+      saveSettings: () => {
+        saved = true;
+        return Promise.resolve();
+      },
+    },
+  } as unknown as AppContext);
+
+  const response = await app.request("/settings", {
+    body: new URLSearchParams({ themeColor: "#123abc" }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 403);
+  assertEquals(saved, false);
+});
+
 Deno.test("account route updates username for the signed-in user after password confirmation", async () => {
   const storage = createAccountRouteStorage();
   const app = createAccountRouteApp(storage);
@@ -314,8 +337,8 @@ Deno.test("account route updates username for the signed-in user after password 
   });
 
   const response = await app.request("/account", {
-    body: form,
-    headers: { cookie: registerResponse.headers.get("set-cookie") ?? "" },
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
     method: "POST",
   });
   const loginResponse = await login(app, "yuanxi", "correct-password");
@@ -339,8 +362,8 @@ Deno.test("account route updates password for the signed-in user after password 
   });
 
   const response = await app.request("/account", {
-    body: form,
-    headers: { cookie: registerResponse.headers.get("set-cookie") ?? "" },
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
     method: "POST",
   });
   const loginResponse = await login(app, "alice", "new-password");
@@ -357,12 +380,12 @@ Deno.test("account route rejects duplicate usernames", async () => {
   await register(app, "bob", "correct-password");
 
   const response = await app.request("/account", {
-    body: new URLSearchParams({
+    body: testCsrfForm(new URLSearchParams({
       accountAction: "username",
       currentPassword: "correct-password",
       username: "bob",
-    }),
-    headers: { cookie: aliceResponse.headers.get("set-cookie") ?? "" },
+    })),
+    headers: testCsrfHeaders({ cookie: aliceResponse.headers.get("set-cookie") ?? "" }),
     method: "POST",
   });
 
@@ -381,13 +404,13 @@ Deno.test("account route rejects password changes without a valid current passwo
   const registerResponse = await register(app, "alice", "correct-password");
 
   const response = await app.request("/account", {
-    body: new URLSearchParams({
+    body: testCsrfForm(new URLSearchParams({
       accountAction: "password",
       confirmPassword: "new-password",
       currentPassword: "wrong-password",
       newPassword: "new-password",
-    }),
-    headers: { cookie: registerResponse.headers.get("set-cookie") ?? "" },
+    })),
+    headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
     method: "POST",
   });
 
@@ -404,13 +427,13 @@ Deno.test("account route rejects password changes that reuse the current passwor
   const registerResponse = await register(app, "alice", "correct-password");
 
   const response = await app.request("/account", {
-    body: new URLSearchParams({
+    body: testCsrfForm(new URLSearchParams({
       accountAction: "password",
       confirmPassword: "correct-password",
       currentPassword: "correct-password",
       newPassword: "correct-password",
-    }),
-    headers: { cookie: registerResponse.headers.get("set-cookie") ?? "" },
+    })),
+    headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
     method: "POST",
   });
 
@@ -428,13 +451,13 @@ Deno.test("account password verification endpoint checks the signed-in user's pa
   const cookie = registerResponse.headers.get("set-cookie") ?? "";
 
   const accepted = await app.request("/account/verify-password", {
-    body: new URLSearchParams({ currentPassword: "correct-password" }),
-    headers: { cookie },
+    body: testCsrfForm(new URLSearchParams({ currentPassword: "correct-password" })),
+    headers: testCsrfHeaders({ cookie }),
     method: "POST",
   });
   const rejected = await app.request("/account/verify-password", {
-    body: new URLSearchParams({ currentPassword: "wrong-password" }),
-    headers: { cookie },
+    body: testCsrfForm(new URLSearchParams({ currentPassword: "wrong-password" })),
+    headers: testCsrfHeaders({ cookie }),
     method: "POST",
   });
 
@@ -452,7 +475,11 @@ Deno.test("test notify returns a readable configuration error", async () => {
     },
   } as unknown as AppContext);
 
-  const response = await app.request("/test-notify", { method: "POST" });
+  const response = await app.request("/test-notify", {
+    body: testCsrfForm(),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
 
   assertEquals(response.status, 400);
   assertEquals(await response.text(), "missing webhook");
@@ -474,7 +501,11 @@ Deno.test("test notify preserves upstream rate limit status", async () => {
     },
   } as unknown as AppContext);
 
-  const response = await app.request("/test-notify", { method: "POST" });
+  const response = await app.request("/test-notify", {
+    body: testCsrfForm(),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
 
   assertEquals(response.status, 429);
   assertEquals(
@@ -494,7 +525,8 @@ Deno.test("test notify ajax request returns a readable success message", async (
   } as unknown as AppContext);
 
   const response = await app.request("/test-notify", {
-    headers: { "x-test-notify": "1" },
+    body: testCsrfForm(),
+    headers: testCsrfHeaders({ "x-test-notify": "1" }),
     method: "POST",
   });
 
@@ -516,7 +548,11 @@ Deno.test("simulate match records one randomized pending match through poller", 
     },
   } as unknown as AppContext);
 
-  const response = await app.request("/simulate-match", { method: "POST" });
+  const response = await app.request("/simulate-match", {
+    body: testCsrfForm(),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
 
   assertEquals(response.status, 302);
   assertEquals(response.headers.get("location"), "/");
@@ -545,7 +581,8 @@ Deno.test("simulate match preserves dashboard table query", async () => {
   form.set("returnTo", "/?range=week&page=3&pageSize=50");
 
   const response = await app.request("/simulate-match", {
-    body: form,
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders(),
     method: "POST",
   });
 
@@ -564,7 +601,8 @@ Deno.test("run now preserves dashboard table query and requests reset animation"
   form.set("pollResetStart", "42.5");
 
   const response = await app.request("/run-now", {
-    body: form,
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders(),
     method: "POST",
   });
 
@@ -622,11 +660,13 @@ Deno.test("complete matches handles all selected ids and ignores empty submissio
   selected.set("returnTo", "/?range=week&page=3&pageSize=50");
 
   const selectedResponse = await app.request("/matches/complete", {
-    body: selected,
+    body: testCsrfForm(selected),
+    headers: testCsrfHeaders(),
     method: "POST",
   });
   const emptyResponse = await app.request("/matches/complete", {
-    body: new URLSearchParams(),
+    body: testCsrfForm(),
+    headers: testCsrfHeaders(),
     method: "POST",
   });
 
@@ -654,11 +694,13 @@ Deno.test("delete matches handles all selected ids and ignores empty submissions
   selected.set("returnTo", "/history?range=day&page=4&pageSize=100");
 
   const selectedResponse = await app.request("/matches/delete", {
-    body: selected,
+    body: testCsrfForm(selected),
+    headers: testCsrfHeaders(),
     method: "POST",
   });
   const emptyResponse = await app.request("/matches/delete", {
-    body: new URLSearchParams(),
+    body: testCsrfForm(),
+    headers: testCsrfHeaders(),
     method: "POST",
   });
 
@@ -693,11 +735,13 @@ Deno.test("match redirects reject paths outside their table", async () => {
   deleteForm.set("returnTo", "/?page=9&pageSize=500");
 
   const completeResponse = await app.request("/matches/complete", {
-    body: completeForm,
+    body: testCsrfForm(completeForm),
+    headers: testCsrfHeaders(),
     method: "POST",
   });
   const deleteResponse = await app.request("/matches/delete", {
-    body: deleteForm,
+    body: testCsrfForm(deleteForm),
+    headers: testCsrfHeaders(),
     method: "POST",
   });
 

@@ -4,6 +4,7 @@
 import { getMessages } from "../locales/index.ts";
 import type { Locale, Messages } from "../locales/types.ts";
 import type { MatchLocation } from "../models.ts";
+import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import {
@@ -32,6 +33,7 @@ export type MatchTableAction = {
  */
 export type MatchRecordsSectionOptions = {
   action: MatchTableAction;
+  csrfToken: string;
   emptyMessage: string;
   filterToggleId: string;
   formAction: string;
@@ -64,6 +66,7 @@ export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): 
       ${
     options.table.totalRecords === 0 ? `<p>${escapeHtml(options.emptyMessage)}</p>` : `
         <form method="post" action="${escapeHtml(options.formAction)}">
+          ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${
       escapeHtml(buildMatchTableUrl(options.path, options.table, {}))
     }">
