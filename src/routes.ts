@@ -263,8 +263,16 @@ export function createRoutes(context: AppContext): Hono {
     const storage = await storageForRequest(c, context);
     const form = await formDataOrEmpty(c.req.raw);
     const settings = await storage.getSettings();
-    await storage.saveMatch(createRandomTestMatchRecord(settings, 1, "simulation"));
-    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
+    try {
+      await context.poller.recordMatches(
+        [createRandomTestMatchRecord(settings, 1, "simulation")],
+        storage,
+        settings,
+      );
+      return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
+    } catch (error) {
+      return notificationErrorResponse(error);
+    }
   });
 
   app.post("/test-notify", async (c) => {

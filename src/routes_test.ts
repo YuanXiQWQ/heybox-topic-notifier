@@ -502,15 +502,17 @@ Deno.test("test notify ajax request returns a readable success message", async (
   assertEquals(await response.text(), "通知已发送");
 });
 
-Deno.test("simulate match saves one randomized pending match", async () => {
-  const saved: unknown[] = [];
+Deno.test("simulate match records one randomized pending match through poller", async () => {
+  const recorded: unknown[] = [];
   const app = createRoutes({
-    storage: {
-      getSettings: () => Promise.resolve(currentSettings),
-      saveMatch: (record: unknown) => {
-        saved.push(record);
+    poller: {
+      recordMatches: (records: unknown[]) => {
+        recorded.push(...records);
         return Promise.resolve();
       },
+    },
+    storage: {
+      getSettings: () => Promise.resolve(currentSettings),
     },
   } as unknown as AppContext);
 
@@ -518,8 +520,8 @@ Deno.test("simulate match saves one randomized pending match", async () => {
 
   assertEquals(response.status, 302);
   assertEquals(response.headers.get("location"), "/");
-  assertEquals(saved.length, 1);
-  const record = saved[0] as {
+  assertEquals(recorded.length, 1);
+  const record = recorded[0] as {
     keyword: string;
     post: { excerpt: string; title: string; url: string };
   };
@@ -532,9 +534,11 @@ Deno.test("simulate match saves one randomized pending match", async () => {
 
 Deno.test("simulate match preserves dashboard table query", async () => {
   const app = createRoutes({
+    poller: {
+      recordMatches: () => Promise.resolve(),
+    },
     storage: {
       getSettings: () => Promise.resolve(currentSettings),
-      saveMatch: () => Promise.resolve(),
     },
   } as unknown as AppContext);
   const form = new URLSearchParams();
