@@ -1,24 +1,22 @@
-# Notification Relay Worker
+# Worker Relay Notifikasi
 
-`notification-relay.js` is a lightweight relay for Cloudflare Workers. It only provides:
+`notification-relay.js` adalah relay ringan untuk Cloudflare Workers, dan hanya menyediakan:
 
 - `POST /pushplus` -> `https://www.pushplus.plus/send`
 - `POST /wxpusher` -> `https://wxpusher.zjiecode.com/api/send/message/simple-push`
-- `POST /serverchan` -> the official ServerChan endpoint
+- `POST /serverchan` -> API resmi Server酱
 - `GET /healthz` health check
 
-It does not accept arbitrary target URLs, so it cannot be used as an open proxy. The ServerChan
-entrypoint only accepts safe SendKeys and builds the official URL with the project's existing rules.
+Worker ini tidak menerima URL target sembarang, sehingga tidak dapat digunakan sebagai proxy terbuka. Entry Server酱 hanya menerima
+SendKey yang aman, dan membentuk alamat resmi sesuai aturan proyek yang sudah ada.
 
-## Deployment Steps
+## Langkah Deployment
 
-1. Create a free Worker in Cloudflare Workers.
-2. Paste the contents of `workers/notification-relay.js` into the Worker editor, or deploy the
-   script with Wrangler.
-3. Add `RELAY_TOKEN` to the Worker's variables or secrets, using a long random secret.
-4. After deployment, visit `https://<your-worker>.workers.dev/healthz` and confirm it returns
-   `{"status":"ok"}`.
-5. Configure Deno Deploy:
+1. Buat Worker gratis di Cloudflare Workers.
+2. Tempel isi `workers/notification-relay.js` ke editor Worker, atau deploy script ini dengan Wrangler.
+3. Tambahkan `RELAY_TOKEN` pada variabel/secret Worker, dengan nilai berupa secret acak yang panjang.
+4. Setelah deployment, akses `https://<your-worker>.workers.dev/healthz` dan pastikan mengembalikan `{"status":"ok"}`.
+5. Konfigurasikan Deno Deploy:
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
@@ -27,21 +25,21 @@ NOTIFIER_SERVER_CHAN_SEND_URL=https://<your-worker>.workers.dev/serverchan
 NOTIFIER_RELAY_TOKEN=<same-random-secret>
 ```
 
-The project only sends this header when the PushPlus, WxPusher, or ServerChan sends a URL that has been changed to the relay URL:
+Sisi proyek hanya akan mengirimkan berikut ini ketika alamat pengiriman PushPlus, WxPusher, atau Server酱 diubah menjadi alamat relay:
 
 ```http
 Authorization: Bearer <NOTIFIER_RELAY_TOKEN>
 ```
 
-The ServerChan relay also passes the SendKey through a dedicated request header:
+Relay Server酱 juga akan meneruskan SendKey melalui header request khusus:
 
 ```http
 X-ServerChan-Send-Key: <serverchan-send-key>
 ```
 
-## Console Testing
+## Pengujian Konsol
 
-You can test whether authentication works from the Worker console or local curl first:
+Anda dapat terlebih dahulu menguji apakah autentikasi berlaku di konsol Worker atau dengan curl lokal:
 
 ```bash
 curl -i "https://<your-worker>.workers.dev/pushplus" \
@@ -50,7 +48,7 @@ curl -i "https://<your-worker>.workers.dev/pushplus" \
   --data '{"token":"<pushplus-token>","title":"relay test","content":"hello","template":"markdown"}'
 ```
 
-WxPusher test:
+Pengujian WxPusher:
 
 ```bash
 curl -i "https://<your-worker>.workers.dev/wxpusher" \
@@ -59,7 +57,7 @@ curl -i "https://<your-worker>.workers.dev/wxpusher" \
   --data '{"spt":"<wxpusher-spt>","summary":"relay test","content":"hello","contentType":1}'
 ```
 
-ServerChan test:
+Pengujian Server酱:
 
 ```bash
 curl -i "https://<your-worker>.workers.dev/serverchan" \

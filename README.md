@@ -104,7 +104,7 @@ Deno Deploy 配置见 [docs/zh-CN/deployment.md](docs/zh-CN/deployment.md)。仓
 
 <a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
 is a lightweight Deno app for monitoring Heybox topic posts. It periodically reads real topic posts
-according to each account's settings, checks titles, bodies, comments, and replies against keyword
+according to each account’s settings, check titles, bodies, comments, and replies against the keyword
 rules, records matches in pending and history views, and sends notifications through the configured
 channel.
 
@@ -176,7 +176,7 @@ in production.
 
 ## Deployment
 
-See [docs/en/deployment.md](docs/en/deployment.md) for Deno Deploy setup. The app entrypoint is
+See [docs/en/deployment.md](docs/en/deployment.md) for the Deno Deploy setup. The app entrypoint is
 defined by the `deploy` section in `deno.json`; GitHub Actions only runs checks and does not deploy
 the app. The deploy entrypoint in `src/deploy.ts` declares the Deno Deploy Cron, and actual polling
 only runs on Production and the `dev` Git Branch timeline. See

@@ -1,24 +1,22 @@
-# Notification Relay Worker
+# Worker relay thông báo
 
-`notification-relay.js` is a lightweight relay for Cloudflare Workers. It only provides:
+`notification-relay.js` là một relay nhẹ dùng cho Cloudflare Workers, chỉ cung cấp:
 
 - `POST /pushplus` -> `https://www.pushplus.plus/send`
 - `POST /wxpusher` -> `https://wxpusher.zjiecode.com/api/send/message/simple-push`
-- `POST /serverchan` -> the official ServerChan endpoint
+- `POST /serverchan` -> API chính thức của Server酱
 - `GET /healthz` health check
 
-It does not accept arbitrary target URLs, so it cannot be used as an open proxy. The ServerChan
-entrypoint only accepts safe SendKeys and builds the official URL with the project's existing rules.
+Nó không nhận target URL tùy ý, vì vậy không thể bị dùng làm open proxy. Entry Server酱 chỉ nhận
+SendKey an toàn và tạo địa chỉ chính thức theo các quy tắc hiện có của dự án.
 
-## Deployment Steps
+## Các bước triển khai
 
-1. Create a free Worker in Cloudflare Workers.
-2. Paste the contents of `workers/notification-relay.js` into the Worker editor, or deploy the
-   script with Wrangler.
-3. Add `RELAY_TOKEN` to the Worker's variables or secrets, using a long random secret.
-4. After deployment, visit `https://<your-worker>.workers.dev/healthz` and confirm it returns
-   `{"status":"ok"}`.
-5. Configure Deno Deploy:
+1. Tạo một Worker miễn phí trong Cloudflare Workers.
+2. Dán nội dung của `workers/notification-relay.js` vào Worker editor, hoặc triển khai script này bằng Wrangler.
+3. Thêm `RELAY_TOKEN` vào variables/secrets của Worker, dùng một random secret dài làm giá trị.
+4. Sau khi triển khai, truy cập `https://<your-worker>.workers.dev/healthz` và xác nhận trả về `{"status":"ok"}`.
+5. Cấu hình Deno Deploy:
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
@@ -27,21 +25,21 @@ NOTIFIER_SERVER_CHAN_SEND_URL=https://<your-worker>.workers.dev/serverchan
 NOTIFIER_RELAY_TOKEN=<same-random-secret>
 ```
 
-The project only sends this header when the PushPlus, WxPusher, or ServerChan sends a URL that has been changed to the relay URL:
+Phía dự án chỉ gửi nội dung sau khi địa chỉ gửi của PushPlus, WxPusher hoặc Server酱 được đổi thành địa chỉ relay:
 
 ```http
 Authorization: Bearer <NOTIFIER_RELAY_TOKEN>
 ```
 
-The ServerChan relay also passes the SendKey through a dedicated request header:
+Relay Server酱 cũng sẽ truyền SendKey qua một request header chuyên dụng:
 
 ```http
 X-ServerChan-Send-Key: <serverchan-send-key>
 ```
 
-## Console Testing
+## Kiểm thử trong console
 
-You can test whether authentication works from the Worker console or local curl first:
+Bạn có thể kiểm tra trước xem xác thực có hoạt động hay không trong Worker console hoặc bằng curl cục bộ:
 
 ```bash
 curl -i "https://<your-worker>.workers.dev/pushplus" \
@@ -50,7 +48,7 @@ curl -i "https://<your-worker>.workers.dev/pushplus" \
   --data '{"token":"<pushplus-token>","title":"relay test","content":"hello","template":"markdown"}'
 ```
 
-WxPusher test:
+Kiểm thử WxPusher:
 
 ```bash
 curl -i "https://<your-worker>.workers.dev/wxpusher" \
@@ -59,7 +57,7 @@ curl -i "https://<your-worker>.workers.dev/wxpusher" \
   --data '{"spt":"<wxpusher-spt>","summary":"relay test","content":"hello","contentType":1}'
 ```
 
-ServerChan test:
+Kiểm thử Server酱:
 
 ```bash
 curl -i "https://<your-worker>.workers.dev/serverchan" \
