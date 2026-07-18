@@ -1,7 +1,7 @@
 /**
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
-import { Hono } from "@hono/hono";
+import { type Context, Hono } from "@hono/hono";
 import {
   hashPassword,
   normalizeUsername,
@@ -106,30 +106,54 @@ export function createRoutes(context: AppContext): Hono {
 
   app.get("/dashboard-state", async (c) => {
     const url = new URL(c.req.url);
-    const shouldTick = url.searchParams.get("tick") === "1";
     url.searchParams.delete("tick");
     const storage = await storageForRequest(c, context);
-    if (shouldTick) {
-      const rateLimitResponse = await rateLimitResponseForRequest(
-        c,
-        context,
-        publicRateLimitPolicies.manualPoll,
-      );
-      if (rateLimitResponse) {
-        return rateLimitResponse;
-      }
+    return await dashboardStateResponse(c, storage, url.searchParams);
+  });
 
-      const session = await authSessionForRequest(c, context);
-      if (session) {
-        await context.scheduler.tickUser(session.userId);
-      } else {
-        await context.scheduler.tick();
-      }
+  app.post("/dashboard-state/tick", async (c) => {
+    if (!validCsrfForRequest(c, {})) {
+      return csrfForbiddenResponse();
     }
+
+    const rateLimitResponse = await rateLimitResponseForRequest(
+      c,
+      context,
+      publicRateLimitPolicies.manualPoll,
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const session = await authSessionForRequest(c, context);
+    if (session) {
+      await context.scheduler.tickUser(session.userId);
+    } else {
+      await context.scheduler.tick();
+    }
+
+    const url = new URL(c.req.url);
+    const storage = await storageForRequest(c, context);
+    return await dashboardStateResponse(c, storage, url.searchParams);
+  });
+
+  /**
+   * 返回仪表盘状态 JSON。
+   *
+   * @param {Context} c Hono 请求上下文。
+   * @param {Awaited<ReturnType<typeof storageForRequest>>} storage 当前用户作用域存储。
+   * @param {URLSearchParams} searchParams 仪表盘表格查询参数。
+   * @return {Promise<Response>} 仪表盘状态 JSON 响应。
+   */
+  async function dashboardStateResponse(
+    c: Context,
+    storage: Awaited<ReturnType<typeof storageForRequest>>,
+    searchParams: URLSearchParams,
+  ): Promise<Response> {
     const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
-      parseMatchTableQuery(url.searchParams),
+      parseMatchTableQuery(searchParams),
     );
     const messages = getMessages(settings.locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
@@ -154,7 +178,7 @@ export function createRoutes(context: AppContext): Hono {
       }),
       csrf,
     );
-  });
+  }
 
   app.get("/settings", async (c) => {
     const url = new URL(c.req.url);

@@ -15,6 +15,7 @@ import {
   submitRegistration as register,
   testCsrfForm,
   testCsrfHeaders,
+  testCsrfToken,
 } from "./test_helpers.ts";
 
 /**
@@ -680,9 +681,18 @@ Deno.test("dashboard state ticks scheduler only when requested", async () => {
   } as unknown as AppContext);
 
   const regularResponse = await app.request("/dashboard-state?page=2");
-  const tickedResponse = await app.request("/dashboard-state?page=2&tick=1");
+  const ignoredTickResponse = await app.request("/dashboard-state?page=2&tick=1");
+  const missingCsrfResponse = await app.request("/dashboard-state/tick?page=2", {
+    method: "POST",
+  });
+  const tickedResponse = await app.request("/dashboard-state/tick?page=2", {
+    headers: testCsrfHeaders({ "x-csrf-token": testCsrfToken }),
+    method: "POST",
+  });
 
   assertEquals(regularResponse.status, 200);
+  assertEquals(ignoredTickResponse.status, 200);
+  assertEquals(missingCsrfResponse.status, 403);
   assertEquals(tickedResponse.status, 200);
   assertEquals(ticks, 1);
 });

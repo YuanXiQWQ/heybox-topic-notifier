@@ -84,12 +84,14 @@ export function renderDashboard(options: {
         <div class="next-poll-fill" data-next-poll-fill style="width: ${nextPollProgress}%"></div>
       </div>
     </section>
-    ${renderPendingMatches(
-    options.pendingTable,
-    messages,
-    options.settings.locale,
-    options.csrfToken,
-  )}
+    ${
+    renderPendingMatches(
+      options.pendingTable,
+      messages,
+      options.settings.locale,
+      options.csrfToken,
+    )
+  }
     ${renderLastPollScript(messages)}
   `;
 
@@ -241,7 +243,12 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         if (isDashboardStateRefreshInFlight) return;
         isDashboardStateRefreshInFlight = true;
         try {
-          const response = await fetch(dashboardStateUrl(options), { cache: "no-store" });
+          const response = await fetch(
+            dashboardStateUrl(options.tick ? "/dashboard-state/tick" : "/dashboard-state"),
+            options.tick
+              ? { cache: "no-store", headers: csrfRequestHeaders(), method: "POST" }
+              : { cache: "no-store" },
+          );
           if (!response.ok) return;
           const state = await response.json();
           const nextTimestamp = parseTimestamp(state.lastPollAt);
@@ -269,16 +276,33 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         }
       }
 
-      function dashboardStateUrl(options = {}) {
-        const url = new URL("/dashboard-state", location.origin);
+      function dashboardStateUrl(pathname = "/dashboard-state") {
+        const url = new URL(pathname, location.origin);
         const currentParams = new URLSearchParams(location.search);
         for (const [key, value] of currentParams) {
           url.searchParams.append(key, value);
         }
-        if (options.tick) {
-          url.searchParams.set("tick", "1");
-        }
         return url.pathname + url.search;
+      }
+
+      /**
+       * 构建包含 CSRF 令牌的轮询触发请求头。
+       *
+       * @return {Record<string, string>} 请求头。
+       */
+      function csrfRequestHeaders() {
+        const token = currentCsrfToken();
+        return token ? { "x-csrf-token": token } : {};
+      }
+
+      /**
+       * 从当前页面隐藏字段读取 CSRF 令牌。
+       *
+       * @return {string} 当前页面 CSRF 令牌。
+       */
+      function currentCsrfToken() {
+        const input = document.querySelector('input[name="csrfToken"]');
+        return input instanceof HTMLInputElement ? input.value : "";
       }
 
       function updatePendingSection(html, signature) {
