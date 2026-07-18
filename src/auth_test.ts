@@ -5,6 +5,12 @@ import { Hono } from "@hono/hono";
 import { createAuthMiddleware, createAuthRoutes, readAuthSession } from "./auth.ts";
 import type { UserAccount, UserSession } from "./models.ts";
 import type { createKvStorage } from "./storage/kv.ts";
+import {
+  addUniqueAccount,
+  assertEquals,
+  submitLogin as login,
+  submitRegistration as register,
+} from "./test_helpers.ts";
 
 Deno.test("auth middleware redirects protected pages to login", async () => {
   const app = createTestApp();
@@ -195,7 +201,6 @@ function createTestApp(storage = createMemoryStorage()): Hono {
   app.get("/settings", (c) => c.text("settings"));
   return app;
 }
-
 /**
  * 创建认证测试使用的内存存储。
  *
@@ -228,16 +233,8 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       accountIdsByUsername.set(account.username.trim().toLowerCase(), account.id);
       return Promise.resolve();
     },
-    createAccount: (account: UserAccount) => {
-      const username = account.username.trim().toLowerCase();
-      if (accountsById.has(account.id) || accountIdsByUsername.has(username)) {
-        return Promise.resolve(false);
-      }
-
-      accountsById.set(account.id, account);
-      accountIdsByUsername.set(username, account.id);
-      return Promise.resolve(true);
-    },
+    createAccount: (account: UserAccount) =>
+      Promise.resolve(addUniqueAccount(accountsById, accountIdsByUsername, account)),
     getLoginFailure: (username: string) =>
       Promise.resolve(loginFailuresByUsername.get(username.trim().toLowerCase())),
     recordLoginFailure: (username: string, maxFailures: number, lockoutMs: number) => {
@@ -274,58 +271,4 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       return Promise.resolve();
     },
   } as unknown as ReturnType<typeof createKvStorage> & { savedSessions: UserSession[] };
-}
-
-/**
- * 提交注册请求。
- *
- * @param app Hono 测试应用。
- * @param username 用户名。
- * @param password 密码。
- * @return 注册响应。
- */
-function register(
-  app: Hono,
-  username: string,
-  password: string,
-  confirmPassword = password,
-): Promise<Response> {
-  return Promise.resolve(
-    app.request("/register", {
-      body: new URLSearchParams({ confirmPassword, password, username }),
-      method: "POST",
-    }),
-  );
-}
-
-/**
- * 提交登录请求。
- *
- * @param app Hono 测试应用。
- * @param username 用户名。
- * @param password 密码。
- * @return 登录响应。
- */
-function login(app: Hono, username: string, password: string): Promise<Response> {
-  return Promise.resolve(
-    app.request("/login", {
-      body: new URLSearchParams({ password, username }),
-      method: "POST",
-    }),
-  );
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
 }

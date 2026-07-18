@@ -129,6 +129,8 @@ export function renderSettings(options: {
  * 渲染通知设置区域。
  *
  * @param settings 应用设置。
+ * @param account 当前登录账户，未登录时为 undefined。
+ * @param status 账户操作后的状态信息，未发生操作时为 undefined。
  * @return 通知设置区域 HTML。
  */
 function renderAccountSection(

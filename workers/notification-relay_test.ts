@@ -15,7 +15,7 @@ Deno.test("notification relay forwards pushplus requests with fixed upstream URL
       method: "POST",
     }),
     { RELAY_TOKEN: "relay-secret" },
-    (input, init) => {
+    (input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(new Request(input, init));
       return Promise.resolve(
         new Response(JSON.stringify({ code: 200 }), {
@@ -47,7 +47,7 @@ Deno.test("notification relay forwards wxpusher requests with fixed upstream URL
       method: "POST",
     }),
     { RELAY_TOKEN: "relay-secret" },
-    (input, init) => {
+    (input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(new Request(input, init));
       return Promise.resolve(
         new Response(JSON.stringify({ code: 1000 }), {
@@ -77,7 +77,7 @@ Deno.test("notification relay forwards server chan requests to sctapi", async ()
       method: "POST",
     }),
     { RELAY_TOKEN: "relay-secret" },
-    (input, init) => {
+    (input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(new Request(input, init));
       return Promise.resolve(
         new Response(JSON.stringify({ code: 0 }), {
@@ -111,7 +111,7 @@ Deno.test("notification relay forwards server chan 3 requests to uid host", asyn
       method: "POST",
     }),
     { RELAY_TOKEN: "relay-secret" },
-    (input, init) => {
+    (input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(new Request(input, init));
       return Promise.resolve(new Response(null, { status: 204 }));
     },

@@ -256,6 +256,7 @@ class MemoryKv {
    *
    * @param key KV 键。
    * @param value 待写入值。
+   * @param _options 写入选项，当前测试替身不需要使用。
    * @return KV 提交结果。
    */
   set(

@@ -7,7 +7,8 @@
 - `POST /serverchan` -> Server酱官方接口
 - `GET /healthz` 健康检查
 
-它不会接受任意目标 URL，因此不能被当成开放代理使用。 Server酱入口只接受安全的 SendKey，并按项目现有规则构造官方地址。
+它不会接受任意目标 URL，因此不能被当成开放代理使用。 Server酱入口只接受安全的
+SendKey，并按项目现有规则构造官方地址。
 
 ## 部署步骤
 

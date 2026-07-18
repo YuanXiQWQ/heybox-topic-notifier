@@ -7,6 +7,12 @@ import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
 import type { AppSettings, UserAccount, UserSession } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { NotificationConfigError } from "./services/notifier.ts";
+import {
+  addUniqueAccount,
+  assertEquals,
+  submitLogin as login,
+  submitRegistration as register,
+} from "./test_helpers.ts";
 
 /**
  * 路由测试使用的当前应用设置。
@@ -56,6 +62,26 @@ const currentSettings: AppSettings = {
       note: "其它",
     },
   ],
+};
+
+/**
+ * 账户相关路由测试使用的内存存储能力。
+ */
+type AccountRouteStorage = {
+  clearLoginFailures(username: string): Promise<void>;
+  createAccount(account: UserAccount): Promise<boolean>;
+  deleteSession(tokenHash: string): Promise<void>;
+  getAccountById(id: string): Promise<UserAccount | undefined>;
+  getAccountByUsername(username: string): Promise<UserAccount | undefined>;
+  getLoginFailure(username: string): Promise<undefined>;
+  getSession(tokenHash: string): Promise<UserSession | undefined>;
+  recordLoginFailure(
+    username: string,
+    maxFailures: number,
+    lockoutMs: number,
+  ): Promise<{ failures: number }>;
+  saveSession(session: UserSession): Promise<void>;
+  updateAccount(account: UserAccount): Promise<boolean>;
 };
 
 Deno.test("health check returns deployment status without storage access", async () => {
@@ -617,36 +643,26 @@ Deno.test("match redirects reject paths outside their table", async () => {
 });
 
 /**
- * 断言两个值的 JSON 表示相等。
+ * 创建包含认证和业务路由的测试应用。
  *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
+ * @param storage 账户与路由测试使用的内存存储。
+ * @return 配置完成的 Hono 测试应用。
  */
-function createAccountRouteApp(storage: ReturnType<typeof createAccountRouteStorage>): Hono {
+function createAccountRouteApp(storage: AccountRouteStorage): Hono {
   const app = new Hono();
   app.route("/", createAuthRoutes(storage as never));
   app.use("*", createAuthMiddleware(storage as never));
   app.route("/", createRoutes({ storage } as unknown as AppContext));
   return app;
 }
-
-function createAccountRouteStorage() {
+function createAccountRouteStorage(): AccountRouteStorage {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
   const sessionsByTokenHash = new Map<string, UserSession>();
 
   return {
-    createAccount: (account: UserAccount) => {
-      const username = account.username.trim().toLowerCase();
-      if (accountsById.has(account.id) || accountIdsByUsername.has(username)) {
-        return Promise.resolve(false);
-      }
-
-      accountsById.set(account.id, account);
-      accountIdsByUsername.set(username, account.id);
-      return Promise.resolve(true);
-    },
+    createAccount: (account: UserAccount) =>
+      Promise.resolve(addUniqueAccount(accountsById, accountIdsByUsername, account)),
     updateAccount: (account: UserAccount) => {
       const currentAccount = accountsById.get(account.id);
       if (!currentAccount) {
@@ -683,30 +699,4 @@ function createAccountRouteStorage() {
       return Promise.resolve();
     },
   };
-}
-
-function register(app: Hono, username: string, password: string): Promise<Response> {
-  return Promise.resolve(
-    app.request("/register", {
-      body: new URLSearchParams({ confirmPassword: password, password, username }),
-      method: "POST",
-    }),
-  );
-}
-
-function login(app: Hono, username: string, password: string): Promise<Response> {
-  return Promise.resolve(
-    app.request("/login", {
-      body: new URLSearchParams({ password, username }),
-      method: "POST",
-    }),
-  );
-}
-
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
 }

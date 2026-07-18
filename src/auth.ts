@@ -759,6 +759,7 @@ function renderLanguageOptions(action: string, currentLocale: Locale, returnTo: 
  * 获取登录错误提示。
  *
  * @param value 错误代码。
+ * @param messages 当前语言文案。
  * @return 登录错误提示，不需要展示时返回 undefined。
  */
 function loginErrorMessage(value: string | null, messages: Messages): string | undefined {
@@ -787,6 +788,7 @@ function isLoginLocked(failure: { lockedUntil?: string } | undefined): boolean {
  *
  * @param loginPath 登录路径。
  * @param returnTo 登录成功后的返回路径。
+ * @param locale 当前页面语言。
  * @return 重定向响应。
  */
 function loginRateLimitedRedirect(loginPath: string, returnTo: string, locale: Locale): Response {
@@ -802,6 +804,7 @@ function loginRateLimitedRedirect(loginPath: string, returnTo: string, locale: L
  * 获取注册错误提示。
  *
  * @param value 错误代码。
+ * @param messages 当前语言文案。
  * @return 注册错误提示，不需要展示时返回 undefined。
  */
 function registerErrorMessage(value: string | null, messages: Messages): string | undefined {

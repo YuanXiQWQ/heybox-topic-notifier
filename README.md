@@ -3,7 +3,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 | **简体中文** | [English](#heybox-topic-notifier) |
-|:--------:|:---------------------------------:|
+| :----------: | :-------------------------------: |
 
 ---
 
@@ -87,7 +87,7 @@ Deno Deploy 配置见 [docs/deployment.md](docs/deployment.md)。仓库通过 `d
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 | [简体中文](#小黑盒话题提醒) | **English** |
-|:----------------:|:-----------:|
+| :-------------------------: | :---------: |
 
 ---
 

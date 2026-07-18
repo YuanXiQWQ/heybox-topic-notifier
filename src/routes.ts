@@ -358,10 +358,11 @@ async function optionalStorageForRequest(
 }
 
 /**
- * 将通知相关错误转换为 HTTP 响应。
+ * 读取当前请求对应的认证会话。
  *
- * @param error 原始错误。
- * @return 错误响应。
+ * @param c 请求上下文。
+ * @param context 应用上下文。
+ * @return 当前登录会话，未登录时返回 undefined。
  */
 async function authSessionForRequest(
   c: { req: { header(name: string): string | undefined } },

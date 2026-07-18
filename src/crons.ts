@@ -126,12 +126,12 @@ function storageForUser(storage: AppContext["storage"], userId: string) {
  * @return 注册完成后的 Promise。
  */
 export async function registerCrons(context: AppContext): Promise<void> {
-  if (isDenoDeploy() && typeof Deno.cron === "function") {
-    await Deno.cron("poll heybox topics", deployCronSchedule, async () => {
-      if (!shouldRunDeployCron(readDenoTimeline())) {
-        return;
-      }
+  if (isDenoDeploy()) {
+    if (!shouldRunDeployCron(readDenoTimeline()) || typeof Deno.cron !== "function") {
+      return;
+    }
 
+    await Deno.cron("poll heybox topics", deployCronSchedule, async () => {
       await context.scheduler.tick();
     });
     return;
