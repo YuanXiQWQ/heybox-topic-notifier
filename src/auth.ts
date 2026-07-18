@@ -381,7 +381,7 @@ async function sessionTokenHash(token: string): Promise<string> {
  * @param password 原始密码。
  * @return 密码哈希和盐。
  */
-async function hashPassword(
+export async function hashPassword(
   password: string,
 ): Promise<Pick<UserAccount, "passwordHash" | "passwordSalt">> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -400,7 +400,7 @@ async function hashPassword(
  * @param account 用户账号。
  * @return 密码匹配时返回 true。
  */
-async function verifyPassword(password: string, account: UserAccount): Promise<boolean> {
+export async function verifyPassword(password: string, account: UserAccount): Promise<boolean> {
   const hash = await derivePasswordHash(
     password,
     base64UrlDecode(account.passwordSalt),
@@ -853,7 +853,7 @@ function validateRegistration(
  * @param username 用户名。
  * @return 用户名有效时返回 true。
  */
-function validUsername(username: string): boolean {
+export function validUsername(username: string): boolean {
   return /^[a-z0-9_-]{3,40}$/.test(username);
 }
 
@@ -899,7 +899,7 @@ function pathWithSearch(url: URL): string {
  * @param value 原始用户名。
  * @return 小写并去除首尾空白后的用户名。
  */
-function normalizeUsername(value: string): string {
+export function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
 }
 

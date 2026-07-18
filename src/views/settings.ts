@@ -3,7 +3,7 @@
  */
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
-import type { AppSettings, KeywordRule, MatchLocation, TopicRule } from "../models.ts";
+import type { AppSettings, KeywordRule, MatchLocation, TopicRule, UserAccount } from "../models.ts";
 import {
   notificationEmailServices,
   notificationWebhookServices,
@@ -15,6 +15,20 @@ import { escapeHtml, renderLayout } from "./html.ts";
  */
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 
+export type AccountStatus = {
+  code:
+    | "notFound"
+    | "password"
+    | "samePassword"
+    | "confirmPassword"
+    | "currentPassword"
+    | "updated"
+    | "username"
+    | "exists";
+  mode?: "password" | "username";
+  type: "error" | "success";
+};
+
 /**
  * 渲染设置页面。
  *
@@ -22,6 +36,8 @@ const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"]
  * @return 完整设置页面 HTML。
  */
 export function renderSettings(options: {
+  account?: Pick<UserAccount, "username">;
+  accountStatus?: AccountStatus;
   settings: AppSettings;
 }): string {
   const messages = getMessages(options.settings.locale);
@@ -32,6 +48,7 @@ export function renderSettings(options: {
         <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
+    ${renderAccountSection(options.settings, options.account, options.accountStatus)}
     <form
       method="post"
       action="/settings"
@@ -96,7 +113,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
-    <script src="/static/settings.js?v=20260712-email-service" defer></script>
+    <script src="/static/settings.js?v=20260718-account-settings" defer></script>
   `;
 
   return renderLayout({
@@ -114,6 +131,242 @@ export function renderSettings(options: {
  * @param settings 应用设置。
  * @return 通知设置区域 HTML。
  */
+function renderAccountSection(
+  settings: AppSettings,
+  account: Pick<UserAccount, "username"> | undefined,
+  status: AccountStatus | undefined,
+): string {
+  const messages = getMessages(settings.locale);
+  const actionStatusMessage = status && accountStatusField(status) === "action"
+    ? accountStatusMessage(status, messages)
+    : undefined;
+  const statusState = status?.type === "error" && accountStatusField(status) === "action"
+    ? 'data-state="error"'
+    : "";
+  const escapedUsername = escapeHtml(account?.username ?? "");
+  const initialMode = accountInitialMode(status);
+  const accountActionsHidden = initialMode ? "" : "hidden";
+  const currentPasswordHidden = initialMode ? "" : "hidden";
+  const currentPasswordCollapsed = initialMode ? "" : "is-collapsed";
+  const passwordFieldsHidden = initialMode === "password" ? "" : "hidden";
+  const passwordFieldsCollapsed = initialMode === "password" ? "" : "is-collapsed";
+
+  return `
+    <form
+      method="post"
+      action="/account"
+      data-account-form
+      data-account-initial-mode="${initialMode ?? ""}"
+      data-account-password-invalid="${escapeHtml(messages.accountPasswordCurrentInvalid)}"
+      data-account-password-required="${escapeHtml(messages.accountPasswordVerificationRequired)}"
+      data-account-password-verified="${escapeHtml(messages.accountPasswordVerified)}"
+    >
+      <section class="settings-group" aria-labelledby="account-settings-heading">
+        <h2 id="account-settings-heading">${escapeHtml(messages.accountSettings)}</h2>
+        <dl class="settings-list">
+          <div>
+            <dt>${escapeHtml(messages.accountUsername)}</dt>
+            <dd>
+              <input type="hidden" name="accountAction" value="" data-account-action-input>
+              <div class="account-username-row">
+                <input
+                  name="username"
+                  value="${escapedUsername}"
+                  autocomplete="username"
+                  data-account-username-input
+                  data-account-username-original="${escapedUsername}"
+                  readonly
+                  required
+                >
+                <div class="account-mode-buttons" data-account-mode-buttons>
+                  <button type="button" class="secondary" data-account-mode="username">
+                    ${escapeHtml(messages.accountEditUsername)}
+                  </button>
+                  <button type="button" class="secondary" data-account-mode="password">
+                    ${escapeHtml(messages.accountEditPassword)}
+                  </button>
+                </div>
+                ${accountFieldStatusHtml("username", status, messages)}
+              </div>
+            </dd>
+          </div>
+          <div
+            class="account-option-row ${currentPasswordCollapsed}"
+            data-account-current-password-row
+            ${currentPasswordHidden}
+          >
+            <dt>${escapeHtml(messages.accountCurrentPassword)}</dt>
+            <dd>
+              <div class="input-action-row account-password-check-row">
+                <input
+                  type="password"
+                  name="currentPassword"
+                  autocomplete="current-password"
+                  data-account-current-password-input
+                >
+                <button type="button" data-account-verify-button>
+                  ${escapeHtml(messages.accountVerifyPassword)}
+                </button>
+                ${accountFieldStatusHtml("currentPassword", status, messages)}
+              </div>
+            </dd>
+          </div>
+          <div
+            class="account-option-row ${passwordFieldsCollapsed}"
+            data-account-new-password-row
+            ${passwordFieldsHidden}
+          >
+            <dt>${escapeHtml(messages.accountNewPassword)}</dt>
+            <dd>
+              <div class="account-single-input-row">
+                <input
+                  type="password"
+                  name="newPassword"
+                  autocomplete="new-password"
+                  data-account-unlocked-field
+                  disabled
+                >
+                ${accountFieldStatusHtml("newPassword", status, messages)}
+              </div>
+            </dd>
+          </div>
+          <div
+            class="account-option-row ${passwordFieldsCollapsed}"
+            data-account-new-password-row
+            ${passwordFieldsHidden}
+          >
+            <dt>${escapeHtml(messages.accountConfirmPassword)}</dt>
+            <dd>
+              <div class="account-single-input-row">
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  autocomplete="new-password"
+                  data-account-unlocked-field
+                  disabled
+                >
+                ${accountFieldStatusHtml("confirmPassword", status, messages)}
+              </div>
+            </dd>
+          </div>
+        </dl>
+        <div class="form-actions account-form-actions">
+          <div class="account-edit-actions" data-account-actions ${accountActionsHidden}>
+            <button type="submit" data-account-save-button disabled>
+              ${escapeHtml(messages.accountSave)}
+            </button>
+            <button type="button" class="secondary" data-account-cancel-button>
+              ${escapeHtml(messages.accountCancel)}
+            </button>
+          </div>
+          <span
+            class="inline-action-status"
+            data-account-status
+            ${statusState}
+            ${actionStatusMessage ? "" : "hidden"}
+            role="status"
+          >${escapeHtml(actionStatusMessage ?? "")}</span>
+        </div>
+      </section>
+    </form>
+  `;
+}
+
+type AccountStatusField =
+  | "action"
+  | "confirmPassword"
+  | "currentPassword"
+  | "newPassword"
+  | "username";
+
+function accountFieldStatusHtml(
+  field: AccountStatusField,
+  status: AccountStatus | undefined,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const statusField = status ? accountStatusField(status) : undefined;
+  const statusMessage = status && statusField === field
+    ? accountStatusMessage(status, messages)
+    : undefined;
+  const fieldAttribute = field === "currentPassword"
+    ? "data-account-current-password-status"
+    : field === "newPassword"
+    ? "data-account-new-password-status"
+    : field === "confirmPassword"
+    ? "data-account-confirm-password-status"
+    : field === "username"
+    ? "data-account-username-status"
+    : "";
+
+  return `<span
+    class="inline-action-status account-field-status"
+    ${fieldAttribute}
+    ${status?.type === "error" && statusField === field ? 'data-state="error"' : ""}
+    ${statusMessage ? "" : "hidden"}
+    role="status"
+  >${escapeHtml(statusMessage ?? "")}</span>`;
+}
+
+function accountStatusField(status: AccountStatus): AccountStatusField {
+  switch (status.code) {
+    case "confirmPassword":
+      return "confirmPassword";
+    case "currentPassword":
+      return "currentPassword";
+    case "exists":
+    case "username":
+      return "username";
+    case "password":
+    case "samePassword":
+      return "newPassword";
+    case "notFound":
+    case "updated":
+      return "action";
+  }
+}
+
+function accountInitialMode(
+  status: AccountStatus | undefined,
+): "password" | "username" | undefined {
+  if (!status || status.type !== "error") {
+    return undefined;
+  }
+
+  if (status.mode) {
+    return status.mode;
+  }
+
+  const field = accountStatusField(status);
+  if (field === "username") {
+    return "username";
+  }
+  if (field === "confirmPassword" || field === "newPassword") {
+    return "password";
+  }
+  return undefined;
+}
+
+function accountStatusMessage(status: AccountStatus, messages: ReturnType<typeof getMessages>) {
+  switch (status.code) {
+    case "currentPassword":
+      return messages.accountPasswordCurrentInvalid;
+    case "exists":
+      return messages.accountUsernameExists;
+    case "confirmPassword":
+      return messages.accountPasswordConfirmationMismatch;
+    case "notFound":
+      return messages.accountNotFound;
+    case "password":
+      return messages.accountPasswordMinLength;
+    case "samePassword":
+      return messages.accountPasswordUnchanged;
+    case "updated":
+      return messages.accountUpdated;
+    case "username":
+      return messages.accountUsernameInvalid;
+  }
+}
+
 function renderNotificationSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
 

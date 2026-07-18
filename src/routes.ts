@@ -2,7 +2,13 @@
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
 import { Hono } from "@hono/hono";
-import { readAuthSession } from "./auth.ts";
+import {
+  hashPassword,
+  normalizeUsername,
+  readAuthSession,
+  validUsername,
+  verifyPassword,
+} from "./auth.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import type {
   AppSettings,
@@ -113,9 +119,100 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.get("/settings", async (c) => {
+    const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
+    const session = await authSessionForRequest(c, context);
     const settings = await storage.getSettings();
-    return c.html(renderSettings({ settings }));
+    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    return c.html(renderSettings({
+      account,
+      accountStatus: accountStatusFromSearch(url.searchParams),
+      settings,
+    }));
+  });
+
+  app.post("/account", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.redirect("/login?locale=zh-CN&returnTo=%2Fsettings", 303);
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return c.redirect(accountSettingsRedirect("notFound"), 303);
+    }
+
+    const form = await c.req.parseBody();
+    const accountAction = String(form.accountAction ?? "");
+    const username = normalizeUsername(String(form.username ?? ""));
+    const currentPassword = String(form.currentPassword ?? "");
+    const newPassword = String(form.newPassword ?? "");
+    const confirmPassword = String(form.confirmPassword ?? "");
+
+    if (accountAction !== "username" && accountAction !== "password") {
+      return c.redirect("/settings", 303);
+    }
+
+    if (!(await verifyPassword(currentPassword, account))) {
+      return c.redirect(accountSettingsRedirect("currentPassword", accountAction), 303);
+    }
+
+    if (accountAction === "username") {
+      if (!validUsername(username)) {
+        return c.redirect(accountSettingsRedirect("username", "username"), 303);
+      }
+
+      const updated = await context.storage.updateAccount({ ...account, username });
+      if (!updated) {
+        return c.redirect(accountSettingsRedirect("exists", "username"), 303);
+      }
+
+      return c.redirect("/settings?account=updated", 303);
+    }
+
+    if (accountAction === "password") {
+      if (newPassword.length < 8) {
+        return c.redirect(accountSettingsRedirect("password", "password"), 303);
+      }
+
+      if (newPassword !== confirmPassword) {
+        return c.redirect(accountSettingsRedirect("confirmPassword", "password"), 303);
+      }
+
+      if (await verifyPassword(newPassword, account)) {
+        return c.redirect(accountSettingsRedirect("samePassword", "password"), 303);
+      }
+
+      const updated = await context.storage.updateAccount({
+        ...account,
+        ...(await hashPassword(newPassword)),
+      });
+      if (!updated) {
+        return c.redirect(accountSettingsRedirect("notFound"), 303);
+      }
+
+      return c.redirect("/settings?account=updated", 303);
+    }
+
+    return c.redirect("/settings", 303);
+  });
+
+  app.post("/account/verify-password", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return new Response(null, { status: 401 });
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return new Response(null, { status: 404 });
+    }
+
+    const form = await c.req.parseBody();
+    const currentPassword = String(form.currentPassword ?? "");
+    return new Response(null, {
+      status: await verifyPassword(currentPassword, account) ? 204 : 403,
+    });
   });
 
   app.post("/settings", async (c) => {
@@ -266,6 +363,53 @@ async function optionalStorageForRequest(
  * @param error 原始错误。
  * @return 错误响应。
  */
+async function authSessionForRequest(
+  c: { req: { header(name: string): string | undefined } },
+  context: AppContext,
+) {
+  const storage = (context as { storage?: AppContext["storage"] }).storage;
+  return storage ? await readAuthSession(c.req.header("cookie"), storage) : undefined;
+}
+
+type AccountErrorCode =
+  | "confirmPassword"
+  | "currentPassword"
+  | "exists"
+  | "notFound"
+  | "password"
+  | "samePassword"
+  | "username";
+
+function accountSettingsRedirect(error: AccountErrorCode, mode?: "password" | "username"): string {
+  return `/settings?accountError=${error}${mode ? `&accountMode=${mode}` : ""}`;
+}
+
+function accountStatusFromSearch(searchParams: URLSearchParams) {
+  const error = searchParams.get("accountError");
+  if (isAccountErrorCode(error)) {
+    const mode = accountModeFromSearch(searchParams.get("accountMode"));
+    return { code: error, mode, type: "error" as const };
+  }
+
+  return searchParams.get("account") === "updated"
+    ? { code: "updated" as const, type: "success" as const }
+    : undefined;
+}
+
+function accountModeFromSearch(value: string | null): "password" | "username" | undefined {
+  return value === "password" || value === "username" ? value : undefined;
+}
+
+function isAccountErrorCode(value: string | null): value is AccountErrorCode {
+  return value === "confirmPassword" ||
+    value === "currentPassword" ||
+    value === "exists" ||
+    value === "notFound" ||
+    value === "password" ||
+    value === "samePassword" ||
+    value === "username";
+}
+
 function notificationErrorResponse(error: unknown): Response {
   if (error instanceof NotificationConfigError) {
     return new Response(error.message, {

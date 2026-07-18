@@ -55,7 +55,7 @@ export function renderLayout(options: {
         <a href="/settings">${escapeHtml(messages.navSettings)}</a>
         <a href="/history">${escapeHtml(messages.navHistory)}</a>
         <form class="nav-logout" method="post" action="/logout">
-          <button class="nav-link-button" type="submit">退出</button>
+          <button class="nav-link-button" type="submit">${escapeHtml(messages.navLogout)}</button>
         </form>
       </nav>
     </header>

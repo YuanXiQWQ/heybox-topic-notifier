@@ -121,6 +121,39 @@ Deno.test("createAccount atomically rejects an existing username", async () => {
   assertEquals((await storage.listAccounts()).map((item) => item.id), [createdAccountId]);
 });
 
+Deno.test("updateAccount atomically moves the username index", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  await storage.createAccount(account("alice-id", "alice"));
+
+  const updated = await storage.updateAccount({
+    ...account("alice-id", "yuanxi"),
+    passwordHash: "new-hash",
+  });
+
+  assertEquals(updated, true);
+  assertEquals(await storage.getAccountByUsername("alice"), undefined);
+  assertEquals((await storage.getAccountByUsername("yuanxi"))?.id, "alice-id");
+  assertEquals((await storage.getAccountById("alice-id"))?.passwordHash, "new-hash");
+});
+
+Deno.test("updateAccount rejects an existing username without changing the account", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  await storage.createAccount(account("alice-id", "alice"));
+  await storage.createAccount(account("bob-id", "bob"));
+
+  const updated = await storage.updateAccount(account("alice-id", "bob"));
+
+  assertEquals(updated, false);
+  assertEquals((await storage.getAccountById("alice-id"))?.username, "alice");
+  assertEquals((await storage.getAccountByUsername("bob"))?.id, "bob-id");
+});
+
 /**
  * 创建测试命中记录。
  *
@@ -242,10 +275,15 @@ class MemoryKv {
    */
   atomic(): MemoryKvAtomicOperation {
     const checks: { key: Deno.KvKey; versionstamp: string | null }[] = [];
+    const deletes: Deno.KvKey[] = [];
     const sets: { key: Deno.KvKey; value: unknown }[] = [];
     const operation: MemoryKvAtomicOperation = {
       check: (check: { key: Deno.KvKey; versionstamp: string | null }) => {
         checks.push(check);
+        return operation;
+      },
+      delete: (key: Deno.KvKey) => {
+        deletes.push(key);
         return operation;
       },
       set: (key: Deno.KvKey, value: unknown, _options?: { expireIn?: number }) => {
@@ -259,6 +297,10 @@ class MemoryKv {
         });
         if (!valid) {
           return Promise.resolve({ ok: false });
+        }
+
+        for (const key of deletes) {
+          this.#entries.delete(this.#key(key));
         }
 
         for (const set of sets) {
@@ -375,6 +417,7 @@ function account(id: string, username: string): UserAccount {
 type MemoryKvAtomicOperation = {
   check(check: { key: Deno.KvKey; versionstamp: string | null }): MemoryKvAtomicOperation;
   commit(): Promise<{ ok: boolean }>;
+  delete(key: Deno.KvKey): MemoryKvAtomicOperation;
   set(
     key: Deno.KvKey,
     value: unknown,

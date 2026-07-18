@@ -54,6 +54,7 @@ type KvCheck = {
 type KvAtomicOperation = {
   check(check: KvCheck): KvAtomicOperation;
   commit(): Promise<{ ok: boolean }>;
+  delete(key: Deno.KvKey): KvAtomicOperation;
   set(key: Deno.KvKey, value: unknown, options?: { expireIn?: number }): KvAtomicOperation;
 };
 
@@ -382,6 +383,64 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
         .set(usernameKey, account.id)
         .commit();
       return result.ok;
+    },
+
+    async updateAccount(account: UserAccount): Promise<boolean> {
+      const store = await kv();
+      const accountKey = keys.account(account.id);
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const accountEntry = await store.get<UserAccount>(accountKey);
+        const currentAccount = accountEntry.value;
+        if (!currentAccount) {
+          return false;
+        }
+
+        const currentUsernameKey = keys.accountUsername(currentAccount.username);
+        const nextUsernameKey = keys.accountUsername(account.username);
+        const usernameChanged =
+          normalizeUsername(currentAccount.username) !== normalizeUsername(account.username);
+        const currentUsernameEntry = usernameChanged
+          ? await store.get<string>(currentUsernameKey)
+          : undefined;
+        const nextUsernameEntry = usernameChanged
+          ? await store.get<string>(nextUsernameKey)
+          : undefined;
+
+        if (
+          usernameChanged &&
+          nextUsernameEntry?.value &&
+          nextUsernameEntry.value !== account.id
+        ) {
+          return false;
+        }
+
+        let operation = store.atomic()
+          .check({ key: accountKey, versionstamp: accountEntry.versionstamp });
+
+        if (usernameChanged) {
+          operation = operation
+            .check({
+              key: currentUsernameKey,
+              versionstamp: currentUsernameEntry?.versionstamp ?? null,
+            })
+            .check({
+              key: nextUsernameKey,
+              versionstamp: nextUsernameEntry?.versionstamp ?? null,
+            })
+            .delete(currentUsernameKey)
+            .set(nextUsernameKey, account.id);
+        }
+
+        const updateResult = await operation
+          .set(accountKey, account)
+          .commit();
+        if (updateResult.ok) {
+          return true;
+        }
+      }
+
+      throw new Error("Could not update the account after concurrent updates.");
     },
 
     /**
