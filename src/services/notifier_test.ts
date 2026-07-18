@@ -917,6 +917,99 @@ Deno.test("wxpusher service reports business errors from the API", async () => {
   );
 });
 
+Deno.test("webhook provider rejects unsafe outbound URLs", async () => {
+  const notifier = createNotifier({
+    fetch: () => Promise.resolve(new Response(null, { status: 204 })),
+  });
+
+  for (
+    const notificationWebhookUrl of [
+      "https://127.0.0.1/webhook",
+      "https://[::1]/webhook",
+      "https://169.254.169.254/latest",
+      "https://user:pass@example.com/webhook",
+      "http://example.com/webhook",
+    ]
+  ) {
+    await assertRejects(
+      () =>
+        notifier.sendTest({
+          ...settings,
+          notificationWebhookUrl,
+        }),
+      "Webhook URL is not allowed for security reasons.",
+    );
+  }
+});
+
+Deno.test("email API provider rejects unsafe outbound URLs", async () => {
+  const notifier = createNotifier({
+    fetch: () => Promise.resolve(new Response(null, { status: 204 })),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationEmailApiUrl: "https://localhost/email-api",
+        notificationEmailService: "api",
+        notificationProvider: "email",
+      }),
+    "Email API URL is not allowed for security reasons.",
+  );
+});
+
+Deno.test("email SMTP provider rejects unsafe hosts and ports", async () => {
+  const notifier = createNotifier({
+    emailSender: () => Promise.resolve(),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationProvider: "email",
+        notificationSmtpHost: "127.0.0.1",
+      }),
+    "SMTP host is not allowed for security reasons.",
+  );
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationProvider: "email",
+        notificationSmtpPort: 2525,
+      }),
+    "SMTP host is not allowed for security reasons.",
+  );
+});
+
+Deno.test("outbound allowlist permits explicitly configured hosts", async () => {
+  const previousAllowedHosts = Deno.env.get("OUTBOUND_ALLOWED_HOSTS");
+  Deno.env.set("OUTBOUND_ALLOWED_HOSTS", "relay.internal");
+  const requests: Request[] = [];
+
+  try {
+    const notifier = createNotifier({
+      fetch: (input, init) => {
+        requests.push(new Request(input, init));
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    });
+
+    const result = await notifier.sendTest({
+      ...settings,
+      notificationWebhookUrl: "https://relay.internal/webhook",
+    });
+
+    assertEquals(result, { provider: "webhook", sent: true });
+    assertEquals(requests[0].url, "https://relay.internal/webhook");
+  } finally {
+    restoreEnv("OUTBOUND_ALLOWED_HOSTS", previousAllowedHosts);
+  }
+});
+
 Deno.test("webhook provider requires a webhook URL", async () => {
   const notifier = createNotifier({ webhookUrl: "" });
 

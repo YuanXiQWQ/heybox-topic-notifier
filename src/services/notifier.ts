@@ -5,6 +5,11 @@ import type { AppSettings, MatchRecord } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
 import { truncateText } from "../views/text.ts";
 import { formatHeyboxRelativeTime } from "../views/time.ts";
+import {
+  parseAllowedOutboundHosts,
+  validateHttpEndpoint,
+  validateSmtpEndpoint,
+} from "./outbound_security.ts";
 
 /**
  * 通知载荷类型。
@@ -205,6 +210,7 @@ export function createNotifier(options: NotifierOptions = {}) {
   const serverChanUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL"));
   const relayToken = Deno.env.get("NOTIFIER_RELAY_TOKEN")?.trim() ?? "";
   const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
+  const outboundAllowedHosts = parseAllowedOutboundHosts(Deno.env.get("OUTBOUND_ALLOWED_HOSTS"));
 
   return {
     /**
@@ -374,6 +380,8 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
+    const safeTargetWebhookUrl = secureHttpEndpoint(targetWebhookUrl, "Webhook URL");
+
     const redactedSecrets = webhookRedactedSecrets({
       relayToken,
       serverChanSendKey: options.serverChanSendKey,
@@ -381,12 +389,12 @@ export function createNotifier(options: NotifierOptions = {}) {
     });
     let response: Response;
     try {
-      response = await fetchWithDeliveryTimeout(fetcher, targetWebhookUrl, {
+      response = await fetchWithDeliveryTimeout(fetcher, safeTargetWebhookUrl, {
         body: JSON.stringify(bodyForWebhook({
           payload: options.payload,
           pushPlusToken: options.pushPlusToken,
           service: options.webhookService,
-          url: targetWebhookUrl,
+          url: safeTargetWebhookUrl,
           wxPusherSpt: options.wxPusherSpt,
         })),
         headers: headersForWebhook({
@@ -394,11 +402,11 @@ export function createNotifier(options: NotifierOptions = {}) {
           serverChanSendKey: options.serverChanSendKey,
           serverChanUrl,
           service: options.webhookService,
-          targetWebhookUrl,
+          targetWebhookUrl: safeTargetWebhookUrl,
         }),
         method: "POST",
       }, {
-        label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
+        label: webhookDeliveryLabel(options.webhookService, safeTargetWebhookUrl),
         logger: deliveryLogger,
         redactedSecrets,
         service: webhookServiceLabel(options.webhookService),
@@ -493,6 +501,7 @@ export function createNotifier(options: NotifierOptions = {}) {
     if (!url) {
       throw new NotificationConfigError("Email API URL is required for email notifications.");
     }
+    const safeUrl = secureHttpEndpoint(url, "Email API URL");
 
     const headers: HeadersInit = {
       "content-type": "application/json; charset=utf-8",
@@ -501,7 +510,7 @@ export function createNotifier(options: NotifierOptions = {}) {
       headers.authorization = `Bearer ${apiToken.trim()}`;
     }
 
-    const response = await fetchWithDeliveryTimeout(fetcher, url, {
+    const response = await fetchWithDeliveryTimeout(fetcher, safeUrl, {
       body: JSON.stringify(message),
       headers,
       method: "POST",
@@ -521,6 +530,25 @@ export function createNotifier(options: NotifierOptions = {}) {
         response.status,
       );
     }
+  }
+
+  /**
+   * 校验 HTTP 出站地址并返回规范化后的安全地址。
+   *
+   * @param {string} url 原始出站地址。
+   * @param {string} serviceLabel 当前通知服务标签。
+   * @return {string} 通过安全校验的规范化地址。
+   */
+  function secureHttpEndpoint(url: string, serviceLabel: string): string {
+    const result = validateHttpEndpoint(url, {
+      allowedHosts: outboundAllowedHosts,
+      serviceLabel,
+    });
+    if (!result.ok) {
+      throw new NotificationConfigError(result.message);
+    }
+
+    return result.value;
   }
 }
 
@@ -722,7 +750,7 @@ async function withDeliveryTimeout<T>(
 }
 
 /**
- * 从邮件通知选项中构建 SMTP 配置。
+ * 从邮件通知选项中构建并校验 SMTP 配置。
  *
  * @param options 邮件通知配置。
  * @return SMTP 连接配置。
@@ -738,11 +766,21 @@ function smtpConfigForEmailService(options: {
   if (!host) {
     throw new NotificationConfigError("SMTP host is required for email notifications.");
   }
+  const endpoint = validateSmtpEndpoint(
+    { host, port: options.smtpPort },
+    {
+      allowedHosts: parseAllowedOutboundHosts(Deno.env.get("OUTBOUND_ALLOWED_HOSTS")),
+      serviceLabel: "SMTP host",
+    },
+  );
+  if (!endpoint.ok) {
+    throw new NotificationConfigError(endpoint.message);
+  }
 
   return {
-    host,
+    host: endpoint.value.host,
     password: options.smtpPassword,
-    port: options.smtpPort,
+    port: endpoint.value.port,
     secure: options.smtpSecure,
     username: options.smtpUsername.trim(),
   };
