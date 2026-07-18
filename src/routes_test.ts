@@ -10,6 +10,7 @@ import { NotificationConfigError, NotificationDeliveryError } from "./services/n
 import {
   addUniqueAccount,
   assertEquals,
+  createMemoryRateLimitRecorder,
   submitLogin as login,
   submitRegistration as register,
   testCsrfForm,
@@ -82,6 +83,7 @@ type AccountRouteStorage = {
     maxFailures: number,
     lockoutMs: number,
   ): Promise<{ failures: number }>;
+  recordRateLimitHit: ReturnType<typeof createMemoryRateLimitRecorder>["recordRateLimitHit"];
   saveSession(session: UserSession): Promise<void>;
   updateAccount(account: UserAccount): Promise<boolean>;
 };
@@ -380,11 +382,13 @@ Deno.test("account route rejects duplicate usernames", async () => {
   await register(app, "bob", "correct-password");
 
   const response = await app.request("/account", {
-    body: testCsrfForm(new URLSearchParams({
-      accountAction: "username",
-      currentPassword: "correct-password",
-      username: "bob",
-    })),
+    body: testCsrfForm(
+      new URLSearchParams({
+        accountAction: "username",
+        currentPassword: "correct-password",
+        username: "bob",
+      }),
+    ),
     headers: testCsrfHeaders({ cookie: aliceResponse.headers.get("set-cookie") ?? "" }),
     method: "POST",
   });
@@ -404,12 +408,14 @@ Deno.test("account route rejects password changes without a valid current passwo
   const registerResponse = await register(app, "alice", "correct-password");
 
   const response = await app.request("/account", {
-    body: testCsrfForm(new URLSearchParams({
-      accountAction: "password",
-      confirmPassword: "new-password",
-      currentPassword: "wrong-password",
-      newPassword: "new-password",
-    })),
+    body: testCsrfForm(
+      new URLSearchParams({
+        accountAction: "password",
+        confirmPassword: "new-password",
+        currentPassword: "wrong-password",
+        newPassword: "new-password",
+      }),
+    ),
     headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
     method: "POST",
   });
@@ -427,12 +433,14 @@ Deno.test("account route rejects password changes that reuse the current passwor
   const registerResponse = await register(app, "alice", "correct-password");
 
   const response = await app.request("/account", {
-    body: testCsrfForm(new URLSearchParams({
-      accountAction: "password",
-      confirmPassword: "correct-password",
-      currentPassword: "correct-password",
-      newPassword: "correct-password",
-    })),
+    body: testCsrfForm(
+      new URLSearchParams({
+        accountAction: "password",
+        confirmPassword: "correct-password",
+        currentPassword: "correct-password",
+        newPassword: "correct-password",
+      }),
+    ),
     headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
     method: "POST",
   });
@@ -613,6 +621,42 @@ Deno.test("run now preserves dashboard table query and requests reset animation"
   );
 });
 
+Deno.test("run now rate limits repeated manual polling attempts", async () => {
+  let runs = 0;
+  const app = createRoutes({
+    poller: {
+      runOnce: () => {
+        runs += 1;
+        return Promise.resolve();
+      },
+    },
+    storage: {
+      ...createMemoryRateLimitRecorder(),
+      getSession: () => Promise.resolve(undefined),
+    },
+  } as unknown as AppContext);
+  const headers = testCsrfHeaders({ "x-forwarded-for": "203.0.113.20" });
+
+  for (let index = 0; index < 6; index += 1) {
+    const response = await app.request("/run-now", {
+      body: testCsrfForm(),
+      headers,
+      method: "POST",
+    });
+    assertEquals(response.status, 302);
+  }
+
+  const limitedResponse = await app.request("/run-now", {
+    body: testCsrfForm(),
+    headers,
+    method: "POST",
+  });
+
+  assertEquals(limitedResponse.status, 429);
+  assertEquals(limitedResponse.headers.get("retry-after") !== null, true);
+  assertEquals(runs, 6);
+});
+
 Deno.test("dashboard state ticks scheduler only when requested", async () => {
   let ticks = 0;
   const app = createRoutes({
@@ -770,6 +814,7 @@ function createAccountRouteStorage(): AccountRouteStorage {
   const sessionsByTokenHash = new Map<string, UserSession>();
 
   return {
+    ...createMemoryRateLimitRecorder(),
     createAccount: (account: UserAccount) =>
       Promise.resolve(addUniqueAccount(accountsById, accountIdsByUsername, account)),
     updateAccount: (account: UserAccount) => {

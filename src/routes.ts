@@ -18,6 +18,13 @@ import {
   verifyCsrfToken,
   withCsrfCookie,
 } from "./security/csrf.ts";
+import {
+  clientRateLimitIdentifier,
+  publicRateLimitPolicies,
+  rateLimitExceededResponseFor,
+  type RateLimitPolicy,
+  userRateLimitIdentifier,
+} from "./security/rate_limit.ts";
 import type {
   AppSettings,
   KeywordRule,
@@ -84,14 +91,17 @@ export function createRoutes(context: AppContext): Hono {
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-    return withCsrfCookie(c.html(renderDashboard({
-      csrfToken: csrf.token,
-      initialNextPollProgress: initialNextPollProgress(url.searchParams),
-      pendingTable,
-      returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
-      settings,
-      state,
-    })), csrf);
+    return withCsrfCookie(
+      c.html(renderDashboard({
+        csrfToken: csrf.token,
+        initialNextPollProgress: initialNextPollProgress(url.searchParams),
+        pendingTable,
+        returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
+        settings,
+        state,
+      })),
+      csrf,
+    );
   });
 
   app.get("/dashboard-state", async (c) => {
@@ -100,6 +110,15 @@ export function createRoutes(context: AppContext): Hono {
     url.searchParams.delete("tick");
     const storage = await storageForRequest(c, context);
     if (shouldTick) {
+      const rateLimitResponse = await rateLimitResponseForRequest(
+        c,
+        context,
+        publicRateLimitPolicies.manualPoll,
+      );
+      if (rateLimitResponse) {
+        return rateLimitResponse;
+      }
+
       const session = await authSessionForRequest(c, context);
       if (session) {
         await context.scheduler.tickUser(session.userId);
@@ -115,23 +134,26 @@ export function createRoutes(context: AppContext): Hono {
     const messages = getMessages(settings.locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
 
-    return withCsrfCookie(c.json({
-      lastPollAt: state.lastPollAt ?? null,
-      latestMatch: state.latestMatch
-        ? {
-          title: state.latestMatch.post.title,
-          url: state.latestMatch.post.url,
-        }
-        : null,
-      pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale, csrf.token),
-      pendingSignature: matchTableSignature(pendingTable),
-      polling: {
-        enabled: settings.polling.enabled,
-        intervalUnit: settings.polling.intervalUnit,
-        intervalValue: settings.polling.intervalValue,
-      },
-      totalMatches: state.totalMatches,
-    }), csrf);
+    return withCsrfCookie(
+      c.json({
+        lastPollAt: state.lastPollAt ?? null,
+        latestMatch: state.latestMatch
+          ? {
+            title: state.latestMatch.post.title,
+            url: state.latestMatch.post.url,
+          }
+          : null,
+        pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale, csrf.token),
+        pendingSignature: matchTableSignature(pendingTable),
+        polling: {
+          enabled: settings.polling.enabled,
+          intervalUnit: settings.polling.intervalUnit,
+          intervalValue: settings.polling.intervalValue,
+        },
+        totalMatches: state.totalMatches,
+      }),
+      csrf,
+    );
   });
 
   app.get("/settings", async (c) => {
@@ -141,12 +163,15 @@ export function createRoutes(context: AppContext): Hono {
     const settings = await storage.getSettings();
     const account = session ? await context.storage.getAccountById(session.userId) : undefined;
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-    return withCsrfCookie(c.html(renderSettings({
-      account,
-      accountStatus: accountStatusFromSearch(url.searchParams),
-      csrfToken: csrf.token,
-      settings,
-    })), csrf);
+    return withCsrfCookie(
+      c.html(renderSettings({
+        account,
+        accountStatus: accountStatusFromSearch(url.searchParams),
+        csrfToken: csrf.token,
+        settings,
+      })),
+      csrf,
+    );
   });
 
   app.post("/account", async (c) => {
@@ -169,6 +194,14 @@ export function createRoutes(context: AppContext): Hono {
 
     if (!validCsrfForRequest(c, form)) {
       return csrfForbiddenResponse();
+    }
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     if (accountAction !== "username" && accountAction !== "password") {
@@ -234,6 +267,14 @@ export function createRoutes(context: AppContext): Hono {
     if (!validCsrfForRequest(c, form)) {
       return new Response(null, { status: 403 });
     }
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
     const currentPassword = String(form.currentPassword ?? "");
     return new Response(null, {
@@ -265,7 +306,10 @@ export function createRoutes(context: AppContext): Hono {
       parseMatchTableQuery(new URL(c.req.url).searchParams),
     );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-    return withCsrfCookie(c.html(renderHistory({ csrfToken: csrf.token, historyTable, settings })), csrf);
+    return withCsrfCookie(
+      c.html(renderHistory({ csrfToken: csrf.token, historyTable, settings })),
+      csrf,
+    );
   });
 
   app.post("/run-now", async (c) => {
@@ -273,6 +317,14 @@ export function createRoutes(context: AppContext): Hono {
     const form = await formDataOrEmpty(c.req.raw);
     if (!validCsrfForRequest(c, form)) {
       return csrfForbiddenResponse();
+    }
+    const rateLimitResponse = await rateLimitResponseForRequest(
+      c,
+      context,
+      publicRateLimitPolicies.manualPoll,
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     try {
@@ -295,6 +347,14 @@ export function createRoutes(context: AppContext): Hono {
     if (!validCsrfForRequest(c, form)) {
       return csrfForbiddenResponse();
     }
+    const rateLimitResponse = await rateLimitResponseForRequest(
+      c,
+      context,
+      publicRateLimitPolicies.debugOperation,
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
     const settings = await storage.getSettings();
     try {
@@ -314,6 +374,14 @@ export function createRoutes(context: AppContext): Hono {
     const form = await formDataOrEmpty(c.req.raw);
     if (!validCsrfForRequest(c, form)) {
       return csrfForbiddenResponse();
+    }
+    const rateLimitResponse = await rateLimitResponseForRequest(
+      c,
+      context,
+      publicRateLimitPolicies.debugOperation,
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const settings = await storage.getSettings();
@@ -580,6 +648,31 @@ function normalizePollResetStart(value: FormDataEntryValue | null): string | und
     return undefined;
   }
   return String(Math.max(0, Math.min(100, parsed)));
+}
+
+/**
+ * 根据当前会话或客户端地址执行频率限制检查。
+ *
+ * @param c Hono 请求上下文的最小结构。
+ * @param context 应用上下文。
+ * @param policy 频率限制策略。
+ * @return 未触发限制时返回 undefined，否则返回 429 响应。
+ */
+async function rateLimitResponseForRequest(
+  c: { req: { header(name: string): string | undefined } },
+  context: AppContext,
+  policy: RateLimitPolicy,
+): Promise<Response | undefined> {
+  const storage = (context as { storage?: AppContext["storage"] }).storage;
+  const canReadSession = typeof (storage as { getSession?: unknown } | undefined)?.getSession ===
+    "function";
+  const session = canReadSession
+    ? await readAuthSession(c.req.header("cookie"), context.storage)
+    : undefined;
+  const identifier = session
+    ? userRateLimitIdentifier(session.userId)
+    : clientRateLimitIdentifier((name) => c.req.header(name));
+  return await rateLimitExceededResponseFor(storage, policy, identifier);
 }
 
 /**

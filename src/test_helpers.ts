@@ -4,6 +4,7 @@
 import type { Hono } from "@hono/hono";
 import type { UserAccount } from "./models.ts";
 import { csrfCookieName, csrfFieldName } from "./security/csrf.ts";
+import type { RateLimitHit } from "./storage/kv.ts";
 
 /**
  * 测试请求使用的固定 CSRF 令牌。
@@ -69,6 +70,55 @@ export function addUniqueAccount(
   accountsById.set(account.id, account);
   accountIdsByUsername.set(username, account.id);
   return true;
+}
+
+/**
+ * 创建测试用的内存频率限制记录器。
+ *
+ * @return {object} 内存频率限制记录能力。
+ */
+export function createMemoryRateLimitRecorder(): {
+  recordRateLimitHit(
+    keyParts: readonly string[],
+    limit: number,
+    windowMs: number,
+  ): Promise<RateLimitHit>;
+} {
+  const entries = new Map<string, { count: number; resetAt: string }>();
+
+  return {
+    /**
+     * 记录一次内存频率限制命中。
+     *
+     * @param {readonly string[]} keyParts 频率限制键片段。
+     * @param {number} limit 当前窗口允许的最大次数。
+     * @param {number} windowMs 限流窗口毫秒数。
+     * @return {Promise<RateLimitHit>} 频率限制命中结果。
+     */
+    recordRateLimitHit(
+      keyParts: readonly string[],
+      limit: number,
+      windowMs: number,
+    ): Promise<RateLimitHit> {
+      const key = JSON.stringify(keyParts);
+      const now = Date.now();
+      const previous = entries.get(key);
+      const previousResetAt = Date.parse(previous?.resetAt ?? "");
+      const hasActiveWindow = Number.isFinite(previousResetAt) && previousResetAt > now;
+      const resetAtMs = hasActiveWindow ? previousResetAt : now + windowMs;
+      const count = hasActiveWindow ? (previous?.count ?? 0) + 1 : 1;
+      const resetAt = new Date(resetAtMs).toISOString();
+      entries.set(key, { count, resetAt });
+
+      return Promise.resolve({
+        allowed: count <= limit,
+        count,
+        limit,
+        resetAt,
+        retryAfterSeconds: Math.max(1, Math.ceil((resetAtMs - now) / 1000)),
+      });
+    },
+  };
 }
 
 /**

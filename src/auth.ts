@@ -9,13 +9,18 @@ import type { Locale, Messages } from "./locales/types.ts";
 import type { UserAccount } from "./models.ts";
 import {
   csrfForbiddenResponse,
-  csrfHiddenInput,
   csrfHeaderName,
+  csrfHiddenInput,
   csrfTokenForRequest,
   submittedCsrfToken,
   verifyCsrfToken,
   withCsrfCookie,
 } from "./security/csrf.ts";
+import {
+  clientRateLimitIdentifier,
+  publicRateLimitPolicies,
+  rateLimitExceededResponseFor,
+} from "./security/rate_limit.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 
 /**
@@ -140,17 +145,20 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-    return withCsrfCookie(c.html(renderAuthPage({
-      action: authPagePath(config.loginPath, locale),
-      csrfToken: csrf.token,
-      error: loginErrorMessage(url.searchParams.get("error"), messages),
-      heading: messages.authLogin,
-      locale,
-      messages,
-      mode: "login",
-      returnTo: safeReturnTo(url.searchParams.get("returnTo")),
-      submitLabel: messages.authLogin,
-    })), csrf);
+    return withCsrfCookie(
+      c.html(renderAuthPage({
+        action: authPagePath(config.loginPath, locale),
+        csrfToken: csrf.token,
+        error: loginErrorMessage(url.searchParams.get("error"), messages),
+        heading: messages.authLogin,
+        locale,
+        messages,
+        mode: "login",
+        returnTo: safeReturnTo(url.searchParams.get("returnTo")),
+        submitLabel: messages.authLogin,
+      })),
+      csrf,
+    );
   });
 
   app.post(config.loginPath, async (c) => {
@@ -163,7 +171,6 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     ) {
       return csrfForbiddenResponse();
     }
-
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
@@ -207,17 +214,20 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-    return withCsrfCookie(c.html(renderAuthPage({
-      action: authPagePath(config.registerPath, locale),
-      csrfToken: csrf.token,
-      error: registerErrorMessage(url.searchParams.get("error"), messages),
-      heading: messages.authRegister,
-      locale,
-      messages,
-      mode: "register",
-      returnTo: safeReturnTo(url.searchParams.get("returnTo")),
-      submitLabel: messages.authCreateAccount,
-    })), csrf);
+    return withCsrfCookie(
+      c.html(renderAuthPage({
+        action: authPagePath(config.registerPath, locale),
+        csrfToken: csrf.token,
+        error: registerErrorMessage(url.searchParams.get("error"), messages),
+        heading: messages.authRegister,
+        locale,
+        messages,
+        mode: "register",
+        returnTo: safeReturnTo(url.searchParams.get("returnTo")),
+        submitLabel: messages.authCreateAccount,
+      })),
+      csrf,
+    );
   });
 
   app.post(config.registerPath, async (c) => {
@@ -229,6 +239,14 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       )
     ) {
       return csrfForbiddenResponse();
+    }
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.registration,
+      clientRateLimitIdentifier((name) => c.req.header(name)),
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const username = normalizeUsername(String(form.username ?? ""));
