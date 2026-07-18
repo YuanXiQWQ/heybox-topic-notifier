@@ -45,7 +45,7 @@ ID 前缀隔离，Deno Deploy 还会按 timeline 隔离 Production 和 Git Branc
 
 ## 运行环境变量
 
-Deno Deploy App 中按需配置：
+Deno Deploy App 中按需配置；完整默认值可参考仓库根目录的 `.env.example`：
 
 - `APP_LOCALE`
 - `HEYBOX_TOPIC_ID`
@@ -61,11 +61,25 @@ Deno Deploy App 中按需配置：
 - `POLL_SORT`
 - `NOTIFIER_PROVIDER`
 - `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
+- `NOTIFIER_EMAIL_SERVICE`
+- `NOTIFIER_EMAIL_ADDRESS`
+- `NOTIFIER_EMAIL_API_URL`
+- `NOTIFIER_EMAIL_API_TOKEN`
+- `NOTIFIER_EMAIL_FROM`
+- `NOTIFIER_SMTP_HOST`
+- `NOTIFIER_SMTP_PORT`
+- `NOTIFIER_SMTP_SECURE`
+- `NOTIFIER_SMTP_USERNAME`
+- `NOTIFIER_SMTP_PASSWORD`
+- `NOTIFIER_WEBHOOK_SERVICE`
 - `NOTIFIER_RELAY_TOKEN`
+- `NOTIFIER_PUSHPLUS_TOKEN`
 - `NOTIFIER_PUSHPLUS_SEND_URL`
 - `NOTIFIER_WXPUSHER_SEND_URL`
+- `NOTIFIER_SERVER_CHAN_SEND_KEY`
 - `NOTIFIER_SERVER_CHAN_SEND_URL`
 - `NOTIFIER_WEBHOOK_URL`
+- `NOTIFIER_WXPUSHER_SPT`
 - `OUTBOUND_ALLOWED_HOSTS`
 
 通知投递会校验自定义 Webhook、Email API 和 SMTP 目标。默认只允许公网 HTTPS URL 和常见 SMTP
@@ -89,8 +103,7 @@ Deno KV 中，并按用户 ID 隔离。浏览器 Cookie 只保存随机 session 
 
 如果 Deno Deploy 不能直接访问 PushPlus、WxPusher 或 Server酱，可以先部署免费的 Cloudflare Worker
 中转。仓库中的 `workers/notification-relay.js` 固定提供 `/pushplus`、`/wxpusher` 和 `/serverchan`
-三个转发入口，并使用 `Authorization: Bearer <token>` 鉴权；完整步骤见
-[workers/README.md](../workers/README.md)。
+三个转发入口，并使用 `Authorization: Bearer <token>` 鉴权；完整步骤见 [worker.md](worker.md)。
 
 Deno Deploy 侧配置示例：
 
