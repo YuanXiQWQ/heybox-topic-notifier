@@ -1298,9 +1298,10 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   const appName = errorLink.dataset.errorAppName || document.title || "Heybox Topic Notifier";
   const appOrigin = globalThis.location?.origin || "";
   const colorMode = errorLink.dataset.errorDarkMode === "true" ? "dark" : "light";
+  const direction = errorLink.dataset.errorDirection === "rtl" ? "rtl" : "ltr";
   const errorTitle = errorLink.dataset.errorTitle || "Error message";
   const locale = errorLink.dataset.errorLocale || document.documentElement.lang || "zh-CN";
-  const generatedAt = new Date().toLocaleString();
+  const generatedAt = new Date().toLocaleString(locale);
   const navDashboard = errorLink.dataset.errorNavDashboard || "Dashboard";
   const navHistory = errorLink.dataset.errorNavHistory || "History";
   const navSettings = errorLink.dataset.errorNavSettings || "Settings";
@@ -1311,6 +1312,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   return `<!doctype html>
 <html
   lang="${escapeHtml(locale)}"
+  dir="${escapeHtml(direction)}"
   data-color-mode="${escapeHtml(colorMode)}"
   style="--theme-color: ${escapeHtml(themeColor)}"
 >
@@ -1371,7 +1373,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
     <section class="settings-group" aria-label="${escapeHtml(errorTitle)}">
       <dl class="settings-list">
         <div class="error-detail-row">
-          <dd><pre class="error-detail-content">${escapeHtml(errorDetails)}</pre></dd>
+          <dd><pre class="error-detail-content" dir="ltr">${escapeHtml(errorDetails)}</pre></dd>
         </div>
       </dl>
       <div class="error-detail-actions">
