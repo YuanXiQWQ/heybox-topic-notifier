@@ -5,6 +5,7 @@ import type { AppSettings, MatchRecord } from "../models.ts";
 import { assertEquals, assertRejects } from "../test_helpers.ts";
 import { createNotifier as createRealNotifier } from "./notifier.ts";
 import type { DeliveryLogEntry } from "./notifier.ts";
+import type { DnsRecordType } from "./outbound_security.ts";
 
 /**
  * 通知器测试使用的基础应用设置。
@@ -71,8 +72,21 @@ function createNotifier(options: Parameters<typeof createRealNotifier>[0] = {}) 
   return createRealNotifier({
     deliveryLogger: () => {
     },
+    resolveDns: resolveDnsTo(["93.184.216.34"]),
     ...options,
   });
+}
+
+/**
+ * 创建固定返回指定地址列表的 DNS 解析器。
+ *
+ * @param {string[]} addresses 模拟 DNS 查询返回的地址列表。
+ * @return {(hostname: string, recordType: DnsRecordType) => Promise<string[]>} 测试用 DNS 解析函数。
+ */
+function resolveDnsTo(
+  addresses: string[],
+): (hostname: string, recordType: DnsRecordType) => Promise<string[]> {
+  return (_hostname: string, _recordType: DnsRecordType) => Promise.resolve(addresses);
 }
 
 /**
@@ -300,6 +314,28 @@ Deno.test("email API provider posts the email payload to the configured API", as
   assertEquals(body.html.includes('<a href="https://example.com/p1">Need help</a>'), true);
 });
 
+Deno.test("email API provider omits upstream response bodies from delivery errors", async () => {
+  const apiSecret = "email-api-response-secret";
+  const notifier = createNotifier({
+    fetch: () => Promise.resolve(new Response(`failed ${apiSecret}`, { status: 500 })),
+  });
+
+  try {
+    await notifier.sendMatches([record], {
+      ...settings,
+      notificationEmailService: "api",
+      notificationProvider: "email",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    assertEquals(message.includes(apiSecret), false);
+    assertEquals(message, "Email API notification failed with HTTP 500.");
+    return;
+  }
+
+  throw new Error("Expected Email API HTTP delivery error.");
+});
+
 Deno.test("disabled provider does not send a request", async () => {
   let calls = 0;
   const notifier = createNotifier({
@@ -499,7 +535,7 @@ Deno.test("server chan relay redacts send key and relay token from errors and lo
   }
 });
 
-Deno.test("server chan relay redacts send key and relay token from HTTP response errors", async () => {
+Deno.test("server chan relay omits send key and relay token from HTTP response errors", async () => {
   const relayToken = "relay-secret-in-response";
   const sendKey = "SCTRESPONSE";
   const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
@@ -522,7 +558,7 @@ Deno.test("server chan relay redacts send key and relay token from HTTP response
       const message = error instanceof Error ? error.message : String(error);
       assertEquals(message.includes(relayToken), false);
       assertEquals(message.includes(sendKey), false);
-      assertEquals(message.includes("[已隐藏]"), true);
+      assertEquals(message, "Webhook notification failed with HTTP 502.");
       return;
     }
 
@@ -845,7 +881,7 @@ Deno.test("relay token is redacted from delivery errors", async () => {
   }
 });
 
-Deno.test("relay token is redacted from HTTP response errors", async () => {
+Deno.test("relay token is omitted from HTTP response errors", async () => {
   const relayToken = "relay-secret-in-response";
   const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
@@ -866,7 +902,7 @@ Deno.test("relay token is redacted from HTTP response errors", async () => {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       assertEquals(message.includes(relayToken), false);
-      assertEquals(message.includes("[已隐藏]"), true);
+      assertEquals(message, "Webhook notification failed with HTTP 401.");
       return;
     }
 
@@ -942,6 +978,91 @@ Deno.test("webhook provider rejects unsafe outbound URLs", async () => {
   }
 });
 
+Deno.test("webhook provider follows same-origin safe redirects", async () => {
+  const requests: Request[] = [];
+  const notifier = createNotifier({
+    fetch: (input, init) => {
+      assertEquals(init?.redirect, "manual");
+      requests.push(new Request(input, init));
+      return Promise.resolve(
+        requests.length === 1
+          ? new Response(null, { headers: { location: "/final-webhook" }, status: 302 })
+          : new Response(null, { status: 204 }),
+      );
+    },
+  });
+
+  const result = await notifier.sendTest({
+    ...settings,
+    notificationWebhookUrl: "https://example.com/start-webhook",
+  });
+
+  assertEquals(result, { provider: "webhook", sent: true });
+  assertEquals(requests.length, 2);
+  assertEquals(requests[0].url, "https://example.com/start-webhook");
+  assertEquals(requests[1].url, "https://example.com/final-webhook");
+});
+
+Deno.test("webhook provider rejects redirects to unsafe outbound URLs", async () => {
+  const notifier = createNotifier({
+    fetch: () =>
+      Promise.resolve(
+        new Response(null, { headers: { location: "https://127.0.0.1/webhook" }, status: 302 }),
+      ),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationWebhookUrl: "https://example.com/start-webhook",
+      }),
+    "Webhook URL is not allowed for security reasons.",
+  );
+});
+
+Deno.test("webhook provider rejects cross-origin redirects", async () => {
+  const notifier = createNotifier({
+    fetch: () =>
+      Promise.resolve(
+        new Response(null, {
+          headers: { location: "https://other.example.com/webhook" },
+          status: 302,
+        }),
+      ),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationWebhookUrl: "https://example.com/start-webhook",
+      }),
+    "Webhook URL redirect is not allowed for security reasons.",
+  );
+});
+
+Deno.test("webhook provider rejects hosts that resolve to private addresses", async () => {
+  let calls = 0;
+  const notifier = createNotifier({
+    fetch: () => {
+      calls += 1;
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+    resolveDns: resolveDnsTo(["10.0.0.1"]),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationWebhookUrl: "https://example.com/dns-webhook",
+      }),
+    "Webhook URL is not allowed for security reasons.",
+  );
+  assertEquals(calls, 0);
+});
+
 Deno.test("email API provider rejects unsafe outbound URLs", async () => {
   const notifier = createNotifier({
     fetch: () => Promise.resolve(new Response(null, { status: 204 })),
@@ -985,6 +1106,27 @@ Deno.test("email SMTP provider rejects unsafe hosts and ports", async () => {
   );
 });
 
+Deno.test("email SMTP provider rejects hosts that resolve to private addresses", async () => {
+  let calls = 0;
+  const notifier = createNotifier({
+    emailSender: () => {
+      calls += 1;
+      return Promise.resolve();
+    },
+    resolveDns: resolveDnsTo(["10.0.0.1"]),
+  });
+
+  await assertRejects(
+    () =>
+      notifier.sendTest({
+        ...settings,
+        notificationProvider: "email",
+      }),
+    "SMTP host is not allowed for security reasons.",
+  );
+  assertEquals(calls, 0);
+});
+
 Deno.test("outbound allowlist permits explicitly configured hosts", async () => {
   const previousAllowedHosts = Deno.env.get("OUTBOUND_ALLOWED_HOSTS");
   Deno.env.set("OUTBOUND_ALLOWED_HOSTS", "relay.internal");
@@ -996,6 +1138,7 @@ Deno.test("outbound allowlist permits explicitly configured hosts", async () => 
         requests.push(new Request(input, init));
         return Promise.resolve(new Response(null, { status: 204 }));
       },
+      resolveDns: resolveDnsTo(["10.0.0.1"]),
     });
 
     const result = await notifier.sendTest({

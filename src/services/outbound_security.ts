@@ -26,6 +26,25 @@ export type SmtpEndpointValidationOptions = {
 };
 
 /**
+ * DNS 记录类型。
+ */
+export type DnsRecordType = "A" | "AAAA";
+
+/**
+ * DNS 解析函数。
+ */
+export type DnsResolver = (hostname: string, recordType: DnsRecordType) => Promise<string[]>;
+
+/**
+ * DNS 解析结果校验选项。
+ */
+export type ResolvedHostValidationOptions = {
+  allowedHosts: readonly string[];
+  resolveDns: DnsResolver;
+  serviceLabel: string;
+};
+
+/**
  * SMTP 出站目标。
  */
 export type SmtpEndpoint = {
@@ -123,6 +142,38 @@ export function validateSmtpEndpoint(
   return validateHost(host, options.allowedHosts, options.serviceLabel)
     ? { ok: true, value: { host, port: endpoint.port } }
     : blockedEndpoint(options.serviceLabel);
+}
+
+/**
+ * 校验主机名 DNS 解析结果是否仍为允许的出站目标。
+ *
+ * @param {string} value 原始主机名。
+ * @param {ResolvedHostValidationOptions} options DNS 解析结果校验选项。
+ * @return {Promise<OutboundValidationResult<void>>} DNS 解析结果校验结果。
+ */
+export async function validateResolvedOutboundHost(
+  value: string,
+  options: ResolvedHostValidationOptions,
+): Promise<OutboundValidationResult<void>> {
+  const host = normalizeHost(value);
+  if (!host) {
+    return blockedEndpoint(options.serviceLabel);
+  }
+
+  if (options.allowedHosts.length > 0 || parseIpv4Address(host) || parseIpv6Address(host)) {
+    return { ok: true, value: undefined };
+  }
+
+  let addresses: string[];
+  try {
+    addresses = await resolveHostAddresses(host, options.resolveDns);
+  } catch {
+    return blockedEndpoint(options.serviceLabel);
+  }
+
+  return addresses.some((address) => isBlockedIpAddress(normalizeHost(address) ?? ""))
+    ? blockedEndpoint(options.serviceLabel)
+    : { ok: true, value: undefined };
 }
 
 /**
@@ -269,6 +320,46 @@ function isBlockedIpAddress(host: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * 解析主机名的 A 和 AAAA 记录。
+ *
+ * @param {string} host 规范化后的主机名。
+ * @param {DnsResolver} resolveDns DNS 解析函数。
+ * @return {Promise<string[]>} 解析得到的 IP 地址列表。
+ */
+async function resolveHostAddresses(host: string, resolveDns: DnsResolver): Promise<string[]> {
+  const [ipv4Addresses, ipv6Addresses] = await Promise.all([
+    resolveDnsRecords(host, "A", resolveDns),
+    resolveDnsRecords(host, "AAAA", resolveDns),
+  ]);
+
+  return [...ipv4Addresses, ...ipv6Addresses];
+}
+
+/**
+ * 解析指定类型的 DNS 记录。
+ *
+ * @param {string} host 规范化后的主机名。
+ * @param {DnsRecordType} recordType DNS 记录类型。
+ * @param {DnsResolver} resolveDns DNS 解析函数。
+ * @return {Promise<string[]>} 指定类型解析得到的 IP 地址列表。
+ */
+async function resolveDnsRecords(
+  host: string,
+  recordType: DnsRecordType,
+  resolveDns: DnsResolver,
+): Promise<string[]> {
+  try {
+    return await resolveDns(host, recordType);
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      return [];
+    }
+
+    throw error;
+  }
 }
 
 /**

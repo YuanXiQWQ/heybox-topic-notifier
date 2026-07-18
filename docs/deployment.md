@@ -67,10 +67,14 @@ Deno Deploy App 中按需配置：
 - `NOTIFIER_WEBHOOK_URL`
 - `OUTBOUND_ALLOWED_HOSTS`
 
-通知投递会校验自定义 Webhook、Email API 和 SMTP 目标。默认只允许公网 HTTPS URL
-和常见 SMTP 端口；如果需要使用自托管中转或固定邮件服务，可以用逗号分隔的
-`OUTBOUND_ALLOWED_HOSTS` 明确允许对应主机，例如 `relay.example.com,smtp.example.com`。
+通知投递会校验自定义 Webhook、Email API 和 SMTP 目标。默认只允许公网 HTTPS URL 和常见 SMTP
+端口；如果需要使用自托管中转或固定邮件服务，可以用逗号分隔的 `OUTBOUND_ALLOWED_HOSTS`
+明确允许对应主机，例如 `relay.example.com,smtp.example.com`。
 设置该变量后，通知出站目标必须命中列表中的主机或 `*.example.com` 形式的通配符。
+
+HTTP 重定向会逐跳校验，且只允许同源跳转；未配置 `OUTBOUND_ALLOWED_HOSTS` 时，还会校验目标主机的 DNS
+A/AAAA 解析结果不落入本机、内网、链路本地、元数据服务或保留地址范围。`OUTBOUND_ALLOWED_HOSTS`
+是管理员显式信任边界，通配符只应配置在完全控制的域名下。
 
 应用提供注册和登录页面。账号信息、登录会话，以及各账号的设置、命中记录、轮询状态、通知配置都存储在
 Deno KV 中，并按用户 ID 隔离。浏览器 Cookie 只保存随机 session token；服务端保存 token
