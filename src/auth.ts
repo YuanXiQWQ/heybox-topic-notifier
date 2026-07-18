@@ -186,8 +186,9 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const form = await c.req.parseBody();
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
+    const confirmPassword = String(form.confirmPassword ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
-    const validationError = validateRegistration(username, password);
+    const validationError = validateRegistration(username, password, confirmPassword);
 
     if (validationError) {
       return c.redirect(`${config.registerPath}?error=${validationError}`, 303);
@@ -498,6 +499,10 @@ function renderAuthPage(options: {
     options.mode === "login" ? "current-password" : "new-password"
   }" required>
           </label>
+          ${options.mode === "register" ? `<label>
+            确认密码
+            <input name="confirmPassword" type="password" autocomplete="new-password" required>
+          </label>` : ""}
         </div>
         ${options.error ? `<div class="auth-error">${escapeHtml(options.error)}</div>` : ""}
         <button type="submit">${escapeHtml(options.submitLabel)}</button>
@@ -563,6 +568,8 @@ function registerErrorMessage(value: string | null): string | undefined {
       return "这个用户名已经被注册。";
     case "password":
       return "密码至少需要 8 个字符。";
+    case "confirmPassword":
+      return "两次输入的密码不一致。";
     case "username":
       return "用户名只能包含 3-40 个字母、数字、下划线或短横线。";
     default:
@@ -575,15 +582,24 @@ function registerErrorMessage(value: string | null): string | undefined {
  *
  * @param username 用户名。
  * @param password 密码。
+ * @param confirmPassword 确认密码。
  * @return 错误代码，校验通过时返回 undefined。
  */
-function validateRegistration(username: string, password: string): string | undefined {
+function validateRegistration(
+  username: string,
+  password: string,
+  confirmPassword: string,
+): string | undefined {
   if (!validUsername(username)) {
     return "username";
   }
 
   if (password.length < 8) {
     return "password";
+  }
+
+  if (password !== confirmPassword) {
+    return "confirmPassword";
   }
 
   return undefined;

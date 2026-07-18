@@ -29,6 +29,7 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
   const form = new URLSearchParams({
+    confirmPassword: "correct-password",
     password: "correct-password",
     returnTo: "/settings",
     username: "Alice",
@@ -59,6 +60,17 @@ Deno.test("auth routes reject duplicate registrations", async () => {
 
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/register?error=exists");
+});
+
+Deno.test("auth routes reject registrations with mismatched passwords", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+
+  const response = await register(app, "alice", "correct-password", "different-password");
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/register?error=confirmPassword");
+  assertEquals(await storage.getAccountByUsername("alice"), undefined);
 });
 
 Deno.test("auth routes atomically create only one account for concurrent registrations", async () => {
@@ -230,10 +242,15 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
  * @param password 密码。
  * @return 注册响应。
  */
-function register(app: Hono, username: string, password: string): Promise<Response> {
+function register(
+  app: Hono,
+  username: string,
+  password: string,
+  confirmPassword = password,
+): Promise<Response> {
   return Promise.resolve(
     app.request("/register", {
-      body: new URLSearchParams({ password, username }),
+      body: new URLSearchParams({ confirmPassword, password, username }),
       method: "POST",
     }),
   );
