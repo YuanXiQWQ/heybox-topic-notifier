@@ -3,6 +3,9 @@
  */
 import { Hono } from "@hono/hono";
 import type { MiddlewareHandler } from "@hono/hono";
+import { getMessages } from "./locales/index.ts";
+import { languageOptions } from "./locales/languages.ts";
+import type { Locale, Messages } from "./locales/types.ts";
 import type { UserAccount } from "./models.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 
@@ -27,6 +30,7 @@ export type AuthOptions = {
   exemptPaths?: string[];
   loginLockoutSeconds?: number;
   maxLoginFailures?: number;
+  defaultLocale?: Locale;
   loginPath?: string;
   registerPath?: string;
   sessionMaxAgeSeconds?: number;
@@ -40,6 +44,7 @@ type AuthConfig = {
   exemptPaths: Set<string>;
   loginLockoutSeconds: number;
   maxLoginFailures: number;
+  defaultLocale: Locale;
   loginPath: string;
   registerPath: string;
   sessionMaxAgeSeconds: number;
@@ -101,6 +106,8 @@ export function createAuthMiddleware(
     }
 
     const loginUrl = new URL(config.loginPath, url);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    loginUrl.searchParams.set("locale", locale);
     if (c.req.method === "GET") {
       loginUrl.searchParams.set("returnTo", pathWithSearch(url));
     }
@@ -121,13 +128,17 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
 
   app.get(config.loginPath, (c) => {
     const url = new URL(c.req.url);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const messages = getMessages(locale);
     return c.html(renderAuthPage({
-      action: config.loginPath,
-      error: loginErrorMessage(url.searchParams.get("error")),
-      heading: "登录",
+      action: authPagePath(config.loginPath, locale),
+      error: loginErrorMessage(url.searchParams.get("error"), messages),
+      heading: messages.authLogin,
+      locale,
+      messages,
       mode: "login",
       returnTo: safeReturnTo(url.searchParams.get("returnTo")),
-      submitLabel: "登录",
+      submitLabel: messages.authLogin,
     }));
   });
 
@@ -136,11 +147,12 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
+    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config);
     const canRateLimit = validUsername(username);
     const loginFailure = canRateLimit ? await storage.getLoginFailure(username) : undefined;
 
     if (isLoginLocked(loginFailure)) {
-      return loginRateLimitedRedirect(config.loginPath, returnTo);
+      return loginRateLimitedRedirect(config.loginPath, returnTo, locale);
     }
 
     const account = await storage.getAccountByUsername(username);
@@ -154,11 +166,11 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         )
         : undefined;
       if (isLoginLocked(failure)) {
-        return loginRateLimitedRedirect(config.loginPath, returnTo);
+        return loginRateLimitedRedirect(config.loginPath, returnTo, locale);
       }
 
       return c.redirect(
-        `${config.loginPath}?error=invalid&returnTo=${encodeURIComponent(returnTo)}`,
+        authPagePath(config.loginPath, locale, { error: "invalid", returnTo }),
         303,
       );
     }
@@ -172,13 +184,17 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
 
   app.get(config.registerPath, (c) => {
     const url = new URL(c.req.url);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const messages = getMessages(locale);
     return c.html(renderAuthPage({
-      action: config.registerPath,
-      error: registerErrorMessage(url.searchParams.get("error")),
-      heading: "注册",
+      action: authPagePath(config.registerPath, locale),
+      error: registerErrorMessage(url.searchParams.get("error"), messages),
+      heading: messages.authRegister,
+      locale,
+      messages,
       mode: "register",
       returnTo: safeReturnTo(url.searchParams.get("returnTo")),
-      submitLabel: "创建账号",
+      submitLabel: messages.authCreateAccount,
     }));
   });
 
@@ -188,10 +204,14 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const password = String(form.password ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
+    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config);
     const validationError = validateRegistration(username, password, confirmPassword);
 
     if (validationError) {
-      return c.redirect(`${config.registerPath}?error=${validationError}`, 303);
+      return c.redirect(
+        authPagePath(config.registerPath, locale, { error: validationError }),
+        303,
+      );
     }
 
     const account: UserAccount = {
@@ -203,7 +223,7 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     };
 
     if (!(await storage.createAccount(account))) {
-      return c.redirect(`${config.registerPath}?error=exists`, 303);
+      return c.redirect(authPagePath(config.registerPath, locale, { error: "exists" }), 303);
     }
 
     return await redirectWithSession(c.req.url, returnTo, account, storage, config);
@@ -217,7 +237,7 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
 
     return new Response(null, {
       headers: {
-        location: config.loginPath,
+        location: authPagePath(config.loginPath, config.defaultLocale),
         "set-cookie": serializeCookie(config.cookieName, "", {
           httpOnly: true,
           maxAge: 0,
@@ -278,6 +298,7 @@ function authConfig(options: AuthOptions): AuthConfig {
 
   return {
     cookieName: options.cookieName ?? defaultCookieName,
+    defaultLocale: options.defaultLocale ?? "zh-CN",
     exemptPaths: new Set(
       options.exemptPaths ?? ["/healthz", loginPath, registerPath, "/static/app.css"],
     ),
@@ -438,23 +459,38 @@ function renderAuthPage(options: {
   action: string;
   error?: string;
   heading: string;
+  locale: Locale;
+  messages: Messages;
   mode: "login" | "register";
   returnTo: string;
   submitLabel: string;
 }): string {
-  const switchHref = options.mode === "login" ? "/register" : "/login";
-  const switchLabel = options.mode === "login" ? "创建账号" : "已有账号，去登录";
+  const switchPath = options.mode === "login" ? "/register" : "/login";
+  const switchHref = authPagePath(switchPath, options.locale, { returnTo: options.returnTo });
+  const switchLabel = options.mode === "login"
+    ? options.messages.authCreateAccount
+    : options.messages.authExistingAccountLogin;
+  const languageOptionsHtml = renderLanguageOptions(
+    options.action,
+    options.locale,
+    options.returnTo,
+  );
 
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${options.locale}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${escapeHtml(options.heading)} - 小黑盒话题提醒</title>
+    <title>${escapeHtml(options.heading)} - ${escapeHtml(options.messages.appName)}</title>
     <link rel="stylesheet" href="/static/app.css">
     <style>
       body {
         min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .auth-shell {
         display: grid;
         place-items: center;
         padding: 24px;
@@ -481,36 +517,242 @@ function renderAuthPage(options: {
         color: #b42318;
         font-size: 0.92rem;
       }
+
+      .auth-language-icon {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 auto;
+      }
+
+      .auth-language-menu {
+        align-self: stretch;
+        position: relative;
+      }
+
+      .auth-language-button {
+        align-items: center;
+        color: var(--theme-link);
+        cursor: pointer;
+        display: inline-flex;
+        font-weight: 700;
+        gap: 8px;
+        height: 100%;
+        justify-content: center;
+        list-style: none;
+        min-width: 0;
+        padding: 0 16px;
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      .auth-language-button:focus {
+        outline: none;
+      }
+
+      .auth-language-button::-webkit-details-marker {
+        display: none;
+      }
+
+      .auth-language-button:hover,
+      .auth-language-button:focus-visible {
+        background: var(--theme-soft);
+        text-decoration: none;
+      }
+
+      .auth-language-button:focus-visible {
+        box-shadow: inset 0 -2px 0 var(--theme-link);
+      }
+
+      .auth-language-options {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        box-shadow: 0 10px 20px var(--shadow-strong);
+        display: grid;
+        gap: 2px;
+        min-width: 132px;
+        overflow: hidden;
+        padding: 4px;
+        position: absolute;
+        right: 0;
+        top: calc(100% + 6px);
+        z-index: 1;
+      }
+
+      .auth-language-options a {
+        border-radius: 4px;
+        color: var(--ink);
+        display: block;
+        font-size: 0.95rem;
+        font-weight: 600;
+        line-height: 1.25;
+        min-height: 0;
+        padding: 8px 12px;
+        text-align: center;
+        text-decoration: none;
+      }
+
+      .auth-language-options a:hover,
+      .auth-language-options a:focus-visible,
+      .auth-language-options a[aria-current="true"] {
+        background: var(--theme-soft);
+      }
     </style>
   </head>
   <body>
-    <main class="auth-panel">
-      <h1>${escapeHtml(options.heading)}</h1>
-      <form method="post" action="${escapeHtml(options.action)}">
-        <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
-        <div class="auth-fields">
-          <label>
-            用户名
-            <input name="username" autocomplete="username" required autofocus>
-          </label>
-          <label>
-            密码
-            <input name="password" type="password" autocomplete="${
+    <header class="topbar">
+      <span class="brand">${escapeHtml(options.messages.appName)}</span>
+      <nav class="primary-nav" aria-label="${escapeHtml(options.messages.authNavigation)}">
+        <details class="auth-language-menu">
+          <summary class="auth-language-button" title="${
+    escapeHtml(options.messages.authLanguage)
+  }">
+            ${renderLanguageIcon()}
+            <span>${escapeHtml(options.messages.authLanguageButton)}</span>
+          </summary>
+          <div class="auth-language-options" role="menu">
+            ${languageOptionsHtml}
+          </div>
+        </details>
+      </nav>
+    </header>
+    <main class="auth-shell">
+      <section class="auth-panel">
+        <h1>${escapeHtml(options.heading)}</h1>
+        <form method="post" action="${escapeHtml(options.action)}">
+          <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
+          <div class="auth-fields">
+            <label>
+              ${escapeHtml(options.messages.authUsername)}
+              <input name="username" autocomplete="username" required autofocus>
+            </label>
+            <label>
+              ${escapeHtml(options.messages.authPassword)}
+              <input name="password" type="password" autocomplete="${
     options.mode === "login" ? "current-password" : "new-password"
   }" required>
-          </label>
-          ${options.mode === "register" ? `<label>
-            确认密码
-            <input name="confirmPassword" type="password" autocomplete="new-password" required>
-          </label>` : ""}
-        </div>
-        ${options.error ? `<div class="auth-error">${escapeHtml(options.error)}</div>` : ""}
-        <button type="submit">${escapeHtml(options.submitLabel)}</button>
-      </form>
-      <a href="${switchHref}?returnTo=${encodeURIComponent(options.returnTo)}">${switchLabel}</a>
+            </label>
+            ${
+    options.mode === "register"
+      ? `<label>
+              ${escapeHtml(options.messages.authConfirmPassword)}
+              <input name="confirmPassword" type="password" autocomplete="new-password" required>
+            </label>`
+      : ""
+  }
+          </div>
+          ${options.error ? `<div class="auth-error">${escapeHtml(options.error)}</div>` : ""}
+          <button type="submit">${escapeHtml(options.submitLabel)}</button>
+        </form>
+        <a href="${escapeHtml(switchHref)}">${escapeHtml(switchLabel)}</a>
+      </section>
     </main>
   </body>
 </html>`;
+}
+
+/**
+ * 获取认证页应该使用的语言。
+ *
+ * @param url 当前请求 URL。
+ * @param acceptLanguage 浏览器语言请求头。
+ * @param config 认证配置。
+ * @return 认证页语言。
+ */
+function authPageLocale(
+  url: URL,
+  acceptLanguage: string | undefined,
+  config: AuthConfig,
+): Locale {
+  const queryLocale = localeFromLanguageTag(url.searchParams.get("locale"));
+  if (queryLocale) {
+    return queryLocale;
+  }
+
+  for (const part of acceptLanguage?.split(",") ?? []) {
+    const locale = localeFromLanguageTag(part.split(";")[0]?.trim());
+    if (locale) {
+      return locale;
+    }
+  }
+
+  return config.defaultLocale;
+}
+
+/**
+ * 将语言标签匹配到应用支持的语言。
+ *
+ * @param value 原始语言标签。
+ * @return 支持的语言标识，无法匹配时返回 undefined。
+ */
+function localeFromLanguageTag(value: string | null | undefined): Locale | undefined {
+  const normalized = value?.toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  const exactOption = languageOptions.find((option) => option.code.toLowerCase() === normalized);
+  if (exactOption) {
+    return exactOption.code;
+  }
+
+  const languageCode = normalized.split("-")[0];
+  return languageOptions.find((option) => option.code.toLowerCase().split("-")[0] === languageCode)
+    ?.code;
+}
+
+/**
+ * 创建携带认证页语言的路径。
+ *
+ * @param path 基础路径。
+ * @param locale 语言标识。
+ * @param params 额外查询参数。
+ * @return 携带查询参数的认证页路径。
+ */
+function authPagePath(
+  path: string,
+  locale: Locale,
+  params: Record<string, string | undefined> = {},
+): string {
+  const searchParams = new URLSearchParams({ locale });
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") {
+      searchParams.set(key, value);
+    }
+  }
+  return `${path}?${searchParams.toString()}`;
+}
+
+/**
+ * 渲染语言切换按钮图标。
+ *
+ * @return 语言图标 SVG。
+ */
+function renderLanguageIcon(): string {
+  return `<svg class="auth-language-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M3 12h18"></path>
+            <path d="M12 3a13.5 13.5 0 0 1 0 18"></path>
+            <path d="M12 3a13.5 13.5 0 0 0 0 18"></path>
+          </svg>`;
+}
+
+/**
+ * 渲染认证页可用语言选项。
+ *
+ * @param action 当前认证页路径。
+ * @param currentLocale 当前语言。
+ * @param returnTo 登录后返回路径。
+ * @return 语言选项 HTML。
+ */
+function renderLanguageOptions(action: string, currentLocale: Locale, returnTo: string): string {
+  const actionPath = action.split("?")[0] ?? action;
+  return languageOptions.map((option) => {
+    const currentAttribute = option.code === currentLocale ? ' aria-current="true"' : "";
+    return `<a href="${
+      escapeHtml(authPagePath(actionPath, option.code, { returnTo }))
+    }" role="menuitem"${currentAttribute}>${escapeHtml(option.label)}</a>`;
+  }).join("");
 }
 
 /**
@@ -519,12 +761,12 @@ function renderAuthPage(options: {
  * @param value 错误代码。
  * @return 登录错误提示，不需要展示时返回 undefined。
  */
-function loginErrorMessage(value: string | null): string | undefined {
+function loginErrorMessage(value: string | null, messages: Messages): string | undefined {
   switch (value) {
     case "invalid":
-      return "用户名或密码不正确。";
+      return messages.authInvalidCredentials;
     case "rateLimited":
-      return "登录失败次数过多，请 15 分钟后再试。";
+      return messages.authLoginRateLimited;
     default:
       return undefined;
   }
@@ -547,10 +789,10 @@ function isLoginLocked(failure: { lockedUntil?: string } | undefined): boolean {
  * @param returnTo 登录成功后的返回路径。
  * @return 重定向响应。
  */
-function loginRateLimitedRedirect(loginPath: string, returnTo: string): Response {
+function loginRateLimitedRedirect(loginPath: string, returnTo: string, locale: Locale): Response {
   return new Response(null, {
     headers: {
-      location: `${loginPath}?error=rateLimited&returnTo=${encodeURIComponent(returnTo)}`,
+      location: authPagePath(loginPath, locale, { error: "rateLimited", returnTo }),
     },
     status: 303,
   });
@@ -562,16 +804,16 @@ function loginRateLimitedRedirect(loginPath: string, returnTo: string): Response
  * @param value 错误代码。
  * @return 注册错误提示，不需要展示时返回 undefined。
  */
-function registerErrorMessage(value: string | null): string | undefined {
+function registerErrorMessage(value: string | null, messages: Messages): string | undefined {
   switch (value) {
     case "exists":
-      return "这个用户名已经被注册。";
+      return messages.authUsernameExists;
     case "password":
-      return "密码至少需要 8 个字符。";
+      return messages.authPasswordMinLength;
     case "confirmPassword":
-      return "两次输入的密码不一致。";
+      return messages.authPasswordConfirmationMismatch;
     case "username":
-      return "用户名只能包含 3-40 个字母、数字、下划线或短横线。";
+      return messages.authUsernameInvalid;
     default:
       return undefined;
   }

@@ -12,7 +12,7 @@ Deno.test("auth middleware redirects protected pages to login", async () => {
   const response = await app.request("/settings");
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/login?returnTo=%2Fsettings");
+  assertEquals(response.headers.get("location"), "/login?locale=zh-CN&returnTo=%2Fsettings");
 });
 
 Deno.test("auth routes render login page without extra configuration", async () => {
@@ -23,6 +23,42 @@ Deno.test("auth routes render login page without extra configuration", async () 
 
   assertEquals(response.status, 200);
   assertEquals((await response.text()).includes("登录"), true);
+});
+
+Deno.test("auth routes localize anonymous pages with a language-only navigation bar", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/login?locale=en&error=rateLimited");
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(html.includes('lang="en"'), true);
+  assertEquals(html.includes("Sign in"), true);
+  assertEquals(html.includes("Too many sign-in attempts. Try again in 15 minutes."), true);
+  assertEquals(html.includes("Confirm password"), false);
+  assertEquals(html.includes('aria-label="Authentication navigation"'), true);
+  assertEquals(html.includes('class="auth-language-menu"'), true);
+  assertEquals(html.includes("<summary"), true);
+  assertEquals(html.includes(">语言/Language</span>"), true);
+  assertEquals(html.includes('href="/login?locale=zh-CN&amp;returnTo=%2F"'), true);
+  assertEquals(html.includes('href="/login?locale=en&amp;returnTo=%2F"'), true);
+  assertEquals(html.includes("/settings"), false);
+  assertEquals(html.includes("/history"), false);
+  assertEquals(html.includes('href="/"'), false);
+});
+
+Deno.test("auth routes select anonymous page locale from browser language", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/register", {
+    headers: { "accept-language": "en-CA,en;q=0.8,zh-CN;q=0.5" },
+  });
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(html.includes('lang="en"'), true);
+  assertEquals(html.includes("Register"), true);
+  assertEquals(html.includes("Confirm password"), true);
 });
 
 Deno.test("auth routes register users with hashed passwords and a session cookie", async () => {
@@ -59,7 +95,7 @@ Deno.test("auth routes reject duplicate registrations", async () => {
   const response = await register(app, "alice", "another-password");
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/register?error=exists");
+  assertEquals(response.headers.get("location"), "/register?locale=zh-CN&error=exists");
 });
 
 Deno.test("auth routes reject registrations with mismatched passwords", async () => {
@@ -69,7 +105,7 @@ Deno.test("auth routes reject registrations with mismatched passwords", async ()
   const response = await register(app, "alice", "correct-password", "different-password");
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/register?error=confirmPassword");
+  assertEquals(response.headers.get("location"), "/register?locale=zh-CN&error=confirmPassword");
   assertEquals(await storage.getAccountByUsername("alice"), undefined);
 });
 
@@ -84,7 +120,7 @@ Deno.test("auth routes atomically create only one account for concurrent registr
 
   assertEquals(
     responses.map((response) => response.headers.get("location")).sort(),
-    ["/", "/register?error=exists"],
+    ["/", "/register?locale=zh-CN&error=exists"],
   );
   assertEquals((await storage.listAccounts()).length, 1);
 });
@@ -114,16 +150,22 @@ Deno.test("auth routes lock repeated failed login attempts", async () => {
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const response = await login(app, "alice", "incorrect-password");
-    assertEquals(response.headers.get("location"), "/login?error=invalid&returnTo=%2F");
+    assertEquals(
+      response.headers.get("location"),
+      "/login?locale=zh-CN&error=invalid&returnTo=%2F",
+    );
   }
 
   const lockedResponse = await login(app, "alice", "incorrect-password");
   const blockedCorrectPasswordResponse = await login(app, "alice", "correct-password");
 
-  assertEquals(lockedResponse.headers.get("location"), "/login?error=rateLimited&returnTo=%2F");
+  assertEquals(
+    lockedResponse.headers.get("location"),
+    "/login?locale=zh-CN&error=rateLimited&returnTo=%2F",
+  );
   assertEquals(
     blockedCorrectPasswordResponse.headers.get("location"),
-    "/login?error=rateLimited&returnTo=%2F",
+    "/login?locale=zh-CN&error=rateLimited&returnTo=%2F",
   );
 });
 

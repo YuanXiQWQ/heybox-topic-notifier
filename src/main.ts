@@ -15,9 +15,10 @@ const app = new Hono();
  * 应用运行时上下文。
  */
 const context = createAppContext();
+const authOptions = { defaultLocale: context.config.defaultSettings.locale };
 
-app.route("/", createAuthRoutes(context.storage));
-app.use("*", createAuthMiddleware(context.storage));
+app.route("/", createAuthRoutes(context.storage, authOptions));
+app.use("*", createAuthMiddleware(context.storage, authOptions));
 app.route("/", createRoutes(context));
 await registerCrons(context);
 
