@@ -27,6 +27,7 @@ const keys = {
   accountUsername: (username: string) => ["accountUsernames", normalizeUsername(username)] as const,
   loginFailure: (username: string) => ["loginFailures", normalizeUsername(username)] as const,
   match: (userId: string, id: string) => ["userData", userId, "matches", id] as const,
+  rateLimit: (parts: readonly string[]) => ["rateLimits", ...parts] as const,
   session: (tokenHash: string) => ["sessions", tokenHash] as const,
   settings: (userId: string) => ["userData", userId, "settings"] as const,
   state: (userId: string) => ["userData", userId, "state"] as const,
@@ -38,6 +39,25 @@ const keys = {
 type LoginFailure = {
   failures: number;
   lockedUntil?: string;
+};
+
+/**
+ * 频率限制计数记录。
+ */
+type RateLimitEntry = {
+  count: number;
+  resetAt: string;
+};
+
+/**
+ * 频率限制命中结果。
+ */
+export type RateLimitHit = {
+  allowed: boolean;
+  count: number;
+  limit: number;
+  resetAt: string;
+  retryAfterSeconds: number;
 };
 
 /**
@@ -509,6 +529,51 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
     },
 
     /**
+     * 原子记录一次频率限制命中，并返回当前窗口是否仍允许继续操作。
+     *
+     * @param keyParts 频率限制键片段。
+     * @param limit 当前窗口允许的最大次数。
+     * @param windowMs 限流窗口毫秒数。
+     * @return 频率限制命中结果。
+     */
+    async recordRateLimitHit(
+      keyParts: readonly string[],
+      limit: number,
+      windowMs: number,
+    ): Promise<RateLimitHit> {
+      const store = await kv();
+      const key = keys.rateLimit(keyParts);
+      const normalizedLimit = Math.max(1, Math.floor(limit));
+      const normalizedWindowMs = Math.max(1000, Math.floor(windowMs));
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const now = Date.now();
+        const entry = await store.get<RateLimitEntry>(key);
+        const previous = entry.value;
+        const previousResetAt = Date.parse(previous?.resetAt ?? "");
+        const previousCount = previous && Number.isInteger(previous.count) && previous.count > 0
+          ? previous.count
+          : 0;
+        const hasActiveWindow = Number.isFinite(previousResetAt) && previousResetAt > now;
+        const resetAtMs = hasActiveWindow ? previousResetAt : now + normalizedWindowMs;
+        const next: RateLimitEntry = {
+          count: hasActiveWindow ? previousCount + 1 : 1,
+          resetAt: new Date(resetAtMs).toISOString(),
+        };
+
+        const result = await store.atomic()
+          .check({ key, versionstamp: entry.versionstamp })
+          .set(key, next, { expireIn: Math.max(1000, resetAtMs - now) })
+          .commit();
+        if (result.ok) {
+          return rateLimitHitFromEntry(next, normalizedLimit, now);
+        }
+      }
+
+      throw new Error("Could not record a rate limit hit after concurrent updates.");
+    },
+
+    /**
      * 按会话令牌哈希获取用户会话。
      *
      * @param tokenHash 会话令牌哈希。
@@ -658,6 +723,27 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
  */
 function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
+}
+
+/**
+ * 将频率限制记录转换为命中结果。
+ *
+ * @param entry 频率限制计数记录。
+ * @param limit 当前窗口允许的最大次数。
+ * @param now 当前时间戳毫秒数。
+ * @return 频率限制命中结果。
+ */
+function rateLimitHitFromEntry(entry: RateLimitEntry, limit: number, now: number): RateLimitHit {
+  const resetAtMs = Date.parse(entry.resetAt);
+  return {
+    allowed: entry.count <= limit,
+    count: entry.count,
+    limit,
+    resetAt: entry.resetAt,
+    retryAfterSeconds: Number.isFinite(resetAtMs)
+      ? Math.max(1, Math.ceil((resetAtMs - now) / 1000))
+      : 1,
+  };
 }
 
 /**

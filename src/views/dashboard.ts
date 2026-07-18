@@ -3,6 +3,7 @@
  */
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, AppState, PollIntervalUnit } from "../models.ts";
+import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
@@ -15,6 +16,7 @@ import { formatHeyboxRelativeTime } from "./time.ts";
  * @return 完整仪表盘页面 HTML。
  */
 export function renderDashboard(options: {
+  csrfToken: string;
   initialNextPollProgress?: string;
   pendingTable: MatchTableResult;
   returnTo: string;
@@ -35,11 +37,13 @@ export function renderDashboard(options: {
       </div>
       <div class="actions">
         <form method="post" action="/run-now">
+          ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
           <input type="hidden" name="pollResetStart" value="" data-poll-reset-start>
           <button type="submit">${escapeHtml(messages.runNow)}</button>
         </form>
         <form method="post" action="/simulate-match">
+          ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
           <button type="submit" class="secondary">${escapeHtml(messages.simulateMatch)}</button>
         </form>
@@ -80,12 +84,20 @@ export function renderDashboard(options: {
         <div class="next-poll-fill" data-next-poll-fill style="width: ${nextPollProgress}%"></div>
       </div>
     </section>
-    ${renderPendingMatches(options.pendingTable, messages, options.settings.locale)}
+    ${
+    renderPendingMatches(
+      options.pendingTable,
+      messages,
+      options.settings.locale,
+      options.csrfToken,
+    )
+  }
     ${renderLastPollScript(messages)}
   `;
 
   return renderLayout({
     body,
+    csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
     themeColor: options.settings.themeColor,
@@ -116,12 +128,14 @@ function renderLastPoll(lastPollAt: string | undefined, locale: AppSettings["loc
  * @param table 待处理表格数据。
  * @param messages 当前语言文案。
  * @param locale 当前语言标识。
+ * @param csrfToken CSRF 令牌。
  * @return 待处理命中记录表格 HTML。
  */
 export function renderPendingMatches(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
   locale: AppSettings["locale"],
+  csrfToken: string,
 ): string {
   return renderMatchRecordsSection({
     action: {
@@ -137,6 +151,7 @@ export function renderPendingMatches(
     formAction: "/matches/complete",
     heading: messages.pendingPosts,
     headingId: "pending-posts-heading",
+    csrfToken,
     locale,
     messages,
     path: "/",
@@ -225,11 +240,16 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         lastPoll.textContent = formatRelativeTime(timestamp, locale);
       }
 
-      async function refreshDashboardState() {
+      async function refreshDashboardState(options = {}) {
         if (isDashboardStateRefreshInFlight) return;
         isDashboardStateRefreshInFlight = true;
         try {
-          const response = await fetch(dashboardStateUrl(), { cache: "no-store" });
+          const response = await fetch(
+            dashboardStateUrl(options.tick ? "/dashboard-state/tick" : "/dashboard-state"),
+            options.tick
+              ? { cache: "no-store", headers: csrfRequestHeaders(), method: "POST" }
+              : { cache: "no-store" },
+          );
           if (!response.ok) return;
           const state = await response.json();
           const nextTimestamp = parseTimestamp(state.lastPollAt);
@@ -257,13 +277,33 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         }
       }
 
-      function dashboardStateUrl() {
-        const url = new URL("/dashboard-state", location.origin);
+      function dashboardStateUrl(pathname = "/dashboard-state") {
+        const url = new URL(pathname, location.origin);
         const currentParams = new URLSearchParams(location.search);
         for (const [key, value] of currentParams) {
           url.searchParams.append(key, value);
         }
         return url.pathname + url.search;
+      }
+
+      /**
+       * 构建包含 CSRF 令牌的轮询触发请求头。
+       *
+       * @return {Record<string, string>} 请求头。
+       */
+      function csrfRequestHeaders() {
+        const token = currentCsrfToken();
+        return token ? { "x-csrf-token": token } : {};
+      }
+
+      /**
+       * 从当前页面隐藏字段读取 CSRF 令牌。
+       *
+       * @return {string} 当前页面 CSRF 令牌。
+       */
+      function currentCsrfToken() {
+        const input = document.querySelector('input[name="csrfToken"]');
+        return input instanceof HTMLInputElement ? input.value : "";
       }
 
       function updatePendingSection(html, signature) {
@@ -339,7 +379,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         }
         lastDueDashboardRefreshBaseline = baseline;
         lastDueDashboardRefreshAt = now;
-        void refreshDashboardState();
+        void refreshDashboardState({ tick: true });
       }
 
       function updateNextPollWithoutTransition() {

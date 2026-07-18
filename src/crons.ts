@@ -13,9 +13,9 @@ const pollSchedulerTickMs = 1000;
  */
 export const deployCronSchedule = "* * * * *";
 /**
- * 允许运行 Deno Deploy Cron 的正式 timeline。
+ * 允许运行 Deno Deploy Cron 的 timeline 集合。
  */
-const deployCronTimeline = "production";
+const deployCronAllowedTimelines = new Set(["production", "git-branch/dev"]);
 
 /**
  * 本地定时器注册依赖。
@@ -57,6 +57,14 @@ export function createPollScheduler(context: Pick<AppContext, "poller" | "storag
 
       return didPoll;
     },
+
+    /**
+     * 执行指定用户的一次调度检查。
+     *
+     * @param userId 用户 ID。
+     * @return 该用户是否执行了轮询。
+     */
+    tickUser,
   };
 
   /**
@@ -131,13 +139,11 @@ function storageForUser(storage: AppContext["storage"], userId: string) {
  * 注册运行环境对应的轮询定时任务。
  *
  * @param context 应用运行时上下文。
+ * @param options 定时任务注册选项。
  */
 export function registerCrons(context: AppContext, options: CronRegistrationOptions = {}): void {
   const isDeploy = options.isDenoDeploy ?? isDenoDeploy;
   if (isDeploy()) {
-    return;
-  }
-  if (!context.config.defaultSettings.polling.enabled) {
     return;
   }
 
@@ -155,9 +161,8 @@ export function registerCrons(context: AppContext, options: CronRegistrationOpti
  */
 export function shouldRunDeployCron(
   timeline: string | undefined,
-  pollEnabled: boolean,
 ): boolean {
-  return pollEnabled && timeline === deployCronTimeline;
+  return timeline !== undefined && deployCronAllowedTimelines.has(timeline);
 }
 
 /**

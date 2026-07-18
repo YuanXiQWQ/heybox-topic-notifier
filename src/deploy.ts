@@ -6,14 +6,14 @@ import { deployCronSchedule, readDenoTimeline, shouldRunDeployCron } from "./cro
 
 const { app, context } = createApplication();
 
-if (shouldRunDeployCron(readDenoTimeline(), context.config.defaultSettings.polling.enabled)) {
-  Deno.cron("poll heybox topics", deployCronSchedule, async () => {
-    if (!shouldRunDeployCron(readDenoTimeline(), context.config.defaultSettings.polling.enabled)) {
-      return;
-    }
+Deno.cron("poll heybox topics", deployCronSchedule, async () => {
+  if (!shouldRunDeployCron(readDenoTimeline())) {
+    return;
+  }
 
-    await context.scheduler.tick();
-  });
-}
+  await context.scheduler.tick();
+}).catch((error) => {
+  console.error("Deno Deploy Cron 注册失败。", error);
+});
 
 Deno.serve({ port: context.config.port }, app.fetch);

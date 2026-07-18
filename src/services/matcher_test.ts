@@ -1,7 +1,7 @@
 /**
  * @file 本文件验证关键词匹配器的文本、位置、大小写和正则匹配逻辑。
  */
-import { createMatcher } from "./matcher.ts";
+import { createMatcher, isSafeKeywordRegex } from "./matcher.ts";
 import type { AppSettings, TopicPost } from "../models.ts";
 
 /**
@@ -138,6 +138,54 @@ Deno.test("findMatch supports regex keyword rules", () => {
 
   if (match?.keyword !== String.raw`\d+\.\d+\.\d+` || match.location !== "title") {
     throw new Error(`Expected regex/title, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("isSafeKeywordRegex allows simple linear regex rules", () => {
+  const safePatterns = [
+    String.raw`\d+\.\d+\.\d+`,
+    String.raw`(?:error)-\d{1,3}`,
+    String.raw`[a-z]{2,5}\s+help`,
+    String.raw`(help)+`,
+  ];
+
+  for (const pattern of safePatterns) {
+    if (!isSafeKeywordRegex(pattern)) {
+      throw new Error(`Expected safe regex, got ${pattern}`);
+    }
+  }
+});
+
+Deno.test("isSafeKeywordRegex rejects common ReDoS patterns", () => {
+  const unsafePatterns = [
+    String.raw`(a+)+$`,
+    String.raw`(a|aa)+$`,
+    String.raw`(.*)*`,
+    String.raw`(\w+)\s+\1`,
+    String.raw`(?=help)help`,
+    String.raw`a{101}`,
+    "a".repeat(121),
+  ];
+
+  for (const pattern of unsafePatterns) {
+    if (isSafeKeywordRegex(pattern)) {
+      throw new Error(`Expected unsafe regex, got ${pattern}`);
+    }
+  }
+});
+
+Deno.test("findMatch ignores unsafe regex keyword rules", () => {
+  const matcher = createMatcher();
+  const match = matcher.findMatch({
+    ...basePost,
+    title: "aaaab safe fallback",
+  }, [
+    { keyword: String.raw`(a+)+$`, locations: ["title"], useRegex: true },
+    { keyword: "safe", locations: ["title"] },
+  ]);
+
+  if (match?.keyword !== "safe" || match.location !== "title") {
+    throw new Error(`Expected safe/title, got ${JSON.stringify(match)}`);
   }
 });
 

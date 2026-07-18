@@ -3,42 +3,35 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 | **简体中文** | [English](#heybox-topic-notifier) |
-| :----------: | :-------------------------------: |
+|:--------:|:---------------------------------:|
 
 ---
 
 [小黑盒话题提醒](https://heybox-topic-notifier.yuanxiqwq.deno.net/)（[dev](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)）
-是一个用于监控小黑盒话题帖子的轻量级 Deno 应用。它会定时读取真实话题帖子，
-按关键词规则检查标题、正文、评论和回复，并把命中结果记录到待处理列表与历史记录中。
-
-## 项目状态
-
-项目仍处于 MVP 阶段，但已经从早期占位数据切换到真实话题源。当前已具备：
-
-- 使用 Deno + Hono 提供管理后台
-- 读取真实话题帖子，并支持按发布时间、智能排序或回复时间轮询
-- 配置多个话题、公共关键词规则和单话题关键词规则
-- 记录待处理命中、历史命中和轮询状态
-- 通过 Webhook、Server酱、PushPlus、WxPusher、邮件 API 或 SMTP 发送通知
-
-后续重点是部署配置、通知内容体验和更多稳定性验证。
+是一个用于监控小黑盒话题帖子的轻量级 Deno 应用。它会按账号设置定时读取真实话题帖子，
+按关键词规则检查标题、正文、评论和回复，把命中结果记录到待处理列表与历史记录中，并按配置发送通知。
 
 ## 功能
 
-- 仪表盘：查看轮询状态、累计命中数、最近一次命中和待处理命中
-- 设置页：配置话题 ID、话题备注、轮询间隔、排序方式、界面语言和主题色
+- 仪表盘：查看轮询状态、累计命中数、最近一次命中和待处理命中，并可手动触发检查
+- 设置页：配置话题编号、启用状态、话题备注、轮询间隔单位、抓取数量、排序方式、界面语言、深色模式和主题色
+- 账号设置：支持注册、登录、退出、修改用户名和修改密码；账号数据按用户 ID 隔离
 - 关键词规则：支持公共规则、单话题规则、匹配位置、大小写匹配和正则匹配
-- 历史页：查看已命中的帖子记录，并支持批量完成或删除记录
-- 调试入口：手动检查、模拟命中和通知测试
+- 命中表格：待处理和历史记录都支持时间范围筛选、分页、批量完成或删除
+- 调试入口：支持模拟命中和通知测试，并对手动轮询与调试操作做频率限制
 - 通知通道：支持自定义 Webhook、Server酱、PushPlus、WxPusher、邮件 API 和 SMTP
+- 通知中转：可使用仓库内的 Cloudflare Worker 中转 PushPlus、WxPusher 和 Server酱
+- 安全防护：包含 PBKDF2 密码哈希、KV 会话、CSRF token、安全响应头、审计日志和出站目标 allowlist/DNS
+  校验
 
 ## 技术栈
 
 - Deno 2 + TypeScript
 - Hono
 - Deno KV
-- Deno timer scheduler
-- 服务端渲染 HTML
+- Deno.cron + 本地定时器调度
+- 服务端渲染 HTML + 原生 JavaScript/CSS
+- Cloudflare Workers 通知中转脚本
 
 ## 本地开发
 
@@ -54,11 +47,13 @@ deno task dev
 http://localhost:8000
 ```
 
-如果需要覆盖默认配置，可以参考 `.env.example` 并在运行环境中设置对应环境变量。
+如果需要覆盖默认配置，可以参考 `.env.example` 并在运行环境中设置对应环境变量。首次访问时先注册账号；
+环境变量只提供新账号或默认数据的初始值，之后以各账号设置页保存的配置为准。
 
 应用提供注册和登录页面。每个账号拥有独立的设置、命中记录、轮询状态和通知配置；公开同一个部署链接时，
 不同用户的数据互不共享。用户密码以加盐 PBKDF2 哈希保存到 Deno KV，不保存明文密码；登录会话也存储在
-Deno KV，浏览器 Cookie 里只保存随机 session token。
+Deno KV，浏览器 Cookie 里只保存随机 session token。修改设置、账号和调试操作时会校验 CSRF token，
+并对公开部署下的敏感操作做服务端频率限制。
 
 ## 常用命令
 
@@ -73,8 +68,10 @@ deno task clear-seen
 
 ## 部署
 
-Deno Deploy 配置见 [docs/deployment.md](docs/deployment.md)。仓库通过 `deno.json` 的 `deploy`
-配置指定入口；GitHub Actions 只负责运行检查，不负责部署应用。
+Deno Deploy 配置见 [docs/zh-CN/deployment.md](docs/zh-CN/deployment.md)。仓库通过 `deno.json` 的
+`deploy` 配置指定入口；GitHub Actions 只负责运行检查，不负责部署应用。部署入口在 `src/deploy.ts`
+中声明部署 Cron，实际轮询只在 Production 和 `dev` Git Branch timeline 上执行。通知中转 Worker
+的部署说明见 [docs/zh-CN/worker.md](docs/zh-CN/worker.md)。
 
 ## 许可证
 
@@ -87,47 +84,43 @@ Deno Deploy 配置见 [docs/deployment.md](docs/deployment.md)。仓库通过 `d
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 | [简体中文](#小黑盒话题提醒) | **English** |
-| :-------------------------: | :---------: |
+|:----------------:|:-----------:|
 
 ---
 
-[Heybox Topic Notifier](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
+[Heybox Topic Notifier](https://heybox-topic-notifier.yuanxiqwq.deno.net/)
 ([dev](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)) is a lightweight Deno app for
-monitoring Heybox topic posts. It periodically reads real topic posts, checks titles, bodies,
-comments, and replies against keyword rules, then records matches in pending and history views.
-
-## Status
-
-This project is still in the MVP stage, but it has moved from placeholder data to a real topic
-source. It currently provides:
-
-- Provide a management dashboard with Deno + Hono
-- Read real topic posts and poll by publish time, smart sort, or reply time
-- Configure multiple topics, shared keyword rules, and topic-specific keyword rules
-- Record pending matches, historical matches, and polling state
-- Send notifications through Webhook, ServerChan, PushPlus, WxPusher, email API, or SMTP
-
-The next focus is deployment configuration, notification content quality, and more stability
-verification.
+monitoring Heybox topic posts. It periodically reads real topic posts according to each account's
+settings, checks titles, bodies, comments, and replies against keyword rules, records matches in
+pending and history views, and sends notifications through the configured channel.
 
 ## Features
 
-- Dashboard: view poll status, total matches, the latest match, and pending matches
-- Settings page: configure topic IDs, notes, polling interval, sort mode, UI language, and theme
-  color
+- Dashboard: view poll status, total matches, the latest match, and pending matches, with a manual
+  check action
+- Settings page: configure topic IDs, enabled state, notes, polling interval unit, post limit, sort
+  mode, UI language, dark mode, and theme color
+- Account settings: register, log in, log out, update username, and update password; account data is
+  isolated by user ID
 - Keyword rules: support shared rules, topic-specific rules, match locations, case sensitivity, and
   regular expressions
-- History page: review matched post records and batch-complete or delete records
-- Debug entries: manual run, simulated match, and notification test
+- Match tables: pending and history records both support time-range filters, pagination,
+  batch-complete, and delete actions
+- Debug entries: simulated matches and notification tests, with server-side rate limits for manual
+  polling and debug operations
 - Notification channels: custom Webhook, ServerChan, PushPlus, WxPusher, email API, and SMTP
+- Notification relay: optional Cloudflare Worker relay for PushPlus, WxPusher, and ServerChan
+- Security: PBKDF2 password hashes, KV-backed sessions, CSRF tokens, security headers, audit logs,
+  and outbound allowlist/DNS validation
 
 ## Stack
 
 - Deno 2 + TypeScript
 - Hono
 - Deno KV
-- Deno timer scheduler
-- Server-rendered HTML
+- Deno.cron + local timer scheduler
+- Server-rendered HTML + vanilla JavaScript/CSS
+- Cloudflare Workers notification relay script
 
 ## Local Development
 
@@ -144,12 +137,16 @@ http://localhost:8000
 ```
 
 To override the defaults, use `.env.example` as a reference and set the corresponding environment
-variables in your runtime environment.
+variables in your runtime environment. Register an account on first visit; environment variables
+only seed defaults for new accounts or default data, and each account's settings page becomes the
+source of truth after that.
 
 The app provides registration and login pages. Each account has isolated settings, match history,
 polling state, and notification configuration, so users sharing the same deployment URL do not share
 data. User passwords are stored in Deno KV as salted PBKDF2 hashes, not plaintext. Login sessions
-are stored in Deno KV, and the browser cookie only contains a random session token.
+are stored in Deno KV, and the browser cookie only contains a random session token. Settings,
+account, and debug mutations validate a CSRF token, and sensitive operations are rate-limited on
+public deployments.
 
 ## Commands
 
@@ -165,8 +162,11 @@ in production.
 
 ## Deployment
 
-See [docs/deployment.md](docs/deployment.md) for Deno Deploy setup. The app entrypoint is defined by
-the `deploy` section in `deno.json`; GitHub Actions only runs checks and does not deploy the app.
+See [docs/en/deployment.md](docs/en/deployment.md) for Deno Deploy setup. The app entrypoint is
+defined by the `deploy` section in `deno.json`; GitHub Actions only runs checks and does not deploy
+the app. The deploy entrypoint in `src/deploy.ts` declares the Deno Deploy Cron, and actual polling
+only runs on Production and the `dev` Git Branch timeline. See
+[docs/en/worker.md](docs/en/worker.md) for the notification relay Worker setup.
 
 ## License
 

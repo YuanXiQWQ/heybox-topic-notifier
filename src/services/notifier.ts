@@ -5,6 +5,14 @@ import type { AppSettings, MatchRecord } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
 import { truncateText } from "../views/text.ts";
 import { formatHeyboxRelativeTime } from "../views/time.ts";
+import {
+  type DnsRecordType,
+  type DnsResolver,
+  parseAllowedOutboundHosts,
+  validateHttpEndpoint,
+  validateResolvedOutboundHost,
+  validateSmtpEndpoint,
+} from "./outbound_security.ts";
 
 /**
  * 通知载荷类型。
@@ -66,6 +74,7 @@ export type NotifierOptions = {
   deliveryTimeoutMs?: number;
   emailSender?: EmailSender;
   fetch?: typeof fetch;
+  resolveDns?: DnsResolver;
   webhookUrl?: string;
 };
 
@@ -126,6 +135,10 @@ const pushPlusSendUrl = "https://www.pushplus.plus/send";
  * WxPusher 默认简易发送地址。
  */
 const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
+/**
+ * HTTP 通知投递允许跟随的最大重定向次数。
+ */
+const maxHttpRedirects = 5;
 /**
  * 通知正文最大长度。
  */
@@ -197,6 +210,7 @@ export function createNotifier(options: NotifierOptions = {}) {
   );
   const emailSender = options.emailSender ?? sendSmtpEmail;
   const fetcher = options.fetch ?? fetch;
+  const resolveDns = options.resolveDns ?? resolveOutboundDns;
   const deliveryLogger = options.deliveryLogger ?? logDelivery;
   const pushPlusUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL")) ??
     pushPlusSendUrl;
@@ -205,6 +219,7 @@ export function createNotifier(options: NotifierOptions = {}) {
   const serverChanUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL"));
   const relayToken = Deno.env.get("NOTIFIER_RELAY_TOKEN")?.trim() ?? "";
   const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
+  const outboundAllowedHosts = parseAllowedOutboundHosts(Deno.env.get("OUTBOUND_ALLOWED_HOSTS"));
 
   return {
     /**
@@ -374,6 +389,8 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
+    const safeTargetWebhookUrl = secureHttpEndpoint(targetWebhookUrl, "Webhook URL");
+
     const redactedSecrets = webhookRedactedSecrets({
       relayToken,
       serverChanSendKey: options.serverChanSendKey,
@@ -381,12 +398,12 @@ export function createNotifier(options: NotifierOptions = {}) {
     });
     let response: Response;
     try {
-      response = await fetchWithDeliveryTimeout(fetcher, targetWebhookUrl, {
+      response = await fetchSecureHttpEndpointWithDeliveryTimeout(safeTargetWebhookUrl, {
         body: JSON.stringify(bodyForWebhook({
           payload: options.payload,
           pushPlusToken: options.pushPlusToken,
           service: options.webhookService,
-          url: targetWebhookUrl,
+          url: safeTargetWebhookUrl,
           wxPusherSpt: options.wxPusherSpt,
         })),
         headers: headersForWebhook({
@@ -394,14 +411,15 @@ export function createNotifier(options: NotifierOptions = {}) {
           serverChanSendKey: options.serverChanSendKey,
           serverChanUrl,
           service: options.webhookService,
-          targetWebhookUrl,
+          targetWebhookUrl: safeTargetWebhookUrl,
         }),
         method: "POST",
       }, {
-        label: webhookDeliveryLabel(options.webhookService, targetWebhookUrl),
+        label: webhookDeliveryLabel(options.webhookService, safeTargetWebhookUrl),
         logger: deliveryLogger,
         redactedSecrets,
         service: webhookServiceLabel(options.webhookService),
+        serviceLabel: "Webhook URL",
         timeoutMs: deliveryTimeoutMs,
       });
     } catch (error) {
@@ -410,11 +428,8 @@ export function createNotifier(options: NotifierOptions = {}) {
 
     const responseBody = await response.text().catch(() => "");
     if (!response.ok) {
-      const safeResponseBody = redactSecrets(responseBody, redactedSecrets);
       throw new NotificationDeliveryError(
-        `Webhook notification failed with HTTP ${response.status}${
-          safeResponseBody ? `: ${safeResponseBody}` : ""
-        }`,
+        `Webhook notification failed with HTTP ${response.status}.`,
         response.status,
       );
     }
@@ -465,10 +480,15 @@ export function createNotifier(options: NotifierOptions = {}) {
       return;
     }
 
+    const smtpConfig = await smtpConfigForEmailService(
+      options,
+      outboundAllowedHosts,
+      resolveDns,
+    );
     await withDeliveryTimeout(
       emailSender({
         ...message,
-      }, smtpConfigForEmailService(options)),
+      }, smtpConfig),
       {
         label: "Email notification",
         timeoutMs: deliveryTimeoutMs,
@@ -493,6 +513,7 @@ export function createNotifier(options: NotifierOptions = {}) {
     if (!url) {
       throw new NotificationConfigError("Email API URL is required for email notifications.");
     }
+    const safeUrl = secureHttpEndpoint(url, "Email API URL");
 
     const headers: HeadersInit = {
       "content-type": "application/json; charset=utf-8",
@@ -501,7 +522,7 @@ export function createNotifier(options: NotifierOptions = {}) {
       headers.authorization = `Bearer ${apiToken.trim()}`;
     }
 
-    const response = await fetchWithDeliveryTimeout(fetcher, url, {
+    const response = await fetchSecureHttpEndpointWithDeliveryTimeout(safeUrl, {
       body: JSON.stringify(message),
       headers,
       method: "POST",
@@ -510,17 +531,128 @@ export function createNotifier(options: NotifierOptions = {}) {
       logger: deliveryLogger,
       redactedSecrets: [apiToken],
       service: "Email API",
+      serviceLabel: "Email API URL",
       timeoutMs: deliveryTimeoutMs,
     });
-    const responseBody = await response.text().catch(() => "");
     if (!response.ok) {
       throw new NotificationDeliveryError(
-        `Email API notification failed with HTTP ${response.status}${
-          responseBody ? `: ${responseBody}` : ""
-        }`,
+        `Email API notification failed with HTTP ${response.status}.`,
         response.status,
       );
     }
+  }
+
+  /**
+   * 校验 HTTP 出站地址并返回规范化后的安全地址。
+   *
+   * @param {string} url 原始出站地址。
+   * @param {string} serviceLabel 当前通知服务标签。
+   * @return {string} 通过安全校验的规范化地址。
+   */
+  function secureHttpEndpoint(url: string, serviceLabel: string): string {
+    const result = validateHttpEndpoint(url, {
+      allowedHosts: outboundAllowedHosts,
+      serviceLabel,
+    });
+    if (!result.ok) {
+      throw new NotificationConfigError(result.message);
+    }
+
+    return result.value;
+  }
+
+  /**
+   * 执行带超时、手动重定向和逐跳安全校验的 HTTP 投递。
+   *
+   * @param {string} url 原始出站地址。
+   * @param {RequestInit} init 请求初始化参数。
+   * @param options 投递超时、日志、脱敏和安全校验选项。
+   * @return {Promise<Response>} 最终 HTTP 响应。
+   */
+  async function fetchSecureHttpEndpointWithDeliveryTimeout(
+    url: string,
+    init: RequestInit,
+    options: {
+      label: string;
+      logger?: DeliveryLogger;
+      redactedSecrets?: string[];
+      service?: string;
+      serviceLabel: string;
+      timeoutMs: number;
+    },
+  ): Promise<Response> {
+    let currentUrl = secureHttpEndpoint(url, options.serviceLabel);
+
+    for (let redirectCount = 0; redirectCount <= maxHttpRedirects; redirectCount += 1) {
+      await secureResolvedHttpEndpoint(currentUrl, options.serviceLabel);
+      const response = await fetchWithDeliveryTimeout(fetcher, currentUrl, {
+        ...init,
+        redirect: "manual",
+      }, options);
+
+      if (!isHttpRedirectStatus(response.status)) {
+        return response;
+      }
+
+      const location = response.headers.get("location");
+      if (!location) {
+        return response;
+      }
+
+      await response.body?.cancel().catch(() => {
+      });
+      if (redirectCount === maxHttpRedirects) {
+        throw new NotificationDeliveryError(
+          `${options.label} redirected more than ${maxHttpRedirects} times.`,
+        );
+      }
+
+      currentUrl = secureRedirectEndpoint(currentUrl, location, options.serviceLabel);
+    }
+
+    throw new NotificationDeliveryError(`${options.label} redirected too many times.`);
+  }
+
+  /**
+   * 校验 HTTP 出站目标的 DNS 解析结果。
+   *
+   * @param {string} url 已规范化的出站地址。
+   * @param {string} serviceLabel 当前通知服务标签。
+   * @return {Promise<void>} 校验通过时无返回值。
+   */
+  async function secureResolvedHttpEndpoint(url: string, serviceLabel: string): Promise<void> {
+    const result = await validateResolvedOutboundHost(new URL(url).hostname, {
+      allowedHosts: outboundAllowedHosts,
+      resolveDns,
+      serviceLabel,
+    });
+    if (!result.ok) {
+      throw new NotificationConfigError(result.message);
+    }
+  }
+
+  /**
+   * 校验 HTTP 重定向目标并确保不会跨源泄露请求头或请求体。
+   *
+   * @param {string} currentUrl 当前已校验地址。
+   * @param {string} location 重定向响应 Location 头。
+   * @param {string} serviceLabel 当前通知服务标签。
+   * @return {string} 通过安全校验的下一跳地址。
+   */
+  function secureRedirectEndpoint(
+    currentUrl: string,
+    location: string,
+    serviceLabel: string,
+  ): string {
+    const previous = new URL(currentUrl);
+    const next = secureHttpEndpoint(new URL(location, previous).toString(), serviceLabel);
+    if (new URL(next).origin !== previous.origin) {
+      throw new NotificationConfigError(
+        `${serviceLabel} redirect is not allowed for security reasons.`,
+      );
+    }
+
+    return next;
   }
 }
 
@@ -566,6 +698,27 @@ function normalizeEndpointUrl(value: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * 判断 HTTP 状态码是否表示需要跟随的重定向。
+ *
+ * @param {number} status HTTP 状态码。
+ * @return {boolean} 状态码是常见重定向时返回 true。
+ */
+function isHttpRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+/**
+ * 使用 Deno 运行时解析 DNS 记录。
+ *
+ * @param {string} hostname 需要解析的主机名。
+ * @param {DnsRecordType} recordType DNS 记录类型。
+ * @return {Promise<string[]>} DNS 解析得到的地址列表。
+ */
+function resolveOutboundDns(hostname: string, recordType: DnsRecordType): Promise<string[]> {
+  return Deno.resolveDns(hostname, recordType);
 }
 
 /**
@@ -722,27 +875,52 @@ async function withDeliveryTimeout<T>(
 }
 
 /**
- * 从邮件通知选项中构建 SMTP 配置。
+ * 从邮件通知选项中构建并校验 SMTP 配置，同时确认 DNS 解析结果仍在安全边界内。
  *
- * @param options 邮件通知配置。
- * @return SMTP 连接配置。
+ * @param {{ smtpHost: string; smtpPassword: string; smtpPort: number; smtpSecure: boolean; smtpUsername: string }} options 邮件通知配置。
+ * @param {readonly string[]} allowedHosts 管理员显式允许的出站主机列表。
+ * @param {DnsResolver} resolveDns DNS 解析函数。
+ * @return {Promise<SmtpConfig>} SMTP 连接配置。
  */
-function smtpConfigForEmailService(options: {
-  smtpHost: string;
-  smtpPassword: string;
-  smtpPort: number;
-  smtpSecure: boolean;
-  smtpUsername: string;
-}): SmtpConfig {
+async function smtpConfigForEmailService(
+  options: {
+    smtpHost: string;
+    smtpPassword: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    smtpUsername: string;
+  },
+  allowedHosts: readonly string[],
+  resolveDns: DnsResolver,
+): Promise<SmtpConfig> {
   const host = options.smtpHost.trim();
   if (!host) {
     throw new NotificationConfigError("SMTP host is required for email notifications.");
   }
+  const endpoint = validateSmtpEndpoint(
+    { host, port: options.smtpPort },
+    {
+      allowedHosts,
+      serviceLabel: "SMTP host",
+    },
+  );
+  if (!endpoint.ok) {
+    throw new NotificationConfigError(endpoint.message);
+  }
+
+  const resolvedEndpoint = await validateResolvedOutboundHost(endpoint.value.host, {
+    allowedHosts,
+    resolveDns,
+    serviceLabel: "SMTP host",
+  });
+  if (!resolvedEndpoint.ok) {
+    throw new NotificationConfigError(resolvedEndpoint.message);
+  }
 
   return {
-    host,
+    host: endpoint.value.host,
     password: options.smtpPassword,
-    port: options.smtpPort,
+    port: endpoint.value.port,
     secure: options.smtpSecure,
     username: options.smtpUsername.trim(),
   };
