@@ -258,7 +258,7 @@ button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-
   background: transparent;
   border: 0;
   border-radius: 0;
-  color: var(--theme-color);
+  color: var(--theme-link);
   display: inline-flex;
   font-family: inherit;
   font-size: inherit;
