@@ -193,10 +193,6 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       return c.redirect(`${config.registerPath}?error=${validationError}`, 303);
     }
 
-    if (await storage.getAccountByUsername(username)) {
-      return c.redirect(`${config.registerPath}?error=exists`, 303);
-    }
-
     const account: UserAccount = {
       createdAt: new Date().toISOString(),
       id: crypto.randomUUID(),
@@ -205,7 +201,10 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       ...(await hashPassword(password)),
     };
 
-    await storage.saveAccount(account);
+    if (!(await storage.createAccount(account))) {
+      return c.redirect(`${config.registerPath}?error=exists`, 303);
+    }
+
     return await redirectWithSession(c.req.url, returnTo, account, storage, config);
   });
 

@@ -61,6 +61,22 @@ Deno.test("auth routes reject duplicate registrations", async () => {
   assertEquals(response.headers.get("location"), "/register?error=exists");
 });
 
+Deno.test("auth routes atomically create only one account for concurrent registrations", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+
+  const responses = await Promise.all([
+    register(app, "alice", "correct-password"),
+    register(app, "alice", "another-password"),
+  ]);
+
+  assertEquals(
+    responses.map((response) => response.headers.get("location")).sort(),
+    ["/", "/register?error=exists"],
+  );
+  assertEquals((await storage.listAccounts()).length, 1);
+});
+
 Deno.test("auth routes login existing users", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
@@ -157,6 +173,16 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       accountsById.set(account.id, account);
       accountIdsByUsername.set(account.username.trim().toLowerCase(), account.id);
       return Promise.resolve();
+    },
+    createAccount: (account: UserAccount) => {
+      const username = account.username.trim().toLowerCase();
+      if (accountsById.has(account.id) || accountIdsByUsername.has(username)) {
+        return Promise.resolve(false);
+      }
+
+      accountsById.set(account.id, account);
+      accountIdsByUsername.set(username, account.id);
+      return Promise.resolve(true);
     },
     getLoginFailure: (username: string) =>
       Promise.resolve(loginFailuresByUsername.get(username.trim().toLowerCase())),

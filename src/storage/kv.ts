@@ -366,6 +366,25 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
     },
 
     /**
+     * 原子创建账号，确保用户名只能被使用一次。
+     *
+     * @param account 待创建的账号信息。
+     * @return 创建成功时返回 true，用户名或账号 ID 已存在时返回 false。
+     */
+    async createAccount(account: UserAccount): Promise<boolean> {
+      const store = await kv();
+      const accountKey = keys.account(account.id);
+      const usernameKey = keys.accountUsername(account.username);
+      const result = await store.atomic()
+        .check({ key: accountKey, versionstamp: null })
+        .check({ key: usernameKey, versionstamp: null })
+        .set(accountKey, account)
+        .set(usernameKey, account.id)
+        .commit();
+      return result.ok;
+    },
+
+    /**
      * 获取指定用户名的登录失败状态。
      *
      * @param username 用户名。

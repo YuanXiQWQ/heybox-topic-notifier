@@ -1,7 +1,7 @@
 /**
  * @file 本文件验证 KV 存储的排序、用户隔离、仪表盘快照和删除逻辑。
  */
-import type { AppSettings, MatchRecord } from "../models.ts";
+import type { AppSettings, MatchRecord, UserAccount } from "../models.ts";
 import { createKvStorage, latestMatchByMatchedTime } from "./kv.ts";
 
 Deno.test("latestMatchByMatchedTime prefers the newest match before post time", () => {
@@ -103,6 +103,22 @@ Deno.test("forUser isolates matches by account id", async () => {
     (await storage.forUser("bob").listHistory())[0].matchedAt,
     "2026-07-12T11:00:00.000Z",
   );
+});
+
+Deno.test("createAccount atomically rejects an existing username", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+
+  const results = await Promise.all([
+    storage.createAccount(account("first-id", "alice")),
+    storage.createAccount(account("second-id", "alice")),
+  ]);
+  const createdAccountId = results[0] ? "first-id" : "second-id";
+
+  assertEquals(results.sort(), [false, true]);
+  assertEquals((await storage.listAccounts()).map((item) => item.id), [createdAccountId]);
 });
 
 /**
@@ -333,6 +349,24 @@ class MemoryKv {
   #startsWith(key: Deno.KvKey, prefix: Deno.KvKey): boolean {
     return prefix.every((part, index) => key[index] === part);
   }
+}
+
+/**
+ * 创建测试账号。
+ *
+ * @param id 账号 ID。
+ * @param username 用户名。
+ * @return 测试账号。
+ */
+function account(id: string, username: string): UserAccount {
+  return {
+    createdAt: "2026-07-17T00:00:00.000Z",
+    id,
+    passwordHash: "password-hash",
+    passwordIterations: 210_000,
+    passwordSalt: "password-salt",
+    username,
+  };
 }
 
 /**
