@@ -65,10 +65,7 @@ export function createAppContext() {
         enabled: Deno.env.get("POLL_ENABLED") === "true",
         intervalUnit: "minute",
         intervalValue: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
-        postLimit: positiveIntegerFromEnv(
-          "POLL_POST_LIMIT",
-          positiveIntegerFromEnv("HEYBOX_POST_LIMIT", 20),
-        ),
+        postLimit: positiveIntegerFromEnv("POLL_POST_LIMIT", 20),
         sort: pollSortFromEnv(),
       },
       themeColor: "#bd7fff",
@@ -130,17 +127,7 @@ function pollSortFromEnv(): PollSort {
     return value;
   }
 
-  switch (Deno.env.get("HEYBOX_SORT_FILTER")) {
-    case "hot-rank":
-      return "smart";
-    case "reply":
-    case "comment-time":
-      return "replyTime";
-    case "create":
-      return "publishTime";
-    default:
-      return "publishTime";
-  }
+  return "publishTime";
 }
 
 /**

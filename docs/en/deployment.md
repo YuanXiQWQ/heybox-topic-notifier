@@ -48,43 +48,23 @@ isolates Production and Git Branch data by timeline.
 
 ## Environment Variables
 
-Configure these values in the Deno Deploy app as needed. See the repository root `.env.example` for
-the full default set:
+Configure values in the Deno Deploy app only as needed. The repository root `.env.example` is
+grouped by scenario: only the minimal safe configuration is enabled by default, and polling tweaks,
+notification channels, relay settings, and outbound allowlists stay commented until used.
 
-- `APP_LOCALE`
-- `HEYBOX_TOPIC_ID`
-- `HEYBOX_DEVICE_ID`
-- `HEYBOX_COOKIE`
-- `HEYBOX_USER_AGENT`
-- `HEYBOX_SIGNATURE_MODE`
-- `HEYBOX_POST_LIMIT`
-- `HEYBOX_SORT_FILTER`
-- `POLL_ENABLED`
-- `POLL_INTERVAL_MINUTES`
-- `POLL_POST_LIMIT`
-- `POLL_SORT`
-- `NOTIFIER_PROVIDER`
-- `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
-- `NOTIFIER_EMAIL_SERVICE`
-- `NOTIFIER_EMAIL_ADDRESS`
-- `NOTIFIER_EMAIL_API_URL`
-- `NOTIFIER_EMAIL_API_TOKEN`
-- `NOTIFIER_EMAIL_FROM`
-- `NOTIFIER_SMTP_HOST`
-- `NOTIFIER_SMTP_PORT`
-- `NOTIFIER_SMTP_SECURE`
-- `NOTIFIER_SMTP_USERNAME`
-- `NOTIFIER_SMTP_PASSWORD`
-- `NOTIFIER_WEBHOOK_SERVICE`
-- `NOTIFIER_RELAY_TOKEN`
-- `NOTIFIER_PUSHPLUS_TOKEN`
-- `NOTIFIER_PUSHPLUS_SEND_URL`
-- `NOTIFIER_WXPUSHER_SEND_URL`
-- `NOTIFIER_SERVER_CHAN_SEND_KEY`
-- `NOTIFIER_SERVER_CHAN_SEND_URL`
-- `NOTIFIER_WEBHOOK_URL`
-- `NOTIFIER_WXPUSHER_SPT`
-- `OUTBOUND_ALLOWED_HOSTS`
+- Base defaults: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Polling tweaks: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
+- Heybox request overrides: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`,
+  `HEYBOX_USER_AGENT`
+- Notification common setting: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
+- Webhook notifications: `NOTIFIER_WEBHOOK_SERVICE`, `NOTIFIER_WEBHOOK_URL`,
+  `NOTIFIER_PUSHPLUS_TOKEN`, `NOTIFIER_WXPUSHER_SPT`, `NOTIFIER_SERVER_CHAN_SEND_KEY`
+- Email notifications: `NOTIFIER_EMAIL_SERVICE`, `NOTIFIER_EMAIL_ADDRESS`, `NOTIFIER_EMAIL_FROM`,
+  `NOTIFIER_EMAIL_API_URL`, `NOTIFIER_EMAIL_API_TOKEN`, `NOTIFIER_SMTP_HOST`, `NOTIFIER_SMTP_PORT`,
+  `NOTIFIER_SMTP_SECURE`, `NOTIFIER_SMTP_USERNAME`, `NOTIFIER_SMTP_PASSWORD`
+- Notification relay: `NOTIFIER_PUSHPLUS_SEND_URL`, `NOTIFIER_WXPUSHER_SEND_URL`,
+  `NOTIFIER_SERVER_CHAN_SEND_URL`, `NOTIFIER_RELAY_TOKEN`
+- Outbound security allowlist: `OUTBOUND_ALLOWED_HOSTS`
 
 Notification delivery validates custom Webhook, Email API, and SMTP targets. By default, only public
 HTTPS URLs and common SMTP ports are allowed. If you need to use a self-hosted relay or a fixed mail
