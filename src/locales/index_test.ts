@@ -5,7 +5,7 @@ import { getMessages, mergeMessages, normalizeLocale } from "./index.ts";
 import type { Messages } from "./types.ts";
 
 /**
- * 验证英文文案缺失字段时会回退到简体中文文案。
+ * 验证美式英文文案缺失字段时会回退到简体中文文案。
  */
 Deno.test("English messages fall back to Simplified Chinese for missing keys", () => {
   const zhCN = getMessages("zh-CN");
@@ -28,18 +28,18 @@ Deno.test("English messages fall back to Simplified Chinese for missing keys", (
  */
 Deno.test("regional and untranslated messages use locale fallback chain", () => {
   const zhCN = getMessages("zh-CN");
-  const en = getMessages("en");
+  const enUS = getMessages("en-US");
 
   if (getMessages("zh-TW").settingsTitle !== zhCN.settingsTitle) {
     throw new Error("Expected Traditional Chinese placeholder to fall back to Simplified Chinese");
   }
 
-  if (getMessages("en-GB").settingsTitle !== en.settingsTitle) {
-    throw new Error("Expected English regional placeholder to fall back to English");
+  if (getMessages("en-GB").settingsTitle !== enUS.settingsTitle) {
+    throw new Error("Expected English regional placeholder to fall back to American English");
   }
 
-  if (getMessages("de-DE").settingsTitle !== en.settingsTitle) {
-    throw new Error("Expected untranslated non-Chinese locale to fall back to English");
+  if (getMessages("de-DE").settingsTitle !== enUS.settingsTitle) {
+    throw new Error("Expected untranslated non-Chinese locale to fall back to American English");
   }
 });
 
@@ -49,7 +49,7 @@ Deno.test("regional and untranslated messages use locale fallback chain", () => 
 Deno.test("normalizeLocale maps aliases and browser language tags", () => {
   const cases: Array<[string | undefined, ReturnType<typeof normalizeLocale>]> = [
     [undefined, "zh-CN"],
-    ["en-US", "en"],
+    ["en-US", "en-US"],
     ["zh-Hant-HK", "zh-HK"],
     ["zh-Hans-SG", "zh-SG"],
     ["ja", "ja-JP"],

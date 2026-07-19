@@ -2,33 +2,33 @@
  * @file 本文件负责加载、归一化并合并应用的多语言文案。
  */
 import { isLocale, type Locale, type Messages } from "./types.ts";
-import arSA from "./ar-SA.json" with { type: "json" };
-import bnBD from "./bn-BD.json" with { type: "json" };
-import deDE from "./de-DE.json" with { type: "json" };
-import en from "./en.json" with { type: "json" };
-import enCA from "./en-CA.json" with { type: "json" };
-import enGB from "./en-GB.json" with { type: "json" };
-import esES from "./es-ES.json" with { type: "json" };
-import faIR from "./fa-IR.json" with { type: "json" };
-import frFR from "./fr-FR.json" with { type: "json" };
-import heIL from "./he-IL.json" with { type: "json" };
-import hiIN from "./hi-IN.json" with { type: "json" };
-import idID from "./id-ID.json" with { type: "json" };
-import itIT from "./it-IT.json" with { type: "json" };
-import jaJP from "./ja-JP.json" with { type: "json" };
-import koKR from "./ko-KR.json" with { type: "json" };
-import ptBR from "./pt-BR.json" with { type: "json" };
-import ptPT from "./pt-PT.json" with { type: "json" };
-import ruRU from "./ru-RU.json" with { type: "json" };
-import thTH from "./th-TH.json" with { type: "json" };
-import trTR from "./tr-TR.json" with { type: "json" };
-import urPK from "./ur-PK.json" with { type: "json" };
-import viVN from "./vi-VN.json" with { type: "json" };
-import zhCN from "./zh-CN.json" with { type: "json" };
-import zhHK from "./zh-HK.json" with { type: "json" };
-import zhMO from "./zh-MO.json" with { type: "json" };
-import zhSG from "./zh-SG.json" with { type: "json" };
-import zhTW from "./zh-TW.json" with { type: "json" };
+import arSA from "./lang/ar-SA.json" with { type: "json" };
+import bnBD from "./lang/bn-BD.json" with { type: "json" };
+import deDE from "./lang/de-DE.json" with { type: "json" };
+import enCA from "./lang/en-CA.json" with { type: "json" };
+import enGB from "./lang/en-GB.json" with { type: "json" };
+import enUS from "./lang/en-US.json" with { type: "json" };
+import esES from "./lang/es-ES.json" with { type: "json" };
+import faIR from "./lang/fa-IR.json" with { type: "json" };
+import frFR from "./lang/fr-FR.json" with { type: "json" };
+import heIL from "./lang/he-IL.json" with { type: "json" };
+import hiIN from "./lang/hi-IN.json" with { type: "json" };
+import idID from "./lang/id-ID.json" with { type: "json" };
+import itIT from "./lang/it-IT.json" with { type: "json" };
+import jaJP from "./lang/ja-JP.json" with { type: "json" };
+import koKR from "./lang/ko-KR.json" with { type: "json" };
+import ptBR from "./lang/pt-BR.json" with { type: "json" };
+import ptPT from "./lang/pt-PT.json" with { type: "json" };
+import ruRU from "./lang/ru-RU.json" with { type: "json" };
+import thTH from "./lang/th-TH.json" with { type: "json" };
+import trTR from "./lang/tr-TR.json" with { type: "json" };
+import urPK from "./lang/ur-PK.json" with { type: "json" };
+import viVN from "./lang/vi-VN.json" with { type: "json" };
+import zhCN from "./lang/zh-CN.json" with { type: "json" };
+import zhHK from "./lang/zh-HK.json" with { type: "json" };
+import zhMO from "./lang/zh-MO.json" with { type: "json" };
+import zhSG from "./lang/zh-SG.json" with { type: "json" };
+import zhTW from "./lang/zh-TW.json" with { type: "json" };
 
 /**
  * 基础语言文案，作为其它语言缺失字段时的兜底内容。
@@ -44,7 +44,7 @@ const overrides: Record<Locale, Partial<Messages>> = {
   "zh-HK": zhHK,
   "zh-MO": zhMO,
   "zh-SG": zhSG,
-  en,
+  "en-US": enUS,
   "en-CA": enCA,
   "en-GB": enGB,
   "ja-JP": jaJP,
@@ -75,8 +75,7 @@ const localeAliases: Record<string, Locale> = {
   ar: "ar-SA",
   bn: "bn-BD",
   de: "de-DE",
-  en: "en",
-  "en-us": "en",
+  en: "en-US",
   es: "es-ES",
   fa: "fa-IR",
   fr: "fr-FR",
@@ -107,7 +106,7 @@ const localeAliases: Record<string, Locale> = {
  * 未翻译完成时优先使用英文兜底的语言集合。
  */
 const englishFallbackLocales: ReadonlySet<Locale> = new Set([
-  "en",
+  "en-US",
   "en-CA",
   "en-GB",
   "ja-JP",
@@ -146,11 +145,11 @@ const normalizedLocaleMap: ReadonlyMap<string, Locale> = new Map(
  */
 function messageOverridesFor(locale: Locale): Partial<Messages>[] {
   const localeMessages = overrides[locale];
-  if (locale === "en") {
+  if (locale === "en-US") {
     return [localeMessages];
   }
   if (englishFallbackLocales.has(locale)) {
-    return [en, localeMessages];
+    return [enUS, localeMessages];
   }
   return [localeMessages];
 }

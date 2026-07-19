@@ -10,7 +10,7 @@ export const locales = [
   "zh-HK",
   "zh-MO",
   "zh-SG",
-  "en",
+  "en-US",
   "en-CA",
   "en-GB",
   "ja-JP",
@@ -105,7 +105,6 @@ export type Messages = {
   authExistingAccountLogin: string;
   authInvalidCredentials: string;
   authLanguage: string;
-  authLanguageButton: string;
   authLogin: string;
   authLoginRateLimited: string;
   authNavigation: string;

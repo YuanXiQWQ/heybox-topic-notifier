@@ -18,6 +18,11 @@ export type LanguageOption = {
 };
 
 /**
+ * 语言切换按钮展示的固定多语标签。
+ */
+export const languageSwitcherLabel = "语言/Language";
+
+/**
  * 应用支持的语言选择项列表。
  */
 export const languageOptions: LanguageOption[] = [
@@ -42,8 +47,8 @@ export const languageOptions: LanguageOption[] = [
     label: "简体中文（新加坡）",
   },
   {
-    code: "en",
-    label: "English",
+    code: "en-US",
+    label: "English (US)",
   },
   {
     code: "en-CA",

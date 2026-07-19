@@ -449,9 +449,7 @@ function renderRelativeTimeScript(): string {
             element.textContent = rawValue || '-';
             continue;
           }
-          const locale = element.getAttribute('data-relative-time-locale') === 'en'
-            ? 'en'
-            : 'zh-CN';
+          const locale = element.getAttribute('data-relative-time-locale') || 'zh-CN';
           element.textContent = formatRelativeTime(timestamp, nowMs, now, locale);
         }
         window[overflowUpdateKey]?.();

@@ -4,7 +4,7 @@
 import { Hono } from "@hono/hono";
 import type { MiddlewareHandler } from "@hono/hono";
 import { getMessages } from "./locales/index.ts";
-import { languageOptions } from "./locales/languages.ts";
+import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
 import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
 import type { UserAccount } from "./models.ts";
 import {
@@ -703,7 +703,7 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.authLanguage)
   }">
             ${renderLanguageIcon()}
-            <span>${escapeHtml(options.messages.authLanguageButton)}</span>
+            <span>${escapeHtml(languageSwitcherLabel)}</span>
           </summary>
           <div class="auth-language-options" role="menu">
             ${languageOptionsHtml}

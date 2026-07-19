@@ -37,11 +37,11 @@ Deno.test("auth routes render login page without extra configuration", async () 
 Deno.test("auth routes localize anonymous pages with a language-only navigation bar", async () => {
   const app = createTestApp();
 
-  const response = await app.request("/login?locale=en&error=rateLimited");
+  const response = await app.request("/login?locale=en-US&error=rateLimited");
   const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals(html.includes('lang="en"'), true);
+  assertEquals(html.includes('lang="en-US"'), true);
   assertEquals(html.includes("Sign in"), true);
   assertEquals(html.includes("Too many sign-in attempts. Try again in 15 minutes."), true);
   assertEquals(html.includes("Confirm password"), false);
@@ -50,7 +50,7 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
   assertEquals(html.includes("<summary"), true);
   assertEquals(html.includes(">语言/Language</span>"), true);
   assertEquals(html.includes('href="/login?locale=zh-CN&amp;returnTo=%2F"'), true);
-  assertEquals(html.includes('href="/login?locale=en&amp;returnTo=%2F"'), true);
+  assertEquals(html.includes('href="/login?locale=en-US&amp;returnTo=%2F"'), true);
   assertEquals(html.includes("/settings"), false);
   assertEquals(html.includes("/history"), false);
   assertEquals(html.includes('href="/"'), false);
