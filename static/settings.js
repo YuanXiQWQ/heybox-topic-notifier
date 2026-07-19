@@ -960,7 +960,12 @@ function initKeywordEditor(keywordEditor) {
     }
   });
 
-  keywordEditor.addEventListener("input", () => {
+  keywordEditor.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && isKeywordTextInput(target)) {
+      syncKeywordOptionsFromInput(target);
+    }
+
     updateKeywordSummary(keywordEditor);
     scheduleAutoSave();
   });
@@ -2149,6 +2154,152 @@ function toggleKeywordOption(button) {
   const option = button.dataset.option;
   const isEnabled = button.getAttribute("aria-pressed") === "true";
   setKeywordOption(row, option, !isEnabled);
+  markKeywordOptionManual(row, option);
+}
+
+/**
+ * 根据关键词输入内容同步可自动识别的选项。
+ *
+ * @param {HTMLInputElement} input 关键词输入框。
+ */
+function syncKeywordOptionsFromInput(input) {
+  const row = input.closest("[data-keyword-row]");
+  if (!(row instanceof HTMLElement)) {
+    return;
+  }
+
+  const keyword = input.value.trim();
+  if (!keyword) {
+    clearKeywordOptionDetectionState(row, "caseSensitive");
+    clearKeywordOptionDetectionState(row, "useRegex");
+    return;
+  }
+
+  syncDetectedKeywordOption(row, "caseSensitive", hasMixedAsciiCase(keyword));
+  syncDetectedKeywordOption(row, "useRegex", looksLikeRegexPattern(keyword));
+}
+
+/**
+ * 同步单个自动识别选项。
+ *
+ * @param {HTMLElement} row 关键词规则行元素。
+ * @param {string} option 选项名称。
+ * @param {boolean} detected 是否识别到需要启用该选项。
+ */
+function syncDetectedKeywordOption(row, option, detected) {
+  const manualKey = keywordOptionStateDatasetKey("manual", option);
+  const autoKey = keywordOptionStateDatasetKey("auto", option);
+  if (!manualKey || !autoKey || row.dataset[manualKey] === "true") {
+    return;
+  }
+
+  if (detected) {
+    setKeywordOption(row, option, true);
+    row.dataset[autoKey] = "true";
+    return;
+  }
+
+  if (row.dataset[autoKey] === "true") {
+    setKeywordOption(row, option, false);
+    delete row.dataset[autoKey];
+  }
+}
+
+/**
+ * 标记关键词选项已由用户手动设置。
+ *
+ * @param {HTMLElement} row 关键词规则行元素。
+ * @param {string|undefined} option 选项名称。
+ */
+function markKeywordOptionManual(row, option) {
+  const manualKey = keywordOptionStateDatasetKey("manual", option);
+  const autoKey = keywordOptionStateDatasetKey("auto", option);
+  if (!manualKey || !autoKey) {
+    return;
+  }
+
+  row.dataset[manualKey] = "true";
+  delete row.dataset[autoKey];
+}
+
+/**
+ * 清理关键词选项的自动识别状态。
+ *
+ * @param {HTMLElement} row 关键词规则行元素。
+ * @param {string} option 选项名称。
+ */
+function clearKeywordOptionDetectionState(row, option) {
+  const manualKey = keywordOptionStateDatasetKey("manual", option);
+  const autoKey = keywordOptionStateDatasetKey("auto", option);
+  if (!manualKey || !autoKey) {
+    return;
+  }
+
+  if (row.dataset[autoKey] === "true") {
+    setKeywordOption(row, option, false);
+  }
+  delete row.dataset[manualKey];
+  delete row.dataset[autoKey];
+}
+
+/**
+ * 生成关键词选项检测状态的数据集键。
+ *
+ * @param {"manual"|"auto"} state 状态类型。
+ * @param {string|undefined} option 选项名称。
+ * @return {string} 数据集键，未知选项返回空字符串。
+ */
+function keywordOptionStateDatasetKey(state, option) {
+  if (option === "caseSensitive") {
+    return state === "manual"
+      ? "keywordOptionManualCaseSensitive"
+      : "keywordOptionAutoCaseSensitive";
+  }
+
+  if (option === "useRegex") {
+    return state === "manual" ? "keywordOptionManualUseRegex" : "keywordOptionAutoUseRegex";
+  }
+
+  return "";
+}
+
+/**
+ * 判断关键词输入框是否为关键词文本字段。
+ *
+ * @param {HTMLInputElement} input 输入框。
+ * @return {boolean} 是关键词文本字段时返回 true。
+ */
+function isKeywordTextInput(input) {
+  return input.name.startsWith("keyword_") &&
+    !input.name.includes("_location_") &&
+    !input.dataset.keywordOption;
+}
+
+/**
+ * 判断文本是否同时包含 ASCII 大写和小写字母。
+ *
+ * @param {string} value 待检测文本。
+ * @return {boolean} 同时存在大小写字母时返回 true。
+ */
+function hasMixedAsciiCase(value) {
+  return /[A-Z]/.test(value) && /[a-z]/.test(value);
+}
+
+/**
+ * 判断文本是否像常见正则表达式。
+ *
+ * @param {string} value 待检测文本。
+ * @return {boolean} 命中常见正则特征时返回 true。
+ */
+function looksLikeRegexPattern(value) {
+  return /(^|[^\\])(\.\*|\.\+|\.\?)/.test(value) ||
+    /\\[dDsSwWbB]/.test(value) ||
+    /\[[^\]]+\]/.test(value) ||
+    /\(\?/.test(value) ||
+    /\([^)]*\|[^)]*\)/.test(value) ||
+    /\{\d+,?\d*\}/.test(value) ||
+    /\{\d*,\d+\}/.test(value) ||
+    /(^|[^\\])[\^$|]/.test(value);
 }
 
 /**
