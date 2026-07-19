@@ -54,6 +54,10 @@ const csrfFieldName = "csrfToken";
  */
 const csrfHeaderName = "x-csrf-token";
 /**
+ * 关键词规则可匹配的位置列表。
+ */
+const keywordMatchLocations = ["title", "body", "comments", "replies"];
+/**
  * 当前正在拖拽的规则行状态。
  */
 let activeRuleDrag;
@@ -2050,7 +2054,7 @@ function replaceKeywordRows(keywordEditor, rules) {
   const grid = keywordEditor.querySelector(".keyword-rule-grid");
   keywordEditor.querySelectorAll("[data-keyword-row]").forEach((row) => row.remove());
 
-  const normalizedRules = rules.length > 0 ? rules : [{ keyword: "", locations: [] }];
+  const normalizedRules = rules.length > 0 ? rules : [newKeywordRule()];
   normalizedRules.forEach((rule) => {
     grid.append(keywordRowFromRule(keywordEditor, rule));
   });
@@ -2077,6 +2081,15 @@ function keywordRowFromRule(keywordEditor, rule) {
     input.checked = Array.isArray(rule.locations) && rule.locations.includes(location);
   });
   return row;
+}
+
+/**
+ * 创建默认关键词规则。
+ *
+ * @return {{keyword: string, locations: string[]}} 默认关键词规则。
+ */
+function newKeywordRule() {
+  return { keyword: "", locations: keywordMatchLocations };
 }
 
 /**
@@ -2181,7 +2194,7 @@ function keywordOptionEnabled(row, option) {
 function insertKeywordRow(editor, actionButton) {
   const grid = editor.querySelector(".keyword-rule-grid");
   const row = actionButton.closest("[data-keyword-row]");
-  const newRow = keywordRowFromRule(editor, { keyword: "", locations: [] });
+  const newRow = keywordRowFromRule(editor, newKeywordRule());
 
   if (row) {
     row.after(newRow);
@@ -2235,7 +2248,7 @@ function ensureAtLeastOneKeywordRow(editor) {
   }
 
   const grid = editor.querySelector(".keyword-rule-grid");
-  grid.append(keywordRowFromRule(editor, { keyword: "", locations: [] }));
+  grid.append(keywordRowFromRule(editor, newKeywordRule()));
 }
 
 /**

@@ -955,14 +955,14 @@ function renderKeywordSection(settings: AppSettings): string {
           <div class="keyword-rule-grid" role="table">
             ${renderKeywordRuleHeader(messages)}
             ${
-    (rows.length > 0 ? rows : [{ keyword: "", locations: [] as MatchLocation[] }])
+    (rows.length > 0 ? rows : [{ keyword: "", locations: matchLocations }])
       .map((rule, index) => renderKeywordRuleRow(rule, index, messages)).join("")
   }
           </div>
         </div>
       </dd>
       <template data-keyword-row-template>
-        ${renderKeywordRuleRow({ keyword: "", locations: [] }, "__index__", messages)}
+        ${renderKeywordRuleRow({ keyword: "", locations: matchLocations }, "__index__", messages)}
       </template>
     </div>
   `;
