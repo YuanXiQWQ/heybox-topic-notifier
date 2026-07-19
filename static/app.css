@@ -349,20 +349,28 @@ input[readonly]::placeholder {
 .notification-provider-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   max-width: min(100%, calc(var(--settings-control-width) + var(--settings-action-width) + 300px));
 }
 
 .notification-provider-row select {
-  flex: 0 0 var(--settings-control-width);
+  flex: 0 1 var(--settings-control-width);
   min-width: 0;
   max-width: var(--settings-control-width);
 }
 
 .notification-provider-row button {
-  flex: 0 0 var(--settings-action-width);
-  white-space: nowrap;
-  width: var(--settings-action-width);
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  line-height: 1.25;
+  max-width: min(100%, 240px);
+  min-width: 0;
+  min-inline-size: var(--settings-action-width);
+  overflow-wrap: anywhere;
+  padding-block: 8px;
+  text-align: center;
+  white-space: normal;
 }
 
 .inline-action-status {
@@ -1538,6 +1546,11 @@ tr:last-child td {
   .account-single-input-row input,
   .notification-provider-row select {
     flex-basis: auto;
+    width: 100%;
+  }
+
+  .notification-provider-row button {
+    max-width: 100%;
     width: 100%;
   }
 
