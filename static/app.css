@@ -53,6 +53,8 @@
   overflow-y: scroll;
   /* 规则表操作列宽。 */
   --rule-action-column: 54px;
+  /* 规则表拖拽列宽。 */
+  --rule-drag-column: 44px;
   /* 规则表选择列宽。 */
   --rule-select-column: 96px;
   /* 设置项操作区宽度。 */
@@ -1118,6 +1120,7 @@ dd {
 
 .topic-rule-row {
   grid-template-columns:
+    var(--rule-drag-column)
     var(--rule-select-column)
     minmax(108px, 1.7fr)
     minmax(108px, 1.7fr)
@@ -1129,6 +1132,7 @@ dd {
 
 .keyword-rule-row {
   grid-template-columns:
+    var(--rule-drag-column)
     var(--rule-select-column)
     minmax(108px, 1.7fr)
     repeat(4, minmax(86px, 0.9fr))
@@ -1186,9 +1190,65 @@ dd {
   overflow-wrap: anywhere;
 }
 
-.keyword-rule-head > div:nth-child(3) {
+.keyword-rule-head > div:nth-child(4) {
   justify-content: center;
   text-align: center;
+}
+
+.rule-drag-cell,
+.rule-drag-header {
+  color: var(--muted);
+}
+
+.rule-drag-handle {
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.rule-drag-handle:active {
+  cursor: grabbing;
+}
+
+.rule-drag-icon {
+  height: 20px;
+  width: 20px;
+}
+
+.topic-rule-item.is-rule-dragging,
+.keyword-rule-item.is-rule-dragging {
+  opacity: 0.42;
+}
+
+.topic-rule-item.is-rule-drag-over-before,
+.keyword-rule-item.is-rule-drag-over-before {
+  box-shadow: inset 0 3px 0 var(--theme-strong);
+}
+
+.topic-rule-item.is-rule-drag-over-after,
+.keyword-rule-item.is-rule-drag-over-after {
+  box-shadow: inset 0 -3px 0 var(--theme-strong);
+}
+
+.topic-rule-item.is-keyword-drop-target {
+  background: var(--theme-soft-strong);
+  box-shadow: inset 0 0 0 2px var(--theme-strong);
+}
+
+.rule-drag-ghost {
+  background: var(--surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  box-shadow: 0 12px 28px var(--shadow-strong);
+  box-sizing: border-box;
+  color: var(--ink);
+  max-width: min(360px, calc(100vw - 24px));
+  opacity: 0.92;
+  padding: 10px 12px;
+  pointer-events: none;
+  position: fixed;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
 }
 
 .keyword-input-shell {

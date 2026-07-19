@@ -139,6 +139,7 @@ export type Messages = {
   filterRange: string;
   filterTo: string;
   filterWeek: string;
+  dragRow: string;
   historyTitle: string;
   keywordCaseSensitive: string;
   keywordRegex: string;

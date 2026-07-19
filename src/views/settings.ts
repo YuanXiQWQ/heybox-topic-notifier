@@ -125,7 +125,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
-    <script src="/static/settings.js?v=20260718-account-settings" defer></script>
+    <script src="/static/settings.js?v=20260719-settings-drag" defer></script>
   `;
 
   return renderLayout({
@@ -977,6 +977,7 @@ function renderKeywordSection(settings: AppSettings): string {
 function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string {
   return `
     <div class="topic-rule-row topic-rule-head" role="row">
+      <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
       <label class="checkbox-cell bulk-action-cell" role="columnheader">
         <span>${escapeHtml(messages.batchOperation)}</span>
         <input type="checkbox" data-role="select-all-topics">
@@ -1039,6 +1040,9 @@ function renderTopicRuleRow(
         value="${keywordRulesJson}"
         data-topic-keyword-rules
       >
+      <div class="rule-drag-cell" role="cell">
+        ${dragHandleButton(messages.dragRow)}
+      </div>
       <label class="checkbox-cell" role="cell">
         <input type="checkbox" data-role="select-topic-row">
       </label>
@@ -1096,6 +1100,7 @@ function renderTopicRuleRow(
 function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): string {
   return `
     <div class="keyword-rule-row keyword-rule-head" role="row">
+      <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
       <label class="checkbox-cell bulk-action-cell" role="columnheader">
         <span>${escapeHtml(messages.batchOperation)}</span>
         <input type="checkbox" data-role="select-all-keywords">
@@ -1124,6 +1129,24 @@ function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): stri
       </div>
     </div>
   `;
+}
+
+/**
+ * 渲染规则行拖拽手柄按钮。
+ *
+ * @param label 拖拽按钮的可访问标签。
+ * @return 拖拽手柄按钮 HTML。
+ */
+function dragHandleButton(label: string): string {
+  const escapedLabel = escapeHtml(label);
+
+  return `<button
+    type="button"
+    class="icon-button rule-drag-handle"
+    data-rule-drag-handle
+    title="${escapedLabel}"
+    aria-label="${escapedLabel}"
+  >${materialSymbolIcon("drag_indicator", "rule-drag-icon")}</button>`;
 }
 
 /**
@@ -1165,6 +1188,9 @@ function renderKeywordRuleRow(
 
   return `
     <div class="keyword-rule-row keyword-rule-item" role="row" data-keyword-row>
+      <div class="rule-drag-cell" role="cell">
+        ${dragHandleButton(messages.dragRow)}
+      </div>
       <label class="checkbox-cell" role="cell">
         <input type="checkbox" data-role="select-keyword-row">
       </label>

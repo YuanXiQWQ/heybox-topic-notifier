@@ -60,6 +60,7 @@
   "filterRange": "Range",
   "filterTo": "To",
   "filterWeek": "One week",
+  "dragRow": "Drag to reorder",
   "globalSettings": "Global settings",
   "historyTitle": "Match history",
   "keywordCaseSensitive": "Case sensitive",

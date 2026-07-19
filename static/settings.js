@@ -53,6 +53,10 @@ const csrfFieldName = "csrfToken";
  * CSRF 请求头名称。
  */
 const csrfHeaderName = "x-csrf-token";
+/**
+ * 当前正在拖拽的规则行状态。
+ */
+let activeRuleDrag;
 
 /**
  * 初始化设置页所有编辑器。
@@ -69,6 +73,7 @@ function initSettingsEditors() {
   initDropdown(keywordEditor, "keywords");
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
+  initRuleDragging(topicEditor, keywordEditor);
   initNotificationSettings();
   initPollingSettings();
   initAccountSettings();
@@ -955,6 +960,410 @@ function initKeywordEditor(keywordEditor) {
     updateKeywordSummary(keywordEditor);
     scheduleAutoSave();
   });
+}
+
+/**
+ * 初始化话题和关键词规则行拖拽交互。
+ *
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ */
+function initRuleDragging(topicEditor, keywordEditor) {
+  topicEditor.addEventListener("pointerdown", (event) => {
+    beginRuleDrag(event, "topic", topicEditor, keywordEditor);
+  });
+
+  keywordEditor.addEventListener("pointerdown", (event) => {
+    beginRuleDrag(event, "keyword", topicEditor, keywordEditor);
+  });
+}
+
+/**
+ * 开始跟踪规则行拖拽。
+ *
+ * @param {PointerEvent} event 指针按下事件。
+ * @param {"topic"|"keyword"} kind 拖拽行类型。
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ */
+function beginRuleDrag(event, kind, topicEditor, keywordEditor) {
+  const handle = ruleDragHandleFromEvent(event);
+  if (!handle || activeRuleDrag || event.button !== 0) {
+    return;
+  }
+
+  const row = handle.closest(kind === "topic" ? "[data-topic-row]" : "[data-keyword-row]");
+  if (!(row instanceof HTMLElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  activeRuleDrag = {
+    dropTargetTopicRow: undefined,
+    ghost: undefined,
+    handle,
+    keywordEditor,
+    kind,
+    moved: false,
+    pointerId: event.pointerId,
+    row,
+    started: false,
+    startX: event.clientX,
+    startY: event.clientY,
+    topicEditor,
+  };
+
+  document.addEventListener("pointermove", updateActiveRuleDrag);
+  document.addEventListener("pointerup", finishActiveRuleDrag);
+  document.addEventListener("pointercancel", finishActiveRuleDrag);
+  handle.setPointerCapture?.(event.pointerId);
+}
+
+/**
+ * 从事件中解析规则行拖拽手柄。
+ *
+ * @param {Event} event DOM 事件。
+ * @return {HTMLButtonElement|undefined} 拖拽手柄按钮。
+ */
+function ruleDragHandleFromEvent(event) {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return undefined;
+  }
+
+  const handle = target.closest("[data-rule-drag-handle]");
+  return handle instanceof HTMLButtonElement ? handle : undefined;
+}
+
+/**
+ * 更新当前拖拽行的位置和目标。
+ *
+ * @param {PointerEvent} event 指针移动事件。
+ */
+function updateActiveRuleDrag(event) {
+  const state = activeRuleDrag;
+  if (!state || event.pointerId !== state.pointerId) {
+    return;
+  }
+
+  event.preventDefault();
+  if (
+    !state.started && Math.hypot(event.clientX - state.startX, event.clientY - state.startY) < 4
+  ) {
+    return;
+  }
+
+  if (!state.started) {
+    startRuleDragPreview(state);
+  }
+
+  updateRuleDragGhost(state, event);
+  updateRuleDragTarget(state, event);
+}
+
+/**
+ * 完成当前规则行拖拽。
+ *
+ * @param {PointerEvent} event 指针结束事件。
+ */
+function finishActiveRuleDrag(event) {
+  const state = activeRuleDrag;
+  if (!state || event.pointerId !== state.pointerId) {
+    return;
+  }
+
+  activeRuleDrag = undefined;
+  if (state.started) {
+    completeRuleDrag(state);
+  }
+  cleanupRuleDrag(state);
+}
+
+/**
+ * 创建拖拽预览并标记原始行。
+ *
+ * @param {Object} state 拖拽状态。
+ */
+function startRuleDragPreview(state) {
+  state.started = true;
+  state.row.classList.add("is-rule-dragging");
+
+  const ghost = document.createElement("div");
+  ghost.className = "rule-drag-ghost";
+  ghost.textContent = ruleDragPreviewText(state);
+  document.body.append(ghost);
+  state.ghost = ghost;
+}
+
+/**
+ * 生成拖拽预览文本。
+ *
+ * @param {Object} state 拖拽状态。
+ * @return {string} 拖拽预览文本。
+ */
+function ruleDragPreviewText(state) {
+  if (state.kind === "topic") {
+    const id = state.row.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
+    const note = state.row.querySelector("[data-topic-note-input]")?.value.trim() ?? "";
+    return [note, id].filter(Boolean).join(" ") || state.handle.title;
+  }
+
+  const keyword = state.row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+  return keyword || state.handle.title;
+}
+
+/**
+ * 更新拖拽预览的位置。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {PointerEvent} event 指针移动事件。
+ */
+function updateRuleDragGhost(state, event) {
+  if (!(state.ghost instanceof HTMLElement)) {
+    return;
+  }
+
+  state.ghost.style.left = `${event.clientX}px`;
+  state.ghost.style.top = `${event.clientY}px`;
+}
+
+/**
+ * 根据当前指针位置更新拖拽目标。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {PointerEvent} event 指针移动事件。
+ */
+function updateRuleDragTarget(state, event) {
+  clearRuleDragIndicators();
+
+  const target = document.elementFromPoint(event.clientX, event.clientY);
+  if (!(target instanceof Element)) {
+    state.dropTargetTopicRow = undefined;
+    return;
+  }
+
+  if (state.kind === "topic") {
+    updateTopicDragTarget(state, target, event.clientY);
+    return;
+  }
+
+  updateKeywordDragTarget(state, target, event.clientY);
+}
+
+/**
+ * 更新话题行拖拽目标。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {Element} target 指针命中的元素。
+ * @param {number} clientY 指针垂直位置。
+ */
+function updateTopicDragTarget(state, target, clientY) {
+  const targetRow = target.closest("[data-topic-row]");
+  if (
+    !(targetRow instanceof HTMLElement) ||
+    targetRow === state.row ||
+    !state.topicEditor.contains(targetRow)
+  ) {
+    return;
+  }
+
+  moveDraggedRowBesideTarget(state, targetRow, clientY);
+}
+
+/**
+ * 更新关键词行拖拽目标。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {Element} target 指针命中的元素。
+ * @param {number} clientY 指针垂直位置。
+ */
+function updateKeywordDragTarget(state, target, clientY) {
+  const keywordRow = target.closest("[data-keyword-row]");
+  if (
+    keywordRow instanceof HTMLElement &&
+    keywordRow !== state.row &&
+    state.keywordEditor.contains(keywordRow)
+  ) {
+    state.dropTargetTopicRow = undefined;
+    moveDraggedRowBesideTarget(state, keywordRow, clientY);
+    return;
+  }
+
+  const topicRow = target.closest("[data-topic-row]");
+  if (
+    topicRow instanceof HTMLElement &&
+    state.topicEditor.contains(topicRow) &&
+    topicRowCanReceiveKeyword(state.topicEditor, topicRow)
+  ) {
+    topicRow.classList.add("is-keyword-drop-target");
+    state.dropTargetTopicRow = topicRow;
+    return;
+  }
+
+  state.dropTargetTopicRow = undefined;
+}
+
+/**
+ * 将正在拖拽的行移动到目标行前后。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {HTMLElement} targetRow 目标行。
+ * @param {number} clientY 指针垂直位置。
+ */
+function moveDraggedRowBesideTarget(state, targetRow, clientY) {
+  const rect = targetRow.getBoundingClientRect();
+  const insertBefore = clientY < rect.top + rect.height / 2;
+  targetRow.classList.add(insertBefore ? "is-rule-drag-over-before" : "is-rule-drag-over-after");
+
+  if (insertBefore) {
+    targetRow.before(state.row);
+  } else {
+    targetRow.after(state.row);
+  }
+  state.moved = true;
+}
+
+/**
+ * 完成拖拽后的数据同步。
+ *
+ * @param {Object} state 拖拽状态。
+ */
+function completeRuleDrag(state) {
+  if (state.kind === "topic") {
+    if (state.moved) {
+      reindexTopicRows(state.topicEditor);
+      updateActiveTopicSummary(state.topicEditor);
+      scheduleAutoSave();
+    }
+    return;
+  }
+
+  if (
+    state.dropTargetTopicRow instanceof HTMLElement &&
+    moveKeywordRowToTopic(
+      state.topicEditor,
+      state.keywordEditor,
+      state.row,
+      state.dropTargetTopicRow,
+    )
+  ) {
+    scheduleAutoSave();
+    return;
+  }
+
+  if (state.moved) {
+    reindexKeywordRows(state.keywordEditor);
+    updateKeywordSummary(state.keywordEditor);
+    scheduleAutoSave();
+  }
+}
+
+/**
+ * 清理拖拽状态和临时样式。
+ *
+ * @param {Object} state 拖拽状态。
+ */
+function cleanupRuleDrag(state) {
+  document.removeEventListener("pointermove", updateActiveRuleDrag);
+  document.removeEventListener("pointerup", finishActiveRuleDrag);
+  document.removeEventListener("pointercancel", finishActiveRuleDrag);
+  state.handle.releasePointerCapture?.(state.pointerId);
+  state.row.classList.remove("is-rule-dragging");
+  state.ghost?.remove();
+  clearRuleDragIndicators();
+}
+
+/**
+ * 清除规则行拖拽落点样式。
+ */
+function clearRuleDragIndicators() {
+  document
+    .querySelectorAll(
+      ".is-rule-drag-over-before, .is-rule-drag-over-after, .is-keyword-drop-target",
+    )
+    .forEach((row) => {
+      row.classList.remove(
+        "is-rule-drag-over-before",
+        "is-rule-drag-over-after",
+        "is-keyword-drop-target",
+      );
+    });
+}
+
+/**
+ * 判断话题行是否可接收当前关键词。
+ *
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} topicRow 目标话题行。
+ * @return {boolean} 可以接收关键词时返回 true。
+ */
+function topicRowCanReceiveKeyword(topicEditor, topicRow) {
+  const topicId = topicRow.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
+  if (!topicId) {
+    return false;
+  }
+
+  const activeTarget = activeKeywordTargetInput().value || "common";
+  return activeTarget === "common" || findActiveTopicRow(topicEditor, activeTarget) !== topicRow;
+}
+
+/**
+ * 将关键词行移动到目标话题。
+ *
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ * @param {HTMLElement} keywordRow 需要移动的关键词行。
+ * @param {HTMLElement} topicRow 目标话题行。
+ * @return {boolean} 实际移动成功时返回 true。
+ */
+function moveKeywordRowToTopic(topicEditor, keywordEditor, keywordRow, topicRow) {
+  const rule = keywordRuleFromRow(keywordRow);
+  if (!keywordRuleIsPersistable(rule)) {
+    return false;
+  }
+
+  keywordRow.remove();
+  ensureAtLeastOneKeywordRow(keywordEditor);
+  reindexKeywordRows(keywordEditor);
+  persistCurrentKeywordRows(topicEditor, keywordEditor);
+
+  const targetRules = parseRules(topicKeywordRulesValue(topicRow));
+  targetRules.push(rule);
+  setTopicKeywordRules(topicRow, JSON.stringify(targetRules));
+  updateKeywordSummary(keywordEditor);
+  updateActiveTopicSummary(topicEditor);
+  return true;
+}
+
+/**
+ * 从关键词行读取规则对象。
+ *
+ * @param {HTMLElement} row 关键词规则行元素。
+ * @return {{caseSensitive: boolean, keyword: string, locations: string[], useRegex: boolean}} 关键词规则。
+ */
+function keywordRuleFromRow(row) {
+  const keyword = row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+  const locations = Array.from(row.querySelectorAll("[name*='_location_']"))
+    .filter((input) => input.checked)
+    .map((input) => input.name.match(/_location_(.+)$/)?.[1])
+    .filter(Boolean);
+
+  return {
+    caseSensitive: keywordOptionEnabled(row, "caseSensitive"),
+    keyword,
+    locations,
+    useRegex: keywordOptionEnabled(row, "useRegex"),
+  };
+}
+
+/**
+ * 判断关键词规则是否可持久化。
+ *
+ * @param {{keyword: string, locations: string[]}} rule 关键词规则。
+ * @return {boolean} 关键词和匹配位置都存在时返回 true。
+ */
+function keywordRuleIsPersistable(rule) {
+  return rule.keyword.length > 0 && rule.locations.length > 0;
 }
 
 /**
