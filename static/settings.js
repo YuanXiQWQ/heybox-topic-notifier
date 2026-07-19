@@ -79,6 +79,7 @@ function initSettingsEditors() {
   initKeywordEditor(keywordEditor);
   initRuleDragging(topicEditor, keywordEditor);
   initNotificationSettings();
+  initSecretEditors();
   initPollingSettings();
   initAccountSettings();
   initThemePicker();
@@ -279,6 +280,120 @@ function initNotificationSettings() {
   });
 
   applyNotificationFields(visibleFields, false, ++transitionToken);
+}
+
+/**
+ * 初始化敏感令牌输入框的解锁和自动锁定交互。
+ */
+function initSecretEditors() {
+  document.querySelectorAll("[data-secret-editor]").forEach((editor) => {
+    const input = editor.querySelector("[data-secret-display-input]");
+    const button = editor.querySelector("[data-secret-edit-button]");
+    if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    button.addEventListener("click", () => {
+      unlockSecretEditor(input);
+    });
+
+    input.addEventListener("blur", () => {
+      lockSecretEditorAfterEdit(input);
+    });
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        input.blur();
+      }
+    });
+  });
+}
+
+/**
+ * 解锁敏感令牌输入框。
+ *
+ * @param {HTMLInputElement} input 敏感令牌展示输入框。
+ */
+function unlockSecretEditor(input) {
+  input.readOnly = false;
+  input.type = "password";
+  input.value = "";
+  input.focus();
+}
+
+/**
+ * 在输入框失焦后锁定敏感令牌。
+ *
+ * @param {HTMLInputElement} input 敏感令牌展示输入框。
+ */
+function lockSecretEditorAfterEdit(input) {
+  const editor = input.closest("[data-secret-editor]");
+  const hiddenInput = editor?.querySelector("[data-secret-hidden-input]");
+  if (!(hiddenInput instanceof HTMLInputElement)) {
+    lockSecretDisplay(input, input.value.length);
+    return;
+  }
+
+  const submittedValue = input.value;
+  if (submittedValue.length > 0) {
+    hiddenInput.value = submittedValue;
+    input.dataset.secretConfigured = "true";
+    lockSecretDisplay(input, submittedValue.length);
+    scheduleAutoSave();
+    return;
+  }
+
+  hiddenInput.value = "";
+  lockSecretDisplay(
+    input,
+    input.dataset.secretConfigured === "true" ? Number(input.dataset.secretMaskLength) : 0,
+  );
+}
+
+/**
+ * 锁定敏感令牌展示输入框并显示遮罩。
+ *
+ * @param {HTMLInputElement} input 敏感令牌展示输入框。
+ * @param {number} maskLength 遮罩点数量。
+ */
+function lockSecretDisplay(input, maskLength) {
+  const normalizedLength = normalizedSecretMaskLength(maskLength);
+  input.type = "text";
+  input.value = secretMask(normalizedLength);
+  input.dataset.secretMaskLength = String(normalizedLength);
+  input.readOnly = true;
+}
+
+/**
+ * 生成指定长度的令牌遮罩。
+ *
+ * @param {number} length 遮罩长度。
+ * @return {string} 遮罩文本。
+ */
+function secretMask(length) {
+  return "•".repeat(normalizedSecretMaskLength(length));
+}
+
+/**
+ * 规范化令牌遮罩长度。
+ *
+ * @param {number} length 原始遮罩长度。
+ * @return {number} 可用于展示的遮罩长度。
+ */
+function normalizedSecretMaskLength(length) {
+  return Number.isFinite(length) ? Math.max(0, Math.floor(length)) : 0;
+}
+
+/**
+ * 清除已成功提交的令牌明文。
+ */
+function clearSecretSubmissionValues() {
+  document.querySelectorAll("[data-secret-hidden-input]").forEach((input) => {
+    if (input instanceof HTMLInputElement) {
+      input.value = "";
+    }
+  });
 }
 
 /**
@@ -1564,7 +1679,8 @@ async function saveSettingsNow() {
       return false;
     }
 
-    lastSavedSignature = signature;
+    clearSecretSubmissionValues();
+    lastSavedSignature = settingsSignature();
     setAutoSaveStatus("saved");
     if (reloadAfterSave) {
       location.reload();

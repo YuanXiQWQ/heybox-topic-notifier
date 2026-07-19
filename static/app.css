@@ -493,21 +493,6 @@ input[readonly]::placeholder {
   transform: translateY(-4px);
 }
 
-.external-settings-link {
-  gap: 6px;
-  box-sizing: border-box;
-  flex: 0 0 var(--settings-action-width);
-  justify-content: center;
-  min-height: 38px;
-  width: var(--settings-action-width);
-}
-
-.external-settings-link svg {
-  fill: currentColor;
-  height: 16px;
-  width: 16px;
-}
-
 input[type="checkbox"] {
   accent-color: var(--theme-strong);
   min-height: 18px;
@@ -863,6 +848,33 @@ dt {
   flex: 0 0 auto;
   height: 18px;
   width: 18px;
+}
+
+.settings-label-external-link {
+  align-items: center;
+  color: var(--theme-strong);
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+}
+
+.settings-label-external-link svg {
+  fill: currentColor;
+  height: 16px;
+  width: 16px;
+}
+
+.secret-input-row .secret-display-input {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.secret-input-row .secret-display-input:not([readonly]) {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--ink);
+  cursor: text;
 }
 
 .metrics strong {
@@ -1296,11 +1308,13 @@ dd {
   color: var(--theme-strong);
 }
 
-.keyword-option-button[data-tooltip] {
+.keyword-option-button[data-tooltip],
+.settings-label-external-link[data-tooltip] {
   position: relative;
 }
 
-.keyword-option-button[data-tooltip]::after {
+.keyword-option-button[data-tooltip]::after,
+.settings-label-external-link[data-tooltip]::after {
   background: var(--surface);
   border: 1px solid var(--theme-border);
   border-radius: 6px;
@@ -1321,11 +1335,13 @@ dd {
   transform: translateY(-2px);
   transition: opacity 120ms ease, transform 120ms ease;
   white-space: nowrap;
-  z-index: 10;
+  z-index: 100;
 }
 
 .keyword-option-button[data-tooltip]:hover::after,
-.keyword-option-button[data-tooltip]:focus-visible::after {
+.keyword-option-button[data-tooltip]:focus-visible::after,
+.settings-label-external-link[data-tooltip]:hover::after,
+.settings-label-external-link[data-tooltip]:focus-visible::after {
   opacity: 1;
   transform: translateY(0);
 }

@@ -17,6 +17,10 @@ import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
  * 设置页可配置的关键词匹配位置列表。
  */
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
+/**
+ * 已配置敏感项首次渲染时展示的固定遮罩长度。
+ */
+const configuredSecretMaskLength = 8;
 
 export type AccountStatus = {
   code:
@@ -149,6 +153,94 @@ function settingLabel(icon: MaterialSymbolName, label: string): string {
   return `<dt class="settings-label-with-icon">${
     materialSymbolIcon(icon, "settings-label-icon")
   }<span>${escapeHtml(label)}</span></dt>`;
+}
+
+/**
+ * 渲染带配置外链的敏感设置标签。
+ *
+ * @param icon Material Symbols 图标名称。
+ * @param label 设置项标签文本。
+ * @param href 配置外链地址。
+ * @param messages 当前语言文案。
+ * @return dt 标签 HTML。
+ */
+function secretSettingLabel(
+  icon: MaterialSymbolName,
+  label: string,
+  href: string,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const escapedLabel = escapeHtml(label);
+  const escapedTooltip = escapeHtml(secretConfigLinkText(messages, label));
+
+  return `<dt class="settings-label-with-icon">${
+    materialSymbolIcon(icon, "settings-label-icon")
+  }<span>${escapedLabel}</span><a
+    class="settings-label-external-link"
+    href="${escapeHtml(href)}"
+    target="_blank"
+    rel="noreferrer"
+    data-tooltip="${escapedTooltip}"
+    aria-label="${escapedTooltip}"
+  >${externalLinkIcon()}</a></dt>`;
+}
+
+/**
+ * 生成敏感设置配置外链文案。
+ *
+ * @param messages 当前语言文案。
+ * @param label 设置项标签文本。
+ * @return 外链提示文案。
+ */
+function secretConfigLinkText(messages: ReturnType<typeof getMessages>, label: string): string {
+  return messages.configureSecretLink.replace("{label}", label);
+}
+
+/**
+ * 渲染不会暴露已保存值的敏感配置输入行。
+ *
+ * @param name 提交字段名称。
+ * @param value 当前已保存值。
+ * @param messages 当前语言文案。
+ * @param emptyPlaceholder 未配置时使用的占位提示。
+ * @return 敏感配置输入行 HTML。
+ */
+function secretInputEditor(
+  name: string,
+  value: string,
+  messages: ReturnType<typeof getMessages>,
+  emptyPlaceholder = "",
+): string {
+  const maskLength = value.trim() ? configuredSecretMaskLength : 0;
+
+  return `<div class="input-action-row secret-input-row" data-secret-editor>
+    <input type="hidden" name="${escapeHtml(name)}" value="" data-secret-hidden-input>
+    <input
+      class="secret-display-input"
+      type="text"
+      dir="ltr"
+      value="${secretMaskValue(maskLength)}"
+      placeholder="${escapeHtml(value.trim() ? "" : emptyPlaceholder)}"
+      autocomplete="off"
+      readonly
+      data-secret-display-input
+      data-secret-configured="${value.trim() ? "true" : "false"}"
+      data-secret-mask-length="${maskLength}"
+    >
+    <button type="button" class="secondary" data-secret-edit-button>
+      ${escapeHtml(messages.editSecret)}
+    </button>
+  </div>`;
+}
+
+/**
+ * 生成指定长度的遮罩点。
+ *
+ * @param length 遮罩长度。
+ * @return 遮罩点字符串。
+ */
+function secretMaskValue(length: number): string {
+  return escapeHtml("•".repeat(Math.max(0, length)));
 }
 
 /**
@@ -471,29 +563,22 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="serverChan"
           >
-            ${settingLabel("key", messages.notificationServerChanSendKey)}
+            ${
+    secretSettingLabel(
+      "key",
+      messages.notificationServerChanSendKey,
+      "https://sct.ftqq.com/sendkey",
+      messages,
+    )
+  }
             <dd>
-              <div class="input-action-row">
-                <input
-                  type="password"
-                  name="notificationServerChanSendKey"
-                  dir="ltr"
-                  value=""
-                  placeholder="${
-    secretInputPlaceholder(settings.notificationServerChanSendKey, messages)
-  }"
-                  autocomplete="off"
-                >
-                <a
-                  class="button-link external-settings-link"
-                  href="https://sct.ftqq.com/sendkey"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span>${escapeHtml(messages.configure)}</span>
-                  ${externalLinkIcon()}
-                </a>
-              </div>
+              ${
+    secretInputEditor(
+      "notificationServerChanSendKey",
+      settings.notificationServerChanSendKey,
+      messages,
+    )
+  }
             </dd>
           </div>
           <div
@@ -502,29 +587,22 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="pushPlus"
           >
-            ${settingLabel("key", messages.notificationPushPlusToken)}
+            ${
+    secretSettingLabel(
+      "key",
+      messages.notificationPushPlusToken,
+      "https://www.pushplus.plus/uc-dev.html",
+      messages,
+    )
+  }
             <dd>
-              <div class="input-action-row">
-                <input
-                  type="password"
-                  name="notificationPushPlusSecret"
-                  dir="ltr"
-                  value=""
-                  placeholder="${
-    secretInputPlaceholder(settings.notificationPushPlusToken, messages)
-  }"
-                  autocomplete="off"
-                >
-                <a
-                  class="button-link external-settings-link"
-                  href="https://www.pushplus.plus/uc-dev.html"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span>${escapeHtml(messages.configure)}</span>
-                  ${externalLinkIcon()}
-                </a>
-              </div>
+              ${
+    secretInputEditor(
+      "notificationPushPlusSecret",
+      settings.notificationPushPlusToken,
+      messages,
+    )
+  }
             </dd>
           </div>
           <div
@@ -533,33 +611,23 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="wxPusher"
           >
-            ${settingLabel("key", messages.notificationWxPusherSpt)}
+            ${
+    secretSettingLabel(
+      "key",
+      messages.notificationWxPusherSpt,
+      "https://wxpusher.zjiecode.com/docs/spt.html",
+      messages,
+    )
+  }
             <dd>
-              <div class="input-action-row">
-                <input
-                  type="password"
-                  name="notificationWxPusherSpt"
-                  dir="ltr"
-                  value=""
-                  placeholder="${
-    secretInputPlaceholder(
+              ${
+    secretInputEditor(
+      "notificationWxPusherSpt",
       settings.notificationWxPusherSpt,
       messages,
       "SPT_xxx",
     )
-  }"
-                  autocomplete="off"
-                >
-                <a
-                  class="button-link external-settings-link"
-                  href="https://wxpusher.zjiecode.com/docs/spt.html"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span>${escapeHtml(messages.configure)}</span>
-                  ${externalLinkIcon()}
-                </a>
-              </div>
+  }
             </dd>
           </div>
           <div
@@ -575,9 +643,7 @@ function renderNotificationSection(settings: AppSettings): string {
                 name="notificationWebhookUrl"
                 dir="ltr"
                 value=""
-                placeholder="${
-    secretInputPlaceholder(settings.notificationWebhookUrl, messages, "https://")
-  }"
+                placeholder="${secretInputPlaceholder(settings.notificationWebhookUrl, "https://")}"
                 autocomplete="off"
               >
             </dd>
@@ -662,9 +728,7 @@ function renderNotificationSection(settings: AppSettings): string {
                 name="notificationEmailApiToken"
                 dir="ltr"
                 value=""
-                placeholder="${
-    secretInputPlaceholder(settings.notificationEmailApiToken, messages)
-  }"
+                placeholder="${secretInputPlaceholder(settings.notificationEmailApiToken)}"
                 autocomplete="off"
               >
             </dd>
@@ -746,7 +810,7 @@ function renderNotificationSection(settings: AppSettings): string {
                 name="notificationSmtpPassword"
                 dir="ltr"
                 value=""
-                placeholder="${secretInputPlaceholder(settings.notificationSmtpPassword, messages)}"
+                placeholder="${secretInputPlaceholder(settings.notificationSmtpPassword)}"
                 autocomplete="off"
               >
             </dd>
@@ -1327,16 +1391,14 @@ function renderKeywordSummary(keywords: string[]): string {
  * 生成敏感配置输入框的占位提示。
  *
  * @param value 当前已保存的敏感配置。
- * @param messages 当前语言文案。
  * @param emptyPlaceholder 未配置时使用的占位提示。
  * @return 已转义的占位提示。
  */
 function secretInputPlaceholder(
   value: string,
-  messages: ReturnType<typeof getMessages>,
   emptyPlaceholder = "",
 ): string {
-  return escapeHtml(value.trim() ? messages.configuredSecretPlaceholder : emptyPlaceholder);
+  return escapeHtml(value.trim() ? "" : emptyPlaceholder);
 }
 
 /**
