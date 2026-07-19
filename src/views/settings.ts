@@ -11,6 +11,7 @@ import {
 } from "../notification_services.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
+import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
 
 /**
  * 设置页可配置的关键词匹配位置列表。
@@ -81,7 +82,7 @@ export function renderSettings(options: {
         <h2 id="global-settings-heading">${escapeHtml(messages.globalSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.theme)}</dt>
+            ${settingLabel("palette", messages.theme)}
             <dd>
               <input
                 class="theme-color-input"
@@ -94,7 +95,7 @@ export function renderSettings(options: {
             </dd>
           </div>
           <div>
-            <dt>${escapeHtml(messages.darkMode)}</dt>
+            ${settingLabel("dark_mode", messages.darkMode)}
             <dd>
               <label class="switch-control">
                 <input
@@ -107,7 +108,7 @@ export function renderSettings(options: {
             </dd>
           </div>
           <div>
-            <dt>${escapeHtml(messages.locale)}</dt>
+            ${settingLabel("translate", messages.locale)}
             <dd>
               <select name="locale">
                 ${
@@ -135,6 +136,19 @@ export function renderSettings(options: {
     themeColor: options.settings.themeColor,
     title: messages.appName,
   });
+}
+
+/**
+ * 渲染带图标的设置项标签。
+ *
+ * @param icon Material Symbols 图标名称。
+ * @param label 设置项标签文本。
+ * @return dt 标签 HTML。
+ */
+function settingLabel(icon: MaterialSymbolName, label: string): string {
+  return `<dt class="settings-label-with-icon">${
+    materialSymbolIcon(icon, "settings-label-icon")
+  }<span>${escapeHtml(label)}</span></dt>`;
 }
 
 /**
@@ -182,7 +196,7 @@ function renderAccountSection(
         <h2 id="account-settings-heading">${escapeHtml(messages.accountSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.accountUsername)}</dt>
+            ${settingLabel("person", messages.accountUsername)}
             <dd>
               <input type="hidden" name="accountAction" value="" data-account-action-input>
               <div class="account-username-row">
@@ -213,7 +227,7 @@ function renderAccountSection(
             data-account-current-password-row
             ${currentPasswordHidden}
           >
-            <dt>${escapeHtml(messages.accountCurrentPassword)}</dt>
+            ${settingLabel("lock", messages.accountCurrentPassword)}
             <dd>
               <div class="input-action-row account-password-check-row">
                 <input
@@ -235,7 +249,7 @@ function renderAccountSection(
             data-account-new-password-row
             ${passwordFieldsHidden}
           >
-            <dt>${escapeHtml(messages.accountNewPassword)}</dt>
+            ${settingLabel("password", messages.accountNewPassword)}
             <dd>
               <div class="account-single-input-row">
                 <input
@@ -255,7 +269,7 @@ function renderAccountSection(
             data-account-new-password-row
             ${passwordFieldsHidden}
           >
-            <dt>${escapeHtml(messages.accountConfirmPassword)}</dt>
+            ${settingLabel("check_circle", messages.accountConfirmPassword)}
             <dd>
               <div class="account-single-input-row">
                 <input
@@ -396,7 +410,7 @@ function renderNotificationSection(settings: AppSettings): string {
         <h2 id="notification-settings-heading">${escapeHtml(messages.notificationSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.notificationProvider)}</dt>
+            ${settingLabel("notifications", messages.notificationProvider)}
             <dd>
               <div class="notification-provider-row">
                 <select name="notificationProvider" data-notification-provider-select>
@@ -440,7 +454,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="webhook-service"
             data-notification-provider-field="webhook"
           >
-            <dt>${escapeHtml(messages.notificationWebhookService)}</dt>
+            ${settingLabel("webhook", messages.notificationWebhookService)}
             <dd>
               <select name="notificationWebhookService" data-notification-webhook-service-select>
                 ${
@@ -457,7 +471,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="serverChan"
           >
-            <dt>${escapeHtml(messages.notificationServerChanSendKey)}</dt>
+            ${settingLabel("key", messages.notificationServerChanSendKey)}
             <dd>
               <div class="input-action-row">
                 <input
@@ -488,7 +502,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="pushPlus"
           >
-            <dt>${escapeHtml(messages.notificationPushPlusToken)}</dt>
+            ${settingLabel("key", messages.notificationPushPlusToken)}
             <dd>
               <div class="input-action-row">
                 <input
@@ -519,7 +533,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="wxPusher"
           >
-            <dt>${escapeHtml(messages.notificationWxPusherSpt)}</dt>
+            ${settingLabel("key", messages.notificationWxPusherSpt)}
             <dd>
               <div class="input-action-row">
                 <input
@@ -554,7 +568,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="custom"
           >
-            <dt>${escapeHtml(messages.notificationWebhookUrl)}</dt>
+            ${settingLabel("link", messages.notificationWebhookUrl)}
             <dd>
               <input
                 type="password"
@@ -573,7 +587,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="email-service"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationEmailService)}</dt>
+            ${settingLabel("mail", messages.notificationEmailService)}
             <dd>
               <select name="notificationEmailService" data-notification-email-service-select>
                 ${
@@ -589,7 +603,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="email-address"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationEmailAddress)}</dt>
+            ${settingLabel("alternate_email", messages.notificationEmailAddress)}
             <dd>
               <input
                 type="email"
@@ -605,7 +619,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="email-from"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationEmailFrom)}</dt>
+            ${settingLabel("mail", messages.notificationEmailFrom)}
             <dd>
               <input
                 type="email"
@@ -623,7 +637,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="email"
             data-notification-email-service-field="api"
           >
-            <dt>${escapeHtml(messages.notificationEmailApiUrl)}</dt>
+            ${settingLabel("api", messages.notificationEmailApiUrl)}
             <dd>
               <input
                 type="url"
@@ -641,7 +655,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="email"
             data-notification-email-service-field="api"
           >
-            <dt>${escapeHtml(messages.notificationEmailApiToken)}</dt>
+            ${settingLabel("key", messages.notificationEmailApiToken)}
             <dd>
               <input
                 type="password"
@@ -660,7 +674,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-host"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpHost)}</dt>
+            ${settingLabel("dns", messages.notificationSmtpHost)}
             <dd>
               <input
                 name="notificationSmtpHost"
@@ -676,7 +690,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-port"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpPort)}</dt>
+            ${settingLabel("numbers", messages.notificationSmtpPort)}
             <dd>
               <input
                 type="number"
@@ -694,7 +708,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-secure"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpSecure)}</dt>
+            ${settingLabel("lock", messages.notificationSmtpSecure)}
             <dd>
               <label class="switch-control">
                 <input
@@ -710,7 +724,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-username"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpUsername)}</dt>
+            ${settingLabel("badge", messages.notificationSmtpUsername)}
             <dd>
               <input
                 name="notificationSmtpUsername"
@@ -725,7 +739,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-password"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpPassword)}</dt>
+            ${settingLabel("password", messages.notificationSmtpPassword)}
             <dd>
               <input
                 type="password"
@@ -761,7 +775,7 @@ function renderPollingSection(settings: AppSettings): string {
         <h2 id="polling-settings-heading">${escapeHtml(messages.pollingSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.pollEnabled)}</dt>
+            ${settingLabel("toggle_on", messages.pollEnabled)}
             <dd>
               <label class="switch-control">
                 <input
@@ -774,7 +788,7 @@ function renderPollingSection(settings: AppSettings): string {
             </dd>
           </div>
           <div class="polling-option-row" data-polling-field="interval">
-            <dt>${escapeHtml(messages.pollInterval)}</dt>
+            ${settingLabel("timer", messages.pollInterval)}
             <dd>
               <div class="poll-interval-row">
                 <div class="poll-interval-control">
@@ -805,7 +819,7 @@ function renderPollingSection(settings: AppSettings): string {
             </dd>
           </div>
           <div class="polling-option-row" data-polling-field="post-limit">
-            <dt>${escapeHtml(messages.pollPostLimit)}</dt>
+            ${settingLabel("format_list_numbered", messages.pollPostLimit)}
             <dd>
               <select name="pollPostLimit">
                 ${
@@ -817,7 +831,7 @@ function renderPollingSection(settings: AppSettings): string {
             </dd>
           </div>
           <div class="polling-option-row" data-polling-field="sort">
-            <dt>${escapeHtml(messages.pollSort)}</dt>
+            ${settingLabel("sort", messages.pollSort)}
             <dd>
               <select name="pollSort">
                 ${option("publishTime", settings.polling.sort, messages.pollSortPublishTime)}
@@ -861,7 +875,7 @@ function renderTopicSection(settings: AppSettings): string {
       data-topic-editor
       data-delete-message="${escapeHtml(messages.selectTopicToDelete)}"
     >
-      <dt>${escapeHtml(messages.topic)}</dt>
+      ${settingLabel("topic", messages.topic)}
       <dd class="dropdown-summary-cell">
         <input type="hidden" name="activeKeywordTarget" value="${
     escapeHtml(settings.activeKeywordTarget)
@@ -920,7 +934,7 @@ function renderKeywordSection(settings: AppSettings): string {
       data-keyword-editor
       data-delete-message="${escapeHtml(messages.selectKeywordToDelete)}"
     >
-      <dt>${escapeHtml(messages.keywords)}</dt>
+      ${settingLabel("sell", messages.keywords)}
       <dd class="dropdown-summary-cell">
         <span class="keyword-summary" data-keyword-summary>
           ${renderKeywordSummary(summaryKeywords)}

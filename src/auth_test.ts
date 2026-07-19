@@ -47,6 +47,9 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
   assertEquals(html.includes("Confirm password"), false);
   assertEquals(html.includes('aria-label="Authentication navigation"'), true);
   assertEquals(html.includes('class="auth-language-menu"'), true);
+  assertEquals(html.includes('class="auth-language-icon"'), true);
+  assertEquals(html.includes('viewBox="0 -960 960 960"'), true);
+  assertEquals(html.includes('d="m476-80'), true);
   assertEquals(html.includes("<summary"), true);
   assertEquals(html.includes(">语言/Language</span>"), true);
   assertEquals(

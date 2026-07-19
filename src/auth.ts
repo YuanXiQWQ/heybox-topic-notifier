@@ -25,6 +25,7 @@ import {
   rateLimitExceededResponseFor,
 } from "./security/rate_limit.ts";
 import type { createKvStorage } from "./storage/kv.ts";
+import { languageTextIcon } from "./views/icons.ts";
 
 /**
  * 认证模块使用的存储类型。
@@ -767,7 +768,7 @@ function renderAuthPage(options: {
           <summary class="auth-language-button" title="${
     escapeHtml(options.messages.authLanguage)
   }">
-            ${renderLanguageIcon()}
+            ${languageTextIcon("auth-language-icon")}
             <span>${escapeHtml(languageSwitcherLabel)}</span>
           </summary>
           <div class="auth-language-options" role="menu">
@@ -892,20 +893,6 @@ function authPagePath(
     }
   }
   return `${path}?${searchParams.toString()}`;
-}
-
-/**
- * 渲染语言切换按钮图标。
- *
- * @return 语言图标 SVG。
- */
-function renderLanguageIcon(): string {
-  return `<svg class="auth-language-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"></circle>
-            <path d="M3 12h18"></path>
-            <path d="M12 3a13.5 13.5 0 0 1 0 18"></path>
-            <path d="M12 3a13.5 13.5 0 0 0 0 18"></path>
-          </svg>`;
 }
 
 /**

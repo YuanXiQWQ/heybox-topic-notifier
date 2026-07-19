@@ -153,6 +153,20 @@ Deno.test("settings and history pages keep the app tab title", () => {
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 
+Deno.test("renderSettings marks navigation and locale controls with icons", () => {
+  const html = renderSettings({ csrfToken: testCsrfToken, settings: settings() });
+
+  assertIncludes(html, `<a href="/"><svg class="nav-icon"`);
+  assertIncludes(html, `<a href="/settings"><svg class="nav-icon"`);
+  assertIncludes(html, `<a href="/history"><svg class="nav-icon"`);
+  assertIncludes(html, `<button class="nav-link-button" type="submit"><svg class="nav-icon"`);
+  assertIncludes(html, `class="settings-label-with-icon"`);
+  assertIncludes(html, `class="settings-label-icon"`);
+  assertIncludes(html, `viewBox="0 -960 960 960"`);
+  assertIncludes(html, `d="m476-80`);
+  assertNotIncludes(html, `<dt>`);
+});
+
 Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => {
   const appSettings: AppSettings = {
     ...settings(),
