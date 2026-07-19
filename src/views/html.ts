@@ -2,8 +2,9 @@
  * @file 本文件提供基础 HTML 转义和页面布局渲染工具。
  */
 import { getMessages } from "../locales/index.ts";
-import type { Locale } from "../locales/types.ts";
+import { isRtlLocale, type Locale } from "../locales/types.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
+import { dashboardIcon, historyIcon, logoutIcon, settingsIcon } from "./icons.ts";
 
 /**
  * 转义 HTML 文本。
@@ -35,10 +36,12 @@ export function renderLayout(options: {
   title: string;
 }): string {
   const messages = getMessages(options.locale);
+  const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
 
   return `<!doctype html>
 <html
   lang="${options.locale}"
+  dir="${direction}"
   data-color-mode="${options.darkMode ? "dark" : "light"}"
   style="--theme-color: ${escapeHtml(options.themeColor)}"
 >
@@ -53,16 +56,41 @@ export function renderLayout(options: {
     <header class="topbar">
       <a class="brand" href="/">${escapeHtml(messages.appName)}</a>
       <nav class="primary-nav" aria-label="Primary">
-        <a href="/">${escapeHtml(messages.navDashboard)}</a>
-        <a href="/settings">${escapeHtml(messages.navSettings)}</a>
-        <a href="/history">${escapeHtml(messages.navHistory)}</a>
-        <form class="nav-logout" method="post" action="/logout">
+        <form class="nav-item" method="get" action="/">
+          <button class="nav-link-button" type="submit">${
+    renderNavItem(dashboardIcon("nav-icon"), messages.navDashboard)
+  }</button>
+        </form>
+        <form class="nav-item" method="get" action="/settings">
+          <button class="nav-link-button" type="submit">${
+    renderNavItem(settingsIcon("nav-icon"), messages.navSettings)
+  }</button>
+        </form>
+        <form class="nav-item" method="get" action="/history">
+          <button class="nav-link-button" type="submit">${
+    renderNavItem(historyIcon("nav-icon"), messages.navHistory)
+  }</button>
+        </form>
+        <form class="nav-item" method="post" action="/logout">
           ${csrfHiddenInput(options.csrfToken)}
-          <button class="nav-link-button" type="submit">${escapeHtml(messages.navLogout)}</button>
+          <button class="nav-link-button" type="submit">${
+    renderNavItem(logoutIcon("nav-icon"), messages.navLogout)
+  }</button>
         </form>
       </nav>
     </header>
     <main class="shell">${options.body}</main>
   </body>
 </html>`;
+}
+
+/**
+ * 渲染导航项的图标和文本。
+ *
+ * @param icon 图标 SVG。
+ * @param label 导航项文本。
+ * @return 导航项内容 HTML。
+ */
+function renderNavItem(icon: string, label: string): string {
+  return `${icon}<span class="nav-label">${escapeHtml(label)}</span>`;
 }

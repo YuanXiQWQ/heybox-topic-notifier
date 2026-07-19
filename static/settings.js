@@ -53,6 +53,14 @@ const csrfFieldName = "csrfToken";
  * CSRF 请求头名称。
  */
 const csrfHeaderName = "x-csrf-token";
+/**
+ * 关键词规则可匹配的位置列表。
+ */
+const keywordMatchLocations = ["title", "body", "comments", "replies"];
+/**
+ * 当前正在拖拽的规则行状态。
+ */
+let activeRuleDrag;
 
 /**
  * 初始化设置页所有编辑器。
@@ -69,7 +77,9 @@ function initSettingsEditors() {
   initDropdown(keywordEditor, "keywords");
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
+  initRuleDragging(topicEditor, keywordEditor);
   initNotificationSettings();
+  initSecretEditors();
   initPollingSettings();
   initAccountSettings();
   initThemePicker();
@@ -270,6 +280,120 @@ function initNotificationSettings() {
   });
 
   applyNotificationFields(visibleFields, false, ++transitionToken);
+}
+
+/**
+ * 初始化敏感令牌输入框的解锁和自动锁定交互。
+ */
+function initSecretEditors() {
+  document.querySelectorAll("[data-secret-editor]").forEach((editor) => {
+    const input = editor.querySelector("[data-secret-display-input]");
+    const button = editor.querySelector("[data-secret-edit-button]");
+    if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    button.addEventListener("click", () => {
+      unlockSecretEditor(input);
+    });
+
+    input.addEventListener("blur", () => {
+      lockSecretEditorAfterEdit(input);
+    });
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        input.blur();
+      }
+    });
+  });
+}
+
+/**
+ * 解锁敏感令牌输入框。
+ *
+ * @param {HTMLInputElement} input 敏感令牌展示输入框。
+ */
+function unlockSecretEditor(input) {
+  input.readOnly = false;
+  input.type = "password";
+  input.value = "";
+  input.focus();
+}
+
+/**
+ * 在输入框失焦后锁定敏感令牌。
+ *
+ * @param {HTMLInputElement} input 敏感令牌展示输入框。
+ */
+function lockSecretEditorAfterEdit(input) {
+  const editor = input.closest("[data-secret-editor]");
+  const hiddenInput = editor?.querySelector("[data-secret-hidden-input]");
+  if (!(hiddenInput instanceof HTMLInputElement)) {
+    lockSecretDisplay(input, input.value.length);
+    return;
+  }
+
+  const submittedValue = input.value;
+  if (submittedValue.length > 0) {
+    hiddenInput.value = submittedValue;
+    input.dataset.secretConfigured = "true";
+    lockSecretDisplay(input, submittedValue.length);
+    scheduleAutoSave();
+    return;
+  }
+
+  hiddenInput.value = "";
+  lockSecretDisplay(
+    input,
+    input.dataset.secretConfigured === "true" ? Number(input.dataset.secretMaskLength) : 0,
+  );
+}
+
+/**
+ * 锁定敏感令牌展示输入框并显示遮罩。
+ *
+ * @param {HTMLInputElement} input 敏感令牌展示输入框。
+ * @param {number} maskLength 遮罩点数量。
+ */
+function lockSecretDisplay(input, maskLength) {
+  const normalizedLength = normalizedSecretMaskLength(maskLength);
+  input.type = "text";
+  input.value = secretMask(normalizedLength);
+  input.dataset.secretMaskLength = String(normalizedLength);
+  input.readOnly = true;
+}
+
+/**
+ * 生成指定长度的令牌遮罩。
+ *
+ * @param {number} length 遮罩长度。
+ * @return {string} 遮罩文本。
+ */
+function secretMask(length) {
+  return "•".repeat(normalizedSecretMaskLength(length));
+}
+
+/**
+ * 规范化令牌遮罩长度。
+ *
+ * @param {number} length 原始遮罩长度。
+ * @return {number} 可用于展示的遮罩长度。
+ */
+function normalizedSecretMaskLength(length) {
+  return Number.isFinite(length) ? Math.max(0, Math.floor(length)) : 0;
+}
+
+/**
+ * 清除已成功提交的令牌明文。
+ */
+function clearSecretSubmissionValues() {
+  document.querySelectorAll("[data-secret-hidden-input]").forEach((input) => {
+    if (input instanceof HTMLInputElement) {
+      input.value = "";
+    }
+  });
 }
 
 /**
@@ -951,10 +1075,419 @@ function initKeywordEditor(keywordEditor) {
     }
   });
 
-  keywordEditor.addEventListener("input", () => {
+  keywordEditor.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && isKeywordTextInput(target)) {
+      syncKeywordOptionsFromInput(target);
+    }
+
     updateKeywordSummary(keywordEditor);
     scheduleAutoSave();
   });
+}
+
+/**
+ * 初始化话题和关键词规则行拖拽交互。
+ *
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ */
+function initRuleDragging(topicEditor, keywordEditor) {
+  topicEditor.addEventListener("pointerdown", (event) => {
+    beginRuleDrag(event, "topic", topicEditor, keywordEditor);
+  });
+
+  keywordEditor.addEventListener("pointerdown", (event) => {
+    beginRuleDrag(event, "keyword", topicEditor, keywordEditor);
+  });
+}
+
+/**
+ * 开始跟踪规则行拖拽。
+ *
+ * @param {PointerEvent} event 指针按下事件。
+ * @param {"topic"|"keyword"} kind 拖拽行类型。
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ */
+function beginRuleDrag(event, kind, topicEditor, keywordEditor) {
+  const handle = ruleDragHandleFromEvent(event);
+  if (!handle || activeRuleDrag || event.button !== 0) {
+    return;
+  }
+
+  const row = handle.closest(kind === "topic" ? "[data-topic-row]" : "[data-keyword-row]");
+  if (!(row instanceof HTMLElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  activeRuleDrag = {
+    dropTargetTopicRow: undefined,
+    ghost: undefined,
+    handle,
+    keywordEditor,
+    kind,
+    moved: false,
+    pointerId: event.pointerId,
+    row,
+    started: false,
+    startX: event.clientX,
+    startY: event.clientY,
+    topicEditor,
+  };
+
+  document.addEventListener("pointermove", updateActiveRuleDrag);
+  document.addEventListener("pointerup", finishActiveRuleDrag);
+  document.addEventListener("pointercancel", finishActiveRuleDrag);
+  handle.setPointerCapture?.(event.pointerId);
+}
+
+/**
+ * 从事件中解析规则行拖拽手柄。
+ *
+ * @param {Event} event DOM 事件。
+ * @return {HTMLButtonElement|undefined} 拖拽手柄按钮。
+ */
+function ruleDragHandleFromEvent(event) {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return undefined;
+  }
+
+  const handle = target.closest("[data-rule-drag-handle]");
+  return handle instanceof HTMLButtonElement ? handle : undefined;
+}
+
+/**
+ * 更新当前拖拽行的位置和目标。
+ *
+ * @param {PointerEvent} event 指针移动事件。
+ */
+function updateActiveRuleDrag(event) {
+  const state = activeRuleDrag;
+  if (!state || event.pointerId !== state.pointerId) {
+    return;
+  }
+
+  event.preventDefault();
+  if (
+    !state.started && Math.hypot(event.clientX - state.startX, event.clientY - state.startY) < 4
+  ) {
+    return;
+  }
+
+  if (!state.started) {
+    startRuleDragPreview(state);
+  }
+
+  updateRuleDragGhost(state, event);
+  updateRuleDragTarget(state, event);
+}
+
+/**
+ * 完成当前规则行拖拽。
+ *
+ * @param {PointerEvent} event 指针结束事件。
+ */
+function finishActiveRuleDrag(event) {
+  const state = activeRuleDrag;
+  if (!state || event.pointerId !== state.pointerId) {
+    return;
+  }
+
+  activeRuleDrag = undefined;
+  if (state.started) {
+    completeRuleDrag(state);
+  }
+  cleanupRuleDrag(state);
+}
+
+/**
+ * 创建拖拽预览并标记原始行。
+ *
+ * @param {Object} state 拖拽状态。
+ */
+function startRuleDragPreview(state) {
+  state.started = true;
+  state.row.classList.add("is-rule-dragging");
+
+  const ghost = document.createElement("div");
+  ghost.className = "rule-drag-ghost";
+  ghost.textContent = ruleDragPreviewText(state);
+  document.body.append(ghost);
+  state.ghost = ghost;
+}
+
+/**
+ * 生成拖拽预览文本。
+ *
+ * @param {Object} state 拖拽状态。
+ * @return {string} 拖拽预览文本。
+ */
+function ruleDragPreviewText(state) {
+  if (state.kind === "topic") {
+    const id = state.row.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
+    const note = state.row.querySelector("[data-topic-note-input]")?.value.trim() ?? "";
+    return [note, id].filter(Boolean).join(" ") || state.handle.title;
+  }
+
+  const keyword = state.row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+  return keyword || state.handle.title;
+}
+
+/**
+ * 更新拖拽预览的位置。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {PointerEvent} event 指针移动事件。
+ */
+function updateRuleDragGhost(state, event) {
+  if (!(state.ghost instanceof HTMLElement)) {
+    return;
+  }
+
+  state.ghost.style.left = `${event.clientX}px`;
+  state.ghost.style.top = `${event.clientY}px`;
+}
+
+/**
+ * 根据当前指针位置更新拖拽目标。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {PointerEvent} event 指针移动事件。
+ */
+function updateRuleDragTarget(state, event) {
+  clearRuleDragIndicators();
+
+  const target = document.elementFromPoint(event.clientX, event.clientY);
+  if (!(target instanceof Element)) {
+    state.dropTargetTopicRow = undefined;
+    return;
+  }
+
+  if (state.kind === "topic") {
+    updateTopicDragTarget(state, target, event.clientY);
+    return;
+  }
+
+  updateKeywordDragTarget(state, target, event.clientY);
+}
+
+/**
+ * 更新话题行拖拽目标。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {Element} target 指针命中的元素。
+ * @param {number} clientY 指针垂直位置。
+ */
+function updateTopicDragTarget(state, target, clientY) {
+  const targetRow = target.closest("[data-topic-row]");
+  if (
+    !(targetRow instanceof HTMLElement) ||
+    targetRow === state.row ||
+    !state.topicEditor.contains(targetRow)
+  ) {
+    return;
+  }
+
+  moveDraggedRowBesideTarget(state, targetRow, clientY);
+}
+
+/**
+ * 更新关键词行拖拽目标。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {Element} target 指针命中的元素。
+ * @param {number} clientY 指针垂直位置。
+ */
+function updateKeywordDragTarget(state, target, clientY) {
+  const keywordRow = target.closest("[data-keyword-row]");
+  if (
+    keywordRow instanceof HTMLElement &&
+    keywordRow !== state.row &&
+    state.keywordEditor.contains(keywordRow)
+  ) {
+    state.dropTargetTopicRow = undefined;
+    moveDraggedRowBesideTarget(state, keywordRow, clientY);
+    return;
+  }
+
+  const topicRow = target.closest("[data-topic-row]");
+  if (
+    topicRow instanceof HTMLElement &&
+    state.topicEditor.contains(topicRow) &&
+    topicRowCanReceiveKeyword(state.topicEditor, topicRow)
+  ) {
+    topicRow.classList.add("is-keyword-drop-target");
+    state.dropTargetTopicRow = topicRow;
+    return;
+  }
+
+  state.dropTargetTopicRow = undefined;
+}
+
+/**
+ * 将正在拖拽的行移动到目标行前后。
+ *
+ * @param {Object} state 拖拽状态。
+ * @param {HTMLElement} targetRow 目标行。
+ * @param {number} clientY 指针垂直位置。
+ */
+function moveDraggedRowBesideTarget(state, targetRow, clientY) {
+  const rect = targetRow.getBoundingClientRect();
+  const insertBefore = clientY < rect.top + rect.height / 2;
+  targetRow.classList.add(insertBefore ? "is-rule-drag-over-before" : "is-rule-drag-over-after");
+
+  if (insertBefore) {
+    targetRow.before(state.row);
+  } else {
+    targetRow.after(state.row);
+  }
+  state.moved = true;
+}
+
+/**
+ * 完成拖拽后的数据同步。
+ *
+ * @param {Object} state 拖拽状态。
+ */
+function completeRuleDrag(state) {
+  if (state.kind === "topic") {
+    if (state.moved) {
+      reindexTopicRows(state.topicEditor);
+      updateActiveTopicSummary(state.topicEditor);
+      scheduleAutoSave();
+    }
+    return;
+  }
+
+  if (
+    state.dropTargetTopicRow instanceof HTMLElement &&
+    moveKeywordRowToTopic(
+      state.topicEditor,
+      state.keywordEditor,
+      state.row,
+      state.dropTargetTopicRow,
+    )
+  ) {
+    scheduleAutoSave();
+    return;
+  }
+
+  if (state.moved) {
+    reindexKeywordRows(state.keywordEditor);
+    updateKeywordSummary(state.keywordEditor);
+    scheduleAutoSave();
+  }
+}
+
+/**
+ * 清理拖拽状态和临时样式。
+ *
+ * @param {Object} state 拖拽状态。
+ */
+function cleanupRuleDrag(state) {
+  document.removeEventListener("pointermove", updateActiveRuleDrag);
+  document.removeEventListener("pointerup", finishActiveRuleDrag);
+  document.removeEventListener("pointercancel", finishActiveRuleDrag);
+  state.handle.releasePointerCapture?.(state.pointerId);
+  state.row.classList.remove("is-rule-dragging");
+  state.ghost?.remove();
+  clearRuleDragIndicators();
+}
+
+/**
+ * 清除规则行拖拽落点样式。
+ */
+function clearRuleDragIndicators() {
+  document
+    .querySelectorAll(
+      ".is-rule-drag-over-before, .is-rule-drag-over-after, .is-keyword-drop-target",
+    )
+    .forEach((row) => {
+      row.classList.remove(
+        "is-rule-drag-over-before",
+        "is-rule-drag-over-after",
+        "is-keyword-drop-target",
+      );
+    });
+}
+
+/**
+ * 判断话题行是否可接收当前关键词。
+ *
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} topicRow 目标话题行。
+ * @return {boolean} 可以接收关键词时返回 true。
+ */
+function topicRowCanReceiveKeyword(topicEditor, topicRow) {
+  const topicId = topicRow.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
+  if (!topicId) {
+    return false;
+  }
+
+  const activeTarget = activeKeywordTargetInput().value || "common";
+  return activeTarget === "common" || findActiveTopicRow(topicEditor, activeTarget) !== topicRow;
+}
+
+/**
+ * 将关键词行移动到目标话题。
+ *
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ * @param {HTMLElement} keywordRow 需要移动的关键词行。
+ * @param {HTMLElement} topicRow 目标话题行。
+ * @return {boolean} 实际移动成功时返回 true。
+ */
+function moveKeywordRowToTopic(topicEditor, keywordEditor, keywordRow, topicRow) {
+  const rule = keywordRuleFromRow(keywordRow);
+  if (!keywordRuleIsPersistable(rule)) {
+    return false;
+  }
+
+  keywordRow.remove();
+  ensureAtLeastOneKeywordRow(keywordEditor);
+  reindexKeywordRows(keywordEditor);
+  persistCurrentKeywordRows(topicEditor, keywordEditor);
+
+  const targetRules = parseRules(topicKeywordRulesValue(topicRow));
+  targetRules.push(rule);
+  setTopicKeywordRules(topicRow, JSON.stringify(targetRules));
+  updateKeywordSummary(keywordEditor);
+  updateActiveTopicSummary(topicEditor);
+  return true;
+}
+
+/**
+ * 从关键词行读取规则对象。
+ *
+ * @param {HTMLElement} row 关键词规则行元素。
+ * @return {{caseSensitive: boolean, keyword: string, locations: string[], useRegex: boolean}} 关键词规则。
+ */
+function keywordRuleFromRow(row) {
+  const keyword = row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+  const locations = Array.from(row.querySelectorAll("[name*='_location_']"))
+    .filter((input) => input.checked)
+    .map((input) => input.name.match(/_location_(.+)$/)?.[1])
+    .filter(Boolean);
+
+  return {
+    caseSensitive: keywordOptionEnabled(row, "caseSensitive"),
+    keyword,
+    locations,
+    useRegex: keywordOptionEnabled(row, "useRegex"),
+  };
+}
+
+/**
+ * 判断关键词规则是否可持久化。
+ *
+ * @param {{keyword: string, locations: string[]}} rule 关键词规则。
+ * @return {boolean} 关键词和匹配位置都存在时返回 true。
+ */
+function keywordRuleIsPersistable(rule) {
+  return rule.keyword.length > 0 && rule.locations.length > 0;
 }
 
 /**
@@ -1146,7 +1679,8 @@ async function saveSettingsNow() {
       return false;
     }
 
-    lastSavedSignature = signature;
+    clearSecretSubmissionValues();
+    lastSavedSignature = settingsSignature();
     setAutoSaveStatus("saved");
     if (reloadAfterSave) {
       location.reload();
@@ -1298,9 +1832,10 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   const appName = errorLink.dataset.errorAppName || document.title || "Heybox Topic Notifier";
   const appOrigin = globalThis.location?.origin || "";
   const colorMode = errorLink.dataset.errorDarkMode === "true" ? "dark" : "light";
+  const direction = errorLink.dataset.errorDirection === "rtl" ? "rtl" : "ltr";
   const errorTitle = errorLink.dataset.errorTitle || "Error message";
   const locale = errorLink.dataset.errorLocale || document.documentElement.lang || "zh-CN";
-  const generatedAt = new Date().toLocaleString();
+  const generatedAt = new Date().toLocaleString(locale);
   const navDashboard = errorLink.dataset.errorNavDashboard || "Dashboard";
   const navHistory = errorLink.dataset.errorNavHistory || "History";
   const navSettings = errorLink.dataset.errorNavSettings || "Settings";
@@ -1311,6 +1846,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   return `<!doctype html>
 <html
   lang="${escapeHtml(locale)}"
+  dir="${escapeHtml(direction)}"
   data-color-mode="${escapeHtml(colorMode)}"
   style="--theme-color: ${escapeHtml(themeColor)}"
 >
@@ -1371,7 +1907,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
     <section class="settings-group" aria-label="${escapeHtml(errorTitle)}">
       <dl class="settings-list">
         <div class="error-detail-row">
-          <dd><pre class="error-detail-content">${escapeHtml(errorDetails)}</pre></dd>
+          <dd><pre class="error-detail-content" dir="ltr">${escapeHtml(errorDetails)}</pre></dd>
         </div>
       </dl>
       <div class="error-detail-actions">
@@ -1639,7 +2175,7 @@ function replaceKeywordRows(keywordEditor, rules) {
   const grid = keywordEditor.querySelector(".keyword-rule-grid");
   keywordEditor.querySelectorAll("[data-keyword-row]").forEach((row) => row.remove());
 
-  const normalizedRules = rules.length > 0 ? rules : [{ keyword: "", locations: [] }];
+  const normalizedRules = rules.length > 0 ? rules : [newKeywordRule()];
   normalizedRules.forEach((rule) => {
     grid.append(keywordRowFromRule(keywordEditor, rule));
   });
@@ -1666,6 +2202,15 @@ function keywordRowFromRule(keywordEditor, rule) {
     input.checked = Array.isArray(rule.locations) && rule.locations.includes(location);
   });
   return row;
+}
+
+/**
+ * 创建默认关键词规则。
+ *
+ * @return {{keyword: string, locations: string[]}} 默认关键词规则。
+ */
+function newKeywordRule() {
+  return { keyword: "", locations: keywordMatchLocations };
 }
 
 /**
@@ -1725,6 +2270,152 @@ function toggleKeywordOption(button) {
   const option = button.dataset.option;
   const isEnabled = button.getAttribute("aria-pressed") === "true";
   setKeywordOption(row, option, !isEnabled);
+  markKeywordOptionManual(row, option);
+}
+
+/**
+ * 根据关键词输入内容同步可自动识别的选项。
+ *
+ * @param {HTMLInputElement} input 关键词输入框。
+ */
+function syncKeywordOptionsFromInput(input) {
+  const row = input.closest("[data-keyword-row]");
+  if (!(row instanceof HTMLElement)) {
+    return;
+  }
+
+  const keyword = input.value.trim();
+  if (!keyword) {
+    clearKeywordOptionDetectionState(row, "caseSensitive");
+    clearKeywordOptionDetectionState(row, "useRegex");
+    return;
+  }
+
+  syncDetectedKeywordOption(row, "caseSensitive", hasMixedAsciiCase(keyword));
+  syncDetectedKeywordOption(row, "useRegex", looksLikeRegexPattern(keyword));
+}
+
+/**
+ * 同步单个自动识别选项。
+ *
+ * @param {HTMLElement} row 关键词规则行元素。
+ * @param {string} option 选项名称。
+ * @param {boolean} detected 是否识别到需要启用该选项。
+ */
+function syncDetectedKeywordOption(row, option, detected) {
+  const manualKey = keywordOptionStateDatasetKey("manual", option);
+  const autoKey = keywordOptionStateDatasetKey("auto", option);
+  if (!manualKey || !autoKey || row.dataset[manualKey] === "true") {
+    return;
+  }
+
+  if (detected) {
+    setKeywordOption(row, option, true);
+    row.dataset[autoKey] = "true";
+    return;
+  }
+
+  if (row.dataset[autoKey] === "true") {
+    setKeywordOption(row, option, false);
+    delete row.dataset[autoKey];
+  }
+}
+
+/**
+ * 标记关键词选项已由用户手动设置。
+ *
+ * @param {HTMLElement} row 关键词规则行元素。
+ * @param {string|undefined} option 选项名称。
+ */
+function markKeywordOptionManual(row, option) {
+  const manualKey = keywordOptionStateDatasetKey("manual", option);
+  const autoKey = keywordOptionStateDatasetKey("auto", option);
+  if (!manualKey || !autoKey) {
+    return;
+  }
+
+  row.dataset[manualKey] = "true";
+  delete row.dataset[autoKey];
+}
+
+/**
+ * 清理关键词选项的自动识别状态。
+ *
+ * @param {HTMLElement} row 关键词规则行元素。
+ * @param {string} option 选项名称。
+ */
+function clearKeywordOptionDetectionState(row, option) {
+  const manualKey = keywordOptionStateDatasetKey("manual", option);
+  const autoKey = keywordOptionStateDatasetKey("auto", option);
+  if (!manualKey || !autoKey) {
+    return;
+  }
+
+  if (row.dataset[autoKey] === "true") {
+    setKeywordOption(row, option, false);
+  }
+  delete row.dataset[manualKey];
+  delete row.dataset[autoKey];
+}
+
+/**
+ * 生成关键词选项检测状态的数据集键。
+ *
+ * @param {"manual"|"auto"} state 状态类型。
+ * @param {string|undefined} option 选项名称。
+ * @return {string} 数据集键，未知选项返回空字符串。
+ */
+function keywordOptionStateDatasetKey(state, option) {
+  if (option === "caseSensitive") {
+    return state === "manual"
+      ? "keywordOptionManualCaseSensitive"
+      : "keywordOptionAutoCaseSensitive";
+  }
+
+  if (option === "useRegex") {
+    return state === "manual" ? "keywordOptionManualUseRegex" : "keywordOptionAutoUseRegex";
+  }
+
+  return "";
+}
+
+/**
+ * 判断关键词输入框是否为关键词文本字段。
+ *
+ * @param {HTMLInputElement} input 输入框。
+ * @return {boolean} 是关键词文本字段时返回 true。
+ */
+function isKeywordTextInput(input) {
+  return input.name.startsWith("keyword_") &&
+    !input.name.includes("_location_") &&
+    !input.dataset.keywordOption;
+}
+
+/**
+ * 判断文本是否同时包含 ASCII 大写和小写字母。
+ *
+ * @param {string} value 待检测文本。
+ * @return {boolean} 同时存在大小写字母时返回 true。
+ */
+function hasMixedAsciiCase(value) {
+  return /[A-Z]/.test(value) && /[a-z]/.test(value);
+}
+
+/**
+ * 判断文本是否像常见正则表达式。
+ *
+ * @param {string} value 待检测文本。
+ * @return {boolean} 命中常见正则特征时返回 true。
+ */
+function looksLikeRegexPattern(value) {
+  return /(^|[^\\])(\.\*|\.\+|\.\?)/.test(value) ||
+    /\\[dDsSwWbB]/.test(value) ||
+    /\[[^\]]+\]/.test(value) ||
+    /\(\?/.test(value) ||
+    /\([^)]*\|[^)]*\)/.test(value) ||
+    /\{\d+,?\d*\}/.test(value) ||
+    /\{\d*,\d+\}/.test(value) ||
+    /(^|[^\\])[\^$|]/.test(value);
 }
 
 /**
@@ -1770,7 +2461,7 @@ function keywordOptionEnabled(row, option) {
 function insertKeywordRow(editor, actionButton) {
   const grid = editor.querySelector(".keyword-rule-grid");
   const row = actionButton.closest("[data-keyword-row]");
-  const newRow = keywordRowFromRule(editor, { keyword: "", locations: [] });
+  const newRow = keywordRowFromRule(editor, newKeywordRule());
 
   if (row) {
     row.after(newRow);
@@ -1824,7 +2515,7 @@ function ensureAtLeastOneKeywordRow(editor) {
   }
 
   const grid = editor.querySelector(".keyword-rule-grid");
-  grid.append(keywordRowFromRule(editor, { keyword: "", locations: [] }));
+  grid.append(keywordRowFromRule(editor, newKeywordRule()));
 }
 
 /**

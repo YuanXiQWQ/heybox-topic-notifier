@@ -3,6 +3,7 @@
  */
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
+import { isRtlLocale } from "../locales/types.ts";
 import type { AppSettings, KeywordRule, MatchLocation, TopicRule, UserAccount } from "../models.ts";
 import {
   notificationEmailServices,
@@ -10,11 +11,16 @@ import {
 } from "../notification_services.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
+import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
 
 /**
  * 设置页可配置的关键词匹配位置列表。
  */
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
+/**
+ * 已配置敏感项首次渲染时展示的固定遮罩长度。
+ */
+const configuredSecretMaskLength = 8;
 
 export type AccountStatus = {
   code:
@@ -80,7 +86,7 @@ export function renderSettings(options: {
         <h2 id="global-settings-heading">${escapeHtml(messages.globalSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.theme)}</dt>
+            ${settingLabel("palette", messages.theme)}
             <dd>
               <input
                 class="theme-color-input"
@@ -93,7 +99,7 @@ export function renderSettings(options: {
             </dd>
           </div>
           <div>
-            <dt>${escapeHtml(messages.darkMode)}</dt>
+            ${settingLabel("dark_mode", messages.darkMode)}
             <dd>
               <label class="switch-control">
                 <input
@@ -106,7 +112,7 @@ export function renderSettings(options: {
             </dd>
           </div>
           <div>
-            <dt>${escapeHtml(messages.locale)}</dt>
+            ${settingLabel("translate", messages.locale)}
             <dd>
               <select name="locale">
                 ${
@@ -123,7 +129,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
-    <script src="/static/settings.js?v=20260718-account-settings" defer></script>
+    <script src="/static/settings.js?v=20260719-settings-drag" defer></script>
   `;
 
   return renderLayout({
@@ -134,6 +140,107 @@ export function renderSettings(options: {
     themeColor: options.settings.themeColor,
     title: messages.appName,
   });
+}
+
+/**
+ * 渲染带图标的设置项标签。
+ *
+ * @param icon Material Symbols 图标名称。
+ * @param label 设置项标签文本。
+ * @return dt 标签 HTML。
+ */
+function settingLabel(icon: MaterialSymbolName, label: string): string {
+  return `<dt class="settings-label-with-icon">${
+    materialSymbolIcon(icon, "settings-label-icon")
+  }<span>${escapeHtml(label)}</span></dt>`;
+}
+
+/**
+ * 渲染带配置外链的敏感设置标签。
+ *
+ * @param icon Material Symbols 图标名称。
+ * @param label 设置项标签文本。
+ * @param href 配置外链地址。
+ * @param messages 当前语言文案。
+ * @return dt 标签 HTML。
+ */
+function secretSettingLabel(
+  icon: MaterialSymbolName,
+  label: string,
+  href: string,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const escapedLabel = escapeHtml(label);
+  const escapedTooltip = escapeHtml(secretConfigLinkText(messages, label));
+
+  return `<dt class="settings-label-with-icon">${
+    materialSymbolIcon(icon, "settings-label-icon")
+  }<span>${escapedLabel}</span><a
+    class="settings-label-external-link"
+    href="${escapeHtml(href)}"
+    target="_blank"
+    rel="noreferrer"
+    data-tooltip="${escapedTooltip}"
+    aria-label="${escapedTooltip}"
+  >${externalLinkIcon()}</a></dt>`;
+}
+
+/**
+ * 生成敏感设置配置外链文案。
+ *
+ * @param messages 当前语言文案。
+ * @param label 设置项标签文本。
+ * @return 外链提示文案。
+ */
+function secretConfigLinkText(messages: ReturnType<typeof getMessages>, label: string): string {
+  return messages.configureSecretLink.replace("{label}", label);
+}
+
+/**
+ * 渲染不会暴露已保存值的敏感配置输入行。
+ *
+ * @param name 提交字段名称。
+ * @param value 当前已保存值。
+ * @param messages 当前语言文案。
+ * @param emptyPlaceholder 未配置时使用的占位提示。
+ * @return 敏感配置输入行 HTML。
+ */
+function secretInputEditor(
+  name: string,
+  value: string,
+  messages: ReturnType<typeof getMessages>,
+  emptyPlaceholder = "",
+): string {
+  const maskLength = value.trim() ? configuredSecretMaskLength : 0;
+
+  return `<div class="input-action-row secret-input-row" data-secret-editor>
+    <input type="hidden" name="${escapeHtml(name)}" value="" data-secret-hidden-input>
+    <input
+      class="secret-display-input"
+      type="text"
+      dir="ltr"
+      value="${secretMaskValue(maskLength)}"
+      placeholder="${escapeHtml(value.trim() ? "" : emptyPlaceholder)}"
+      autocomplete="off"
+      readonly
+      data-secret-display-input
+      data-secret-configured="${value.trim() ? "true" : "false"}"
+      data-secret-mask-length="${maskLength}"
+    >
+    <button type="button" class="secondary" data-secret-edit-button>
+      ${escapeHtml(messages.editSecret)}
+    </button>
+  </div>`;
+}
+
+/**
+ * 生成指定长度的遮罩点。
+ *
+ * @param length 遮罩长度。
+ * @return 遮罩点字符串。
+ */
+function secretMaskValue(length: number): string {
+  return escapeHtml("•".repeat(Math.max(0, length)));
 }
 
 /**
@@ -181,12 +288,13 @@ function renderAccountSection(
         <h2 id="account-settings-heading">${escapeHtml(messages.accountSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.accountUsername)}</dt>
+            ${settingLabel("person", messages.accountUsername)}
             <dd>
               <input type="hidden" name="accountAction" value="" data-account-action-input>
               <div class="account-username-row">
                 <input
                   name="username"
+                  dir="ltr"
                   value="${escapedUsername}"
                   autocomplete="username"
                   data-account-username-input
@@ -211,12 +319,13 @@ function renderAccountSection(
             data-account-current-password-row
             ${currentPasswordHidden}
           >
-            <dt>${escapeHtml(messages.accountCurrentPassword)}</dt>
+            ${settingLabel("lock", messages.accountCurrentPassword)}
             <dd>
               <div class="input-action-row account-password-check-row">
                 <input
                   type="password"
                   name="currentPassword"
+                  dir="ltr"
                   autocomplete="current-password"
                   data-account-current-password-input
                 >
@@ -232,12 +341,13 @@ function renderAccountSection(
             data-account-new-password-row
             ${passwordFieldsHidden}
           >
-            <dt>${escapeHtml(messages.accountNewPassword)}</dt>
+            ${settingLabel("password", messages.accountNewPassword)}
             <dd>
               <div class="account-single-input-row">
                 <input
                   type="password"
                   name="newPassword"
+                  dir="ltr"
                   autocomplete="new-password"
                   data-account-unlocked-field
                   disabled
@@ -251,12 +361,13 @@ function renderAccountSection(
             data-account-new-password-row
             ${passwordFieldsHidden}
           >
-            <dt>${escapeHtml(messages.accountConfirmPassword)}</dt>
+            ${settingLabel("check_circle", messages.accountConfirmPassword)}
             <dd>
               <div class="account-single-input-row">
                 <input
                   type="password"
                   name="confirmPassword"
+                  dir="ltr"
                   autocomplete="new-password"
                   data-account-unlocked-field
                   disabled
@@ -391,7 +502,7 @@ function renderNotificationSection(settings: AppSettings): string {
         <h2 id="notification-settings-heading">${escapeHtml(messages.notificationSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.notificationProvider)}</dt>
+            ${settingLabel("notifications", messages.notificationProvider)}
             <dd>
               <div class="notification-provider-row">
                 <select name="notificationProvider" data-notification-provider-select>
@@ -415,6 +526,7 @@ function renderNotificationSection(settings: AppSettings): string {
                     data-test-notify-error-link
                     data-error-app-name="${escapeHtml(messages.appName)}"
                     data-error-dark-mode="${settings.darkMode ? "true" : "false"}"
+                    data-error-direction="${isRtlLocale(settings.locale) ? "rtl" : "ltr"}"
                     data-error-locale="${escapeHtml(settings.locale)}"
                     data-error-nav-dashboard="${escapeHtml(messages.navDashboard)}"
                     data-error-nav-history="${escapeHtml(messages.navHistory)}"
@@ -434,7 +546,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="webhook-service"
             data-notification-provider-field="webhook"
           >
-            <dt>${escapeHtml(messages.notificationWebhookService)}</dt>
+            ${settingLabel("webhook", messages.notificationWebhookService)}
             <dd>
               <select name="notificationWebhookService" data-notification-webhook-service-select>
                 ${
@@ -451,28 +563,22 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="serverChan"
           >
-            <dt>${escapeHtml(messages.notificationServerChanSendKey)}</dt>
+            ${
+    secretSettingLabel(
+      "key",
+      messages.notificationServerChanSendKey,
+      "https://sct.ftqq.com/sendkey",
+      messages,
+    )
+  }
             <dd>
-              <div class="input-action-row">
-                <input
-                  type="password"
-                  name="notificationServerChanSendKey"
-                  value=""
-                  placeholder="${
-    secretInputPlaceholder(settings.notificationServerChanSendKey, messages)
-  }"
-                  autocomplete="off"
-                >
-                <a
-                  class="button-link external-settings-link"
-                  href="https://sct.ftqq.com/sendkey"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span>${escapeHtml(messages.configure)}</span>
-                  ${externalLinkIcon()}
-                </a>
-              </div>
+              ${
+    secretInputEditor(
+      "notificationServerChanSendKey",
+      settings.notificationServerChanSendKey,
+      messages,
+    )
+  }
             </dd>
           </div>
           <div
@@ -481,28 +587,22 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="pushPlus"
           >
-            <dt>${escapeHtml(messages.notificationPushPlusToken)}</dt>
+            ${
+    secretSettingLabel(
+      "key",
+      messages.notificationPushPlusToken,
+      "https://www.pushplus.plus/uc-dev.html",
+      messages,
+    )
+  }
             <dd>
-              <div class="input-action-row">
-                <input
-                  type="password"
-                  name="notificationPushPlusSecret"
-                  value=""
-                  placeholder="${
-    secretInputPlaceholder(settings.notificationPushPlusToken, messages)
-  }"
-                  autocomplete="off"
-                >
-                <a
-                  class="button-link external-settings-link"
-                  href="https://www.pushplus.plus/uc-dev.html"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span>${escapeHtml(messages.configure)}</span>
-                  ${externalLinkIcon()}
-                </a>
-              </div>
+              ${
+    secretInputEditor(
+      "notificationPushPlusSecret",
+      settings.notificationPushPlusToken,
+      messages,
+    )
+  }
             </dd>
           </div>
           <div
@@ -511,32 +611,23 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="wxPusher"
           >
-            <dt>${escapeHtml(messages.notificationWxPusherSpt)}</dt>
+            ${
+    secretSettingLabel(
+      "key",
+      messages.notificationWxPusherSpt,
+      "https://wxpusher.zjiecode.com/docs/spt.html",
+      messages,
+    )
+  }
             <dd>
-              <div class="input-action-row">
-                <input
-                  type="password"
-                  name="notificationWxPusherSpt"
-                  value=""
-                  placeholder="${
-    secretInputPlaceholder(
+              ${
+    secretInputEditor(
+      "notificationWxPusherSpt",
       settings.notificationWxPusherSpt,
       messages,
       "SPT_xxx",
     )
-  }"
-                  autocomplete="off"
-                >
-                <a
-                  class="button-link external-settings-link"
-                  href="https://wxpusher.zjiecode.com/docs/spt.html"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span>${escapeHtml(messages.configure)}</span>
-                  ${externalLinkIcon()}
-                </a>
-              </div>
+  }
             </dd>
           </div>
           <div
@@ -545,15 +636,14 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="webhook"
             data-notification-webhook-service-field="custom"
           >
-            <dt>${escapeHtml(messages.notificationWebhookUrl)}</dt>
+            ${settingLabel("link", messages.notificationWebhookUrl)}
             <dd>
               <input
                 type="password"
                 name="notificationWebhookUrl"
+                dir="ltr"
                 value=""
-                placeholder="${
-    secretInputPlaceholder(settings.notificationWebhookUrl, messages, "https://")
-  }"
+                placeholder="${secretInputPlaceholder(settings.notificationWebhookUrl, "https://")}"
                 autocomplete="off"
               >
             </dd>
@@ -563,7 +653,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="email-service"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationEmailService)}</dt>
+            ${settingLabel("mail", messages.notificationEmailService)}
             <dd>
               <select name="notificationEmailService" data-notification-email-service-select>
                 ${
@@ -579,11 +669,12 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="email-address"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationEmailAddress)}</dt>
+            ${settingLabel("alternate_email", messages.notificationEmailAddress)}
             <dd>
               <input
                 type="email"
                 name="notificationEmailAddress"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationEmailAddress)}"
                 placeholder="name@example.com"
               >
@@ -594,11 +685,12 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="email-from"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationEmailFrom)}</dt>
+            ${settingLabel("mail", messages.notificationEmailFrom)}
             <dd>
               <input
                 type="email"
                 name="notificationEmailFrom"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationEmailFrom)}"
                 placeholder="name@example.com"
                 autocomplete="off"
@@ -611,11 +703,12 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="email"
             data-notification-email-service-field="api"
           >
-            <dt>${escapeHtml(messages.notificationEmailApiUrl)}</dt>
+            ${settingLabel("api", messages.notificationEmailApiUrl)}
             <dd>
               <input
                 type="url"
                 name="notificationEmailApiUrl"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationEmailApiUrl)}"
                 placeholder="https://"
                 autocomplete="off"
@@ -628,15 +721,14 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-provider-field="email"
             data-notification-email-service-field="api"
           >
-            <dt>${escapeHtml(messages.notificationEmailApiToken)}</dt>
+            ${settingLabel("key", messages.notificationEmailApiToken)}
             <dd>
               <input
                 type="password"
                 name="notificationEmailApiToken"
+                dir="ltr"
                 value=""
-                placeholder="${
-    secretInputPlaceholder(settings.notificationEmailApiToken, messages)
-  }"
+                placeholder="${secretInputPlaceholder(settings.notificationEmailApiToken)}"
                 autocomplete="off"
               >
             </dd>
@@ -646,10 +738,11 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-host"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpHost)}</dt>
+            ${settingLabel("dns", messages.notificationSmtpHost)}
             <dd>
               <input
                 name="notificationSmtpHost"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationSmtpHost)}"
                 placeholder="smtp.example.com"
                 autocomplete="off"
@@ -661,11 +754,12 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-port"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpPort)}</dt>
+            ${settingLabel("numbers", messages.notificationSmtpPort)}
             <dd>
               <input
                 type="number"
                 name="notificationSmtpPort"
+                dir="ltr"
                 min="1"
                 step="1"
                 value="${settings.notificationSmtpPort}"
@@ -678,7 +772,7 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-secure"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpSecure)}</dt>
+            ${settingLabel("lock", messages.notificationSmtpSecure)}
             <dd>
               <label class="switch-control">
                 <input
@@ -694,10 +788,11 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-username"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpUsername)}</dt>
+            ${settingLabel("badge", messages.notificationSmtpUsername)}
             <dd>
               <input
                 name="notificationSmtpUsername"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationSmtpUsername)}"
                 autocomplete="off"
               >
@@ -708,13 +803,14 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="smtp-password"
             data-notification-provider-field="email"
           >
-            <dt>${escapeHtml(messages.notificationSmtpPassword)}</dt>
+            ${settingLabel("password", messages.notificationSmtpPassword)}
             <dd>
               <input
                 type="password"
                 name="notificationSmtpPassword"
+                dir="ltr"
                 value=""
-                placeholder="${secretInputPlaceholder(settings.notificationSmtpPassword, messages)}"
+                placeholder="${secretInputPlaceholder(settings.notificationSmtpPassword)}"
                 autocomplete="off"
               >
             </dd>
@@ -743,7 +839,7 @@ function renderPollingSection(settings: AppSettings): string {
         <h2 id="polling-settings-heading">${escapeHtml(messages.pollingSettings)}</h2>
         <dl class="settings-list">
           <div>
-            <dt>${escapeHtml(messages.pollEnabled)}</dt>
+            ${settingLabel("toggle_on", messages.pollEnabled)}
             <dd>
               <label class="switch-control">
                 <input
@@ -756,13 +852,14 @@ function renderPollingSection(settings: AppSettings): string {
             </dd>
           </div>
           <div class="polling-option-row" data-polling-field="interval">
-            <dt>${escapeHtml(messages.pollInterval)}</dt>
+            ${settingLabel("timer", messages.pollInterval)}
             <dd>
               <div class="poll-interval-row">
                 <div class="poll-interval-control">
                   <input
                     type="number"
                     name="pollIntervalValue"
+                    dir="ltr"
                     min="1"
                     step="1"
                     value="${settings.polling.intervalValue}"
@@ -786,7 +883,7 @@ function renderPollingSection(settings: AppSettings): string {
             </dd>
           </div>
           <div class="polling-option-row" data-polling-field="post-limit">
-            <dt>${escapeHtml(messages.pollPostLimit)}</dt>
+            ${settingLabel("format_list_numbered", messages.pollPostLimit)}
             <dd>
               <select name="pollPostLimit">
                 ${
@@ -798,7 +895,7 @@ function renderPollingSection(settings: AppSettings): string {
             </dd>
           </div>
           <div class="polling-option-row" data-polling-field="sort">
-            <dt>${escapeHtml(messages.pollSort)}</dt>
+            ${settingLabel("sort", messages.pollSort)}
             <dd>
               <select name="pollSort">
                 ${option("publishTime", settings.polling.sort, messages.pollSortPublishTime)}
@@ -842,7 +939,7 @@ function renderTopicSection(settings: AppSettings): string {
       data-topic-editor
       data-delete-message="${escapeHtml(messages.selectTopicToDelete)}"
     >
-      <dt>${escapeHtml(messages.topic)}</dt>
+      ${settingLabel("topic", messages.topic)}
       <dd class="dropdown-summary-cell">
         <input type="hidden" name="activeKeywordTarget" value="${
     escapeHtml(settings.activeKeywordTarget)
@@ -901,7 +998,7 @@ function renderKeywordSection(settings: AppSettings): string {
       data-keyword-editor
       data-delete-message="${escapeHtml(messages.selectKeywordToDelete)}"
     >
-      <dt>${escapeHtml(messages.keywords)}</dt>
+      ${settingLabel("sell", messages.keywords)}
       <dd class="dropdown-summary-cell">
         <span class="keyword-summary" data-keyword-summary>
           ${renderKeywordSummary(summaryKeywords)}
@@ -922,14 +1019,14 @@ function renderKeywordSection(settings: AppSettings): string {
           <div class="keyword-rule-grid" role="table">
             ${renderKeywordRuleHeader(messages)}
             ${
-    (rows.length > 0 ? rows : [{ keyword: "", locations: [] as MatchLocation[] }])
+    (rows.length > 0 ? rows : [{ keyword: "", locations: matchLocations }])
       .map((rule, index) => renderKeywordRuleRow(rule, index, messages)).join("")
   }
           </div>
         </div>
       </dd>
       <template data-keyword-row-template>
-        ${renderKeywordRuleRow({ keyword: "", locations: [] }, "__index__", messages)}
+        ${renderKeywordRuleRow({ keyword: "", locations: matchLocations }, "__index__", messages)}
       </template>
     </div>
   `;
@@ -944,6 +1041,7 @@ function renderKeywordSection(settings: AppSettings): string {
 function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string {
   return `
     <div class="topic-rule-row topic-rule-head" role="row">
+      <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
       <label class="checkbox-cell bulk-action-cell" role="columnheader">
         <span>${escapeHtml(messages.batchOperation)}</span>
         <input type="checkbox" data-role="select-all-topics">
@@ -1006,11 +1104,16 @@ function renderTopicRuleRow(
         value="${keywordRulesJson}"
         data-topic-keyword-rules
       >
+      <div class="rule-drag-cell" role="cell">
+        ${dragHandleButton(messages.dragRow)}
+      </div>
       <label class="checkbox-cell" role="cell">
         <input type="checkbox" data-role="select-topic-row">
       </label>
       <div role="cell">
-        <input name="topic_${index}_id" value="${escapeHtml(topic.id)}" data-topic-id-input>
+        <input name="topic_${index}_id" dir="ltr" value="${
+    escapeHtml(topic.id)
+  }" data-topic-id-input>
       </div>
       <div role="cell">
         <input name="topic_${index}_note" value="${escapeHtml(topic.note)}" data-topic-note-input>
@@ -1061,6 +1164,7 @@ function renderTopicRuleRow(
 function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): string {
   return `
     <div class="keyword-rule-row keyword-rule-head" role="row">
+      <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
       <label class="checkbox-cell bulk-action-cell" role="columnheader">
         <span>${escapeHtml(messages.batchOperation)}</span>
         <input type="checkbox" data-role="select-all-keywords">
@@ -1089,6 +1193,24 @@ function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): stri
       </div>
     </div>
   `;
+}
+
+/**
+ * 渲染规则行拖拽手柄按钮。
+ *
+ * @param label 拖拽按钮的可访问标签。
+ * @return 拖拽手柄按钮 HTML。
+ */
+function dragHandleButton(label: string): string {
+  const escapedLabel = escapeHtml(label);
+
+  return `<button
+    type="button"
+    class="icon-button rule-drag-handle"
+    data-rule-drag-handle
+    title="${escapedLabel}"
+    aria-label="${escapedLabel}"
+  >${materialSymbolIcon("drag_indicator", "rule-drag-icon")}</button>`;
 }
 
 /**
@@ -1130,6 +1252,9 @@ function renderKeywordRuleRow(
 
   return `
     <div class="keyword-rule-row keyword-rule-item" role="row" data-keyword-row>
+      <div class="rule-drag-cell" role="cell">
+        ${dragHandleButton(messages.dragRow)}
+      </div>
       <label class="checkbox-cell" role="cell">
         <input type="checkbox" data-role="select-keyword-row">
       </label>
@@ -1266,16 +1391,14 @@ function renderKeywordSummary(keywords: string[]): string {
  * 生成敏感配置输入框的占位提示。
  *
  * @param value 当前已保存的敏感配置。
- * @param messages 当前语言文案。
  * @param emptyPlaceholder 未配置时使用的占位提示。
  * @return 已转义的占位提示。
  */
 function secretInputPlaceholder(
   value: string,
-  messages: ReturnType<typeof getMessages>,
   emptyPlaceholder = "",
 ): string {
-  return escapeHtml(value.trim() ? messages.configuredSecretPlaceholder : emptyPlaceholder);
+  return escapeHtml(value.trim() ? "" : emptyPlaceholder);
 }
 
 /**

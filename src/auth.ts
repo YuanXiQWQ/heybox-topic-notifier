@@ -4,8 +4,8 @@
 import { Hono } from "@hono/hono";
 import type { MiddlewareHandler } from "@hono/hono";
 import { getMessages } from "./locales/index.ts";
-import { languageOptions } from "./locales/languages.ts";
-import type { Locale, Messages } from "./locales/types.ts";
+import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
+import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
 import type { UserAccount } from "./models.ts";
 import {
   csrfForbiddenResponse,
@@ -25,6 +25,7 @@ import {
   rateLimitExceededResponseFor,
 } from "./security/rate_limit.ts";
 import type { createKvStorage } from "./storage/kv.ts";
+import { languageTextIcon } from "./views/icons.ts";
 
 /**
  * 认证模块使用的存储类型。
@@ -95,6 +96,14 @@ const defaultMaxLoginFailures = 5;
  * 密码 PBKDF2 迭代次数。
  */
 const passwordIterations = 210_000;
+/**
+ * 标记认证页语言已被用户显式切换的查询参数。
+ */
+const authLocaleChangedParam = "localeChanged";
+/**
+ * 显式语言切换查询参数使用的固定值。
+ */
+const authLocaleChangedValue = "1";
 
 /**
  * 创建认证中间件。
@@ -146,11 +155,14 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
   app.get(config.loginPath, (c) => {
     const url = new URL(c.req.url);
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const syncLocale = shouldSyncAuthLocale(url);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderAuthPage({
-        action: authPagePath(config.loginPath, locale),
+        action: authPagePath(config.loginPath, locale, {
+          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+        }),
         csrfToken: csrf.token,
         error: loginErrorMessage(url.searchParams.get("error"), messages),
         heading: messages.authLogin,
@@ -159,12 +171,14 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         mode: "login",
         returnTo: safeReturnTo(url.searchParams.get("returnTo")),
         submitLabel: messages.authLogin,
+        syncLocale,
       })),
       csrf,
     );
   });
 
   app.post(config.loginPath, async (c) => {
+    const url = new URL(c.req.url);
     const form = await c.req.parseBody();
     if (
       !verifyCsrfToken(
@@ -177,7 +191,8 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
-    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const syncLocale = shouldSyncAuthLocale(url);
     const canRateLimit = validUsername(username);
     const loginFailure = canRateLimit ? await storage.getLoginFailure(username) : undefined;
 
@@ -190,7 +205,7 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         request: c.req.raw,
       });
 
-      return loginRateLimitedRedirect(config.loginPath, returnTo, locale);
+      return loginRateLimitedRedirect(config.loginPath, returnTo, locale, syncLocale);
     }
 
     const account = await storage.getAccountByUsername(username);
@@ -215,7 +230,7 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
           request: c.req.raw,
         });
 
-        return loginRateLimitedRedirect(config.loginPath, returnTo, locale);
+        return loginRateLimitedRedirect(config.loginPath, returnTo, locale, syncLocale);
       }
 
       logSecurityAuditEvent({
@@ -230,7 +245,11 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       });
 
       return c.redirect(
-        authPagePath(config.loginPath, locale, { error: "invalid", returnTo }),
+        authPagePath(config.loginPath, locale, {
+          error: "invalid",
+          returnTo,
+          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+        }),
         303,
       );
     }
@@ -239,17 +258,23 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       await storage.clearLoginFailures(username);
     }
 
+    if (syncLocale) {
+      await saveAuthLocale(account.id, locale, storage);
+    }
     return await redirectWithSession(c.req.url, returnTo, account, storage, config);
   });
 
   app.get(config.registerPath, (c) => {
     const url = new URL(c.req.url);
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const syncLocale = shouldSyncAuthLocale(url);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderAuthPage({
-        action: authPagePath(config.registerPath, locale),
+        action: authPagePath(config.registerPath, locale, {
+          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+        }),
         csrfToken: csrf.token,
         error: registerErrorMessage(url.searchParams.get("error"), messages),
         heading: messages.authRegister,
@@ -258,12 +283,14 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         mode: "register",
         returnTo: safeReturnTo(url.searchParams.get("returnTo")),
         submitLabel: messages.authCreateAccount,
+        syncLocale,
       })),
       csrf,
     );
   });
 
   app.post(config.registerPath, async (c) => {
+    const url = new URL(c.req.url);
     const form = await c.req.parseBody();
     if (
       !verifyCsrfToken(
@@ -287,12 +314,16 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const password = String(form.password ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
-    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const syncLocale = shouldSyncAuthLocale(url);
     const validationError = validateRegistration(username, password, confirmPassword);
 
     if (validationError) {
       return c.redirect(
-        authPagePath(config.registerPath, locale, { error: validationError }),
+        authPagePath(config.registerPath, locale, {
+          error: validationError,
+          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+        }),
         303,
       );
     }
@@ -306,9 +337,18 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     };
 
     if (!(await storage.createAccount(account))) {
-      return c.redirect(authPagePath(config.registerPath, locale, { error: "exists" }), 303);
+      return c.redirect(
+        authPagePath(config.registerPath, locale, {
+          error: "exists",
+          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+        }),
+        303,
+      );
     }
 
+    if (syncLocale) {
+      await saveAuthLocale(account.id, locale, storage);
+    }
     return await redirectWithSession(c.req.url, returnTo, account, storage, config);
   });
 
@@ -401,6 +441,28 @@ function authConfig(options: AuthOptions): AuthConfig {
     registerPath,
     sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ?? defaultSessionMaxAgeSeconds,
   };
+}
+
+/**
+ * 将用户显式选择的认证页语言同步到用户设置。
+ *
+ * @param userId 用户 ID。
+ * @param locale 认证页当前语言。
+ * @param storage 应用存储。
+ * @return 同步完成后的 Promise。
+ */
+async function saveAuthLocale(
+  userId: string,
+  locale: Locale,
+  storage: Storage,
+): Promise<void> {
+  const userStorage = storage.forUser(userId);
+  const settings = await userStorage.getSettings();
+  if (settings.locale === locale) {
+    return;
+  }
+
+  await userStorage.saveSettings({ ...settings, locale });
 }
 
 /**
@@ -558,9 +620,13 @@ function renderAuthPage(options: {
   mode: "login" | "register";
   returnTo: string;
   submitLabel: string;
+  syncLocale: boolean;
 }): string {
   const switchPath = options.mode === "login" ? "/register" : "/login";
-  const switchHref = authPagePath(switchPath, options.locale, { returnTo: options.returnTo });
+  const switchHref = authPagePath(switchPath, options.locale, {
+    returnTo: options.returnTo,
+    [authLocaleChangedParam]: options.syncLocale ? authLocaleChangedValue : undefined,
+  });
   const switchLabel = options.mode === "login"
     ? options.messages.authCreateAccount
     : options.messages.authExistingAccountLogin;
@@ -569,9 +635,10 @@ function renderAuthPage(options: {
     options.locale,
     options.returnTo,
   );
+  const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
 
   return `<!doctype html>
-<html lang="${options.locale}">
+<html lang="${options.locale}" dir="${direction}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -668,7 +735,7 @@ function renderAuthPage(options: {
         overflow: hidden;
         padding: 4px;
         position: absolute;
-        right: 0;
+        inset-inline-end: 0;
         top: calc(100% + 6px);
         z-index: 1;
       }
@@ -701,8 +768,8 @@ function renderAuthPage(options: {
           <summary class="auth-language-button" title="${
     escapeHtml(options.messages.authLanguage)
   }">
-            ${renderLanguageIcon()}
-            <span>${escapeHtml(options.messages.authLanguageButton)}</span>
+            ${languageTextIcon("auth-language-icon")}
+            <span>${escapeHtml(languageSwitcherLabel)}</span>
           </summary>
           <div class="auth-language-options" role="menu">
             ${languageOptionsHtml}
@@ -719,11 +786,11 @@ function renderAuthPage(options: {
           <div class="auth-fields">
             <label>
               ${escapeHtml(options.messages.authUsername)}
-              <input name="username" autocomplete="username" required autofocus>
+              <input name="username" dir="ltr" autocomplete="username" required autofocus>
             </label>
             <label>
               ${escapeHtml(options.messages.authPassword)}
-              <input name="password" type="password" autocomplete="${
+              <input name="password" type="password" dir="ltr" autocomplete="${
     options.mode === "login" ? "current-password" : "new-password"
   }" required>
             </label>
@@ -731,7 +798,7 @@ function renderAuthPage(options: {
     options.mode === "register"
       ? `<label>
               ${escapeHtml(options.messages.authConfirmPassword)}
-              <input name="confirmPassword" type="password" autocomplete="new-password" required>
+              <input name="confirmPassword" type="password" dir="ltr" autocomplete="new-password" required>
             </label>`
       : ""
   }
@@ -772,6 +839,16 @@ function authPageLocale(
   }
 
   return config.defaultLocale;
+}
+
+/**
+ * 判断认证页语言是否来自用户显式切换。
+ *
+ * @param url 当前请求 URL。
+ * @return 需要在认证成功后同步语言时返回 true。
+ */
+function shouldSyncAuthLocale(url: URL): boolean {
+  return url.searchParams.get(authLocaleChangedParam) === authLocaleChangedValue;
 }
 
 /**
@@ -819,21 +896,7 @@ function authPagePath(
 }
 
 /**
- * 渲染语言切换按钮图标。
- *
- * @return 语言图标 SVG。
- */
-function renderLanguageIcon(): string {
-  return `<svg class="auth-language-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"></circle>
-            <path d="M3 12h18"></path>
-            <path d="M12 3a13.5 13.5 0 0 1 0 18"></path>
-            <path d="M12 3a13.5 13.5 0 0 0 0 18"></path>
-          </svg>`;
-}
-
-/**
- * 渲染认证页可用语言选项。
+ * 渲染认证页可用语言选项，并标记用户显式切换。
  *
  * @param action 当前认证页路径。
  * @param currentLocale 当前语言。
@@ -845,7 +908,10 @@ function renderLanguageOptions(action: string, currentLocale: Locale, returnTo: 
   return languageOptions.map((option) => {
     const currentAttribute = option.code === currentLocale ? ' aria-current="true"' : "";
     return `<a href="${
-      escapeHtml(authPagePath(actionPath, option.code, { returnTo }))
+      escapeHtml(authPagePath(actionPath, option.code, {
+        returnTo,
+        [authLocaleChangedParam]: authLocaleChangedValue,
+      }))
     }" role="menuitem"${currentAttribute}>${escapeHtml(option.label)}</a>`;
   }).join("");
 }
@@ -884,12 +950,22 @@ function isLoginLocked(failure: { lockedUntil?: string } | undefined): boolean {
  * @param loginPath 登录路径。
  * @param returnTo 登录成功后的返回路径。
  * @param locale 当前页面语言。
+ * @param syncLocale 是否需要在认证成功后同步语言设置。
  * @return 重定向响应。
  */
-function loginRateLimitedRedirect(loginPath: string, returnTo: string, locale: Locale): Response {
+function loginRateLimitedRedirect(
+  loginPath: string,
+  returnTo: string,
+  locale: Locale,
+  syncLocale: boolean,
+): Response {
   return new Response(null, {
     headers: {
-      location: authPagePath(loginPath, locale, { error: "rateLimited", returnTo }),
+      location: authPagePath(loginPath, locale, {
+        error: "rateLimited",
+        returnTo,
+        [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+      }),
     },
     status: 303,
   });
