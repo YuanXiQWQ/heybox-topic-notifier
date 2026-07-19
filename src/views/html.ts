@@ -2,7 +2,7 @@
  * @file 本文件提供基础 HTML 转义和页面布局渲染工具。
  */
 import { getMessages } from "../locales/index.ts";
-import type { Locale } from "../locales/types.ts";
+import { isRtlLocale, type Locale } from "../locales/types.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 
 /**
@@ -35,10 +35,12 @@ export function renderLayout(options: {
   title: string;
 }): string {
   const messages = getMessages(options.locale);
+  const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
 
   return `<!doctype html>
 <html
   lang="${options.locale}"
+  dir="${direction}"
   data-color-mode="${options.darkMode ? "dark" : "light"}"
   style="--theme-color: ${escapeHtml(options.themeColor)}"
 >

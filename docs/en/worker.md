@@ -27,8 +27,7 @@ NOTIFIER_SERVER_CHAN_SEND_URL=https://<your-worker>.workers.dev/serverchan
 NOTIFIER_RELAY_TOKEN=<same-random-secret>
 ```
 
-The project only sends this header when the PushPlus, WxPusher, or ServerChan send URL is changed to
-the relay URL:
+The project only sends this header when the PushPlus, WxPusher, or ServerChan sends a URL that has been changed to the relay URL:
 
 ```http
 Authorization: Bearer <NOTIFIER_RELAY_TOKEN>

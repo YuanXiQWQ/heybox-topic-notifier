@@ -4,8 +4,8 @@
 import { Hono } from "@hono/hono";
 import type { MiddlewareHandler } from "@hono/hono";
 import { getMessages } from "./locales/index.ts";
-import { languageOptions } from "./locales/languages.ts";
-import type { Locale, Messages } from "./locales/types.ts";
+import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
+import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
 import type { UserAccount } from "./models.ts";
 import {
   csrfForbiddenResponse,
@@ -569,9 +569,10 @@ function renderAuthPage(options: {
     options.locale,
     options.returnTo,
   );
+  const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
 
   return `<!doctype html>
-<html lang="${options.locale}">
+<html lang="${options.locale}" dir="${direction}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -668,7 +669,7 @@ function renderAuthPage(options: {
         overflow: hidden;
         padding: 4px;
         position: absolute;
-        right: 0;
+        inset-inline-end: 0;
         top: calc(100% + 6px);
         z-index: 1;
       }
@@ -702,7 +703,7 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.authLanguage)
   }">
             ${renderLanguageIcon()}
-            <span>${escapeHtml(options.messages.authLanguageButton)}</span>
+            <span>${escapeHtml(languageSwitcherLabel)}</span>
           </summary>
           <div class="auth-language-options" role="menu">
             ${languageOptionsHtml}
@@ -719,11 +720,11 @@ function renderAuthPage(options: {
           <div class="auth-fields">
             <label>
               ${escapeHtml(options.messages.authUsername)}
-              <input name="username" autocomplete="username" required autofocus>
+              <input name="username" dir="ltr" autocomplete="username" required autofocus>
             </label>
             <label>
               ${escapeHtml(options.messages.authPassword)}
-              <input name="password" type="password" autocomplete="${
+              <input name="password" type="password" dir="ltr" autocomplete="${
     options.mode === "login" ? "current-password" : "new-password"
   }" required>
             </label>
@@ -731,7 +732,7 @@ function renderAuthPage(options: {
     options.mode === "register"
       ? `<label>
               ${escapeHtml(options.messages.authConfirmPassword)}
-              <input name="confirmPassword" type="password" autocomplete="new-password" required>
+              <input name="confirmPassword" type="password" dir="ltr" autocomplete="new-password" required>
             </label>`
       : ""
   }

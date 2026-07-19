@@ -4,7 +4,75 @@
 /**
  * 应用支持的语言标识。
  */
-export type Locale = "zh-CN" | "en";
+export const locales = [
+  "zh-CN",
+  "zh-TW",
+  "zh-HK",
+  "zh-MO",
+  "zh-SG",
+  "en-US",
+  "en-CA",
+  "en-GB",
+  "ja-JP",
+  "ko-KR",
+  "fr-FR",
+  "de-DE",
+  "es-ES",
+  "it-IT",
+  "pt-BR",
+  "pt-PT",
+  "ru-RU",
+  "ar-SA",
+  "hi-IN",
+  "bn-BD",
+  "fa-IR",
+  "he-IL",
+  "ur-PK",
+  "vi-VN",
+  "th-TH",
+  "id-ID",
+  "tr-TR",
+] as const;
+
+/**
+ * 应用支持的语言标识类型。
+ */
+export type Locale = typeof locales[number];
+
+/**
+ * 支持的语言标识集合。
+ */
+const localeSet: ReadonlySet<string> = new Set(locales);
+
+/**
+ * 使用从右到左书写方向的语言列表。
+ */
+export const rtlLocales = ["ar-SA", "fa-IR", "he-IL", "ur-PK"] as const;
+
+/**
+ * 使用从右到左书写方向的语言集合。
+ */
+const rtlLocaleSet: ReadonlySet<string> = new Set(rtlLocales);
+
+/**
+ * 判断语言值是否为应用支持的语言。
+ *
+ * @param value 待判断的语言值。
+ * @return 是支持语言时返回 true。
+ */
+export function isLocale(value: string | undefined): value is Locale {
+  return typeof value === "string" && localeSet.has(value);
+}
+
+/**
+ * 判断语言是否使用从右到左书写方向。
+ *
+ * @param locale 语言标识。
+ * @return 使用从右到左书写方向时返回 true。
+ */
+export function isRtlLocale(locale: Locale): boolean {
+  return rtlLocaleSet.has(locale);
+}
 
 /**
  * 应用所有可翻译文案字段的结构。
@@ -37,7 +105,6 @@ export type Messages = {
   authExistingAccountLogin: string;
   authInvalidCredentials: string;
   authLanguage: string;
-  authLanguageButton: string;
   authLogin: string;
   authLoginRateLimited: string;
   authNavigation: string;

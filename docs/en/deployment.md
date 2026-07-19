@@ -92,7 +92,7 @@ page.
 ## Notification Relay
 
 If Deno Deploy cannot directly access PushPlus, WxPusher, or ServerChan, you can deploy the free
-Cloudflare Worker relay first. The repository's `workers/notification-relay.js` provides fixed
+Cloudflare Worker relays first. The repository's `workers/notification-relay.js` provides fixed
 `/pushplus`, `/wxpusher`, and `/serverchan` forwarding endpoints and authenticates requests with
 `Authorization: Bearer <token>`. See [worker.md](worker.md) for the full steps.
 

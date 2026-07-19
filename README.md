@@ -1,13 +1,24 @@
 # 小黑盒话题提醒
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
+[![Deno](https://img.shields.io/badge/Deno-2.x-000?logo=deno&logoColor=white)](https://deno.com/)
+[![Production](https://img.shields.io/badge/Production-online-brightgreen)](https://heybox-topic-notifier.yuanxiqwq.deno.net/)
+[![Dev](https://img.shields.io/badge/Dev-preview-blue)](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
 
-| **简体中文** | [English](#heybox-topic-notifier) |
-|:--------:|:---------------------------------:|
+|                   **简体中文**                   |     [正體中文（臺灣）](docs/zh-TW/README.md)     |     [English](#heybox-topic-notifier)      |
+|:--------------------------------------------:|:----------------------------------------:|:------------------------------------------:|
+|   [English (Canada)](docs/en-CA/README.md)   |   [English (UK)](docs/en-GB/README.md)   |        [日本語](docs/ja-JP/README.md)         |
+|         [한국어](docs/ko-KR/README.md)          |     [Français](docs/fr-FR/README.md)     |      [Deutsch](docs/de-DE/README.md)       |
+|       [Español](docs/es-ES/README.md)        |     [Italiano](docs/it-IT/README.md)     | [Português (Brasil)](docs/pt-BR/README.md) |
+| [Português (Portugal)](docs/pt-PT/README.md) |     [Русский](docs/ru-RU/README.md)      |      [العربية](docs/ar-SA/README.md)       |
+|        [हिन्दी](docs/hi-IN/README.md)        |      [বাংলা](docs/bn-BD/README.md)       |       [فارسی](docs/fa-IR/README.md)        |
+|        [עברית](docs/he-IL/README.md)         |       [اردو](docs/ur-PK/README.md)       |     [Tiếng Việt](docs/vi-VN/README.md)     |
+|         [ไทย](docs/th-TH/README.md)          | [Bahasa Indonesia](docs/id-ID/README.md) |       [Türkçe](docs/tr-TR/README.md)       |
+|       [繁體中文（香港）](docs/zh-HK/README.md)       |     [繁體中文（澳門）](docs/zh-MO/README.md)     |     [简体中文（新加坡）](docs/zh-SG/README.md)      |
 
 ---
 
-[小黑盒话题提醒](https://heybox-topic-notifier.yuanxiqwq.deno.net/)（[dev](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)）
+<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> 小黑盒话题提醒</a>
 是一个用于监控小黑盒话题帖子的轻量级 Deno 应用。它会按账号设置定时读取真实话题帖子，
 按关键词规则检查标题、正文、评论和回复，把命中结果记录到待处理列表与历史记录中，并按配置发送通知。
 
@@ -82,17 +93,20 @@ Deno Deploy 配置见 [docs/zh-CN/deployment.md](docs/zh-CN/deployment.md)。仓
 # Heybox Topic Notifier
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
+[![Deno](https://img.shields.io/badge/Deno-2.x-000?logo=deno&logoColor=white)](https://deno.com/)
+[![Production](https://img.shields.io/badge/Production-online-brightgreen)](https://heybox-topic-notifier.yuanxiqwq.deno.net/)
+[![Dev](https://img.shields.io/badge/Dev-preview-blue)](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
 
 | [简体中文](#小黑盒话题提醒) | **English** |
 |:----------------:|:-----------:|
 
 ---
 
-[Heybox Topic Notifier](https://heybox-topic-notifier.yuanxiqwq.deno.net/)
-([dev](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)) is a lightweight Deno app for
-monitoring Heybox topic posts. It periodically reads real topic posts according to each account's
-settings, checks titles, bodies, comments, and replies against keyword rules, records matches in
-pending and history views, and sends notifications through the configured channel.
+<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
+is a lightweight Deno app for monitoring Heybox topic posts. It periodically reads real topic posts
+according to each account’s settings, check titles, bodies, comments, and replies against the keyword
+rules, records matches in pending and history views, and sends notifications through the configured
+channel.
 
 ## Features
 
@@ -162,7 +176,7 @@ in production.
 
 ## Deployment
 
-See [docs/en/deployment.md](docs/en/deployment.md) for Deno Deploy setup. The app entrypoint is
+See [docs/en/deployment.md](docs/en/deployment.md) for the Deno Deploy setup. The app entrypoint is
 defined by the `deploy` section in `deno.json`; GitHub Actions only runs checks and does not deploy
 the app. The deploy entrypoint in `src/deploy.ts` declares the Deno Deploy Cron, and actual polling
 only runs on Production and the `dev` Git Branch timeline. See

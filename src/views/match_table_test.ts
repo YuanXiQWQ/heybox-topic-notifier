@@ -153,6 +153,21 @@ Deno.test("settings and history pages keep the app tab title", () => {
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 
+Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => {
+  const appSettings: AppSettings = {
+    ...settings(),
+    locale: "ar-SA",
+    notificationSmtpHost: "smtp.example.com",
+    topics: [{ enabled: true, id: "12345", keywordRules: [], note: "" }],
+  };
+  const html = renderSettings({ csrfToken: testCsrfToken, settings: appSettings });
+
+  assertIncludes(html, `lang="ar-SA"`);
+  assertIncludes(html, `dir="rtl"`);
+  assertIncludes(html, `name="notificationSmtpHost"\n                dir="ltr"`);
+  assertIncludes(html, `name="topic_0_id" dir="ltr" value="12345"`);
+});
+
 Deno.test("renderSettings does not expose notification secrets", () => {
   const appSettings = {
     ...settings(),

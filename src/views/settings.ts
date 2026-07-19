@@ -3,6 +3,7 @@
  */
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
+import { isRtlLocale } from "../locales/types.ts";
 import type { AppSettings, KeywordRule, MatchLocation, TopicRule, UserAccount } from "../models.ts";
 import {
   notificationEmailServices,
@@ -187,6 +188,7 @@ function renderAccountSection(
               <div class="account-username-row">
                 <input
                   name="username"
+                  dir="ltr"
                   value="${escapedUsername}"
                   autocomplete="username"
                   data-account-username-input
@@ -217,6 +219,7 @@ function renderAccountSection(
                 <input
                   type="password"
                   name="currentPassword"
+                  dir="ltr"
                   autocomplete="current-password"
                   data-account-current-password-input
                 >
@@ -238,6 +241,7 @@ function renderAccountSection(
                 <input
                   type="password"
                   name="newPassword"
+                  dir="ltr"
                   autocomplete="new-password"
                   data-account-unlocked-field
                   disabled
@@ -257,6 +261,7 @@ function renderAccountSection(
                 <input
                   type="password"
                   name="confirmPassword"
+                  dir="ltr"
                   autocomplete="new-password"
                   data-account-unlocked-field
                   disabled
@@ -415,6 +420,7 @@ function renderNotificationSection(settings: AppSettings): string {
                     data-test-notify-error-link
                     data-error-app-name="${escapeHtml(messages.appName)}"
                     data-error-dark-mode="${settings.darkMode ? "true" : "false"}"
+                    data-error-direction="${isRtlLocale(settings.locale) ? "rtl" : "ltr"}"
                     data-error-locale="${escapeHtml(settings.locale)}"
                     data-error-nav-dashboard="${escapeHtml(messages.navDashboard)}"
                     data-error-nav-history="${escapeHtml(messages.navHistory)}"
@@ -457,6 +463,7 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationServerChanSendKey"
+                  dir="ltr"
                   value=""
                   placeholder="${
     secretInputPlaceholder(settings.notificationServerChanSendKey, messages)
@@ -487,6 +494,7 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationPushPlusSecret"
+                  dir="ltr"
                   value=""
                   placeholder="${
     secretInputPlaceholder(settings.notificationPushPlusToken, messages)
@@ -517,6 +525,7 @@ function renderNotificationSection(settings: AppSettings): string {
                 <input
                   type="password"
                   name="notificationWxPusherSpt"
+                  dir="ltr"
                   value=""
                   placeholder="${
     secretInputPlaceholder(
@@ -550,6 +559,7 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationWebhookUrl"
+                dir="ltr"
                 value=""
                 placeholder="${
     secretInputPlaceholder(settings.notificationWebhookUrl, messages, "https://")
@@ -584,6 +594,7 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="email"
                 name="notificationEmailAddress"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationEmailAddress)}"
                 placeholder="name@example.com"
               >
@@ -599,6 +610,7 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="email"
                 name="notificationEmailFrom"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationEmailFrom)}"
                 placeholder="name@example.com"
                 autocomplete="off"
@@ -616,6 +628,7 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="url"
                 name="notificationEmailApiUrl"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationEmailApiUrl)}"
                 placeholder="https://"
                 autocomplete="off"
@@ -633,6 +646,7 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationEmailApiToken"
+                dir="ltr"
                 value=""
                 placeholder="${
     secretInputPlaceholder(settings.notificationEmailApiToken, messages)
@@ -650,6 +664,7 @@ function renderNotificationSection(settings: AppSettings): string {
             <dd>
               <input
                 name="notificationSmtpHost"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationSmtpHost)}"
                 placeholder="smtp.example.com"
                 autocomplete="off"
@@ -666,6 +681,7 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="number"
                 name="notificationSmtpPort"
+                dir="ltr"
                 min="1"
                 step="1"
                 value="${settings.notificationSmtpPort}"
@@ -698,6 +714,7 @@ function renderNotificationSection(settings: AppSettings): string {
             <dd>
               <input
                 name="notificationSmtpUsername"
+                dir="ltr"
                 value="${escapeHtml(settings.notificationSmtpUsername)}"
                 autocomplete="off"
               >
@@ -713,6 +730,7 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="password"
                 name="notificationSmtpPassword"
+                dir="ltr"
                 value=""
                 placeholder="${secretInputPlaceholder(settings.notificationSmtpPassword, messages)}"
                 autocomplete="off"
@@ -763,6 +781,7 @@ function renderPollingSection(settings: AppSettings): string {
                   <input
                     type="number"
                     name="pollIntervalValue"
+                    dir="ltr"
                     min="1"
                     step="1"
                     value="${settings.polling.intervalValue}"
@@ -1010,7 +1029,9 @@ function renderTopicRuleRow(
         <input type="checkbox" data-role="select-topic-row">
       </label>
       <div role="cell">
-        <input name="topic_${index}_id" value="${escapeHtml(topic.id)}" data-topic-id-input>
+        <input name="topic_${index}_id" dir="ltr" value="${
+    escapeHtml(topic.id)
+  }" data-topic-id-input>
       </div>
       <div role="cell">
         <input name="topic_${index}_note" value="${escapeHtml(topic.note)}" data-topic-note-input>
