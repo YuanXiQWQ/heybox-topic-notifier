@@ -153,8 +153,10 @@ a:hover {
 .primary-nav a {
   align-items: center;
   display: inline-flex;
+  gap: 7px;
   font-weight: 700;
   justify-content: center;
+  line-height: 1.2;
   min-height: 100%;
   min-width: 0;
   padding: 0 16px;
@@ -271,7 +273,9 @@ button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-
   font-family: inherit;
   font-size: inherit;
   font-weight: 700;
+  gap: 7px;
   justify-content: center;
+  line-height: 1.2;
   min-height: 100%;
   min-width: 0;
   padding: 0 16px;
@@ -279,6 +283,16 @@ button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-
   transition: background-color 160ms ease,
     color 160ms ease;
   white-space: nowrap;
+}
+
+.nav-icon {
+  flex: 0 0 auto;
+  height: 18px;
+  width: 18px;
+}
+
+.nav-label {
+  min-width: 0;
 }
 
 .primary-nav .nav-link-button:hover,
@@ -349,20 +363,28 @@ input[readonly]::placeholder {
 .notification-provider-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   max-width: min(100%, calc(var(--settings-control-width) + var(--settings-action-width) + 300px));
 }
 
 .notification-provider-row select {
-  flex: 0 0 var(--settings-control-width);
+  flex: 0 1 var(--settings-control-width);
   min-width: 0;
   max-width: var(--settings-control-width);
 }
 
 .notification-provider-row button {
-  flex: 0 0 var(--settings-action-width);
-  white-space: nowrap;
-  width: var(--settings-action-width);
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  line-height: 1.25;
+  max-width: min(100%, 240px);
+  min-width: 0;
+  min-inline-size: var(--settings-action-width);
+  overflow-wrap: anywhere;
+  padding-block: 8px;
+  text-align: center;
+  white-space: normal;
 }
 
 .inline-action-status {
@@ -826,6 +848,19 @@ table {
 dt {
   color: var(--muted);
   font-size: 14px;
+}
+
+.settings-label-with-icon {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.settings-label-icon {
+  color: var(--theme-strong);
+  flex: 0 0 auto;
+  height: 18px;
+  width: 18px;
 }
 
 .metrics strong {
@@ -1491,7 +1526,12 @@ tr:last-child td {
 
   .primary-nav a {
     flex: 1 1 0;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.15;
     padding-inline: 10px;
+    text-align: center;
+    white-space: normal;
   }
 
   .primary-nav .nav-logout {
@@ -1499,7 +1539,16 @@ tr:last-child td {
   }
 
   .primary-nav .nav-link-button {
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.15;
     padding-inline: 10px;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .primary-nav .nav-label {
+    overflow-wrap: anywhere;
   }
 
   .metrics {
@@ -1538,6 +1587,11 @@ tr:last-child td {
   .account-single-input-row input,
   .notification-provider-row select {
     flex-basis: auto;
+    width: 100%;
+  }
+
+  .notification-provider-row button {
+    max-width: 100%;
     width: 100%;
   }
 
