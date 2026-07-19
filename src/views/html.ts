@@ -56,10 +56,22 @@ export function renderLayout(options: {
     <header class="topbar">
       <a class="brand" href="/">${escapeHtml(messages.appName)}</a>
       <nav class="primary-nav" aria-label="Primary">
-        <a href="/">${renderNavItem(dashboardIcon("nav-icon"), messages.navDashboard)}</a>
-        <a href="/settings">${renderNavItem(settingsIcon("nav-icon"), messages.navSettings)}</a>
-        <a href="/history">${renderNavItem(historyIcon("nav-icon"), messages.navHistory)}</a>
-        <form class="nav-logout" method="post" action="/logout">
+        <form class="nav-item" method="get" action="/">
+          <button class="nav-link-button" type="submit">${
+    renderNavItem(dashboardIcon("nav-icon"), messages.navDashboard)
+  }</button>
+        </form>
+        <form class="nav-item" method="get" action="/settings">
+          <button class="nav-link-button" type="submit">${
+    renderNavItem(settingsIcon("nav-icon"), messages.navSettings)
+  }</button>
+        </form>
+        <form class="nav-item" method="get" action="/history">
+          <button class="nav-link-button" type="submit">${
+    renderNavItem(historyIcon("nav-icon"), messages.navHistory)
+  }</button>
+        </form>
+        <form class="nav-item" method="post" action="/logout">
           ${csrfHiddenInput(options.csrfToken)}
           <button class="nav-link-button" type="submit">${
     renderNavItem(logoutIcon("nav-icon"), messages.navLogout)

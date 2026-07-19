@@ -122,8 +122,7 @@ export type Messages = {
   batchOperation: string;
   completeMatch: string;
   commonTopic: string;
-  configuredSecretPlaceholder: string;
-  configure: string;
+  configureSecretLink: string;
   dashboardSubtitle: string;
   dashboardTitle: string;
   darkMode: string;
@@ -139,6 +138,8 @@ export type Messages = {
   filterRange: string;
   filterTo: string;
   filterWeek: string;
+  dragRow: string;
+  editSecret: string;
   historyTitle: string;
   keywordCaseSensitive: string;
   keywordRegex: string;

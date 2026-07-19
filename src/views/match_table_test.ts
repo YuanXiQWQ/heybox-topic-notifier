@@ -194,7 +194,8 @@ Deno.test("renderSettings does not expose notification secrets", () => {
   };
   const html = renderSettings({ csrfToken: testCsrfToken, settings: appSettings });
 
-  assertIncludes(html, "已配置，留空保留");
+  assertIncludes(html, `class="secret-display-input"`);
+  assertIncludes(html, `data-secret-configured="true"`);
   assertNotIncludes(html, appSettings.notificationEmailApiToken);
   assertNotIncludes(html, appSettings.notificationPushPlusToken);
   assertNotIncludes(html, appSettings.notificationServerChanSendKey);
