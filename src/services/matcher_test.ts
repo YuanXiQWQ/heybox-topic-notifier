@@ -1,23 +1,14 @@
 /**
  * @file 本文件验证关键词匹配器的文本、位置、大小写和正则匹配逻辑。
  */
-import { createMatcher, isSafeKeywordRegex } from "./matcher.ts";
+import { createMatcher } from "./matcher.ts";
 import type { AppSettings, TopicPost } from "../models.ts";
 
-/**
- * 匹配器测试使用的应用设置。
- */
 const settings: AppSettings = {
   activeKeywordTarget: "common",
   commonKeywordRules: [
-    {
-      keyword: "求助",
-      locations: ["title"],
-    },
-    {
-      keyword: "打不开",
-      locations: ["comments"],
-    },
+    { keyword: "求助", locations: ["title"] },
+    { keyword: "打不开", locations: ["comments"] },
   ],
   darkMode: false,
   locale: "zh-CN",
@@ -45,19 +36,9 @@ const settings: AppSettings = {
     sort: "publishTime",
   },
   themeColor: "#bd7fff",
-  topics: [
-    {
-      enabled: true,
-      id: "12099",
-      keywordRules: [],
-      note: "蔚蓝",
-    },
-  ],
+  topics: [{ enabled: true, id: "12099", keywordRules: [], note: "蔚蓝" }],
 };
 
-/**
- * 匹配器测试使用的基础帖子。
- */
 const basePost: TopicPost = {
   body: "这里是帖子正文。",
   commentReplies: ["这里是评论回复。"],
@@ -69,9 +50,8 @@ const basePost: TopicPost = {
   url: "https://www.xiaoheihe.cn/app/topic/link/12099",
 };
 
-Deno.test("findMatch returns the first matching keyword and location", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch({
+Deno.test("findMatch returns the first matching keyword and location", async () => {
+  const match = await createMatcher().findMatch({
     ...basePost,
     title: "求助：这里应该怎么走",
   }, settings.commonKeywordRules);
@@ -81,9 +61,8 @@ Deno.test("findMatch returns the first matching keyword and location", () => {
   }
 });
 
-Deno.test("findMatch respects location checkboxes", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch({
+Deno.test("findMatch respects location checkboxes", async () => {
+  const match = await createMatcher().findMatch({
     ...basePost,
     body: "正文里提到打不开，但这个规则只勾选了评论。",
   }, settings.commonKeywordRules);
@@ -93,9 +72,8 @@ Deno.test("findMatch respects location checkboxes", () => {
   }
 });
 
-Deno.test("findMatch defaults to case-insensitive matching", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch({
+Deno.test("findMatch defaults to case-insensitive matching", async () => {
+  const match = await createMatcher().findMatch({
     ...basePost,
     title: "HELP: controller input is stuck",
   }, [{ keyword: "help", locations: ["title"] }]);
@@ -105,9 +83,8 @@ Deno.test("findMatch defaults to case-insensitive matching", () => {
   }
 });
 
-Deno.test("findMatch treats plain keywords as literal contiguous text", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch({
+Deno.test("findMatch treats plain keywords as literal contiguous text", async () => {
+  const match = await createMatcher().findMatch({
     ...basePost,
     title: "A.......B",
   }, [{ keyword: "AB", locations: ["title"] }]);
@@ -117,9 +94,8 @@ Deno.test("findMatch treats plain keywords as literal contiguous text", () => {
   }
 });
 
-Deno.test("findMatch respects case-sensitive keyword rules", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch({
+Deno.test("findMatch respects case-sensitive keyword rules", async () => {
+  const match = await createMatcher().findMatch({
     ...basePost,
     title: "HELP: controller input is stuck",
   }, [{ caseSensitive: true, keyword: "help", locations: ["title"] }]);
@@ -129,69 +105,67 @@ Deno.test("findMatch respects case-sensitive keyword rules", () => {
   }
 });
 
-Deno.test("findMatch supports regex keyword rules", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch({
+Deno.test("findMatch supports regex keyword rules", async () => {
+  const keyword = String.raw`\d+\.\d+\.\d+`;
+  const match = await createMatcher().findMatch({
     ...basePost,
     title: "Version 1.2.3 crashes after launch",
-  }, [{ keyword: String.raw`\d+\.\d+\.\d+`, locations: ["title"], useRegex: true }]);
+  }, [{ keyword, locations: ["title"], useRegex: true }]);
 
-  if (match?.keyword !== String.raw`\d+\.\d+\.\d+` || match.location !== "title") {
+  if (match?.keyword !== keyword || match.location !== "title") {
     throw new Error(`Expected regex/title, got ${JSON.stringify(match)}`);
   }
 });
 
-Deno.test("isSafeKeywordRegex allows simple linear regex rules", () => {
-  const safePatterns = [
-    String.raw`\d+\.\d+\.\d+`,
-    String.raw`(?:error)-\d{1,3}`,
-    String.raw`[a-z]{2,5}\s+help`,
-    String.raw`(help)+`,
-  ];
-
-  for (const pattern of safePatterns) {
-    if (!isSafeKeywordRegex(pattern)) {
-      throw new Error(`Expected safe regex, got ${pattern}`);
-    }
-  }
-});
-
-Deno.test("isSafeKeywordRegex rejects common ReDoS patterns", () => {
-  const unsafePatterns = [
-    String.raw`(a+)+$`,
-    String.raw`(a|aa)+$`,
-    String.raw`(.*)*`,
-    String.raw`(\w+)\s+\1`,
-    String.raw`(?=help)help`,
-    String.raw`a{101}`,
-    "a".repeat(121),
-  ];
-
-  for (const pattern of unsafePatterns) {
-    if (isSafeKeywordRegex(pattern)) {
-      throw new Error(`Expected unsafe regex, got ${pattern}`);
-    }
-  }
-});
-
-Deno.test("findMatch ignores unsafe regex keyword rules", () => {
+Deno.test("findMatch supports negative lookahead regex rules", async () => {
+  const keyword = String.raw`怎么(?!(?:这么|感觉))`;
   const matcher = createMatcher();
-  const match = matcher.findMatch({
+  const matched = await matcher.findMatch({
     ...basePost,
-    title: "aaaab safe fallback",
+    title: "这里怎么过去",
+  }, [{ keyword, locations: ["title"], useRegex: true }]);
+  const excluded = await matcher.findMatch({
+    ...basePost,
+    title: "怎么感觉这么难",
+  }, [{ keyword, locations: ["title"], useRegex: true }]);
+
+  if (matched?.keyword !== keyword || matched.location !== "title") {
+    throw new Error(`Expected lookahead/title, got ${JSON.stringify(matched)}`);
+  }
+  if (excluded !== undefined) {
+    throw new Error(`Expected excluded text not to match, got ${JSON.stringify(excluded)}`);
+  }
+});
+
+Deno.test("findMatch supports backreferences", async () => {
+  const keyword = String.raw`(\w+)\s+\1`;
+  const match = await createMatcher().findMatch({
+    ...basePost,
+    title: "help help",
+  }, [{ keyword, locations: ["title"], useRegex: true }]);
+
+  if (match?.keyword !== keyword) {
+    throw new Error(`Expected backreference match, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("findMatch times out catastrophic regex and continues", async () => {
+  const matcher = createMatcher();
+  const match = await matcher.findMatch({
+    ...basePost,
+    title: `${"a".repeat(20000)}! safe fallback`,
   }, [
-    { keyword: String.raw`(a+)+$`, locations: ["title"], useRegex: true },
+    { keyword: String.raw`^(a+)+$`, locations: ["title"], useRegex: true },
     { keyword: "safe", locations: ["title"] },
   ]);
 
   if (match?.keyword !== "safe" || match.location !== "title") {
-    throw new Error(`Expected safe/title, got ${JSON.stringify(match)}`);
+    throw new Error(`Expected safe/title after timeout, got ${JSON.stringify(match)}`);
   }
 });
 
-Deno.test("findMatch ignores invalid regex keyword rules", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch({
+Deno.test("findMatch ignores invalid regex keyword rules", async () => {
+  const match = await createMatcher().findMatch({
     ...basePost,
     title: "Version 1.2.3 crashes after launch",
   }, [{ keyword: "[", locations: ["title"], useRegex: true }]);
@@ -201,9 +175,8 @@ Deno.test("findMatch ignores invalid regex keyword rules", () => {
   }
 });
 
-Deno.test("findMatch can match comments independently", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch({
+Deno.test("findMatch can match comments independently", async () => {
+  const match = await createMatcher().findMatch({
     ...basePost,
     comments: ["这里打不开。"],
   }, settings.commonKeywordRules);
@@ -213,9 +186,8 @@ Deno.test("findMatch can match comments independently", () => {
   }
 });
 
-Deno.test("findMatch returns undefined when nothing matches", () => {
-  const matcher = createMatcher();
-  const match = matcher.findMatch(basePost, settings.commonKeywordRules);
+Deno.test("findMatch returns undefined when nothing matches", async () => {
+  const match = await createMatcher().findMatch(basePost, settings.commonKeywordRules);
 
   if (match !== undefined) {
     throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
