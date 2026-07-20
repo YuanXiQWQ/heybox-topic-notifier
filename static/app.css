@@ -1107,6 +1107,7 @@ dd{
 
 .dropdown-panel-inner{
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -1597,6 +1598,7 @@ tr:last-child td{
 
   .page-heading .actions form,
   .page-heading .actions button{
+    min-width: 0;
     width: 100%;
   }
 
@@ -1649,6 +1651,161 @@ tr:last-child td{
   .dropdown-summary-cell{
     margin-bottom: 0;
     margin-top: 0;
+  }
+
+  .topic-rule-grid,
+  .keyword-rule-grid,
+  .topic-rule-row,
+  .keyword-rule-row{
+    min-width: 0;
+    width: 100%;
+  }
+
+  .topic-rule-row > *,
+  .keyword-rule-row > *,
+  .keyword-input-shell,
+  .topic-rule-row input,
+  .keyword-rule-row input{
+    min-width: 0;
+  }
+
+  .topic-rule-row{
+    grid-template-areas:
+      "drag select id enabled delete insert"
+      "note note note note keywords keywords";
+    grid-template-columns:
+      36px
+      64px
+      minmax(0, 1fr)
+      58px
+      44px
+      44px;
+  }
+
+  .topic-rule-head > :nth-child(1),
+  .topic-rule-item > :nth-child(2){
+    grid-area: drag;
+  }
+
+  .topic-rule-head > :nth-child(2),
+  .topic-rule-item > :nth-child(3){
+    grid-area: select;
+  }
+
+  .topic-rule-head > :nth-child(3),
+  .topic-rule-item > :nth-child(4){
+    grid-area: id;
+  }
+
+  .topic-rule-head > :nth-child(4),
+  .topic-rule-item > :nth-child(5){
+    grid-area: note;
+  }
+
+  .topic-rule-head > :nth-child(5),
+  .topic-rule-item > :nth-child(6){
+    grid-area: enabled;
+  }
+
+  .topic-rule-head > :nth-child(6),
+  .topic-rule-item > :nth-child(7){
+    grid-area: keywords;
+  }
+
+  .topic-rule-head > :nth-child(7),
+  .topic-rule-item > :nth-child(8){
+    grid-area: delete;
+  }
+
+  .topic-rule-head > :nth-child(8),
+  .topic-rule-item > :nth-child(9){
+    grid-area: insert;
+  }
+
+  .keyword-rule-row{
+    grid-template-areas:
+      "drag select keyword keyword keyword keyword delete insert"
+      "title title body body comments comments replies replies";
+    grid-template-columns:
+      36px
+      64px
+      repeat(4, minmax(0, 1fr))
+      44px
+      44px;
+  }
+
+  .keyword-rule-row > :nth-child(1){
+    grid-area: drag;
+  }
+
+  .keyword-rule-row > :nth-child(2){
+    grid-area: select;
+  }
+
+  .keyword-rule-row > :nth-child(3){
+    grid-area: keyword;
+  }
+
+  .keyword-rule-row > :nth-child(4){
+    grid-area: title;
+  }
+
+  .keyword-rule-row > :nth-child(5){
+    grid-area: body;
+  }
+
+  .keyword-rule-row > :nth-child(6){
+    grid-area: comments;
+  }
+
+  .keyword-rule-row > :nth-child(7){
+    grid-area: replies;
+  }
+
+  .keyword-rule-row > :nth-child(8){
+    grid-area: delete;
+  }
+
+  .keyword-rule-row > :nth-child(9){
+    grid-area: insert;
+  }
+
+  .topic-rule-head > :nth-child(6),
+  .topic-rule-item > :nth-child(7),
+  .topic-rule-head > :nth-child(8),
+  .topic-rule-item > :nth-child(9),
+  .keyword-rule-row > :nth-child(7),
+  .keyword-rule-row > :nth-child(9){
+    border-inline-end: 0;
+  }
+
+  .topic-rule-row:last-child > div,
+  .topic-rule-row:last-child > label,
+  .keyword-rule-row:last-child > div,
+  .keyword-rule-row:last-child > label{
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .topic-rule-item:last-child > :nth-child(5),
+  .topic-rule-item:last-child > :nth-child(7),
+  .keyword-rule-item:last-child > :nth-child(4),
+  .keyword-rule-item:last-child > :nth-child(5),
+  .keyword-rule-item:last-child > :nth-child(6),
+  .keyword-rule-item:last-child > :nth-child(7){
+    border-bottom: 0;
+  }
+
+  .topic-rule-head,
+  .keyword-rule-head{
+    font-size: 13px;
+  }
+
+  .topic-rule-row > div,
+  .topic-rule-row > label,
+  .keyword-rule-row > div,
+  .keyword-rule-row > label{
+    box-sizing: border-box;
+    padding: 6px 4px;
   }
 
   .input-action-row{
