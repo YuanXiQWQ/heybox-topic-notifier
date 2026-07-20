@@ -21,7 +21,7 @@ Deno.test("formatHeyboxRelativeTime uses localized relative messages", () => {
   assertEquals(formatHeyboxRelativeTime("2026-06-30T15:57:00.000Z", now, "en-US"), "3 minutes ago");
   assertEquals(formatHeyboxRelativeTime("2026-06-30T13:00:00.000Z", now, "en-US"), "3 hours ago");
   assertEquals(formatHeyboxRelativeTime("2026-06-27T16:00:00.000Z", now, "en-US"), "3 days ago");
-  assertEquals(formatHeyboxRelativeTime("2026-06-30T13:00:00.000Z", now, "de-DE"), "3 hours ago");
+  assertEquals(formatHeyboxRelativeTime("2026-06-30T13:00:00.000Z", now, "de-DE"), "vor 3 Stunden");
 });
 
 Deno.test("formatHeyboxRelativeTime formats older China-time dates", () => {

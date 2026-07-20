@@ -27,19 +27,19 @@ Deno.test("English messages fall back to Simplified Chinese for missing keys", (
  * 验证新语言在未翻译时按预期使用兜底文案。
  */
 Deno.test("regional and untranslated messages use locale fallback chain", () => {
-  const zhCN = getMessages("zh-CN");
+  const zhTW = getMessages("zh-TW");
   const enUS = getMessages("en-US");
 
-  if (getMessages("zh-TW").settingsTitle !== zhCN.settingsTitle) {
-    throw new Error("Expected Traditional Chinese placeholder to fall back to Simplified Chinese");
+  if (zhTW.settingsTitle !== "設定") {
+    throw new Error("Expected Traditional Chinese settings title");
   }
 
   if (getMessages("en-GB").settingsTitle !== enUS.settingsTitle) {
     throw new Error("Expected English regional placeholder to fall back to American English");
   }
 
-  if (getMessages("de-DE").settingsTitle !== enUS.settingsTitle) {
-    throw new Error("Expected untranslated non-Chinese locale to fall back to American English");
+  if (getMessages("de-DE").settingsTitle !== "Einstellungen") {
+    throw new Error("Expected German settings title");
   }
 });
 
