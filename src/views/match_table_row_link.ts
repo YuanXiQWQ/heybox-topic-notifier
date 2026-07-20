@@ -9,6 +9,10 @@
  */
 export function renderMatchTableRowLinkStyle(): string {
   return `<style>
+    .match-table-title-text {
+      color: var(--theme-link);
+    }
+
     .match-table tbody tr.match-table-row-link > td:nth-child(n + 2):nth-last-child(n + 2) {
       cursor: pointer;
       transition: background-color 160ms ease;
@@ -74,6 +78,16 @@ export function renderMatchTableRowLinkScript(): string {
         }
       };
 
+      const replaceTitleLink = (titleLink) => {
+        const titleText = document.createElement("span");
+        titleText.className = [titleLink.className, "match-table-title-text"]
+          .filter(Boolean)
+          .join(" ");
+        titleText.textContent = titleLink.textContent ?? "";
+        titleLink.replaceWith(titleText);
+        return titleText;
+      };
+
       const initializeRow = (row) => {
         if (!(row instanceof HTMLTableRowElement) || row.hasAttribute(initializedAttribute)) {
           return;
@@ -90,7 +104,8 @@ export function renderMatchTableRowLinkScript(): string {
           return;
         }
 
-        const title = titleLink.textContent?.trim() ?? "";
+        const titleText = replaceTitleLink(titleLink);
+        const title = titleText.textContent?.trim() ?? "";
         const content = row.cells.item(2)?.textContent?.trim() ?? "";
         row.setAttribute(initializedAttribute, "true");
         row.classList.add("match-table-row-link");
