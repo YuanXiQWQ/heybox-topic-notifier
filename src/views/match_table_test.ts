@@ -156,9 +156,9 @@ Deno.test("settings and history pages keep the app tab title", () => {
 Deno.test("renderSettings marks navigation and locale controls with icons", () => {
   const html = renderSettings({ csrfToken: testCsrfToken, settings: settings() });
 
-  assertIncludes(html, `<a href="/"><svg class="nav-icon"`);
-  assertIncludes(html, `<a href="/settings"><svg class="nav-icon"`);
-  assertIncludes(html, `<a href="/history"><svg class="nav-icon"`);
+  assertIncludes(html, `<form class="nav-item" method="get" action="/">`);
+  assertIncludes(html, `<form class="nav-item" method="get" action="/settings">`);
+  assertIncludes(html, `<form class="nav-item" method="get" action="/history">`);
   assertIncludes(html, `<button class="nav-link-button" type="submit"><svg class="nav-icon"`);
   assertIncludes(html, `class="settings-label-with-icon"`);
   assertIncludes(html, `class="settings-label-icon"`);

@@ -6,3 +6,5 @@ Thumbs.db
 coverage/
 .vscode/
 .idea/
+
+reset_password.ts
