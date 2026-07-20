@@ -12,29 +12,30 @@ export type KeywordMatch = {
 };
 
 /**
- * 正则关键词允许的最大长度。
+ * 单次正则匹配允许占用的最长时间。
  */
-const maxRegexKeywordLength = 120;
-/**
- * 正则显式重复次数允许的最大上限。
- */
-const maxRegexRepetitionCount = 100;
+const regexMatchTimeoutMs = 100;
 
 /**
- * 正则分组中用于判断回溯风险的结构信息。
+ * 正则 Worker 执行代码。
+ *
+ * 正则必须在独立 Worker 中运行，避免灾难性回溯阻塞主线程。
  */
-type RegexGroupInfo = {
-  hasAlternation: boolean;
-  hasQuantifier: boolean;
-};
+const regexWorkerSource = `
+self.onmessage = (event) => {
+  const { pattern, flags, text } = event.data;
 
-/**
- * 正则量词解析结果。
- */
-type RegexQuantifier = {
-  length: number;
-  safe: boolean;
+  try {
+    const matched = new RegExp(pattern, flags).test(text);
+    self.postMessage({ status: "completed", matched });
+  } catch (error) {
+    self.postMessage({
+      status: "invalid",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 };
+`;
 
 /**
  * 创建关键词匹配器。
@@ -50,7 +51,10 @@ export function createMatcher() {
      * @param keywordRules 需要应用的关键词规则列表。
      * @return 第一个命中结果，未命中时返回 undefined。
      */
-    findMatch(post: TopicPost, keywordRules: KeywordRule[]): KeywordMatch | undefined {
+    async findMatch(
+      post: TopicPost,
+      keywordRules: KeywordRule[],
+    ): Promise<KeywordMatch | undefined> {
       for (const rule of keywordRules) {
         const keyword = rule.keyword.trim();
 
@@ -59,7 +63,7 @@ export function createMatcher() {
         }
 
         for (const location of rule.locations) {
-          if (matchesKeyword(locationText(post, location), keyword, rule)) {
+          if (await matchesKeyword(locationText(post, location), keyword, rule)) {
             return { keyword, location };
           }
         }
@@ -78,17 +82,17 @@ export function createMatcher() {
  * @param rule 关键词匹配规则。
  * @return 命中时返回 true，否则返回 false。
  */
-function matchesKeyword(text: string, keyword: string, rule: KeywordRule): boolean {
+async function matchesKeyword(
+  text: string,
+  keyword: string,
+  rule: KeywordRule,
+): Promise<boolean> {
   if (rule.useRegex) {
-    try {
-      if (!isSafeKeywordRegex(keyword)) {
-        return false;
-      }
-
-      return new RegExp(keyword, rule.caseSensitive ? "" : "i").test(text);
-    } catch {
-      return false;
-    }
+    return await matchesRegexWithTimeout(
+      text,
+      keyword,
+      rule.caseSensitive ? "" : "i",
+    );
   }
 
   if (rule.caseSensitive) {
@@ -99,154 +103,50 @@ function matchesKeyword(text: string, keyword: string, rule: KeywordRule): boole
 }
 
 /**
- * 判断用户输入的正则关键词是否位于允许的安全子集内。
+ * 在独立 Worker 中限时执行正则匹配。
  *
- * @param pattern 用户输入的正则表达式文本。
- * @return 正则表达式文本可安全执行时返回 true。
- */
-export function isSafeKeywordRegex(pattern: string): boolean {
-  if (pattern.length > maxRegexKeywordLength) {
-    return false;
-  }
-
-  const groups: RegexGroupInfo[] = [];
-  let inCharacterClass = false;
-
-  for (let index = 0; index < pattern.length; index += 1) {
-    const char = pattern[index];
-
-    if (char === "\\") {
-      if (isBackreferenceEscape(pattern, index)) {
-        return false;
-      }
-      index += 1;
-      continue;
-    }
-
-    if (inCharacterClass) {
-      if (char === "]") {
-        inCharacterClass = false;
-      }
-      continue;
-    }
-
-    if (char === "[") {
-      inCharacterClass = true;
-      continue;
-    }
-
-    if (char === "(") {
-      if (pattern[index + 1] === "?") {
-        if (pattern[index + 2] !== ":") {
-          return false;
-        }
-        index += 2;
-      }
-      groups.push({ hasAlternation: false, hasQuantifier: false });
-      continue;
-    }
-
-    if (char === ")") {
-      const group = groups.pop();
-      if (!group) {
-        return false;
-      }
-
-      const quantifier = regexQuantifierAt(pattern, index + 1);
-      if (quantifier) {
-        if (!quantifier.safe || group.hasAlternation || group.hasQuantifier) {
-          return false;
-        }
-        markCurrentGroupQuantified(groups);
-        index += quantifier.length;
-      }
-      continue;
-    }
-
-    if (char === "|") {
-      markCurrentGroupAlternated(groups);
-      continue;
-    }
-
-    const quantifier = regexQuantifierAt(pattern, index);
-    if (quantifier) {
-      if (!quantifier.safe) {
-        return false;
-      }
-      markCurrentGroupQuantified(groups);
-      index += quantifier.length - 1;
-    }
-  }
-
-  return !inCharacterClass && groups.length === 0;
-}
-
-/**
- * 判断当前位置的转义序列是否为回溯引用。
+ * 原生 RegExp 是同步操作，不能通过 Promise.race 在主线程中可靠超时。
+ * Worker 超时后会被立即终止，因此任意合法 JavaScript 正则都可以使用，
+ * 同时不会因灾难性回溯长期阻塞轮询线程。
  *
+ * @param text 待匹配文本。
  * @param pattern 正则表达式文本。
- * @param index 反斜杠所在位置。
- * @return 当前位置为回溯引用时返回 true。
+ * @param flags 正则标志。
+ * @return 正则命中时返回 true；未命中、语法无效或超时时返回 false。
  */
-function isBackreferenceEscape(pattern: string, index: number): boolean {
-  const next = pattern[index + 1] ?? "";
-  return /^[1-9]$/.test(next) || (next === "k" && pattern[index + 2] === "<");
-}
+function matchesRegexWithTimeout(
+  text: string,
+  pattern: string,
+  flags: string,
+): Promise<boolean> {
+  const workerUrl = URL.createObjectURL(
+    new Blob([regexWorkerSource], { type: "text/javascript" }),
+  );
+  const worker = new Worker(workerUrl, { type: "module" });
 
-/**
- * 从指定位置解析正则量词。
- *
- * @param pattern 正则表达式文本。
- * @param index 待解析位置。
- * @return 量词解析结果，不存在量词时返回 undefined。
- */
-function regexQuantifierAt(pattern: string, index: number): RegexQuantifier | undefined {
-  const char = pattern[index];
-  if (char === "*" || char === "+" || char === "?") {
-    return { length: pattern[index + 1] === "?" ? 2 : 1, safe: true };
-  }
+  return new Promise((resolve) => {
+    let settled = false;
 
-  if (char !== "{") {
-    return undefined;
-  }
+    const finish = (matched: boolean) => {
+      if (settled) {
+        return;
+      }
 
-  const match = pattern.slice(index).match(/^\{(\d+)(?:,(\d*))?}\??/);
-  if (!match) {
-    return undefined;
-  }
+      settled = true;
+      clearTimeout(timeoutId);
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+      resolve(matched);
+    };
 
-  const lowerBound = Number(match[1]);
-  const upperBound = match[2] === undefined || match[2] === "" ? lowerBound : Number(match[2]);
-  const safe = Number.isSafeInteger(lowerBound) &&
-    Number.isSafeInteger(upperBound) &&
-    lowerBound <= upperBound &&
-    lowerBound <= maxRegexRepetitionCount &&
-    upperBound <= maxRegexRepetitionCount;
-  return { length: match[0].length, safe };
-}
+    const timeoutId = setTimeout(() => finish(false), regexMatchTimeoutMs);
 
-/**
- * 标记当前正则分组中出现了分支。
- *
- * @param groups 当前未闭合的正则分组栈。
- */
-function markCurrentGroupAlternated(groups: RegexGroupInfo[]): void {
-  const currentGroup = groups.at(-1);
-  if (currentGroup) {
-    currentGroup.hasAlternation = true;
-  }
-}
-
-/**
- * 标记当前正则分组中出现了量词。
- *
- * @param groups 当前未闭合的正则分组栈。
- */
-function markCurrentGroupQuantified(groups: RegexGroupInfo[]): void {
-  const currentGroup = groups.at(-1);
-  if (currentGroup) {
-    currentGroup.hasQuantifier = true;
-  }
+    worker.onmessage = (event: MessageEvent) => {
+      finish(event.data?.status === "completed" && event.data.matched === true);
+    };
+    worker.onerror = () => finish(false);
+    worker.postMessage({ flags, pattern, text });
+  });
 }
 
 /**
