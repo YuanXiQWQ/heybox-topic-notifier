@@ -5,6 +5,10 @@ import { getMessages } from "../locales/index.ts";
 import { isRtlLocale, type Locale } from "../locales/types.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { dashboardIcon, historyIcon, logoutIcon, settingsIcon } from "./icons.ts";
+import {
+  renderMatchTableRowLinkScript,
+  renderMatchTableRowLinkStyle,
+} from "./match_table_row_link.ts";
 
 /**
  * 转义 HTML 文本。
@@ -51,6 +55,7 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="https://cdn.max-c.com/heybox/logo/app_251.png">
     <link rel="stylesheet" href="/static/app.css">
+    ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
     <header class="topbar">
@@ -80,6 +85,7 @@ export function renderLayout(options: {
       </nav>
     </header>
     <main class="shell">${options.body}</main>
+    ${renderMatchTableRowLinkScript()}
   </body>
 </html>`;
 }
