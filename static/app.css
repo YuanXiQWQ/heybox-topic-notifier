@@ -1408,6 +1408,11 @@ td:has(> .checkbox-cell) > .checkbox-cell{
   position: absolute;
 }
 
+.match-table th:has(> .checkbox-cell) > .checkbox-cell,
+.match-table td:has(> .checkbox-cell) > .checkbox-cell{
+  padding: 6px 4px;
+}
+
 .bulk-action-cell,
 .location-bulk-cell{
   flex-wrap: wrap;
@@ -2079,24 +2084,29 @@ tr:last-child td{
     padding-inline: 4px;
   }
 
+  .match-table th,
+  .match-table td{
+    padding-inline: 4px;
+  }
+
   .match-table-col-2{
-    width: 4%;
+    width: 32px;
   }
 
   .match-table-col-3{
-    width: 18%;
+    width: 5.5em;
   }
 
   .match-table-col-14{
-    width: 50%;
+    width: auto;
   }
 
   .match-table-col-5{
-    width: 24%;
+    width: 6.5em;
   }
 
   .match-table-col-1{
-    width: 4%;
+    width: 32px;
   }
 
   .match-detail-list{
