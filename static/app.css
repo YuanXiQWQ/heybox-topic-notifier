@@ -2078,6 +2078,11 @@ tr:last-child td{
     margin-inline: 8px;
   }
 
+  .section-title-row{
+    align-items: center;
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
   th,
   td{
     padding-block: 6px;
@@ -2138,7 +2143,7 @@ tr:last-child td{
   }
 
   .table-filter-field{
-    flex-basis: 100%;
+    flex-basis: auto;
     justify-content: flex-end;
   }
 }
