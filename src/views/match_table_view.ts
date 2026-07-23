@@ -13,7 +13,6 @@ import {
   matchTableSignature,
   pageSizeValues,
 } from "./match_table.ts";
-import { truncateText } from "./text.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
 /**
@@ -52,24 +51,32 @@ export type MatchRecordsSectionOptions = {
  * @param options 表格区块渲染选项。
  * @return 命中记录表格区块 HTML。
  */
-export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): string {
+export function renderMatchRecordsSection(
+  options: MatchRecordsSectionOptions,
+): string {
   return `
     <section
       class="table-section"
       aria-labelledby="${escapeHtml(options.headingId)}"
-      data-match-table-signature="${escapeHtml(matchTableSignature(options.table))}"
+      data-match-table-signature="${
+    escapeHtml(matchTableSignature(options.table))
+  }"
     >
       <div class="section-title-row">
-        <h2 id="${escapeHtml(options.headingId)}">${escapeHtml(options.heading)}</h2>
+        <h2 id="${escapeHtml(options.headingId)}">${
+    escapeHtml(options.heading)
+  }</h2>
         ${renderTableFilters(options)}
       </div>
       ${
-    options.table.totalRecords === 0 ? `<p>${escapeHtml(options.emptyMessage)}</p>` : `
+    options.table.totalRecords === 0
+      ? `<p>${escapeHtml(options.emptyMessage)}</p>`
+      : `
         <form method="post" action="${escapeHtml(options.formAction)}">
           ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${
-      escapeHtml(buildMatchTableUrl(options.path, options.table, {}))
-    }">
+        escapeHtml(buildMatchTableUrl(options.path, options.table, {}))
+      }">
           <table class="match-table">
             ${renderMatchTableColumns()}
             <thead>
@@ -82,10 +89,7 @@ export function renderMatchRecordsSection(options: MatchRecordsSectionOptions): 
                 </th>
                 <th>${escapeHtml(options.messages.postTitle)}</th>
                 <th>${escapeHtml(options.messages.postContent)}</th>
-                <th>${escapeHtml(options.messages.publishedAt)}</th>
-                <th>${escapeHtml(options.messages.matchedAt)}</th>
-                <th>${escapeHtml(options.messages.matchedKeyword)}</th>
-                <th>${escapeHtml(options.messages.matchLocationHeader)}</th>
+                <th>${escapeHtml(options.messages.matchDetails)}</th>
                 <th class="table-action-cell">
                   <button
                     type="submit"
@@ -137,18 +141,19 @@ function renderRows(options: MatchRecordsSectionOptions): string {
           >
         </label>
       </td>
-      <td><a class="${escapeHtml(titleClasses)}" href="${
+      <td class="match-title-cell"><a class="${
+      escapeHtml(titleClasses)
+    }" href="${
       escapeHtml(record.post.url)
-    }" target="_blank" rel="noopener noreferrer">${escapeHtml(record.post.title)}</a></td>
-      <td><span class="table-clip">${
-      escapeHtml(truncateText(record.post.excerpt || record.post.body))
-    }</span></td>
-      <td>${renderRelativeTimeCell(record.post.publishedAt, now, options.locale)}</td>
-      <td>${renderRelativeTimeCell(record.matchedAt, now, options.locale)}</td>
-      <td><span class="table-cell-clip">${escapeHtml(record.keyword)}</span></td>
-      <td><span class="table-cell-clip">${
-      escapeHtml(locationLabel(record.location, options.messages))
-    }</span></td>
+    }" target="_blank" rel="noopener noreferrer">${
+      escapeHtml(record.post.title)
+    }</a></td>
+      <td class="match-content-cell">${`<span class="table-clip">${
+      escapeHtml(record.post.body || record.post.excerpt)
+    }</span>`}</td>
+      <td>${
+      renderMatchDetails(record, now, options.locale, options.messages)
+    }</td>
       <td class="table-action-cell">
         <button
           type="submit"
@@ -172,12 +177,59 @@ function renderRows(options: MatchRecordsSectionOptions): string {
  * @param locale 当前语言标识。
  * @return 时间单元格 HTML。
  */
-function renderRelativeTimeCell(value: string, now: Date, locale: Locale): string {
-  return `<span class="table-cell-clip" data-relative-time="${
+function renderRelativeTimeCell(
+  value: string,
+  now: Date,
+  locale: Locale,
+): string {
+  return `<span class="match-detail-value" data-relative-time="${
     escapeHtml(value)
   }" data-relative-time-locale="${escapeHtml(locale)}">${
     escapeHtml(formatHeyboxRelativeTime(value, now, locale))
   }</span>`;
+}
+
+/**
+ * 渲染命中记录详情单元格。
+ *
+ * @param record 命中记录。
+ * @param now 当前时间。
+ * @param locale 当前语言标识。
+ * @param messages 当前语言文案。
+ * @return 命中记录详情单元格 HTML。
+ */
+function renderMatchDetails(
+  record: MatchTableResult["records"][number],
+  now: Date,
+  locale: Locale,
+  messages: Messages,
+): string {
+  const details = [
+    [
+      messages.matchDetailPublished,
+      renderRelativeTimeCell(record.post.publishedAt, now, locale),
+    ],
+    [
+      messages.matchDetailMatched,
+      renderRelativeTimeCell(record.matchedAt, now, locale),
+    ],
+    [
+      messages.matchDetailKeyword,
+      `<span class="match-detail-value">${escapeHtml(record.keyword)}</span>`,
+    ],
+    [
+      messages.matchDetailLocation,
+      `<span class="match-detail-value">${
+        escapeHtml(locationLabel(record.location, messages))
+      }</span>`,
+    ],
+  ];
+
+  return `<dl class="match-detail-list">${
+    details.map(([label, value]) =>
+      `<div><dt>${escapeHtml(label)}：</dt><dd>${value}</dd></div>`
+    ).join("")
+  }</dl>`;
 }
 
 /**
@@ -189,12 +241,9 @@ function renderMatchTableColumns(): string {
   return `
             <colgroup>
               <col class="match-table-col-2">
-              <col class="match-table-col-4">
-              <col class="match-table-col-10">
-              <col class="match-table-col-2">
-              <col class="match-table-col-2">
-              <col class="match-table-col-2">
-              <col class="match-table-col-2">
+              <col class="match-table-col-3">
+              <col class="match-table-col-14">
+              <col class="match-table-col-5">
               <col class="match-table-col-1">
             </colgroup>`;
 }
@@ -208,7 +257,8 @@ function renderMatchTableColumns(): string {
 function renderTableFilters(options: MatchRecordsSectionOptions): string {
   const table = options.table;
   const messages = options.messages;
-  const isActive = table.range !== "all" || table.from !== "" || table.to !== "";
+  const isActive = table.range !== "all" || table.from !== "" ||
+    table.to !== "";
   const isCustom = table.range === "custom";
 
   return `
@@ -277,7 +327,11 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
  * @param messages 当前语言文案。
  * @return 分页控件 HTML。
  */
-function renderPagination(path: string, table: MatchTableResult, messages: Messages): string {
+function renderPagination(
+  path: string,
+  table: MatchTableResult,
+  messages: Messages,
+): string {
   const pageLinks = compactPages(table.page, table.totalPages).map((page) => {
     if (page === "...") {
       return `<span class="pagination-ellipsis">...</span>`;
@@ -285,14 +339,16 @@ function renderPagination(path: string, table: MatchTableResult, messages: Messa
 
     const href = buildMatchTableUrl(path, table, { page });
     const isCurrent = page === table.page;
-    return `<a class="${isCurrent ? "is-current" : ""}" href="${escapeHtml(href)}">${page}</a>`;
+    return `<a class="${isCurrent ? "is-current" : ""}" href="${
+      escapeHtml(href)
+    }">${page}</a>`;
   }).join("");
   const pageSizeLinks = pageSizeValues().map((pageSize) => {
     const href = buildMatchTableUrl(path, table, { page: 1, pageSize });
     const label = pageSize === "all" ? messages.allRows : String(pageSize);
-    return `<a class="${pageSize === table.pageSize ? "is-current" : ""}" href="${
-      escapeHtml(href)
-    }">${escapeHtml(label)}</a>`;
+    return `<a class="${
+      pageSize === table.pageSize ? "is-current" : ""
+    }" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
   }).join("");
 
   return `
@@ -313,7 +369,10 @@ function renderPagination(path: string, table: MatchTableResult, messages: Messa
  * @param messages 当前语言文案。
  * @return 命中位置展示文案。
  */
-function locationLabel(location: MatchLocation | undefined, messages: Messages): string {
+function locationLabel(
+  location: MatchLocation | undefined,
+  messages: Messages,
+): string {
   switch (location) {
     case "title":
       return messages.matchTitle;
@@ -337,9 +396,9 @@ function locationLabel(location: MatchLocation | undefined, messages: Messages):
  * @return option HTML。
  */
 function option(value: string, current: string, label: string): string {
-  return `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${
-    escapeHtml(label)
-  }</option>`;
+  return `<option value="${escapeHtml(value)}" ${
+    value === current ? "selected" : ""
+  }>${escapeHtml(label)}</option>`;
 }
 
 /**
@@ -438,7 +497,9 @@ function renderRelativeTimeScript(): string {
       }
 
       window[installedKey] = true;
-      const relativeTemplates = ${JSON.stringify(relativeTimeTemplatesByLocale())};
+      const relativeTemplates = ${
+    JSON.stringify(relativeTimeTemplatesByLocale())
+  };
       const updateRelativeTimes = () => {
         const nowMs = Date.now();
         const now = new Date(nowMs);
@@ -527,9 +588,14 @@ function renderRelativeTimeScript(): string {
  *
  * @return 按语言分组的相对时间模板。
  */
-function relativeTimeTemplatesByLocale(): Record<Locale, RelativeTimeTemplates> {
+function relativeTimeTemplatesByLocale(): Record<
+  Locale,
+  RelativeTimeTemplates
+> {
   return Object.fromEntries(
-    locales.map((locale) => [locale, relativeTimeTemplates(getMessages(locale))]),
+    locales.map((
+      locale,
+    ) => [locale, relativeTimeTemplates(getMessages(locale))]),
   ) as Record<Locale, RelativeTimeTemplates>;
 }
 
@@ -558,14 +624,13 @@ function relativeTimeTemplates(messages: Messages): RelativeTimeTemplates {
 function renderOverflowScript(): string {
   return `<script>
     (() => {
-      const clippedSelector = ".match-table-title-link, .table-cell-clip, .table-clip";
+      const clippedSelector = ".match-table-title-link, .table-clip";
       const updateOverflowState = () => {
         for (const element of document.querySelectorAll(clippedSelector)) {
           if (!(element instanceof HTMLElement)) continue;
           const wasOverflowing = element.classList.contains("is-overflowing");
           element.classList.remove("is-overflowing");
-          const isOverflowing = element.scrollHeight > element.clientHeight + 1 ||
-            element.scrollWidth > element.clientWidth + 1;
+          const isOverflowing = isElementOverflowing(element);
           element.classList.toggle("is-overflowing", isOverflowing);
           if (isOverflowing && !wasOverflowing) {
             element.setAttribute("tabindex", "0");
@@ -574,6 +639,36 @@ function renderOverflowScript(): string {
           }
         }
       };
+
+      function isElementOverflowing(element) {
+        if (element.scrollWidth > element.clientWidth + 1) return true;
+        if (element.scrollHeight > element.clientHeight + 1) return true;
+
+        const clone = element.cloneNode(true);
+        if (!(clone instanceof HTMLElement)) return false;
+        const rect = element.getBoundingClientRect();
+        clone.classList.remove("is-overflowing");
+        clone.style.blockSize = "auto";
+        clone.style.boxShadow = "none";
+        clone.style.display = "block";
+        clone.style.inlineSize = rect.width + "px";
+        clone.style.left = "-10000px";
+        clone.style.lineClamp = "unset";
+        clone.style.maxBlockSize = "none";
+        clone.style.overflow = "visible";
+        clone.style.padding = getComputedStyle(element).padding;
+        clone.style.pointerEvents = "none";
+        clone.style.position = "absolute";
+        clone.style.top = "0";
+        clone.style.transform = "none";
+        clone.style.visibility = "hidden";
+        clone.style.webkitLineClamp = "unset";
+        document.body.append(clone);
+        const unclampedHeight = clone.scrollHeight;
+        clone.remove();
+        return unclampedHeight > element.clientHeight + 1;
+      }
+
       const scheduleUpdate = () => requestAnimationFrame(updateOverflowState);
       window["__matchTableOverflowUpdate"] = scheduleUpdate;
       scheduleUpdate();
@@ -650,7 +745,9 @@ function renderSelectionScript(action: MatchTableAction): string {
         const checkboxes = section ? Array.from(section.querySelectorAll(rowCheckboxSelector)) : [];
         if (checkboxes.some((item) => item.checked)) return;
         event.preventDefault();
-        showTableToast(section, ${JSON.stringify(action.emptySelectionMessage)});
+        showTableToast(section, ${
+    JSON.stringify(action.emptySelectionMessage)
+  });
       });
 
       function showTableToast(container, message) {

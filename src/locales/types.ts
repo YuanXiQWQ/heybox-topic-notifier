@@ -147,6 +147,11 @@ export type Messages = {
   locale: string;
   matchBody: string;
   matchComments: string;
+  matchDetailKeyword: string;
+  matchDetailLocation: string;
+  matchDetailMatched: string;
+  matchDetailPublished: string;
+  matchDetails: string;
   matchLocationHeader: string;
   matchReplies: string;
   matchTitle: string;
