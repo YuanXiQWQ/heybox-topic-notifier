@@ -1,7 +1,10 @@
 /**
  * @file 本文件验证小黑盒话题数据源的请求构建和响应解析逻辑。
  */
-import { createHeyboxTopicSource, parseHeyboxTopicPosts } from "./heybox_topic_source.ts";
+import {
+  createHeyboxTopicSource,
+  parseHeyboxTopicPosts,
+} from "./heybox_topic_source.ts";
 
 Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
   const posts = parseHeyboxTopicPosts({
@@ -73,7 +76,8 @@ Deno.test("parseHeyboxTopicPosts keeps trusted Heybox post share URLs", () => {
       links: [
         {
           id: "trusted-topic",
-          share_url: "https://www.xiaoheihe.cn/app/topic/link/12099?tab=hot#latest",
+          share_url:
+            "https://www.xiaoheihe.cn/app/topic/link/12099?tab=hot#latest",
           title: "trusted topic",
         },
       ],
@@ -81,7 +85,10 @@ Deno.test("parseHeyboxTopicPosts keeps trusted Heybox post share URLs", () => {
     status: "ok",
   }, "12099");
 
-  assertEquals(posts[0].url, "https://www.xiaoheihe.cn/app/topic/link/12099?tab=hot#latest");
+  assertEquals(
+    posts[0].url,
+    "https://www.xiaoheihe.cn/app/topic/link/12099?tab=hot#latest",
+  );
 });
 
 Deno.test("parseHeyboxTopicPosts encodes extracted link IDs in post URLs", () => {
@@ -89,7 +96,8 @@ Deno.test("parseHeyboxTopicPosts encodes extracted link IDs in post URLs", () =>
     result: {
       links: [
         {
-          share_url: "https://api.xiaoheihe.cn/share?link_id=abc%2F..%2F%3Cscript%3E",
+          share_url:
+            "https://api.xiaoheihe.cn/share?link_id=abc%2F..%2F%3Cscript%3E",
           title: "encoded link id",
         },
       ],
@@ -97,7 +105,10 @@ Deno.test("parseHeyboxTopicPosts encodes extracted link IDs in post URLs", () =>
     status: "ok",
   }, "12099");
 
-  assertEquals(posts[0].url, "https://www.xiaoheihe.cn/app/bbs/link/abc%2F..%2F%3Cscript%3E");
+  assertEquals(
+    posts[0].url,
+    "https://www.xiaoheihe.cn/app/bbs/link/abc%2F..%2F%3Cscript%3E",
+  );
 });
 
 Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
@@ -144,14 +155,23 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
     random: () => 0.123,
   });
 
-  const posts = await source.listLatestPosts("12099", { limit: 3, sort: "smart" });
+  const posts = await source.listLatestPosts("12099", {
+    limit: 3,
+    sort: "smart",
+  });
   const detailedPost = await source.getPostDetails?.(posts[0]);
 
-  const topicFeedUrl = requestedUrls.find((url) => url.pathname === "/bbs/app/topic/feeds");
-  const detailUrl = requestedUrls.find((url) => url.pathname === "/bbs/app/link/tree");
+  const topicFeedUrl = requestedUrls.find((url) =>
+    url.pathname === "/bbs/app/topic/feeds"
+  );
+  const detailUrl = requestedUrls.find((url) =>
+    url.pathname === "/bbs/app/link/tree"
+  );
 
   if (!topicFeedUrl || !detailUrl) {
-    throw new Error("Expected topic feed and detail request URLs to be captured");
+    throw new Error(
+      "Expected topic feed and detail request URLs to be captured",
+    );
   }
 
   assertEquals(topicFeedUrl.origin, "https://api.example.test");
@@ -201,7 +221,10 @@ Deno.test("createHeyboxTopicSource orders publish-time feed before slicing", asy
     random: () => 0.123,
   });
 
-  const posts = await source.listLatestPosts("12099", { limit: 2, sort: "publishTime" });
+  const posts = await source.listLatestPosts("12099", {
+    limit: 2,
+    sort: "publishTime",
+  });
 
   if (!topicFeedUrl) {
     throw new Error("Expected request URL to be captured");
@@ -289,7 +312,10 @@ Deno.test("createHeyboxTopicSource throws on failed Heybox response", async () =
  * @param expectedMessage 期望的错误信息。
  * @return 断言通过时无返回值。
  */
-async function assertRejects(fn: () => Promise<unknown>, expectedMessage: string): Promise<void> {
+async function assertRejects(
+  fn: () => Promise<unknown>,
+  expectedMessage: string,
+): Promise<void> {
   try {
     await fn();
   } catch (error) {

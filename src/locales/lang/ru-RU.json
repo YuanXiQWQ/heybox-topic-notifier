@@ -1,5 +1,4 @@
 {
-  "appDescription": "Отслеживает публикации в темах Heybox и отправляет уведомления по ключевым словам.",
   "appName": "Уведомитель тем Heybox",
   "accountCancel": "Отмена",
   "accountConfirmPassword": "Подтвердите новый пароль",
@@ -40,11 +39,9 @@
   "autoSaveError": "Не удалось сохранить",
   "autoSaveSaved": "Сохранено",
   "autoSaveSaving": "Сохранение...",
-  "batchOperation": "Пакетная операция",
   "completeMatch": "Отметить как выполненное",
   "commonTopic": "Общее",
   "configureSecretLink": "Настроить {label}",
-  "dashboardSubtitle": "Просмотр состояния опроса, последних совпадений и теста уведомлений.",
   "dashboardTitle": "Мониторинг тем",
   "darkMode": "Тёмный режим",
   "deleteMatch": "Удалить запись",

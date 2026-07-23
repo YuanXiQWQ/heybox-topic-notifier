@@ -4,7 +4,11 @@
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, MatchRecord } from "../models.ts";
 import { renderHistory } from "./history.ts";
-import { applyMatchTableQuery, compactPages, parseMatchTableQuery } from "./match_table.ts";
+import {
+  applyMatchTableQuery,
+  compactPages,
+  parseMatchTableQuery,
+} from "./match_table.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { renderSettings } from "./settings.ts";
@@ -15,7 +19,9 @@ import { renderSettings } from "./settings.ts";
 const testCsrfToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 Deno.test("parseMatchTableQuery normalizes unsupported values", () => {
-  const query = parseMatchTableQuery(new URLSearchParams("range=bad&page=-1&pageSize=777"));
+  const query = parseMatchTableQuery(
+    new URLSearchParams("range=bad&page=-1&pageSize=777"),
+  );
 
   assertEquals(query, {
     from: "",
@@ -91,7 +97,10 @@ Deno.test("renderMatchRecordsSection opens post title links in a new tab", () =>
     html,
     `<a class="match-table-title-link pending-title-link" href="https://example.com/title-link" target="_blank" rel="noopener noreferrer">title-link</a>`,
   );
-  assertIncludes(html, `<input type="hidden" name="csrfToken" value="${testCsrfToken}">`);
+  assertIncludes(
+    html,
+    `<input type="hidden" name="csrfToken" value="${testCsrfToken}">`,
+  );
 });
 
 Deno.test("renderMatchRecordsSection marks timestamps for live relative updates", () => {
@@ -125,6 +134,41 @@ Deno.test("renderMatchRecordsSection marks timestamps for live relative updates"
   assertIncludes(html, `window[updateKey] = updateRelativeTimes;`);
 });
 
+Deno.test("renderMatchRecordsSection folds match metadata into one details column", () => {
+  const match = record("detail-row", "2026-06-30T12:00:00.000Z");
+  const html = renderMatchRecordsSection({
+    action: {
+      bulkButtonAttribute: "data-test-bulk",
+      emptySelectionMessage: "empty",
+      icon: "",
+      label: "complete",
+      rowCheckboxAttribute: "data-test-row",
+      selectAllAttribute: "data-test-all",
+    },
+    csrfToken: testCsrfToken,
+    emptyMessage: "empty",
+    filterToggleId: "test-filter",
+    formAction: "/matches/complete",
+    heading: "heading",
+    headingId: "heading-id",
+    locale: "zh-CN",
+    messages: getMessages("zh-CN"),
+    path: "/",
+    table: table([match]),
+    titleLinkClass: "pending-title-link",
+  });
+
+  assertIncludes(html, "<th>详细信息</th>");
+  assertIncludes(html, "<dt>发布：</dt>");
+  assertIncludes(html, "<dt>命中：</dt>");
+  assertIncludes(html, "<dt>关键词：</dt>");
+  assertIncludes(html, "<dt>位置：</dt>");
+  assertNotIncludes(html, "<th>发帖时间</th>");
+  assertNotIncludes(html, "<th>命中时间</th>");
+  assertNotIncludes(html, "<th>命中关键词</th>");
+  assertNotIncludes(html, "<th>匹配位置</th>");
+});
+
 Deno.test("renderHistory keeps history post titles emphasized", () => {
   const html = renderHistory({
     csrfToken: testCsrfToken,
@@ -145,7 +189,10 @@ Deno.test("settings and history pages keep the app tab title", () => {
     historyTable: table([]),
     settings: appSettings,
   });
-  const settingsHtml = renderSettings({ csrfToken: testCsrfToken, settings: appSettings });
+  const settingsHtml = renderSettings({
+    csrfToken: testCsrfToken,
+    settings: appSettings,
+  });
 
   assertIncludes(historyHtml, "<title>小黑盒话题提醒</title>");
   assertIncludes(settingsHtml, "<title>小黑盒话题提醒</title>");
@@ -154,12 +201,24 @@ Deno.test("settings and history pages keep the app tab title", () => {
 });
 
 Deno.test("renderSettings marks navigation and locale controls with icons", () => {
-  const html = renderSettings({ csrfToken: testCsrfToken, settings: settings() });
+  const html = renderSettings({
+    csrfToken: testCsrfToken,
+    settings: settings(),
+  });
 
   assertIncludes(html, `<form class="nav-item" method="get" action="/">`);
-  assertIncludes(html, `<form class="nav-item" method="get" action="/settings">`);
-  assertIncludes(html, `<form class="nav-item" method="get" action="/history">`);
-  assertIncludes(html, `<button class="nav-link-button" type="submit"><svg class="nav-icon"`);
+  assertIncludes(
+    html,
+    `<form class="nav-item" method="get" action="/settings">`,
+  );
+  assertIncludes(
+    html,
+    `<form class="nav-item" method="get" action="/history">`,
+  );
+  assertIncludes(
+    html,
+    `<button class="nav-link-button" type="submit"><svg class="nav-icon"`,
+  );
   assertIncludes(html, `class="settings-label-with-icon"`);
   assertIncludes(html, `class="settings-label-icon"`);
   assertIncludes(html, `viewBox="0 -960 960 960"`);
@@ -174,11 +233,17 @@ Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => 
     notificationSmtpHost: "smtp.example.com",
     topics: [{ enabled: true, id: "12345", keywordRules: [], note: "" }],
   };
-  const html = renderSettings({ csrfToken: testCsrfToken, settings: appSettings });
+  const html = renderSettings({
+    csrfToken: testCsrfToken,
+    settings: appSettings,
+  });
 
   assertIncludes(html, `lang="ar-SA"`);
   assertIncludes(html, `dir="rtl"`);
-  assertIncludes(html, `name="notificationSmtpHost"\n                dir="ltr"`);
+  assertIncludes(
+    html,
+    `name="notificationSmtpHost"\n                dir="ltr"`,
+  );
   assertIncludes(html, `name="topic_0_id" dir="ltr" value="12345"`);
 });
 
@@ -192,7 +257,10 @@ Deno.test("renderSettings does not expose notification secrets", () => {
     notificationWebhookUrl: "https://example.com/webhook/secret-token",
     notificationWxPusherSpt: "wxpusher-spt-secret",
   };
-  const html = renderSettings({ csrfToken: testCsrfToken, settings: appSettings });
+  const html = renderSettings({
+    csrfToken: testCsrfToken,
+    settings: appSettings,
+  });
 
   assertIncludes(html, `class="secret-display-input"`);
   assertIncludes(html, `data-secret-configured="true"`);

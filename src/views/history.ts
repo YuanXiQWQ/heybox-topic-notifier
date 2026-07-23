@@ -24,7 +24,6 @@ export function renderHistory(options: {
     <section class="page-heading">
       <div>
         <h1>${escapeHtml(messages.historyTitle)}</h1>
-        <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
     ${

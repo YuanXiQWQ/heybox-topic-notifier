@@ -1,5 +1,4 @@
 {
-  "appDescription": "Heybox کے موضوعاتی پوسٹس کی نگرانی کرتا ہے اور keywords کے مطابق notifications بھیجتا ہے۔",
   "appName": "Heybox موضوع اطلاع دہندہ",
   "accountCancel": "منسوخ",
   "accountConfirmPassword": "نئے password کی تصدیق کریں",
@@ -40,11 +39,9 @@
   "autoSaveError": "محفوظ کرنا ناکام",
   "autoSaveSaved": "محفوظ ہو گیا",
   "autoSaveSaving": "محفوظ کیا جا رہا ہے...",
-  "batchOperation": "batch operation",
   "completeMatch": "completed کے طور پر نشان زد کریں",
   "commonTopic": "عام",
   "configureSecretLink": "{label} configure کرنے جائیں",
-  "dashboardSubtitle": "polling status، تازہ ترین matches اور notification test دیکھیں۔",
   "dashboardTitle": "topic monitoring",
   "darkMode": "dark mode",
   "deleteMatch": "record حذف کریں",

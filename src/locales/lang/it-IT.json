@@ -1,5 +1,4 @@
 {
-  "appDescription": "Monitora i post degli argomenti Heybox e invia notifiche in base alle parole chiave.",
   "appName": "Notificatore di argomenti Heybox",
   "accountCancel": "Annulla",
   "accountConfirmPassword": "Conferma nuova password",
@@ -40,11 +39,9 @@
   "autoSaveError": "Salvataggio non riuscito",
   "autoSaveSaved": "Salvato",
   "autoSaveSaving": "Salvataggio...",
-  "batchOperation": "Operazione batch",
   "completeMatch": "Contrassegna come completato",
   "commonTopic": "Comune",
   "configureSecretLink": "Configura {label}",
-  "dashboardSubtitle": "Visualizza lo stato del polling, le ultime corrispondenze e il test delle notifiche.",
   "dashboardTitle": "Monitoraggio argomenti",
   "darkMode": "Modalità scura",
   "deleteMatch": "Elimina record",

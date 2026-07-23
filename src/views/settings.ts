@@ -53,7 +53,6 @@ export function renderSettings(options: {
     <section class="page-heading">
       <div>
         <h1>${escapeHtml(messages.settingsTitle)}</h1>
-        <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
     ${
@@ -129,7 +128,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
-    <script src="/static/settings.js?v=20260719-settings-drag" defer></script>
+    <script src="/static/settings.js?v=20260723-draft-row-focusout" defer></script>
   `;
 
   return renderLayout({
@@ -1043,7 +1042,6 @@ function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string
     <div class="topic-rule-row topic-rule-head" role="row">
       <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
       <label class="checkbox-cell bulk-action-cell" role="columnheader">
-        <span>${escapeHtml(messages.batchOperation)}</span>
         <input type="checkbox" data-role="select-all-topics">
       </label>
       <div role="columnheader">${escapeHtml(messages.topicId)}</div>
@@ -1166,7 +1164,6 @@ function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): stri
     <div class="keyword-rule-row keyword-rule-head" role="row">
       <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
       <label class="checkbox-cell bulk-action-cell" role="columnheader">
-        <span>${escapeHtml(messages.batchOperation)}</span>
         <input type="checkbox" data-role="select-all-keywords">
       </label>
       <div role="columnheader">${escapeHtml(messages.keywords)}</div>

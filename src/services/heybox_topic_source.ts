@@ -3,7 +3,10 @@
  */
 import type { PollSort, TopicPost } from "../models.ts";
 import type { TopicListOptions, TopicSource } from "./topic_source.ts";
-import { createHeyboxSignatureParams, type HeyboxSignatureMode } from "./heybox_signer.ts";
+import {
+  createHeyboxSignatureParams,
+  type HeyboxSignatureMode,
+} from "./heybox_signer.ts";
 
 /**
  * 小黑盒话题数据源配置。
@@ -54,7 +57,9 @@ const trustedHeyboxPostPathPrefixes = ["/app/bbs/link/", "/app/topic/link/"];
  * @param config 小黑盒接口请求配置。
  * @return 话题帖子数据源实现。
  */
-export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): TopicSource {
+export function createHeyboxTopicSource(
+  config: HeyboxTopicSourceConfig = {},
+): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
   const appBuild = config.appBuild ?? "783";
   const appVersion = config.appVersion ?? "1.3.232";
@@ -89,9 +94,14 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
      * @param options 列表拉取选项。
      * @return 解析后的帖子列表。
      */
-    async listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]> {
+    async listLatestPosts(
+      topicId: string,
+      options: TopicListOptions,
+    ): Promise<TopicPost[]> {
       const limit = normalizeLimit(options.limit);
-      const requestLimit = options.sort === "publishTime" ? Math.max(limit, 30) : limit;
+      const requestLimit = options.sort === "publishTime"
+        ? Math.max(limit, 30)
+        : limit;
       const url = new URL(topicFeedsPath, apiBaseUrl);
       const params: Record<string, string> = {
         ...signedRequestParams(topicFeedsPath),
@@ -119,7 +129,9 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
       });
 
       if (!response.ok) {
-        throw new Error(`Heybox topic feed request failed with HTTP ${response.status}`);
+        throw new Error(
+          `Heybox topic feed request failed with HTTP ${response.status}`,
+        );
       }
 
       const payload = await response.json();
@@ -189,7 +201,9 @@ export function createHeyboxTopicSource(config: HeyboxTopicSourceConfig = {}): T
    * @param post 列表接口返回的帖子。
    * @return 详情帖子，接口无可用内容时返回 undefined。
    */
-  async function fetchLinkDetailPost(post: TopicPost): Promise<TopicPost | undefined> {
+  async function fetchLinkDetailPost(
+    post: TopicPost,
+  ): Promise<TopicPost | undefined> {
     const url = new URL(linkTreePath, apiBaseUrl);
     const params: Record<string, string> = {
       ...signedRequestParams(linkTreePath),
@@ -248,7 +262,10 @@ function orderPosts(posts: TopicPost[], sort: PollSort): TopicPost[] {
  * @param topicId 当前话题 ID。
  * @return 解析得到的有效帖子列表。
  */
-export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicPost[] {
+export function parseHeyboxTopicPosts(
+  payload: unknown,
+  topicId: string,
+): TopicPost[] {
   const links = arrayAt(payload, ["result", "links"]);
 
   return links.map((link) => {
@@ -264,7 +281,10 @@ export function parseHeyboxTopicPosts(payload: unknown, topicId: string): TopicP
  * @param topicId 当前话题 ID。
  * @return 应用内帖子结构。
  */
-function postFromHeyboxRecord(record: Record<string, unknown>, topicId: string): TopicPost {
+function postFromHeyboxRecord(
+  record: Record<string, unknown>,
+  topicId: string,
+): TopicPost {
   const shareUrl = stringField(record, ["share_url", "url", "link", "web_url"]);
   const webLinkId = linkIdFromUrl(shareUrl);
   const id = webLinkId ||
@@ -273,11 +293,25 @@ function postFromHeyboxRecord(record: Record<string, unknown>, topicId: string):
 
   return {
     body: stringField(record, ["text", "content", "body", "description"]),
-    commentReplies: textList(record, ["reply_list", "replies", "comment_replies"]),
+    commentReplies: textList(record, [
+      "reply_list",
+      "replies",
+      "comment_replies",
+    ]),
     comments: textList(record, ["comment_list", "comments", "hot_comments"]),
-    excerpt: stringField(record, ["description", "summary", "brief", "excerpt"]),
+    excerpt: stringField(record, [
+      "description",
+      "summary",
+      "brief",
+      "excerpt",
+    ]),
     id,
-    publishedAt: timeField(record, ["create_at", "created_at", "publish_time", "timestamp"]),
+    publishedAt: timeField(record, [
+      "create_at",
+      "created_at",
+      "publish_time",
+      "timestamp",
+    ]),
     title: stringField(record, ["title", "subject", "name"]),
     url,
   };
@@ -291,7 +325,11 @@ function postFromHeyboxRecord(record: Record<string, unknown>, topicId: string):
  * @param {string} topicId 当前话题 ID。
  * @return {string} 可安全放入页面 href 的帖子链接。
  */
-function safeHeyboxPostUrl(linkId: string, shareUrl: string, topicId: string): string {
+function safeHeyboxPostUrl(
+  linkId: string,
+  shareUrl: string,
+  topicId: string,
+): string {
   if (linkId.trim()) {
     return heyboxPostUrlFromLinkId(linkId);
   }
@@ -306,7 +344,9 @@ function safeHeyboxPostUrl(linkId: string, shareUrl: string, topicId: string): s
  * @return {string} 官方网页帖子链接。
  */
 function heyboxPostUrlFromLinkId(linkId: string): string {
-  return `${trustedHeyboxWebOrigin}/app/bbs/link/${encodeURIComponent(linkId.trim())}`;
+  return `${trustedHeyboxWebOrigin}/app/bbs/link/${
+    encodeURIComponent(linkId.trim())
+  }`;
 }
 
 /**
@@ -316,7 +356,9 @@ function heyboxPostUrlFromLinkId(linkId: string): string {
  * @return {string} 官方网页话题链接。
  */
 function heyboxTopicFallbackUrl(topicId: string): string {
-  return `${trustedHeyboxWebOrigin}/app/topic/link/${encodeURIComponent(topicId.trim())}`;
+  return `${trustedHeyboxWebOrigin}/app/topic/link/${
+    encodeURIComponent(topicId.trim())
+  }`;
 }
 
 /**
@@ -336,7 +378,11 @@ function trustedHeyboxShareUrl(value: string): string | undefined {
       return undefined;
     }
 
-    if (!trustedHeyboxPostPathPrefixes.some((prefix) => url.pathname.startsWith(prefix))) {
+    if (
+      !trustedHeyboxPostPathPrefixes.some((prefix) =>
+        url.pathname.startsWith(prefix)
+      )
+    ) {
       return undefined;
     }
 
@@ -353,13 +399,18 @@ function trustedHeyboxShareUrl(value: string): string | undefined {
  * @param detailPost 详情接口返回的帖子。
  * @return 合并后的帖子。
  */
-function mergeTopicPosts(listPost: TopicPost, detailPost: TopicPost): TopicPost {
+function mergeTopicPosts(
+  listPost: TopicPost,
+  detailPost: TopicPost,
+): TopicPost {
   return {
     body: detailPost.body || listPost.body,
     commentReplies: detailPost.commentReplies.length > 0
       ? detailPost.commentReplies
       : listPost.commentReplies,
-    comments: detailPost.comments.length > 0 ? detailPost.comments : listPost.comments,
+    comments: detailPost.comments.length > 0
+      ? detailPost.comments
+      : listPost.comments,
     excerpt: detailPost.excerpt || listPost.excerpt,
     id: listPost.id || detailPost.id,
     publishedAt: detailPost.publishedAt || listPost.publishedAt,
@@ -375,7 +426,8 @@ function mergeTopicPosts(listPost: TopicPost, detailPost: TopicPost): TopicPost 
  * @return 话题 ID，无法提取时返回空字符串。
  */
 function topicIdFromPost(post: TopicPost): string {
-  const [, topicId = ""] = post.url.match(/\/app\/topic\/link\/([^/?#]+)/) ?? [];
+  const [, topicId = ""] = post.url.match(/\/app\/topic\/link\/([^/?#]+)/) ??
+    [];
   return topicId;
 }
 
@@ -405,7 +457,9 @@ function assertHeyboxOk(payload: unknown): void {
  * @return 合法的帖子拉取数量。
  */
 function normalizeLimit(value: number | undefined): number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 20;
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : 20;
 }
 
 /**
@@ -458,7 +512,9 @@ function assertRequestedSortApplied(payload: unknown, sort: PollSort): void {
  * @return 记录对象，无法转换时返回空对象。
  */
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return value && typeof value === "object"
+    ? value as Record<string, unknown>
+    : {};
 }
 
 /**
@@ -512,7 +568,10 @@ function linkIdFromUrl(value: string): string {
 
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" || !trustedHeyboxLinkIdHostnames.includes(url.hostname)) {
+    if (
+      url.protocol !== "https:" ||
+      !trustedHeyboxLinkIdHostnames.includes(url.hostname)
+    ) {
       return "";
     }
 
@@ -521,7 +580,8 @@ function linkIdFromUrl(value: string): string {
       return queryLinkId;
     }
 
-    const [, pathLinkId = ""] = url.pathname.match(/\/app\/bbs\/link\/([^/]+)/) ?? [];
+    const [, pathLinkId = ""] =
+      url.pathname.match(/\/app\/bbs\/link\/([^/]+)/) ?? [];
     return pathLinkId;
   } catch {
     return "";
@@ -576,5 +636,11 @@ function textFromUnknown(value: unknown): string {
   }
 
   const record = asRecord(value);
-  return stringField(record, ["content", "text", "description", "body", "reply"]);
+  return stringField(record, [
+    "content",
+    "text",
+    "description",
+    "body",
+    "reply",
+  ]);
 }

@@ -1,5 +1,4 @@
 {
-  "appDescription": "Giám sát bài đăng chủ đề Heybox và gửi thông báo theo từ khóa.",
   "appName": "Trình thông báo chủ đề Heybox",
   "accountCancel": "Hủy",
   "accountConfirmPassword": "Xác nhận mật khẩu mới",
@@ -40,11 +39,9 @@
   "autoSaveError": "Lưu thất bại",
   "autoSaveSaved": "Đã lưu",
   "autoSaveSaving": "Đang lưu...",
-  "batchOperation": "Thao tác hàng loạt",
   "completeMatch": "Đánh dấu hoàn tất",
   "commonTopic": "Chung",
   "configureSecretLink": "Đi tới cấu hình {label}",
-  "dashboardSubtitle": "Xem trạng thái thăm dò, kết quả khớp gần đây và kiểm thử thông báo.",
   "dashboardTitle": "Giám sát chủ đề",
   "darkMode": "Chế độ tối",
   "deleteMatch": "Xóa bản ghi",
