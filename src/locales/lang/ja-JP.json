@@ -1,5 +1,4 @@
 {
-  "appDescription": "小黑盒の話題投稿を監視し、キーワードに基づいて通知を送信します。",
   "appName": "小黑盒話題提醒",
   "accountCancel": "取消",
   "accountConfirmPassword": "新規パスワード確認",

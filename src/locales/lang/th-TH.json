@@ -1,5 +1,4 @@
 {
-  "appDescription": "ตรวจสอบโพสต์หัวข้อ Heybox และส่งการแจ้งเตือนตามคำสำคัญ",
   "appName": "ตัวแจ้งเตือนหัวข้อ Heybox",
   "accountCancel": "ยกเลิก",
   "accountConfirmPassword": "ยืนยันรหัสผ่านใหม่",

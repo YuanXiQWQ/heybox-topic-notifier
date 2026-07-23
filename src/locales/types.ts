@@ -78,7 +78,6 @@ export function isRtlLocale(locale: Locale): boolean {
  * 应用所有可翻译文案字段的结构。
  */
 export type Messages = {
-  appDescription: string;
   appName: string;
   accountConfirmPassword: string;
   accountCurrentPassword: string;

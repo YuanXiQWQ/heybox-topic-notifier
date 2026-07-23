@@ -1,5 +1,4 @@
 {
-  "appDescription": "Memantau postingan topik Heybox dan mengirim notifikasi berdasarkan kata kunci.",
   "appName": "Pemberi Notifikasi Topik Heybox",
   "accountCancel": "Batal",
   "accountConfirmPassword": "Konfirmasi kata sandi baru",

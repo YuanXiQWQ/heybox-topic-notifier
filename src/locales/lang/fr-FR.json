@@ -1,5 +1,4 @@
 {
-  "appDescription": "Surveille les publications de sujets Heybox et envoie des notifications selon les mots-clés.",
   "appName": "Notificateur de sujets Heybox",
   "accountCancel": "Annuler",
   "accountConfirmPassword": "Confirmer le nouveau mot de passe",

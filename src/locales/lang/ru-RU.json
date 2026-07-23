@@ -1,5 +1,4 @@
 {
-  "appDescription": "Отслеживает публикации в темах Heybox и отправляет уведомления по ключевым словам.",
   "appName": "Уведомитель тем Heybox",
   "accountCancel": "Отмена",
   "accountConfirmPassword": "Подтвердите новый пароль",

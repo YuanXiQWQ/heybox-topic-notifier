@@ -1,5 +1,4 @@
 {
-  "appDescription": "監控小黑盒話題貼文，並依關鍵字傳送通知。",
   "appName": "小黑盒話題提醒",
   "accountCancel": "取消",
   "accountConfirmPassword": "確認新密碼",

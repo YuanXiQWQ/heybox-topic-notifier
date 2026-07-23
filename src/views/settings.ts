@@ -53,7 +53,6 @@ export function renderSettings(options: {
     <section class="page-heading">
       <div>
         <h1>${escapeHtml(messages.settingsTitle)}</h1>
-        <p>${escapeHtml(messages.appDescription)}</p>
       </div>
     </section>
     ${

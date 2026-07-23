@@ -1,5 +1,4 @@
 {
-  "appDescription": "Monitora publicações de tópicos do Heybox e envia notificações por palavras-chave.",
   "appName": "Notificador de tópicos Heybox",
   "accountCancel": "Cancelar",
   "accountConfirmPassword": "Confirmar nova senha",

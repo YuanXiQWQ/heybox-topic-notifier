@@ -1,5 +1,4 @@
 {
-  "appDescription": "Monitoriza publicaciones de temas de Heybox y envía notificaciones según palabras clave.",
   "appName": "Notificador de temas de Heybox",
   "accountCancel": "Cancelar",
   "accountConfirmPassword": "Confirmar nueva contraseña",

@@ -1,5 +1,4 @@
 {
-  "appDescription": "Monitor Heybox topic posts and send keyword-based notifications.",
   "appName": "Heybox Topic Notifier",
   "accountCancel": "Cancel",
   "accountConfirmPassword": "Confirm new password",
