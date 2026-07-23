@@ -102,7 +102,14 @@ export function renderMatchRecordsSection(
             </thead>
             <tbody>${renderRows(options)}</tbody>
           </table>
-          ${renderPagination(options.path, options.table, options.messages)}
+          ${
+        renderPagination(
+          options.path,
+          options.table,
+          options.messages,
+          options.headingId,
+        )
+      }
         </form>
       `
   }
@@ -325,29 +332,33 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
  * @param path 页面路径。
  * @param table 表格计算结果。
  * @param messages 当前语言文案。
+ * @param headingId 表格标题 ID。
  * @return 分页控件 HTML。
  */
 function renderPagination(
   path: string,
   table: MatchTableResult,
   messages: Messages,
+  headingId: string,
 ): string {
   const pageMarker = 999999999;
+  const headingHash = `#${encodeURIComponent(headingId)}`;
   const pageUrlTemplate = buildMatchTableUrl(path, table, { page: pageMarker })
-    .replace(`page=${pageMarker}`, "page=__PAGE__");
+    .replace(`page=${pageMarker}`, "page=__PAGE__") + headingHash;
   const pageLinks = compactPages(table.page, table.totalPages).map((page) => {
     if (page === "...") {
       return `<span class="pagination-ellipsis">...</span>`;
     }
 
-    const href = buildMatchTableUrl(path, table, { page });
+    const href = buildMatchTableUrl(path, table, { page }) + headingHash;
     const isCurrent = page === table.page;
     return `<a class="${isCurrent ? "is-current" : ""}" href="${
       escapeHtml(href)
     }">${page}</a>`;
   }).join("");
   const pageSizeLinks = pageSizeValues().map((pageSize) => {
-    const href = buildMatchTableUrl(path, table, { page: 1, pageSize });
+    const href = buildMatchTableUrl(path, table, { page: 1, pageSize }) +
+      headingHash;
     const label = pageSize === "all" ? messages.allRows : String(pageSize);
     return `<a class="${
       pageSize === table.pageSize ? "is-current" : ""
