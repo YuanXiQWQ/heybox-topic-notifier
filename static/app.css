@@ -815,11 +815,18 @@ input[type="color"]::-moz-color-swatch{
   gap: 6px;
 }
 
+.pagination{
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
 .pagination a,
 .page-size-links a,
-.pagination-ellipsis{
+.pagination-ellipsis,
+.pagination-page-input{
   align-items: center;
   border-radius: 4px;
+  box-sizing: border-box;
   color: var(--theme-strong);
   display: inline-flex;
   justify-content: center;
@@ -828,6 +835,16 @@ input[type="color"]::-moz-color-swatch{
   min-width: 30px;
   padding: 0 8px;
   text-decoration: none;
+}
+
+.pagination-page-input{
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  box-sizing: border-box;
+  color: var(--heading);
+  font-weight: 700;
+  text-align: center;
+  width: 54px;
 }
 
 .pagination a.is-current,
@@ -2076,6 +2093,15 @@ tr:last-child td{
 
   .topbar > .brand{
     margin-inline: 8px;
+  }
+
+  .pagination-row{
+    justify-content: center;
+  }
+
+  .pagination,
+  .page-size-links{
+    justify-content: center;
   }
 
   .section-title-row{
