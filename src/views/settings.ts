@@ -128,7 +128,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
-    <script src="/static/settings.js?v=20260719-settings-drag" defer></script>
+    <script src="/static/settings.js?v=20260723-checkbox-full-sync" defer></script>
   `;
 
   return renderLayout({
