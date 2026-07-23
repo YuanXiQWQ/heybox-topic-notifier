@@ -33,51 +33,72 @@ export function renderDashboard(options: {
     <section class="page-heading">
       <div>
         <h1>${escapeHtml(messages.dashboardTitle)}</h1>
-        <p>${escapeHtml(messages.dashboardSubtitle)}</p>
       </div>
       <div class="actions">
         <form method="post" action="/run-now">
           ${csrfHiddenInput(options.csrfToken)}
-          <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
+          <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
           <input type="hidden" name="pollResetStart" value="" data-poll-reset-start>
           <button type="submit">${escapeHtml(messages.runNow)}</button>
         </form>
         <form method="post" action="/simulate-match">
           ${csrfHiddenInput(options.csrfToken)}
-          <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
-          <button type="submit" class="secondary">${escapeHtml(messages.simulateMatch)}</button>
+          <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
+          <button type="submit" class="secondary">${
+    escapeHtml(messages.simulateMatch)
+  }</button>
         </form>
       </div>
     </section>
     <section class="metrics">
-      <article>
-        <span>${escapeHtml(messages.lastPoll)}</span>
-        ${renderLastPoll(lastPollAt, options.settings.locale)}
-      </article>
-      <article>
-        <span>${escapeHtml(messages.latestMatch)}</span>
-        <strong data-latest-match>${
-    latest
-      ? `<a class="metric-link" href="${
-        escapeHtml(latest.post.url)
-      }" target="_blank" rel="noopener noreferrer">${escapeHtml(latest.post.title)}</a>`
-      : "-"
+      <form class="metric-panel-item" method="post" action="/run-now">
+        ${csrfHiddenInput(options.csrfToken)}
+        <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
+        <input type="hidden" name="pollResetStart" value="" data-poll-reset-start>
+        <button class="metric-panel-control" type="submit">
+          <span class="metric-label">${escapeHtml(messages.lastPoll)}</span>
+          ${renderLastPoll(lastPollAt, options.settings.locale)}
+        </button>
+      </form>
+      <div class="metric-panel-item">
+        <a
+          class="metric-panel-control${latest ? "" : " is-disabled"}"
+          data-latest-match-link
+          href="${latest ? escapeHtml(latest.post.url) : ""}"
+          target="_blank"
+          rel="noopener noreferrer"
+          ${latest ? "" : 'aria-disabled="true" tabindex="-1"'}
+        >
+          <span class="metric-label">${escapeHtml(messages.latestMatch)}</span>
+          <strong data-latest-match>${
+    latest ? escapeHtml(latest.post.title) : "-"
   }</strong>
-      </article>
-      <article>
-        <span>${escapeHtml(messages.totalMatches)}</span>
-        <strong data-total-matches>${options.state.totalMatches}</strong>
-      </article>
+        </a>
+      </div>
+      <div class="metric-panel-item">
+        <a class="metric-panel-control" href="/history">
+          <span class="metric-label">${escapeHtml(messages.totalMatches)}</span>
+          <strong data-total-matches>${options.state.totalMatches}</strong>
+        </a>
+      </div>
     </section>
     <section
       class="next-poll-panel"
       data-next-poll-panel
       data-poll-enabled="${options.settings.polling.enabled ? "true" : "false"}"
-      data-poll-interval-unit="${escapeHtml(options.settings.polling.intervalUnit)}"
+      data-poll-interval-unit="${
+    escapeHtml(options.settings.polling.intervalUnit)
+  }"
       data-poll-interval-value="${options.settings.polling.intervalValue}"
     >
       <div class="next-poll-meta">
-        <span>${escapeHtml(messages.nextPoll)}</span>
+        <h2>${escapeHtml(messages.nextPoll)}</h2>
         <strong data-next-poll-remaining>-</strong>
       </div>
       <div class="next-poll-track" aria-hidden="true">
@@ -112,14 +133,21 @@ export function renderDashboard(options: {
  * @param locale 当前语言标识。
  * @return 最后轮询时间 HTML。
  */
-function renderLastPoll(lastPollAt: string | undefined, locale: AppSettings["locale"]): string {
+function renderLastPoll(
+  lastPollAt: string | undefined,
+  locale: AppSettings["locale"],
+): string {
   if (!lastPollAt) {
-    return `<strong data-last-poll-at="" data-last-poll-locale="${escapeHtml(locale)}">-</strong>`;
+    return `<strong data-last-poll-at="" data-last-poll-locale="${
+      escapeHtml(locale)
+    }">-</strong>`;
   }
 
-  return `<strong data-last-poll-at="${escapeHtml(lastPollAt)}" data-last-poll-locale="${
-    escapeHtml(locale)
-  }">${escapeHtml(formatHeyboxRelativeTime(lastPollAt, new Date(), locale))}</strong>`;
+  return `<strong data-last-poll-at="${
+    escapeHtml(lastPollAt)
+  }" data-last-poll-locale="${escapeHtml(locale)}">${
+    escapeHtml(formatHeyboxRelativeTime(lastPollAt, new Date(), locale))
+  }</strong>`;
 }
 
 /**
@@ -166,7 +194,9 @@ export function renderPendingMatches(
  * @param messages 当前语言文案。
  * @return 仪表盘交互脚本 HTML。
  */
-function renderLastPollScript(messages: ReturnType<typeof getMessages>): string {
+function renderLastPollScript(
+  messages: ReturnType<typeof getMessages>,
+): string {
   const relativeTemplates = {
     daysAgo: messages.relativeDaysAgo,
     hoursAgo: messages.relativeHoursAgo,
@@ -194,6 +224,7 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       if (!lastPoll) return;
 
       const latestMatch = document.querySelector("[data-latest-match]");
+      const latestMatchLink = document.querySelector("[data-latest-match-link]");
       const nextPollPanel = document.querySelector("[data-next-poll-panel]");
       const nextPollFill = document.querySelector("[data-next-poll-fill]");
       const nextPollRemaining = document.querySelector("[data-next-poll-remaining]");
@@ -451,19 +482,20 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
       }
 
       function bindRunNowResetCapture() {
-        const runNowForm = document.querySelector('form[action="/run-now"]');
-        if (!runNowForm || !nextPollFill) return;
-        const resetStartInput = runNowForm.querySelector("[data-poll-reset-start]");
-        runNowForm.addEventListener("submit", () => {
-          const width = normalizePollWidth(nextPollFill.style.width) || "0%";
-          if (resetStartInput) {
-            resetStartInput.value = width.replace("%", "");
-          }
-          try {
-            sessionStorage.setItem(pollResetStorageKey, width);
-          } catch {
-            // The reset animation can still fall back to an empty bar.
-          }
+        if (!nextPollFill) return;
+        document.querySelectorAll('form[action="/run-now"]').forEach((runNowForm) => {
+          const resetStartInput = runNowForm.querySelector("[data-poll-reset-start]");
+          runNowForm.addEventListener("submit", () => {
+            const width = normalizePollWidth(nextPollFill.style.width) || "0%";
+            if (resetStartInput) {
+              resetStartInput.value = width.replace("%", "");
+            }
+            try {
+              sessionStorage.setItem(pollResetStorageKey, width);
+            } catch {
+              // The reset animation can still fall back to an empty bar.
+            }
+          });
         });
       }
 
@@ -551,15 +583,26 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
         latestMatch.textContent = "";
         if (!match) {
           latestMatch.textContent = "-";
+          updateLatestMatchLink(null);
           return;
         }
-        const link = document.createElement("a");
-        link.className = "metric-link";
-        link.href = match.url;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = match.title;
-        latestMatch.append(link);
+        latestMatch.textContent = match.title;
+        updateLatestMatchLink(match.url);
+      }
+
+      function updateLatestMatchLink(url) {
+        if (!(latestMatchLink instanceof HTMLAnchorElement)) return;
+        if (!url) {
+          latestMatchLink.classList.add("is-disabled");
+          latestMatchLink.href = "";
+          latestMatchLink.setAttribute("aria-disabled", "true");
+          latestMatchLink.tabIndex = -1;
+          return;
+        }
+        latestMatchLink.classList.remove("is-disabled");
+        latestMatchLink.href = url;
+        latestMatchLink.removeAttribute("aria-disabled");
+        latestMatchLink.removeAttribute("tabindex");
       }
 
       function parseTimestamp(value) {
@@ -636,14 +679,19 @@ function renderLastPollScript(messages: ReturnType<typeof getMessages>): string 
  * @param lastPollAt 最后轮询时间。
  * @return 进度百分比字符串。
  */
-function nextPollProgressPercent(settings: AppSettings, lastPollAt: string | undefined): string {
+function nextPollProgressPercent(
+  settings: AppSettings,
+  lastPollAt: string | undefined,
+): string {
   const timestamp = Date.parse(lastPollAt ?? "");
   const intervalMs = dashboardPollingIntervalMs(
     settings.polling.intervalUnit,
     settings.polling.intervalValue,
   );
 
-  if (!settings.polling.enabled || !Number.isFinite(timestamp) || intervalMs <= 0) {
+  if (
+    !settings.polling.enabled || !Number.isFinite(timestamp) || intervalMs <= 0
+  ) {
     return "0";
   }
 
@@ -660,7 +708,10 @@ function nextPollProgressPercent(settings: AppSettings, lastPollAt: string | und
  * @param value 轮询间隔数值。
  * @return 轮询间隔毫秒数。
  */
-function dashboardPollingIntervalMs(unit: PollIntervalUnit, value: number): number {
+function dashboardPollingIntervalMs(
+  unit: PollIntervalUnit,
+  value: number,
+): number {
   const intervalValue = Math.max(1, Number.isFinite(value) ? value : 1);
   if (unit === "second") {
     return Math.max(3, intervalValue) * 1000;

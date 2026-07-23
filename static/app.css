@@ -12,6 +12,8 @@
   --theme-soft: color-mix(in srgb, var(--theme-color) 8%, var(--surface-soft-base));
   /* 较强的轻量主题背景色。 */
   --theme-soft-strong: color-mix(in srgb, var(--theme-color) 14%, var(--surface-soft-base));
+  /* 白底操作区域悬浮背景色。 */
+  --surface-action-hover: var(--theme-soft-strong);
   /* 主题边框色。 */
   --theme-border: color-mix(in srgb, var(--theme-color) 22%, var(--border));
   /* 页面背景色。 */
@@ -218,8 +220,8 @@ button.secondary{
   background: var(--secondary-button);
 }
 
-button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-button, .nav-link-button):hover:not(:disabled),
-button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-button, .nav-link-button):focus-visible:not(:disabled),
+button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button, .nav-link-button):hover:not(:disabled),
+button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button, .nav-link-button):focus-visible:not(:disabled),
 .button-link:hover,
 .button-link:focus-visible{
   background: color-mix(in srgb, var(--theme-strong) 88%, #ffffff 12%);
@@ -233,13 +235,13 @@ button.secondary:focus-visible:not(:disabled){
   background: color-mix(in srgb, var(--secondary-button) 88%, #ffffff 12%);
 }
 
-button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-button, .nav-link-button):active:not(:disabled),
+button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button, .nav-link-button):active:not(:disabled),
 .button-link:active{
   box-shadow: none;
   transform: translateY(0);
 }
 
-button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-button, .nav-link-button):disabled{
+button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button, .nav-link-button):disabled{
   cursor: not-allowed;
   opacity: 0.64;
 }
@@ -278,12 +280,6 @@ button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-
   min-width: 0;
 }
 
-.primary-nav .nav-link-button:hover,
-.primary-nav .nav-link-button:focus-visible{
-  background: var(--theme-soft);
-  text-decoration: none;
-}
-
 .button-link{
   align-items: center;
   background: var(--theme-strong);
@@ -300,7 +296,7 @@ button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-
   white-space: nowrap;
 }
 
-button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .text-action-button),
+button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button),
 .button-link{
   transition: background-color 140ms ease,
   box-shadow 140ms ease,
@@ -548,9 +544,68 @@ input[type="color"]::-moz-color-swatch{
 }
 
 .metrics{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   display: grid;
-  gap: 16px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.metric-panel-item{
+  display: flex;
+  margin: 0;
+  min-width: 0;
+}
+
+.metric-panel-item + .metric-panel-item{
+  border-inline-start: 1px solid var(--border-soft);
+}
+
+.metric-panel-control{
+  align-content: start;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-sizing: border-box;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 26px;
+  min-height: 132px;
+  min-width: 0;
+  padding: 22px 24px;
+  text-align: start;
+  text-decoration: none;
+  transition: background-color 160ms ease;
+  width: 100%;
+}
+
+.metric-panel-control.is-disabled{
+  cursor: default;
+  pointer-events: none;
+}
+
+.metric-label{
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.metric-panel-control strong{
+  align-self: center;
+  color: var(--heading);
+  font-size: 22px;
+  justify-self: center;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.metric-panel-control[data-latest-match-link]:not(.is-disabled) strong{
+  color: var(--theme-strong);
 }
 
 .next-poll-panel{
@@ -567,8 +622,8 @@ input[type="color"]::-moz-color-swatch{
   justify-content: space-between;
 }
 
-.next-poll-meta span{
-  font-weight: 700;
+.next-poll-meta h2{
+  margin: 0;
 }
 
 .next-poll-meta strong{
@@ -661,11 +716,6 @@ input[type="color"]::-moz-color-swatch{
   list-style: none;
   transition: background-color 160ms ease;
   width: 28px;
-}
-
-.filter-toggle:hover,
-.table-filter-shell:has(.filter-toggle-input:checked) .filter-toggle{
-  background: var(--theme-soft-strong);
 }
 
 .filter-toggle svg{
@@ -792,27 +842,17 @@ input[type="color"]::-moz-color-swatch{
   font-size: 14px;
 }
 
-.metrics article,
 .settings-list,
 table{
   border: 1px solid var(--border);
   border-radius: 8px;
 }
 
-.metrics article,
 .settings-list,
 table{
   background: var(--surface);
 }
 
-.metrics article{
-  display: grid;
-  gap: 8px;
-  min-height: 96px;
-  padding: 18px;
-}
-
-.metrics span,
 dt{
   color: var(--muted);
   font-size: 14px;
@@ -856,23 +896,6 @@ dt{
   border-color: var(--control-border);
   color: var(--ink);
   cursor: text;
-}
-
-.metrics strong{
-  justify-self: center;
-  font-size: 20px;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  text-align: start;
-}
-
-.metric-link{
-  color: var(--theme-link);
-  text-decoration: none;
-}
-
-.metric-link:hover{
-  text-decoration: underline;
 }
 
 .pending-title-link{
@@ -1302,8 +1325,8 @@ dd{
 }
 
 .keyword-option-button:hover,
+.keyword-option-button:focus-visible,
 .keyword-option-button[aria-pressed="true"]{
-  background: var(--theme-soft-strong);
   color: var(--theme-strong);
 }
 
@@ -1373,11 +1396,6 @@ dd{
   width: 100%;
 }
 
-.checkbox-cell:hover,
-.checkbox-cell:focus-within{
-  background: var(--theme-soft);
-}
-
 th:has(> .checkbox-cell),
 td:has(> .checkbox-cell){
   padding: 0;
@@ -1408,10 +1426,26 @@ td:has(> .checkbox-cell) > .checkbox-cell{
   width: 30px;
 }
 
+.primary-nav .nav-link-button:hover,
+.primary-nav .nav-link-button:focus-visible,
+.filter-toggle:hover,
+.filter-toggle:focus-visible,
+.table-filter-shell:has(.filter-toggle-input:checked) .filter-toggle,
+.keyword-option-button:hover,
+.keyword-option-button:focus-visible,
+.keyword-option-button[aria-pressed="true"],
+.checkbox-cell:hover,
+.checkbox-cell:focus-within,
 .icon-button:hover,
+.icon-button:focus-visible,
 .dropdown-toggle:hover,
-.text-action-button:hover{
-  background: var(--theme-soft-strong);
+.dropdown-toggle:focus-visible,
+.text-action-button:hover,
+.text-action-button:focus-visible,
+.metric-panel-control:not(.is-disabled):hover,
+.metric-panel-control:not(.is-disabled):focus-visible{
+  background: var(--surface-action-hover);
+  text-decoration: none;
 }
 
 .icon-button svg{
@@ -1642,6 +1676,11 @@ tr:last-child td{
 
   .metrics{
     grid-template-columns: 1fr;
+  }
+
+  .metric-panel-item + .metric-panel-item{
+    border-block-start: 1px solid var(--border-soft);
+    border-inline-start: 0;
   }
 
   .settings-list > div{

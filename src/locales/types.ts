@@ -123,7 +123,6 @@ export type Messages = {
   completeMatch: string;
   commonTopic: string;
   configureSecretLink: string;
-  dashboardSubtitle: string;
   dashboardTitle: string;
   darkMode: string;
   deleteMatch: string;
