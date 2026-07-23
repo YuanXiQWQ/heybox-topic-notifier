@@ -1,5 +1,4 @@
 {
-  "appDescription": "Monitoriza publicaciones de temas de Heybox y envía notificaciones según palabras clave.",
   "appName": "Notificador de temas de Heybox",
   "accountCancel": "Cancelar",
   "accountConfirmPassword": "Confirmar nueva contraseña",
@@ -40,11 +39,9 @@
   "autoSaveError": "Error al guardar",
   "autoSaveSaved": "Guardado",
   "autoSaveSaving": "Guardando...",
-  "batchOperation": "Operación por lotes",
   "completeMatch": "Marcar como completado",
   "commonTopic": "Común",
   "configureSecretLink": "Configurar {label}",
-  "dashboardSubtitle": "Ver estado de sondeo, coincidencias recientes y prueba de notificaciones.",
   "dashboardTitle": "Monitorización de temas",
   "darkMode": "Modo oscuro",
   "deleteMatch": "Eliminar registro",

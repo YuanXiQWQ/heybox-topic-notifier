@@ -1,5 +1,4 @@
 {
-  "appDescription": "Heybox topic পোস্ট পর্যবেক্ষণ করে এবং keyword অনুযায়ী notification পাঠায়।",
   "appName": "Heybox Topic Notifier",
   "accountCancel": "বাতিল",
   "accountConfirmPassword": "নতুন password নিশ্চিত করুন",
@@ -40,11 +39,9 @@
   "autoSaveError": "সংরক্ষণ ব্যর্থ",
   "autoSaveSaved": "সংরক্ষিত",
   "autoSaveSaving": "সংরক্ষণ হচ্ছে...",
-  "batchOperation": "batch operation",
   "completeMatch": "completed হিসেবে চিহ্নিত করুন",
   "commonTopic": "সাধারণ",
   "configureSecretLink": "{label} কনফিগার করতে যান",
-  "dashboardSubtitle": "polling status, সর্বশেষ match এবং notification test দেখুন।",
   "dashboardTitle": "topic monitoring",
   "darkMode": "dark mode",
   "deleteMatch": "record মুছুন",

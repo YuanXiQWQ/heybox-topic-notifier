@@ -1,5 +1,4 @@
 {
-  "appDescription": "Überwacht Heybox-Themenbeiträge und sendet Benachrichtigungen nach Schlüsselwörtern.",
   "appName": "Heybox-Themenbenachrichtiger",
   "accountCancel": "Abbrechen",
   "accountConfirmPassword": "Neues Passwort bestätigen",
@@ -40,11 +39,9 @@
   "autoSaveError": "Speichern fehlgeschlagen",
   "autoSaveSaved": "Gespeichert",
   "autoSaveSaving": "Speichern...",
-  "batchOperation": "Stapelvorgang",
   "completeMatch": "Als erledigt markieren",
   "commonTopic": "Allgemein",
   "configureSecretLink": "{label} konfigurieren",
-  "dashboardSubtitle": "Polling-Status, letzte Treffer und Benachrichtigungstest anzeigen.",
   "dashboardTitle": "Themenüberwachung",
   "darkMode": "Dunkelmodus",
   "deleteMatch": "Eintrag löschen",

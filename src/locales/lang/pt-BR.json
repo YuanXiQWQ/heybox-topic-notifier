@@ -1,5 +1,4 @@
 {
-  "appDescription": "Monitora publicações de tópicos do Heybox e envia notificações por palavras-chave.",
   "appName": "Notificador de tópicos Heybox",
   "accountCancel": "Cancelar",
   "accountConfirmPassword": "Confirmar nova senha",
@@ -40,11 +39,9 @@
   "autoSaveError": "Falha ao salvar",
   "autoSaveSaved": "Salvo",
   "autoSaveSaving": "Salvando...",
-  "batchOperation": "Operação em lote",
   "completeMatch": "Marcar como concluído",
   "commonTopic": "Comum",
   "configureSecretLink": "Configurar {label}",
-  "dashboardSubtitle": "Veja o status da verificação, os acertos recentes e o teste de notificação.",
   "dashboardTitle": "Monitoramento de tópicos",
   "darkMode": "Modo escuro",
   "deleteMatch": "Excluir registro",

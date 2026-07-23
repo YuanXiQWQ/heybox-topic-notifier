@@ -1,5 +1,4 @@
 {
-  "appDescription": "يراقب منشورات مواضيع Heybox ويرسل إشعارات حسب الكلمات المفتاحية.",
   "appName": "مُخطِر مواضيع Heybox",
   "accountCancel": "إلغاء",
   "accountConfirmPassword": "تأكيد كلمة المرور الجديدة",
@@ -40,11 +39,9 @@
   "autoSaveError": "فشل الحفظ",
   "autoSaveSaved": "تم الحفظ",
   "autoSaveSaving": "جارٍ الحفظ...",
-  "batchOperation": "عملية مجمعة",
   "completeMatch": "وضع علامة مكتمل",
   "commonTopic": "عام",
   "configureSecretLink": "الانتقال إلى إعداد {label}",
-  "dashboardSubtitle": "اعرض حالة الاستطلاع، وآخر المطابقات، واختبار الإشعارات.",
   "dashboardTitle": "مراقبة المواضيع",
   "darkMode": "الوضع الداكن",
   "deleteMatch": "حذف السجل",

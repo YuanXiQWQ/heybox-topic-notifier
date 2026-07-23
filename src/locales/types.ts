@@ -78,7 +78,6 @@ export function isRtlLocale(locale: Locale): boolean {
  * 应用所有可翻译文案字段的结构。
  */
 export type Messages = {
-  appDescription: string;
   appName: string;
   accountConfirmPassword: string;
   accountCurrentPassword: string;
@@ -119,11 +118,9 @@ export type Messages = {
   autoSaveError: string;
   autoSaveSaved: string;
   autoSaveSaving: string;
-  batchOperation: string;
   completeMatch: string;
   commonTopic: string;
   configureSecretLink: string;
-  dashboardSubtitle: string;
   dashboardTitle: string;
   darkMode: string;
   deleteMatch: string;
@@ -149,6 +146,11 @@ export type Messages = {
   locale: string;
   matchBody: string;
   matchComments: string;
+  matchDetailKeyword: string;
+  matchDetailLocation: string;
+  matchDetailMatched: string;
+  matchDetailPublished: string;
+  matchDetails: string;
   matchLocationHeader: string;
   matchReplies: string;
   matchTitle: string;

@@ -1,5 +1,4 @@
 {
-  "appDescription": "Heybox 토픽 게시물을 모니터링하고 키워드에 따라 알림을 보냅니다.",
   "appName": "Heybox 토픽 알림 도구",
   "accountCancel": "취소",
   "accountConfirmPassword": "새 비밀번호 확인",
@@ -40,11 +39,9 @@
   "autoSaveError": "저장 실패",
   "autoSaveSaved": "저장됨",
   "autoSaveSaving": "저장 중...",
-  "batchOperation": "일괄 작업",
   "completeMatch": "완료로 표시",
   "commonTopic": "공통",
   "configureSecretLink": "{label} 설정으로 이동",
-  "dashboardSubtitle": "폴링 상태, 최근 일치 항목 및 알림 테스트를 확인합니다.",
   "dashboardTitle": "토픽 모니터링",
   "darkMode": "다크 모드",
   "deleteMatch": "기록 삭제",

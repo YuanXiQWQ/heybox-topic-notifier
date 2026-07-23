@@ -1,5 +1,4 @@
 {
-  "appDescription": "小黑盒の話題投稿を監視し、キーワードに基づいて通知を送信します。",
   "appName": "小黑盒話題提醒",
   "accountCancel": "取消",
   "accountConfirmPassword": "新規パスワード確認",
@@ -40,11 +39,9 @@
   "autoSaveError": "保存失敗",
   "autoSaveSaved": "保存済み",
   "autoSaveSaving": "保存中...",
-  "batchOperation": "一括操作",
   "completeMatch": "完了として標示",
   "commonTopic": "共通",
   "configureSecretLink": "{label}設定へ移動",
-  "dashboardSubtitle": "輪詢状態、最近の命中、通知試験を確認します。",
   "dashboardTitle": "話題監視",
   "darkMode": "ダークモード",
   "deleteMatch": "記録削除",

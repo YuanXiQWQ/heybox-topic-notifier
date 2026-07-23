@@ -1,5 +1,4 @@
 {
-  "appDescription": "Monitor Heybox topic posts and send keyword-based notifications.",
   "appName": "Heybox Topic Notifier",
   "accountCancel": "Cancel",
   "accountConfirmPassword": "Confirm new password",
@@ -40,11 +39,9 @@
   "autoSaveError": "Save failed",
   "autoSaveSaved": "Saved",
   "autoSaveSaving": "Saving...",
-  "batchOperation": "Bulk actions",
   "completeMatch": "Mark done",
   "commonTopic": "Common",
   "configureSecretLink": "Go to configure {label}",
-  "dashboardSubtitle": "Poll status, recent matches, and notification checks.",
   "dashboardTitle": "Topic monitor",
   "darkMode": "Dark mode",
   "deleteMatch": "Delete match",

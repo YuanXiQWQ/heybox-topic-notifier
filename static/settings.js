@@ -985,16 +985,39 @@ function initTopicEditor(topicEditor, keywordEditor) {
       topicEditor.querySelectorAll("[data-role='select-topic-row']").forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
+      syncHeaderCheckbox(
+        topicEditor,
+        "[data-role='select-all-topics']",
+        "[data-role='select-topic-row']",
+      );
+    }
+
+    if (target.matches("[data-role='select-topic-row']")) {
+      syncHeaderCheckbox(
+        topicEditor,
+        "[data-role='select-all-topics']",
+        "[data-role='select-topic-row']",
+      );
     }
 
     if (target.matches("[data-role='enable-all-topics']")) {
       topicEditor.querySelectorAll("[data-role='topic-enabled']").forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
+      syncHeaderCheckbox(
+        topicEditor,
+        "[data-role='enable-all-topics']",
+        "[data-role='topic-enabled']",
+      );
       shouldSave = true;
     }
 
     if (target.matches("[data-role='topic-enabled']")) {
+      syncHeaderCheckbox(
+        topicEditor,
+        "[data-role='enable-all-topics']",
+        "[data-role='topic-enabled']",
+      );
       shouldSave = true;
     }
 
@@ -1007,6 +1030,23 @@ function initTopicEditor(topicEditor, keywordEditor) {
     updateActiveTopicSummary(topicEditor);
     scheduleAutoSave();
   });
+
+  topicEditor.addEventListener("focusout", (event) => {
+    if (pruneIncompleteDraftTopicRows(topicEditor, keywordEditor, event.relatedTarget)) {
+      scheduleAutoSave();
+    }
+  });
+
+  syncHeaderCheckbox(
+    topicEditor,
+    "[data-role='select-all-topics']",
+    "[data-role='select-topic-row']",
+  );
+  syncHeaderCheckbox(
+    topicEditor,
+    "[data-role='enable-all-topics']",
+    "[data-role='topic-enabled']",
+  );
 }
 
 /**
@@ -1053,6 +1093,19 @@ function initKeywordEditor(keywordEditor) {
       keywordEditor.querySelectorAll("[data-role='select-keyword-row']").forEach((checkbox) => {
         checkbox.checked = target.checked;
       });
+      syncHeaderCheckbox(
+        keywordEditor,
+        "[data-role='select-all-keywords']",
+        "[data-role='select-keyword-row']",
+      );
+    }
+
+    if (target.matches("[data-role='select-keyword-row']")) {
+      syncHeaderCheckbox(
+        keywordEditor,
+        "[data-role='select-all-keywords']",
+        "[data-role='select-keyword-row']",
+      );
     }
 
     if (target.matches("[data-role='select-keyword-location']")) {
@@ -1062,10 +1115,12 @@ function initKeywordEditor(keywordEditor) {
         .forEach((checkbox) => {
           checkbox.checked = target.checked;
         });
+      syncKeywordLocationHeader(keywordEditor, location);
       shouldSave = true;
     }
 
     if (target.name.includes("_location_")) {
+      syncKeywordLocationHeaders(keywordEditor);
       shouldSave = true;
     }
 
@@ -1084,6 +1139,187 @@ function initKeywordEditor(keywordEditor) {
     updateKeywordSummary(keywordEditor);
     scheduleAutoSave();
   });
+
+  keywordEditor.addEventListener("focusout", (event) => {
+    if (pruneIncompleteDraftKeywordRows(keywordEditor, event.relatedTarget)) {
+      scheduleAutoSave();
+    }
+  });
+
+  syncHeaderCheckbox(
+    keywordEditor,
+    "[data-role='select-all-keywords']",
+    "[data-role='select-keyword-row']",
+  );
+  syncKeywordLocationHeaders(keywordEditor);
+}
+
+/**
+ * 根据一组行复选框同步表头复选框状态。
+ *
+ * @param {HTMLElement} container 需要同步的表格容器。
+ * @param {string} headerSelector 表头复选框选择器。
+ * @param {string} itemSelector 行复选框选择器。
+ */
+function syncHeaderCheckbox(container, headerSelector, itemSelector) {
+  const header = container.querySelector(headerSelector);
+  if (!(header instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const items = Array.from(container.querySelectorAll(itemSelector))
+    .filter((item) => item instanceof HTMLInputElement);
+  syncCheckboxState(header, items);
+}
+
+/**
+ * 根据子复选框选中数量更新父复选框的全选状态。
+ *
+ * @param {HTMLInputElement} header 父级复选框。
+ * @param {HTMLInputElement[]} items 子复选框列表。
+ */
+function syncCheckboxState(header, items) {
+  const checkedCount = items.filter((item) => item.checked).length;
+  header.checked = items.length > 0 && checkedCount === items.length;
+  header.indeterminate = false;
+}
+
+/**
+ * 同步关键词编辑器中所有匹配位置表头复选框。
+ *
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ */
+function syncKeywordLocationHeaders(keywordEditor) {
+  keywordEditor.querySelectorAll("[data-role='select-keyword-location']").forEach((checkbox) => {
+    if (checkbox instanceof HTMLInputElement) {
+      syncKeywordLocationHeader(keywordEditor, checkbox.dataset.location);
+    }
+  });
+}
+
+/**
+ * 同步关键词编辑器中单个匹配位置表头复选框。
+ *
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ * @param {string|undefined} location 匹配位置名称。
+ */
+function syncKeywordLocationHeader(keywordEditor, location) {
+  if (!location) {
+    return;
+  }
+
+  const header = Array.from(keywordEditor.querySelectorAll("[data-role='select-keyword-location']"))
+    .find((checkbox) =>
+      checkbox instanceof HTMLInputElement && checkbox.dataset.location === location
+    );
+  if (!(header instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const items = Array.from(keywordEditor.querySelectorAll("[name*='_location_']"))
+    .filter((item) =>
+      item instanceof HTMLInputElement && item.name.endsWith(`_location_${location}`)
+    );
+  syncCheckboxState(header, items);
+}
+
+/**
+ * 清理所有已失焦且必填字段为空的新增草稿行。
+ *
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ * @return {boolean} 实际删除行时返回 true。
+ */
+function pruneIncompleteDraftRows(topicEditor, keywordEditor) {
+  const prunedTopics = pruneIncompleteDraftTopicRows(topicEditor, keywordEditor);
+  const prunedKeywords = pruneIncompleteDraftKeywordRows(keywordEditor);
+  return prunedTopics || prunedKeywords;
+}
+
+/**
+ * 清理已失焦且未填写话题 ID 的新增话题行。
+ *
+ * @param {HTMLElement} topicEditor 话题编辑器元素。
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ * @param {EventTarget|null} [focusTarget] 失焦后的焦点目标。
+ * @return {boolean} 实际删除行时返回 true。
+ */
+function pruneIncompleteDraftTopicRows(topicEditor, keywordEditor, focusTarget = document.activeElement) {
+  let removed = false;
+  topicEditor.querySelectorAll("[data-topic-row][data-draft-row='true']").forEach((row) => {
+    if (rowContainsFocusTarget(row, focusTarget)) {
+      return;
+    }
+
+    const topicId = row.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
+    if (topicId.length > 0) {
+      delete row.dataset.draftRow;
+      return;
+    }
+
+    row.remove();
+    removed = true;
+  });
+
+  if (!removed) {
+    return false;
+  }
+
+  ensureAtLeastOneTopicRow(topicEditor);
+  reindexTopicRows(topicEditor);
+
+  const activeTarget = activeKeywordTargetInput().value;
+  if (activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)) {
+    switchKeywordTarget(topicEditor, keywordEditor, commonKeywordButton(topicEditor));
+  }
+
+  updateActiveTopicSummary(topicEditor);
+  return true;
+}
+
+/**
+ * 清理已失焦且未填写关键词的新增关键词行。
+ *
+ * @param {HTMLElement} keywordEditor 关键词编辑器元素。
+ * @param {EventTarget|null} [focusTarget] 失焦后的焦点目标。
+ * @return {boolean} 实际删除行时返回 true。
+ */
+function pruneIncompleteDraftKeywordRows(keywordEditor, focusTarget = document.activeElement) {
+  let removed = false;
+  keywordEditor.querySelectorAll("[data-keyword-row][data-draft-row='true']").forEach((row) => {
+    if (rowContainsFocusTarget(row, focusTarget)) {
+      return;
+    }
+
+    const keyword = row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+    if (keyword.length > 0) {
+      delete row.dataset.draftRow;
+      return;
+    }
+
+    row.remove();
+    removed = true;
+  });
+
+  if (!removed) {
+    return false;
+  }
+
+  ensureAtLeastOneKeywordRow(keywordEditor);
+  reindexKeywordRows(keywordEditor);
+  updateKeywordSummary(keywordEditor);
+  return true;
+}
+
+/**
+ * 判断焦点目标是否仍在行内。
+ *
+ * @param {Element} row 规则行元素。
+ * @param {EventTarget|null} focusTarget 焦点目标。
+ * @return {boolean} 焦点目标仍在行内时返回 true。
+ */
+function rowContainsFocusTarget(row, focusTarget) {
+  return focusTarget instanceof Node && row.contains(focusTarget);
 }
 
 /**
@@ -1655,6 +1891,7 @@ async function saveSettingsNow() {
   }
 
   clearTimeout(autoSaveTimer);
+  pruneIncompleteDraftRows(autoSaveTopicEditor, autoSaveKeywordEditor);
   persistCurrentKeywordRows(autoSaveTopicEditor, autoSaveKeywordEditor);
 
   const signature = settingsSignature();
@@ -1998,6 +2235,7 @@ function insertTopicRow(editor, actionButton) {
   const row = actionButton.closest("[data-topic-row]");
   const fragment = template.content.cloneNode(true);
   const newRow = fragment.querySelector("[data-topic-row]");
+  newRow.dataset.draftRow = "true";
 
   if (row) {
     row.after(newRow);
@@ -2069,10 +2307,6 @@ function ensureAtLeastOneTopicRow(editor) {
  * @param {HTMLElement} editor 话题编辑器元素。
  */
 function reindexTopicRows(editor) {
-  editor.querySelectorAll("[data-role='select-all-topics']").forEach((checkbox) => {
-    checkbox.checked = false;
-  });
-
   editor.querySelectorAll("[data-topic-row]").forEach((row, index) => {
     row.querySelectorAll("input").forEach((input) => {
       if (!input.name) {
@@ -2082,6 +2316,17 @@ function reindexTopicRows(editor) {
       input.name = input.name.replace(/topic_(?:__index__|\d+)_/, `topic_${index}_`);
     });
   });
+
+  syncHeaderCheckbox(
+    editor,
+    "[data-role='select-all-topics']",
+    "[data-role='select-topic-row']",
+  );
+  syncHeaderCheckbox(
+    editor,
+    "[data-role='enable-all-topics']",
+    "[data-role='topic-enabled']",
+  );
 }
 
 /**
@@ -2462,6 +2707,7 @@ function insertKeywordRow(editor, actionButton) {
   const grid = editor.querySelector(".keyword-rule-grid");
   const row = actionButton.closest("[data-keyword-row]");
   const newRow = keywordRowFromRule(editor, newKeywordRule());
+  newRow.dataset.draftRow = "true";
 
   if (row) {
     row.after(newRow);
@@ -2524,13 +2770,6 @@ function ensureAtLeastOneKeywordRow(editor) {
  * @param {HTMLElement} editor 关键词编辑器元素。
  */
 function reindexKeywordRows(editor) {
-  editor.querySelectorAll("[data-role='select-all-keywords']").forEach((checkbox) => {
-    checkbox.checked = false;
-  });
-  editor.querySelectorAll("[data-role='select-keyword-location']").forEach((checkbox) => {
-    checkbox.checked = false;
-  });
-
   editor.querySelectorAll("[data-keyword-row]").forEach((row, index) => {
     row.querySelectorAll("input").forEach((input) => {
       if (!input.name) {
@@ -2540,6 +2779,13 @@ function reindexKeywordRows(editor) {
       input.name = input.name.replace(/keyword_(?:__index__|\d+)/, `keyword_${index}`);
     });
   });
+
+  syncHeaderCheckbox(
+    editor,
+    "[data-role='select-all-keywords']",
+    "[data-role='select-keyword-row']",
+  );
+  syncKeywordLocationHeaders(editor);
 }
 
 /**

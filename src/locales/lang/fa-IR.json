@@ -1,5 +1,4 @@
 {
-  "appDescription": "پست‌های موضوعی Heybox را پایش می‌کند و بر اساس کلمات کلیدی اعلان می‌فرستد.",
   "appName": "اعلان‌کنندهٔ موضوعات Heybox",
   "accountCancel": "لغو",
   "accountConfirmPassword": "تأیید گذرواژهٔ جدید",
@@ -40,11 +39,9 @@
   "autoSaveError": "ذخیره ناموفق بود",
   "autoSaveSaved": "ذخیره شد",
   "autoSaveSaving": "در حال ذخیره...",
-  "batchOperation": "عملیات دسته‌ای",
   "completeMatch": "علامت‌گذاری به‌عنوان انجام‌شده",
   "commonTopic": "عمومی",
   "configureSecretLink": "رفتن به پیکربندی {label}",
-  "dashboardSubtitle": "وضعیت نظرسنجی، آخرین تطابق و آزمون اعلان را ببینید.",
   "dashboardTitle": "پایش موضوع",
   "darkMode": "حالت تیره",
   "deleteMatch": "حذف رکورد",
