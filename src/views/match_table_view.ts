@@ -83,7 +83,6 @@ export function renderMatchRecordsSection(
               <tr>
                 <th>
                   <label class="checkbox-cell bulk-action-cell">
-                    <span>${escapeHtml(options.messages.batchOperation)}</span>
                     <input type="checkbox" ${options.action.selectAllAttribute}>
                   </label>
                 </th>
@@ -624,7 +623,7 @@ function relativeTimeTemplates(messages: Messages): RelativeTimeTemplates {
 function renderOverflowScript(): string {
   return `<script>
     (() => {
-      const clippedSelector = ".match-table-title-link, .table-clip";
+      const clippedSelector = ".match-table-title-link, .table-clip, .match-detail-list";
       const updateOverflowState = () => {
         for (const element of document.querySelectorAll(clippedSelector)) {
           if (!(element instanceof HTMLElement)) continue;
@@ -641,6 +640,14 @@ function renderOverflowScript(): string {
       };
 
       function isElementOverflowing(element) {
+        if (element.classList.contains("match-detail-list")) {
+          return Array.from(element.querySelectorAll(".match-detail-value"))
+            .some((item) =>
+              item instanceof HTMLElement &&
+              item.scrollWidth > item.clientWidth + 1
+            );
+        }
+
         if (element.scrollWidth > element.clientWidth + 1) return true;
         if (element.scrollHeight > element.clientHeight + 1) return true;
 

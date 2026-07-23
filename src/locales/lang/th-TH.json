@@ -39,7 +39,6 @@
   "autoSaveError": "บันทึกล้มเหลว",
   "autoSaveSaved": "บันทึกแล้ว",
   "autoSaveSaving": "กำลังบันทึก...",
-  "batchOperation": "การดำเนินการแบบกลุ่ม",
   "completeMatch": "ทำเครื่องหมายว่าเสร็จสิ้น",
   "commonTopic": "ทั่วไป",
   "configureSecretLink": "ไปตั้งค่า {label}",

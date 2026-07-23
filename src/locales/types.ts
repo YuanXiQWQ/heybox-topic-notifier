@@ -118,7 +118,6 @@ export type Messages = {
   autoSaveError: string;
   autoSaveSaved: string;
   autoSaveSaving: string;
-  batchOperation: string;
   completeMatch: string;
   commonTopic: string;
   configureSecretLink: string;

@@ -39,7 +39,6 @@
   "autoSaveError": "Échec de l’enregistrement",
   "autoSaveSaved": "Enregistré",
   "autoSaveSaving": "Enregistrement...",
-  "batchOperation": "Opération par lot",
   "completeMatch": "Marquer comme terminé",
   "commonTopic": "Commun",
   "configureSecretLink": "Configurer {label}",

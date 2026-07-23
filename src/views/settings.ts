@@ -1042,7 +1042,6 @@ function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string
     <div class="topic-rule-row topic-rule-head" role="row">
       <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
       <label class="checkbox-cell bulk-action-cell" role="columnheader">
-        <span>${escapeHtml(messages.batchOperation)}</span>
         <input type="checkbox" data-role="select-all-topics">
       </label>
       <div role="columnheader">${escapeHtml(messages.topicId)}</div>
@@ -1165,7 +1164,6 @@ function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): stri
     <div class="keyword-rule-row keyword-rule-head" role="row">
       <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
       <label class="checkbox-cell bulk-action-cell" role="columnheader">
-        <span>${escapeHtml(messages.batchOperation)}</span>
         <input type="checkbox" data-role="select-all-keywords">
       </label>
       <div role="columnheader">${escapeHtml(messages.keywords)}</div>

@@ -39,7 +39,6 @@
   "autoSaveError": "保存失败",
   "autoSaveSaved": "已保存",
   "autoSaveSaving": "保存中...",
-  "batchOperation": "批量操作",
   "completeMatch": "标记完成",
   "commonTopic": "公共",
   "configureSecretLink": "前往配置{label}",

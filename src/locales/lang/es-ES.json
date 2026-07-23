@@ -39,7 +39,6 @@
   "autoSaveError": "Error al guardar",
   "autoSaveSaved": "Guardado",
   "autoSaveSaving": "Guardando...",
-  "batchOperation": "Operación por lotes",
   "completeMatch": "Marcar como completado",
   "commonTopic": "Común",
   "configureSecretLink": "Configurar {label}",

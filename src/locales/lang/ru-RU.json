@@ -39,7 +39,6 @@
   "autoSaveError": "Не удалось сохранить",
   "autoSaveSaved": "Сохранено",
   "autoSaveSaving": "Сохранение...",
-  "batchOperation": "Пакетная операция",
   "completeMatch": "Отметить как выполненное",
   "commonTopic": "Общее",
   "configureSecretLink": "Настроить {label}",

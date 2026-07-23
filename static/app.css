@@ -58,7 +58,7 @@
   /* 规则表拖拽列宽。 */
   --rule-drag-column: 44px;
   /* 规则表选择列宽。 */
-  --rule-select-column: 96px;
+  --rule-select-column: var(--rule-action-column);
   /* 设置项操作区宽度。 */
   --settings-action-width: 120px;
   /* 设置项控件区宽度。 */
@@ -1503,11 +1503,11 @@ table{
 .match-table{
   table-layout: fixed;
   --match-cell-block-padding: 16px;
-  --match-row-height: 88px;
+  --match-row-height: 80px;
 }
 
 .match-table-col-2{
-  width: 8%;
+  width: 4%;
 }
 
 .match-table-col-3{
@@ -1515,7 +1515,7 @@ table{
 }
 
 .match-table-col-14{
-  width: 56%;
+  width: 60%;
 }
 
 .match-table-col-5{
@@ -1537,13 +1537,18 @@ td{
   overflow-wrap: anywhere;
 }
 
+.match-table th,
+.match-table td{
+  padding-inline: 10px;
+}
+
 .match-table tbody tr,
 .match-table tbody td{
   height: var(--match-row-height);
 }
 
 .match-table tbody td{
-  padding-block: calc(var(--match-cell-block-padding) / 2);
+  padding-block: calc(var(--match-cell-block-padding) / 4);
 }
 
 th:first-child,
@@ -1564,8 +1569,8 @@ td:first-child .checkbox-cell{
   --table-clip-lines: 3;
   box-sizing: border-box;
   display: -webkit-box;
-  line-height: 1.35;
-  max-block-size: calc(1.35em * var(--table-clip-lines) + 2px);
+  line-height: 1.28;
+  max-block-size: calc(1.28em * var(--table-clip-lines) + 2px);
   overflow: hidden;
   overflow-wrap: anywhere;
   text-overflow: ellipsis;
@@ -1576,14 +1581,18 @@ td:first-child .checkbox-cell{
 }
 
 .match-content-cell > .table-clip{
-  --table-clip-lines: 4;
+  --table-clip-lines: 5;
+}
+
+.match-title-cell > .match-table-title-link{
+  --table-clip-lines: 5;
 }
 
 .match-detail-list{
   display: grid;
   font-size: 12px;
-  gap: 3px;
-  line-height: 1.35;
+  gap: 2px;
+  line-height: 1.28;
   margin: 0;
   min-width: 0;
 }
@@ -1624,26 +1633,33 @@ td:first-child .checkbox-cell{
 .table-section:has(.match-table-title-link.is-overflowing:hover),
 .table-section:has(.match-table-title-link.is-overflowing:focus-visible),
 .table-section:has(.table-clip.is-overflowing:hover),
-.table-section:has(.table-clip.is-overflowing:focus-visible){
+.table-section:has(.table-clip.is-overflowing:focus-visible),
+.table-section:has(.match-detail-list.is-overflowing:hover),
+.table-section:has(.match-detail-list.is-overflowing:focus-visible){
   z-index: 20;
 }
 
 .table-section:has(.match-table-title-link.is-overflowing:hover) .match-table,
 .table-section:has(.match-table-title-link.is-overflowing:focus-visible) .match-table,
 .table-section:has(.table-clip.is-overflowing:hover) .match-table,
-.table-section:has(.table-clip.is-overflowing:focus-visible) .match-table{
+.table-section:has(.table-clip.is-overflowing:focus-visible) .match-table,
+.table-section:has(.match-detail-list.is-overflowing:hover) .match-table,
+.table-section:has(.match-detail-list.is-overflowing:focus-visible) .match-table{
   overflow: visible;
 }
 
 .match-title-cell > .match-table-title-link,
-.match-content-cell > .table-clip{
+.match-content-cell > .table-clip,
+.match-detail-list{
   width: 100%;
 }
 
 .match-title-cell:has(> .match-table-title-link.is-overflowing:hover),
 .match-title-cell:has(> .match-table-title-link.is-overflowing:focus-visible),
 .match-table tbody td:has(.table-clip.is-overflowing:hover),
-.match-table tbody td:has(.table-clip.is-overflowing:focus-visible){
+.match-table tbody td:has(.table-clip.is-overflowing:focus-visible),
+.match-table tbody td:has(.match-detail-list.is-overflowing:hover),
+.match-table tbody td:has(.match-detail-list.is-overflowing:focus-visible){
   z-index: 5;
 }
 
@@ -1691,6 +1707,36 @@ td:first-child .checkbox-cell{
   transform: translateY(-50%);
   width: auto;
   z-index: 6;
+}
+
+.match-table tbody td:has(> .match-detail-list.is-overflowing):hover > .match-detail-list,
+.match-table tbody td:has(> .match-detail-list.is-overflowing):focus-within > .match-detail-list,
+.match-detail-list.is-overflowing:hover,
+.match-detail-list.is-overflowing:focus-visible{
+  background: var(--surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 0;
+  box-shadow: 0 8px 24px var(--shadow-strong);
+  left: 0;
+  max-block-size: min(60vh, max(100%, 16em));
+  min-block-size: 100%;
+  overflow: auto;
+  padding: 8px 10px;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: auto;
+  z-index: 6;
+}
+
+.match-detail-list.is-overflowing:hover .match-detail-value,
+.match-detail-list.is-overflowing:focus-visible .match-detail-value,
+.match-table tbody td:has(> .match-detail-list.is-overflowing):hover .match-detail-value,
+.match-table tbody td:has(> .match-detail-list.is-overflowing):focus-within .match-detail-value{
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .table-action-cell{
@@ -1811,7 +1857,7 @@ tr:last-child td{
       "note note note note keywords keywords";
     grid-template-columns:
       36px
-      64px
+      44px
       minmax(0, 1fr)
       58px
       44px
@@ -1864,7 +1910,7 @@ tr:last-child td{
       "title title body body comments comments replies replies";
     grid-template-columns:
       36px
-      64px
+      44px
       repeat(4, minmax(0, 1fr))
       44px
       44px;
@@ -2015,8 +2061,8 @@ tr:last-child td{
 
 @media (max-width: 620px){
   .match-table{
-    --match-cell-block-padding: 16px;
-    --match-row-height: 116px;
+    --match-cell-block-padding: 12px;
+    --match-row-height: 104px;
   }
 
   .shell{
@@ -2029,12 +2075,12 @@ tr:last-child td{
 
   th,
   td{
-    padding-block: 10px;
+    padding-block: 6px;
     padding-inline: 4px;
   }
 
   .match-table-col-2{
-    width: 8%;
+    width: 4%;
   }
 
   .match-table-col-3{
@@ -2042,7 +2088,7 @@ tr:last-child td{
   }
 
   .match-table-col-14{
-    width: 46%;
+    width: 50%;
   }
 
   .match-table-col-5{
@@ -2053,13 +2099,9 @@ tr:last-child td{
     width: 4%;
   }
 
-  .bulk-action-cell span{
-    display: none;
-  }
-
   .match-detail-list{
     font-size: 11px;
-    gap: 4px;
+    gap: 2px;
   }
 
   .match-detail-list > div{
@@ -2068,7 +2110,7 @@ tr:last-child td{
   }
 
   .match-detail-list dd .match-detail-value{
-    max-block-size: calc(1.35em + 2px);
+    max-block-size: calc(1.28em + 2px);
   }
 
   .table-filter-shell,
