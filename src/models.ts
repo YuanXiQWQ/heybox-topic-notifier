@@ -182,6 +182,15 @@ export type EmailVerificationPurpose =
   | "second_factor";
 
 /**
+ * Passkey challenge 用途。
+ */
+export type PasskeyChallengePurpose =
+  | "passkey_registration"
+  | "primary_login"
+  | "reauth"
+  | "second_factor";
+
+/**
  * 用户账号信息。
  */
 export type UserAccount = {
@@ -242,6 +251,20 @@ export type PendingEmailVerification = {
   expiresAt: string;
   id: string;
   purpose: EmailVerificationPurpose;
+  userId?: string;
+};
+
+/**
+ * 待完成的 Passkey challenge。
+ */
+export type PendingPasskeyChallenge = {
+  allowedCredentialIds: string[];
+  attempts: number;
+  challenge: string;
+  createdAt: string;
+  expiresAt: string;
+  id: string;
+  purpose: PasskeyChallengePurpose;
   userId?: string;
 };
 

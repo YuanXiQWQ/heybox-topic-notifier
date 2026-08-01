@@ -7,7 +7,9 @@
     "check": "deno lint && deno check src/main.ts src/deploy.ts && deno test --allow-env --unstable-kv"
   },
   "imports": {
-    "@hono/hono": "jsr:@hono/hono@^4.8.3"
+    "@hono/hono": "jsr:@hono/hono@^4.8.3",
+    "@simplewebauthn/browser": "jsr:@simplewebauthn/browser@^13.3.0",
+    "@simplewebauthn/server": "jsr:@simplewebauthn/server@^13.3.2"
   },
   "lint": {
     "rules": {

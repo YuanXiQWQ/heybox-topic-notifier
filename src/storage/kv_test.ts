@@ -6,9 +6,11 @@ import type {
   AuthIdentity,
   EmailCredential,
   MatchRecord,
+  PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  PendingPasskeyChallenge,
   TotpCredential,
   UserAccount,
   UserSecuritySettings,
@@ -256,6 +258,87 @@ Deno.test("totp credential storage reads saved credentials by user id", async ()
   assertEquals(await storage.getTotpCredential("alice-id"), undefined);
 });
 
+Deno.test("passkey credential storage lists and deletes credentials by user id", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const newerCredential: PasskeyCredential = {
+    backedUp: true,
+    counter: 2,
+    createdAt: "2026-08-01T00:05:00.000Z",
+    credentialId: "newer-credential",
+    label: "Newer device",
+    lastUsedAt: "2026-08-01T00:06:00.000Z",
+    publicKey: "newer-public-key",
+    transports: ["internal", "internal"],
+    userId: "alice-id",
+  };
+  const olderCredential: PasskeyCredential = {
+    backedUp: false,
+    counter: -1,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    credentialId: "older-credential",
+    label: " Older device ",
+    publicKey: "older-public-key",
+    transports: ["usb", ""],
+    userId: "alice-id",
+  };
+  const bobCredential: PasskeyCredential = {
+    ...newerCredential,
+    credentialId: "bob-credential",
+    userId: "bob-id",
+  };
+
+  await storage.savePasskeyCredential(newerCredential);
+  await storage.savePasskeyCredential(olderCredential);
+  await storage.savePasskeyCredential(bobCredential);
+
+  assertEquals(
+    (await storage.listPasskeyCredentials("alice-id")).map((item) => ({
+      counter: item.counter,
+      credentialId: item.credentialId,
+      label: item.label,
+      transports: item.transports,
+    })),
+    [
+      {
+        counter: 0,
+        credentialId: "older-credential",
+        label: "Older device",
+        transports: ["usb"],
+      },
+      {
+        counter: 2,
+        credentialId: "newer-credential",
+        label: "Newer device",
+        transports: ["internal"],
+      },
+    ],
+  );
+  assertEquals(
+    (await storage.getPasskeyCredential("alice-id", "newer-credential"))
+      ?.credentialId,
+    "newer-credential",
+  );
+  assertEquals(
+    await storage.getPasskeyCredential("alice-id", "bob-credential"),
+    undefined,
+  );
+
+  await storage.deletePasskeyCredential("alice-id", "newer-credential");
+
+  assertEquals(
+    await storage.getPasskeyCredential("alice-id", "newer-credential"),
+    undefined,
+  );
+  assertEquals(
+    (await storage.getPasskeyCredential("bob-id", "bob-credential"))
+      ?.credentialId,
+    "bob-credential",
+  );
+});
+
 Deno.test("auth identity storage reads saved Google identities", async () => {
   const kv = new MemoryKv();
   const storage = createKvStorage(defaultSettings, {
@@ -319,6 +402,53 @@ Deno.test("pending MFA challenge storage preserves attempts and methods", async 
 
   assertEquals(
     await storage.getPendingMfaChallenge("mfa-challenge-id"),
+    undefined,
+  );
+});
+
+Deno.test("pending passkey challenge storage preserves attempts and purpose", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const challenge: PendingPasskeyChallenge = {
+    allowedCredentialIds: ["credential-a", "credential-a", ""],
+    attempts: -1,
+    challenge: "webauthn-challenge",
+    createdAt: "2026-08-01T00:00:00.000Z",
+    expiresAt: "2026-08-01T00:05:00.000Z",
+    id: "passkey-challenge-id",
+    purpose: "primary_login",
+    userId: "alice-id",
+  };
+
+  await storage.savePendingPasskeyChallenge(challenge);
+
+  assertEquals(
+    await storage.getPendingPasskeyChallenge("passkey-challenge-id"),
+    {
+      ...challenge,
+      allowedCredentialIds: ["credential-a"],
+      attempts: 0,
+    },
+  );
+
+  await storage.savePendingPasskeyChallenge({
+    ...challenge,
+    allowedCredentialIds: ["credential-a"],
+    attempts: 1,
+  });
+
+  assertEquals(
+    (await storage.getPendingPasskeyChallenge("passkey-challenge-id"))
+      ?.attempts,
+    1,
+  );
+
+  await storage.deletePendingPasskeyChallenge("passkey-challenge-id");
+
+  assertEquals(
+    await storage.getPendingPasskeyChallenge("passkey-challenge-id"),
     undefined,
   );
 });

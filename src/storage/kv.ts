@@ -10,9 +10,12 @@ import type {
   EmailCredential,
   KeywordRule,
   MatchRecord,
+  PasskeyChallengePurpose,
+  PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  PendingPasskeyChallenge,
   PollingSettings,
   PollIntervalUnit,
   PollSort,
@@ -49,11 +52,17 @@ const keys = {
     ["loginFailures", normalizeUsername(username)] as const,
   match: (userId: string, id: string) =>
     ["userData", userId, "matches", id] as const,
+  passkeyCredential: (userId: string, credentialId: string) =>
+    ["passkeyCredentials", userId, credentialId] as const,
+  passkeyCredentialPrefix: (userId: string) =>
+    ["passkeyCredentials", userId] as const,
   passwordCredential: (userId: string) =>
     ["passwordCredentials", userId] as const,
   pendingEmailVerification: (id: string) =>
     ["pendingEmailVerifications", id] as const,
   pendingMfaChallenge: (id: string) => ["pendingMfaChallenges", id] as const,
+  pendingPasskeyChallenge: (id: string) =>
+    ["pendingPasskeyChallenges", id] as const,
   rateLimit: (parts: readonly string[]) => ["rateLimits", ...parts] as const,
   session: (tokenHash: string) => ["sessions", tokenHash] as const,
   securitySettings: (userId: string) => ["securitySettings", userId] as const,
@@ -647,6 +656,83 @@ export function createKvStorage(
     },
 
     /**
+     * 获取指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @param credentialId Passkey 凭证 ID。
+     * @return Passkey 凭证，不存在时返回 undefined。
+     */
+    async getPasskeyCredential(
+      userId: string,
+      credentialId: string,
+    ): Promise<PasskeyCredential | undefined> {
+      const store = await kv();
+      const entry = await store.get<PasskeyCredential>(
+        keys.passkeyCredential(userId, credentialId),
+      );
+      return entry.value
+        ? normalizePasskeyCredential(entry.value, userId)
+        : undefined;
+    },
+
+    /**
+     * 列出指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @return Passkey 凭证列表。
+     */
+    async listPasskeyCredentials(userId: string): Promise<PasskeyCredential[]> {
+      const store = await kv();
+      const credentials: PasskeyCredential[] = [];
+      for await (
+        const entry of store.list<PasskeyCredential>({
+          prefix: keys.passkeyCredentialPrefix(userId),
+        })
+      ) {
+        credentials.push(normalizePasskeyCredential(entry.value, userId));
+      }
+      return credentials.toSorted((left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.credentialId.localeCompare(right.credentialId)
+      );
+    },
+
+    /**
+     * 保存指定用户的 Passkey 凭证。
+     *
+     * @param credential Passkey 凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async savePasskeyCredential(
+      credential: PasskeyCredential,
+    ): Promise<void> {
+      const normalized = normalizePasskeyCredential(
+        credential,
+        credential.userId,
+      );
+      const store = await kv();
+      await store.set(
+        keys.passkeyCredential(normalized.userId, normalized.credentialId),
+        normalized,
+      );
+    },
+
+    /**
+     * 删除指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @param credentialId Passkey 凭证 ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePasskeyCredential(
+      userId: string,
+      credentialId: string,
+    ): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.passkeyCredential(userId, credentialId));
+    },
+
+    /**
      * 获取外部或邮箱身份绑定。
      *
      * @param provider 身份提供方。
@@ -834,6 +920,53 @@ export function createKvStorage(
     async deletePendingMfaChallenge(id: string): Promise<void> {
       const store = await kv();
       await store.delete(keys.pendingMfaChallenge(id));
+    },
+
+    /**
+     * 获取待完成的 Passkey challenge。
+     *
+     * @param id Passkey challenge ID。
+     * @return 待完成 Passkey challenge，不存在时返回 undefined。
+     */
+    async getPendingPasskeyChallenge(
+      id: string,
+    ): Promise<PendingPasskeyChallenge | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingPasskeyChallenge>(
+        keys.pendingPasskeyChallenge(id),
+      );
+      return entry.value
+        ? normalizePendingPasskeyChallenge(entry.value)
+        : undefined;
+    },
+
+    /**
+     * 保存待完成的 Passkey challenge。
+     *
+     * @param challenge 待完成 Passkey challenge。
+     * @return 保存完成后的 Promise。
+     */
+    async savePendingPasskeyChallenge(
+      challenge: PendingPasskeyChallenge,
+    ): Promise<void> {
+      const normalized = normalizePendingPasskeyChallenge(challenge);
+      const store = await kv();
+      await store.set(
+        keys.pendingPasskeyChallenge(normalized.id),
+        normalized,
+        expireInFromIso(normalized.expiresAt),
+      );
+    },
+
+    /**
+     * 删除待完成的 Passkey challenge。
+     *
+     * @param id Passkey challenge ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePendingPasskeyChallenge(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingPasskeyChallenge(id));
     },
 
     /**
@@ -1173,6 +1306,50 @@ function normalizeTotpCredential(
 }
 
 /**
+ * 规范化 Passkey 凭证。
+ *
+ * @param credential Passkey 凭证。
+ * @param userId 用户 ID。
+ * @return 规范化后的 Passkey 凭证。
+ */
+function normalizePasskeyCredential(
+  credential: PasskeyCredential,
+  userId: string,
+): PasskeyCredential {
+  const transports = Array.isArray(credential.transports)
+    ? Array.from(
+      new Set(
+        credential.transports.filter((value): value is string =>
+          typeof value === "string" && value.trim().length > 0
+        ).map((value) => value.trim()),
+      ),
+    )
+    : undefined;
+  return {
+    backedUp: credential.backedUp === true,
+    counter: Math.max(0, Math.floor(Number(credential.counter) || 0)),
+    createdAt: typeof credential.createdAt === "string"
+      ? credential.createdAt
+      : "",
+    credentialId: typeof credential.credentialId === "string"
+      ? credential.credentialId
+      : "",
+    label: typeof credential.label === "string" &&
+        credential.label.trim().length > 0
+      ? credential.label.trim()
+      : undefined,
+    lastUsedAt: typeof credential.lastUsedAt === "string"
+      ? credential.lastUsedAt
+      : undefined,
+    publicKey: typeof credential.publicKey === "string"
+      ? credential.publicKey
+      : "",
+    transports,
+    userId,
+  };
+}
+
+/**
  * 规范化待验证挑战中的邮箱地址。
  *
  * @param verification 待验证挑战。
@@ -1185,6 +1362,47 @@ function normalizePendingEmailVerification(
     ...verification,
     email: emailKey(verification.email),
   };
+}
+
+/**
+ * 规范化待完成的 Passkey challenge。
+ *
+ * @param challenge 待完成 Passkey challenge。
+ * @return 规范化后的 Passkey challenge。
+ */
+function normalizePendingPasskeyChallenge(
+  challenge: PendingPasskeyChallenge,
+): PendingPasskeyChallenge {
+  const allowedCredentialIds = Array.isArray(challenge.allowedCredentialIds)
+    ? challenge.allowedCredentialIds
+    : [];
+  return {
+    ...challenge,
+    allowedCredentialIds: Array.from(
+      new Set(
+        allowedCredentialIds.filter((value) =>
+          typeof value === "string" && value.trim().length > 0
+        ).map((value) => value.trim()),
+      ),
+    ),
+    attempts: Math.max(0, Math.floor(Number(challenge.attempts) || 0)),
+    purpose: isPasskeyChallengePurpose(challenge.purpose)
+      ? challenge.purpose
+      : "primary_login",
+  };
+}
+
+/**
+ * 判断值是否为支持的 Passkey challenge 用途。
+ *
+ * @param value 待判断值。
+ * @return 值是 Passkey challenge 用途时返回 true。
+ */
+function isPasskeyChallengePurpose(
+  value: unknown,
+): value is PasskeyChallengePurpose {
+  return value === "passkey_registration" || value === "primary_login" ||
+    value === "reauth" || value === "second_factor";
 }
 
 /**
