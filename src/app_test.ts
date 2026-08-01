@@ -16,26 +16,32 @@ Deno.test("application adds baseline security headers", async () => {
   assertEquals(contentSecurityPolicy.includes("frame-ancestors 'none'"), true);
   assertEquals(
     contentSecurityPolicy.includes(
-      "frame-src https://challenges.cloudflare.com",
+      "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/",
     ),
     true,
   );
   assertEquals(contentSecurityPolicy.includes("object-src 'none'"), true);
   assertEquals(
     contentSecurityPolicy.includes(
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://accounts.google.com/gsi/client",
     ),
     true,
   );
   assertEquals(
     contentSecurityPolicy.includes(
-      "connect-src 'self' https://challenges.cloudflare.com",
+      "connect-src 'self' https://challenges.cloudflare.com https://accounts.google.com/gsi/",
+    ),
+    true,
+  );
+  assertEquals(
+    contentSecurityPolicy.includes(
+      "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
     ),
     true,
   );
   assertEquals(
     response.headers.get("cross-origin-opener-policy"),
-    "same-origin",
+    "same-origin-allow-popups",
   );
   assertEquals(
     response.headers.get("cross-origin-resource-policy"),

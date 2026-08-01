@@ -129,6 +129,8 @@ export type Messages = {
   authEmailSendCode: string;
   authEmailSendingCode: string;
   authExistingAccountLogin: string;
+  authGoogleInvalid: string;
+  authGoogleUnavailable: string;
   authHumanVerificationRequired: string;
   authInvalidCredentials: string;
   authLanguage: string;

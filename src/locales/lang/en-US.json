@@ -50,6 +50,8 @@
   "authEmailSendCode": "Send code",
   "authEmailSendingCode": "Sending verification code...",
   "authExistingAccountLogin": "Already have an account? Sign in",
+  "authGoogleInvalid": "Google sign-in could not be verified. Try again.",
+  "authGoogleUnavailable": "Google sign-in is not configured yet. Use another sign-in method.",
   "authHumanVerificationRequired": "Complete the human verification before continuing.",
   "authInvalidCredentials": "Incorrect username or password.",
   "authLanguage": "Language",
