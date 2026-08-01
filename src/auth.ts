@@ -17,8 +17,10 @@ import {
   withCsrfCookie,
 } from "./security/csrf.ts";
 import { auditText, logSecurityAuditEvent } from "./security/audit_log.ts";
-import { parseCookies } from "./security/cookies.ts";
-import { base64UrlEncode, constantTimeEquals } from "./security/crypto_utils.ts";
+import {
+  base64UrlEncode,
+  constantTimeEquals,
+} from "./security/crypto_utils.ts";
 import {
   clientRateLimitIdentifier,
   publicRateLimitPolicies,
@@ -26,19 +28,21 @@ import {
 } from "./security/rate_limit.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 import { languageTextIcon } from "./views/icons.ts";
+import {
+  clearSessionCookie,
+  defaultSessionCookieName,
+  deleteSessionForCookie,
+  readAuthSession,
+  redirectWithSession,
+} from "./auth/session.ts";
+
+export { readAuthSession } from "./auth/session.ts";
+export type { AuthSession } from "./auth/session.ts";
 
 /**
  * 认证模块使用的存储类型。
  */
 type Storage = ReturnType<typeof createKvStorage>;
-
-/**
- * 已认证会话信息。
- */
-export type AuthSession = {
-  userId: string;
-  username: string;
-};
 
 /**
  * 认证模块配置选项。
@@ -71,7 +75,7 @@ type AuthConfig = {
 /**
  * 默认登录 Cookie 名称。
  */
-const defaultCookieName = "heybox_session";
+const defaultCookieName = defaultSessionCookieName;
 /**
  * 默认登录路径。
  */
@@ -125,7 +129,11 @@ export function createAuthMiddleware(
       return;
     }
 
-    const session = await readAuthSession(c.req.header("cookie"), storage, options);
+    const session = await readAuthSession(
+      c.req.header("cookie"),
+      storage,
+      options,
+    );
     if (session) {
       await next();
       return;
@@ -148,7 +156,10 @@ export function createAuthMiddleware(
  * @param options 认证配置选项。
  * @return 认证路由应用。
  */
-export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): Hono {
+export function createAuthRoutes(
+  storage: Storage,
+  options: AuthOptions = {},
+): Hono {
   const config = authConfig(options);
   const app = new Hono();
 
@@ -161,7 +172,9 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     return withCsrfCookie(
       c.html(renderAuthPage({
         action: authPagePath(config.loginPath, locale, {
-          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+          [authLocaleChangedParam]: syncLocale
+            ? authLocaleChangedValue
+            : undefined,
         }),
         csrfToken: csrf.token,
         error: loginErrorMessage(url.searchParams.get("error"), messages),
@@ -194,7 +207,9 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const syncLocale = shouldSyncAuthLocale(url);
     const canRateLimit = validUsername(username);
-    const loginFailure = canRateLimit ? await storage.getLoginFailure(username) : undefined;
+    const loginFailure = canRateLimit
+      ? await storage.getLoginFailure(username)
+      : undefined;
 
     if (isLoginLocked(loginFailure)) {
       logSecurityAuditEvent({
@@ -205,7 +220,12 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         request: c.req.raw,
       });
 
-      return loginRateLimitedRedirect(config.loginPath, returnTo, locale, syncLocale);
+      return loginRateLimitedRedirect(
+        config.loginPath,
+        returnTo,
+        locale,
+        syncLocale,
+      );
     }
 
     const account = await storage.getAccountByUsername(username);
@@ -230,7 +250,12 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
           request: c.req.raw,
         });
 
-        return loginRateLimitedRedirect(config.loginPath, returnTo, locale, syncLocale);
+        return loginRateLimitedRedirect(
+          config.loginPath,
+          returnTo,
+          locale,
+          syncLocale,
+        );
       }
 
       logSecurityAuditEvent({
@@ -248,7 +273,9 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
         authPagePath(config.loginPath, locale, {
           error: "invalid",
           returnTo,
-          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+          [authLocaleChangedParam]: syncLocale
+            ? authLocaleChangedValue
+            : undefined,
         }),
         303,
       );
@@ -261,7 +288,13 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     if (syncLocale) {
       await saveAuthLocale(account.id, locale, storage);
     }
-    return await redirectWithSession(c.req.url, returnTo, account, storage, config);
+    return await redirectWithSession(
+      c.req.url,
+      returnTo,
+      account,
+      storage,
+      config,
+    );
   });
 
   app.get(config.registerPath, (c) => {
@@ -273,7 +306,9 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     return withCsrfCookie(
       c.html(renderAuthPage({
         action: authPagePath(config.registerPath, locale, {
-          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+          [authLocaleChangedParam]: syncLocale
+            ? authLocaleChangedValue
+            : undefined,
         }),
         csrfToken: csrf.token,
         error: registerErrorMessage(url.searchParams.get("error"), messages),
@@ -316,13 +351,19 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const syncLocale = shouldSyncAuthLocale(url);
-    const validationError = validateRegistration(username, password, confirmPassword);
+    const validationError = validateRegistration(
+      username,
+      password,
+      confirmPassword,
+    );
 
     if (validationError) {
       return c.redirect(
         authPagePath(config.registerPath, locale, {
           error: validationError,
-          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+          [authLocaleChangedParam]: syncLocale
+            ? authLocaleChangedValue
+            : undefined,
         }),
         303,
       );
@@ -340,7 +381,9 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       return c.redirect(
         authPagePath(config.registerPath, locale, {
           error: "exists",
-          [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+          [authLocaleChangedParam]: syncLocale
+            ? authLocaleChangedValue
+            : undefined,
         }),
         303,
       );
@@ -349,7 +392,13 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
     if (syncLocale) {
       await saveAuthLocale(account.id, locale, storage);
     }
-    return await redirectWithSession(c.req.url, returnTo, account, storage, config);
+    return await redirectWithSession(
+      c.req.url,
+      returnTo,
+      account,
+      storage,
+      config,
+    );
   });
 
   app.post("/logout", async (c) => {
@@ -363,60 +412,18 @@ export function createAuthRoutes(storage: Storage, options: AuthOptions = {}): H
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const token = parseCookies(c.req.header("cookie")).get(config.cookieName);
-    if (token) {
-      await storage.deleteSession(await sessionTokenHash(token));
-    }
+    await deleteSessionForCookie(c.req.header("cookie"), storage, config);
 
     return new Response(null, {
       headers: {
         location: authPagePath(config.loginPath, config.defaultLocale),
-        "set-cookie": serializeCookie(config.cookieName, "", {
-          httpOnly: true,
-          maxAge: 0,
-          path: "/",
-          sameSite: "Lax",
-          secure: new URL(c.req.url).protocol === "https:",
-        }),
+        "set-cookie": clearSessionCookie(c.req.url, config),
       },
       status: 303,
     });
   });
 
   return app;
-}
-
-/**
- * 从 Cookie 中读取已认证会话。
- *
- * @param cookieHeader Cookie 请求头。
- * @param storage 应用存储。
- * @param options 认证配置选项。
- * @return 有效认证会话，不存在或过期时返回 undefined。
- */
-export async function readAuthSession(
-  cookieHeader: string | undefined,
-  storage: Storage,
-  options: AuthOptions = {},
-): Promise<AuthSession | undefined> {
-  const config = authConfig(options);
-  const token = parseCookies(cookieHeader).get(config.cookieName);
-  if (!token) {
-    return undefined;
-  }
-
-  const tokenHash = await sessionTokenHash(token);
-  const session = await storage.getSession(tokenHash);
-  if (!session) {
-    return undefined;
-  }
-
-  if (new Date(session.expiresAt).getTime() <= Date.now()) {
-    await storage.deleteSession(tokenHash);
-    return undefined;
-  }
-
-  return { userId: session.userId, username: session.username };
 }
 
 /**
@@ -433,13 +440,16 @@ function authConfig(options: AuthOptions): AuthConfig {
     cookieName: options.cookieName ?? defaultCookieName,
     defaultLocale: options.defaultLocale ?? "zh-CN",
     exemptPaths: new Set(
-      options.exemptPaths ?? ["/healthz", loginPath, registerPath, "/static/app.css"],
+      options.exemptPaths ??
+        ["/healthz", loginPath, registerPath, "/static/app.css"],
     ),
-    loginLockoutSeconds: options.loginLockoutSeconds ?? defaultLoginLockoutSeconds,
+    loginLockoutSeconds: options.loginLockoutSeconds ??
+      defaultLoginLockoutSeconds,
     maxLoginFailures: options.maxLoginFailures ?? defaultMaxLoginFailures,
     loginPath,
     registerPath,
-    sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ?? defaultSessionMaxAgeSeconds,
+    sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ??
+      defaultSessionMaxAgeSeconds,
   };
 }
 
@@ -463,71 +473,6 @@ async function saveAuthLocale(
   }
 
   await userStorage.saveSettings({ ...settings, locale });
-}
-
-/**
- * 创建会话并返回带会话 Cookie 的重定向响应。
- *
- * @param requestUrl 当前请求 URL。
- * @param location 重定向目标。
- * @param account 用户账号。
- * @param storage 应用存储。
- * @param config 认证配置。
- * @return 重定向响应。
- */
-async function redirectWithSession(
-  requestUrl: string,
-  location: string,
-  account: UserAccount,
-  storage: Storage,
-  config: AuthConfig,
-): Promise<Response> {
-  const token = createSessionToken();
-  const createdAt = new Date();
-  const expiresAt = new Date(createdAt.getTime() + config.sessionMaxAgeSeconds * 1000);
-
-  await storage.saveSession({
-    createdAt: createdAt.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-    tokenHash: await sessionTokenHash(token),
-    userId: account.id,
-    username: account.username,
-  });
-
-  return new Response(null, {
-    headers: {
-      location,
-      "set-cookie": serializeCookie(config.cookieName, token, {
-        httpOnly: true,
-        maxAge: config.sessionMaxAgeSeconds,
-        path: "/",
-        sameSite: "Lax",
-        secure: new URL(requestUrl).protocol === "https:",
-      }),
-    },
-    status: 303,
-  });
-}
-
-/**
- * 创建随机会话令牌。
- *
- * @return Base64URL 编码的会话令牌。
- */
-function createSessionToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return base64UrlEncode(bytes);
-}
-
-/**
- * 计算会话令牌哈希。
- *
- * @param token 会话令牌。
- * @return Base64URL 编码的令牌哈希。
- */
-async function sessionTokenHash(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-  return base64UrlEncode(new Uint8Array(digest));
 }
 
 /**
@@ -555,7 +500,10 @@ export async function hashPassword(
  * @param account 用户账号。
  * @return 密码匹配时返回 true。
  */
-export async function verifyPassword(password: string, account: UserAccount): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  account: UserAccount,
+): Promise<boolean> {
   const hash = await derivePasswordHash(
     password,
     base64UrlDecode(account.passwordSalt),
@@ -585,7 +533,12 @@ async function derivePasswordHash(
     ["deriveBits"],
   );
   const bits = await crypto.subtle.deriveBits(
-    { hash: "SHA-256", iterations, name: "PBKDF2", salt: arrayBufferFromBytes(salt) },
+    {
+      hash: "SHA-256",
+      iterations,
+      name: "PBKDF2",
+      salt: arrayBufferFromBytes(salt),
+    },
     key,
     256,
   );
@@ -625,7 +578,9 @@ function renderAuthPage(options: {
   const switchPath = options.mode === "login" ? "/register" : "/login";
   const switchHref = authPagePath(switchPath, options.locale, {
     returnTo: options.returnTo,
-    [authLocaleChangedParam]: options.syncLocale ? authLocaleChangedValue : undefined,
+    [authLocaleChangedParam]: options.syncLocale
+      ? authLocaleChangedValue
+      : undefined,
   });
   const switchLabel = options.mode === "login"
     ? options.messages.authCreateAccount
@@ -642,7 +597,9 @@ function renderAuthPage(options: {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${escapeHtml(options.heading)} - ${escapeHtml(options.messages.appName)}</title>
+    <title>${escapeHtml(options.heading)} - ${
+    escapeHtml(options.messages.appName)
+  }</title>
     <link rel="stylesheet" href="/static/app.css">
     <style>
       body {
@@ -763,7 +720,9 @@ function renderAuthPage(options: {
   <body>
     <header class="topbar">
       <span class="brand">${escapeHtml(options.messages.appName)}</span>
-      <nav class="primary-nav" aria-label="${escapeHtml(options.messages.authNavigation)}">
+      <nav class="primary-nav" aria-label="${
+    escapeHtml(options.messages.authNavigation)
+  }">
         <details class="auth-language-menu">
           <summary class="auth-language-button" title="${
     escapeHtml(options.messages.authLanguage)
@@ -782,7 +741,9 @@ function renderAuthPage(options: {
         <h1>${escapeHtml(options.heading)}</h1>
         <form method="post" action="${escapeHtml(options.action)}">
           ${csrfHiddenInput(options.csrfToken)}
-          <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}">
+          <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
           <div class="auth-fields">
             <label>
               ${escapeHtml(options.messages.authUsername)}
@@ -803,7 +764,11 @@ function renderAuthPage(options: {
       : ""
   }
           </div>
-          ${options.error ? `<div class="auth-error">${escapeHtml(options.error)}</div>` : ""}
+          ${
+    options.error
+      ? `<div class="auth-error">${escapeHtml(options.error)}</div>`
+      : ""
+  }
           <button type="submit">${escapeHtml(options.submitLabel)}</button>
         </form>
         <a href="${escapeHtml(switchHref)}">${escapeHtml(switchLabel)}</a>
@@ -848,7 +813,8 @@ function authPageLocale(
  * @return 需要在认证成功后同步语言时返回 true。
  */
 function shouldSyncAuthLocale(url: URL): boolean {
-  return url.searchParams.get(authLocaleChangedParam) === authLocaleChangedValue;
+  return url.searchParams.get(authLocaleChangedParam) ===
+    authLocaleChangedValue;
 }
 
 /**
@@ -857,19 +823,25 @@ function shouldSyncAuthLocale(url: URL): boolean {
  * @param value 原始语言标签。
  * @return 支持的语言标识，无法匹配时返回 undefined。
  */
-function localeFromLanguageTag(value: string | null | undefined): Locale | undefined {
+function localeFromLanguageTag(
+  value: string | null | undefined,
+): Locale | undefined {
   const normalized = value?.toLowerCase();
   if (!normalized) {
     return undefined;
   }
 
-  const exactOption = languageOptions.find((option) => option.code.toLowerCase() === normalized);
+  const exactOption = languageOptions.find((option) =>
+    option.code.toLowerCase() === normalized
+  );
   if (exactOption) {
     return exactOption.code;
   }
 
   const languageCode = normalized.split("-")[0];
-  return languageOptions.find((option) => option.code.toLowerCase().split("-")[0] === languageCode)
+  return languageOptions.find((option) =>
+    option.code.toLowerCase().split("-")[0] === languageCode
+  )
     ?.code;
 }
 
@@ -903,10 +875,16 @@ function authPagePath(
  * @param returnTo 登录后返回路径。
  * @return 语言选项 HTML。
  */
-function renderLanguageOptions(action: string, currentLocale: Locale, returnTo: string): string {
+function renderLanguageOptions(
+  action: string,
+  currentLocale: Locale,
+  returnTo: string,
+): string {
   const actionPath = action.split("?")[0] ?? action;
   return languageOptions.map((option) => {
-    const currentAttribute = option.code === currentLocale ? ' aria-current="true"' : "";
+    const currentAttribute = option.code === currentLocale
+      ? ' aria-current="true"'
+      : "";
     return `<a href="${
       escapeHtml(authPagePath(actionPath, option.code, {
         returnTo,
@@ -923,7 +901,10 @@ function renderLanguageOptions(action: string, currentLocale: Locale, returnTo: 
  * @param messages 当前语言文案。
  * @return 登录错误提示，不需要展示时返回 undefined。
  */
-function loginErrorMessage(value: string | null, messages: Messages): string | undefined {
+function loginErrorMessage(
+  value: string | null,
+  messages: Messages,
+): string | undefined {
   switch (value) {
     case "invalid":
       return messages.authInvalidCredentials;
@@ -941,7 +922,8 @@ function loginErrorMessage(value: string | null, messages: Messages): string | u
  * @return 当前仍被锁定时返回 true。
  */
 function isLoginLocked(failure: { lockedUntil?: string } | undefined): boolean {
-  return failure?.lockedUntil !== undefined && Date.parse(failure.lockedUntil) > Date.now();
+  return failure?.lockedUntil !== undefined &&
+    Date.parse(failure.lockedUntil) > Date.now();
 }
 
 /**
@@ -964,7 +946,9 @@ function loginRateLimitedRedirect(
       location: authPagePath(loginPath, locale, {
         error: "rateLimited",
         returnTo,
-        [authLocaleChangedParam]: syncLocale ? authLocaleChangedValue : undefined,
+        [authLocaleChangedParam]: syncLocale
+          ? authLocaleChangedValue
+          : undefined,
       }),
     },
     status: 303,
@@ -978,7 +962,10 @@ function loginRateLimitedRedirect(
  * @param messages 当前语言文案。
  * @return 注册错误提示，不需要展示时返回 undefined。
  */
-function registerErrorMessage(value: string | null, messages: Messages): string | undefined {
+function registerErrorMessage(
+  value: string | null,
+  messages: Messages,
+): string | undefined {
   switch (value) {
     case "exists":
       return messages.authUsernameExists;
@@ -1075,35 +1062,6 @@ function pathWithSearch(url: URL): string {
  */
 export function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
-}
-
-/**
- * 序列化 Set-Cookie 响应头值。
- *
- * @param name Cookie 名称。
- * @param value Cookie 值。
- * @param options Cookie 选项。
- * @return Set-Cookie 头值。
- */
-function serializeCookie(
-  name: string,
-  value: string,
-  options: {
-    httpOnly: boolean;
-    maxAge: number;
-    path: string;
-    sameSite: "Lax" | "Strict";
-    secure: boolean;
-  },
-): string {
-  return [
-    `${name}=${value}`,
-    `Max-Age=${options.maxAge}`,
-    `Path=${options.path}`,
-    `SameSite=${options.sameSite}`,
-    options.httpOnly ? "HttpOnly" : "",
-    options.secure ? "Secure" : "",
-  ].filter(Boolean).join("; ");
 }
 
 /**
