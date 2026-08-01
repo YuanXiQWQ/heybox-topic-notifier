@@ -151,6 +151,14 @@ export type Messages = {
   authLanguage: string;
   authLogin: string;
   authLoginRateLimited: string;
+  authMfaChooseMethod: string;
+  authMfaExpired: string;
+  authMfaInvalid: string;
+  authMfaMethodUnavailable: string;
+  authMfaRequired: string;
+  authMfaTitle: string;
+  authMfaUnavailable: string;
+  authMfaVerify: string;
   authNavigation: string;
   authPassword: string;
   authPasswordConfirmationMismatch: string;

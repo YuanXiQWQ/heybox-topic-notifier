@@ -11,6 +11,10 @@ import type {
   EmailCredential,
   EmailVerificationPurpose,
   PasswordCredential,
+  PendingEmailVerification,
+  PendingMfaChallenge,
+  PrimaryAuthMethod,
+  SecondFactorMethod,
   UserAccount,
 } from "./models.ts";
 import {
@@ -68,6 +72,15 @@ import {
   type GoogleJwksFetch,
   verifyGoogleIdToken,
 } from "./auth/google.ts";
+import {
+  availableSecondFactorMethods,
+  completePrimaryAuthentication,
+  isSecondFactorMethod,
+  type MfaChallengeConfig,
+  mfaChallengeVerificationError,
+  MfaConfigurationError,
+  nextMfaChallengeAttempt,
+} from "./auth/mfa.ts";
 
 export { readAuthSession } from "./auth/session.ts";
 export type { AuthSession } from "./auth/session.ts";
@@ -89,6 +102,7 @@ export type AuthOptions = {
   google?: GoogleAuthConfig;
   googleJwksFetch?: GoogleJwksFetch;
   loginPath?: string;
+  mfa?: Partial<MfaChallengeConfig>;
   registerPath?: string;
   emailVerification?: EmailVerificationConfig;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
@@ -110,6 +124,7 @@ type AuthConfig = {
   google: GoogleAuthConfig;
   googleJwksFetch?: GoogleJwksFetch;
   loginPath: string;
+  mfa?: Partial<MfaChallengeConfig>;
   registerPath: string;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
   sessionMaxAgeSeconds: number;
@@ -195,6 +210,10 @@ const emailVerificationPath = "/auth/email-verifications";
  * Google credential 登录接口路径。
  */
 const googleCredentialPath = "/auth/google";
+/**
+ * MFA 挑战页面路径。
+ */
+const mfaPath = "/mfa";
 
 /**
  * 创建认证中间件。
@@ -412,13 +431,12 @@ export function createAuthRoutes(
     if (syncLocale) {
       await saveAuthLocale(account.id, locale, storage);
     }
-    return await redirectWithSession(
-      c.req.url,
+    return await completePrimaryLogin(c, storage, config, account, {
+      locale,
+      primaryMethod: "password",
       returnTo,
-      account,
-      storage,
-      config,
-    );
+      syncLocale,
+    });
   });
 
   app.get(config.registerPath, (c) => {
@@ -572,34 +590,69 @@ export function createAuthRoutes(
       storage,
       config,
     );
+    let verificationUserId = session?.userId;
+    let skipHumanVerification = false;
     if (purpose === "email_binding" && !session) {
       return c.json({ error: "authenticationRequired" }, 401);
+    }
+
+    if (purpose === "second_factor") {
+      const challengeId = String(form.challengeId ?? "").trim();
+      const challenge = await storage.getPendingMfaChallenge(challengeId);
+      if (!challenge) {
+        return c.json({ error: "mfaChallengeInvalid" }, 400);
+      }
+
+      const challengeError = mfaChallengeVerificationError(
+        challenge,
+        "email",
+        config.mfa,
+      );
+      if (challengeError) {
+        if (challengeError === "attempts" || challengeError === "expired") {
+          await storage.deletePendingMfaChallenge(challenge.id);
+        }
+        return c.json({ error: "mfaChallengeInvalid" }, 400);
+      }
+
+      const credential = await storage.getEmailCredential(
+        challenge.userId,
+        email,
+      );
+      if (!credential?.verified) {
+        return c.json({ error: "invalidEmailVerificationRequest" }, 400);
+      }
+
+      verificationUserId = challenge.userId;
+      skipHumanVerification = true;
     }
 
     const clientLimitResponse = await rateLimitExceededResponseFor(
       storage,
       publicRateLimitPolicies.emailVerificationClient,
       `${clientRateLimitIdentifier((name) => c.req.header(name))}:${purpose}`,
-      { request: c.req.raw, userId: session?.userId },
+      { request: c.req.raw, userId: verificationUserId },
     );
     if (clientLimitResponse) {
       return clientLimitResponse;
     }
 
-    const humanVerificationErrors = await humanVerificationErrorCodes(
-      c.req.raw,
-      form,
-      config,
-    );
-    if (humanVerificationErrors) {
-      return c.json({ error: "humanVerification" }, 403);
+    if (!skipHumanVerification) {
+      const humanVerificationErrors = await humanVerificationErrorCodes(
+        c.req.raw,
+        form,
+        config,
+      );
+      if (humanVerificationErrors) {
+        return c.json({ error: "humanVerification" }, 403);
+      }
     }
 
     const targetLimitResponse = await rateLimitExceededResponseFor(
       storage,
       publicRateLimitPolicies.emailVerificationTarget,
       `email:${email}:purpose:${purpose}`,
-      { request: c.req.raw, userId: session?.userId },
+      { request: c.req.raw, userId: verificationUserId },
     );
     if (targetLimitResponse) {
       return targetLimitResponse;
@@ -611,7 +664,7 @@ export function createAuthRoutes(
         level: "warn",
         message: "邮箱验证码发送能力未配置。",
         request: c.req.raw,
-        userId: session?.userId,
+        userId: verificationUserId,
       });
       return c.json({ error: "emailVerificationUnavailable" }, 503);
     }
@@ -622,7 +675,7 @@ export function createAuthRoutes(
         config: config.emailVerification,
         email,
         purpose,
-        userId: session?.userId,
+        userId: verificationUserId,
       });
     } catch (error) {
       if (error instanceof EmailVerificationValidationError) {
@@ -635,7 +688,7 @@ export function createAuthRoutes(
           level: "warn",
           message: "邮箱验证码密钥未配置。",
           request: c.req.raw,
-          userId: session?.userId,
+          userId: verificationUserId,
         });
         return c.json({ error: "emailVerificationUnavailable" }, 503);
       }
@@ -660,7 +713,7 @@ export function createAuthRoutes(
         level: "warn",
         message: "邮箱验证码发送失败。",
         request: c.req.raw,
-        userId: session?.userId,
+        userId: verificationUserId,
       });
       return c.json({ error: "emailVerificationDeliveryFailed" }, 502);
     }
@@ -674,7 +727,7 @@ export function createAuthRoutes(
       level: "info",
       message: "邮箱验证码已发送。",
       request: c.req.raw,
-      userId: session?.userId,
+      userId: verificationUserId,
     });
 
     return c.json({
@@ -717,6 +770,116 @@ export function createAuthRoutes(
     });
   });
 
+  app.get(mfaPath, async (c) => {
+    const url = new URL(c.req.url);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const messages = getMessages(locale);
+    const returnTo = safeReturnTo(url.searchParams.get("returnTo"));
+    const challenge = await getRenderableMfaChallenge(
+      storage,
+      config,
+      url.searchParams.get("challenge"),
+    );
+    if (!challenge) {
+      return c.redirect(
+        authPagePath(config.loginPath, locale, {
+          error: "mfaExpired",
+          returnTo,
+        }),
+        303,
+      );
+    }
+
+    const emailCredentials = await storage.listEmailCredentials(
+      challenge.userId,
+    );
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(
+      c.html(renderMfaPage({
+        action: mfaPagePath(locale, challenge.id, returnTo),
+        challenge,
+        csrfToken: csrf.token,
+        emailCredentials,
+        error: mfaErrorMessage(url.searchParams.get("error"), messages),
+        locale,
+        messages,
+        returnTo,
+      })),
+      csrf,
+    );
+  });
+
+  app.post(mfaPath, async (c) => {
+    const url = new URL(c.req.url);
+    const form = await c.req.parseBody();
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
+    const challengeId = String(form.challengeId ?? "").trim();
+    const method = secondFactorMethodFromForm(form.method);
+    const challenge = challengeId
+      ? await storage.getPendingMfaChallenge(challengeId)
+      : undefined;
+    if (!challenge || !method) {
+      return c.redirect(
+        authPagePath(config.loginPath, locale, {
+          error: "mfaExpired",
+          returnTo,
+        }),
+        303,
+      );
+    }
+
+    const challengeError = mfaChallengeVerificationError(
+      challenge,
+      method,
+      config.mfa,
+    );
+    if (challengeError) {
+      if (challengeError === "attempts" || challengeError === "expired") {
+        await storage.deletePendingMfaChallenge(challenge.id);
+        return c.redirect(
+          mfaExpiredLoginRedirect(config, locale, returnTo),
+          303,
+        );
+      }
+      return c.redirect(
+        mfaErrorRedirect(
+          locale,
+          challenge.id,
+          returnTo,
+          challengeError,
+        ),
+        303,
+      );
+    }
+
+    if (method === "email") {
+      return await handleEmailSecondFactor(
+        c,
+        storage,
+        config,
+        form,
+        challenge,
+        locale,
+        returnTo,
+      );
+    }
+
+    return c.redirect(
+      mfaErrorRedirect(locale, challenge.id, returnTo, "unavailable"),
+      303,
+    );
+  });
+
   app.post("/logout", async (c) => {
     const form = await c.req.parseBody().catch(() => ({}));
     if (
@@ -754,10 +917,102 @@ type GoogleCredentialLoginOptions = {
   syncLocale: boolean;
 };
 
+type PrimaryLoginCompletionOptions = {
+  locale: Locale;
+  primaryMethod: PrimaryAuthMethod;
+  returnTo: string;
+  syncLocale: boolean;
+};
+
 type GoogleAccountResult = {
   account: UserAccount;
   created: boolean;
 };
+
+/**
+ * 完成主认证，必要时进入 MFA challenge。
+ *
+ * @param {Context} c Hono 请求上下文。
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {UserAccount} account 已完成主认证的账户。
+ * @param {PrimaryLoginCompletionOptions} options 主认证完成选项。
+ * @return {Promise<Response>} 登录流程响应。
+ */
+async function completePrimaryLogin(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  account: UserAccount,
+  options: PrimaryLoginCompletionOptions,
+): Promise<Response> {
+  const securitySettings = await storage.getUserSecuritySettings(account.id);
+  const emailCredentials = await storage.listEmailCredentials(account.id);
+  const availableMethods = availableSecondFactorMethods({ emailCredentials });
+
+  try {
+    const completion = completePrimaryAuthentication({
+      availableMethods,
+      config: config.mfa,
+      primaryMethod: options.primaryMethod,
+      securitySettings,
+      userId: account.id,
+    });
+
+    if (completion.status === "authenticated") {
+      return await redirectWithSession(
+        c.req.url,
+        options.returnTo,
+        account,
+        storage,
+        config,
+      );
+    }
+
+    await storage.savePendingMfaChallenge(completion.challenge);
+    logSecurityAuditEvent({
+      code: "mfa_required",
+      details: {
+        allowedMethods: completion.challenge.allowedMethods.join(","),
+        primaryMethod: options.primaryMethod,
+      },
+      level: "info",
+      message: "登录需要完成双重验证。",
+      request: c.req.raw,
+      userId: account.id,
+    });
+
+    return c.redirect(
+      mfaPagePath(
+        options.locale,
+        completion.challenge.id,
+        options.returnTo,
+      ),
+      303,
+    );
+  } catch (error) {
+    if (!(error instanceof MfaConfigurationError)) {
+      throw error;
+    }
+
+    logSecurityAuditEvent({
+      code: "mfa_configuration_invalid",
+      details: {
+        availableMethods: availableMethods.join(","),
+        primaryMethod: options.primaryMethod,
+      },
+      level: "warn",
+      message: "双重验证配置不可用，已拒绝登录。",
+      request: c.req.raw,
+      userId: account.id,
+    });
+
+    return c.redirect(
+      primaryLoginErrorRedirect(config, options, "mfaUnavailable"),
+      303,
+    );
+  }
+}
 
 /**
  * 处理 Google credential 主登录。
@@ -853,13 +1108,12 @@ async function handleGoogleCredentialLogin(
     userId: result.account.id,
   });
 
-  return await redirectWithSession(
-    c.req.url,
-    options.returnTo,
-    result.account,
-    storage,
-    config,
-  );
+  return await completePrimaryLogin(c, storage, config, result.account, {
+    locale: options.locale,
+    primaryMethod: "google",
+    returnTo: options.returnTo,
+    syncLocale: options.syncLocale,
+  });
 }
 
 /**
@@ -1264,13 +1518,303 @@ async function handleEmailLogin(
     userId: verifiedAccount.id,
   });
 
+  return await completePrimaryLogin(c, storage, config, verifiedAccount, {
+    locale: options.locale,
+    primaryMethod: "email",
+    returnTo: options.returnTo,
+    syncLocale: options.syncLocale,
+  });
+}
+
+type MfaErrorCode =
+  | "attempts"
+  | "code"
+  | "expired"
+  | "method"
+  | "unavailable";
+
+/**
+ * 处理邮箱验证码二次验证。
+ *
+ * @param {Context} c Hono 请求上下文。
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
+ * @param {PendingMfaChallenge} challenge MFA challenge。
+ * @param {Locale} locale 当前页面语言。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @return {Promise<Response>} MFA 处理响应。
+ */
+async function handleEmailSecondFactor(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  challenge: PendingMfaChallenge,
+  locale: Locale,
+  returnTo: string,
+): Promise<Response> {
+  const email = normalizeEmailAddress(String(form.email ?? ""));
+  const verificationId = String(form.verificationId ?? "").trim();
+  const code = String(form.code ?? "");
+  if (!email || !verificationId || !code.trim()) {
+    const mfaFailure = await recordMfaChallengeFailure(
+      storage,
+      config,
+      challenge,
+    );
+    logMfaFailure(c.req.raw, challenge, "code");
+    return mfaFailure === "attempts"
+      ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+      : c.redirect(
+        mfaErrorRedirect(locale, challenge.id, returnTo, "code"),
+        303,
+      );
+  }
+
+  const verification = await storage.getPendingEmailVerification(
+    verificationId,
+  );
+  const verificationError = secondFactorEmailVerificationError(
+    verification,
+    challenge,
+    email,
+    config.emailVerification.maxAttempts,
+  );
+
+  if (verificationError) {
+    if (
+      verification &&
+      (verificationError === "attempts" || verificationError === "expired")
+    ) {
+      await storage.deletePendingEmailVerification(verification.id);
+    }
+    const mfaFailure = await recordMfaChallengeFailure(
+      storage,
+      config,
+      challenge,
+    );
+    logMfaFailure(c.req.raw, challenge, verificationError);
+    return mfaFailure === "attempts"
+      ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+      : c.redirect(
+        mfaErrorRedirect(
+          locale,
+          challenge.id,
+          returnTo,
+          verificationError,
+        ),
+        303,
+      );
+  }
+
+  const activeVerification = verification as PendingEmailVerification;
+  const validCode = await verifyEmailVerificationCode(
+    code,
+    activeVerification,
+    config.emailVerification,
+  );
+  if (!validCode) {
+    const emailFailure = await recordEmailVerificationFailure(
+      storage,
+      config,
+      activeVerification,
+    );
+    const mfaFailure = await recordMfaChallengeFailure(
+      storage,
+      config,
+      challenge,
+    );
+    logMfaFailure(c.req.raw, challenge, "code");
+    const error = mfaFailure ?? emailFailure ?? "code";
+    return error === "attempts"
+      ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+      : c.redirect(
+        mfaErrorRedirect(locale, challenge.id, returnTo, error),
+        303,
+      );
+  }
+
+  const account = await storage.getAccountById(challenge.userId);
+  if (!account) {
+    await storage.deletePendingMfaChallenge(challenge.id);
+    await storage.deletePendingEmailVerification(activeVerification.id);
+    return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+  }
+
+  await storage.deletePendingMfaChallenge(challenge.id);
+  await storage.deletePendingEmailVerification(activeVerification.id);
+  logSecurityAuditEvent({
+    code: "mfa_succeeded",
+    details: { method: "email" },
+    level: "info",
+    message: "双重验证已完成。",
+    request: c.req.raw,
+    userId: challenge.userId,
+  });
+
   return await redirectWithSession(
     c.req.url,
-    options.returnTo,
-    verifiedAccount,
+    returnTo,
+    account,
     storage,
     config,
   );
+}
+
+/**
+ * 校验邮箱二次验证 challenge 是否可用。
+ *
+ * @param {PendingEmailVerification | undefined} verification 邮箱验证码 challenge。
+ * @param {PendingMfaChallenge} challenge MFA challenge。
+ * @param {string} email 规范化邮箱。
+ * @param {number} maxAttempts 最大尝试次数。
+ * @return {"attempts" | "code" | "expired" | undefined} 不可用时返回错误码。
+ */
+function secondFactorEmailVerificationError(
+  verification: PendingEmailVerification | undefined,
+  challenge: PendingMfaChallenge,
+  email: string,
+  maxAttempts: number,
+): "attempts" | "code" | "expired" | undefined {
+  if (
+    !verification ||
+    verification.purpose !== "second_factor" ||
+    verification.userId !== challenge.userId ||
+    verification.email !== email
+  ) {
+    return "code";
+  }
+
+  if (Date.parse(verification.expiresAt) <= Date.now()) {
+    return "expired";
+  }
+
+  return verification.attempts >= maxAttempts ? "attempts" : undefined;
+}
+
+/**
+ * 记录 MFA challenge 失败尝试。
+ *
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {PendingMfaChallenge} challenge MFA challenge。
+ * @return {Promise<"attempts" | undefined>} 达到最大尝试次数时返回 attempts。
+ */
+async function recordMfaChallengeFailure(
+  storage: Storage,
+  config: AuthConfig,
+  challenge: PendingMfaChallenge,
+): Promise<"attempts" | undefined> {
+  const nextChallenge = nextMfaChallengeAttempt(challenge);
+  const firstMethod = nextChallenge.allowedMethods[0] ?? "email";
+  const error = mfaChallengeVerificationError(
+    nextChallenge,
+    firstMethod,
+    config.mfa,
+  );
+  if (error === "attempts") {
+    await storage.deletePendingMfaChallenge(challenge.id);
+    return "attempts";
+  }
+
+  await storage.savePendingMfaChallenge(nextChallenge);
+  return undefined;
+}
+
+/**
+ * 记录邮箱验证码失败尝试。
+ *
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {PendingEmailVerification} verification 邮箱验证码 challenge。
+ * @return {Promise<"attempts" | undefined>} 达到最大尝试次数时返回 attempts。
+ */
+async function recordEmailVerificationFailure(
+  storage: Storage,
+  config: AuthConfig,
+  verification: PendingEmailVerification,
+): Promise<"attempts" | undefined> {
+  const attempts = verification.attempts + 1;
+  if (attempts >= config.emailVerification.maxAttempts) {
+    await storage.deletePendingEmailVerification(verification.id);
+    return "attempts";
+  }
+
+  await storage.savePendingEmailVerification({ ...verification, attempts });
+  return undefined;
+}
+
+/**
+ * 记录 MFA 失败审计日志。
+ *
+ * @param {Request} request 原始请求。
+ * @param {PendingMfaChallenge} challenge MFA challenge。
+ * @param {string} reason 失败原因。
+ */
+function logMfaFailure(
+  request: Request,
+  challenge: PendingMfaChallenge,
+  reason: string,
+): void {
+  logSecurityAuditEvent({
+    code: "mfa_failed",
+    details: { reason },
+    level: "warn",
+    message: "双重验证失败。",
+    request,
+    userId: challenge.userId,
+  });
+}
+
+/**
+ * 读取可渲染的 MFA challenge。
+ *
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {string | null} challengeId MFA challenge ID。
+ * @return {Promise<PendingMfaChallenge | undefined>} 可渲染 challenge。
+ */
+async function getRenderableMfaChallenge(
+  storage: Storage,
+  config: AuthConfig,
+  challengeId: string | null,
+): Promise<PendingMfaChallenge | undefined> {
+  const id = challengeId?.trim();
+  if (!id) {
+    return undefined;
+  }
+
+  const challenge = await storage.getPendingMfaChallenge(id);
+  const firstMethod = challenge?.allowedMethods[0];
+  if (!challenge || !firstMethod) {
+    return undefined;
+  }
+
+  const error = mfaChallengeVerificationError(
+    challenge,
+    firstMethod,
+    config.mfa,
+  );
+  if (error === "attempts" || error === "expired") {
+    await storage.deletePendingMfaChallenge(challenge.id);
+    return undefined;
+  }
+
+  return error ? undefined : challenge;
+}
+
+/**
+ * 从表单读取二次验证方式。
+ *
+ * @param {FormDataEntryValue | FormDataEntryValue[] | undefined} value 表单字段值。
+ * @return {SecondFactorMethod | undefined} 二次验证方式。
+ */
+function secondFactorMethodFromForm(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+): SecondFactorMethod | undefined {
+  const method = Array.isArray(value) ? value[0] : value;
+  return isSecondFactorMethod(method) ? method : undefined;
 }
 
 type PrimaryEmailLoginVerificationError = "attempts" | "code" | "expired";
@@ -1525,6 +2069,7 @@ function authConfig(options: AuthOptions): AuthConfig {
           registerPath,
           emailVerificationPath,
           googleCredentialPath,
+          mfaPath,
           "/static/app.css",
         ],
     ),
@@ -1534,6 +2079,7 @@ function authConfig(options: AuthOptions): AuthConfig {
       defaultLoginLockoutSeconds,
     maxLoginFailures: options.maxLoginFailures ?? defaultMaxLoginFailures,
     loginPath,
+    mfa: options.mfa,
     registerPath,
     sendEmailVerificationEmail: options.sendEmailVerificationEmail,
     sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ??
@@ -1688,7 +2234,9 @@ function emailVerificationPurposeFromForm(
 function supportedEmailVerificationPurpose(
   purpose: EmailVerificationPurpose,
 ): boolean {
-  return purpose === "email_binding" || purpose === "primary_login";
+  return purpose === "email_binding" ||
+    purpose === "primary_login" ||
+    purpose === "second_factor";
 }
 
 /**
@@ -2370,6 +2918,561 @@ function renderEmailLoginForm(options: {
  * @param enabled 是否需要渲染脚本。
  * @return 交互脚本 HTML。
  */
+/**
+ * 渲染 MFA challenge 页面。
+ *
+ * @param options MFA 页面渲染选项。
+ * @return 完整 MFA 页面 HTML。
+ */
+/**
+ * 获取 MFA 错误提示。
+ *
+ * @param {string | null} value 错误码。
+ * @param {Messages} messages 当前语言文案。
+ * @return {string | undefined} 错误提示。
+ */
+function mfaErrorMessage(
+  value: string | null,
+  messages: Messages,
+): string | undefined {
+  switch (value) {
+    case "attempts":
+    case "expired":
+      return messages.authMfaExpired;
+    case "code":
+    case "method":
+      return messages.authMfaInvalid;
+    case "unavailable":
+      return messages.authMfaMethodUnavailable;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * 生成 MFA 错误跳转地址。
+ *
+ * @param {AuthConfig} config 认证配置。
+ * @param {Locale} locale 当前语言。
+ * @param {string} challengeId MFA challenge ID。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @param {MfaErrorCode} error 错误码。
+ * @return {string} MFA 错误跳转地址。
+ */
+function mfaErrorRedirect(
+  locale: Locale,
+  challengeId: string,
+  returnTo: string,
+  error: MfaErrorCode,
+): string {
+  return mfaPagePath(locale, challengeId, returnTo, { error });
+}
+
+/**
+ * 生成 MFA 过期后的登录页跳转地址。
+ *
+ * @param {AuthConfig} config 认证配置。
+ * @param {Locale} locale 当前语言。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @return {string} 登录页跳转地址。
+ */
+function mfaExpiredLoginRedirect(
+  config: AuthConfig,
+  locale: Locale,
+  returnTo: string,
+): string {
+  return authPagePath(config.loginPath, locale, {
+    error: "mfaExpired",
+    returnTo,
+  });
+}
+
+function renderMfaPage(options: {
+  action: string;
+  challenge: PendingMfaChallenge;
+  csrfToken: string;
+  emailCredentials: EmailCredential[];
+  error?: string;
+  locale: Locale;
+  messages: Messages;
+  returnTo: string;
+}): string {
+  const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
+  const languageOptionsHtml = renderMfaLanguageOptions(
+    options.challenge.id,
+    options.locale,
+    options.returnTo,
+  );
+  const emailForm = options.challenge.allowedMethods.includes("email")
+    ? renderMfaEmailForm(options)
+    : "";
+
+  return `<!doctype html>
+<html lang="${options.locale}" dir="${direction}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeHtml(options.messages.authMfaTitle)}</title>
+    <style>
+      body {
+        background: #F6F2FB;
+        color: #21182C;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+      }
+
+      .topbar {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        padding: 20px clamp(20px, 4vw, 48px);
+      }
+
+      .brand {
+        font-weight: 800;
+      }
+
+      .auth-language-button {
+        align-items: center;
+        background: #FFFFFF;
+        border: 1px solid #E3D7F2;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        gap: 6px;
+        padding: 8px 12px;
+      }
+
+      .auth-language-icon {
+        height: 18px;
+        width: 18px;
+      }
+
+      .auth-language-options {
+        background: #FFFFFF;
+        border: 1px solid #E3D7F2;
+        border-radius: 6px;
+        display: grid;
+        gap: 2px;
+        margin-top: 6px;
+        padding: 4px;
+        position: absolute;
+        z-index: 1;
+      }
+
+      .auth-language-options a {
+        color: #21182C;
+        font-weight: 600;
+        padding: 8px 12px;
+        text-decoration: none;
+      }
+
+      .auth-shell {
+        display: grid;
+        min-height: calc(100vh - 80px);
+        place-items: center;
+        padding: 24px;
+      }
+
+      .auth-panel {
+        background: #FFFFFF;
+        border: 1px solid #E3D7F2;
+        border-radius: 8px;
+        box-shadow: 0 20px 50px rgba(58, 35, 82, 0.12);
+        display: grid;
+        gap: 18px;
+        max-width: 420px;
+        padding: 28px;
+        width: min(100%, 420px);
+      }
+
+      .auth-panel h1 {
+        font-size: 1.6rem;
+        margin: 0;
+      }
+
+      .auth-method-title,
+      .mfa-method-list {
+        color: #5F526D;
+        font-size: 0.95rem;
+        margin: 0;
+      }
+
+      .mfa-method-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        list-style: none;
+        padding: 0;
+      }
+
+      .mfa-method-list li {
+        background: #F6F2FB;
+        border: 1px solid #E3D7F2;
+        border-radius: 6px;
+        padding: 6px 10px;
+      }
+
+      .auth-panel form {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-weight: 700;
+      }
+
+      input,
+      select {
+        border: 1px solid #D8CCE8;
+        border-radius: 6px;
+        font: inherit;
+        padding: 10px 12px;
+      }
+
+      button {
+        background: #7C3AED;
+        border: 0;
+        border-radius: 6px;
+        color: #FFFFFF;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 800;
+        padding: 11px 14px;
+      }
+
+      button.secondary {
+        background: #EFE7FA;
+        color: #4B276F;
+      }
+
+      .auth-email-code-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      .auth-email-code-row input {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .auth-email-status,
+      .auth-error {
+        color: #5F526D;
+        font-size: 0.92rem;
+      }
+
+      .auth-email-status[data-state="error"],
+      .auth-error {
+        color: #B42318;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <span class="brand">${escapeHtml(options.messages.appName)}</span>
+      <nav class="primary-nav" aria-label="${
+    escapeHtml(options.messages.authNavigation)
+  }">
+        <details class="auth-language-menu">
+          <summary class="auth-language-button" title="${
+    escapeHtml(options.messages.authLanguage)
+  }">
+            ${languageTextIcon("auth-language-icon")}
+            <span>${escapeHtml(languageSwitcherLabel)}</span>
+          </summary>
+          <div class="auth-language-options" role="menu">
+            ${languageOptionsHtml}
+          </div>
+        </details>
+      </nav>
+    </header>
+    <main class="auth-shell">
+      <section class="auth-panel">
+        <h1>${escapeHtml(options.messages.authMfaTitle)}</h1>
+        <p class="auth-method-title">${
+    escapeHtml(options.messages.authMfaRequired)
+  }</p>
+        ${
+    renderMfaMethodList(options.challenge.allowedMethods, options.messages)
+  }
+        ${
+    options.error
+      ? `<div class="auth-error">${escapeHtml(options.error)}</div>`
+      : ""
+  }
+        ${
+    emailForm ||
+    `<div class="auth-error">${
+      escapeHtml(options.messages.authMfaMethodUnavailable)
+    }</div>`
+  }
+      </section>
+    </main>
+    ${mfaEmailScript(Boolean(emailForm))}
+  </body>
+</html>`;
+}
+
+/**
+ * 渲染 MFA 邮箱验证码表单。
+ *
+ * @param options MFA 页面渲染选项。
+ * @return 邮箱验证码表单 HTML。
+ */
+function renderMfaEmailForm(options: {
+  action: string;
+  challenge: PendingMfaChallenge;
+  csrfToken: string;
+  emailCredentials: EmailCredential[];
+  messages: Messages;
+  returnTo: string;
+}): string {
+  const credentials = verifiedEmailCredentials(options.emailCredentials);
+  if (credentials.length === 0) {
+    return "";
+  }
+
+  return `<form
+          method="post"
+          action="${escapeHtml(options.action)}"
+          data-mfa-email-form
+          data-email-code-required="${
+    escapeHtml(options.messages.authEmailCodeRequired)
+  }"
+          data-email-send-failed="${
+    escapeHtml(options.messages.authEmailCodeFailed)
+  }"
+          data-email-sending="${
+    escapeHtml(options.messages.authEmailSendingCode)
+  }"
+          data-email-sent="${escapeHtml(options.messages.authEmailCodeSent)}"
+        >
+          ${csrfHiddenInput(options.csrfToken)}
+          <input type="hidden" name="challengeId" value="${
+    escapeHtml(options.challenge.id)
+  }">
+          <input type="hidden" name="method" value="email">
+          <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
+          <input type="hidden" name="verificationId" data-mfa-email-verification-id>
+          <label>
+            ${escapeHtml(options.messages.accountSecondFactorEmail)}
+            <select name="email" data-mfa-email-input>
+              ${
+    credentials.map((credential) =>
+      `<option value="${escapeHtml(credential.email)}">${
+        escapeHtml(maskedEmailAddress(credential.email))
+      }</option>`
+    ).join("")
+  }
+            </select>
+          </label>
+          <label>
+            ${escapeHtml(options.messages.authEmailCode)}
+            <span class="auth-email-code-row">
+              <input
+                name="code"
+                type="text"
+                dir="ltr"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                autocomplete="one-time-code"
+                data-mfa-email-code-input
+                required
+              >
+              <button type="button" class="secondary" data-mfa-email-send-code-button>
+                ${escapeHtml(options.messages.authEmailSendCode)}
+              </button>
+            </span>
+          </label>
+          <div
+            class="auth-email-status"
+            data-mfa-email-status
+            role="status"
+            hidden
+          ></div>
+          <button type="submit">${
+    escapeHtml(options.messages.authMfaVerify)
+  }</button>
+        </form>`;
+}
+
+/**
+ * 渲染 MFA 允许的验证方式列表。
+ *
+ * @param {SecondFactorMethod[]} methods 允许的二次验证方式。
+ * @param {Messages} messages 当前语言文案。
+ * @return {string} 验证方式列表 HTML。
+ */
+function renderMfaMethodList(
+  methods: SecondFactorMethod[],
+  messages: Messages,
+): string {
+  return `<ul class="mfa-method-list" aria-label="${
+    escapeHtml(messages.authMfaChooseMethod)
+  }">
+    ${
+    methods.map((method) =>
+      `<li data-mfa-method="${escapeHtml(method)}">${
+        escapeHtml(secondFactorMethodLabel(method, messages))
+      }</li>`
+    ).join("")
+  }
+  </ul>`;
+}
+
+/**
+ * 渲染 MFA 页面语言选项。
+ *
+ * @param {string} challengeId MFA challenge ID。
+ * @param {Locale} currentLocale 当前语言。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @return {string} 语言选项 HTML。
+ */
+function renderMfaLanguageOptions(
+  challengeId: string,
+  currentLocale: Locale,
+  returnTo: string,
+): string {
+  return languageOptions.map((option) => {
+    const currentAttribute = option.code === currentLocale
+      ? ' aria-current="true"'
+      : "";
+    return `<a href="${
+      escapeHtml(mfaPagePath(
+        option.code,
+        challengeId,
+        returnTo,
+        { [authLocaleChangedParam]: authLocaleChangedValue },
+      ))
+    }" role="menuitem"${currentAttribute}>${escapeHtml(option.label)}</a>`;
+  }).join("");
+}
+
+/**
+ * 筛选已验证邮箱凭证。
+ *
+ * @param {EmailCredential[]} credentials 邮箱凭证列表。
+ * @return {EmailCredential[]} 已验证邮箱凭证。
+ */
+function verifiedEmailCredentials(
+  credentials: EmailCredential[],
+): EmailCredential[] {
+  return credentials.filter((credential) => credential.verified)
+    .toSorted((left, right) => left.email.localeCompare(right.email));
+}
+
+/**
+ * 获取二次验证方式文案。
+ *
+ * @param {SecondFactorMethod} method 二次验证方式。
+ * @param {Messages} messages 当前语言文案。
+ * @return {string} 二次验证方式文案。
+ */
+function secondFactorMethodLabel(
+  method: SecondFactorMethod,
+  messages: Messages,
+): string {
+  switch (method) {
+    case "email":
+      return messages.accountSecondFactorEmail;
+    case "passkey":
+      return messages.accountSecondFactorPasskey;
+    case "recoveryCode":
+      return messages.accountSecondFactorRecoveryCode;
+    case "totp":
+      return messages.accountSecondFactorTotp;
+  }
+}
+
+/**
+ * 渲染 MFA 邮箱验证码发送脚本。
+ *
+ * @param {boolean} enabled 是否启用脚本。
+ * @return {string} 脚本 HTML。
+ */
+function mfaEmailScript(enabled: boolean): string {
+  return enabled
+    ? `<script>
+(() => {
+  const form = document.querySelector("[data-mfa-email-form]");
+  if (!(form instanceof HTMLFormElement)) return;
+  const emailInput = form.querySelector("[data-mfa-email-input]");
+  const codeInput = form.querySelector("[data-mfa-email-code-input]");
+  const verificationIdInput = form.querySelector("[data-mfa-email-verification-id]");
+  const sendButton = form.querySelector("[data-mfa-email-send-code-button]");
+  const status = form.querySelector("[data-mfa-email-status]");
+  if (!(emailInput instanceof HTMLSelectElement) || !(codeInput instanceof HTMLInputElement) || !(verificationIdInput instanceof HTMLInputElement) || !(sendButton instanceof HTMLButtonElement)) return;
+  const csrfInput = form.querySelector("input[name='${csrfFieldName}']");
+  const challengeInput = form.querySelector("input[name='challengeId']");
+  const csrfToken = () => csrfInput instanceof HTMLInputElement ? csrfInput.value : "";
+  const challengeId = () => challengeInput instanceof HTMLInputElement ? challengeInput.value : "";
+  const setStatus = (message, state = "") => {
+    if (!(status instanceof HTMLElement)) return;
+    status.textContent = message;
+    status.hidden = message.length === 0;
+    if (state === "error") status.dataset.state = "error";
+    else delete status.dataset.state;
+  };
+  const bodyFromForm = () => {
+    const body = new URLSearchParams();
+    body.set("${csrfFieldName}", csrfToken());
+    body.set("challengeId", challengeId());
+    body.set("email", emailInput.value);
+    body.set("purpose", "second_factor");
+    return body;
+  };
+  emailInput.addEventListener("change", () => {
+    verificationIdInput.value = "";
+    codeInput.value = "";
+    setStatus("");
+  });
+  codeInput.addEventListener("input", () => setStatus(""));
+  sendButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+    sendButton.disabled = true;
+    setStatus(form.dataset.emailSending || "");
+    try {
+      const response = await fetch("${emailVerificationPath}", {
+        body: bodyFromForm(),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "${csrfHeaderName}": csrfToken(),
+        },
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || typeof payload.id !== "string") {
+        verificationIdInput.value = "";
+        setStatus(form.dataset.emailSendFailed || "", "error");
+        return;
+      }
+      verificationIdInput.value = payload.id;
+      codeInput.value = "";
+      setStatus(form.dataset.emailSent || "");
+      codeInput.focus();
+    } catch {
+      verificationIdInput.value = "";
+      setStatus(form.dataset.emailSendFailed || "", "error");
+    } finally {
+      sendButton.disabled = false;
+    }
+  });
+  form.addEventListener("submit", (event) => {
+    if (verificationIdInput.value.trim()) return;
+    event.preventDefault();
+    setStatus(form.dataset.emailCodeRequired || "", "error");
+    sendButton.focus();
+  });
+})();
+</script>`
+    : "";
+}
+
 function authEmailLoginScript(enabled: boolean): string {
   return enabled
     ? `<script>
@@ -2634,6 +3737,28 @@ function authPagePath(
 }
 
 /**
+ * 生成 MFA 页面路径。
+ *
+ * @param {Locale} locale 当前页面语言。
+ * @param {string} challengeId MFA challenge ID。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @param {Record<string, string | undefined>} params 额外查询参数。
+ * @return {string} MFA 页面路径。
+ */
+function mfaPagePath(
+  locale: Locale,
+  challengeId: string,
+  returnTo: string,
+  params: Record<string, string | undefined> = {},
+): string {
+  return authPagePath(mfaPath, locale, {
+    challenge: challengeId,
+    returnTo,
+    ...params,
+  });
+}
+
+/**
  * 渲染认证页可用语言选项，并标记用户显式切换。
  *
  * @param action 当前认证页路径。
@@ -2682,6 +3807,10 @@ function loginErrorMessage(
       return messages.authGoogleUnavailable;
     case "invalid":
       return messages.authInvalidCredentials;
+    case "mfaUnavailable":
+      return messages.authMfaUnavailable;
+    case "mfaExpired":
+      return messages.authMfaExpired;
     case "rateLimited":
       return messages.authLoginRateLimited;
     case "humanVerification":
@@ -2689,6 +3818,28 @@ function loginErrorMessage(
     default:
       return undefined;
   }
+}
+
+/**
+ * 生成主登录失败后的登录页重定向地址。
+ *
+ * @param {AuthConfig} config 认证配置。
+ * @param {PrimaryLoginCompletionOptions} options 主认证完成选项。
+ * @param {string} error 错误码。
+ * @return {string} 登录页重定向地址。
+ */
+function primaryLoginErrorRedirect(
+  config: AuthConfig,
+  options: PrimaryLoginCompletionOptions,
+  error: string,
+): string {
+  return authPagePath(config.loginPath, options.locale, {
+    error,
+    returnTo: options.returnTo,
+    [authLocaleChangedParam]: options.syncLocale
+      ? authLocaleChangedValue
+      : undefined,
+  });
 }
 
 /**
@@ -2812,7 +3963,8 @@ function safeReturnTo(value: string | null): string {
     if (
       url.origin !== "http://local" ||
       url.pathname === "/login" ||
-      url.pathname === "/register"
+      url.pathname === "/register" ||
+      url.pathname === mfaPath
     ) {
       return "/";
     }
