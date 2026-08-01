@@ -498,12 +498,20 @@ export async function hashPassword(
  *
  * @param password 原始密码。
  * @param account 用户账号。
- * @return 密码匹配时返回 true。
+ * @return 密码字段存在且匹配时返回 true。
  */
 export async function verifyPassword(
   password: string,
   account: UserAccount,
 ): Promise<boolean> {
+  if (
+    !account.passwordHash ||
+    !account.passwordSalt ||
+    !account.passwordIterations
+  ) {
+    return false;
+  }
+
   const hash = await derivePasswordHash(
     password,
     base64UrlDecode(account.passwordSalt),
