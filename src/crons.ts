@@ -85,11 +85,11 @@ export function createPollScheduler(context: Pick<AppContext, "poller" | "storag
       return false;
     }
 
-    const state = await storage.getAppState();
+    const lastPollAt = await storage.getLastPollAt();
     if (
       !shouldPollFromLastStart(
         lastPollStartedAtByUserId.get(userId),
-        state.lastPollAt,
+        lastPollAt,
         settings.polling,
       )
     ) {

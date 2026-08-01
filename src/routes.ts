@@ -59,6 +59,10 @@ import {
  */
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 /**
+ * 单次请求内的认证会话读取缓存。
+ */
+const authSessionPromisesByRequest = new WeakMap<Request, ReturnType<typeof readAuthSession>>();
+/**
  * 手动轮询后用于触发前端进度条重置的查询参数名。
  */
 const pollResetParam = "pollReset";
@@ -490,7 +494,7 @@ export function createRoutes(context: AppContext): Hono {
  * @return 当前请求用户作用域存储。
  */
 async function storageForRequest(
-  c: { req: { header(name: string): string | undefined } },
+  c: { req: { header(name: string): string | undefined; raw: Request } },
   context: AppContext,
 ) {
   const storage = await optionalStorageForRequest(c, context);
@@ -508,7 +512,7 @@ async function storageForRequest(
  * @return 当前请求用户作用域存储。
  */
 async function optionalStorageForRequest(
-  c: { req: { header(name: string): string | undefined } },
+  c: { req: { header(name: string): string | undefined; raw: Request } },
   context: AppContext,
 ) {
   const storage = (context as { storage?: AppContext["storage"] }).storage;
@@ -516,7 +520,7 @@ async function optionalStorageForRequest(
     return undefined;
   }
 
-  const session = await readAuthSession(c.req.header("cookie"), storage);
+  const session = await cachedAuthSessionForRequest(c, storage);
   return "forUser" in storage ? storage.forUser(session?.userId ?? "default") : storage;
 }
 
@@ -528,11 +532,31 @@ async function optionalStorageForRequest(
  * @return 当前登录会话，未登录时返回 undefined。
  */
 async function authSessionForRequest(
-  c: { req: { header(name: string): string | undefined } },
+  c: { req: { header(name: string): string | undefined; raw: Request } },
   context: AppContext,
 ) {
   const storage = (context as { storage?: AppContext["storage"] }).storage;
-  return storage ? await readAuthSession(c.req.header("cookie"), storage) : undefined;
+  return storage ? await cachedAuthSessionForRequest(c, storage) : undefined;
+}
+
+/**
+ * 在同一次请求内复用认证会话读取结果。
+ *
+ * @param {{ req: { header(name: string): string | undefined; raw: Request } }} c Hono 请求上下文的最小结构。
+ * @param {AppContext["storage"]} storage 应用存储。
+ * @return {ReturnType<typeof readAuthSession>} 当前登录会话，未登录时返回 undefined。
+ */
+async function cachedAuthSessionForRequest(
+  c: { req: { header(name: string): string | undefined; raw: Request } },
+  storage: AppContext["storage"],
+): ReturnType<typeof readAuthSession> {
+  let promise = authSessionPromisesByRequest.get(c.req.raw);
+  if (!promise) {
+    promise = readAuthSession(c.req.header("cookie"), storage);
+    authSessionPromisesByRequest.set(c.req.raw, promise);
+  }
+
+  return await promise;
 }
 
 type AccountErrorCode =
@@ -749,8 +773,8 @@ async function rateLimitResponseForRequest(
   const storage = (context as { storage?: AppContext["storage"] }).storage;
   const canReadSession = typeof (storage as { getSession?: unknown } | undefined)?.getSession ===
     "function";
-  const session = canReadSession
-    ? await readAuthSession(c.req.header("cookie"), context.storage)
+  const session = canReadSession && storage
+    ? await cachedAuthSessionForRequest(c, storage)
     : undefined;
   const identifier = session
     ? userRateLimitIdentifier(session.userId)

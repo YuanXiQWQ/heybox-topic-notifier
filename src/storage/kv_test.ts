@@ -80,6 +80,24 @@ Deno.test("getDashboardSnapshot reads matches once for state and pending rows", 
   assertEquals(snapshot.pendingMatches.map((item) => item.id), ["pending-id"]);
 });
 
+Deno.test("getLastPollAt reads only the state key", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  await storage.saveMatch(record("match-id", {
+    matchedAt: "2026-07-12T10:00:00.000Z",
+    publishedAt: "2026-07-12T09:00:00.000Z",
+  }));
+  await storage.setLastPollAt("2026-07-12T12:00:00.000Z");
+
+  kv.resetStats();
+
+  assertEquals(await storage.getLastPollAt(), "2026-07-12T12:00:00.000Z");
+  assertEquals(kv.getCalls, 1);
+  assertEquals(kv.listCalls, 0);
+});
+
 Deno.test("forUser isolates matches by account id", async () => {
   const kv = new MemoryKv();
   const storage = createKvStorage(defaultSettings, {
