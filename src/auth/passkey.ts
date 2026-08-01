@@ -144,7 +144,7 @@ export async function createPasskeyRegistrationOptions(input: {
   const optionsJSON = await generateRegistrationOptions({
     attestationType: "none",
     authenticatorSelection: {
-      residentKey: "preferred",
+      residentKey: "required",
       userVerification: input.config.userVerification,
     },
     excludeCredentials:

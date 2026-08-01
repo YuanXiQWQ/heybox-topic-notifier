@@ -29,6 +29,7 @@ export function createApplication() {
       );
     },
     google: context.config.google,
+    passkey: context.config.passkey,
     totp: context.config.totp,
     turnstile: context.config.turnstile,
   };

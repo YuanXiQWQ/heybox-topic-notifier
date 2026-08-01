@@ -322,6 +322,11 @@ Deno.test("passkey credential storage lists and deletes credentials by user id",
     "newer-credential",
   );
   assertEquals(
+    (await storage.getPasskeyCredentialByCredentialId("newer-credential"))
+      ?.userId,
+    "alice-id",
+  );
+  assertEquals(
     await storage.getPasskeyCredential("alice-id", "bob-credential"),
     undefined,
   );
@@ -333,9 +338,18 @@ Deno.test("passkey credential storage lists and deletes credentials by user id",
     undefined,
   );
   assertEquals(
+    await storage.getPasskeyCredentialByCredentialId("newer-credential"),
+    undefined,
+  );
+  assertEquals(
     (await storage.getPasskeyCredential("bob-id", "bob-credential"))
       ?.credentialId,
     "bob-credential",
+  );
+  assertEquals(
+    (await storage.getPasskeyCredentialByCredentialId("bob-credential"))
+      ?.userId,
+    "bob-id",
   );
 });
 

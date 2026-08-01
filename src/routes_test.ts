@@ -145,6 +145,9 @@ type AccountRouteStorage = {
     userId: string,
     credentialId: string,
   ): Promise<PasskeyCredential | undefined>;
+  getPasskeyCredentialByCredentialId(
+    credentialId: string,
+  ): Promise<PasskeyCredential | undefined>;
   getPendingPasskeyChallenge(
     id: string,
   ): Promise<PendingPasskeyChallenge | undefined>;
@@ -1667,6 +1670,7 @@ function createAccountRouteStorage(): AccountRouteStorage {
   const accountIdsByUsername = new Map<string, string>();
   const emailCredentialsByKey = new Map<string, EmailCredential>();
   const passkeyCredentialsByKey = new Map<string, PasskeyCredential>();
+  const passkeyUserIdsByCredentialId = new Map<string, string>();
   const passwordCredentialsByUserId = new Map<string, PasswordCredential>();
   const pendingEmailVerificationsById = new Map<
     string,
@@ -1728,6 +1732,16 @@ function createAccountRouteStorage(): AccountRouteStorage {
       Promise.resolve(
         passkeyCredentialsByKey.get(passkeyCredentialKey(userId, credentialId)),
       ),
+    getPasskeyCredentialByCredentialId: (credentialId: string) => {
+      const userId = passkeyUserIdsByCredentialId.get(credentialId);
+      return Promise.resolve(
+        userId
+          ? passkeyCredentialsByKey.get(
+            passkeyCredentialKey(userId, credentialId),
+          )
+          : undefined,
+      );
+    },
     listPasskeyCredentials: (userId: string) =>
       Promise.resolve(
         Array.from(passkeyCredentialsByKey.values())
@@ -1742,12 +1756,19 @@ function createAccountRouteStorage(): AccountRouteStorage {
         passkeyCredentialKey(credential.userId, credential.credentialId),
         credential,
       );
+      passkeyUserIdsByCredentialId.set(
+        credential.credentialId,
+        credential.userId,
+      );
       return Promise.resolve();
     },
     deletePasskeyCredential: (userId: string, credentialId: string) => {
       passkeyCredentialsByKey.delete(
         passkeyCredentialKey(userId, credentialId),
       );
+      if (passkeyUserIdsByCredentialId.get(credentialId) === userId) {
+        passkeyUserIdsByCredentialId.delete(credentialId);
+      }
       return Promise.resolve();
     },
     saveEmailCredential: (credential: EmailCredential) => {

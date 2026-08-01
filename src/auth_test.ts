@@ -23,9 +23,11 @@ import type {
   AppSettings,
   AuthIdentity,
   EmailCredential,
+  PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  PendingPasskeyChallenge,
   TotpCredential,
   UserAccount,
   UserSecuritySettings,
@@ -41,6 +43,7 @@ import {
   submitRegistration as register,
   testCsrfForm,
   testCsrfHeaders,
+  testCsrfToken,
 } from "./test_helpers.ts";
 
 /**
@@ -69,6 +72,18 @@ const testTotpConfig = {
  */
 const testGoogleClientId = "test-client-id.apps.googleusercontent.com";
 
+/**
+ * Passkey 测试使用的固定配置。
+ */
+const testPasskeyConfig = {
+  challengeTtlSeconds: 300,
+  expectedOrigin: "http://localhost:8000",
+  rpId: "localhost",
+  rpName: "WarmNest",
+  timeoutMs: 60_000,
+  userVerification: "required" as const,
+};
+
 Deno.test("auth middleware redirects protected pages to login", async () => {
   const app = createTestApp();
 
@@ -94,6 +109,9 @@ Deno.test("auth routes render login page without extra configuration", async () 
   assertEquals(html.includes("data-auth-email-login-form"), true);
   assertEquals(html.includes("data-auth-email-send-code-button"), true);
   assertEquals(html.includes('name="authMethod" value="email"'), true);
+  assertEquals(html.includes("data-passkey-login"), true);
+  assertEquals(html.includes("data-passkey-login-button"), true);
+  assertEquals(html.includes('autocomplete="username webauthn"'), true);
   assertEquals(html.includes("https://accounts.google.com/gsi/client"), false);
   assertEquals(html.includes("data-google-login"), false);
 });
@@ -569,6 +587,147 @@ Deno.test("auth routes do not merge Google sign-in into an existing same-email a
     (await storage.getAccountById(existingAccount.id))?.primaryEmail,
     "alice@example.com",
   );
+});
+
+Deno.test("auth routes sign in with a Passkey credential", async () => {
+  const storage = createMemoryStorage();
+  const verifier: NonNullable<AuthOptions["passkeyAuthenticationVerifier"]> = (
+    input,
+  ) => {
+    assertEquals(input.challenge.purpose, "primary_login");
+    assertEquals(input.credential.credentialId, "passkey-credential");
+    return Promise.resolve({
+      authenticationInfo: { newCounter: 7 },
+      verified: true,
+    } as never);
+  };
+  const app = createTestApp(storage, passkeyAuthOptions({ verifier }));
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await storage.savePasskeyCredential(testPasskeyCredential(account.id));
+
+  const optionsResponse = await app.request("/auth/passkeys/login-options", {
+    body: "{}",
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const optionsPayload = await optionsResponse.json();
+  const challenge = await storage.getPendingPasskeyChallenge(
+    optionsPayload.challengeId,
+  );
+  const response = await app.request(
+    "/auth/passkeys/login?locale=en-US&localeChanged=1",
+    {
+      body: JSON.stringify({
+        challengeId: optionsPayload.challengeId,
+        credential: testPasskeyAssertion("passkey-credential"),
+        returnTo: "/history",
+      }),
+      headers: testCsrfHeaders({
+        "content-type": "application/json",
+        "x-csrf-token": testCsrfToken,
+      }),
+      method: "POST",
+    },
+  );
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const credential = await storage.getPasskeyCredential(
+    account.id,
+    "passkey-credential",
+  );
+
+  assertEquals(optionsResponse.status, 200);
+  assertEquals(typeof optionsPayload.optionsJSON.challenge, "string");
+  assertEquals(optionsPayload.optionsJSON.allowCredentials, undefined);
+  assertEquals(challenge?.purpose, "primary_login");
+  assertEquals(challenge?.userId, undefined);
+  assertEquals(challenge?.allowedCredentialIds, []);
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(credential?.counter, 7);
+  assertEquals(credential?.lastUsedAt !== undefined, true);
+  assertEquals(
+    await storage.getPendingPasskeyChallenge(optionsPayload.challengeId),
+    undefined,
+  );
+  assertEquals(
+    storage.settingsByUserId.get(account.id)?.locale,
+    "en-US",
+  );
+});
+
+Deno.test("auth routes require alternate MFA after Passkey login", async () => {
+  const storage = createMemoryStorage();
+  const verifier: NonNullable<AuthOptions["passkeyAuthenticationVerifier"]> =
+    () =>
+      Promise.resolve({
+        authenticationInfo: { newCounter: 2 },
+        verified: true,
+      } as never);
+  const app = createTestApp(storage, passkeyAuthOptions({ verifier }));
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await storage.savePasskeyCredential(testPasskeyCredential(account.id));
+  await storage.saveEmailCredential({
+    createdAt: "2026-08-01T00:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-08-01T00:00:00.000Z",
+    userId: account.id,
+    verified: true,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "passkey",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
+  const optionsResponse = await app.request("/auth/passkeys/login-options", {
+    body: "{}",
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const optionsPayload = await optionsResponse.json();
+
+  const response = await app.request("/auth/passkeys/login", {
+    body: JSON.stringify({
+      challengeId: optionsPayload.challengeId,
+      credential: testPasskeyAssertion("passkey-credential"),
+      returnTo: "/history",
+    }),
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const location = response.headers.get("location") ?? "";
+  const mfaChallengeId = mfaChallengeIdFromLocation(location);
+  const mfaChallenge = await storage.getPendingMfaChallenge(mfaChallengeId);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(location.startsWith("/mfa?locale=zh-CN&challenge="), true);
+  assertEquals(session, undefined);
+  assertEquals(mfaChallenge?.primaryMethod, "passkey");
+  assertEquals(mfaChallenge?.allowedMethods, ["email"]);
 });
 
 Deno.test("auth routes reject invalid Google credentials", async () => {
@@ -1312,6 +1471,63 @@ function totpAuthOptions(): AuthOptions {
 }
 
 /**
+ * 创建开启 Passkey 登录的认证测试配置。
+ *
+ * @param options Passkey 测试选项。
+ * @return 认证测试配置。
+ */
+function passkeyAuthOptions(options: {
+  verifier?: AuthOptions["passkeyAuthenticationVerifier"];
+} = {}): AuthOptions {
+  return {
+    passkey: testPasskeyConfig,
+    passkeyAuthenticationVerifier: options.verifier,
+  };
+}
+
+/**
+ * 创建测试 Passkey 凭证。
+ *
+ * @param userId 用户 ID。
+ * @param credentialId Passkey 凭证 ID。
+ * @return Passkey 凭证。
+ */
+function testPasskeyCredential(
+  userId: string,
+  credentialId = "passkey-credential",
+): PasskeyCredential {
+  return {
+    backedUp: true,
+    counter: 0,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    credentialId,
+    publicKey: base64UrlEncode(new Uint8Array([1, 2, 3])),
+    transports: ["internal"],
+    userId,
+  };
+}
+
+/**
+ * 创建测试 Passkey assertion JSON。
+ *
+ * @param credentialId Passkey 凭证 ID。
+ * @return 测试 assertion。
+ */
+function testPasskeyAssertion(credentialId: string) {
+  return {
+    clientExtensionResults: {},
+    id: credentialId,
+    rawId: credentialId,
+    response: {
+      authenticatorData: "authenticator-data",
+      clientDataJSON: "client-data",
+      signature: "signature",
+    },
+    type: "public-key",
+  };
+}
+
+/**
  * 为测试账户启用邮箱二次验证。
  *
  * @param storage 测试存储。
@@ -1524,8 +1740,11 @@ async function requestText(body: BodyInit | null | undefined): Promise<string> {
 function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   authIdentitiesByKey: Map<string, AuthIdentity>;
   emailCredentialsByKey: Map<string, EmailCredential>;
+  passkeyCredentialsByKey: Map<string, PasskeyCredential>;
+  passkeyUserIdsByCredentialId: Map<string, string>;
   passwordCredentialsByUserId: Map<string, PasswordCredential>;
   pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
+  pendingPasskeyChallengesById: Map<string, PendingPasskeyChallenge>;
   pendingMfaChallengesById: Map<string, PendingMfaChallenge>;
   savedSessions: UserSession[];
   securitySettingsByUserId: Map<string, UserSecuritySettings>;
@@ -1536,6 +1755,8 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   const accountIdsByUsername = new Map<string, string>();
   const authIdentitiesByKey = new Map<string, AuthIdentity>();
   const emailCredentialsByKey = new Map<string, EmailCredential>();
+  const passkeyCredentialsByKey = new Map<string, PasskeyCredential>();
+  const passkeyUserIdsByCredentialId = new Map<string, string>();
   const loginFailuresByUsername = new Map<
     string,
     { failures: number; lockedUntil?: string }
@@ -1546,6 +1767,10 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     PendingEmailVerification
   >();
   const pendingMfaChallengesById = new Map<string, PendingMfaChallenge>();
+  const pendingPasskeyChallengesById = new Map<
+    string,
+    PendingPasskeyChallenge
+  >();
   const securitySettingsByUserId = new Map<string, UserSecuritySettings>();
   const settingsByUserId = new Map<string, AppSettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
@@ -1556,8 +1781,11 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     ...createMemoryRateLimitRecorder(),
     authIdentitiesByKey,
     emailCredentialsByKey,
+    passkeyCredentialsByKey,
+    passkeyUserIdsByCredentialId,
     passwordCredentialsByUserId,
     pendingEmailVerificationsById,
+    pendingPasskeyChallengesById,
     pendingMfaChallengesById,
     savedSessions,
     securitySettingsByUserId,
@@ -1664,6 +1892,49 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       emailCredentialsByKey.delete(emailCredentialKey(userId, email));
       return Promise.resolve();
     },
+    getPasskeyCredential: (userId: string, credentialId: string) =>
+      Promise.resolve(
+        passkeyCredentialsByKey.get(passkeyCredentialKey(userId, credentialId)),
+      ),
+    getPasskeyCredentialByCredentialId: (credentialId: string) => {
+      const userId = passkeyUserIdsByCredentialId.get(credentialId);
+      return Promise.resolve(
+        userId
+          ? passkeyCredentialsByKey.get(
+            passkeyCredentialKey(userId, credentialId),
+          )
+          : undefined,
+      );
+    },
+    listPasskeyCredentials: (userId: string) =>
+      Promise.resolve(
+        Array.from(passkeyCredentialsByKey.values())
+          .filter((credential) => credential.userId === userId)
+          .toSorted((left, right) =>
+            left.createdAt.localeCompare(right.createdAt) ||
+            left.credentialId.localeCompare(right.credentialId)
+          ),
+      ),
+    savePasskeyCredential: (credential: PasskeyCredential) => {
+      passkeyCredentialsByKey.set(
+        passkeyCredentialKey(credential.userId, credential.credentialId),
+        credential,
+      );
+      passkeyUserIdsByCredentialId.set(
+        credential.credentialId,
+        credential.userId,
+      );
+      return Promise.resolve();
+    },
+    deletePasskeyCredential: (userId: string, credentialId: string) => {
+      passkeyCredentialsByKey.delete(
+        passkeyCredentialKey(userId, credentialId),
+      );
+      if (passkeyUserIdsByCredentialId.get(credentialId) === userId) {
+        passkeyUserIdsByCredentialId.delete(credentialId);
+      }
+      return Promise.resolve();
+    },
     getPasswordCredential: (userId: string) =>
       Promise.resolve(passwordCredentialsByUserId.get(userId)),
     savePasswordCredential: (credential: PasswordCredential) => {
@@ -1698,6 +1969,16 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     },
     deletePendingMfaChallenge: (id: string) => {
       pendingMfaChallengesById.delete(id);
+      return Promise.resolve();
+    },
+    getPendingPasskeyChallenge: (id: string) =>
+      Promise.resolve(pendingPasskeyChallengesById.get(id)),
+    savePendingPasskeyChallenge: (challenge: PendingPasskeyChallenge) => {
+      pendingPasskeyChallengesById.set(challenge.id, challenge);
+      return Promise.resolve();
+    },
+    deletePendingPasskeyChallenge: (id: string) => {
+      pendingPasskeyChallengesById.delete(id);
       return Promise.resolve();
     },
     getUserSecuritySettings: (userId: string) =>
@@ -1757,8 +2038,11 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   } as unknown as ReturnType<typeof createKvStorage> & {
     authIdentitiesByKey: Map<string, AuthIdentity>;
     emailCredentialsByKey: Map<string, EmailCredential>;
+    passkeyCredentialsByKey: Map<string, PasskeyCredential>;
+    passkeyUserIdsByCredentialId: Map<string, string>;
     passwordCredentialsByUserId: Map<string, PasswordCredential>;
     pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
+    pendingPasskeyChallengesById: Map<string, PendingPasskeyChallenge>;
     pendingMfaChallengesById: Map<string, PendingMfaChallenge>;
     savedSessions: UserSession[];
     securitySettingsByUserId: Map<string, UserSecuritySettings>;
@@ -1776,6 +2060,17 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
  */
 function emailCredentialKey(userId: string, email: string): string {
   return `${userId}:${email.trim().toLowerCase()}`;
+}
+
+/**
+ * 创建测试内存 Passkey 凭证键。
+ *
+ * @param userId 用户 ID。
+ * @param credentialId Passkey 凭证 ID。
+ * @return Passkey 凭证键。
+ */
+function passkeyCredentialKey(userId: string, credentialId: string): string {
+  return `${userId}:${credentialId}`;
 }
 
 /**

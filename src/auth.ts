@@ -10,9 +10,12 @@ import type {
   AuthIdentity,
   EmailCredential,
   EmailVerificationPurpose,
+  PasskeyChallengePurpose,
+  PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  PendingPasskeyChallenge,
   PrimaryAuthMethod,
   SecondFactorMethod,
   UserAccount,
@@ -78,6 +81,14 @@ import {
   verifyEncryptedTotpCode,
 } from "./auth/totp.ts";
 import {
+  createPasskeyAuthenticationOptions,
+  type PasskeyAuthenticationOptionsResult,
+  type PasskeyConfig,
+  passkeyConfigFromEnv,
+  passkeyCredentialAfterAuthentication,
+  verifyPasskeyAuthenticationResponse,
+} from "./auth/passkey.ts";
+import {
   availableSecondFactorMethods,
   completePrimaryAuthentication,
   isSecondFactorMethod,
@@ -96,6 +107,11 @@ export type { AuthSession } from "./auth/session.ts";
 type Storage = ReturnType<typeof createKvStorage>;
 
 /**
+ * Passkey 认证响应校验函数。
+ */
+type PasskeyAuthenticationVerifier = typeof verifyPasskeyAuthenticationResponse;
+
+/**
  * 认证模块配置选项。
  */
 export type AuthOptions = {
@@ -108,6 +124,8 @@ export type AuthOptions = {
   googleJwksFetch?: GoogleJwksFetch;
   loginPath?: string;
   mfa?: Partial<MfaChallengeConfig>;
+  passkey?: PasskeyConfig;
+  passkeyAuthenticationVerifier?: PasskeyAuthenticationVerifier;
   registerPath?: string;
   emailVerification?: EmailVerificationConfig;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
@@ -131,6 +149,8 @@ type AuthConfig = {
   googleJwksFetch?: GoogleJwksFetch;
   loginPath: string;
   mfa?: Partial<MfaChallengeConfig>;
+  passkey: PasskeyConfig;
+  passkeyAuthenticationVerifier: PasskeyAuthenticationVerifier;
   registerPath: string;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
   sessionMaxAgeSeconds: number;
@@ -174,6 +194,12 @@ const defaultTotpConfig: TotpConfig = {
  * 默认 Google 认证配置。
  */
 const defaultGoogleAuthConfig: GoogleAuthConfig = googleAuthConfigFromEnv(
+  () => undefined,
+);
+/**
+ * 默认 Passkey 配置。
+ */
+const defaultPasskeyConfig: PasskeyConfig = passkeyConfigFromEnv(
   () => undefined,
 );
 /**
@@ -229,9 +255,21 @@ const emailVerificationPath = "/auth/email-verifications";
  */
 const googleCredentialPath = "/auth/google";
 /**
+ * Passkey 登录 options 接口路径。
+ */
+const passkeyLoginOptionsPath = "/auth/passkeys/login-options";
+/**
+ * Passkey 登录校验接口路径。
+ */
+const passkeyLoginPath = "/auth/passkeys/login";
+/**
  * MFA 挑战页面路径。
  */
 const mfaPath = "/mfa";
+/**
+ * Passkey challenge 最大校验失败次数。
+ */
+const passkeyChallengeMaxAttempts = 5;
 
 /**
  * 创建认证中间件。
@@ -755,6 +793,72 @@ export function createAuthRoutes(
     });
   });
 
+  app.post(passkeyLoginOptionsPath, async (c) => {
+    const payload = await passkeyJsonPayload(c);
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedJsonCsrfToken(payload, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${
+        clientRateLimitIdentifier((name) => c.req.header(name))
+      }:passkey-login-options`,
+      { request: c.req.raw },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const authentication = await createPasskeyAuthenticationOptions({
+      config: config.passkey,
+      purpose: "primary_login",
+    });
+    await storage.savePendingPasskeyChallenge(authentication.challenge);
+
+    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+  });
+
+  app.post(passkeyLoginPath, async (c) => {
+    const url = new URL(c.req.url);
+    const payload = await passkeyJsonPayload(c);
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedJsonCsrfToken(payload, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${
+        clientRateLimitIdentifier((name) => c.req.header(name))
+      }:passkey-login`,
+      { request: c.req.raw },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const syncLocale = shouldSyncAuthLocale(url) ||
+      String(payload[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
+    return await handlePasskeyLogin(c, storage, config, payload, {
+      locale,
+      returnTo: safeReturnTo(String(payload.returnTo ?? "/")),
+      syncLocale,
+    });
+  });
+
   app.post(googleCredentialPath, async (c) => {
     const url = new URL(c.req.url);
     const form = await c.req.parseBody();
@@ -947,6 +1051,12 @@ type GoogleCredentialLoginOptions = {
   syncLocale: boolean;
 };
 
+type PasskeyLoginOptions = {
+  locale: Locale;
+  returnTo: string;
+  syncLocale: boolean;
+};
+
 type PrimaryLoginCompletionOptions = {
   locale: Locale;
   primaryMethod: PrimaryAuthMethod;
@@ -978,9 +1088,11 @@ async function completePrimaryLogin(
 ): Promise<Response> {
   const securitySettings = await storage.getUserSecuritySettings(account.id);
   const emailCredentials = await storage.listEmailCredentials(account.id);
+  const passkeyCredentials = await storage.listPasskeyCredentials(account.id);
   const totpCredential = await storage.getTotpCredential(account.id);
   const availableMethods = availableSecondFactorMethods({
     emailCredentials,
+    passkeyCredentials,
     totpCredential,
   });
 
@@ -1046,6 +1158,141 @@ async function completePrimaryLogin(
       303,
     );
   }
+}
+
+/**
+ * 处理 Passkey 主登录。
+ *
+ * @param c Hono 请求上下文。
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @param payload JSON 请求体。
+ * @param options Passkey 登录选项。
+ * @return 登录响应。
+ */
+async function handlePasskeyLogin(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  payload: Record<string, unknown>,
+  options: PasskeyLoginOptions,
+): Promise<Response> {
+  const challengeId = String(payload.challengeId ?? "").trim();
+  const credentialResponse = payload.credential;
+  const credentialId = passkeyCredentialId(credentialResponse);
+  if (!challengeId || !isRecord(credentialResponse) || !credentialId) {
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { reason: "invalid_request" },
+      level: "warn",
+      message: "Passkey 登录失败：请求无效。",
+      request: c.req.raw,
+    });
+    return c.json({ error: "invalid" }, 400);
+  }
+
+  const challenge = await storage.getPendingPasskeyChallenge(challengeId);
+  const challengeError = passkeyAuthenticationChallengeError(
+    challenge,
+    "primary_login",
+    credentialId,
+  );
+  if (challengeError) {
+    if (challenge) {
+      await storage.deletePendingPasskeyChallenge(challenge.id);
+    }
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { credentialId, reason: "challenge" },
+      level: "warn",
+      message: "Passkey 登录失败：challenge 不可用。",
+      request: c.req.raw,
+      userId: challenge?.userId,
+    });
+    return c.json({ error: "challenge" }, 400);
+  }
+
+  const activeChallenge = challenge as PendingPasskeyChallenge;
+  const credential = await storage.getPasskeyCredentialByCredentialId(
+    credentialId,
+  );
+  if (
+    !credential ||
+    (activeChallenge.userId && activeChallenge.userId !== credential.userId)
+  ) {
+    await recordPasskeyChallengeFailure(storage, activeChallenge);
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { credentialId, reason: "credential" },
+      level: "warn",
+      message: "Passkey 登录失败：凭证不存在或不属于当前 challenge。",
+      request: c.req.raw,
+      userId: activeChallenge.userId,
+    });
+    return c.json({ error: "failed" }, 400);
+  }
+
+  const verification = await verifyPasskeyLoginResponse(
+    config,
+    activeChallenge,
+    credential,
+    credentialResponse,
+  );
+  if (!verification?.verified) {
+    await recordPasskeyChallengeFailure(storage, activeChallenge);
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { credentialId, reason: "assertion" },
+      level: "warn",
+      message: "Passkey 登录失败：assertion 校验未通过。",
+      request: c.req.raw,
+      userId: credential.userId,
+    });
+    return c.json({ error: "failed" }, 400);
+  }
+
+  const account = await storage.getAccountById(credential.userId);
+  if (!account) {
+    await storage.deletePendingPasskeyChallenge(activeChallenge.id);
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { credentialId, reason: "account" },
+      level: "warn",
+      message: "Passkey 登录失败：账号不存在。",
+      request: c.req.raw,
+      userId: credential.userId,
+    });
+    return c.json({ error: "failed" }, 400);
+  }
+
+  await storage.savePasskeyCredential(passkeyCredentialAfterAuthentication(
+    credential,
+    verification.authenticationInfo.newCounter,
+  ));
+  await storage.deletePendingPasskeyChallenge(activeChallenge.id);
+  if (options.syncLocale) {
+    await saveAuthLocale(account.id, options.locale, storage);
+  }
+
+  logSecurityAuditEvent({
+    code: "passkey_login_succeeded",
+    details: {
+      credentialId,
+      primaryMethod: "passkey",
+      secondFactorExcluded: "passkey",
+    },
+    level: "info",
+    message: "Passkey 登录成功。",
+    request: c.req.raw,
+    userId: account.id,
+  });
+
+  return await completePrimaryLogin(c, storage, config, account, {
+    locale: options.locale,
+    primaryMethod: "passkey",
+    returnTo: options.returnTo,
+    syncLocale: options.syncLocale,
+  });
 }
 
 /**
@@ -2192,6 +2439,154 @@ function emailLoginErrorRedirect(
 }
 
 /**
+ * 生成 Passkey 登录 options 接口响应。
+ *
+ * @param authentication Passkey 认证 options 结果。
+ * @return 可序列化响应体。
+ */
+function passkeyAuthenticationOptionsResponse(
+  authentication: PasskeyAuthenticationOptionsResult,
+) {
+  return {
+    challengeId: authentication.challenge.id,
+    optionsJSON: authentication.optionsJSON,
+  };
+}
+
+/**
+ * 读取 JSON 请求体。
+ *
+ * @param c Hono 请求上下文。
+ * @return JSON 对象，请求体无效时返回空对象。
+ */
+async function passkeyJsonPayload(
+  c: Context,
+): Promise<Record<string, unknown>> {
+  try {
+    const payload = await c.req.json();
+    return isRecord(payload) ? payload : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * 从 JSON 请求体或请求头中读取 CSRF 令牌。
+ *
+ * @param payload JSON 请求体。
+ * @param headerToken 请求头令牌。
+ * @return 提交的 CSRF 令牌。
+ */
+function submittedJsonCsrfToken(
+  payload: Record<string, unknown>,
+  headerToken: string | undefined,
+): string | undefined {
+  return submittedCsrfToken(
+    payload as Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+    headerToken,
+  );
+}
+
+/**
+ * 判断值是否为普通对象。
+ *
+ * @param value 待判断值。
+ * @return 值为普通对象时返回 true。
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 读取 Passkey assertion 中的凭证 ID。
+ *
+ * @param value Passkey assertion JSON。
+ * @return 凭证 ID，缺失时返回空字符串。
+ */
+function passkeyCredentialId(value: unknown): string {
+  return isRecord(value) && typeof value.id === "string" ? value.id.trim() : "";
+}
+
+/**
+ * 检查 Passkey 认证 challenge 是否仍可使用。
+ *
+ * @param challenge 待检查 challenge。
+ * @param purpose 期望用途。
+ * @param credentialId 当前 assertion 使用的凭证 ID。
+ * @return 不可用时返回错误码。
+ */
+function passkeyAuthenticationChallengeError(
+  challenge: PendingPasskeyChallenge | undefined,
+  purpose: Exclude<PasskeyChallengePurpose, "passkey_registration">,
+  credentialId: string,
+): "challenge" | undefined {
+  if (!challenge || challenge.purpose !== purpose) {
+    return "challenge";
+  }
+
+  if (Date.parse(challenge.expiresAt) <= Date.now()) {
+    return "challenge";
+  }
+
+  if (challenge.attempts >= passkeyChallengeMaxAttempts) {
+    return "challenge";
+  }
+
+  return challenge.allowedCredentialIds.length > 0 &&
+      !challenge.allowedCredentialIds.includes(credentialId)
+    ? "challenge"
+    : undefined;
+}
+
+/**
+ * 记录一次 Passkey challenge 失败尝试。
+ *
+ * @param storage 应用存储。
+ * @param challenge 待更新 challenge。
+ * @return 更新完成后的 Promise。
+ */
+async function recordPasskeyChallengeFailure(
+  storage: Storage,
+  challenge: PendingPasskeyChallenge,
+): Promise<void> {
+  const attempts = Math.max(0, challenge.attempts) + 1;
+  if (attempts >= passkeyChallengeMaxAttempts) {
+    await storage.deletePendingPasskeyChallenge(challenge.id);
+    return;
+  }
+
+  await storage.savePendingPasskeyChallenge({ ...challenge, attempts });
+}
+
+/**
+ * 校验 Passkey 登录 assertion。
+ *
+ * @param config 认证配置。
+ * @param challenge 待完成 Passkey challenge。
+ * @param credential 已绑定 Passkey 凭证。
+ * @param response 浏览器返回的 assertion。
+ * @return 校验结果，校验过程失败时返回 undefined。
+ */
+async function verifyPasskeyLoginResponse(
+  config: AuthConfig,
+  challenge: PendingPasskeyChallenge,
+  credential: PasskeyCredential,
+  response: Record<string, unknown>,
+): Promise<Awaited<ReturnType<PasskeyAuthenticationVerifier>> | undefined> {
+  try {
+    return await config.passkeyAuthenticationVerifier({
+      challenge,
+      config: config.passkey,
+      credential,
+      requireUserVerification: config.passkey.userVerification === "required",
+      response: response as never,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * 合并认证选项和默认值。
  *
  * @param options 认证配置选项。
@@ -2214,6 +2609,8 @@ function authConfig(options: AuthOptions): AuthConfig {
           registerPath,
           emailVerificationPath,
           googleCredentialPath,
+          passkeyLoginOptionsPath,
+          passkeyLoginPath,
           mfaPath,
           "/static/app.css",
         ],
@@ -2225,6 +2622,9 @@ function authConfig(options: AuthOptions): AuthConfig {
     maxLoginFailures: options.maxLoginFailures ?? defaultMaxLoginFailures,
     loginPath,
     mfa: options.mfa,
+    passkey: options.passkey ?? defaultPasskeyConfig,
+    passkeyAuthenticationVerifier: options.passkeyAuthenticationVerifier ??
+      verifyPasskeyAuthenticationResponse,
     registerPath,
     sendEmailVerificationEmail: options.sendEmailVerificationEmail,
     sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ??
@@ -2747,6 +3147,25 @@ function renderAuthPage(options: {
         margin-inline: auto;
       }
 
+      .auth-passkey-method {
+        display: grid;
+        gap: 8px;
+      }
+
+      .auth-passkey-button {
+        width: 100%;
+      }
+
+      .auth-passkey-status {
+        color: var(--muted);
+        font-size: 0.9rem;
+        min-height: 18px;
+      }
+
+      .auth-passkey-status[data-state="error"] {
+        color: #b42318;
+      }
+
       .auth-email-code-row {
         align-items: center;
         display: grid;
@@ -2882,6 +3301,7 @@ function renderAuthPage(options: {
       <section class="auth-panel">
         <h1>${escapeHtml(options.heading)}</h1>
         ${options.mode === "login" ? renderGoogleLoginForm(options) : ""}
+        ${options.mode === "login" ? renderPasskeyLoginForm(options) : ""}
         <form method="post" action="${escapeHtml(options.action)}">
           ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${
@@ -2890,7 +3310,9 @@ function renderAuthPage(options: {
           <div class="auth-fields">
             <label>
               ${escapeHtml(options.messages.authUsername)}
-              <input name="username" dir="ltr" autocomplete="username" required autofocus>
+              <input name="username" dir="ltr" autocomplete="${
+    options.mode === "login" ? "username webauthn" : "username"
+  }" required autofocus>
             </label>
             <label>
               ${escapeHtml(options.messages.authPassword)}
@@ -2920,6 +3342,7 @@ function renderAuthPage(options: {
       </section>
     </main>
     ${authEmailLoginScript(options.mode === "login")}
+    ${authPasskeyLoginScript(options.mode === "login")}
     ${
     authGoogleLoginScript(
       options.mode === "login" && Boolean(options.googleClientId),
@@ -2975,6 +3398,63 @@ function renderGoogleLoginForm(options: {
       : ""
   }
           </form>
+        </div>`;
+}
+
+/**
+ * 渲染 Passkey 登录按钮。
+ *
+ * @param options 认证页渲染选项。
+ * @return Passkey 登录 HTML。
+ */
+function renderPasskeyLoginForm(options: {
+  csrfToken: string;
+  locale: Locale;
+  messages: Messages;
+  returnTo: string;
+  syncLocale: boolean;
+}): string {
+  const action = authPagePath(passkeyLoginPath, options.locale, {
+    [authLocaleChangedParam]: options.syncLocale
+      ? authLocaleChangedValue
+      : undefined,
+  });
+
+  return `<div
+          class="auth-passkey-method"
+          data-passkey-login
+          data-passkey-options-url="${passkeyLoginOptionsPath}"
+          data-passkey-login-url="${escapeHtml(action)}"
+          data-passkey-failed="${
+    escapeHtml(options.messages.authPasskeyFailed)
+  }"
+          data-passkey-signing-in="${
+    escapeHtml(options.messages.authPasskeySigningIn)
+  }"
+          data-passkey-unsupported="${
+    escapeHtml(options.messages.authPasskeyUnsupported)
+  }"
+        >
+          <input type="hidden" data-passkey-csrf value="${
+    escapeHtml(options.csrfToken)
+  }">
+          <input type="hidden" data-passkey-return-to value="${
+    escapeHtml(options.returnTo)
+  }">
+          ${
+    options.syncLocale
+      ? `<input type="hidden" data-passkey-locale-changed value="${authLocaleChangedValue}">`
+      : ""
+  }
+          <button type="button" class="secondary auth-passkey-button" data-passkey-login-button>
+            ${escapeHtml(options.messages.authPasskeyLogin)}
+          </button>
+          <div
+            class="auth-passkey-status"
+            data-passkey-login-status
+            role="status"
+            hidden
+          ></div>
         </div>`;
 }
 
@@ -3751,6 +4231,193 @@ function authEmailLoginScript(enabled: boolean): string {
     emailInput.focus();
   });
 })();
+</script>`
+    : "";
+}
+
+/**
+ * 渲染 Passkey 登录的前端交互脚本。
+ *
+ * @param enabled 是否需要渲染脚本。
+ * @return 交互脚本 HTML。
+ */
+function authPasskeyLoginScript(enabled: boolean): string {
+  return enabled
+    ? `<script>
+(() => {
+  const root = document.querySelector("[data-passkey-login]");
+  if (!(root instanceof HTMLElement)) return;
+  const button = root.querySelector("[data-passkey-login-button]");
+  const csrfInput = root.querySelector("[data-passkey-csrf]");
+  const returnToInput = root.querySelector("[data-passkey-return-to]");
+  const localeChangedInput = root.querySelector("[data-passkey-locale-changed]");
+  const status = root.querySelector("[data-passkey-login-status]");
+  if (!(button instanceof HTMLButtonElement) || !(csrfInput instanceof HTMLInputElement) || !(returnToInput instanceof HTMLInputElement)) return;
+
+  const optionsUrl = root.dataset.passkeyOptionsUrl || "";
+  const loginUrl = root.dataset.passkeyLoginUrl || "";
+  let conditionalAbortController;
+  const csrfToken = () => csrfInput.value;
+  const setStatus = (message, state = "") => {
+    if (!(status instanceof HTMLElement)) return;
+    status.textContent = message;
+    status.hidden = message.length === 0;
+    if (state === "error") status.dataset.state = "error";
+    else delete status.dataset.state;
+  };
+  const supportsPasskey = () =>
+    Boolean(globalThis.PublicKeyCredential && navigator.credentials?.get);
+  const csrfHeaders = () => ({
+    "content-type": "application/json",
+    "${csrfHeaderName}": csrfToken(),
+  });
+  const fetchOptions = async () => {
+    const response = await fetch(optionsUrl, {
+      body: JSON.stringify({ "${csrfFieldName}": csrfToken() }),
+      headers: csrfHeaders(),
+      method: "POST",
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || typeof payload.challengeId !== "string" || !payload.optionsJSON) {
+      throw new Error("Passkey options unavailable.");
+    }
+    return payload;
+  };
+  const submitCredential = async (challengeId, credential) => {
+    const body = {
+      challengeId,
+      credential: assertionCredentialToJson(credential),
+      returnTo: returnToInput.value,
+    };
+    if (localeChangedInput instanceof HTMLInputElement) {
+      body["${authLocaleChangedParam}"] = localeChangedInput.value;
+    }
+    const response = await fetch(loginUrl, {
+      body: JSON.stringify(body),
+      headers: csrfHeaders(),
+      method: "POST",
+    });
+    if (response.redirected) {
+      const url = new URL(response.url);
+      globalThis.location.assign(url.pathname + url.search + url.hash);
+      return;
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok && typeof payload.redirectTo === "string") {
+      globalThis.location.assign(payload.redirectTo);
+      return;
+    }
+    throw new Error("Passkey login failed.");
+  };
+  const beginPasskeyLogin = async ({ conditional = false } = {}) => {
+    if (!supportsPasskey()) {
+      if (!conditional) {
+        button.disabled = true;
+        setStatus(root.dataset.passkeyUnsupported || "", "error");
+      }
+      return;
+    }
+    if (!conditional) {
+      conditionalAbortController?.abort();
+      button.disabled = true;
+      setStatus(root.dataset.passkeySigningIn || "");
+    }
+    try {
+      const payload = await fetchOptions();
+      const controller = conditional ? new AbortController() : undefined;
+      if (conditional) conditionalAbortController = controller;
+      const credential = await navigator.credentials.get({
+        publicKey: requestOptionsFromJson(payload.optionsJSON),
+        ...(conditional ? { mediation: "conditional", signal: controller?.signal } : {}),
+      });
+      if (!credential) return;
+      setStatus(root.dataset.passkeySigningIn || "");
+      await submitCredential(payload.challengeId, credential);
+    } catch (error) {
+      if (conditional && error?.name === "AbortError") return;
+      if (!conditional) setStatus(root.dataset.passkeyFailed || "", "error");
+    } finally {
+      if (!conditional) button.disabled = false;
+    }
+  };
+  button.addEventListener("click", () => {
+    void beginPasskeyLogin();
+  });
+  document.addEventListener("submit", () => {
+    conditionalAbortController?.abort();
+  }, { capture: true });
+  const startConditionalLogin = async () => {
+    if (!supportsPasskey() || typeof PublicKeyCredential.isConditionalMediationAvailable !== "function") {
+      return;
+    }
+    const available = await PublicKeyCredential.isConditionalMediationAvailable()
+      .catch(() => false);
+    if (available) {
+      void beginPasskeyLogin({ conditional: true });
+    }
+  };
+  void startConditionalLogin();
+})();
+
+function requestOptionsFromJson(options) {
+  return {
+    ...options,
+    allowCredentials: Array.isArray(options.allowCredentials)
+      ? options.allowCredentials.map(credentialDescriptorFromJson)
+      : undefined,
+    challenge: base64UrlToArrayBuffer(options.challenge),
+  };
+}
+
+function credentialDescriptorFromJson(descriptor) {
+  return {
+    ...descriptor,
+    id: base64UrlToArrayBuffer(descriptor.id),
+  };
+}
+
+function assertionCredentialToJson(credential) {
+  const response = credential.response || {};
+  return {
+    authenticatorAttachment: typeof credential.authenticatorAttachment === "string"
+      ? credential.authenticatorAttachment
+      : undefined,
+    clientExtensionResults: typeof credential.getClientExtensionResults === "function"
+      ? credential.getClientExtensionResults()
+      : {},
+    id: credential.id,
+    rawId: arrayBufferToBase64Url(credential.rawId),
+    response: {
+      authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
+      clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+      signature: arrayBufferToBase64Url(response.signature),
+      userHandle: optionalArrayBufferToBase64Url(response.userHandle),
+    },
+    type: credential.type,
+  };
+}
+
+function base64UrlToArrayBuffer(value) {
+  const normalized = String(value).replaceAll("-", "+").replaceAll("_", "/");
+  const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+function optionalArrayBufferToBase64Url(value) {
+  return value instanceof ArrayBuffer ? arrayBufferToBase64Url(value) : undefined;
+}
+
+function arrayBufferToBase64Url(value) {
+  const bytes = new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
 </script>`
     : "";
 }

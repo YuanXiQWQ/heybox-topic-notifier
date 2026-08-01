@@ -70,6 +70,10 @@ Deno.test("createPasskeyRegistrationOptions returns browser options and challeng
   assertEquals(result.optionsJSON.rp.name, "WarmNest");
   assertEquals(result.optionsJSON.user.name, "alice@example.com");
   assertEquals(result.optionsJSON.timeout, 45_000);
+  assertEquals(
+    result.optionsJSON.authenticatorSelection?.residentKey,
+    "required",
+  );
   assertEquals(result.optionsJSON.excludeCredentials?.map((item) => item.id), [
     "existing-credential",
   ]);

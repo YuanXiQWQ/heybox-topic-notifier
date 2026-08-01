@@ -820,7 +820,9 @@ export function createRoutes(context: AppContext): Hono {
       session.userId,
       credential.credentialId,
     );
-    if (existingCredential) {
+    const existingGlobalCredential = await context.storage
+      .getPasskeyCredentialByCredentialId(credential.credentialId);
+    if (existingCredential || existingGlobalCredential) {
       await context.storage.deletePendingPasskeyChallenge(activeChallenge.id);
       return c.json({ error: "alreadyBound" }, 409);
     }

@@ -54,6 +54,8 @@ const keys = {
     ["userData", userId, "matches", id] as const,
   passkeyCredential: (userId: string, credentialId: string) =>
     ["passkeyCredentials", userId, credentialId] as const,
+  passkeyCredentialIndex: (credentialId: string) =>
+    ["passkeyCredentialIndex", credentialId] as const,
   passkeyCredentialPrefix: (userId: string) =>
     ["passkeyCredentials", userId] as const,
   passwordCredential: (userId: string) =>
@@ -698,6 +700,36 @@ export function createKvStorage(
     },
 
     /**
+     * 按 Passkey 凭证 ID 反查凭证。
+     *
+     * @param credentialId Passkey 凭证 ID。
+     * @return Passkey 凭证，不存在时返回 undefined。
+     */
+    async getPasskeyCredentialByCredentialId(
+      credentialId: string,
+    ): Promise<PasskeyCredential | undefined> {
+      const normalizedCredentialId = credentialId.trim();
+      if (!normalizedCredentialId) {
+        return undefined;
+      }
+
+      const store = await kv();
+      const indexEntry = await store.get<string>(
+        keys.passkeyCredentialIndex(normalizedCredentialId),
+      );
+      if (!indexEntry.value) {
+        return undefined;
+      }
+
+      const credentialEntry = await store.get<PasskeyCredential>(
+        keys.passkeyCredential(indexEntry.value, normalizedCredentialId),
+      );
+      return credentialEntry.value
+        ? normalizePasskeyCredential(credentialEntry.value, indexEntry.value)
+        : undefined;
+    },
+
+    /**
      * 保存指定用户的 Passkey 凭证。
      *
      * @param credential Passkey 凭证。
@@ -711,10 +743,23 @@ export function createKvStorage(
         credential.userId,
       );
       const store = await kv();
-      await store.set(
-        keys.passkeyCredential(normalized.userId, normalized.credentialId),
-        normalized,
-      );
+      const indexKey = keys.passkeyCredentialIndex(normalized.credentialId);
+      const indexEntry = await store.get<string>(indexKey);
+      if (indexEntry.value && indexEntry.value !== normalized.userId) {
+        throw new Error("Passkey credential already belongs to another user.");
+      }
+
+      const result = await store.atomic()
+        .check({ key: indexKey, versionstamp: indexEntry.versionstamp })
+        .set(
+          keys.passkeyCredential(normalized.userId, normalized.credentialId),
+          normalized,
+        )
+        .set(indexKey, normalized.userId)
+        .commit();
+      if (!result.ok) {
+        throw new Error("Could not save the Passkey credential.");
+      }
     },
 
     /**
@@ -729,7 +774,27 @@ export function createKvStorage(
       credentialId: string,
     ): Promise<void> {
       const store = await kv();
-      await store.delete(keys.passkeyCredential(userId, credentialId));
+      const credentialKey = keys.passkeyCredential(userId, credentialId);
+      const indexKey = keys.passkeyCredentialIndex(credentialId);
+      const credentialEntry = await store.get<PasskeyCredential>(credentialKey);
+      const indexEntry = await store.get<string>(indexKey);
+
+      let operation = store.atomic()
+        .check({
+          key: credentialKey,
+          versionstamp: credentialEntry.versionstamp,
+        })
+        .delete(credentialKey);
+      if (indexEntry.value === userId) {
+        operation = operation
+          .check({ key: indexKey, versionstamp: indexEntry.versionstamp })
+          .delete(indexKey);
+      }
+
+      const result = await operation.commit();
+      if (!result.ok) {
+        throw new Error("Could not delete the Passkey credential.");
+      }
     },
 
     /**

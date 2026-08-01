@@ -183,6 +183,10 @@ export type Messages = {
   authLanguage: string;
   authLogin: string;
   authLoginRateLimited: string;
+  authPasskeyFailed: string;
+  authPasskeyLogin: string;
+  authPasskeySigningIn: string;
+  authPasskeyUnsupported: string;
   authMfaChooseMethod: string;
   authMfaExpired: string;
   authMfaInvalid: string;
