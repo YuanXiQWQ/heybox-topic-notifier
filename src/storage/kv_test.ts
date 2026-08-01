@@ -3,8 +3,10 @@
  */
 import type {
   AppSettings,
+  EmailCredential,
   MatchRecord,
   PasswordCredential,
+  PendingEmailVerification,
   UserAccount,
 } from "../models.ts";
 import { createKvStorage, latestMatchByMatchedTime } from "./kv.ts";
@@ -204,6 +206,100 @@ Deno.test("password credential storage reads saved credentials by user id", asyn
 
   assertEquals(await storage.getPasswordCredential("alice-id"), credential);
   assertEquals(await storage.getPasswordCredential("missing-id"), undefined);
+});
+
+Deno.test("email credential storage normalizes addresses under user scope", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const credential: EmailCredential = {
+    createdAt: "2026-08-01T00:00:00.000Z",
+    email: " Alice.Alerts+App@Example.COM ",
+    lastVerifiedAt: "2026-08-01T00:05:00.000Z",
+    userId: "alice-id",
+    verified: true,
+  };
+  const normalizedCredential: EmailCredential = {
+    ...credential,
+    email: "alice.alerts+app@example.com",
+  };
+
+  await storage.saveEmailCredential(credential);
+
+  assertEquals(
+    await storage.getEmailCredential(
+      "alice-id",
+      "alice.alerts+app@example.com",
+    ),
+    normalizedCredential,
+  );
+  assertEquals(
+    await storage.getEmailCredential("bob-id", "alice.alerts+app@example.com"),
+    undefined,
+  );
+  assertEquals(await storage.listEmailCredentials("alice-id"), [
+    normalizedCredential,
+  ]);
+
+  await storage.deleteEmailCredential(
+    "alice-id",
+    "alice.alerts+app@example.com",
+  );
+
+  assertEquals(
+    await storage.getEmailCredential(
+      "alice-id",
+      "alice.alerts+app@example.com",
+    ),
+    undefined,
+  );
+});
+
+Deno.test("pending email verification storage preserves attempts and purpose", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const verification: PendingEmailVerification = {
+    attempts: 0,
+    codeHash: "code-hash",
+    createdAt: "2026-08-01T00:00:00.000Z",
+    email: "Alice@Example.COM",
+    expiresAt: "2026-08-01T00:10:00.000Z",
+    id: "email-verification-id",
+    purpose: "email_binding",
+    userId: "alice-id",
+  };
+  const normalizedVerification: PendingEmailVerification = {
+    ...verification,
+    email: "alice@example.com",
+  };
+
+  await storage.savePendingEmailVerification(verification);
+
+  assertEquals(
+    await storage.getPendingEmailVerification("email-verification-id"),
+    normalizedVerification,
+  );
+
+  await storage.savePendingEmailVerification({
+    ...normalizedVerification,
+    attempts: 1,
+  });
+
+  assertEquals(
+    (await storage.getPendingEmailVerification("email-verification-id"))
+      ?.attempts,
+    1,
+  );
+
+  await storage.deletePendingEmailVerification("email-verification-id");
+
+  assertEquals(
+    await storage.getPendingEmailVerification("email-verification-id"),
+    undefined,
+  );
 });
 
 Deno.test("recordRateLimitHit blocks requests after the configured limit", async () => {

@@ -5,9 +5,11 @@ import type {
   AppSettings,
   AppState,
   DashboardSnapshot,
+  EmailCredential,
   KeywordRule,
   MatchRecord,
   PasswordCredential,
+  PendingEmailVerification,
   PollingSettings,
   PollIntervalUnit,
   PollSort,
@@ -15,6 +17,7 @@ import type {
   UserAccount,
   UserSession,
 } from "../models.ts";
+import { normalizeEmailAddress } from "../auth/email.ts";
 import {
   normalizeNotificationEmailService,
   normalizeNotificationWebhookService,
@@ -27,12 +30,18 @@ const keys = {
   account: (id: string) => ["accounts", id] as const,
   accountUsername: (username: string) =>
     ["accountUsernames", normalizeUsername(username)] as const,
+  emailCredential: (userId: string, email: string) =>
+    ["emailCredentials", userId, emailKey(email)] as const,
+  emailCredentialPrefix: (userId: string) =>
+    ["emailCredentials", userId] as const,
   loginFailure: (username: string) =>
     ["loginFailures", normalizeUsername(username)] as const,
   match: (userId: string, id: string) =>
     ["userData", userId, "matches", id] as const,
   passwordCredential: (userId: string) =>
     ["passwordCredentials", userId] as const,
+  pendingEmailVerification: (id: string) =>
+    ["pendingEmailVerifications", id] as const,
   rateLimit: (parts: readonly string[]) => ["rateLimits", ...parts] as const,
   session: (tokenHash: string) => ["sessions", tokenHash] as const,
   settings: (userId: string) => ["userData", userId, "settings"] as const,
@@ -547,6 +556,117 @@ export function createKvStorage(
     },
 
     /**
+     * 获取指定用户的邮箱凭证。
+     *
+     * @param userId 用户 ID。
+     * @param email 邮箱地址。
+     * @return 邮箱凭证，不存在时返回 undefined。
+     */
+    async getEmailCredential(
+      userId: string,
+      email: string,
+    ): Promise<EmailCredential | undefined> {
+      const store = await kv();
+      const entry = await store.get<EmailCredential>(
+        keys.emailCredential(userId, email),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 列出指定用户的邮箱凭证。
+     *
+     * @param userId 用户 ID。
+     * @return 邮箱凭证列表。
+     */
+    async listEmailCredentials(userId: string): Promise<EmailCredential[]> {
+      const store = await kv();
+      const credentials: EmailCredential[] = [];
+      for await (
+        const entry of store.list<EmailCredential>({
+          prefix: keys.emailCredentialPrefix(userId),
+        })
+      ) {
+        credentials.push(entry.value);
+      }
+      return credentials.toSorted((left, right) =>
+        left.email.localeCompare(right.email)
+      );
+    },
+
+    /**
+     * 保存指定用户的邮箱凭证。
+     *
+     * @param credential 邮箱凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async saveEmailCredential(credential: EmailCredential): Promise<void> {
+      const normalized = normalizeEmailCredential(credential);
+      const store = await kv();
+      await store.set(
+        keys.emailCredential(normalized.userId, normalized.email),
+        normalized,
+      );
+    },
+
+    /**
+     * 删除指定用户的邮箱凭证。
+     *
+     * @param userId 用户 ID。
+     * @param email 邮箱地址。
+     * @return 删除完成后的 Promise。
+     */
+    async deleteEmailCredential(userId: string, email: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.emailCredential(userId, email));
+    },
+
+    /**
+     * 获取待完成的邮箱验证码挑战。
+     *
+     * @param id 验证码挑战 ID。
+     * @return 待验证挑战，不存在时返回 undefined。
+     */
+    async getPendingEmailVerification(
+      id: string,
+    ): Promise<PendingEmailVerification | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingEmailVerification>(
+        keys.pendingEmailVerification(id),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 保存待完成的邮箱验证码挑战。
+     *
+     * @param verification 待验证挑战。
+     * @return 保存完成后的 Promise。
+     */
+    async savePendingEmailVerification(
+      verification: PendingEmailVerification,
+    ): Promise<void> {
+      const normalized = normalizePendingEmailVerification(verification);
+      const store = await kv();
+      await store.set(
+        keys.pendingEmailVerification(normalized.id),
+        normalized,
+        expireInFromIso(normalized.expiresAt),
+      );
+    },
+
+    /**
+     * 删除待完成的邮箱验证码挑战。
+     *
+     * @param id 验证码挑战 ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePendingEmailVerification(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingEmailVerification(id));
+    },
+
+    /**
      * 获取指定用户名的登录失败状态。
      *
      * @param username 用户名。
@@ -823,6 +943,66 @@ export function createKvStorage(
  */
 function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
+}
+
+/**
+ * 将邮箱地址规范化为 KV key 使用的稳定片段。
+ *
+ * @param value 原始邮箱地址。
+ * @return 规范化邮箱地址。
+ */
+function emailKey(value: string): string {
+  const normalized = normalizeEmailAddress(value);
+  if (!normalized) {
+    throw new Error("Invalid email address.");
+  }
+
+  return normalized;
+}
+
+/**
+ * 规范化邮箱凭证中的邮箱地址。
+ *
+ * @param credential 邮箱凭证。
+ * @return 规范化后的邮箱凭证。
+ */
+function normalizeEmailCredential(
+  credential: EmailCredential,
+): EmailCredential {
+  return {
+    ...credential,
+    email: emailKey(credential.email),
+  };
+}
+
+/**
+ * 规范化待验证挑战中的邮箱地址。
+ *
+ * @param verification 待验证挑战。
+ * @return 规范化后的待验证挑战。
+ */
+function normalizePendingEmailVerification(
+  verification: PendingEmailVerification,
+): PendingEmailVerification {
+  return {
+    ...verification,
+    email: emailKey(verification.email),
+  };
+}
+
+/**
+ * 按 ISO 过期时间生成 KV 自动过期选项。
+ *
+ * @param expiresAt ISO 格式过期时间。
+ * @return KV 自动过期选项，时间无效时返回 undefined。
+ */
+function expireInFromIso(expiresAt: string): { expireIn: number } | undefined {
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) {
+    return undefined;
+  }
+
+  return { expireIn: Math.max(1, expiresAtMs - Date.now()) };
 }
 
 /**
