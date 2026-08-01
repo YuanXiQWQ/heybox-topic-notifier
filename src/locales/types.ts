@@ -100,6 +100,11 @@ export type Messages = {
   accountEmailVerificationExpired: string;
   accountEmailVerificationMissing: string;
   accountEmailVerify: string;
+  accountSecondFactorEmail: string;
+  accountSecondFactorPasskey: string;
+  accountSecondFactorRecoveryCode: string;
+  accountSecondFactorTotp: string;
+  accountSecuritySettings: string;
   accountNewPassword: string;
   accountNotFound: string;
   accountPasswordConfirmationMismatch: string;
@@ -110,6 +115,16 @@ export type Messages = {
   accountPasswordVerificationRequired: string;
   accountSave: string;
   accountSettings: string;
+  accountTwoFactor: string;
+  accountTwoFactorDisabled: string;
+  accountTwoFactorEnabled: string;
+  accountTwoFactorMethods: string;
+  accountTwoFactorNoMethods: string;
+  accountTwoFactorPreferred: string;
+  accountTwoFactorPreferredUnavailable: string;
+  accountTwoFactorSave: string;
+  accountTwoFactorUnavailable: string;
+  accountTwoFactorUpdated: string;
   accountUpdated: string;
   accountUsername: string;
   accountUsernameExists: string;

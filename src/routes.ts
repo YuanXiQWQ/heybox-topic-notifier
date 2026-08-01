@@ -12,6 +12,12 @@ import {
 } from "./auth.ts";
 import { normalizeEmailAddress } from "./auth/email.ts";
 import { verifyEmailVerificationCode } from "./auth/email_verification.ts";
+import {
+  assertValidUserSecuritySettings,
+  availableSecondFactorMethods,
+  MfaConfigurationError,
+  normalizeUserSecuritySettings,
+} from "./auth/mfa.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import {
   csrfForbiddenResponse,
@@ -37,7 +43,9 @@ import type {
   PendingEmailVerification,
   PollIntervalUnit,
   PollSort,
+  SecondFactorMethod,
   TopicRule,
+  UserSecuritySettings,
 } from "./models.ts";
 import {
   normalizeNotificationEmailService,
@@ -279,6 +287,9 @@ export function createRoutes(context: AppContext): Hono {
     const emailCredentials = session
       ? await context.storage.listEmailCredentials(session.userId)
       : [];
+    const securitySettings = session
+      ? await context.storage.getUserSecuritySettings(session.userId)
+      : undefined;
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderSettings({
@@ -287,6 +298,11 @@ export function createRoutes(context: AppContext): Hono {
         csrfToken: csrf.token,
         emailBindingStatus: emailBindingStatusFromSearch(url.searchParams),
         emailCredentials,
+        secondFactorMethods: availableSecondFactorMethods({
+          emailCredentials,
+        }),
+        securitySettings,
+        securityStatus: securitySettingsStatusFromSearch(url.searchParams),
         settings,
         turnstileSiteKey: settingsTurnstileSiteKey(context),
       })),
@@ -536,6 +552,79 @@ export function createRoutes(context: AppContext): Hono {
     });
 
     return c.redirect("/settings?email=updated", 303);
+  });
+
+  app.post("/account/security", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.redirect("/login?locale=zh-CN&returnTo=%2Fsettings", 303);
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return c.redirect(accountSettingsRedirect("notFound"), 303);
+    }
+
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const emailCredentials = await context.storage.listEmailCredentials(
+      session.userId,
+    );
+    const availableMethods = availableSecondFactorMethods({
+      emailCredentials,
+    });
+    const twoFactorEnabled = form.twoFactorEnabled === "on";
+    const nextSettings = securitySettingsFromForm(
+      form,
+      session.userId,
+      availableMethods,
+    );
+
+    try {
+      assertValidUserSecuritySettings(nextSettings, availableMethods);
+    } catch (error) {
+      if (!(error instanceof MfaConfigurationError)) {
+        throw error;
+      }
+
+      return c.redirect(
+        accountSecuritySettingsRedirect(
+          twoFactorEnabled && availableMethods.length === 0
+            ? "unavailable"
+            : "preferred",
+        ),
+        303,
+      );
+    }
+
+    await context.storage.saveUserSecuritySettings(nextSettings);
+    logSecurityAuditEvent({
+      code: "two_factor_settings_changed",
+      details: {
+        availableMethods: availableMethods.join(","),
+        preferredSecondFactor: nextSettings.preferredSecondFactor ?? "",
+        twoFactorEnabled: nextSettings.twoFactorEnabled,
+      },
+      level: "info",
+      message: "双重验证设置已更新。",
+      request: c.req.raw,
+      userId: session.userId,
+    });
+
+    return c.redirect("/settings?security=updated", 303);
   });
 
   app.post("/settings", async (c) => {
@@ -835,6 +924,108 @@ function isAccountErrorCode(value: string | null): value is AccountErrorCode {
     value === "password" ||
     value === "samePassword" ||
     value === "username";
+}
+
+type SecuritySettingsErrorCode = "preferred" | "unavailable";
+
+/**
+ * 构造账户安全设置错误跳转地址。
+ *
+ * @param {SecuritySettingsErrorCode} error 安全设置错误码。
+ * @return {string} 设置页安全设置错误地址。
+ */
+function accountSecuritySettingsRedirect(
+  error: SecuritySettingsErrorCode,
+): string {
+  return `/settings?securityError=${error}`;
+}
+
+/**
+ * 从设置页查询参数恢复账户安全设置状态。
+ *
+ * @param {URLSearchParams} searchParams 设置页查询参数。
+ * @return {{code: SecuritySettingsErrorCode | "updated"; type: "error" | "success"} | undefined} 安全设置状态。
+ */
+function securitySettingsStatusFromSearch(searchParams: URLSearchParams) {
+  const error = searchParams.get("securityError");
+  if (isSecuritySettingsErrorCode(error)) {
+    return { code: error, type: "error" as const };
+  }
+
+  return searchParams.get("security") === "updated"
+    ? { code: "updated" as const, type: "success" as const }
+    : undefined;
+}
+
+/**
+ * 判断查询参数是否为账户安全设置错误码。
+ *
+ * @param {string | null} value 待判断值。
+ * @return {boolean} 合法错误码返回 true。
+ */
+function isSecuritySettingsErrorCode(
+  value: string | null,
+): value is SecuritySettingsErrorCode {
+  return value === "preferred" || value === "unavailable";
+}
+
+/**
+ * 从表单生成用户安全设置。
+ *
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
+ * @param {string} userId 用户 ID。
+ * @param {readonly SecondFactorMethod[]} availableMethods 当前可用二次验证方式。
+ * @return {UserSecuritySettings} 用户安全设置。
+ */
+function securitySettingsFromForm(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  userId: string,
+  availableMethods: readonly SecondFactorMethod[],
+): UserSecuritySettings {
+  const preferredSecondFactor = preferredSecondFactorFromForm(
+    form.preferredSecondFactor,
+  );
+  return normalizeUserSecuritySettings({
+    preferredSecondFactor: preferredSecondFactor ??
+      preferredSecondFactorMethods(availableMethods)[0],
+    twoFactorEnabled: form.twoFactorEnabled === "on",
+  }, userId);
+}
+
+/**
+ * 从表单字段读取默认二次验证方式。
+ *
+ * @param {FormDataEntryValue | FormDataEntryValue[] | undefined} value 表单字段值。
+ * @return {Exclude<SecondFactorMethod, "recoveryCode"> | undefined} 默认二次验证方式。
+ */
+function preferredSecondFactorFromForm(
+  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
+): Exclude<SecondFactorMethod, "recoveryCode"> | undefined {
+  return isPreferredSecondFactorMethod(value) ? value : undefined;
+}
+
+/**
+ * 筛选可作为默认项的二次验证方式。
+ *
+ * @param {readonly SecondFactorMethod[]} methods 当前可用二次验证方式。
+ * @return {Exclude<SecondFactorMethod, "recoveryCode">[]} 默认验证方式候选列表。
+ */
+function preferredSecondFactorMethods(
+  methods: readonly SecondFactorMethod[],
+): Exclude<SecondFactorMethod, "recoveryCode">[] {
+  return methods.filter(isPreferredSecondFactorMethod);
+}
+
+/**
+ * 判断值是否为可设为默认项的二次验证方式。
+ *
+ * @param {unknown} value 待判断值。
+ * @return {boolean} 可设为默认项时返回 true。
+ */
+function isPreferredSecondFactorMethod(
+  value: unknown,
+): value is Exclude<SecondFactorMethod, "recoveryCode"> {
+  return value === "email" || value === "passkey" || value === "totp";
 }
 
 type EmailBindingErrorCode =

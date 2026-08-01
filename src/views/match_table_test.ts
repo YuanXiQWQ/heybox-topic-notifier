@@ -345,6 +345,30 @@ Deno.test("renderSettings renders email binding controls and verified email stat
   );
 });
 
+Deno.test("renderSettings renders account security controls", () => {
+  const html = renderSettings({
+    csrfToken: testCsrfToken,
+    secondFactorMethods: ["email"],
+    securitySettings: {
+      preferredSecondFactor: "email",
+      twoFactorEnabled: true,
+      userId: "user-1",
+    },
+    securityStatus: { code: "updated", type: "success" },
+    settings: settings(),
+  });
+
+  assertIncludes(html, `data-security-settings-form`);
+  assertIncludes(html, `action="/account/security"`);
+  assertIncludes(html, `name="twoFactorEnabled"`);
+  assertIncludes(html, `checked`);
+  assertIncludes(html, `name="preferredSecondFactor"`);
+  assertIncludes(html, `value="email" selected`);
+  assertIncludes(html, `data-security-method="email"`);
+  assertIncludes(html, `邮箱验证码`);
+  assertIncludes(html, `双重验证设置已保存。`);
+});
+
 /**
  * 创建表格测试数据。
  *

@@ -431,6 +431,14 @@ input[readonly]::placeholder {
   max-width: min(100%, 860px);
 }
 
+.security-toggle-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: min(100%, 860px);
+}
+
 .account-username-row input,
 .account-single-input-row input,
 .email-binding-row input[type="email"],
