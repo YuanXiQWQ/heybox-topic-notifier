@@ -45,7 +45,13 @@ export type PollSort = "publishTime" | "smart" | "replyTime";
 /**
  * 轮询间隔单位。
  */
-export type PollIntervalUnit = "second" | "minute" | "hour" | "day" | "week" | "month";
+export type PollIntervalUnit =
+  | "second"
+  | "minute"
+  | "hour"
+  | "day"
+  | "week"
+  | "month";
 
 /**
  * 轮询设置。
@@ -133,15 +139,144 @@ export type DashboardSnapshot = {
 };
 
 /**
+ * 认证身份提供方。
+ */
+export type AuthIdentityProvider = "email" | "google";
+
+/**
+ * 主登录方式。
+ */
+export type PrimaryAuthMethod = "email" | "google" | "passkey" | "password";
+
+/**
+ * 二次验证方式。
+ */
+export type SecondFactorMethod = "email" | "passkey" | "recoveryCode" | "totp";
+
+/**
+ * 认证事件方式。
+ */
+export type AuthenticationEventMethod =
+  | "email_otp"
+  | "google"
+  | "passkey"
+  | "password"
+  | "recovery_code"
+  | "totp";
+
+/**
+ * 认证事件用途。
+ */
+export type AuthenticationEventPurpose =
+  | "primary_login"
+  | "reauth"
+  | "second_factor";
+
+/**
  * 用户账号信息。
  */
 export type UserAccount = {
+  authVersion?: number;
   createdAt: string;
+  displayName?: string;
+  emailVerified?: boolean;
   id: string;
+  passwordHash?: string;
+  passwordIterations?: number;
+  passwordSalt?: string;
+  primaryEmail?: string;
+  username: string;
+};
+
+/**
+ * 独立密码凭证。
+ */
+export type PasswordCredential = {
   passwordHash: string;
   passwordIterations: number;
   passwordSalt: string;
-  username: string;
+  updatedAt: string;
+  userId: string;
+};
+
+/**
+ * 外部或邮箱身份绑定。
+ */
+export type AuthIdentity = {
+  createdAt: string;
+  email?: string;
+  emailVerified?: boolean;
+  provider: AuthIdentityProvider;
+  providerUserId: string;
+  userId: string;
+};
+
+/**
+ * 已绑定邮箱凭证。
+ */
+export type EmailCredential = {
+  createdAt: string;
+  email: string;
+  lastVerifiedAt?: string;
+  userId: string;
+  verified: boolean;
+};
+
+/**
+ * Passkey 凭证。
+ */
+export type PasskeyCredential = {
+  backedUp?: boolean;
+  counter: number;
+  createdAt: string;
+  credentialId: string;
+  label?: string;
+  lastUsedAt?: string;
+  publicKey: string;
+  transports?: string[];
+  userId: string;
+};
+
+/**
+ * Authenticator 动态验证码凭证。
+ */
+export type TotpCredential = {
+  enabledAt: string;
+  recoveryCodeHashes: string[];
+  secretEncrypted: string;
+  userId: string;
+};
+
+/**
+ * 用户安全设置。
+ */
+export type UserSecuritySettings = {
+  preferredSecondFactor?: Exclude<SecondFactorMethod, "recoveryCode">;
+  twoFactorEnabled: boolean;
+  userId: string;
+};
+
+/**
+ * 待完成的二次验证挑战。
+ */
+export type PendingMfaChallenge = {
+  allowedMethods: SecondFactorMethod[];
+  createdAt: string;
+  expiresAt: string;
+  id: string;
+  primaryMethod: PrimaryAuthMethod;
+  userId: string;
+};
+
+/**
+ * 认证事件记录。
+ */
+export type AuthenticationEvent = {
+  authenticatedAt: string;
+  method: AuthenticationEventMethod;
+  purpose: AuthenticationEventPurpose;
+  strength: "normal" | "strong";
+  userId: string;
 };
 
 /**
