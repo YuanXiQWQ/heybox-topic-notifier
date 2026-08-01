@@ -6,7 +6,7 @@ import type { MiddlewareHandler } from "@hono/hono";
 import { getMessages } from "./locales/index.ts";
 import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
 import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
-import type { UserAccount } from "./models.ts";
+import type { PasswordCredential, UserAccount } from "./models.ts";
 import {
   csrfForbiddenResponse,
   csrfHeaderName,
@@ -230,7 +230,9 @@ export function createAuthRoutes(
 
     const account = await storage.getAccountByUsername(username);
 
-    if (!account || !(await verifyPassword(password, account))) {
+    if (
+      !account || !(await verifyAccountPassword(password, account, storage))
+    ) {
       const failure = canRateLimit
         ? await storage.recordLoginFailure(
           username,
@@ -372,7 +374,6 @@ export function createAuthRoutes(
     const account: UserAccount = {
       createdAt: new Date().toISOString(),
       id: crypto.randomUUID(),
-      passwordIterations,
       username,
       ...(await hashPassword(password)),
     };
@@ -388,6 +389,8 @@ export function createAuthRoutes(
         303,
       );
     }
+
+    await saveAccountPasswordCredential(account, storage);
 
     if (syncLocale) {
       await saveAuthLocale(account.id, locale, storage);
@@ -479,45 +482,182 @@ async function saveAuthLocale(
  * 对密码进行加盐哈希。
  *
  * @param password 原始密码。
- * @return 密码哈希和盐。
+ * @return 密码哈希、盐和迭代次数。
  */
 export async function hashPassword(
   password: string,
-): Promise<Pick<UserAccount, "passwordHash" | "passwordSalt">> {
+): Promise<
+  Pick<
+    PasswordCredential,
+    "passwordHash" | "passwordIterations" | "passwordSalt"
+  >
+> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await derivePasswordHash(password, salt, passwordIterations);
 
   return {
     passwordHash: base64UrlEncode(hash),
+    passwordIterations,
     passwordSalt: base64UrlEncode(salt),
   };
+}
+
+/**
+ * 校验账号密码，必要时将旧账号密码字段迁移到独立凭证。
+ *
+ * @param password 原始密码。
+ * @param account 用户账号。
+ * @param storage 应用存储。
+ * @return 密码匹配时返回 true。
+ */
+export async function verifyAccountPassword(
+  password: string,
+  account: UserAccount,
+  storage: Storage,
+): Promise<boolean> {
+  if (await verifyPassword(password, account)) {
+    await ensureAccountPasswordCredential(account, storage);
+    return true;
+  }
+
+  if (hasLegacyPasswordFields(account)) {
+    return false;
+  }
+
+  const credential = await storage.getPasswordCredential(account.id);
+  return credential ? await verifyPassword(password, credential) : false;
+}
+
+/**
+ * 将账号上的密码字段保存为独立密码凭证。
+ *
+ * @param account 用户账号。
+ * @param storage 应用存储。
+ * @return 保存完成后的 Promise。
+ */
+export async function saveAccountPasswordCredential(
+  account: UserAccount,
+  storage: Storage,
+): Promise<void> {
+  const credential = passwordCredentialFromAccount(account);
+  if (!credential) {
+    return;
+  }
+
+  await storage.savePasswordCredential(credential);
 }
 
 /**
  * 校验密码是否匹配账号密码哈希。
  *
  * @param password 原始密码。
- * @param account 用户账号。
+ * @param credential 密码哈希字段。
  * @return 密码字段存在且匹配时返回 true。
  */
 export async function verifyPassword(
   password: string,
-  account: UserAccount,
+  credential: Partial<
+    Pick<
+      PasswordCredential,
+      "passwordHash" | "passwordIterations" | "passwordSalt"
+    >
+  >,
 ): Promise<boolean> {
   if (
-    !account.passwordHash ||
-    !account.passwordSalt ||
-    !account.passwordIterations
+    !credential.passwordHash ||
+    !credential.passwordSalt ||
+    !credential.passwordIterations
   ) {
     return false;
   }
 
   const hash = await derivePasswordHash(
     password,
-    base64UrlDecode(account.passwordSalt),
-    account.passwordIterations,
+    base64UrlDecode(credential.passwordSalt),
+    credential.passwordIterations,
   );
-  return constantTimeEquals(base64UrlEncode(hash), account.passwordHash);
+  return constantTimeEquals(base64UrlEncode(hash), credential.passwordHash);
+}
+
+/**
+ * 判断账号是否仍携带旧版密码字段。
+ *
+ * @param account 用户账号。
+ * @return 旧版密码字段完整时返回 true。
+ */
+function hasLegacyPasswordFields(
+  account: UserAccount,
+): account is
+  & UserAccount
+  & Pick<
+    PasswordCredential,
+    "passwordHash" | "passwordIterations" | "passwordSalt"
+  > {
+  return Boolean(
+    account.passwordHash && account.passwordSalt && account.passwordIterations,
+  );
+}
+
+/**
+ * 从账号旧版密码字段创建独立密码凭证。
+ *
+ * @param account 用户账号。
+ * @return 密码字段完整时返回独立密码凭证。
+ */
+function passwordCredentialFromAccount(
+  account: UserAccount,
+): PasswordCredential | undefined {
+  if (!hasLegacyPasswordFields(account)) {
+    return undefined;
+  }
+
+  return {
+    passwordHash: account.passwordHash,
+    passwordIterations: account.passwordIterations,
+    passwordSalt: account.passwordSalt,
+    updatedAt: new Date().toISOString(),
+    userId: account.id,
+  };
+}
+
+/**
+ * 确保旧账号密码字段已经迁移为独立密码凭证。
+ *
+ * @param account 用户账号。
+ * @param storage 应用存储。
+ * @return 保存完成后的 Promise。
+ */
+async function ensureAccountPasswordCredential(
+  account: UserAccount,
+  storage: Storage,
+): Promise<void> {
+  const credential = passwordCredentialFromAccount(account);
+  if (!credential) {
+    return;
+  }
+
+  const existing = await storage.getPasswordCredential(account.id);
+  if (samePasswordCredential(existing, credential)) {
+    return;
+  }
+
+  await storage.savePasswordCredential(credential);
+}
+
+/**
+ * 判断两个密码凭证的哈希字段是否一致。
+ *
+ * @param left 已保存的密码凭证。
+ * @param right 待保存的密码凭证。
+ * @return 哈希字段一致时返回 true。
+ */
+function samePasswordCredential(
+  left: PasswordCredential | undefined,
+  right: PasswordCredential,
+): boolean {
+  return left?.passwordHash === right.passwordHash &&
+    left.passwordIterations === right.passwordIterations &&
+    left.passwordSalt === right.passwordSalt;
 }
 
 /**

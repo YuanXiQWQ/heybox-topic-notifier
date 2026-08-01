@@ -4,9 +4,18 @@
 import { Hono } from "@hono/hono";
 import { createRoutes, settingsFromForm } from "./routes.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
-import type { AppSettings, MatchRecord, UserAccount, UserSession } from "./models.ts";
+import type {
+  AppSettings,
+  MatchRecord,
+  PasswordCredential,
+  UserAccount,
+  UserSession,
+} from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
-import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
+import {
+  NotificationConfigError,
+  NotificationDeliveryError,
+} from "./services/notifier.ts";
 import {
   addUniqueAccount,
   assertEquals,
@@ -78,13 +87,19 @@ type AccountRouteStorage = {
   getAccountById(id: string): Promise<UserAccount | undefined>;
   getAccountByUsername(username: string): Promise<UserAccount | undefined>;
   getLoginFailure(username: string): Promise<undefined>;
+  getPasswordCredential(
+    userId: string,
+  ): Promise<PasswordCredential | undefined>;
   getSession(tokenHash: string): Promise<UserSession | undefined>;
   recordLoginFailure(
     username: string,
     maxFailures: number,
     lockoutMs: number,
   ): Promise<{ failures: number }>;
-  recordRateLimitHit: ReturnType<typeof createMemoryRateLimitRecorder>["recordRateLimitHit"];
+  recordRateLimitHit: ReturnType<
+    typeof createMemoryRateLimitRecorder
+  >["recordRateLimitHit"];
+  savePasswordCredential(credential: PasswordCredential): Promise<void>;
   saveSession(session: UserSession): Promise<void>;
   updateAccount(account: UserAccount): Promise<boolean>;
 };
@@ -174,7 +189,10 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     themeColor: "#123abc",
     topic_0_enabled: "on",
     topic_0_id: "12099",
-    topic_0_keywordRulesJson: JSON.stringify([{ keyword: "stale-topic", locations: ["title"] }]),
+    topic_0_keywordRulesJson: JSON.stringify([{
+      keyword: "stale-topic",
+      locations: ["title"],
+    }]),
     topic_0_note: "蔚蓝",
     topic_1_enabled: "on",
     topic_1_id: "999",
@@ -193,15 +211,28 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     useRegex: true,
   }]);
   assertEquals(settings.topics[0].keywordRules, [
-    { caseSensitive: true, keyword: "new-topic", locations: ["replies"], useRegex: false },
+    {
+      caseSensitive: true,
+      keyword: "new-topic",
+      locations: ["replies"],
+      useRegex: false,
+    },
   ]);
   assertEquals(settings.topics[1].keywordRules, [
-    { caseSensitive: false, keyword: "new-other", locations: ["comments"], useRegex: true },
+    {
+      caseSensitive: false,
+      keyword: "new-other",
+      locations: ["comments"],
+      useRegex: true,
+    },
   ]);
   assertEquals(settings.darkMode, true);
   assertEquals(settings.notificationEmailAddress, "new@example.com");
   assertEquals(settings.notificationEmailApiToken, "new-api-token");
-  assertEquals(settings.notificationEmailApiUrl, "https://example.com/new-email-api");
+  assertEquals(
+    settings.notificationEmailApiUrl,
+    "https://example.com/new-email-api",
+  );
   assertEquals(settings.notificationEmailFrom, "new-from@example.com");
   assertEquals(settings.notificationEmailService, "api");
   assertEquals(settings.notificationProvider, "email");
@@ -213,7 +244,10 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   assertEquals(settings.notificationSmtpSecure, true);
   assertEquals(settings.notificationSmtpUsername, "smtp-new-user");
   assertEquals(settings.notificationWebhookService, "serverChan");
-  assertEquals(settings.notificationWebhookUrl, "https://example.com/new-webhook");
+  assertEquals(
+    settings.notificationWebhookUrl,
+    "https://example.com/new-webhook",
+  );
   assertEquals(settings.notificationWxPusherSpt, "SPT-new");
   assertEquals(settings.polling, {
     enabled: true,
@@ -254,15 +288,30 @@ Deno.test("settingsFromForm preserves existing notification secrets when submitt
     notificationWxPusherSpt: "",
   }, currentSettings);
 
-  assertEquals(settings.notificationEmailApiToken, currentSettings.notificationEmailApiToken);
-  assertEquals(settings.notificationPushPlusToken, currentSettings.notificationPushPlusToken);
+  assertEquals(
+    settings.notificationEmailApiToken,
+    currentSettings.notificationEmailApiToken,
+  );
+  assertEquals(
+    settings.notificationPushPlusToken,
+    currentSettings.notificationPushPlusToken,
+  );
   assertEquals(
     settings.notificationServerChanSendKey,
     currentSettings.notificationServerChanSendKey,
   );
-  assertEquals(settings.notificationSmtpPassword, currentSettings.notificationSmtpPassword);
-  assertEquals(settings.notificationWebhookUrl, currentSettings.notificationWebhookUrl);
-  assertEquals(settings.notificationWxPusherSpt, currentSettings.notificationWxPusherSpt);
+  assertEquals(
+    settings.notificationSmtpPassword,
+    currentSettings.notificationSmtpPassword,
+  );
+  assertEquals(
+    settings.notificationWebhookUrl,
+    currentSettings.notificationWebhookUrl,
+  );
+  assertEquals(
+    settings.notificationWxPusherSpt,
+    currentSettings.notificationWxPusherSpt,
+  );
 });
 
 Deno.test("settingsFromForm saves visible common keywords and submitted topic keywords", () => {
@@ -299,7 +348,12 @@ Deno.test("settingsFromForm saves visible common keywords and submitted topic ke
     },
   ]);
   assertEquals(settings.topics[0].keywordRules, [
-    { caseSensitive: false, keyword: "submitted-topic", locations: ["title"], useRegex: false },
+    {
+      caseSensitive: false,
+      keyword: "submitted-topic",
+      locations: ["title"],
+      useRegex: false,
+    },
   ]);
 });
 
@@ -327,7 +381,10 @@ Deno.test("settingsFromForm falls back when inactive keyword JSON is malformed",
   }, currentSettings);
 
   assertEquals(settings.commonKeywordRules, currentSettings.commonKeywordRules);
-  assertEquals(settings.topics[1].keywordRules, currentSettings.topics[1].keywordRules);
+  assertEquals(
+    settings.topics[1].keywordRules,
+    currentSettings.topics[1].keywordRules,
+  );
 });
 
 Deno.test("settings route rejects saves without a valid CSRF token", async () => {
@@ -363,7 +420,9 @@ Deno.test("account route updates username for the signed-in user after password 
 
   const response = await app.request("/account", {
     body: testCsrfForm(form),
-    headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
+    headers: testCsrfHeaders({
+      cookie: registerResponse.headers.get("set-cookie") ?? "",
+    }),
     method: "POST",
   });
   const loginResponse = await login(app, "yuanxi", "correct-password");
@@ -371,7 +430,10 @@ Deno.test("account route updates username for the signed-in user after password 
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/settings?account=updated");
   assertEquals(await storage.getAccountByUsername("alice"), undefined);
-  assertEquals((await storage.getAccountByUsername("yuanxi"))?.username, "yuanxi");
+  assertEquals(
+    (await storage.getAccountByUsername("yuanxi"))?.username,
+    "yuanxi",
+  );
   assertEquals(loginResponse.headers.get("location"), "/");
 });
 
@@ -388,7 +450,9 @@ Deno.test("account route updates password for the signed-in user after password 
 
   const response = await app.request("/account", {
     body: testCsrfForm(form),
-    headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
+    headers: testCsrfHeaders({
+      cookie: registerResponse.headers.get("set-cookie") ?? "",
+    }),
     method: "POST",
   });
   const loginResponse = await login(app, "alice", "new-password");
@@ -412,7 +476,9 @@ Deno.test("account route rejects duplicate usernames", async () => {
         username: "bob",
       }),
     ),
-    headers: testCsrfHeaders({ cookie: aliceResponse.headers.get("set-cookie") ?? "" }),
+    headers: testCsrfHeaders({
+      cookie: aliceResponse.headers.get("set-cookie") ?? "",
+    }),
     method: "POST",
   });
 
@@ -421,7 +487,10 @@ Deno.test("account route rejects duplicate usernames", async () => {
     response.headers.get("location"),
     "/settings?accountError=exists&accountMode=username",
   );
-  assertEquals((await storage.getAccountByUsername("alice"))?.id !== undefined, true);
+  assertEquals(
+    (await storage.getAccountByUsername("alice"))?.id !== undefined,
+    true,
+  );
   assertEquals((await storage.getAccountByUsername("bob"))?.username, "bob");
 });
 
@@ -439,7 +508,9 @@ Deno.test("account route rejects password changes without a valid current passwo
         newPassword: "new-password",
       }),
     ),
-    headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
+    headers: testCsrfHeaders({
+      cookie: registerResponse.headers.get("set-cookie") ?? "",
+    }),
     method: "POST",
   });
 
@@ -464,7 +535,9 @@ Deno.test("account route rejects password changes that reuse the current passwor
         newPassword: "correct-password",
       }),
     ),
-    headers: testCsrfHeaders({ cookie: registerResponse.headers.get("set-cookie") ?? "" }),
+    headers: testCsrfHeaders({
+      cookie: registerResponse.headers.get("set-cookie") ?? "",
+    }),
     method: "POST",
   });
 
@@ -482,12 +555,16 @@ Deno.test("account password verification endpoint checks the signed-in user's pa
   const cookie = registerResponse.headers.get("set-cookie") ?? "";
 
   const accepted = await app.request("/account/verify-password", {
-    body: testCsrfForm(new URLSearchParams({ currentPassword: "correct-password" })),
+    body: testCsrfForm(
+      new URLSearchParams({ currentPassword: "correct-password" }),
+    ),
     headers: testCsrfHeaders({ cookie }),
     method: "POST",
   });
   const rejected = await app.request("/account/verify-password", {
-    body: testCsrfForm(new URLSearchParams({ currentPassword: "wrong-password" })),
+    body: testCsrfForm(
+      new URLSearchParams({ currentPassword: "wrong-password" }),
+    ),
     headers: testCsrfHeaders({ cookie }),
     method: "POST",
   });
@@ -499,7 +576,8 @@ Deno.test("account password verification endpoint checks the signed-in user's pa
 Deno.test("test notify returns a readable configuration error", async () => {
   const app = createRoutes({
     notifier: {
-      sendTest: () => Promise.reject(new NotificationConfigError("missing webhook")),
+      sendTest: () =>
+        Promise.reject(new NotificationConfigError("missing webhook")),
     },
     storage: {
       getSettings: () => Promise.resolve(currentSettings),
@@ -592,10 +670,16 @@ Deno.test("simulate match records one randomized pending match through poller", 
     keyword: string;
     post: { excerpt: string; title: string; url: string };
   };
-  assertEquals(record.post.url, "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/");
+  assertEquals(
+    record.post.url,
+    "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/",
+  );
   assertEquals(record.post.title.startsWith("模拟命中帖（测试 "), true);
   assertEquals(record.post.excerpt.startsWith("模拟命中帖，随机样本 "), true);
-  assertEquals(record.post.excerpt.endsWith("这是一条用于验证命中记录的测试内容。"), true);
+  assertEquals(
+    record.post.excerpt.endsWith("这是一条用于验证命中记录的测试内容。"),
+    true,
+  );
   assertEquals(record.keyword.startsWith("测试关键词 "), true);
 });
 
@@ -618,7 +702,10 @@ Deno.test("simulate match preserves dashboard table query", async () => {
   });
 
   assertEquals(response.status, 302);
-  assertEquals(response.headers.get("location"), "/?range=week&page=3&pageSize=50");
+  assertEquals(
+    response.headers.get("location"),
+    "/?range=week&page=3&pageSize=50",
+  );
 });
 
 Deno.test("run now preserves dashboard table query and requests reset animation", async () => {
@@ -703,10 +790,15 @@ Deno.test("dashboard state ticks scheduler only when requested", async () => {
   } as unknown as AppContext);
 
   const regularResponse = await app.request("/dashboard-state?page=2");
-  const ignoredTickResponse = await app.request("/dashboard-state?page=2&tick=1");
-  const missingCsrfResponse = await app.request("/dashboard-state/tick?page=2", {
-    method: "POST",
-  });
+  const ignoredTickResponse = await app.request(
+    "/dashboard-state?page=2&tick=1",
+  );
+  const missingCsrfResponse = await app.request(
+    "/dashboard-state/tick?page=2",
+    {
+      method: "POST",
+    },
+  );
   const tickedResponse = await app.request("/dashboard-state/tick?page=2", {
     headers: testCsrfHeaders({ "x-csrf-token": testCsrfToken }),
     method: "POST",
@@ -748,7 +840,10 @@ Deno.test("complete matches handles all selected ids and ignores empty submissio
 
   assertEquals(selectedResponse.status, 302);
   assertEquals(emptyResponse.status, 302);
-  assertEquals(selectedResponse.headers.get("location"), "/?range=week&page=3&pageSize=50");
+  assertEquals(
+    selectedResponse.headers.get("location"),
+    "/?range=week&page=3&pageSize=50",
+  );
   assertEquals(emptyResponse.headers.get("location"), "/");
   assertEquals(completed, [["first", "second"]]);
 });
@@ -819,7 +914,10 @@ Deno.test("delete matches handles all selected ids and ignores empty submissions
 
   assertEquals(selectedResponse.status, 302);
   assertEquals(emptyResponse.status, 302);
-  assertEquals(selectedResponse.headers.get("location"), "/history?range=day&page=4&pageSize=100");
+  assertEquals(
+    selectedResponse.headers.get("location"),
+    "/history?range=day&page=4&pageSize=100",
+  );
   assertEquals(emptyResponse.headers.get("location"), "/history");
   assertEquals(deleted, [["old-first", "old-second"]]);
 });
@@ -914,12 +1012,15 @@ function createAccountRouteApp(storage: AccountRouteStorage): Hono {
 function createAccountRouteStorage(): AccountRouteStorage {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
+  const passwordCredentialsByUserId = new Map<string, PasswordCredential>();
   const sessionsByTokenHash = new Map<string, UserSession>();
 
   return {
     ...createMemoryRateLimitRecorder(),
     createAccount: (account: UserAccount) =>
-      Promise.resolve(addUniqueAccount(accountsById, accountIdsByUsername, account)),
+      Promise.resolve(
+        addUniqueAccount(accountsById, accountIdsByUsername, account),
+      ),
     updateAccount: (account: UserAccount) => {
       const currentAccount = accountsById.get(account.id);
       if (!currentAccount) {
@@ -943,10 +1044,17 @@ function createAccountRouteStorage(): AccountRouteStorage {
       const id = accountIdsByUsername.get(username.trim().toLowerCase());
       return Promise.resolve(id ? accountsById.get(id) : undefined);
     },
+    getPasswordCredential: (userId: string) =>
+      Promise.resolve(passwordCredentialsByUserId.get(userId)),
+    savePasswordCredential: (credential: PasswordCredential) => {
+      passwordCredentialsByUserId.set(credential.userId, credential);
+      return Promise.resolve();
+    },
     getLoginFailure: () => Promise.resolve(undefined),
     recordLoginFailure: () => Promise.resolve({ failures: 1 }),
     clearLoginFailures: () => Promise.resolve(),
-    getSession: (tokenHash: string) => Promise.resolve(sessionsByTokenHash.get(tokenHash)),
+    getSession: (tokenHash: string) =>
+      Promise.resolve(sessionsByTokenHash.get(tokenHash)),
     saveSession: (session: UserSession) => {
       sessionsByTokenHash.set(session.tokenHash, session);
       return Promise.resolve();
