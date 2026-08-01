@@ -108,6 +108,7 @@
   "authPasskeyLogin": "Sign in with Passkey",
   "authPasskeySigningIn": "Verifying Passkey...",
   "authPasskeyUnsupported": "This browser does not support Passkeys.",
+  "authPasskeyVerify": "Verify with Passkey",
   "authMfaChooseMethod": "Choose a verification method",
   "authMfaExpired": "Verification expired. Sign in again.",
   "authMfaInvalid": "Verification failed. Try again.",

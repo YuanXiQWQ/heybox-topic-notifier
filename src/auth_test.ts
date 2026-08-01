@@ -1128,6 +1128,100 @@ Deno.test("auth routes complete TOTP MFA and create a session", async () => {
   assertEquals(await storage.getPendingMfaChallenge(challengeId), undefined);
 });
 
+Deno.test("auth routes complete Passkey MFA and create a session", async () => {
+  const storage = createMemoryStorage();
+  const verifier: NonNullable<AuthOptions["passkeyAuthenticationVerifier"]> = (
+    input,
+  ) => {
+    assertEquals(input.challenge.purpose, "second_factor");
+    assertEquals(input.credential.credentialId, "passkey-credential");
+    return Promise.resolve({
+      authenticationInfo: { newCounter: 5 },
+      verified: true,
+    } as never);
+  };
+  const app = createTestApp(storage, passkeyAuthOptions({ verifier }));
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await enablePasskeySecondFactor(storage, account.id);
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const location = loginResponse.headers.get("location") ?? "";
+  const mfaChallengeId = mfaChallengeIdFromLocation(location);
+  const pageResponse = await app.request(location);
+  const pageHtml = await pageResponse.text();
+  const optionsResponse = await app.request("/auth/passkeys/mfa-options", {
+    body: JSON.stringify({ mfaChallengeId }),
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const optionsPayload = await optionsResponse.json();
+  const passkeyChallenge = await storage.getPendingPasskeyChallenge(
+    optionsPayload.challengeId,
+  );
+  const response = await app.request("/auth/passkeys/mfa", {
+    body: JSON.stringify({
+      challengeId: optionsPayload.challengeId,
+      credential: testPasskeyAssertion("passkey-credential"),
+      mfaChallengeId,
+      returnTo: "/history",
+    }),
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const credential = await storage.getPasskeyCredential(
+    account.id,
+    "passkey-credential",
+  );
+
+  assertEquals(loginResponse.status, 303);
+  assertEquals(pageResponse.status, 200);
+  assertEquals(pageHtml.includes("data-passkey-login"), true);
+  assertEquals(pageHtml.includes("data-passkey-mfa-challenge"), true);
+  assertEquals(optionsResponse.status, 200);
+  assertEquals(
+    optionsPayload.optionsJSON.allowCredentials?.map((item: { id: string }) =>
+      item.id
+    ),
+    ["passkey-credential"],
+  );
+  assertEquals(passkeyChallenge?.purpose, "second_factor");
+  assertEquals(passkeyChallenge?.userId, account.id);
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(credential?.counter, 5);
+  assertEquals(credential?.lastUsedAt !== undefined, true);
+  assertEquals(await storage.getPendingMfaChallenge(mfaChallengeId), undefined);
+  assertEquals(
+    await storage.getPendingPasskeyChallenge(optionsPayload.challengeId),
+    undefined,
+  );
+});
+
 Deno.test("auth routes reject incorrect TOTP MFA codes", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage, totpAuthOptions());
@@ -1579,6 +1673,25 @@ async function enableTotpSecondFactor(
     userId,
   });
   return material;
+}
+
+/**
+ * 为测试账户启用 Passkey 二次验证。
+ *
+ * @param storage 测试存储。
+ * @param userId 用户 ID。
+ * @return 保存完成后的 Promise。
+ */
+async function enablePasskeySecondFactor(
+  storage: ReturnType<typeof createMemoryStorage>,
+  userId: string,
+): Promise<void> {
+  await storage.savePasskeyCredential(testPasskeyCredential(userId));
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "passkey",
+    twoFactorEnabled: true,
+    userId,
+  });
 }
 
 /**

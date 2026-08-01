@@ -187,6 +187,7 @@ export type Messages = {
   authPasskeyLogin: string;
   authPasskeySigningIn: string;
   authPasskeyUnsupported: string;
+  authPasskeyVerify: string;
   authMfaChooseMethod: string;
   authMfaExpired: string;
   authMfaInvalid: string;

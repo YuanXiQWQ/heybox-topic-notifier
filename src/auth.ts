@@ -263,6 +263,14 @@ const passkeyLoginOptionsPath = "/auth/passkeys/login-options";
  */
 const passkeyLoginPath = "/auth/passkeys/login";
 /**
+ * Passkey 二次验证 options 接口路径。
+ */
+const passkeyMfaOptionsPath = "/auth/passkeys/mfa-options";
+/**
+ * Passkey 二次验证校验接口路径。
+ */
+const passkeyMfaPath = "/auth/passkeys/mfa";
+/**
  * MFA 挑战页面路径。
  */
 const mfaPath = "/mfa";
@@ -859,6 +867,95 @@ export function createAuthRoutes(
     });
   });
 
+  app.post(passkeyMfaOptionsPath, async (c) => {
+    const payload = await passkeyJsonPayload(c);
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedJsonCsrfToken(payload, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const challengeId = passkeyMfaChallengeId(payload);
+    const challenge = challengeId
+      ? await storage.getPendingMfaChallenge(challengeId)
+      : undefined;
+    const challengeError = challenge
+      ? mfaChallengeVerificationError(challenge, "passkey", config.mfa)
+      : "expired";
+    if (!challenge || challengeError) {
+      if (
+        challenge &&
+        (challengeError === "attempts" || challengeError === "expired")
+      ) {
+        await storage.deletePendingMfaChallenge(challenge.id);
+      }
+      return c.json({ error: "mfaChallengeInvalid" }, 400);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${
+        clientRateLimitIdentifier((name) => c.req.header(name))
+      }:passkey-mfa-options`,
+      { request: c.req.raw, userId: challenge.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const credentials = await storage.listPasskeyCredentials(challenge.userId);
+    if (credentials.length === 0) {
+      return c.json({ error: "unavailable" }, 400);
+    }
+
+    const authentication = await createPasskeyAuthenticationOptions({
+      config: config.passkey,
+      credentials,
+      purpose: "second_factor",
+      userId: challenge.userId,
+    });
+    await storage.savePendingPasskeyChallenge(authentication.challenge);
+
+    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+  });
+
+  app.post(passkeyMfaPath, async (c) => {
+    const url = new URL(c.req.url);
+    const payload = await passkeyJsonPayload(c);
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedJsonCsrfToken(payload, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${clientRateLimitIdentifier((name) => c.req.header(name))}:passkey-mfa`,
+      { request: c.req.raw },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    return await handlePasskeySecondFactor(
+      c,
+      storage,
+      config,
+      payload,
+      locale,
+      safeReturnTo(String(payload.returnTo ?? "/")),
+    );
+  });
+
   app.post(googleCredentialPath, async (c) => {
     const url = new URL(c.req.url);
     const form = await c.req.parseBody();
@@ -915,6 +1012,9 @@ export function createAuthRoutes(
     const emailCredentials = await storage.listEmailCredentials(
       challenge.userId,
     );
+    const passkeyCredentials = await storage.listPasskeyCredentials(
+      challenge.userId,
+    );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderMfaPage({
@@ -925,6 +1025,7 @@ export function createAuthRoutes(
         error: mfaErrorMessage(url.searchParams.get("error"), messages),
         locale,
         messages,
+        passkeyCredentials,
         returnTo,
       })),
       csrf,
@@ -1232,7 +1333,7 @@ async function handlePasskeyLogin(
     return c.json({ error: "failed" }, 400);
   }
 
-  const verification = await verifyPasskeyLoginResponse(
+  const verification = await verifyPasskeyAssertionResponse(
     config,
     activeChallenge,
     credential,
@@ -2055,6 +2156,154 @@ async function handleTotpSecondFactor(
 }
 
 /**
+ * 处理 Passkey 二次验证。
+ *
+ * @param {Context} c Hono 请求上下文。
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {Record<string, unknown>} payload JSON 请求体。
+ * @param {Locale} locale 当前页面语言。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @return {Promise<Response>} MFA 处理响应。
+ */
+async function handlePasskeySecondFactor(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  payload: Record<string, unknown>,
+  locale: Locale,
+  returnTo: string,
+): Promise<Response> {
+  const mfaChallengeId = passkeyMfaChallengeId(payload);
+  const passkeyChallengeId = String(payload.challengeId ?? "").trim();
+  const credentialResponse = payload.credential;
+  const credentialId = passkeyCredentialId(credentialResponse);
+  if (
+    !mfaChallengeId ||
+    !passkeyChallengeId ||
+    !isRecord(credentialResponse) ||
+    !credentialId
+  ) {
+    return c.json({ error: "invalid" }, 400);
+  }
+
+  const mfaChallenge = await storage.getPendingMfaChallenge(mfaChallengeId);
+  if (!mfaChallenge) {
+    return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+  }
+
+  const mfaChallengeError = mfaChallengeVerificationError(
+    mfaChallenge,
+    "passkey",
+    config.mfa,
+  );
+  if (mfaChallengeError) {
+    if (
+      mfaChallengeError === "attempts" ||
+      mfaChallengeError === "expired"
+    ) {
+      await storage.deletePendingMfaChallenge(mfaChallenge.id);
+      return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+    }
+    logMfaFailure(c.req.raw, mfaChallenge, mfaChallengeError);
+    return c.json({ error: mfaChallengeError }, 400);
+  }
+
+  const passkeyChallenge = await storage.getPendingPasskeyChallenge(
+    passkeyChallengeId,
+  );
+  const passkeyChallengeError = passkeyAuthenticationChallengeError(
+    passkeyChallenge,
+    "second_factor",
+    credentialId,
+  );
+  if (
+    passkeyChallengeError ||
+    !passkeyChallenge ||
+    passkeyChallenge.userId !== mfaChallenge.userId
+  ) {
+    if (passkeyChallenge) {
+      await storage.deletePendingPasskeyChallenge(passkeyChallenge.id);
+    }
+    return await passkeySecondFactorFailureResponse(
+      c,
+      storage,
+      config,
+      mfaChallenge,
+      locale,
+      returnTo,
+      "challenge",
+    );
+  }
+
+  const credential = await storage.getPasskeyCredential(
+    mfaChallenge.userId,
+    credentialId,
+  );
+  if (!credential) {
+    await recordPasskeyChallengeFailure(storage, passkeyChallenge);
+    return await passkeySecondFactorFailureResponse(
+      c,
+      storage,
+      config,
+      mfaChallenge,
+      locale,
+      returnTo,
+      "credential",
+    );
+  }
+
+  const verification = await verifyPasskeyAssertionResponse(
+    config,
+    passkeyChallenge,
+    credential,
+    credentialResponse,
+  );
+  if (!verification?.verified) {
+    await recordPasskeyChallengeFailure(storage, passkeyChallenge);
+    return await passkeySecondFactorFailureResponse(
+      c,
+      storage,
+      config,
+      mfaChallenge,
+      locale,
+      returnTo,
+      "code",
+    );
+  }
+
+  const account = await storage.getAccountById(mfaChallenge.userId);
+  if (!account) {
+    await storage.deletePendingMfaChallenge(mfaChallenge.id);
+    await storage.deletePendingPasskeyChallenge(passkeyChallenge.id);
+    return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+  }
+
+  await storage.savePasskeyCredential(passkeyCredentialAfterAuthentication(
+    credential,
+    verification.authenticationInfo.newCounter,
+  ));
+  await storage.deletePendingMfaChallenge(mfaChallenge.id);
+  await storage.deletePendingPasskeyChallenge(passkeyChallenge.id);
+  logSecurityAuditEvent({
+    code: "mfa_succeeded",
+    details: { method: "passkey" },
+    level: "info",
+    message: "双重验证已完成。",
+    request: c.req.raw,
+    userId: mfaChallenge.userId,
+  });
+
+  return await redirectWithSession(
+    c.req.url,
+    returnTo,
+    account,
+    storage,
+    config,
+  );
+}
+
+/**
  * 校验邮箱二次验证 challenge 是否可用。
  *
  * @param {PendingEmailVerification | undefined} verification 邮箱验证码 challenge。
@@ -2548,14 +2797,57 @@ function passkeyAuthenticationChallengeError(
 async function recordPasskeyChallengeFailure(
   storage: Storage,
   challenge: PendingPasskeyChallenge,
-): Promise<void> {
+): Promise<"attempts" | undefined> {
   const attempts = Math.max(0, challenge.attempts) + 1;
   if (attempts >= passkeyChallengeMaxAttempts) {
     await storage.deletePendingPasskeyChallenge(challenge.id);
-    return;
+    return "attempts";
   }
 
   await storage.savePendingPasskeyChallenge({ ...challenge, attempts });
+  return undefined;
+}
+
+/**
+ * 创建 Passkey MFA 失败响应。
+ *
+ * @param c Hono 请求上下文。
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @param challenge MFA challenge。
+ * @param locale 当前页面语言。
+ * @param returnTo 登录完成后返回路径。
+ * @param reason 失败原因。
+ * @return 失败响应。
+ */
+async function passkeySecondFactorFailureResponse(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  challenge: PendingMfaChallenge,
+  locale: Locale,
+  returnTo: string,
+  reason: string,
+): Promise<Response> {
+  const mfaFailure = await recordMfaChallengeFailure(
+    storage,
+    config,
+    challenge,
+  );
+  logMfaFailure(c.req.raw, challenge, reason);
+  return mfaFailure === "attempts"
+    ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+    : c.json({ error: "failed" }, 400);
+}
+
+/**
+ * 从 Passkey MFA JSON 中读取外层 MFA challenge ID。
+ *
+ * @param payload JSON 请求体。
+ * @return MFA challenge ID。
+ */
+function passkeyMfaChallengeId(payload: Record<string, unknown>): string {
+  return String(payload.mfaChallengeId ?? "").trim();
 }
 
 /**
@@ -2567,7 +2859,7 @@ async function recordPasskeyChallengeFailure(
  * @param response 浏览器返回的 assertion。
  * @return 校验结果，校验过程失败时返回 undefined。
  */
-async function verifyPasskeyLoginResponse(
+async function verifyPasskeyAssertionResponse(
   config: AuthConfig,
   challenge: PendingPasskeyChallenge,
   credential: PasskeyCredential,
@@ -2611,6 +2903,8 @@ function authConfig(options: AuthOptions): AuthConfig {
           googleCredentialPath,
           passkeyLoginOptionsPath,
           passkeyLoginPath,
+          passkeyMfaOptionsPath,
+          passkeyMfaPath,
           mfaPath,
           "/static/app.css",
         ],
@@ -3423,6 +3717,7 @@ function renderPasskeyLoginForm(options: {
   return `<div
           class="auth-passkey-method"
           data-passkey-login
+          data-passkey-conditional="1"
           data-passkey-options-url="${passkeyLoginOptionsPath}"
           data-passkey-login-url="${escapeHtml(action)}"
           data-passkey-failed="${
@@ -3621,6 +3916,7 @@ function renderMfaPage(options: {
   error?: string;
   locale: Locale;
   messages: Messages;
+  passkeyCredentials: PasskeyCredential[];
   returnTo: string;
 }): string {
   const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
@@ -3635,7 +3931,10 @@ function renderMfaPage(options: {
   const totpForm = options.challenge.allowedMethods.includes("totp")
     ? renderMfaTotpForm(options)
     : "";
-  const methodForms = `${emailForm}${totpForm}`;
+  const passkeyForm = options.challenge.allowedMethods.includes("passkey")
+    ? renderMfaPasskeyForm(options)
+    : "";
+  const methodForms = `${emailForm}${totpForm}${passkeyForm}`;
 
   return `<!doctype html>
 <html lang="${options.locale}" dir="${direction}">
@@ -3788,6 +4087,24 @@ function renderMfaPage(options: {
         min-width: 0;
       }
 
+      .auth-passkey-method {
+        display: grid;
+        gap: 8px;
+      }
+
+      .auth-passkey-button {
+        width: 100%;
+      }
+
+      .auth-passkey-status {
+        color: #5F526D;
+        font-size: 0.92rem;
+      }
+
+      .auth-passkey-status[data-state="error"] {
+        color: #B42318;
+      }
+
       .auth-email-status,
       .auth-error {
         color: #5F526D;
@@ -3842,6 +4159,7 @@ function renderMfaPage(options: {
       </section>
     </main>
     ${mfaEmailScript(Boolean(emailForm))}
+    ${authPasskeyLoginScript(Boolean(passkeyForm))}
   </body>
 </html>`;
 }
@@ -3929,6 +4247,59 @@ function renderMfaEmailForm(options: {
     escapeHtml(options.messages.authMfaVerify)
   }</button>
         </form>`;
+}
+
+/**
+ * 渲染 MFA Passkey 验证按钮。
+ *
+ * @param options MFA 页面渲染选项。
+ * @return Passkey 验证按钮 HTML。
+ */
+function renderMfaPasskeyForm(options: {
+  challenge: PendingMfaChallenge;
+  csrfToken: string;
+  messages: Messages;
+  passkeyCredentials: PasskeyCredential[];
+  returnTo: string;
+}): string {
+  if (options.passkeyCredentials.length === 0) {
+    return "";
+  }
+
+  return `<div
+          class="auth-passkey-method"
+          data-passkey-login
+          data-passkey-options-url="${passkeyMfaOptionsPath}"
+          data-passkey-login-url="${passkeyMfaPath}"
+          data-passkey-failed="${
+    escapeHtml(options.messages.authPasskeyFailed)
+  }"
+          data-passkey-signing-in="${
+    escapeHtml(options.messages.authPasskeySigningIn)
+  }"
+          data-passkey-unsupported="${
+    escapeHtml(options.messages.authPasskeyUnsupported)
+  }"
+        >
+          <input type="hidden" data-passkey-csrf value="${
+    escapeHtml(options.csrfToken)
+  }">
+          <input type="hidden" data-passkey-return-to value="${
+    escapeHtml(options.returnTo)
+  }">
+          <input type="hidden" data-passkey-mfa-challenge value="${
+    escapeHtml(options.challenge.id)
+  }">
+          <button type="button" class="secondary auth-passkey-button" data-passkey-login-button>
+            ${escapeHtml(options.messages.authPasskeyVerify)}
+          </button>
+          <div
+            class="auth-passkey-status"
+            data-passkey-login-status
+            role="status"
+            hidden
+          ></div>
+        </div>`;
 }
 
 /**
@@ -4250,6 +4621,7 @@ function authPasskeyLoginScript(enabled: boolean): string {
   const button = root.querySelector("[data-passkey-login-button]");
   const csrfInput = root.querySelector("[data-passkey-csrf]");
   const returnToInput = root.querySelector("[data-passkey-return-to]");
+  const mfaChallengeInput = root.querySelector("[data-passkey-mfa-challenge]");
   const localeChangedInput = root.querySelector("[data-passkey-locale-changed]");
   const status = root.querySelector("[data-passkey-login-status]");
   if (!(button instanceof HTMLButtonElement) || !(csrfInput instanceof HTMLInputElement) || !(returnToInput instanceof HTMLInputElement)) return;
@@ -4271,9 +4643,16 @@ function authPasskeyLoginScript(enabled: boolean): string {
     "content-type": "application/json",
     "${csrfHeaderName}": csrfToken(),
   });
+  const basePayload = () => {
+    const body = { "${csrfFieldName}": csrfToken() };
+    if (mfaChallengeInput instanceof HTMLInputElement) {
+      body.mfaChallengeId = mfaChallengeInput.value;
+    }
+    return body;
+  };
   const fetchOptions = async () => {
     const response = await fetch(optionsUrl, {
-      body: JSON.stringify({ "${csrfFieldName}": csrfToken() }),
+      body: JSON.stringify(basePayload()),
       headers: csrfHeaders(),
       method: "POST",
     });
@@ -4285,6 +4664,7 @@ function authPasskeyLoginScript(enabled: boolean): string {
   };
   const submitCredential = async (challengeId, credential) => {
     const body = {
+      ...basePayload(),
       challengeId,
       credential: assertionCredentialToJson(credential),
       returnTo: returnToInput.value,
@@ -4347,6 +4727,7 @@ function authPasskeyLoginScript(enabled: boolean): string {
     conditionalAbortController?.abort();
   }, { capture: true });
   const startConditionalLogin = async () => {
+    if (root.dataset.passkeyConditional !== "1") return;
     if (!supportsPasskey() || typeof PublicKeyCredential.isConditionalMediationAvailable !== "function") {
       return;
     }

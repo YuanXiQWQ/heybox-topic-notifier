@@ -108,6 +108,7 @@
   "authPasskeyLogin": "使用 Passkey 登录",
   "authPasskeySigningIn": "正在验证 Passkey...",
   "authPasskeyUnsupported": "当前浏览器不支持 Passkey。",
+  "authPasskeyVerify": "使用 Passkey 验证",
   "authMfaChooseMethod": "选择验证方式",
   "authMfaExpired": "验证已过期，请重新登录。",
   "authMfaInvalid": "验证未通过，请重试。",
