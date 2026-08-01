@@ -10,6 +10,8 @@ import {
   validUsername,
   verifyAccountPassword,
 } from "./auth.ts";
+import { normalizeEmailAddress } from "./auth/email.ts";
+import { verifyEmailVerificationCode } from "./auth/email_verification.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import {
   csrfForbiddenResponse,
@@ -29,8 +31,10 @@ import {
 } from "./security/rate_limit.ts";
 import type {
   AppSettings,
+  EmailCredential,
   KeywordRule,
   MatchLocation,
+  PendingEmailVerification,
   PollIntervalUnit,
   PollSort,
   TopicRule,
@@ -272,13 +276,19 @@ export function createRoutes(context: AppContext): Hono {
     const account = session
       ? await context.storage.getAccountById(session.userId)
       : undefined;
+    const emailCredentials = session
+      ? await context.storage.listEmailCredentials(session.userId)
+      : [];
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderSettings({
         account,
         accountStatus: accountStatusFromSearch(url.searchParams),
         csrfToken: csrf.token,
+        emailBindingStatus: emailBindingStatusFromSearch(url.searchParams),
+        emailCredentials,
         settings,
+        turnstileSiteKey: settingsTurnstileSiteKey(context),
       })),
       csrf,
     );
@@ -419,6 +429,113 @@ export function createRoutes(context: AppContext): Hono {
           ? 204
           : 403,
     });
+  });
+
+  app.post("/account/email/verify", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.redirect("/login?locale=zh-CN&returnTo=%2Fsettings", 303);
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return c.redirect(accountSettingsRedirect("notFound"), 303);
+    }
+
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const email = normalizeEmailAddress(String(form.email ?? ""));
+    const verificationId = String(form.verificationId ?? "").trim();
+    const code = String(form.code ?? "");
+    if (!email || !verificationId || !code.trim()) {
+      return c.redirect(emailBindingSettingsRedirect("invalid"), 303);
+    }
+
+    const verification = await context.storage.getPendingEmailVerification(
+      verificationId,
+    );
+    const verificationError = emailBindingVerificationError(
+      verification,
+      session.userId,
+      email,
+      context.config.emailVerification.maxAttempts,
+    );
+    if (verificationError) {
+      if (
+        verification &&
+        (verificationError === "expired" ||
+          verificationError === "attempts")
+      ) {
+        await context.storage.deletePendingEmailVerification(verification.id);
+      }
+      return c.redirect(emailBindingSettingsRedirect(verificationError), 303);
+    }
+
+    const activeVerification = verification as PendingEmailVerification;
+    const validCode = await verifyEmailVerificationCode(
+      code,
+      activeVerification,
+      context.config.emailVerification,
+    );
+    if (!validCode) {
+      await recordEmailBindingVerificationFailure(context, activeVerification);
+      logSecurityAuditEvent({
+        code: "email_credential_verification_failed",
+        details: { email: maskedEmailAddress(email) },
+        level: "warn",
+        message: "邮箱绑定验证码校验失败。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+      return c.redirect(emailBindingSettingsRedirect("code"), 303);
+    }
+
+    const now = new Date().toISOString();
+    const existingCredential = await context.storage.getEmailCredential(
+      session.userId,
+      email,
+    );
+    const credential: EmailCredential = {
+      createdAt: existingCredential?.createdAt ?? now,
+      email,
+      lastVerifiedAt: now,
+      userId: session.userId,
+      verified: true,
+    };
+    const updated = await context.storage.updateAccount({
+      ...account,
+      emailVerified: true,
+      primaryEmail: email,
+    });
+    if (!updated) {
+      return c.redirect(accountSettingsRedirect("notFound"), 303);
+    }
+
+    await context.storage.saveEmailCredential(credential);
+    await context.storage.deletePendingEmailVerification(activeVerification.id);
+    logSecurityAuditEvent({
+      code: "email_credential_verified",
+      details: { email: maskedEmailAddress(email) },
+      level: "info",
+      message: "邮箱凭证已验证并绑定。",
+      request: c.req.raw,
+      userId: session.userId,
+    });
+
+    return c.redirect("/settings?email=updated", 303);
   });
 
   app.post("/settings", async (c) => {
@@ -718,6 +835,141 @@ function isAccountErrorCode(value: string | null): value is AccountErrorCode {
     value === "password" ||
     value === "samePassword" ||
     value === "username";
+}
+
+type EmailBindingErrorCode =
+  | "attempts"
+  | "code"
+  | "expired"
+  | "invalid"
+  | "notFound";
+
+/**
+ * 构造邮箱绑定错误跳转地址。
+ *
+ * @param error 邮箱绑定错误码。
+ * @return 设置页邮箱绑定错误地址。
+ */
+function emailBindingSettingsRedirect(error: EmailBindingErrorCode): string {
+  return `/settings?emailError=${error}`;
+}
+
+/**
+ * 从设置页查询参数恢复邮箱绑定状态。
+ *
+ * @param searchParams 设置页查询参数。
+ * @return 邮箱绑定状态。
+ */
+function emailBindingStatusFromSearch(searchParams: URLSearchParams) {
+  const error = searchParams.get("emailError");
+  if (isEmailBindingErrorCode(error)) {
+    return { code: error, type: "error" as const };
+  }
+
+  return searchParams.get("email") === "updated"
+    ? { code: "updated" as const, type: "success" as const }
+    : undefined;
+}
+
+/**
+ * 判断查询参数是否为邮箱绑定错误码。
+ *
+ * @param value 待判断值。
+ * @return 合法错误码返回 true。
+ */
+function isEmailBindingErrorCode(
+  value: string | null,
+): value is EmailBindingErrorCode {
+  return value === "attempts" ||
+    value === "code" ||
+    value === "expired" ||
+    value === "invalid" ||
+    value === "notFound";
+}
+
+/**
+ * 校验待完成的邮箱绑定挑战是否属于当前用户和邮箱。
+ *
+ * @param verification 待验证挑战。
+ * @param userId 当前用户 ID。
+ * @param email 规范化后的邮箱地址。
+ * @param maxAttempts 最大尝试次数。
+ * @return 不可继续验证时返回错误码。
+ */
+function emailBindingVerificationError(
+  verification: PendingEmailVerification | undefined,
+  userId: string,
+  email: string,
+  maxAttempts: number,
+): EmailBindingErrorCode | undefined {
+  if (
+    !verification ||
+    verification.purpose !== "email_binding" ||
+    verification.userId !== userId ||
+    verification.email !== email
+  ) {
+    return "notFound";
+  }
+
+  if (Date.parse(verification.expiresAt) <= Date.now()) {
+    return "expired";
+  }
+
+  return verification.attempts >= maxAttempts ? "attempts" : undefined;
+}
+
+/**
+ * 记录邮箱绑定验证码失败次数。
+ *
+ * @param context 应用运行时上下文。
+ * @param verification 待验证挑战。
+ * @return 记录完成后的 Promise。
+ */
+async function recordEmailBindingVerificationFailure(
+  context: AppContext,
+  verification: PendingEmailVerification,
+): Promise<void> {
+  const attempts = verification.attempts + 1;
+  if (attempts >= context.config.emailVerification.maxAttempts) {
+    await context.storage.deletePendingEmailVerification(verification.id);
+    return;
+  }
+
+  await context.storage.savePendingEmailVerification({
+    ...verification,
+    attempts,
+  });
+}
+
+/**
+ * 从应用上下文读取设置页需要渲染的 Turnstile site key。
+ *
+ * @param context 应用运行时上下文。
+ * @return 启用 Turnstile 时返回 site key。
+ */
+function settingsTurnstileSiteKey(context: AppContext): string | undefined {
+  const turnstile = context.config?.turnstile;
+  return turnstile?.enabled && turnstile.siteKey
+    ? turnstile.siteKey
+    : undefined;
+}
+
+/**
+ * 生成用于审计日志的邮箱遮罩。
+ *
+ * @param email 规范化后的邮箱地址。
+ * @return 遮罩后的邮箱地址。
+ */
+function maskedEmailAddress(email: string): string {
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) {
+    return "***";
+  }
+
+  const visibleLocal = localPart.length <= 2
+    ? `${localPart[0] ?? ""}***`
+    : `${localPart.slice(0, 2)}***`;
+  return `${visibleLocal}@${domain}`;
 }
 
 function notificationErrorResponse(

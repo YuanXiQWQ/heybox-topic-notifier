@@ -82,6 +82,7 @@ function initSettingsEditors() {
   initSecretEditors();
   initPollingSettings();
   initAccountSettings();
+  initEmailBinding();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
   initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
@@ -92,12 +93,20 @@ function initSettingsEditors() {
  * 初始化通知设置联动和测试通知交互。
  */
 function initNotificationSettings() {
-  const providerSelect = document.querySelector("[data-notification-provider-select]");
-  const emailServiceSelect = document.querySelector("[data-notification-email-service-select]");
-  const serviceSelect = document.querySelector("[data-notification-webhook-service-select]");
+  const providerSelect = document.querySelector(
+    "[data-notification-provider-select]",
+  );
+  const emailServiceSelect = document.querySelector(
+    "[data-notification-email-service-select]",
+  );
+  const serviceSelect = document.querySelector(
+    "[data-notification-webhook-service-select]",
+  );
   const testNotifyButton = document.querySelector("[data-test-notify-button]");
   const testNotifyStatus = document.querySelector("[data-test-notify-status]");
-  const rows = Array.from(document.querySelectorAll("[data-notification-field]"));
+  const rows = Array.from(
+    document.querySelectorAll("[data-notification-field]"),
+  );
 
   if (!(providerSelect instanceof HTMLSelectElement)) {
     return;
@@ -264,15 +273,22 @@ function initNotificationSettings() {
     }
 
     testNotifyButton.disabled = true;
-    setTestNotifyStatus(testNotifyButton.dataset.testNotifySending ?? "", "pending", {
-      persistMs: 0,
-    });
+    setTestNotifyStatus(
+      testNotifyButton.dataset.testNotifySending ?? "",
+      "pending",
+      {
+        persistMs: 0,
+      },
+    );
     try {
       const saved = await saveSettingsNow();
       if (saved) {
         await sendTestNotification(testNotifyButton);
       } else {
-        setTestNotifyStatus(testNotifyButton.dataset.testNotifyFailed ?? "", "error");
+        setTestNotifyStatus(
+          testNotifyButton.dataset.testNotifyFailed ?? "",
+          "error",
+        );
       }
     } finally {
       testNotifyButton.disabled = false;
@@ -289,7 +305,10 @@ function initSecretEditors() {
   document.querySelectorAll("[data-secret-editor]").forEach((editor) => {
     const input = editor.querySelector("[data-secret-display-input]");
     const button = editor.querySelector("[data-secret-edit-button]");
-    if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) {
+    if (
+      !(input instanceof HTMLInputElement) ||
+      !(button instanceof HTMLButtonElement)
+    ) {
       return;
     }
 
@@ -347,7 +366,9 @@ function lockSecretEditorAfterEdit(input) {
   hiddenInput.value = "";
   lockSecretDisplay(
     input,
-    input.dataset.secretConfigured === "true" ? Number(input.dataset.secretMaskLength) : 0,
+    input.dataset.secretConfigured === "true"
+      ? Number(input.dataset.secretMaskLength)
+      : 0,
   );
 }
 
@@ -401,9 +422,15 @@ function clearSecretSubmissionValues() {
  */
 function initPollingSettings() {
   const enabledToggle = document.querySelector("[data-polling-enabled-toggle]");
-  const intervalValueInput = document.querySelector("[data-polling-interval-value]");
-  const intervalUnitSelect = document.querySelector("[data-polling-interval-unit]");
-  const subMinuteHint = document.querySelector("[data-polling-sub-minute-hint]");
+  const intervalValueInput = document.querySelector(
+    "[data-polling-interval-value]",
+  );
+  const intervalUnitSelect = document.querySelector(
+    "[data-polling-interval-unit]",
+  );
+  const subMinuteHint = document.querySelector(
+    "[data-polling-sub-minute-hint]",
+  );
   const section = document.querySelector("[data-polling-section]");
   const rows = Array.from(document.querySelectorAll("[data-polling-field]"));
 
@@ -569,19 +596,35 @@ function initAccountSettings() {
   const actionInput = form.querySelector("[data-account-action-input]");
   const usernameInput = form.querySelector("[data-account-username-input]");
   const usernameStatus = form.querySelector("[data-account-username-status]");
-  const currentPasswordRow = form.querySelector("[data-account-current-password-row]");
-  const currentPasswordInput = form.querySelector("[data-account-current-password-input]");
-  const currentPasswordStatus = form.querySelector("[data-account-current-password-status]");
-  const newPasswordStatus = form.querySelector("[data-account-new-password-status]");
-  const confirmPasswordStatus = form.querySelector("[data-account-confirm-password-status]");
-  const newPasswordRows = Array.from(form.querySelectorAll("[data-account-new-password-row]"));
-  const unlockedFields = Array.from(form.querySelectorAll("[data-account-unlocked-field]"));
+  const currentPasswordRow = form.querySelector(
+    "[data-account-current-password-row]",
+  );
+  const currentPasswordInput = form.querySelector(
+    "[data-account-current-password-input]",
+  );
+  const currentPasswordStatus = form.querySelector(
+    "[data-account-current-password-status]",
+  );
+  const newPasswordStatus = form.querySelector(
+    "[data-account-new-password-status]",
+  );
+  const confirmPasswordStatus = form.querySelector(
+    "[data-account-confirm-password-status]",
+  );
+  const newPasswordRows = Array.from(
+    form.querySelectorAll("[data-account-new-password-row]"),
+  );
+  const unlockedFields = Array.from(
+    form.querySelectorAll("[data-account-unlocked-field]"),
+  );
   const actions = form.querySelector("[data-account-actions]");
   const saveButton = form.querySelector("[data-account-save-button]");
   const cancelButton = form.querySelector("[data-account-cancel-button]");
   const verifyButton = form.querySelector("[data-account-verify-button]");
   const actionStatus = form.querySelector("[data-account-status]");
-  const fieldStatuses = Array.from(form.querySelectorAll(".account-field-status"));
+  const fieldStatuses = Array.from(
+    form.querySelectorAll(".account-field-status"),
+  );
   let mode = form.dataset.accountInitialMode || "";
   let passwordVerified = false;
   let transitionToken = 0;
@@ -666,7 +709,8 @@ function initAccountSettings() {
     mode = nextMode;
     passwordVerified = false;
     actionInput.value = nextMode;
-    usernameInput.value = usernameInput.dataset.accountUsernameOriginal || usernameInput.value;
+    usernameInput.value = usernameInput.dataset.accountUsernameOriginal ||
+      usernameInput.value;
     currentPasswordInput.value = "";
     clearUnlockedPasswordFields();
     clearAllAccountStatuses();
@@ -675,9 +719,13 @@ function initAccountSettings() {
     showAccountElement(currentPasswordRow, true, ++transitionToken);
 
     if (mode === "password") {
-      newPasswordRows.forEach((row) => showAccountElement(row, true, ++transitionToken));
+      newPasswordRows.forEach((row) =>
+        showAccountElement(row, true, ++transitionToken)
+      );
     } else {
-      newPasswordRows.forEach((row) => hideAccountElement(row, true, ++transitionToken));
+      newPasswordRows.forEach((row) =>
+        hideAccountElement(row, true, ++transitionToken)
+      );
     }
 
     currentPasswordInput.focus();
@@ -687,14 +735,17 @@ function initAccountSettings() {
     mode = "";
     passwordVerified = false;
     actionInput.value = "";
-    usernameInput.value = usernameInput.dataset.accountUsernameOriginal || usernameInput.value;
+    usernameInput.value = usernameInput.dataset.accountUsernameOriginal ||
+      usernameInput.value;
     currentPasswordInput.value = "";
     clearUnlockedPasswordFields();
     clearAllAccountStatuses();
     lockAccountTargets();
     hideAccountElement(actions, true, ++transitionToken);
     hideAccountElement(currentPasswordRow, true, ++transitionToken);
-    newPasswordRows.forEach((row) => hideAccountElement(row, true, ++transitionToken));
+    newPasswordRows.forEach((row) =>
+      hideAccountElement(row, true, ++transitionToken)
+    );
   }
 
   function lockAccountTargets() {
@@ -719,7 +770,9 @@ function initAccountSettings() {
           field.disabled = false;
         }
       });
-      const firstPasswordField = unlockedFields.find((field) => field instanceof HTMLInputElement);
+      const firstPasswordField = unlockedFields.find((field) =>
+        field instanceof HTMLInputElement
+      );
       firstPasswordField?.focus();
     }
 
@@ -755,7 +808,9 @@ function initAccountSettings() {
       body.set("currentPassword", currentPasswordInput.value);
       const response = await fetch("/account/verify-password", {
         body,
-        headers: csrfRequestHeaders({ "content-type": "application/x-www-form-urlencoded" }),
+        headers: csrfRequestHeaders({
+          "content-type": "application/x-www-form-urlencoded",
+        }),
         method: "POST",
       });
 
@@ -837,6 +892,169 @@ function initAccountSettings() {
     clearStatus(actionStatus);
     fieldStatuses.forEach((status) => clearStatus(status));
   }
+}
+
+/**
+ * 初始化邮箱绑定验证码发送流程。
+ */
+function initEmailBinding() {
+  const form = document.querySelector("[data-email-binding-form]");
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+
+  const emailInput = form.querySelector("[data-email-binding-input]");
+  const codeInput = form.querySelector("[data-email-code-input]");
+  const verificationIdInput = form.querySelector(
+    "[data-email-verification-id]",
+  );
+  const sendButton = form.querySelector("[data-email-send-code-button]");
+  const sendStatus = form.querySelector("[data-email-send-status]");
+  const verifyStatus = form.querySelector("[data-email-verify-status]");
+
+  if (
+    !(emailInput instanceof HTMLInputElement) ||
+    !(codeInput instanceof HTMLInputElement) ||
+    !(verificationIdInput instanceof HTMLInputElement) ||
+    !(sendButton instanceof HTMLButtonElement)
+  ) {
+    return;
+  }
+
+  sendButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+    await sendEmailBindingCode();
+  });
+
+  emailInput.addEventListener("input", () => {
+    verificationIdInput.value = "";
+    clearInlineStatus(sendStatus);
+    clearInlineStatus(verifyStatus);
+  });
+
+  codeInput.addEventListener("input", () => {
+    clearInlineStatus(verifyStatus);
+  });
+
+  form.addEventListener("submit", (event) => {
+    if (verificationIdInput.value.trim()) {
+      return;
+    }
+
+    event.preventDefault();
+    setInlineStatus(
+      verifyStatus,
+      form.dataset.emailCodeRequired || "",
+      "error",
+    );
+    emailInput.focus();
+  });
+
+  /**
+   * 向后端请求发送邮箱绑定验证码。
+   */
+  async function sendEmailBindingCode() {
+    if (!emailInput.checkValidity()) {
+      setInlineStatus(sendStatus, form.dataset.emailInvalid || "", "error");
+      emailInput.reportValidity();
+      return;
+    }
+
+    sendButton.disabled = true;
+    setInlineStatus(sendStatus, form.dataset.emailSending || "", "pending");
+    clearInlineStatus(verifyStatus);
+
+    try {
+      const response = await fetch("/auth/email-verifications", {
+        body: emailVerificationRequestBody(form),
+        headers: csrfRequestHeaders({
+          "content-type": "application/x-www-form-urlencoded",
+        }),
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || typeof payload.id !== "string") {
+        verificationIdInput.value = "";
+        setInlineStatus(
+          sendStatus,
+          form.dataset.emailSendFailed || "",
+          "error",
+        );
+        return;
+      }
+
+      verificationIdInput.value = payload.id;
+      codeInput.value = "";
+      setInlineStatus(sendStatus, form.dataset.emailSent || "", "success");
+      codeInput.focus();
+    } catch {
+      verificationIdInput.value = "";
+      setInlineStatus(sendStatus, form.dataset.emailSendFailed || "", "error");
+    } finally {
+      sendButton.disabled = false;
+      resetTurnstileWidget();
+    }
+  }
+}
+
+/**
+ * 构建邮箱验证码发送请求体。
+ *
+ * @param {HTMLFormElement} form 邮箱绑定表单。
+ * @return {URLSearchParams} 编码后的请求体。
+ */
+function emailVerificationRequestBody(form) {
+  const body = new URLSearchParams();
+  for (const [key, value] of new FormData(form)) {
+    if (typeof value === "string") {
+      body.set(key, value);
+    }
+  }
+
+  body.set(csrfFieldName, currentCsrfToken());
+  body.set("purpose", "email_binding");
+  return body;
+}
+
+/**
+ * 重置 Turnstile widget，便于用户再次发送验证码。
+ */
+function resetTurnstileWidget() {
+  const turnstile = globalThis.turnstile;
+  if (turnstile && typeof turnstile.reset === "function") {
+    turnstile.reset();
+  }
+}
+
+/**
+ * 设置内联状态消息。
+ *
+ * @param {Element|null} element 状态元素。
+ * @param {string} message 状态消息。
+ * @param {string} state 状态类型。
+ */
+function setInlineStatus(element, message, state) {
+  if (!(element instanceof HTMLElement)) {
+    return;
+  }
+
+  element.textContent = message;
+  element.hidden = message.length === 0;
+  if (state === "error") {
+    element.dataset.state = "error";
+  } else {
+    delete element.dataset.state;
+  }
+}
+
+/**
+ * 清除内联状态消息。
+ *
+ * @param {Element|null} element 状态元素。
+ */
+function clearInlineStatus(element) {
+  setInlineStatus(element, "", "success");
 }
 
 /**
@@ -982,9 +1200,11 @@ function initTopicEditor(topicEditor, keywordEditor) {
     let shouldSave = false;
 
     if (target.matches("[data-role='select-all-topics']")) {
-      topicEditor.querySelectorAll("[data-role='select-topic-row']").forEach((checkbox) => {
-        checkbox.checked = target.checked;
-      });
+      topicEditor.querySelectorAll("[data-role='select-topic-row']").forEach(
+        (checkbox) => {
+          checkbox.checked = target.checked;
+        },
+      );
       syncHeaderCheckbox(
         topicEditor,
         "[data-role='select-all-topics']",
@@ -1001,9 +1221,11 @@ function initTopicEditor(topicEditor, keywordEditor) {
     }
 
     if (target.matches("[data-role='enable-all-topics']")) {
-      topicEditor.querySelectorAll("[data-role='topic-enabled']").forEach((checkbox) => {
-        checkbox.checked = target.checked;
-      });
+      topicEditor.querySelectorAll("[data-role='topic-enabled']").forEach(
+        (checkbox) => {
+          checkbox.checked = target.checked;
+        },
+      );
       syncHeaderCheckbox(
         topicEditor,
         "[data-role='enable-all-topics']",
@@ -1032,7 +1254,13 @@ function initTopicEditor(topicEditor, keywordEditor) {
   });
 
   topicEditor.addEventListener("focusout", (event) => {
-    if (pruneIncompleteDraftTopicRows(topicEditor, keywordEditor, event.relatedTarget)) {
+    if (
+      pruneIncompleteDraftTopicRows(
+        topicEditor,
+        keywordEditor,
+        event.relatedTarget,
+      )
+    ) {
       scheduleAutoSave();
     }
   });
@@ -1090,9 +1318,10 @@ function initKeywordEditor(keywordEditor) {
     let shouldSave = false;
 
     if (target.matches("[data-role='select-all-keywords']")) {
-      keywordEditor.querySelectorAll("[data-role='select-keyword-row']").forEach((checkbox) => {
-        checkbox.checked = target.checked;
-      });
+      keywordEditor.querySelectorAll("[data-role='select-keyword-row']")
+        .forEach((checkbox) => {
+          checkbox.checked = target.checked;
+        });
       syncHeaderCheckbox(
         keywordEditor,
         "[data-role='select-all-keywords']",
@@ -1190,11 +1419,12 @@ function syncCheckboxState(header, items) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function syncKeywordLocationHeaders(keywordEditor) {
-  keywordEditor.querySelectorAll("[data-role='select-keyword-location']").forEach((checkbox) => {
-    if (checkbox instanceof HTMLInputElement) {
-      syncKeywordLocationHeader(keywordEditor, checkbox.dataset.location);
-    }
-  });
+  keywordEditor.querySelectorAll("[data-role='select-keyword-location']")
+    .forEach((checkbox) => {
+      if (checkbox instanceof HTMLInputElement) {
+        syncKeywordLocationHeader(keywordEditor, checkbox.dataset.location);
+      }
+    });
 }
 
 /**
@@ -1208,17 +1438,23 @@ function syncKeywordLocationHeader(keywordEditor, location) {
     return;
   }
 
-  const header = Array.from(keywordEditor.querySelectorAll("[data-role='select-keyword-location']"))
+  const header = Array.from(
+    keywordEditor.querySelectorAll("[data-role='select-keyword-location']"),
+  )
     .find((checkbox) =>
-      checkbox instanceof HTMLInputElement && checkbox.dataset.location === location
+      checkbox instanceof HTMLInputElement &&
+      checkbox.dataset.location === location
     );
   if (!(header instanceof HTMLInputElement)) {
     return;
   }
 
-  const items = Array.from(keywordEditor.querySelectorAll("[name*='_location_']"))
+  const items = Array.from(
+    keywordEditor.querySelectorAll("[name*='_location_']"),
+  )
     .filter((item) =>
-      item instanceof HTMLInputElement && item.name.endsWith(`_location_${location}`)
+      item instanceof HTMLInputElement &&
+      item.name.endsWith(`_location_${location}`)
     );
   syncCheckboxState(header, items);
 }
@@ -1231,7 +1467,10 @@ function syncKeywordLocationHeader(keywordEditor, location) {
  * @return {boolean} 实际删除行时返回 true。
  */
 function pruneIncompleteDraftRows(topicEditor, keywordEditor) {
-  const prunedTopics = pruneIncompleteDraftTopicRows(topicEditor, keywordEditor);
+  const prunedTopics = pruneIncompleteDraftTopicRows(
+    topicEditor,
+    keywordEditor,
+  );
   const prunedKeywords = pruneIncompleteDraftKeywordRows(keywordEditor);
   return prunedTopics || prunedKeywords;
 }
@@ -1244,22 +1483,28 @@ function pruneIncompleteDraftRows(topicEditor, keywordEditor) {
  * @param {EventTarget|null} [focusTarget] 失焦后的焦点目标。
  * @return {boolean} 实际删除行时返回 true。
  */
-function pruneIncompleteDraftTopicRows(topicEditor, keywordEditor, focusTarget = document.activeElement) {
+function pruneIncompleteDraftTopicRows(
+  topicEditor,
+  keywordEditor,
+  focusTarget = document.activeElement,
+) {
   let removed = false;
-  topicEditor.querySelectorAll("[data-topic-row][data-draft-row='true']").forEach((row) => {
-    if (rowContainsFocusTarget(row, focusTarget)) {
-      return;
-    }
+  topicEditor.querySelectorAll("[data-topic-row][data-draft-row='true']")
+    .forEach((row) => {
+      if (rowContainsFocusTarget(row, focusTarget)) {
+        return;
+      }
 
-    const topicId = row.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
-    if (topicId.length > 0) {
-      delete row.dataset.draftRow;
-      return;
-    }
+      const topicId =
+        row.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
+      if (topicId.length > 0) {
+        delete row.dataset.draftRow;
+        return;
+      }
 
-    row.remove();
-    removed = true;
-  });
+      row.remove();
+      removed = true;
+    });
 
   if (!removed) {
     return false;
@@ -1269,8 +1514,14 @@ function pruneIncompleteDraftTopicRows(topicEditor, keywordEditor, focusTarget =
   reindexTopicRows(topicEditor);
 
   const activeTarget = activeKeywordTargetInput().value;
-  if (activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)) {
-    switchKeywordTarget(topicEditor, keywordEditor, commonKeywordButton(topicEditor));
+  if (
+    activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)
+  ) {
+    switchKeywordTarget(
+      topicEditor,
+      keywordEditor,
+      commonKeywordButton(topicEditor),
+    );
   }
 
   updateActiveTopicSummary(topicEditor);
@@ -1284,22 +1535,27 @@ function pruneIncompleteDraftTopicRows(topicEditor, keywordEditor, focusTarget =
  * @param {EventTarget|null} [focusTarget] 失焦后的焦点目标。
  * @return {boolean} 实际删除行时返回 true。
  */
-function pruneIncompleteDraftKeywordRows(keywordEditor, focusTarget = document.activeElement) {
+function pruneIncompleteDraftKeywordRows(
+  keywordEditor,
+  focusTarget = document.activeElement,
+) {
   let removed = false;
-  keywordEditor.querySelectorAll("[data-keyword-row][data-draft-row='true']").forEach((row) => {
-    if (rowContainsFocusTarget(row, focusTarget)) {
-      return;
-    }
+  keywordEditor.querySelectorAll("[data-keyword-row][data-draft-row='true']")
+    .forEach((row) => {
+      if (rowContainsFocusTarget(row, focusTarget)) {
+        return;
+      }
 
-    const keyword = row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
-    if (keyword.length > 0) {
-      delete row.dataset.draftRow;
-      return;
-    }
+      const keyword =
+        row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+      if (keyword.length > 0) {
+        delete row.dataset.draftRow;
+        return;
+      }
 
-    row.remove();
-    removed = true;
-  });
+      row.remove();
+      removed = true;
+    });
 
   if (!removed) {
     return false;
@@ -1352,7 +1608,9 @@ function beginRuleDrag(event, kind, topicEditor, keywordEditor) {
     return;
   }
 
-  const row = handle.closest(kind === "topic" ? "[data-topic-row]" : "[data-keyword-row]");
+  const row = handle.closest(
+    kind === "topic" ? "[data-topic-row]" : "[data-keyword-row]",
+  );
   if (!(row instanceof HTMLElement)) {
     return;
   }
@@ -1408,7 +1666,8 @@ function updateActiveRuleDrag(event) {
 
   event.preventDefault();
   if (
-    !state.started && Math.hypot(event.clientX - state.startX, event.clientY - state.startY) < 4
+    !state.started &&
+    Math.hypot(event.clientX - state.startX, event.clientY - state.startY) < 4
   ) {
     return;
   }
@@ -1463,12 +1722,15 @@ function startRuleDragPreview(state) {
  */
 function ruleDragPreviewText(state) {
   if (state.kind === "topic") {
-    const id = state.row.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
-    const note = state.row.querySelector("[data-topic-note-input]")?.value.trim() ?? "";
+    const id = state.row.querySelector("[data-topic-id-input]")?.value.trim() ??
+      "";
+    const note =
+      state.row.querySelector("[data-topic-note-input]")?.value.trim() ?? "";
     return [note, id].filter(Boolean).join(" ") || state.handle.title;
   }
 
-  const keyword = state.row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+  const keyword =
+    state.row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
   return keyword || state.handle.title;
 }
 
@@ -1573,7 +1835,9 @@ function updateKeywordDragTarget(state, target, clientY) {
 function moveDraggedRowBesideTarget(state, targetRow, clientY) {
   const rect = targetRow.getBoundingClientRect();
   const insertBefore = clientY < rect.top + rect.height / 2;
-  targetRow.classList.add(insertBefore ? "is-rule-drag-over-before" : "is-rule-drag-over-after");
+  targetRow.classList.add(
+    insertBefore ? "is-rule-drag-over-before" : "is-rule-drag-over-after",
+  );
 
   if (insertBefore) {
     targetRow.before(state.row);
@@ -1658,13 +1922,15 @@ function clearRuleDragIndicators() {
  * @return {boolean} 可以接收关键词时返回 true。
  */
 function topicRowCanReceiveKeyword(topicEditor, topicRow) {
-  const topicId = topicRow.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
+  const topicId =
+    topicRow.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
   if (!topicId) {
     return false;
   }
 
   const activeTarget = activeKeywordTargetInput().value || "common";
-  return activeTarget === "common" || findActiveTopicRow(topicEditor, activeTarget) !== topicRow;
+  return activeTarget === "common" ||
+    findActiveTopicRow(topicEditor, activeTarget) !== topicRow;
 }
 
 /**
@@ -1676,7 +1942,12 @@ function topicRowCanReceiveKeyword(topicEditor, topicRow) {
  * @param {HTMLElement} topicRow 目标话题行。
  * @return {boolean} 实际移动成功时返回 true。
  */
-function moveKeywordRowToTopic(topicEditor, keywordEditor, keywordRow, topicRow) {
+function moveKeywordRowToTopic(
+  topicEditor,
+  keywordEditor,
+  keywordRow,
+  topicRow,
+) {
   const rule = keywordRuleFromRow(keywordRow);
   if (!keywordRuleIsPersistable(rule)) {
     return false;
@@ -1702,7 +1973,8 @@ function moveKeywordRowToTopic(topicEditor, keywordEditor, keywordRow, topicRow)
  * @return {{caseSensitive: boolean, keyword: string, locations: string[], useRegex: boolean}} 关键词规则。
  */
 function keywordRuleFromRow(row) {
-  const keyword = row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+  const keyword = row.querySelector("input[name^='keyword_']")?.value.trim() ??
+    "";
   const locations = Array.from(row.querySelectorAll("[name*='_location_']"))
     .filter((input) => input.checked)
     .map((input) => input.name.match(/_location_(.+)$/)?.[1])
@@ -1784,7 +2056,9 @@ function commonKeywordRulesInput() {
  * @return {HTMLElement|undefined} 话题行元素。
  */
 function findActiveTopicRow(topicEditor, activeTarget) {
-  return topicEditor.querySelector('[data-topic-row][data-active-keyword-target="true"]') ??
+  return topicEditor.querySelector(
+    '[data-topic-row][data-active-keyword-target="true"]',
+  ) ??
     findTopicRowById(topicEditor, activeTarget);
 }
 
@@ -1797,14 +2071,19 @@ function initThemePicker() {
 
   if (colorInput instanceof HTMLInputElement) {
     colorInput.addEventListener("input", () => {
-      document.documentElement.style.setProperty("--theme-color", colorInput.value);
+      document.documentElement.style.setProperty(
+        "--theme-color",
+        colorInput.value,
+      );
       scheduleAutoSave();
     });
   }
 
   if (darkModeInput instanceof HTMLInputElement) {
     darkModeInput.addEventListener("change", () => {
-      document.documentElement.dataset.colorMode = darkModeInput.checked ? "dark" : "light";
+      document.documentElement.dataset.colorMode = darkModeInput.checked
+        ? "dark"
+        : "light";
       scheduleAutoSave();
     });
   }
@@ -2004,7 +2283,10 @@ function setTestNotifyStatus(text, state = "", options = {}) {
   } else {
     status.textContent = text;
   }
-  updateTestNotifyErrorLink(status, state === "error" ? options.errorDetails : undefined);
+  updateTestNotifyErrorLink(
+    status,
+    state === "error" ? options.errorDetails : undefined,
+  );
 
   if (state) {
     status.dataset.state = state;
@@ -2015,7 +2297,8 @@ function setTestNotifyStatus(text, state = "", options = {}) {
   const persistMs = options.persistMs ?? (state === "error" ? 0 : 2200);
   if (text && persistMs > 0) {
     testNotifyStatusTimer = setTimeout(() => {
-      const currentStatusText = status.querySelector("[data-test-notify-status-text]") ?? status;
+      const currentStatusText =
+        status.querySelector("[data-test-notify-status-text]") ?? status;
       if (currentStatusText.textContent === text) {
         currentStatusText.textContent = "";
         updateTestNotifyErrorLink(status);
@@ -2066,12 +2349,16 @@ function updateTestNotifyErrorLink(status, errorDetails) {
  * @return {string} 错误详情 HTML 页面。
  */
 function renderTestNotifyErrorPage(errorLink, errorDetails) {
-  const appName = errorLink.dataset.errorAppName || document.title || "Heybox Topic Notifier";
+  const appName = errorLink.dataset.errorAppName || document.title ||
+    "Heybox Topic Notifier";
   const appOrigin = globalThis.location?.origin || "";
-  const colorMode = errorLink.dataset.errorDarkMode === "true" ? "dark" : "light";
+  const colorMode = errorLink.dataset.errorDarkMode === "true"
+    ? "dark"
+    : "light";
   const direction = errorLink.dataset.errorDirection === "rtl" ? "rtl" : "ltr";
   const errorTitle = errorLink.dataset.errorTitle || "Error message";
-  const locale = errorLink.dataset.errorLocale || document.documentElement.lang || "zh-CN";
+  const locale = errorLink.dataset.errorLocale ||
+    document.documentElement.lang || "zh-CN";
   const generatedAt = new Date().toLocaleString(locale);
   const navDashboard = errorLink.dataset.errorNavDashboard || "Dashboard";
   const navHistory = errorLink.dataset.errorNavHistory || "History";
@@ -2144,7 +2431,9 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
     <section class="settings-group" aria-label="${escapeHtml(errorTitle)}">
       <dl class="settings-list">
         <div class="error-detail-row">
-          <dd><pre class="error-detail-content" dir="ltr">${escapeHtml(errorDetails)}</pre></dd>
+          <dd><pre class="error-detail-content" dir="ltr">${
+    escapeHtml(errorDetails)
+  }</pre></dd>
         </div>
       </dl>
       <div class="error-detail-actions">
@@ -2219,7 +2508,8 @@ function setAutoSaveStatus(state, text) {
 
   status.dataset.state = state;
   status.textContent = text ??
-    autoSaveForm.dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
+    autoSaveForm
+      .dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
     "";
 }
 
@@ -2260,8 +2550,12 @@ function insertTopicRow(editor, actionButton) {
  * @param {HTMLButtonElement} actionButton 触发删除的操作按钮。
  */
 function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
-  const selectedRows = Array.from(topicEditor.querySelectorAll("[data-topic-row]"))
-    .filter((row) => row.querySelector("[data-role='select-topic-row']")?.checked);
+  const selectedRows = Array.from(
+    topicEditor.querySelectorAll("[data-topic-row]"),
+  )
+    .filter((row) =>
+      row.querySelector("[data-role='select-topic-row']")?.checked
+    );
 
   if (selectedRows.length > 0) {
     selectedRows.forEach((row) => row.remove());
@@ -2279,8 +2573,14 @@ function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
   reindexTopicRows(topicEditor);
 
   const activeTarget = activeKeywordTargetInput().value;
-  if (activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)) {
-    switchKeywordTarget(topicEditor, keywordEditor, commonKeywordButton(topicEditor));
+  if (
+    activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)
+  ) {
+    switchKeywordTarget(
+      topicEditor,
+      keywordEditor,
+      commonKeywordButton(topicEditor),
+    );
   }
 
   updateActiveTopicSummary(topicEditor);
@@ -2313,7 +2613,10 @@ function reindexTopicRows(editor) {
         return;
       }
 
-      input.name = input.name.replace(/topic_(?:__index__|\d+)_/, `topic_${index}_`);
+      input.name = input.name.replace(
+        /topic_(?:__index__|\d+)_/,
+        `topic_${index}_`,
+      );
     });
   });
 
@@ -2340,7 +2643,9 @@ function switchKeywordTarget(topicEditor, keywordEditor, button) {
   persistCurrentKeywordRows(topicEditor, keywordEditor);
 
   const row = button.closest("[data-topic-row]");
-  const target = row ? row.querySelector("[data-topic-id-input]").value.trim() : "common";
+  const target = row
+    ? row.querySelector("[data-topic-id-input]").value.trim()
+    : "common";
   topicEditor.querySelectorAll("[data-topic-row]").forEach((topicRow) => {
     topicRow.dataset.activeKeywordTarget = "false";
   });
@@ -2349,9 +2654,9 @@ function switchKeywordTarget(topicEditor, keywordEditor, button) {
   }
   activeKeywordTargetInput().value = target || "common";
 
-  const rules = row
-    ? parseRules(topicKeywordRulesValue(row))
-    : parseRules(commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords);
+  const rules = row ? parseRules(topicKeywordRulesValue(row)) : parseRules(
+    commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords,
+  );
 
   replaceKeywordRows(keywordEditor, rules);
   updateActiveTopicSummary(topicEditor);
@@ -2389,7 +2694,8 @@ function persistCurrentKeywordRows(topicEditor, keywordEditor) {
  */
 function topicKeywordRulesValue(row) {
   return row.querySelector("[data-topic-keyword-rules]")?.value ??
-    row.querySelector("[data-action='edit-topic-keywords']")?.dataset.topicKeywords ??
+    row.querySelector("[data-action='edit-topic-keywords']")?.dataset
+      .topicKeywords ??
     "[]";
 }
 
@@ -2418,7 +2724,9 @@ function setTopicKeywordRules(row, serialized) {
  */
 function replaceKeywordRows(keywordEditor, rules) {
   const grid = keywordEditor.querySelector(".keyword-rule-grid");
-  keywordEditor.querySelectorAll("[data-keyword-row]").forEach((row) => row.remove());
+  keywordEditor.querySelectorAll("[data-keyword-row]").forEach((row) =>
+    row.remove()
+  );
 
   const normalizedRules = rules.length > 0 ? rules : [newKeywordRule()];
   normalizedRules.forEach((rule) => {
@@ -2444,7 +2752,8 @@ function keywordRowFromRule(keywordEditor, rule) {
   setKeywordOption(row, "useRegex", rule.useRegex === true);
   row.querySelectorAll("[name*='_location_']").forEach((input) => {
     const location = input.name.match(/_location_(.+)$/)?.[1];
-    input.checked = Array.isArray(rule.locations) && rule.locations.includes(location);
+    input.checked = Array.isArray(rule.locations) &&
+      rule.locations.includes(location);
   });
   return row;
 }
@@ -2487,8 +2796,11 @@ function serializeKeywordRows(keywordEditor) {
   return JSON.stringify(
     Array.from(keywordEditor.querySelectorAll("[data-keyword-row]"))
       .map((row) => {
-        const keyword = row.querySelector("input[name^='keyword_']").value.trim();
-        const locations = Array.from(row.querySelectorAll("[name*='_location_']"))
+        const keyword = row.querySelector("input[name^='keyword_']").value
+          .trim();
+        const locations = Array.from(
+          row.querySelectorAll("[name*='_location_']"),
+        )
           .filter((input) => input.checked)
           .map((input) => input.name.match(/_location_(.+)$/)?.[1])
           .filter(Boolean);
@@ -2618,7 +2930,9 @@ function keywordOptionStateDatasetKey(state, option) {
   }
 
   if (option === "useRegex") {
-    return state === "manual" ? "keywordOptionManualUseRegex" : "keywordOptionAutoUseRegex";
+    return state === "manual"
+      ? "keywordOptionManualUseRegex"
+      : "keywordOptionAutoUseRegex";
   }
 
   return "";
@@ -2732,7 +3046,9 @@ function insertKeywordRow(editor, actionButton) {
  */
 function deleteKeywordRows(editor, actionButton) {
   const selectedRows = Array.from(editor.querySelectorAll("[data-keyword-row]"))
-    .filter((row) => row.querySelector("[data-role='select-keyword-row']")?.checked);
+    .filter((row) =>
+      row.querySelector("[data-role='select-keyword-row']")?.checked
+    );
 
   if (selectedRows.length > 0) {
     selectedRows.forEach((row) => row.remove());
@@ -2776,7 +3092,10 @@ function reindexKeywordRows(editor) {
         return;
       }
 
-      input.name = input.name.replace(/keyword_(?:__index__|\d+)/, `keyword_${index}`);
+      input.name = input.name.replace(
+        /keyword_(?:__index__|\d+)/,
+        `keyword_${index}`,
+      );
     });
   });
 
@@ -2817,7 +3136,9 @@ function updateActiveTopicSummary(topicEditor) {
   const id = row.querySelector("[data-topic-id-input]").value.trim();
   const note = row.querySelector("[data-topic-note-input]").value.trim();
   activeKeywordTargetInput().value = id || "common";
-  summary.textContent = note && id ? `${note}（${id}）` : note || id || summary.dataset.commonLabel;
+  summary.textContent = note && id
+    ? `${note}（${id}）`
+    : note || id || summary.dataset.commonLabel;
 }
 
 /**
@@ -2863,7 +3184,9 @@ function updateKeywordSummary(keywordEditor) {
  * @param {HTMLElement} summary 关键词摘要元素。
  */
 function fitKeywordSummary(summary) {
-  const items = Array.from(summary.querySelectorAll("[data-keyword-summary-item]"));
+  const items = Array.from(
+    summary.querySelectorAll("[data-keyword-summary-item]"),
+  );
   for (const item of items.toReversed()) {
     if (summary.scrollWidth <= summary.clientWidth) {
       return;
