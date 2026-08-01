@@ -337,6 +337,7 @@ export function createRoutes(context: AppContext): Hono {
         emailCredentials,
         secondFactorMethods: availableSecondFactorMethods({
           emailCredentials,
+          totpCredential,
         }),
         securitySettings,
         securityStatus: securitySettingsStatusFromSearch(url.searchParams),
@@ -705,8 +706,12 @@ export function createRoutes(context: AppContext): Hono {
     const emailCredentials = await context.storage.listEmailCredentials(
       session.userId,
     );
+    const totpCredential = await context.storage.getTotpCredential(
+      session.userId,
+    );
     const availableMethods = availableSecondFactorMethods({
       emailCredentials,
+      totpCredential,
     });
     const twoFactorEnabled = form.twoFactorEnabled === "on";
     const nextSettings = securitySettingsFromForm(

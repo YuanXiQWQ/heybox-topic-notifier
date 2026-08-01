@@ -14,6 +14,11 @@ import {
   createEmailVerificationChallenge,
   type EmailVerificationEmailMessage,
 } from "./auth/email_verification.ts";
+import {
+  createTotpSecretMaterial,
+  decryptTotpSecret,
+  generateTotpCode,
+} from "./auth/totp.ts";
 import type {
   AppSettings,
   AuthIdentity,
@@ -21,6 +26,7 @@ import type {
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  TotpCredential,
   UserAccount,
   UserSecuritySettings,
   UserSession,
@@ -44,6 +50,18 @@ const testEmailVerificationConfig = {
   codeSecret: "test-email-code-secret",
   codeTtlSeconds: 600,
   maxAttempts: 5,
+};
+
+/**
+ * 验证器动态码测试使用的固定配置。
+ */
+const testTotpConfig = {
+  digits: 6,
+  issuer: "Test",
+  periodSeconds: 30,
+  secretBytes: 20,
+  secretEncryptionKey: "test-totp-encryption-key",
+  verificationWindow: 1,
 };
 
 /**
@@ -893,6 +911,123 @@ Deno.test("auth routes complete email MFA and create a session", async () => {
   );
 });
 
+Deno.test("auth routes complete TOTP MFA and create a session", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, totpAuthOptions());
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  const material = await enableTotpSecondFactor(storage, account.id);
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const location = loginResponse.headers.get("location") ?? "";
+  const challengeId = mfaChallengeIdFromLocation(location);
+  const pageResponse = await app.request(location);
+  const pageHtml = await pageResponse.text();
+  const secret = await decryptTotpSecret(
+    material.secretEncrypted,
+    testTotpConfig.secretEncryptionKey,
+  );
+  const code = await generateTotpCode(secret, testTotpConfig);
+
+  const response = await app.request("/mfa", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        code,
+        method: "totp",
+        returnTo: "/history",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(loginResponse.status, 303);
+  assertEquals(pageResponse.status, 200);
+  assertEquals(pageHtml.includes("data-mfa-totp-form"), true);
+  assertEquals(pageHtml.includes('data-mfa-method="totp"'), true);
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(await storage.getPendingMfaChallenge(challengeId), undefined);
+});
+
+Deno.test("auth routes reject incorrect TOTP MFA codes", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, totpAuthOptions());
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  const material = await enableTotpSecondFactor(storage, account.id);
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const challengeId = mfaChallengeIdFromLocation(
+    loginResponse.headers.get("location"),
+  );
+  const secret = await decryptTotpSecret(
+    material.secretEncrypted,
+    testTotpConfig.secretEncryptionKey,
+  );
+  const currentCode = await generateTotpCode(secret, testTotpConfig);
+  const wrongCode = currentCode === "000000" ? "111111" : "000000";
+
+  const response = await app.request("/mfa", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        code: wrongCode,
+        method: "totp",
+        returnTo: "/",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const challenge = await storage.getPendingMfaChallenge(challengeId);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location")?.startsWith(
+      `/mfa?locale=zh-CN&challenge=${challengeId}`,
+    ),
+    true,
+  );
+  assertEquals(challenge?.attempts, 1);
+  assertEquals(session, undefined);
+});
+
 Deno.test("auth routes reject second-factor email codes without MFA challenge", async () => {
   const storage = createMemoryStorage();
   const sentMessages: EmailVerificationEmailMessage[] = [];
@@ -1166,6 +1301,17 @@ function emailVerificationAuthOptions(options: {
 }
 
 /**
+ * 创建开启验证器动态码的认证测试配置。
+ *
+ * @return 认证测试配置。
+ */
+function totpAuthOptions(): AuthOptions {
+  return {
+    totp: testTotpConfig,
+  };
+}
+
+/**
  * 为测试账户启用邮箱二次验证。
  *
  * @param storage 测试存储。
@@ -1191,6 +1337,32 @@ async function enableEmailSecondFactor(
     twoFactorEnabled: true,
     userId,
   });
+}
+
+/**
+ * 为测试账户启用验证器动态码二次验证。
+ *
+ * @param storage 测试存储。
+ * @param userId 用户 ID。
+ * @return 已创建的 TOTP secret 材料。
+ */
+async function enableTotpSecondFactor(
+  storage: ReturnType<typeof createMemoryStorage>,
+  userId: string,
+) {
+  const material = await createTotpSecretMaterial(testTotpConfig);
+  await storage.saveTotpCredential({
+    enabledAt: new Date().toISOString(),
+    recoveryCodeHashes: [],
+    secretEncrypted: material.secretEncrypted,
+    userId,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "totp",
+    twoFactorEnabled: true,
+    userId,
+  });
+  return material;
 }
 
 /**
@@ -1358,6 +1530,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   savedSessions: UserSession[];
   securitySettingsByUserId: Map<string, UserSecuritySettings>;
   settingsByUserId: Map<string, AppSettings>;
+  totpCredentialsByUserId: Map<string, TotpCredential>;
 } {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
@@ -1377,6 +1550,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   const settingsByUserId = new Map<string, AppSettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
   const savedSessions: UserSession[] = [];
+  const totpCredentialsByUserId = new Map<string, TotpCredential>();
 
   return {
     ...createMemoryRateLimitRecorder(),
@@ -1388,6 +1562,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     savedSessions,
     securitySettingsByUserId,
     settingsByUserId,
+    totpCredentialsByUserId,
     /**
      * 创建指定测试用户作用域的设置存储。
      *
@@ -1495,6 +1670,16 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       passwordCredentialsByUserId.set(credential.userId, credential);
       return Promise.resolve();
     },
+    getTotpCredential: (userId: string) =>
+      Promise.resolve(totpCredentialsByUserId.get(userId)),
+    saveTotpCredential: (credential: TotpCredential) => {
+      totpCredentialsByUserId.set(credential.userId, credential);
+      return Promise.resolve();
+    },
+    deleteTotpCredential: (userId: string) => {
+      totpCredentialsByUserId.delete(userId);
+      return Promise.resolve();
+    },
     getPendingEmailVerification: (id: string) =>
       Promise.resolve(pendingEmailVerificationsById.get(id)),
     savePendingEmailVerification: (verification: PendingEmailVerification) => {
@@ -1578,6 +1763,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     savedSessions: UserSession[];
     securitySettingsByUserId: Map<string, UserSecuritySettings>;
     settingsByUserId: Map<string, AppSettings>;
+    totpCredentialsByUserId: Map<string, TotpCredential>;
   };
 }
 

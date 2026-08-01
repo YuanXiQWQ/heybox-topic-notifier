@@ -29,6 +29,7 @@ export function createApplication() {
       );
     },
     google: context.config.google,
+    totp: context.config.totp,
     turnstile: context.config.turnstile,
   };
 

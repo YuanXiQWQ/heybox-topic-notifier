@@ -73,6 +73,11 @@ import {
   verifyGoogleIdToken,
 } from "./auth/google.ts";
 import {
+  type TotpConfig,
+  TotpConfigError,
+  verifyEncryptedTotpCode,
+} from "./auth/totp.ts";
+import {
   availableSecondFactorMethods,
   completePrimaryAuthentication,
   isSecondFactorMethod,
@@ -107,6 +112,7 @@ export type AuthOptions = {
   emailVerification?: EmailVerificationConfig;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
   sessionMaxAgeSeconds?: number;
+  totp?: TotpConfig;
   turnstile?: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
 };
@@ -128,6 +134,7 @@ type AuthConfig = {
   registerPath: string;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
   sessionMaxAgeSeconds: number;
+  totp: TotpConfig;
   turnstile: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
 };
@@ -151,6 +158,17 @@ const defaultEmailVerificationConfig: EmailVerificationConfig = {
   codeSecret: "",
   codeTtlSeconds: 10 * 60,
   maxAttempts: 5,
+};
+/**
+ * 默认验证器动态码配置。
+ */
+const defaultTotpConfig: TotpConfig = {
+  digits: 6,
+  issuer: "",
+  periodSeconds: 30,
+  secretBytes: 20,
+  secretEncryptionKey: "",
+  verificationWindow: 1,
 };
 /**
  * 默认 Google 认证配置。
@@ -874,6 +892,18 @@ export function createAuthRoutes(
       );
     }
 
+    if (method === "totp") {
+      return await handleTotpSecondFactor(
+        c,
+        storage,
+        config,
+        form,
+        challenge,
+        locale,
+        returnTo,
+      );
+    }
+
     return c.redirect(
       mfaErrorRedirect(locale, challenge.id, returnTo, "unavailable"),
       303,
@@ -948,7 +978,11 @@ async function completePrimaryLogin(
 ): Promise<Response> {
   const securitySettings = await storage.getUserSecuritySettings(account.id);
   const emailCredentials = await storage.listEmailCredentials(account.id);
-  const availableMethods = availableSecondFactorMethods({ emailCredentials });
+  const totpCredential = await storage.getTotpCredential(account.id);
+  const availableMethods = availableSecondFactorMethods({
+    emailCredentials,
+    totpCredential,
+  });
 
   try {
     const completion = completePrimaryAuthentication({
@@ -1663,6 +1697,117 @@ async function handleEmailSecondFactor(
 }
 
 /**
+ * 处理验证器动态码二次验证。
+ *
+ * @param {Context} c Hono 请求上下文。
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
+ * @param {PendingMfaChallenge} challenge MFA challenge。
+ * @param {Locale} locale 当前页面语言。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @return {Promise<Response>} MFA 处理响应。
+ */
+async function handleTotpSecondFactor(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  challenge: PendingMfaChallenge,
+  locale: Locale,
+  returnTo: string,
+): Promise<Response> {
+  const code = String(form.code ?? "");
+  if (!code.trim()) {
+    const mfaFailure = await recordMfaChallengeFailure(
+      storage,
+      config,
+      challenge,
+    );
+    logMfaFailure(c.req.raw, challenge, "code");
+    return mfaFailure === "attempts"
+      ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+      : c.redirect(
+        mfaErrorRedirect(locale, challenge.id, returnTo, "code"),
+        303,
+      );
+  }
+
+  const credential = await storage.getTotpCredential(challenge.userId);
+  if (!credential?.secretEncrypted) {
+    logMfaFailure(c.req.raw, challenge, "unavailable");
+    return c.redirect(
+      mfaErrorRedirect(locale, challenge.id, returnTo, "unavailable"),
+      303,
+    );
+  }
+
+  let validCode = false;
+  try {
+    validCode = await verifyEncryptedTotpCode(
+      code,
+      credential.secretEncrypted,
+      config.totp,
+    );
+  } catch (error) {
+    if (!(error instanceof TotpConfigError)) {
+      throw error;
+    }
+
+    logSecurityAuditEvent({
+      code: "mfa_totp_configuration_invalid",
+      level: "warn",
+      message: "验证器动态码配置不可用，已拒绝 MFA 校验。",
+      request: c.req.raw,
+      userId: challenge.userId,
+    });
+    return c.redirect(
+      mfaErrorRedirect(locale, challenge.id, returnTo, "unavailable"),
+      303,
+    );
+  }
+
+  if (!validCode) {
+    const mfaFailure = await recordMfaChallengeFailure(
+      storage,
+      config,
+      challenge,
+    );
+    logMfaFailure(c.req.raw, challenge, "code");
+    return mfaFailure === "attempts"
+      ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+      : c.redirect(
+        mfaErrorRedirect(locale, challenge.id, returnTo, "code"),
+        303,
+      );
+  }
+
+  const account = await storage.getAccountById(challenge.userId);
+  if (!account) {
+    await storage.deletePendingMfaChallenge(challenge.id);
+    return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+  }
+
+  await storage.deletePendingMfaChallenge(challenge.id);
+  logSecurityAuditEvent({
+    code: "mfa_succeeded",
+    details: { method: "totp" },
+    level: "info",
+    message: "双重验证已完成。",
+    request: c.req.raw,
+    userId: challenge.userId,
+  });
+
+  return await redirectWithSession(
+    c.req.url,
+    returnTo,
+    account,
+    storage,
+    config,
+  );
+}
+
+/**
  * 校验邮箱二次验证 challenge 是否可用。
  *
  * @param {PendingEmailVerification | undefined} verification 邮箱验证码 challenge。
@@ -2084,6 +2229,7 @@ function authConfig(options: AuthOptions): AuthConfig {
     sendEmailVerificationEmail: options.sendEmailVerificationEmail,
     sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ??
       defaultSessionMaxAgeSeconds,
+    totp: options.totp ?? defaultTotpConfig,
     turnstile: options.turnstile ?? defaultTurnstileConfig,
     turnstileFetch: options.turnstileFetch,
   };
@@ -3006,6 +3152,10 @@ function renderMfaPage(options: {
   const emailForm = options.challenge.allowedMethods.includes("email")
     ? renderMfaEmailForm(options)
     : "";
+  const totpForm = options.challenge.allowedMethods.includes("totp")
+    ? renderMfaTotpForm(options)
+    : "";
+  const methodForms = `${emailForm}${totpForm}`;
 
   return `<!doctype html>
 <html lang="${options.locale}" dir="${direction}">
@@ -3204,7 +3354,7 @@ function renderMfaPage(options: {
       : ""
   }
         ${
-    emailForm ||
+    methodForms ||
     `<div class="auth-error">${
       escapeHtml(options.messages.authMfaMethodUnavailable)
     }</div>`
@@ -3295,6 +3445,51 @@ function renderMfaEmailForm(options: {
             role="status"
             hidden
           ></div>
+          <button type="submit">${
+    escapeHtml(options.messages.authMfaVerify)
+  }</button>
+        </form>`;
+}
+
+/**
+ * 渲染 MFA 验证器动态码表单。
+ *
+ * @param options MFA 页面渲染选项。
+ * @return 验证器动态码表单 HTML。
+ */
+function renderMfaTotpForm(options: {
+  action: string;
+  challenge: PendingMfaChallenge;
+  csrfToken: string;
+  messages: Messages;
+  returnTo: string;
+}): string {
+  return `<form
+          method="post"
+          action="${escapeHtml(options.action)}"
+          data-mfa-totp-form
+        >
+          ${csrfHiddenInput(options.csrfToken)}
+          <input type="hidden" name="challengeId" value="${
+    escapeHtml(options.challenge.id)
+  }">
+          <input type="hidden" name="method" value="totp">
+          <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
+          <label>
+            ${escapeHtml(options.messages.accountSecondFactorTotp)}
+            <input
+              name="code"
+              type="text"
+              dir="ltr"
+              inputmode="numeric"
+              pattern="[0-9]{6}"
+              autocomplete="one-time-code"
+              data-mfa-totp-code-input
+              required
+            >
+          </label>
           <button type="submit">${
     escapeHtml(options.messages.authMfaVerify)
   }</button>
