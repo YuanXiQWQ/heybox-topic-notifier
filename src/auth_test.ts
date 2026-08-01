@@ -10,9 +10,13 @@ import {
   readAuthSession,
 } from "./auth.ts";
 import { turnstileResponseFieldName } from "./auth/turnstile.ts";
-import type { EmailVerificationEmailMessage } from "./auth/email_verification.ts";
+import {
+  createEmailVerificationChallenge,
+  type EmailVerificationEmailMessage,
+} from "./auth/email_verification.ts";
 import type {
   AppSettings,
+  EmailCredential,
   PasswordCredential,
   PendingEmailVerification,
   UserAccount,
@@ -28,6 +32,15 @@ import {
   testCsrfForm,
   testCsrfHeaders,
 } from "./test_helpers.ts";
+
+/**
+ * 邮箱验证码测试使用的固定配置。
+ */
+const testEmailVerificationConfig = {
+  codeSecret: "test-email-code-secret",
+  codeTtlSeconds: 600,
+  maxAttempts: 5,
+};
 
 Deno.test("auth middleware redirects protected pages to login", async () => {
   const app = createTestApp();
@@ -46,9 +59,14 @@ Deno.test("auth routes render login page without extra configuration", async () 
   app.route("/", createAuthRoutes(createMemoryStorage()));
 
   const response = await app.request("/login");
+  const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals((await response.text()).includes("登录"), true);
+  assertEquals(html.includes("登录"), true);
+  assertEquals(html.includes("邮箱验证码登录"), true);
+  assertEquals(html.includes("data-auth-email-login-form"), true);
+  assertEquals(html.includes("data-auth-email-send-code-button"), true);
+  assertEquals(html.includes('name="authMethod" value="email"'), true);
 });
 
 Deno.test("auth routes render Turnstile widget when enabled", async () => {
@@ -343,6 +361,93 @@ Deno.test("auth routes rate limit email verification by target and purpose", asy
 
   assertEquals(limitedResponse.status, 429);
   assertEquals(sentMessages.length, 3);
+});
+
+Deno.test("auth routes sign in with email verification and create a passwordless account", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, emailVerificationAuthOptions());
+  const challenge = await createEmailVerificationChallenge({
+    code: "123456",
+    config: testEmailVerificationConfig,
+    email: " Alice@Example.COM ",
+    id: "email-login-verification",
+    purpose: "primary_login",
+  });
+  await storage.savePendingEmailVerification(challenge.verification);
+
+  const response = await app.request("/login?locale=en-US&localeChanged=1", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        authMethod: "email",
+        code: "123456",
+        email: "Alice@Example.COM",
+        returnTo: "/",
+        verificationId: "email-login-verification",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const account = await storage.getAccountByUsername("alice");
+  const credential = account
+    ? await storage.getEmailCredential(account.id, "alice@example.com")
+    : undefined;
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(account?.primaryEmail, "alice@example.com");
+  assertEquals(account?.emailVerified, true);
+  assertEquals(account?.passwordHash, undefined);
+  assertEquals(credential?.verified, true);
+  assertEquals(credential?.lastVerifiedAt !== undefined, true);
+  assertEquals(storage.savedSessions[0]?.userId, account?.id);
+  assertEquals(
+    storage.settingsByUserId.get(account?.id ?? "")?.locale,
+    "en-US",
+  );
+  assertEquals(
+    await storage.getPendingEmailVerification("email-login-verification"),
+    undefined,
+  );
+});
+
+Deno.test("auth routes reject email login with an incorrect code", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, emailVerificationAuthOptions());
+  const challenge = await createEmailVerificationChallenge({
+    code: "123456",
+    config: testEmailVerificationConfig,
+    email: "alice@example.com",
+    id: "email-login-wrong-code",
+    purpose: "primary_login",
+  });
+  await storage.savePendingEmailVerification(challenge.verification);
+
+  const response = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        authMethod: "email",
+        code: "000000",
+        email: "alice@example.com",
+        returnTo: "/",
+        verificationId: "email-login-wrong-code",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const pending = await storage.getPendingEmailVerification(
+    "email-login-wrong-code",
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/login?locale=zh-CN&error=emailCode&returnTo=%2F",
+  );
+  assertEquals(pending?.attempts, 1);
+  assertEquals((await storage.listAccounts()).length, 0);
+  assertEquals(storage.savedSessions.length, 0);
 });
 
 Deno.test("auth routes save selected registration locale in user settings", async () => {
@@ -733,11 +838,7 @@ function emailVerificationAuthOptions(options: {
   sender?: AuthOptions["sendEmailVerificationEmail"];
 } = {}): AuthOptions {
   return {
-    emailVerification: {
-      codeSecret: "test-email-code-secret",
-      codeTtlSeconds: 600,
-      maxAttempts: 5,
-    },
+    emailVerification: testEmailVerificationConfig,
     sendEmailVerificationEmail: options.sender,
   };
 }
@@ -782,6 +883,7 @@ async function requestText(body: BodyInit | null | undefined): Promise<string> {
  * @return 带会话记录能力的内存存储。
  */
 function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
+  emailCredentialsByKey: Map<string, EmailCredential>;
   passwordCredentialsByUserId: Map<string, PasswordCredential>;
   pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
   savedSessions: UserSession[];
@@ -789,6 +891,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
 } {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
+  const emailCredentialsByKey = new Map<string, EmailCredential>();
   const loginFailuresByUsername = new Map<
     string,
     { failures: number; lockedUntil?: string }
@@ -804,6 +907,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
 
   return {
     ...createMemoryRateLimitRecorder(),
+    emailCredentialsByKey,
     passwordCredentialsByUserId,
     pendingEmailVerificationsById,
     savedSessions,
@@ -854,6 +958,27 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       Promise.resolve(
         addUniqueAccount(accountsById, accountIdsByUsername, account),
       ),
+    getEmailCredential: (userId: string, email: string) =>
+      Promise.resolve(
+        emailCredentialsByKey.get(emailCredentialKey(userId, email)),
+      ),
+    listEmailCredentials: (userId: string) =>
+      Promise.resolve(
+        Array.from(emailCredentialsByKey.values())
+          .filter((credential) => credential.userId === userId)
+          .toSorted((left, right) => left.email.localeCompare(right.email)),
+      ),
+    saveEmailCredential: (credential: EmailCredential) => {
+      emailCredentialsByKey.set(
+        emailCredentialKey(credential.userId, credential.email),
+        credential,
+      );
+      return Promise.resolve();
+    },
+    deleteEmailCredential: (userId: string, email: string) => {
+      emailCredentialsByKey.delete(emailCredentialKey(userId, email));
+      return Promise.resolve();
+    },
     getPasswordCredential: (userId: string) =>
       Promise.resolve(passwordCredentialsByUserId.get(userId)),
     savePasswordCredential: (credential: PasswordCredential) => {
@@ -913,11 +1038,23 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       return Promise.resolve();
     },
   } as unknown as ReturnType<typeof createKvStorage> & {
+    emailCredentialsByKey: Map<string, EmailCredential>;
     passwordCredentialsByUserId: Map<string, PasswordCredential>;
     pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
     savedSessions: UserSession[];
     settingsByUserId: Map<string, AppSettings>;
   };
+}
+
+/**
+ * 创建测试内存邮箱凭证键。
+ *
+ * @param userId 用户 ID。
+ * @param email 邮箱地址。
+ * @return 邮箱凭证键。
+ */
+function emailCredentialKey(userId: string, email: string): string {
+  return `${userId}:${email.trim().toLowerCase()}`;
 }
 
 /**

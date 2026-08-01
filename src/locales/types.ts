@@ -118,6 +118,16 @@ export type Messages = {
   accountVerifiedEmails: string;
   authConfirmPassword: string;
   authCreateAccount: string;
+  authEmail: string;
+  authEmailCode: string;
+  authEmailCodeFailed: string;
+  authEmailCodeInvalid: string;
+  authEmailCodeRequired: string;
+  authEmailCodeSent: string;
+  authEmailInvalid: string;
+  authEmailLogin: string;
+  authEmailSendCode: string;
+  authEmailSendingCode: string;
   authExistingAccountLogin: string;
   authHumanVerificationRequired: string;
   authInvalidCredentials: string;

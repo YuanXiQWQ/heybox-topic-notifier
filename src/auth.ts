@@ -2,16 +2,18 @@
  * @file 本文件提供登录、注册、会话读取和认证中间件。
  */
 import { Hono } from "@hono/hono";
-import type { MiddlewareHandler } from "@hono/hono";
+import type { Context, MiddlewareHandler } from "@hono/hono";
 import { getMessages } from "./locales/index.ts";
 import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
 import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
 import type {
+  EmailCredential,
   EmailVerificationPurpose,
   PasswordCredential,
   UserAccount,
 } from "./models.ts";
 import {
+  csrfFieldName,
   csrfForbiddenResponse,
   csrfHeaderName,
   csrfHiddenInput,
@@ -54,6 +56,7 @@ import {
   EmailVerificationValidationError,
   isEmailVerificationPurpose,
   sendEmailVerificationCode,
+  verifyEmailVerificationCode,
 } from "./auth/email_verification.ts";
 
 export { readAuthSession } from "./auth/session.ts";
@@ -237,6 +240,7 @@ export function createAuthRoutes(
             : undefined,
         }),
         csrfToken: csrf.token,
+        emailTurnstileSiteKey: turnstileSiteKey(config),
         error: loginErrorMessage(url.searchParams.get("error"), messages),
         heading: messages.authLogin,
         locale,
@@ -262,11 +266,19 @@ export function createAuthRoutes(
     ) {
       return csrfForbiddenResponse(c.req.raw);
     }
-    const username = normalizeUsername(String(form.username ?? ""));
-    const password = String(form.password ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const syncLocale = shouldSyncAuthLocale(url);
+    if (String(form.authMethod ?? "password") === "email") {
+      return await handleEmailLogin(c, storage, config, form, {
+        locale,
+        returnTo,
+        syncLocale,
+      });
+    }
+
+    const username = normalizeUsername(String(form.username ?? ""));
+    const password = String(form.password ?? "");
     const canRateLimit = validUsername(username);
     const loginFailure = canRateLimit
       ? await storage.getLoginFailure(username)
@@ -670,6 +682,371 @@ export function createAuthRoutes(
   });
 
   return app;
+}
+
+type EmailLoginOptions = {
+  locale: Locale;
+  returnTo: string;
+  syncLocale: boolean;
+};
+
+/**
+ * 处理邮箱验证码主登录。
+ *
+ * @param c Hono 请求上下文。
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @param form 已解析表单。
+ * @param options 邮箱登录选项。
+ * @return 登录响应。
+ */
+async function handleEmailLogin(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  form: Record<string, unknown>,
+  options: EmailLoginOptions,
+): Promise<Response> {
+  const email = normalizeEmailAddress(String(form.email ?? ""));
+  const verificationId = String(form.verificationId ?? "").trim();
+  const code = String(form.code ?? "");
+  if (!email || !verificationId || !code.trim()) {
+    return c.redirect(
+      emailLoginErrorRedirect(config, options, "emailInvalid"),
+      303,
+    );
+  }
+
+  const clientLimitResponse = await rateLimitExceededResponseFor(
+    storage,
+    publicRateLimitPolicies.emailLogin,
+    `${clientRateLimitIdentifier((name) => c.req.header(name))}:email-login`,
+    { request: c.req.raw },
+  );
+  if (clientLimitResponse) {
+    return clientLimitResponse;
+  }
+
+  const targetLimitResponse = await rateLimitExceededResponseFor(
+    storage,
+    publicRateLimitPolicies.emailLogin,
+    `email:${email}:primary-login`,
+    { request: c.req.raw },
+  );
+  if (targetLimitResponse) {
+    return targetLimitResponse;
+  }
+
+  const verification = await storage.getPendingEmailVerification(
+    verificationId,
+  );
+  const verificationError = primaryEmailLoginVerificationError(
+    verification,
+    email,
+    config.emailVerification.maxAttempts,
+  );
+  if (verificationError) {
+    if (
+      verification &&
+      (verificationError === "expired" || verificationError === "attempts")
+    ) {
+      await storage.deletePendingEmailVerification(verification.id);
+    }
+    logSecurityAuditEvent({
+      code: "email_login_failed",
+      details: { email: maskedEmailAddress(email), reason: verificationError },
+      level: "warn",
+      message: "邮箱验证码登录失败。",
+      request: c.req.raw,
+    });
+    return c.redirect(
+      emailLoginErrorRedirect(config, options, "emailCode"),
+      303,
+    );
+  }
+
+  const activeVerification = verification as NonNullable<typeof verification>;
+  const validCode = await verifyEmailVerificationCode(
+    code,
+    activeVerification,
+    config.emailVerification,
+  );
+  if (!validCode) {
+    await recordPrimaryEmailLoginFailure(storage, config, activeVerification);
+    logSecurityAuditEvent({
+      code: "email_login_failed",
+      details: { email: maskedEmailAddress(email), reason: "code" },
+      level: "warn",
+      message: "邮箱验证码登录失败。",
+      request: c.req.raw,
+    });
+    return c.redirect(
+      emailLoginErrorRedirect(config, options, "emailCode"),
+      303,
+    );
+  }
+
+  const account = await findOrCreateEmailLoginAccount(storage, email);
+  const verifiedAccount = await ensureEmailLoginCredential(
+    storage,
+    account,
+    email,
+  );
+  await storage.deletePendingEmailVerification(activeVerification.id);
+
+  if (options.syncLocale) {
+    await saveAuthLocale(verifiedAccount.id, options.locale, storage);
+  }
+
+  logSecurityAuditEvent({
+    code: "email_login_succeeded",
+    details: {
+      email: maskedEmailAddress(email),
+      primaryMethod: "email_otp",
+      secondFactorExcluded: "email",
+    },
+    level: "info",
+    message: "邮箱验证码登录成功。",
+    request: c.req.raw,
+    userId: verifiedAccount.id,
+  });
+
+  return await redirectWithSession(
+    c.req.url,
+    options.returnTo,
+    verifiedAccount,
+    storage,
+    config,
+  );
+}
+
+type PrimaryEmailLoginVerificationError = "attempts" | "code" | "expired";
+
+/**
+ * 校验邮箱登录验证码挑战是否可用。
+ *
+ * @param verification 待验证挑战。
+ * @param email 规范化后的邮箱地址。
+ * @param maxAttempts 最大尝试次数。
+ * @return 不可继续时返回错误码。
+ */
+function primaryEmailLoginVerificationError(
+  verification: Awaited<ReturnType<Storage["getPendingEmailVerification"]>>,
+  email: string,
+  maxAttempts: number,
+): PrimaryEmailLoginVerificationError | undefined {
+  if (
+    !verification ||
+    verification.purpose !== "primary_login" ||
+    verification.email !== email
+  ) {
+    return "code";
+  }
+
+  if (Date.parse(verification.expiresAt) <= Date.now()) {
+    return "expired";
+  }
+
+  return verification.attempts >= maxAttempts ? "attempts" : undefined;
+}
+
+/**
+ * 记录邮箱主登录验证码失败次数。
+ *
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @param verification 待验证挑战。
+ * @return 记录完成后的 Promise。
+ */
+async function recordPrimaryEmailLoginFailure(
+  storage: Storage,
+  config: AuthConfig,
+  verification: NonNullable<
+    Awaited<ReturnType<Storage["getPendingEmailVerification"]>>
+  >,
+): Promise<void> {
+  const attempts = verification.attempts + 1;
+  if (attempts >= config.emailVerification.maxAttempts) {
+    await storage.deletePendingEmailVerification(verification.id);
+    return;
+  }
+
+  await storage.savePendingEmailVerification({ ...verification, attempts });
+}
+
+/**
+ * 查找或创建邮箱登录对应的本地账号。
+ *
+ * @param storage 应用存储。
+ * @param email 规范化后的邮箱地址。
+ * @return 本地账号。
+ */
+async function findOrCreateEmailLoginAccount(
+  storage: Storage,
+  email: string,
+): Promise<UserAccount> {
+  const existingAccount = await findAccountByVerifiedEmail(storage, email);
+  if (existingAccount) {
+    return existingAccount;
+  }
+
+  const now = new Date().toISOString();
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const account: UserAccount = {
+      authVersion: 2,
+      createdAt: now,
+      emailVerified: true,
+      id: crypto.randomUUID(),
+      primaryEmail: email,
+      username: emailLoginUsernameCandidate(email, attempt),
+    };
+    if (await storage.createAccount(account)) {
+      await storage.saveEmailCredential({
+        createdAt: now,
+        email,
+        lastVerifiedAt: now,
+        userId: account.id,
+        verified: true,
+      });
+      logSecurityAuditEvent({
+        code: "email_login_account_created",
+        details: { email: maskedEmailAddress(email) },
+        level: "info",
+        message: "邮箱验证码登录已创建本地账号。",
+        userId: account.id,
+      });
+      return account;
+    }
+  }
+
+  throw new Error("Could not create a unique email login account.");
+}
+
+/**
+ * 按已验证邮箱查找本地账号。
+ *
+ * @param storage 应用存储。
+ * @param email 规范化后的邮箱地址。
+ * @return 匹配账号。
+ */
+async function findAccountByVerifiedEmail(
+  storage: Storage,
+  email: string,
+): Promise<UserAccount | undefined> {
+  for (const account of await storage.listAccounts()) {
+    if (
+      account.emailVerified &&
+      normalizeEmailAddress(account.primaryEmail ?? "") === email
+    ) {
+      return account;
+    }
+
+    const credential = await storage.getEmailCredential(account.id, email);
+    if (credential?.verified) {
+      return account;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * 确保邮箱登录账号记录了已验证邮箱凭证。
+ *
+ * @param storage 应用存储。
+ * @param account 本地账号。
+ * @param email 规范化后的邮箱地址。
+ * @return 更新后的账号。
+ */
+async function ensureEmailLoginCredential(
+  storage: Storage,
+  account: UserAccount,
+  email: string,
+): Promise<UserAccount> {
+  const now = new Date().toISOString();
+  const existingCredential = await storage.getEmailCredential(
+    account.id,
+    email,
+  );
+  const credential: EmailCredential = {
+    createdAt: existingCredential?.createdAt ?? now,
+    email,
+    lastVerifiedAt: now,
+    userId: account.id,
+    verified: true,
+  };
+  const nextAccount: UserAccount = {
+    ...account,
+    emailVerified: true,
+    primaryEmail: email,
+  };
+
+  if (
+    normalizeEmailAddress(account.primaryEmail ?? "") !== email ||
+    !account.emailVerified
+  ) {
+    await storage.updateAccount(nextAccount);
+  }
+  await storage.saveEmailCredential(credential);
+  return nextAccount;
+}
+
+/**
+ * 生成邮箱登录新账号的候选用户名。
+ *
+ * @param email 规范化后的邮箱地址。
+ * @param attempt 当前尝试次数。
+ * @return 候选用户名。
+ */
+function emailLoginUsernameCandidate(email: string, attempt: number): string {
+  const base = emailUsernameBase(email);
+  if (attempt === 0 && validUsername(base)) {
+    return base;
+  }
+
+  const suffix = base64UrlEncode(crypto.getRandomValues(new Uint8Array(4)))
+    .toLowerCase()
+    .slice(0, 6);
+  const prefix = base.slice(0, Math.max(3, 39 - suffix.length));
+  return `${prefix}-${suffix}`;
+}
+
+/**
+ * 从邮箱 local-part 派生用户名基础值。
+ *
+ * @param email 规范化后的邮箱地址。
+ * @return 用户名基础值。
+ */
+function emailUsernameBase(email: string): string {
+  const localPart = email.split("@")[0] ?? "";
+  const normalized = localPart
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9_-]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 32);
+  return validUsername(normalized) ? normalized : "email-user";
+}
+
+/**
+ * 构造邮箱登录错误跳转地址。
+ *
+ * @param config 认证配置。
+ * @param options 邮箱登录选项。
+ * @param error 登录错误码。
+ * @return 登录页地址。
+ */
+function emailLoginErrorRedirect(
+  config: AuthConfig,
+  options: EmailLoginOptions,
+  error: "emailCode" | "emailInvalid",
+): string {
+  return authPagePath(config.loginPath, options.locale, {
+    error,
+    returnTo: options.returnTo,
+    [authLocaleChangedParam]: options.syncLocale
+      ? authLocaleChangedValue
+      : undefined,
+  });
 }
 
 /**
@@ -1119,6 +1496,7 @@ function arrayBufferFromBytes(value: Uint8Array): ArrayBuffer {
 function renderAuthPage(options: {
   action: string;
   csrfToken: string;
+  emailTurnstileSiteKey?: string;
   error?: string;
   heading: string;
   locale: Locale;
@@ -1155,7 +1533,11 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.appName)
   }</title>
     <link rel="stylesheet" href="/static/app.css">
-    ${turnstileScriptHtml(options.turnstileSiteKey)}
+    ${
+    turnstileScriptHtml(
+      options.turnstileSiteKey ?? options.emailTurnstileSiteKey,
+    )
+  }
     <style>
       body {
         min-height: 100vh;
@@ -1179,6 +1561,29 @@ function renderAuthPage(options: {
       .auth-fields {
         display: grid;
         gap: 12px;
+      }
+
+      .auth-method-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin: 4px 0 0;
+      }
+
+      .auth-email-code-row {
+        align-items: center;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .auth-email-status {
+        color: var(--muted);
+        font-size: 0.9rem;
+        min-height: 18px;
+      }
+
+      .auth-email-status[data-state="error"] {
+        color: #b42318;
       }
 
       .auth-panel h1 {
@@ -1331,11 +1736,186 @@ function renderAuthPage(options: {
   }
           <button type="submit">${escapeHtml(options.submitLabel)}</button>
         </form>
+        ${options.mode === "login" ? renderEmailLoginForm(options) : ""}
         <a href="${escapeHtml(switchHref)}">${escapeHtml(switchLabel)}</a>
       </section>
     </main>
+    ${authEmailLoginScript(options.mode === "login")}
   </body>
 </html>`;
+}
+
+/**
+ * 渲染邮箱验证码登录表单。
+ *
+ * @param options 认证页渲染选项。
+ * @return 邮箱验证码登录表单 HTML。
+ */
+function renderEmailLoginForm(options: {
+  action: string;
+  csrfToken: string;
+  emailTurnstileSiteKey?: string;
+  messages: Messages;
+  returnTo: string;
+}): string {
+  return `<div class="auth-method-title">${
+    escapeHtml(options.messages.authEmailLogin)
+  }</div>
+        <form
+          method="post"
+          action="${escapeHtml(options.action)}"
+          data-auth-email-login-form
+          data-email-code-required="${
+    escapeHtml(options.messages.authEmailCodeRequired)
+  }"
+          data-email-invalid="${escapeHtml(options.messages.authEmailInvalid)}"
+          data-email-send-failed="${
+    escapeHtml(options.messages.authEmailCodeFailed)
+  }"
+          data-email-sending="${
+    escapeHtml(options.messages.authEmailSendingCode)
+  }"
+          data-email-sent="${escapeHtml(options.messages.authEmailCodeSent)}"
+        >
+          ${csrfHiddenInput(options.csrfToken)}
+          <input type="hidden" name="authMethod" value="email">
+          <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
+          <input type="hidden" name="verificationId" data-auth-email-verification-id>
+          <label>
+            ${escapeHtml(options.messages.authEmail)}
+            <input
+              name="email"
+              type="email"
+              dir="ltr"
+              autocomplete="email"
+              data-auth-email-input
+              required
+            >
+          </label>
+          <label>
+            ${escapeHtml(options.messages.authEmailCode)}
+            <span class="auth-email-code-row">
+              <input
+                name="code"
+                type="text"
+                dir="ltr"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                autocomplete="one-time-code"
+                data-auth-email-code-input
+                required
+              >
+              <button type="button" class="secondary" data-auth-email-send-code-button>
+                ${escapeHtml(options.messages.authEmailSendCode)}
+              </button>
+            </span>
+          </label>
+          ${turnstileWidgetHtml(options.emailTurnstileSiteKey)}
+          <div
+            class="auth-email-status"
+            data-auth-email-status
+            role="status"
+            hidden
+          ></div>
+          <button type="submit">${
+    escapeHtml(options.messages.authEmailLogin)
+  }</button>
+        </form>`;
+}
+
+/**
+ * 渲染邮箱验证码登录的前端交互脚本。
+ *
+ * @param enabled 是否需要渲染脚本。
+ * @return 交互脚本 HTML。
+ */
+function authEmailLoginScript(enabled: boolean): string {
+  return enabled
+    ? `<script>
+(() => {
+  const form = document.querySelector("[data-auth-email-login-form]");
+  if (!(form instanceof HTMLFormElement)) return;
+  const emailInput = form.querySelector("[data-auth-email-input]");
+  const codeInput = form.querySelector("[data-auth-email-code-input]");
+  const verificationIdInput = form.querySelector("[data-auth-email-verification-id]");
+  const sendButton = form.querySelector("[data-auth-email-send-code-button]");
+  const status = form.querySelector("[data-auth-email-status]");
+  if (!(emailInput instanceof HTMLInputElement) || !(codeInput instanceof HTMLInputElement) || !(verificationIdInput instanceof HTMLInputElement) || !(sendButton instanceof HTMLButtonElement)) return;
+  const csrfInput = form.querySelector("input[name='${csrfFieldName}']");
+  const csrfToken = () => csrfInput instanceof HTMLInputElement ? csrfInput.value : "";
+  const setStatus = (message, state = "") => {
+    if (!(status instanceof HTMLElement)) return;
+    status.textContent = message;
+    status.hidden = message.length === 0;
+    if (state === "error") status.dataset.state = "error";
+    else delete status.dataset.state;
+  };
+  const bodyFromForm = () => {
+    const body = new URLSearchParams();
+    for (const [key, value] of new FormData(form)) {
+      if (typeof value === "string") body.set(key, value);
+    }
+    body.set("${csrfFieldName}", csrfToken());
+    body.set("purpose", "primary_login");
+    return body;
+  };
+  const resetTurnstile = () => {
+    if (globalThis.turnstile && typeof globalThis.turnstile.reset === "function") {
+      globalThis.turnstile.reset();
+    }
+  };
+  emailInput.addEventListener("input", () => {
+    verificationIdInput.value = "";
+    setStatus("");
+  });
+  codeInput.addEventListener("input", () => setStatus(""));
+  sendButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+    if (!emailInput.checkValidity()) {
+      setStatus(form.dataset.emailInvalid || "", "error");
+      emailInput.reportValidity();
+      return;
+    }
+    sendButton.disabled = true;
+    setStatus(form.dataset.emailSending || "");
+    try {
+      const response = await fetch("${emailVerificationPath}", {
+        body: bodyFromForm(),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "${csrfHeaderName}": csrfToken(),
+        },
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || typeof payload.id !== "string") {
+        verificationIdInput.value = "";
+        setStatus(form.dataset.emailSendFailed || "", "error");
+        return;
+      }
+      verificationIdInput.value = payload.id;
+      codeInput.value = "";
+      setStatus(form.dataset.emailSent || "");
+      codeInput.focus();
+    } catch {
+      verificationIdInput.value = "";
+      setStatus(form.dataset.emailSendFailed || "", "error");
+    } finally {
+      sendButton.disabled = false;
+      resetTurnstile();
+    }
+  });
+  form.addEventListener("submit", (event) => {
+    if (verificationIdInput.value.trim()) return;
+    event.preventDefault();
+    setStatus(form.dataset.emailCodeRequired || "", "error");
+    emailInput.focus();
+  });
+})();
+</script>`
+    : "";
 }
 
 /**
@@ -1492,6 +2072,10 @@ function loginErrorMessage(
   messages: Messages,
 ): string | undefined {
   switch (value) {
+    case "emailCode":
+      return messages.authEmailCodeInvalid;
+    case "emailInvalid":
+      return messages.authEmailInvalid;
     case "invalid":
       return messages.authInvalidCredentials;
     case "rateLimited":

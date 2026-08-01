@@ -54,6 +54,10 @@ const emailVerificationClientLimit = 10;
  */
 const emailVerificationTargetLimit = 3;
 /**
+ * 邮箱验证码登录每十分钟允许的校验次数。
+ */
+const emailLoginLimit = 10;
+/**
  * 账号敏感操作每十分钟允许的次数。
  */
 const accountOperationLimit = 10;
@@ -88,6 +92,11 @@ export const publicRateLimitPolicies = {
   emailVerificationTarget: {
     limit: emailVerificationTargetLimit,
     scope: "email-verification-target",
+    windowMs: 10 * minuteMs,
+  },
+  emailLogin: {
+    limit: emailLoginLimit,
+    scope: "email-login",
     windowMs: 10 * minuteMs,
   },
   manualPoll: {
