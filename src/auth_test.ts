@@ -10,9 +10,11 @@ import {
   readAuthSession,
 } from "./auth.ts";
 import { turnstileResponseFieldName } from "./auth/turnstile.ts";
+import type { EmailVerificationEmailMessage } from "./auth/email_verification.ts";
 import type {
   AppSettings,
   PasswordCredential,
+  PendingEmailVerification,
   UserAccount,
   UserSession,
 } from "./models.ts";
@@ -230,6 +232,117 @@ Deno.test("auth routes register users after Turnstile verification", async () =>
     "alice",
   );
   assertEquals(requestBody.includes("response=verified-token"), true);
+});
+
+Deno.test("auth routes send email verification codes", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(
+    storage,
+    emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+  );
+
+  const response = await app.request("/auth/email-verifications?locale=en-US", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        email: " Alice@Example.COM ",
+        purpose: "primary_login",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const payload = await response.json();
+  const verification = Array.from(
+    storage.pendingEmailVerificationsById.values(),
+  )[0];
+  const sentCode = sentMessages[0].text.match(/[0-9]{6}/)?.[0] ?? "";
+
+  assertEquals(response.status, 200);
+  assertEquals(payload.ok, true);
+  assertEquals(sentMessages.length, 1);
+  assertEquals(sentMessages[0].to, "alice@example.com");
+  assertEquals(verification.email, "alice@example.com");
+  assertEquals(verification.purpose, "primary_login");
+  assertEquals(verification.codeHash === sentCode, false);
+});
+
+Deno.test("auth routes reject email verification without Turnstile token when enabled", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(storage, {
+    ...emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+    ...turnstileAuthOptions(),
+  });
+
+  const response = await app.request("/auth/email-verifications", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        email: "alice@example.com",
+        purpose: "primary_login",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 403);
+  assertEquals((await response.json()).error, "humanVerification");
+  assertEquals(sentMessages.length, 0);
+  assertEquals(storage.pendingEmailVerificationsById.size, 0);
+});
+
+Deno.test("auth routes rate limit email verification by target and purpose", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(
+    storage,
+    emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+  );
+  const headers = testCsrfHeaders({ "x-forwarded-for": "203.0.113.20" });
+
+  for (let index = 0; index < 3; index += 1) {
+    const response = await app.request("/auth/email-verifications", {
+      body: testCsrfForm(
+        new URLSearchParams({
+          email: "alice@example.com",
+          purpose: "primary_login",
+        }),
+      ),
+      headers,
+      method: "POST",
+    });
+    assertEquals(response.status, 200);
+  }
+
+  const limitedResponse = await app.request("/auth/email-verifications", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        email: "alice@example.com",
+        purpose: "primary_login",
+      }),
+    ),
+    headers,
+    method: "POST",
+  });
+
+  assertEquals(limitedResponse.status, 429);
+  assertEquals(sentMessages.length, 3);
 });
 
 Deno.test("auth routes save selected registration locale in user settings", async () => {
@@ -611,6 +724,25 @@ function turnstileAuthOptions(options: {
 }
 
 /**
+ * 创建开启邮箱验证码的认证测试配置。
+ *
+ * @param options 邮箱验证码测试选项。
+ * @return 认证测试配置。
+ */
+function emailVerificationAuthOptions(options: {
+  sender?: AuthOptions["sendEmailVerificationEmail"];
+} = {}): AuthOptions {
+  return {
+    emailVerification: {
+      codeSecret: "test-email-code-secret",
+      codeTtlSeconds: 600,
+      maxAttempts: 5,
+    },
+    sendEmailVerificationEmail: options.sender,
+  };
+}
+
+/**
  * 读取测试 fetch 请求体文本。
  *
  * @param body 请求体。
@@ -651,6 +783,7 @@ async function requestText(body: BodyInit | null | undefined): Promise<string> {
  */
 function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   passwordCredentialsByUserId: Map<string, PasswordCredential>;
+  pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
   savedSessions: UserSession[];
   settingsByUserId: Map<string, AppSettings>;
 } {
@@ -661,6 +794,10 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     { failures: number; lockedUntil?: string }
   >();
   const passwordCredentialsByUserId = new Map<string, PasswordCredential>();
+  const pendingEmailVerificationsById = new Map<
+    string,
+    PendingEmailVerification
+  >();
   const settingsByUserId = new Map<string, AppSettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
   const savedSessions: UserSession[] = [];
@@ -668,6 +805,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   return {
     ...createMemoryRateLimitRecorder(),
     passwordCredentialsByUserId,
+    pendingEmailVerificationsById,
     savedSessions,
     settingsByUserId,
     /**
@@ -722,6 +860,16 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       passwordCredentialsByUserId.set(credential.userId, credential);
       return Promise.resolve();
     },
+    getPendingEmailVerification: (id: string) =>
+      Promise.resolve(pendingEmailVerificationsById.get(id)),
+    savePendingEmailVerification: (verification: PendingEmailVerification) => {
+      pendingEmailVerificationsById.set(verification.id, verification);
+      return Promise.resolve();
+    },
+    deletePendingEmailVerification: (id: string) => {
+      pendingEmailVerificationsById.delete(id);
+      return Promise.resolve();
+    },
     getLoginFailure: (username: string) =>
       Promise.resolve(
         loginFailuresByUsername.get(username.trim().toLowerCase()),
@@ -766,6 +914,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     },
   } as unknown as ReturnType<typeof createKvStorage> & {
     passwordCredentialsByUserId: Map<string, PasswordCredential>;
+    pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
     savedSessions: UserSession[];
     settingsByUserId: Map<string, AppSettings>;
   };

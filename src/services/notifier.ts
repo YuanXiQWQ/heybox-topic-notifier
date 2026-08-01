@@ -17,7 +17,7 @@ import {
 /**
  * 通知载荷类型。
  */
-type NotifyKind = "match" | "matches";
+type NotifyKind = "email" | "match" | "matches";
 
 /**
  * 通知投递时使用的统一载荷结构。
@@ -112,6 +112,16 @@ type EmailMessage = {
 };
 
 /**
+ * 直接邮件消息结构。
+ */
+export type EmailMessageRequest = {
+  html: string;
+  subject: string;
+  text: string;
+  to: string;
+};
+
+/**
  * SMTP 连接配置。
  */
 type SmtpConfig = {
@@ -134,7 +144,8 @@ const pushPlusSendUrl = "https://www.pushplus.plus/send";
 /**
  * WxPusher 默认简易发送地址。
  */
-const wxPusherSimplePushUrl = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
+const wxPusherSimplePushUrl =
+  "https://wxpusher.zjiecode.com/api/send/message/simple-push";
 /**
  * HTTP 通知投递允许跟随的最大重定向次数。
  */
@@ -162,11 +173,17 @@ const testNotificationOverflowGuard = 300;
 /**
  * 测试通知中使用的示例帖子链接。
  */
-const testNotificationUrl = "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/";
+const testNotificationUrl =
+  "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/";
 /**
  * 测试通知可随机使用的命中位置。
  */
-const testMatchLocations: MatchRecord["location"][] = ["title", "body", "comments", "replies"];
+const testMatchLocations: MatchRecord["location"][] = [
+  "title",
+  "body",
+  "comments",
+  "replies",
+];
 /**
  * Markdown 硬换行标记。
  */
@@ -212,14 +229,21 @@ export function createNotifier(options: NotifierOptions = {}) {
   const fetcher = options.fetch ?? fetch;
   const resolveDns = options.resolveDns ?? resolveOutboundDns;
   const deliveryLogger = options.deliveryLogger ?? logDelivery;
-  const pushPlusUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL")) ??
-    pushPlusSendUrl;
-  const wxPusherUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL")) ??
-    wxPusherSimplePushUrl;
-  const serverChanUrl = normalizeEndpointUrl(Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL"));
+  const pushPlusUrl =
+    normalizeEndpointUrl(Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL")) ??
+      pushPlusSendUrl;
+  const wxPusherUrl =
+    normalizeEndpointUrl(Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL")) ??
+      wxPusherSimplePushUrl;
+  const serverChanUrl = normalizeEndpointUrl(
+    Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL"),
+  );
   const relayToken = Deno.env.get("NOTIFIER_RELAY_TOKEN")?.trim() ?? "";
-  const webhookUrl = options.webhookUrl ?? Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
-  const outboundAllowedHosts = parseAllowedOutboundHosts(Deno.env.get("OUTBOUND_ALLOWED_HOSTS"));
+  const webhookUrl = options.webhookUrl ??
+    Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "";
+  const outboundAllowedHosts = parseAllowedOutboundHosts(
+    Deno.env.get("OUTBOUND_ALLOWED_HOSTS"),
+  );
 
   return {
     /**
@@ -229,7 +253,10 @@ export function createNotifier(options: NotifierOptions = {}) {
      * @param settings 应用设置。
      * @return 通知发送结果。
      */
-    async sendMatch(record: MatchRecord, settings: AppSettings): Promise<NotifyResult> {
+    async sendMatch(
+      record: MatchRecord,
+      settings: AppSettings,
+    ): Promise<NotifyResult> {
       return await sendNotification({ record, type: "match" }, settings);
     },
 
@@ -240,7 +267,10 @@ export function createNotifier(options: NotifierOptions = {}) {
      * @param settings 应用设置。
      * @return 通知发送结果。
      */
-    async sendMatches(records: MatchRecord[], settings: AppSettings): Promise<NotifyResult> {
+    async sendMatches(
+      records: MatchRecord[],
+      settings: AppSettings,
+    ): Promise<NotifyResult> {
       return await sendNotification({ records, type: "matches" }, settings);
     },
 
@@ -252,6 +282,20 @@ export function createNotifier(options: NotifierOptions = {}) {
      */
     async sendTest(settings: AppSettings): Promise<NotifyResult> {
       return await sendNotification({ type: "test" }, settings);
+    },
+
+    /**
+     * 使用现有邮件投递配置发送直接邮件。
+     *
+     * @param message 直接邮件消息。
+     * @param settings 应用设置。
+     * @return 通知发送结果。
+     */
+    async sendEmailMessage(
+      message: EmailMessageRequest,
+      settings: AppSettings,
+    ): Promise<NotifyResult> {
+      return await sendDirectEmailMessage(message, settings);
     },
 
     /**
@@ -286,6 +330,32 @@ export function createNotifier(options: NotifierOptions = {}) {
     }
 
     return await sendPayload(deliveryOptions(settings, payload));
+  }
+
+  /**
+   * 直接发送指定收件人的邮件消息。
+   *
+   * @param message 直接邮件消息。
+   * @param settings 应用设置。
+   * @return 通知发送结果。
+   */
+  async function sendDirectEmailMessage(
+    message: EmailMessageRequest,
+    settings: AppSettings,
+  ): Promise<NotifyResult> {
+    await sendEmailNotification(
+      deliveryOptions({
+        ...settings,
+        notificationEmailAddress: message.to,
+        notificationProvider: "email",
+      }, {
+        html: message.html,
+        text: message.text,
+        title: message.subject,
+        type: "email",
+      }),
+    );
+    return { provider: "email", sent: true };
   }
 
   /**
@@ -344,7 +414,9 @@ export function createNotifier(options: NotifierOptions = {}) {
    * @param options 通知投递选项。
    * @return 通知发送结果。
    */
-  async function sendPayload(options: ReturnType<typeof deliveryOptions>): Promise<NotifyResult> {
+  async function sendPayload(
+    options: ReturnType<typeof deliveryOptions>,
+  ): Promise<NotifyResult> {
     if (options.provider === "disabled") {
       return { provider: options.provider, sent: false };
     }
@@ -354,7 +426,9 @@ export function createNotifier(options: NotifierOptions = {}) {
       return { provider: options.provider, sent: true };
     }
 
-    if (options.webhookService === "pushPlus" && !options.pushPlusToken.trim()) {
+    if (
+      options.webhookService === "pushPlus" && !options.pushPlusToken.trim()
+    ) {
       throw new NotificationConfigError(
         "PushPlus token is required for webhook notifications.",
       );
@@ -366,7 +440,10 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
-    if (options.webhookService === "serverChan" && !options.serverChanSendKey.trim()) {
+    if (
+      options.webhookService === "serverChan" &&
+      !options.serverChanSendKey.trim()
+    ) {
       throw new NotificationConfigError(
         "Server酱 SendKey is required for webhook notifications.",
       );
@@ -389,7 +466,10 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
-    const safeTargetWebhookUrl = secureHttpEndpoint(targetWebhookUrl, "Webhook URL");
+    const safeTargetWebhookUrl = secureHttpEndpoint(
+      targetWebhookUrl,
+      "Webhook URL",
+    );
 
     const redactedSecrets = webhookRedactedSecrets({
       relayToken,
@@ -398,30 +478,37 @@ export function createNotifier(options: NotifierOptions = {}) {
     });
     let response: Response;
     try {
-      response = await fetchSecureHttpEndpointWithDeliveryTimeout(safeTargetWebhookUrl, {
-        body: JSON.stringify(bodyForWebhook({
-          payload: options.payload,
-          pushPlusToken: options.pushPlusToken,
-          service: options.webhookService,
-          url: safeTargetWebhookUrl,
-          wxPusherSpt: options.wxPusherSpt,
-        })),
-        headers: headersForWebhook({
-          relayToken,
-          serverChanSendKey: options.serverChanSendKey,
-          serverChanUrl,
-          service: options.webhookService,
-          targetWebhookUrl: safeTargetWebhookUrl,
-        }),
-        method: "POST",
-      }, {
-        label: webhookDeliveryLabel(options.webhookService, safeTargetWebhookUrl),
-        logger: deliveryLogger,
-        redactedSecrets,
-        service: webhookServiceLabel(options.webhookService),
-        serviceLabel: "Webhook URL",
-        timeoutMs: deliveryTimeoutMs,
-      });
+      response = await fetchSecureHttpEndpointWithDeliveryTimeout(
+        safeTargetWebhookUrl,
+        {
+          body: JSON.stringify(bodyForWebhook({
+            payload: options.payload,
+            pushPlusToken: options.pushPlusToken,
+            service: options.webhookService,
+            url: safeTargetWebhookUrl,
+            wxPusherSpt: options.wxPusherSpt,
+          })),
+          headers: headersForWebhook({
+            relayToken,
+            serverChanSendKey: options.serverChanSendKey,
+            serverChanUrl,
+            service: options.webhookService,
+            targetWebhookUrl: safeTargetWebhookUrl,
+          }),
+          method: "POST",
+        },
+        {
+          label: webhookDeliveryLabel(
+            options.webhookService,
+            safeTargetWebhookUrl,
+          ),
+          logger: deliveryLogger,
+          redactedSecrets,
+          service: webhookServiceLabel(options.webhookService),
+          serviceLabel: "Webhook URL",
+          timeoutMs: deliveryTimeoutMs,
+        },
+      );
     } catch (error) {
       throw redactNotificationDeliveryError(error, redactedSecrets);
     }
@@ -434,7 +521,11 @@ export function createNotifier(options: NotifierOptions = {}) {
       );
     }
 
-    assertWebhookAccepted(options.webhookService, responseBody, redactedSecrets);
+    assertWebhookAccepted(
+      options.webhookService,
+      responseBody,
+      redactedSecrets,
+    );
 
     return { provider: options.provider, sent: true };
   }
@@ -461,10 +552,14 @@ export function createNotifier(options: NotifierOptions = {}) {
     const to = options.emailAddress.trim();
     const from = options.emailFrom.trim() || options.smtpUsername.trim();
     if (!to) {
-      throw new NotificationConfigError("Email address is required for email notifications.");
+      throw new NotificationConfigError(
+        "Email address is required for email notifications.",
+      );
     }
     if (!from) {
-      throw new NotificationConfigError("From address is required for email notifications.");
+      throw new NotificationConfigError(
+        "From address is required for email notifications.",
+      );
     }
 
     const message = {
@@ -476,7 +571,11 @@ export function createNotifier(options: NotifierOptions = {}) {
     };
 
     if (options.emailService === "api") {
-      await sendEmailApiNotification(message, options.emailApiUrl, options.emailApiToken);
+      await sendEmailApiNotification(
+        message,
+        options.emailApiUrl,
+        options.emailApiToken,
+      );
       return;
     }
 
@@ -511,7 +610,9 @@ export function createNotifier(options: NotifierOptions = {}) {
   ): Promise<void> {
     const url = apiUrl.trim();
     if (!url) {
-      throw new NotificationConfigError("Email API URL is required for email notifications.");
+      throw new NotificationConfigError(
+        "Email API URL is required for email notifications.",
+      );
     }
     const safeUrl = secureHttpEndpoint(url, "Email API URL");
 
@@ -583,7 +684,11 @@ export function createNotifier(options: NotifierOptions = {}) {
   ): Promise<Response> {
     let currentUrl = secureHttpEndpoint(url, options.serviceLabel);
 
-    for (let redirectCount = 0; redirectCount <= maxHttpRedirects; redirectCount += 1) {
+    for (
+      let redirectCount = 0;
+      redirectCount <= maxHttpRedirects;
+      redirectCount += 1
+    ) {
       await secureResolvedHttpEndpoint(currentUrl, options.serviceLabel);
       const response = await fetchWithDeliveryTimeout(fetcher, currentUrl, {
         ...init,
@@ -607,10 +712,16 @@ export function createNotifier(options: NotifierOptions = {}) {
         );
       }
 
-      currentUrl = secureRedirectEndpoint(currentUrl, location, options.serviceLabel);
+      currentUrl = secureRedirectEndpoint(
+        currentUrl,
+        location,
+        options.serviceLabel,
+      );
     }
 
-    throw new NotificationDeliveryError(`${options.label} redirected too many times.`);
+    throw new NotificationDeliveryError(
+      `${options.label} redirected too many times.`,
+    );
   }
 
   /**
@@ -620,7 +731,10 @@ export function createNotifier(options: NotifierOptions = {}) {
    * @param {string} serviceLabel 当前通知服务标签。
    * @return {Promise<void>} 校验通过时无返回值。
    */
-  async function secureResolvedHttpEndpoint(url: string, serviceLabel: string): Promise<void> {
+  async function secureResolvedHttpEndpoint(
+    url: string,
+    serviceLabel: string,
+  ): Promise<void> {
     const result = await validateResolvedOutboundHost(new URL(url).hostname, {
       allowedHosts: outboundAllowedHosts,
       resolveDns,
@@ -645,7 +759,10 @@ export function createNotifier(options: NotifierOptions = {}) {
     serviceLabel: string,
   ): string {
     const previous = new URL(currentUrl);
-    const next = secureHttpEndpoint(new URL(location, previous).toString(), serviceLabel);
+    const next = secureHttpEndpoint(
+      new URL(location, previous).toString(),
+      serviceLabel,
+    );
     if (new URL(next).origin !== previous.origin) {
       throw new NotificationConfigError(
         `${serviceLabel} redirect is not allowed for security reasons.`,
@@ -707,7 +824,8 @@ function normalizeEndpointUrl(value: string | undefined): string | undefined {
  * @return {boolean} 状态码是常见重定向时返回 true。
  */
 function isHttpRedirectStatus(status: number): boolean {
-  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+  return status === 301 || status === 302 || status === 303 || status === 307 ||
+    status === 308;
 }
 
 /**
@@ -717,7 +835,10 @@ function isHttpRedirectStatus(status: number): boolean {
  * @param {DnsRecordType} recordType DNS 记录类型。
  * @return {Promise<string[]>} DNS 解析得到的地址列表。
  */
-function resolveOutboundDns(hostname: string, recordType: DnsRecordType): Promise<string[]> {
+function resolveOutboundDns(
+  hostname: string,
+  recordType: DnsRecordType,
+): Promise<string[]> {
   return Deno.resolveDns(hostname, recordType);
 }
 
@@ -755,7 +876,10 @@ async function fetchWithDeliveryTimeout(
   }, options.timeoutMs);
 
   try {
-    const response = await fetcher(input, { ...init, signal: controller.signal });
+    const response = await fetcher(input, {
+      ...init,
+      signal: controller.signal,
+    });
     logger({
       deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? null,
       elapsedMs: Date.now() - startedAtMs,
@@ -810,7 +934,8 @@ async function fetchWithDeliveryTimeout(
  */
 function hostnameForRequest(input: string | URL | Request): string {
   try {
-    return new URL(input instanceof Request ? input.url : String(input)).hostname;
+    return new URL(input instanceof Request ? input.url : String(input))
+      .hostname;
   } catch {
     return "unknown host";
   }
@@ -823,8 +948,13 @@ function hostnameForRequest(input: string | URL | Request): string {
  * @param init 请求初始化参数。
  * @return 大写的 HTTP 方法。
  */
-function methodForRequest(input: string | URL | Request, init: RequestInit): string {
-  return String(init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+function methodForRequest(
+  input: string | URL | Request,
+  init: RequestInit,
+): string {
+  return String(
+    init.method ?? (input instanceof Request ? input.method : "GET"),
+  ).toUpperCase();
 }
 
 /**
@@ -867,7 +997,9 @@ async function withDeliveryTimeout<T>(
     }
 
     throw new NotificationDeliveryError(
-      `${options.label} failed: ${error instanceof Error ? error.message : String(error)}`,
+      `${options.label} failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     );
   } finally {
     clearTimeout(timeoutId);
@@ -895,7 +1027,9 @@ async function smtpConfigForEmailService(
 ): Promise<SmtpConfig> {
   const host = options.smtpHost.trim();
   if (!host) {
-    throw new NotificationConfigError("SMTP host is required for email notifications.");
+    throw new NotificationConfigError(
+      "SMTP host is required for email notifications.",
+    );
   }
   const endpoint = validateSmtpEndpoint(
     { host, port: options.smtpPort },
@@ -908,11 +1042,14 @@ async function smtpConfigForEmailService(
     throw new NotificationConfigError(endpoint.message);
   }
 
-  const resolvedEndpoint = await validateResolvedOutboundHost(endpoint.value.host, {
-    allowedHosts,
-    resolveDns,
-    serviceLabel: "SMTP host",
-  });
+  const resolvedEndpoint = await validateResolvedOutboundHost(
+    endpoint.value.host,
+    {
+      allowedHosts,
+      resolveDns,
+      serviceLabel: "SMTP host",
+    },
+  );
   if (!resolvedEndpoint.ok) {
     throw new NotificationConfigError(resolvedEndpoint.message);
   }
@@ -1005,7 +1142,9 @@ function relayTokenForWebhook(options: {
   }
 
   if (!options.relayToken) {
-    throw new NotificationConfigError(relayTokenConfigErrorMessage(options.service));
+    throw new NotificationConfigError(
+      relayTokenConfigErrorMessage(options.service),
+    );
   }
 
   return options.relayToken;
@@ -1058,7 +1197,9 @@ function usesServerChanRelayUrl(options: {
  * @param service Webhook 服务类型。
  * @return 配置错误信息。
  */
-function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookService"]): string {
+function relayTokenConfigErrorMessage(
+  service: AppSettings["notificationWebhookService"],
+): string {
   switch (service) {
     case "pushPlus":
       return "NOTIFIER_RELAY_TOKEN is required when using NOTIFIER_PUSHPLUS_SEND_URL.";
@@ -1078,7 +1219,10 @@ function relayTokenConfigErrorMessage(service: AppSettings["notificationWebhookS
  * @param redactedSecrets 需要脱敏的敏感值列表。
  * @return 脱敏后的错误。
  */
-function redactNotificationDeliveryError(error: unknown, redactedSecrets: string[]): unknown {
+function redactNotificationDeliveryError(
+  error: unknown,
+  redactedSecrets: string[],
+): unknown {
   if (error instanceof NotificationDeliveryError) {
     return new NotificationDeliveryError(
       redactSecrets(error.message, redactedSecrets),
@@ -1112,7 +1256,10 @@ function redactSecret(value: string, secret: string): string {
  * @return 脱敏后的字符串。
  */
 function redactSecrets(value: string, secrets: string[]): string {
-  return secrets.reduce((current, secret) => redactSecret(current, secret), value);
+  return secrets.reduce(
+    (current, secret) => redactSecret(current, secret),
+    value,
+  );
 }
 
 /**
@@ -1159,7 +1306,9 @@ function webhookDeliveryLabel(
  * @param service Webhook 服务类型。
  * @return 服务展示名称。
  */
-function webhookServiceLabel(service: AppSettings["notificationWebhookService"]): string {
+function webhookServiceLabel(
+  service: AppSettings["notificationWebhookService"],
+): string {
   switch (service) {
     case "pushPlus":
       return "PushPlus";
@@ -1216,7 +1365,8 @@ function matchPayload(record: MatchRecord): NotificationPayload {
         url: record.post.url,
       },
     },
-    text: `New Heybox match: ${record.keyword} in ${record.location} - ${record.post.title}`,
+    text:
+      `New Heybox match: ${record.keyword} in ${record.location} - ${record.post.title}`,
     type: "match",
   };
 }
@@ -1325,7 +1475,8 @@ export function createRandomTestMatchRecord(
   const messages = getMessages(settings.locale);
   const now = Date.now();
   const seed = String(randomInt(100, 999));
-  const location = testMatchLocations[randomInt(0, testMatchLocations.length - 1)];
+  const location =
+    testMatchLocations[randomInt(0, testMatchLocations.length - 1)];
   const publishedAt = new Date(now - randomInt(1, 360) * 60_000).toISOString();
   const uniqueId = `${now}:${number}:${seed}:${location}`;
   const excerpt = variant === "simulation"
@@ -1409,7 +1560,8 @@ function bodyForWebhook(options: {
 function isServerChanUrl(value: string): boolean {
   try {
     const hostname = new URL(value).hostname;
-    return hostname === "sctapi.ftqq.com" || hostname.endsWith(".push.ft07.com");
+    return hostname === "sctapi.ftqq.com" ||
+      hostname.endsWith(".push.ft07.com");
   } catch {
     return false;
   }
@@ -1455,7 +1607,9 @@ function assertWebhookAccepted(
     ? String(payload.msg)
     : responseBody;
   throw new NotificationDeliveryError(
-    `${serviceLabel(service)} notification failed: ${redactSecrets(message, redactedSecrets)}`,
+    `${serviceLabel(service)} notification failed: ${
+      redactSecrets(message, redactedSecrets)
+    }`,
   );
 }
 
@@ -1475,7 +1629,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @param service Webhook 服务类型。
  * @return 错误展示名称。
  */
-function serviceLabel(service: AppSettings["notificationWebhookService"]): string {
+function serviceLabel(
+  service: AppSettings["notificationWebhookService"],
+): string {
   return service === "pushPlus" ? "PushPlus" : "WxPusher";
 }
 
@@ -1549,10 +1705,16 @@ function matchesHtml(
   now: Date,
 ): string {
   const messages = getMessages(settings.locale);
-  const omittedCount = omittedMatchCount(text, messages.notificationMoreMatches);
+  const omittedCount = omittedMatchCount(
+    text,
+    messages.notificationMoreMatches,
+  );
   const items = records.slice(0, countRenderedMatches(text));
   const renderedItems = items.map((record) => {
-    const title = truncateText(record.post.title, notificationTitlePreviewLength);
+    const title = truncateText(
+      record.post.title,
+      notificationTitlePreviewLength,
+    );
     const content = truncateText(
       record.post.excerpt || record.post.body || "-",
       notificationContentPreviewLength,
@@ -1567,7 +1729,11 @@ function matchesHtml(
   return [
     ...renderedItems,
     omittedCount > 0
-      ? `<hr><p>${escapeHtml(moreMatchesText(messages.notificationMoreMatches, omittedCount))}</p>`
+      ? `<hr><p>${
+        escapeHtml(
+          moreMatchesText(messages.notificationMoreMatches, omittedCount),
+        )
+      }</p>`
       : "",
   ].filter(Boolean).join("<hr>");
 }
@@ -1598,7 +1764,10 @@ function matchesDescription(
       }`
       : nextBody;
 
-    if (renderedItems.length > 0 && nextWithOmitted.length > notificationContentLimit) {
+    if (
+      renderedItems.length > 0 &&
+      nextWithOmitted.length > notificationContentLimit
+    ) {
       break;
     }
 
@@ -1622,7 +1791,11 @@ function matchesDescription(
  * @param now 当前时间。
  * @return 单条命中 Markdown 片段。
  */
-function matchMarkdown(record: MatchRecord, settings: AppSettings, now: Date): string {
+function matchMarkdown(
+  record: MatchRecord,
+  settings: AppSettings,
+  now: Date,
+): string {
   const content = truncateText(
     record.post.excerpt || record.post.body || "-",
     notificationContentPreviewLength,
@@ -1644,7 +1817,11 @@ function matchMarkdown(record: MatchRecord, settings: AppSettings, now: Date): s
  * @param now 当前时间。
  * @return 元信息文本行。
  */
-function matchMetadataLine(record: MatchRecord, settings: AppSettings, now: Date): string {
+function matchMetadataLine(
+  record: MatchRecord,
+  settings: AppSettings,
+  now: Date,
+): string {
   const messages = getMessages(settings.locale);
   return `${messages.publishedAt}：${
     formatHeyboxRelativeTime(record.post.publishedAt, now, settings.locale)
@@ -1660,7 +1837,10 @@ function matchMetadataLine(record: MatchRecord, settings: AppSettings, now: Date
  * @return 转义后的链接文本。
  */
 function escapeMarkdownLinkText(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
+  return value.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll(
+    "]",
+    "\\]",
+  );
 }
 
 /**
@@ -1704,7 +1884,10 @@ function moreMatchesText(template: string, count: number): string {
  * @param values 替换变量映射。
  * @return 替换后的文本。
  */
-function templateText(template: string, values: Record<string, string>): string {
+function templateText(
+  template: string,
+  values: Record<string, string>,
+): string {
   return Object.entries(values).reduce(
     (text, [key, value]) => text.replaceAll(`{${key}}`, value),
     template,
@@ -1720,7 +1903,9 @@ function templateText(template: string, values: Record<string, string>): string 
 function countRenderedMatches(text: string): number {
   const sections = text.split(markdownSeparator);
   const omittedPattern = /^(?:及另外 \d+ 条帖子|and \d+ more posts)$/;
-  return sections.filter((section) => section.trim() && !omittedPattern.test(section.trim()))
+  return sections.filter((section) =>
+    section.trim() && !omittedPattern.test(section.trim())
+  )
     .length;
 }
 
@@ -1792,7 +1977,10 @@ function escapeAttribute(value: string): string {
  * @param config SMTP 连接配置。
  * @return 邮件发送完成后的 Promise。
  */
-async function sendSmtpEmail(message: EmailMessage, config: SmtpConfig): Promise<void> {
+async function sendSmtpEmail(
+  message: EmailMessage,
+  config: SmtpConfig,
+): Promise<void> {
   let connection: Deno.Conn | Deno.TlsConn | undefined;
   try {
     connection = config.secure
@@ -1820,7 +2008,9 @@ async function sendSmtpEmail(message: EmailMessage, config: SmtpConfig): Promise
       throw error;
     }
     throw new NotificationDeliveryError(
-      `Email notification failed: ${error instanceof Error ? error.message : String(error)}`,
+      `Email notification failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     );
   } finally {
     connection?.close();
@@ -1848,7 +2038,9 @@ function createSmtpSession(connection: Deno.Conn | Deno.TlsConn) {
       const chunk = new Uint8Array(1024);
       const size = await connection.read(chunk);
       if (size === null) {
-        throw new NotificationDeliveryError("SMTP connection closed unexpectedly.");
+        throw new NotificationDeliveryError(
+          "SMTP connection closed unexpectedly.",
+        );
       }
       buffer += decoder.decode(chunk.subarray(0, size), { stream: true });
     }
@@ -1887,7 +2079,9 @@ function createSmtpSession(connection: Deno.Conn | Deno.TlsConn) {
   async function expect(expected: number[]): Promise<void> {
     const result = await response();
     if (!expected.includes(result.code)) {
-      throw new NotificationDeliveryError(`SMTP command failed: ${result.text}`);
+      throw new NotificationDeliveryError(
+        `SMTP command failed: ${result.text}`,
+      );
     }
   }
 

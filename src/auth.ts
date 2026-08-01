@@ -6,7 +6,11 @@ import type { MiddlewareHandler } from "@hono/hono";
 import { getMessages } from "./locales/index.ts";
 import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
 import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
-import type { PasswordCredential, UserAccount } from "./models.ts";
+import type {
+  EmailVerificationPurpose,
+  PasswordCredential,
+  UserAccount,
+} from "./models.ts";
 import {
   csrfForbiddenResponse,
   csrfHeaderName,
@@ -41,6 +45,16 @@ import {
   turnstileResponseFieldName,
   verifyTurnstileToken,
 } from "./auth/turnstile.ts";
+import { normalizeEmailAddress } from "./auth/email.ts";
+import {
+  createEmailVerificationChallenge,
+  type EmailVerificationConfig,
+  EmailVerificationConfigError,
+  type EmailVerificationEmailSender,
+  EmailVerificationValidationError,
+  isEmailVerificationPurpose,
+  sendEmailVerificationCode,
+} from "./auth/email_verification.ts";
 
 export { readAuthSession } from "./auth/session.ts";
 export type { AuthSession } from "./auth/session.ts";
@@ -61,6 +75,8 @@ export type AuthOptions = {
   defaultLocale?: Locale;
   loginPath?: string;
   registerPath?: string;
+  emailVerification?: EmailVerificationConfig;
+  sendEmailVerificationEmail?: EmailVerificationEmailSender;
   sessionMaxAgeSeconds?: number;
   turnstile?: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
@@ -75,8 +91,10 @@ type AuthConfig = {
   loginLockoutSeconds: number;
   maxLoginFailures: number;
   defaultLocale: Locale;
+  emailVerification: EmailVerificationConfig;
   loginPath: string;
   registerPath: string;
+  sendEmailVerificationEmail?: EmailVerificationEmailSender;
   sessionMaxAgeSeconds: number;
   turnstile: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
@@ -93,6 +111,14 @@ const defaultTurnstileConfig: TurnstileConfig = {
   enabled: false,
   secretKey: "",
   siteKey: "",
+};
+/**
+ * 默认邮箱验证码配置。
+ */
+const defaultEmailVerificationConfig: EmailVerificationConfig = {
+  codeSecret: "",
+  codeTtlSeconds: 10 * 60,
+  maxAttempts: 5,
 };
 /**
  * 默认登录路径。
@@ -138,6 +164,10 @@ const authTurnstileRequiredValue = "1";
  * 登录失败多少次后要求人机验证。
  */
 const turnstileLoginFailureThreshold = 2;
+/**
+ * 邮箱验证码发送接口路径。
+ */
+const emailVerificationPath = "/auth/email-verifications";
 
 /**
  * 创建认证中间件。
@@ -477,6 +507,146 @@ export function createAuthRoutes(
     );
   });
 
+  app.post(emailVerificationPath, async (c) => {
+    const url = new URL(c.req.url);
+    const form = await c.req.parseBody();
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const email = normalizeEmailAddress(String(form.email ?? ""));
+    const purpose = emailVerificationPurposeFromForm(form);
+    if (!email || !purpose) {
+      return c.json({ error: "invalidEmailVerificationRequest" }, 400);
+    }
+
+    if (!supportedEmailVerificationPurpose(purpose)) {
+      return c.json({ error: "unsupportedEmailVerificationPurpose" }, 400);
+    }
+
+    const session = await readAuthSession(
+      c.req.header("cookie"),
+      storage,
+      config,
+    );
+    if (purpose === "email_binding" && !session) {
+      return c.json({ error: "authenticationRequired" }, 401);
+    }
+
+    const clientLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailVerificationClient,
+      `${clientRateLimitIdentifier((name) => c.req.header(name))}:${purpose}`,
+      { request: c.req.raw, userId: session?.userId },
+    );
+    if (clientLimitResponse) {
+      return clientLimitResponse;
+    }
+
+    const humanVerificationErrors = await humanVerificationErrorCodes(
+      c.req.raw,
+      form,
+      config,
+    );
+    if (humanVerificationErrors) {
+      return c.json({ error: "humanVerification" }, 403);
+    }
+
+    const targetLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailVerificationTarget,
+      `email:${email}:purpose:${purpose}`,
+      { request: c.req.raw, userId: session?.userId },
+    );
+    if (targetLimitResponse) {
+      return targetLimitResponse;
+    }
+
+    if (!config.sendEmailVerificationEmail) {
+      logSecurityAuditEvent({
+        code: "email_verification_unavailable",
+        level: "warn",
+        message: "邮箱验证码发送能力未配置。",
+        request: c.req.raw,
+        userId: session?.userId,
+      });
+      return c.json({ error: "emailVerificationUnavailable" }, 503);
+    }
+
+    let challenge: Awaited<ReturnType<typeof createEmailVerificationChallenge>>;
+    try {
+      challenge = await createEmailVerificationChallenge({
+        config: config.emailVerification,
+        email,
+        purpose,
+        userId: session?.userId,
+      });
+    } catch (error) {
+      if (error instanceof EmailVerificationValidationError) {
+        return c.json({ error: "invalidEmailVerificationRequest" }, 400);
+      }
+
+      if (error instanceof EmailVerificationConfigError) {
+        logSecurityAuditEvent({
+          code: "email_verification_unavailable",
+          level: "warn",
+          message: "邮箱验证码密钥未配置。",
+          request: c.req.raw,
+          userId: session?.userId,
+        });
+        return c.json({ error: "emailVerificationUnavailable" }, 503);
+      }
+
+      throw error;
+    }
+
+    await storage.savePendingEmailVerification(challenge.verification);
+    try {
+      await sendEmailVerificationCode(config.sendEmailVerificationEmail, {
+        code: challenge.code,
+        email: challenge.verification.email,
+        expiresAt: challenge.verification.expiresAt,
+        locale,
+        purpose,
+      });
+    } catch (error) {
+      await storage.deletePendingEmailVerification(challenge.verification.id);
+      logSecurityAuditEvent({
+        code: "email_verification_delivery_failed",
+        details: { errorName: error instanceof Error ? error.name : "" },
+        level: "warn",
+        message: "邮箱验证码发送失败。",
+        request: c.req.raw,
+        userId: session?.userId,
+      });
+      return c.json({ error: "emailVerificationDeliveryFailed" }, 502);
+    }
+
+    logSecurityAuditEvent({
+      code: "email_verification_sent",
+      details: {
+        email: maskedEmailAddress(challenge.verification.email),
+        purpose,
+      },
+      level: "info",
+      message: "邮箱验证码已发送。",
+      request: c.req.raw,
+      userId: session?.userId,
+    });
+
+    return c.json({
+      expiresAt: challenge.verification.expiresAt,
+      id: challenge.verification.id,
+      ok: true,
+    });
+  });
+
   app.post("/logout", async (c) => {
     const form = await c.req.parseBody().catch(() => ({}));
     if (
@@ -515,15 +685,24 @@ function authConfig(options: AuthOptions): AuthConfig {
   return {
     cookieName: options.cookieName ?? defaultCookieName,
     defaultLocale: options.defaultLocale ?? "zh-CN",
+    emailVerification: options.emailVerification ??
+      defaultEmailVerificationConfig,
     exemptPaths: new Set(
       options.exemptPaths ??
-        ["/healthz", loginPath, registerPath, "/static/app.css"],
+        [
+          "/healthz",
+          loginPath,
+          registerPath,
+          emailVerificationPath,
+          "/static/app.css",
+        ],
     ),
     loginLockoutSeconds: options.loginLockoutSeconds ??
       defaultLoginLockoutSeconds,
     maxLoginFailures: options.maxLoginFailures ?? defaultMaxLoginFailures,
     loginPath,
     registerPath,
+    sendEmailVerificationEmail: options.sendEmailVerificationEmail,
     sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ??
       defaultSessionMaxAgeSeconds,
     turnstile: options.turnstile ?? defaultTurnstileConfig,
@@ -641,6 +820,45 @@ function remoteIpFromRequest(request: Request): string | undefined {
   return request.headers.get("cf-connecting-ip") ??
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     undefined;
+}
+
+/**
+ * 从表单中读取邮箱验证码用途。
+ *
+ * @param form 表单数据。
+ * @return 合法用途，不合法时返回 undefined。
+ */
+function emailVerificationPurposeFromForm(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>,
+): EmailVerificationPurpose | undefined {
+  const purpose = String(form.purpose ?? "");
+  return isEmailVerificationPurpose(purpose) ? purpose : undefined;
+}
+
+/**
+ * 判断当前阶段是否支持指定邮箱验证码用途。
+ *
+ * @param purpose 邮箱验证码用途。
+ * @return 当前阶段支持时返回 true。
+ */
+function supportedEmailVerificationPurpose(
+  purpose: EmailVerificationPurpose,
+): boolean {
+  return purpose === "email_binding" || purpose === "primary_login";
+}
+
+/**
+ * 遮罩邮箱地址用于审计日志。
+ *
+ * @param email 规范化后的邮箱地址。
+ * @return 遮罩后的邮箱地址。
+ */
+function maskedEmailAddress(email: string): string {
+  const [localPart, domain] = email.split("@");
+  const visible = localPart.length <= 2
+    ? localPart.slice(0, 1)
+    : localPart.slice(0, 2);
+  return `${visible}***@${domain ?? ""}`;
 }
 
 /**

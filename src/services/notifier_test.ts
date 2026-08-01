@@ -68,7 +68,9 @@ const record: MatchRecord = {
  * @param options 通知器创建选项。
  * @return 测试通知器实例。
  */
-function createNotifier(options: Parameters<typeof createRealNotifier>[0] = {}) {
+function createNotifier(
+  options: Parameters<typeof createRealNotifier>[0] = {},
+) {
   return createRealNotifier({
     deliveryLogger: () => {
     },
@@ -86,7 +88,8 @@ function createNotifier(options: Parameters<typeof createRealNotifier>[0] = {}) 
 function resolveDnsTo(
   addresses: string[],
 ): (hostname: string, recordType: DnsRecordType) => Promise<string[]> {
-  return (_hostname: string, _recordType: DnsRecordType) => Promise.resolve(addresses);
+  return (_hostname: string, _recordType: DnsRecordType) =>
+    Promise.resolve(addresses);
 }
 
 /**
@@ -126,7 +129,10 @@ Deno.test("sendMatch posts a JSON webhook payload", async () => {
   assertEquals(requests.length, 1);
   assertEquals(requests[0].url, "https://example.com/settings-webhook");
   assertEquals(requests[0].method, "POST");
-  assertEquals(requests[0].headers.get("content-type"), "application/json; charset=utf-8");
+  assertEquals(
+    requests[0].headers.get("content-type"),
+    "application/json; charset=utf-8",
+  );
   const body = await requests[0].json();
   assertEquals(body.type, "match");
   assertEquals(body.match.keyword, "help");
@@ -279,11 +285,51 @@ Deno.test("email provider sends matching plain text and HTML content", async () 
   assertEquals(messages[0].from, "from@example.com");
   assertEquals(messages[0].to, "test@example.com");
   assertEquals(messages[0].subject, "小黑盒话题提醒：轮询命中");
-  assertEquals(messages[0].text.includes("[Need help](https://example.com/p1)"), true);
+  assertEquals(
+    messages[0].text.includes("[Need help](https://example.com/p1)"),
+    true,
+  );
   assertEquals(messages[0].text.includes("发帖时间："), true);
-  assertEquals(messages[0].html.includes('<a href="https://example.com/p1">Need help</a>'), true);
+  assertEquals(
+    messages[0].html.includes('<a href="https://example.com/p1">Need help</a>'),
+    true,
+  );
   assertEquals(messages[0].html.includes("<hr>"), true);
   assertEquals(messages[0].html.includes("命中时间"), false);
+});
+
+Deno.test("sendEmailMessage sends to the provided recipient", async () => {
+  const messages: Array<{
+    from: string;
+    html: string;
+    subject: string;
+    text: string;
+    to: string;
+  }> = [];
+  const notifier = createNotifier({
+    emailSender: (message) => {
+      messages.push(message);
+      return Promise.resolve();
+    },
+  });
+
+  const result = await notifier.sendEmailMessage({
+    html: "<p>123456</p>",
+    subject: "Auth code",
+    text: "123456",
+    to: "alice@example.com",
+  }, {
+    ...settings,
+    notificationEmailAddress: "old-target@example.com",
+    notificationProvider: "disabled",
+  });
+
+  assertEquals(result, { provider: "email", sent: true });
+  assertEquals(messages.length, 1);
+  assertEquals(messages[0].from, "from@example.com");
+  assertEquals(messages[0].to, "alice@example.com");
+  assertEquals(messages[0].subject, "Auth code");
+  assertEquals(messages[0].text, "123456");
 });
 
 Deno.test("email API provider posts the email payload to the configured API", async () => {
@@ -305,19 +351,26 @@ Deno.test("email API provider posts the email payload to the configured API", as
   assertEquals(requests.length, 1);
   assertEquals(requests[0].url, "https://example.com/email-api");
   assertEquals(requests[0].method, "POST");
-  assertEquals(requests[0].headers.get("authorization"), "Bearer email-api-token");
+  assertEquals(
+    requests[0].headers.get("authorization"),
+    "Bearer email-api-token",
+  );
   const body = await requests[0].json();
   assertEquals(body.from, "from@example.com");
   assertEquals(body.to, "test@example.com");
   assertEquals(body.subject, "小黑盒话题提醒：轮询命中");
   assertEquals(body.text.includes("[Need help](https://example.com/p1)"), true);
-  assertEquals(body.html.includes('<a href="https://example.com/p1">Need help</a>'), true);
+  assertEquals(
+    body.html.includes('<a href="https://example.com/p1">Need help</a>'),
+    true,
+  );
 });
 
 Deno.test("email API provider omits upstream response bodies from delivery errors", async () => {
   const apiSecret = "email-api-response-secret";
   const notifier = createNotifier({
-    fetch: () => Promise.resolve(new Response(`failed ${apiSecret}`, { status: 500 })),
+    fetch: () =>
+      Promise.resolve(new Response(`failed ${apiSecret}`, { status: 500 })),
   });
 
   try {
@@ -346,7 +399,10 @@ Deno.test("disabled provider does not send a request", async () => {
     webhookUrl: "https://example.com/webhook",
   });
 
-  const result = await notifier.sendTest({ ...settings, notificationProvider: "disabled" });
+  const result = await notifier.sendTest({
+    ...settings,
+    notificationProvider: "disabled",
+  });
 
   assertEquals(result, { provider: "disabled", sent: false });
   assertEquals(calls, 0);
@@ -390,7 +446,9 @@ Deno.test("server chan webhook receives title and desp fields", async () => {
   const notifier = createNotifier({
     fetch: (input, init) => {
       requests.push(new Request(input, init));
-      return Promise.resolve(new Response(JSON.stringify({ code: 0 }), { status: 200 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: 0 }), { status: 200 }),
+      );
     },
   });
 
@@ -412,7 +470,9 @@ Deno.test("server chan service builds the webhook URL from SendKey", async () =>
   const notifier = createNotifier({
     fetch: (input, init) => {
       requests.push(new Request(input, init));
-      return Promise.resolve(new Response(JSON.stringify({ code: 0 }), { status: 200 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: 0 }), { status: 200 }),
+      );
     },
   });
 
@@ -434,13 +494,18 @@ Deno.test("server chan service supports a configured relay URL with authorizatio
   const requests: Request[] = [];
   const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_SERVER_CHAN_SEND_URL", "https://relay.example.com/serverchan");
+  Deno.env.set(
+    "NOTIFIER_SERVER_CHAN_SEND_URL",
+    "https://relay.example.com/serverchan",
+  );
   Deno.env.set("NOTIFIER_RELAY_TOKEN", "relay-secret");
   try {
     const notifier = createNotifier({
       fetch: (input, init) => {
         requests.push(new Request(input, init));
-        return Promise.resolve(new Response(JSON.stringify({ code: 0 }), { status: 200 }));
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 0 }), { status: 200 }),
+        );
       },
     });
 
@@ -468,13 +533,18 @@ Deno.test("server chan relay URL requires a relay token before sending", async (
   let calls = 0;
   const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_SERVER_CHAN_SEND_URL", "https://relay.example.com/serverchan");
+  Deno.env.set(
+    "NOTIFIER_SERVER_CHAN_SEND_URL",
+    "https://relay.example.com/serverchan",
+  );
   Deno.env.delete("NOTIFIER_RELAY_TOKEN");
   try {
     const notifier = createNotifier({
       fetch: () => {
         calls += 1;
-        return Promise.resolve(new Response(JSON.stringify({ code: 0 }), { status: 200 }));
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 0 }), { status: 200 }),
+        );
       },
     });
 
@@ -502,12 +572,16 @@ Deno.test("server chan relay redacts send key and relay token from errors and lo
   const logs: DeliveryLogEntry[] = [];
   const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_SERVER_CHAN_SEND_URL", "https://relay.example.com/serverchan");
+  Deno.env.set(
+    "NOTIFIER_SERVER_CHAN_SEND_URL",
+    "https://relay.example.com/serverchan",
+  );
   Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
   try {
     const notifier = createNotifier({
       deliveryLogger: (entry) => logs.push(entry),
-      fetch: () => Promise.reject(new TypeError(`failed ${relayToken} ${sendKey}`)),
+      fetch: () =>
+        Promise.reject(new TypeError(`failed ${relayToken} ${sendKey}`)),
     });
 
     try {
@@ -540,11 +614,17 @@ Deno.test("server chan relay omits send key and relay token from HTTP response e
   const sendKey = "SCTRESPONSE";
   const previousUrl = Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_SERVER_CHAN_SEND_URL", "https://relay.example.com/serverchan");
+  Deno.env.set(
+    "NOTIFIER_SERVER_CHAN_SEND_URL",
+    "https://relay.example.com/serverchan",
+  );
   Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
   try {
     const notifier = createNotifier({
-      fetch: () => Promise.resolve(new Response(`bad ${relayToken} ${sendKey}`, { status: 502 })),
+      fetch: () =>
+        Promise.resolve(
+          new Response(`bad ${relayToken} ${sendKey}`, { status: 502 }),
+        ),
     });
 
     try {
@@ -574,7 +654,9 @@ Deno.test("server chan 3 webhook receives title and desp fields", async () => {
   const notifier = createNotifier({
     fetch: (input, init) => {
       requests.push(new Request(input, init));
-      return Promise.resolve(new Response(JSON.stringify({ code: 0 }), { status: 200 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: 0 }), { status: 200 }),
+      );
     },
   });
 
@@ -585,12 +667,17 @@ Deno.test("server chan 3 webhook receives title and desp fields", async () => {
     notificationWebhookUrl: "",
   });
 
-  assertEquals(requests[0].url, "https://123.push.ft07.com/send/sctp123token.send");
+  assertEquals(
+    requests[0].url,
+    "https://123.push.ft07.com/send/sctp123token.send",
+  );
   const body = await requests[0].json();
   assertEquals(body.title, "小黑盒话题提醒：测试通知");
   assertEquals(body.desp.includes("帖子 "), true);
   assertEquals(
-    body.desp.includes("https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/"),
+    body.desp.includes(
+      "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/",
+    ),
     true,
   );
   assertEquals(body.desp.includes("发帖时间："), true);
@@ -605,7 +692,9 @@ Deno.test("wxpusher service posts to the simple push API", async () => {
   const notifier = createNotifier({
     fetch: (input, init) => {
       requests.push(new Request(input, init));
-      return Promise.resolve(new Response(JSON.stringify({ code: 1000 }), { status: 200 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: 1000 }), { status: 200 }),
+      );
     },
   });
 
@@ -633,7 +722,9 @@ Deno.test("pushplus service posts to the send API", async () => {
   const notifier = createNotifier({
     fetch: (input, init) => {
       requests.push(new Request(input, init));
-      return Promise.resolve(new Response(JSON.stringify({ code: 200 }), { status: 200 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: 200 }), { status: 200 }),
+      );
     },
   });
 
@@ -694,7 +785,10 @@ Deno.test("relay token is not sent to official pushplus and wxpusher APIs", asyn
 
   assertEquals(requests[0].url, "https://www.pushplus.plus/send");
   assertEquals(requests[0].headers.get("authorization"), null);
-  assertEquals(requests[1].url, "https://wxpusher.zjiecode.com/api/send/message/simple-push");
+  assertEquals(
+    requests[1].url,
+    "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+  );
   assertEquals(requests[1].headers.get("authorization"), null);
 });
 
@@ -702,13 +796,18 @@ Deno.test("pushplus service supports a configured relay URL with authorization",
   const requests: Request[] = [];
   const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
+  Deno.env.set(
+    "NOTIFIER_PUSHPLUS_SEND_URL",
+    "https://relay.example.com/pushplus",
+  );
   Deno.env.set("NOTIFIER_RELAY_TOKEN", "relay-secret");
   try {
     const notifier = createNotifier({
       fetch: (input, init) => {
         requests.push(new Request(input, init));
-        return Promise.resolve(new Response(JSON.stringify({ code: 200 }), { status: 200 }));
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 200 }), { status: 200 }),
+        );
       },
     });
 
@@ -731,13 +830,18 @@ Deno.test("wxpusher service supports a configured relay URL with authorization",
   const requests: Request[] = [];
   const previousUrl = Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_WXPUSHER_SEND_URL", "https://relay.example.com/wxpusher");
+  Deno.env.set(
+    "NOTIFIER_WXPUSHER_SEND_URL",
+    "https://relay.example.com/wxpusher",
+  );
   Deno.env.set("NOTIFIER_RELAY_TOKEN", "relay-secret");
   try {
     const notifier = createNotifier({
       fetch: (input, init) => {
         requests.push(new Request(input, init));
-        return Promise.resolve(new Response(JSON.stringify({ code: 1000 }), { status: 200 }));
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 1000 }), { status: 200 }),
+        );
       },
     });
 
@@ -760,13 +864,18 @@ Deno.test("pushplus relay URL requires a relay token before sending", async () =
   let calls = 0;
   const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
+  Deno.env.set(
+    "NOTIFIER_PUSHPLUS_SEND_URL",
+    "https://relay.example.com/pushplus",
+  );
   Deno.env.delete("NOTIFIER_RELAY_TOKEN");
   try {
     const notifier = createNotifier({
       fetch: () => {
         calls += 1;
-        return Promise.resolve(new Response(JSON.stringify({ code: 200 }), { status: 200 }));
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 200 }), { status: 200 }),
+        );
       },
     });
 
@@ -792,13 +901,18 @@ Deno.test("wxpusher relay URL requires a relay token before sending", async () =
   let calls = 0;
   const previousUrl = Deno.env.get("NOTIFIER_WXPUSHER_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_WXPUSHER_SEND_URL", "https://relay.example.com/wxpusher");
+  Deno.env.set(
+    "NOTIFIER_WXPUSHER_SEND_URL",
+    "https://relay.example.com/wxpusher",
+  );
   Deno.env.delete("NOTIFIER_RELAY_TOKEN");
   try {
     const notifier = createNotifier({
       fetch: () => {
         calls += 1;
-        return Promise.resolve(new Response(JSON.stringify({ code: 1000 }), { status: 200 }));
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 1000 }), { status: 200 }),
+        );
       },
     });
 
@@ -849,12 +963,16 @@ Deno.test("relay token is redacted from delivery errors", async () => {
   const logs: DeliveryLogEntry[] = [];
   const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
+  Deno.env.set(
+    "NOTIFIER_PUSHPLUS_SEND_URL",
+    "https://relay.example.com/pushplus",
+  );
   Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
   try {
     const notifier = createNotifier({
       deliveryLogger: (entry) => logs.push(entry),
-      fetch: () => Promise.reject(new TypeError(`network failed ${relayToken}`)),
+      fetch: () =>
+        Promise.reject(new TypeError(`network failed ${relayToken}`)),
     });
 
     try {
@@ -885,11 +1003,17 @@ Deno.test("relay token is omitted from HTTP response errors", async () => {
   const relayToken = "relay-secret-in-response";
   const previousUrl = Deno.env.get("NOTIFIER_PUSHPLUS_SEND_URL");
   const previousToken = Deno.env.get("NOTIFIER_RELAY_TOKEN");
-  Deno.env.set("NOTIFIER_PUSHPLUS_SEND_URL", "https://relay.example.com/pushplus");
+  Deno.env.set(
+    "NOTIFIER_PUSHPLUS_SEND_URL",
+    "https://relay.example.com/pushplus",
+  );
   Deno.env.set("NOTIFIER_RELAY_TOKEN", relayToken);
   try {
     const notifier = createNotifier({
-      fetch: () => Promise.resolve(new Response(`Unauthorized ${relayToken}`, { status: 401 })),
+      fetch: () =>
+        Promise.resolve(
+          new Response(`Unauthorized ${relayToken}`, { status: 401 }),
+        ),
     });
 
     try {
@@ -917,7 +1041,9 @@ Deno.test("pushplus service reports business errors from the API", async () => {
   const notifier = createNotifier({
     fetch: () =>
       Promise.resolve(
-        new Response(JSON.stringify({ code: 903, msg: "invalid token" }), { status: 200 }),
+        new Response(JSON.stringify({ code: 903, msg: "invalid token" }), {
+          status: 200,
+        }),
       ),
   });
 
@@ -937,7 +1063,9 @@ Deno.test("wxpusher service reports business errors from the API", async () => {
   const notifier = createNotifier({
     fetch: () =>
       Promise.resolve(
-        new Response(JSON.stringify({ code: 1001, msg: "invalid spt" }), { status: 200 }),
+        new Response(JSON.stringify({ code: 1001, msg: "invalid spt" }), {
+          status: 200,
+        }),
       ),
   });
 
@@ -986,7 +1114,10 @@ Deno.test("webhook provider follows same-origin safe redirects", async () => {
       requests.push(new Request(input, init));
       return Promise.resolve(
         requests.length === 1
-          ? new Response(null, { headers: { location: "/final-webhook" }, status: 302 })
+          ? new Response(null, {
+            headers: { location: "/final-webhook" },
+            status: 302,
+          })
           : new Response(null, { status: 204 }),
       );
     },
@@ -1007,7 +1138,10 @@ Deno.test("webhook provider rejects redirects to unsafe outbound URLs", async ()
   const notifier = createNotifier({
     fetch: () =>
       Promise.resolve(
-        new Response(null, { headers: { location: "https://127.0.0.1/webhook" }, status: 302 }),
+        new Response(null, {
+          headers: { location: "https://127.0.0.1/webhook" },
+          status: 302,
+        }),
       ),
   });
 

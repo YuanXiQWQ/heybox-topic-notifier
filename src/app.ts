@@ -2,7 +2,11 @@
  * @file 本文件负责组装 Hono 应用和应用运行时上下文。
  */
 import { Hono } from "@hono/hono";
-import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
+import {
+  type AuthOptions,
+  createAuthMiddleware,
+  createAuthRoutes,
+} from "./auth.ts";
 import { createRoutes } from "./routes.ts";
 import { createSecurityHeadersMiddleware } from "./security/headers.ts";
 import { createAppContext } from "./services/app_context.ts";
@@ -15,8 +19,15 @@ import { createAppContext } from "./services/app_context.ts";
 export function createApplication() {
   const app = new Hono();
   const context = createAppContext();
-  const authOptions = {
+  const authOptions: AuthOptions = {
     defaultLocale: context.config.defaultSettings.locale,
+    emailVerification: context.config.emailVerification,
+    sendEmailVerificationEmail: async (message) => {
+      await context.notifier.sendEmailMessage(
+        message,
+        context.config.defaultSettings,
+      );
+    },
     turnstile: context.config.turnstile,
   };
 
