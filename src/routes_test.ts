@@ -6,12 +6,15 @@ import { createRoutes, settingsFromForm } from "./routes.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
 import { createEmailVerificationChallenge } from "./auth/email_verification.ts";
 import { decryptTotpSecret, generateTotpCode } from "./auth/totp.ts";
+import { base64UrlEncode } from "./security/crypto_utils.ts";
 import type {
   AppSettings,
   EmailCredential,
   MatchRecord,
+  PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
+  PendingPasskeyChallenge,
   TotpCredential,
   UserAccount,
   UserSecuritySettings,
@@ -105,11 +108,25 @@ const testTotpConfig = {
 };
 
 /**
+ * 路由测试使用的 Passkey 配置。
+ */
+const testPasskeyConfig = {
+  challengeTtlSeconds: 300,
+  expectedOrigin: "http://localhost:8000",
+  rpId: "localhost",
+  rpName: "WarmNest",
+  timeoutMs: 60_000,
+  userVerification: "required" as const,
+};
+
+/**
  * 账户相关路由测试使用的内存存储能力。
  */
 type AccountRouteStorage = {
   clearLoginFailures(username: string): Promise<void>;
   createAccount(account: UserAccount): Promise<boolean>;
+  deletePasskeyCredential(userId: string, credentialId: string): Promise<void>;
+  deletePendingPasskeyChallenge(id: string): Promise<void>;
   deleteSession(tokenHash: string): Promise<void>;
   getAccountById(id: string): Promise<UserAccount | undefined>;
   getAccountByUsername(username: string): Promise<UserAccount | undefined>;
@@ -124,11 +141,19 @@ type AccountRouteStorage = {
   getPasswordCredential(
     userId: string,
   ): Promise<PasswordCredential | undefined>;
+  getPasskeyCredential(
+    userId: string,
+    credentialId: string,
+  ): Promise<PasskeyCredential | undefined>;
+  getPendingPasskeyChallenge(
+    id: string,
+  ): Promise<PendingPasskeyChallenge | undefined>;
   getSession(tokenHash: string): Promise<UserSession | undefined>;
   getSettings(): Promise<AppSettings>;
   getTotpCredential(userId: string): Promise<TotpCredential | undefined>;
   getUserSecuritySettings(userId: string): Promise<UserSecuritySettings>;
   listEmailCredentials(userId: string): Promise<EmailCredential[]>;
+  listPasskeyCredentials(userId: string): Promise<PasskeyCredential[]>;
   recordLoginFailure(
     username: string,
     maxFailures: number,
@@ -141,6 +166,10 @@ type AccountRouteStorage = {
   saveEmailCredential(credential: EmailCredential): Promise<void>;
   savePendingEmailVerification(
     verification: PendingEmailVerification,
+  ): Promise<void>;
+  savePasskeyCredential(credential: PasskeyCredential): Promise<void>;
+  savePendingPasskeyChallenge(
+    challenge: PendingPasskeyChallenge,
   ): Promise<void>;
   savePasswordCredential(credential: PasswordCredential): Promise<void>;
   saveSettings(settings: AppSettings): Promise<void>;
@@ -818,6 +847,185 @@ Deno.test("account TOTP route rejects an incorrect setup code", async () => {
   assertEquals(await storage.getTotpCredential(account.id), undefined);
 });
 
+Deno.test("settings route renders Passkey binding controls", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+
+  const response = await app.request("/settings", {
+    headers: testCsrfHeaders({ cookie }),
+  });
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertIncludes(html, `data-passkey-binding-section`);
+  assertIncludes(html, `data-passkey-bind-button`);
+  assertIncludes(
+    html,
+    `data-passkey-options-url="/account/passkeys/register-options"`,
+  );
+  assertIncludes(
+    html,
+    `data-passkey-register-url="/account/passkeys/register"`,
+  );
+});
+
+Deno.test("account Passkey route creates registration options and challenge", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const response = await app.request("/account/passkeys/register-options", {
+    body: "{}",
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+      cookie,
+    }),
+    method: "POST",
+  });
+  const payload = await response.json();
+  const challenge = await storage.getPendingPasskeyChallenge(
+    payload.challengeId,
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(typeof payload.optionsJSON.challenge, "string");
+  assertEquals(payload.optionsJSON.rp.id, "localhost");
+  assertEquals(challenge?.purpose, "passkey_registration");
+  assertEquals(challenge?.userId, account.id);
+  assertEquals(challenge?.challenge, payload.optionsJSON.challenge);
+});
+
+Deno.test("account Passkey route verifies registration and stores credential", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage, {
+    passkeyRegistrationVerifier: () =>
+      Promise.resolve({
+        registrationInfo: {
+          credential: {
+            counter: 0,
+            id: "created-passkey",
+            publicKey: new Uint8Array([1, 2, 3]),
+            transports: ["internal"],
+          },
+          credentialBackedUp: true,
+        },
+        verified: true,
+      }),
+  });
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  const optionsResponse = await app.request(
+    "/account/passkeys/register-options",
+    {
+      body: "{}",
+      headers: testCsrfHeaders({
+        "content-type": "application/json",
+        "x-csrf-token": testCsrfToken,
+        cookie,
+      }),
+      method: "POST",
+    },
+  );
+  const optionsPayload = await optionsResponse.json();
+
+  const response = await app.request("/account/passkeys/register", {
+    body: JSON.stringify({
+      challengeId: optionsPayload.challengeId,
+      credential: {
+        clientExtensionResults: {},
+        id: "created-passkey",
+        rawId: "created-passkey",
+        response: {
+          attestationObject: "attestation",
+          clientDataJSON: "client-data",
+        },
+        type: "public-key",
+      },
+      label: "Work laptop",
+    }),
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+      cookie,
+    }),
+    method: "POST",
+  });
+  const payload = await response.json();
+  const credential = await storage.getPasskeyCredential(
+    account.id,
+    "created-passkey",
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(payload.redirectTo, "/settings?passkey=updated");
+  assertEquals(credential?.label, "Work laptop");
+  assertEquals(
+    credential?.publicKey,
+    base64UrlEncode(new Uint8Array([1, 2, 3])),
+  );
+  assertEquals(
+    await storage.getPendingPasskeyChallenge(optionsPayload.challengeId),
+    undefined,
+  );
+});
+
+Deno.test("account Passkey route deletes a credential and reconciles 2FA", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  await storage.savePasskeyCredential({
+    backedUp: true,
+    counter: 0,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    credentialId: "delete-passkey",
+    publicKey: "public-key",
+    transports: ["internal"],
+    userId: account.id,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "passkey",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
+
+  const response = await app.request("/account/passkeys/delete", {
+    body: testCsrfForm(
+      new URLSearchParams({ credentialId: "delete-passkey" }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?passkey=deleted");
+  assertEquals(
+    await storage.getPasskeyCredential(account.id, "delete-passkey"),
+    undefined,
+  );
+  assertEquals(await storage.getUserSecuritySettings(account.id), {
+    preferredSecondFactor: undefined,
+    twoFactorEnabled: false,
+    userId: account.id,
+  });
+});
+
 Deno.test("account security route enables 2FA when a verified method exists", async () => {
   const storage = createAccountRouteStorage();
   const app = createAccountRouteApp(storage);
@@ -886,6 +1094,45 @@ Deno.test("account security route enables 2FA when a TOTP credential exists", as
   assertEquals(response.headers.get("location"), "/settings?security=updated");
   assertEquals(await storage.getUserSecuritySettings(account.id), {
     preferredSecondFactor: "totp",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
+});
+
+Deno.test("account security route enables 2FA when a Passkey exists", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  await storage.savePasskeyCredential({
+    backedUp: true,
+    counter: 0,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    credentialId: "passkey-credential",
+    publicKey: "public-key",
+    transports: ["internal"],
+    userId: account.id,
+  });
+
+  const response = await app.request("/account/security", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        preferredSecondFactor: "passkey",
+        twoFactorEnabled: "on",
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?security=updated");
+  assertEquals(await storage.getUserSecuritySettings(account.id), {
+    preferredSecondFactor: "passkey",
     twoFactorEnabled: true,
     userId: account.id,
   });
@@ -1392,7 +1639,10 @@ Deno.test("match redirects reject paths outside their table", async () => {
  * @param storage 账户与路由测试使用的内存存储。
  * @return 配置完成的 Hono 测试应用。
  */
-function createAccountRouteApp(storage: AccountRouteStorage): Hono {
+function createAccountRouteApp(
+  storage: AccountRouteStorage,
+  options: { passkeyRegistrationVerifier?: unknown } = {},
+): Hono {
   const app = new Hono();
   app.route("/", createAuthRoutes(storage as never));
   app.use("*", createAuthMiddleware(storage as never));
@@ -1401,9 +1651,11 @@ function createAccountRouteApp(storage: AccountRouteStorage): Hono {
     createRoutes({
       config: {
         emailVerification: testEmailVerificationConfig,
+        passkey: testPasskeyConfig,
         totp: testTotpConfig,
         turnstile: { enabled: false, secretKey: "", siteKey: "" },
       },
+      passkeyRegistrationVerifier: options.passkeyRegistrationVerifier,
       storage,
     } as unknown as AppContext),
   );
@@ -1414,10 +1666,15 @@ function createAccountRouteStorage(): AccountRouteStorage {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
   const emailCredentialsByKey = new Map<string, EmailCredential>();
+  const passkeyCredentialsByKey = new Map<string, PasskeyCredential>();
   const passwordCredentialsByUserId = new Map<string, PasswordCredential>();
   const pendingEmailVerificationsById = new Map<
     string,
     PendingEmailVerification
+  >();
+  const pendingPasskeyChallengesById = new Map<
+    string,
+    PendingPasskeyChallenge
   >();
   const securitySettingsByUserId = new Map<string, UserSecuritySettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
@@ -1467,6 +1724,32 @@ function createAccountRouteStorage(): AccountRouteStorage {
           .filter((credential) => credential.userId === userId)
           .toSorted((left, right) => left.email.localeCompare(right.email)),
       ),
+    getPasskeyCredential: (userId: string, credentialId: string) =>
+      Promise.resolve(
+        passkeyCredentialsByKey.get(passkeyCredentialKey(userId, credentialId)),
+      ),
+    listPasskeyCredentials: (userId: string) =>
+      Promise.resolve(
+        Array.from(passkeyCredentialsByKey.values())
+          .filter((credential) => credential.userId === userId)
+          .toSorted((left, right) =>
+            left.createdAt.localeCompare(right.createdAt) ||
+            left.credentialId.localeCompare(right.credentialId)
+          ),
+      ),
+    savePasskeyCredential: (credential: PasskeyCredential) => {
+      passkeyCredentialsByKey.set(
+        passkeyCredentialKey(credential.userId, credential.credentialId),
+        credential,
+      );
+      return Promise.resolve();
+    },
+    deletePasskeyCredential: (userId: string, credentialId: string) => {
+      passkeyCredentialsByKey.delete(
+        passkeyCredentialKey(userId, credentialId),
+      );
+      return Promise.resolve();
+    },
     saveEmailCredential: (credential: EmailCredential) => {
       emailCredentialsByKey.set(
         emailCredentialKey(credential.userId, credential.email),
@@ -1494,6 +1777,16 @@ function createAccountRouteStorage(): AccountRouteStorage {
     },
     deletePendingEmailVerification: (id: string) => {
       pendingEmailVerificationsById.delete(id);
+      return Promise.resolve();
+    },
+    getPendingPasskeyChallenge: (id: string) =>
+      Promise.resolve(pendingPasskeyChallengesById.get(id)),
+    savePendingPasskeyChallenge: (challenge: PendingPasskeyChallenge) => {
+      pendingPasskeyChallengesById.set(challenge.id, challenge);
+      return Promise.resolve();
+    },
+    deletePendingPasskeyChallenge: (id: string) => {
+      pendingPasskeyChallengesById.delete(id);
       return Promise.resolve();
     },
     getPasswordCredential: (userId: string) =>
@@ -1537,6 +1830,17 @@ function createAccountRouteStorage(): AccountRouteStorage {
  */
 function emailCredentialKey(userId: string, email: string): string {
   return `${userId}:${email.trim().toLowerCase()}`;
+}
+
+/**
+ * 创建内存 Passkey 凭证键。
+ *
+ * @param userId 用户 ID。
+ * @param credentialId Passkey 凭证 ID。
+ * @return Passkey 凭证键。
+ */
+function passkeyCredentialKey(userId: string, credentialId: string): string {
+  return `${userId}:${credentialId}`;
 }
 
 /**

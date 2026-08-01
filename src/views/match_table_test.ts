@@ -370,6 +370,38 @@ Deno.test("renderSettings renders TOTP binding setup controls", () => {
   assertIncludes(html, `确认绑定`);
 });
 
+Deno.test("renderSettings renders Passkey binding controls", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    passkeyBindingStatus: { code: "updated", type: "success" },
+    passkeyCredentials: [{
+      backedUp: true,
+      counter: 0,
+      createdAt: "2026-08-01T00:00:00.000Z",
+      credentialId: "passkey-credential-id",
+      label: "Work laptop",
+      lastUsedAt: "2026-08-01T00:10:00.000Z",
+      publicKey: "public-key",
+      transports: ["internal"],
+      userId: "user-1",
+    }],
+    settings: settings(),
+  });
+
+  assertIncludes(html, `data-passkey-binding-section`);
+  assertIncludes(html, `data-passkey-bind-button`);
+  assertIncludes(html, `data-passkey-label-input`);
+  assertIncludes(html, `action="/account/passkeys/delete"`);
+  assertIncludes(html, `name="credentialId"`);
+  assertIncludes(html, `Work laptop`);
+  assertIncludes(html, `Passkey 已绑定。`);
+});
+
 Deno.test("renderSettings renders account security controls", () => {
   const html = renderSettings({
     csrfToken: testCsrfToken,

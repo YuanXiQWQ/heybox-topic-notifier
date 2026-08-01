@@ -9,6 +9,7 @@ import type {
   EmailCredential,
   KeywordRule,
   MatchLocation,
+  PasskeyCredential,
   SecondFactorMethod,
   TopicRule,
   TotpCredential,
@@ -73,6 +74,11 @@ export type TotpBindingStatus = {
   type: "error" | "success";
 };
 
+export type PasskeyBindingStatus = {
+  code: "deleted" | "failed" | "notFound" | "updated";
+  type: "error" | "success";
+};
+
 export type TotpSetupView = {
   otpAuthUri: string;
   secretBase32: string;
@@ -91,6 +97,8 @@ export function renderSettings(options: {
   csrfToken: string;
   emailBindingStatus?: EmailBindingStatus;
   emailCredentials?: EmailCredential[];
+  passkeyBindingStatus?: PasskeyBindingStatus;
+  passkeyCredentials?: PasskeyCredential[];
   secondFactorMethods?: SecondFactorMethod[];
   securitySettings?: UserSecuritySettings;
   securityStatus?: SecuritySettingsStatus;
@@ -132,6 +140,16 @@ export function renderSettings(options: {
         options.totpCredential,
         options.totpSetup,
         options.totpBindingStatus,
+        options.csrfToken,
+      )
+      : ""
+  }
+    ${
+    options.account
+      ? renderPasskeyBindingSection(
+        options.settings,
+        options.passkeyCredentials ?? [],
+        options.passkeyBindingStatus,
         options.csrfToken,
       )
       : ""
@@ -215,7 +233,7 @@ export function renderSettings(options: {
       </div>
     </form>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
-    <script src="/static/settings.js?v=20260723-draft-row-focusout" defer></script>
+    <script src="/static/settings.js?v=20260801-passkey-binding" defer></script>
   `;
 
   return renderLayout({
@@ -741,6 +759,176 @@ function renderTotpSetupFields(
 }
 
 /**
+ * 渲染 Passkey 绑定区域。
+ *
+ * @param settings 应用设置。
+ * @param credentials 已绑定 Passkey 凭证。
+ * @param status Passkey 绑定状态。
+ * @param csrfToken CSRF 令牌。
+ * @return Passkey 绑定区域 HTML。
+ */
+function renderPasskeyBindingSection(
+  settings: AppSettings,
+  credentials: PasskeyCredential[],
+  status: PasskeyBindingStatus | undefined,
+  csrfToken: string,
+): string {
+  const messages = getMessages(settings.locale);
+  const statusMessage = status
+    ? passkeyBindingStatusMessage(status, messages)
+    : "";
+  const statusState = status?.type === "error" ? 'data-state="error"' : "";
+  const credentialCountMessage = credentials.length > 0
+    ? messages.accountPasskeyBoundCount.replace(
+      "{count}",
+      String(credentials.length),
+    )
+    : messages.accountPasskeyNoCredentials;
+
+  return `
+    <section
+      class="settings-group"
+      aria-labelledby="account-passkey-heading"
+      data-passkey-binding-section
+      data-passkey-options-url="/account/passkeys/register-options"
+      data-passkey-register-url="/account/passkeys/register"
+      data-passkey-unsupported="${
+    escapeHtml(messages.accountPasskeyUnsupported)
+  }"
+      data-passkey-binding="${escapeHtml(messages.accountPasskeyBinding)}"
+      data-passkey-bound="${escapeHtml(messages.accountPasskeyBound)}"
+      data-passkey-failed="${escapeHtml(messages.accountPasskeyBindFailed)}"
+    >
+      <h2 id="account-passkey-heading">${
+    escapeHtml(messages.accountPasskeySettings)
+  }</h2>
+      <dl class="settings-list">
+        <div>
+          ${settingLabel("key", messages.accountPasskeyStatus)}
+          <dd>
+            <span class="field-hint">${
+    escapeHtml(credentialCountMessage)
+  }</span>
+          </dd>
+        </div>
+        <div>
+          ${settingLabel("badge", messages.accountPasskeyLabel)}
+          <dd>
+            <input
+              type="text"
+              name="passkeyLabel"
+              maxlength="80"
+              autocomplete="off"
+              placeholder="${
+    escapeHtml(messages.accountPasskeyLabelPlaceholder)
+  }"
+              data-passkey-label-input
+            >
+          </dd>
+        </div>
+        <div>
+          ${settingLabel("key", messages.accountPasskeyCredentials)}
+          <dd>${
+    renderPasskeyCredentialList(credentials, messages, csrfToken)
+  }</dd>
+        </div>
+      </dl>
+      <div class="form-actions account-form-actions">
+        <button type="button" data-passkey-bind-button>${
+    escapeHtml(messages.accountPasskeyBind)
+  }</button>
+        <span
+          class="inline-action-status"
+          data-passkey-binding-status
+          ${statusState}
+          ${statusMessage ? "" : "hidden"}
+          role="status"
+        >${escapeHtml(statusMessage)}</span>
+      </div>
+    </section>
+  `;
+}
+
+/**
+ * 渲染已绑定 Passkey 凭证列表。
+ *
+ * @param credentials 已绑定 Passkey 凭证。
+ * @param messages 当前语言文案。
+ * @param csrfToken CSRF 令牌。
+ * @return 已绑定 Passkey 凭证列表 HTML。
+ */
+function renderPasskeyCredentialList(
+  credentials: PasskeyCredential[],
+  messages: ReturnType<typeof getMessages>,
+  csrfToken: string,
+): string {
+  if (credentials.length === 0) {
+    return `<span class="field-hint">${
+      escapeHtml(messages.accountPasskeyNoCredentials)
+    }</span>`;
+  }
+
+  return `<ul class="email-credential-list passkey-credential-list">
+    ${
+    credentials.map((credential) =>
+      `<li>
+        <span>
+          ${escapeHtml(passkeyCredentialDisplayName(credential, messages))}
+          <small>${
+        escapeHtml(passkeyCredentialMeta(credential, messages))
+      }</small>
+        </span>
+        <form method="post" action="/account/passkeys/delete">
+          ${csrfHiddenInput(csrfToken)}
+          <input
+            type="hidden"
+            name="credentialId"
+            value="${escapeHtml(credential.credentialId)}"
+          >
+          <button type="submit" class="secondary">${
+        escapeHtml(messages.accountPasskeyDelete)
+      }</button>
+        </form>
+      </li>`
+    ).join("")
+  }
+  </ul>`;
+}
+
+/**
+ * 生成 Passkey 凭证显示名称。
+ *
+ * @param credential Passkey 凭证。
+ * @param messages 当前语言文案。
+ * @return Passkey 凭证显示名称。
+ */
+function passkeyCredentialDisplayName(
+  credential: PasskeyCredential,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  return credential.label?.trim() ||
+    `${messages.accountSecondFactorPasskey} ${
+      credential.credentialId.slice(0, 8)
+    }`;
+}
+
+/**
+ * 生成 Passkey 凭证元信息。
+ *
+ * @param credential Passkey 凭证。
+ * @param messages 当前语言文案。
+ * @return Passkey 凭证元信息。
+ */
+function passkeyCredentialMeta(
+  credential: PasskeyCredential,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const createdAt = credential.createdAt || "";
+  const lastUsedAt = credential.lastUsedAt || messages.accountPasskeyNeverUsed;
+  return `${messages.accountPasskeyCreatedAt}: ${createdAt} · ${messages.accountPasskeyLastUsedAt}: ${lastUsedAt}`;
+}
+
+/**
  * 渲染账户安全设置区域。
  *
  * @param {AppSettings} settings 应用设置。
@@ -967,6 +1155,29 @@ function totpBindingStatusMessage(
       return messages.accountTotpConfigMissing;
     case "updated":
       return messages.accountTotpUpdated;
+  }
+}
+
+/**
+ * 生成 Passkey 绑定状态文案。
+ *
+ * @param status Passkey 绑定状态。
+ * @param messages 当前语言文案。
+ * @return 状态文案。
+ */
+function passkeyBindingStatusMessage(
+  status: PasskeyBindingStatus,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  switch (status.code) {
+    case "deleted":
+      return messages.accountPasskeyDeleted;
+    case "failed":
+      return messages.accountPasskeyBindFailed;
+    case "notFound":
+      return messages.accountPasskeyNotFound;
+    case "updated":
+      return messages.accountPasskeyBound;
   }
 }
 

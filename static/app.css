@@ -475,6 +475,22 @@ input[readonly]::placeholder {
   color: var(--text);
 }
 
+.passkey-credential-list li {
+  justify-content: space-between;
+}
+
+.passkey-credential-list small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+.passkey-credential-list form {
+  margin: 0;
+}
+
 .settings-turnstile {
   margin-top: 12px;
 }

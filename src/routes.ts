@@ -24,6 +24,12 @@ import {
   totpOtpAuthUri,
   verifyEncryptedTotpCode,
 } from "./auth/totp.ts";
+import {
+  createPasskeyRegistrationOptions,
+  passkeyCredentialFromRegistration,
+  type PasskeyRegistrationOptionsResult,
+  verifyPasskeyRegistrationResponse,
+} from "./auth/passkey.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import {
   csrfForbiddenResponse,
@@ -47,6 +53,7 @@ import type {
   KeywordRule,
   MatchLocation,
   PendingEmailVerification,
+  PendingPasskeyChallenge,
   PollIntervalUnit,
   PollSort,
   SecondFactorMethod,
@@ -91,6 +98,10 @@ const authSessionPromisesByRequest = new WeakMap<
   ReturnType<typeof readAuthSession>
 >();
 /**
+ * Passkey challenge 单次最多允许的失败次数。
+ */
+const passkeyChallengeMaxAttempts = 5;
+/**
  * 手动轮询后用于触发前端进度条重置的查询参数名。
  */
 const pollResetParam = "pollReset";
@@ -102,6 +113,13 @@ const pollResetStartParam = "pollResetStart";
  * 命中记录表局部刷新请求头。
  */
 const matchTableRefreshHeader = "x-match-table-refresh";
+
+/**
+ * Passkey 路由可注入的测试依赖。
+ */
+type PasskeyRouteContext = AppContext & {
+  passkeyRegistrationVerifier?: typeof verifyPasskeyRegistrationResponse;
+};
 
 /**
  * 创建应用业务路由。
@@ -297,6 +315,9 @@ export function createRoutes(context: AppContext): Hono {
     const totpCredential = session
       ? await context.storage.getTotpCredential(session.userId)
       : undefined;
+    const passkeyCredentials = session
+      ? await context.storage.listPasskeyCredentials(session.userId)
+      : [];
     const securitySettings = session
       ? await context.storage.getUserSecuritySettings(session.userId)
       : undefined;
@@ -335,8 +356,13 @@ export function createRoutes(context: AppContext): Hono {
         csrfToken: csrf.token,
         emailBindingStatus: emailBindingStatusFromSearch(url.searchParams),
         emailCredentials,
+        passkeyBindingStatus: passkeyBindingStatusFromSearch(
+          url.searchParams,
+        ),
+        passkeyCredentials,
         secondFactorMethods: availableSecondFactorMethods({
           emailCredentials,
+          passkeyCredentials,
           totpCredential,
         }),
         securitySettings,
@@ -677,6 +703,196 @@ export function createRoutes(context: AppContext): Hono {
     return c.redirect("/settings?totp=updated", 303);
   });
 
+  app.post("/account/passkeys/register-options", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    if (!validCsrfForRequest(c, {})) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const credentials = await context.storage.listPasskeyCredentials(
+      session.userId,
+    );
+    const registration = await createPasskeyRegistrationOptions({
+      account,
+      config: context.config.passkey,
+      existingCredentials: credentials,
+    });
+    await context.storage.savePendingPasskeyChallenge(
+      registration.challenge,
+    );
+
+    return c.json(passkeyRegistrationOptionsResponse(registration));
+  });
+
+  app.post("/account/passkeys/register", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    if (!validCsrfForRequest(c, {})) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const payload = await passkeyJsonPayload(c);
+    const challengeId = String(payload.challengeId ?? "").trim();
+    const credentialResponse = payload.credential;
+    if (!challengeId || !isRecord(credentialResponse)) {
+      return c.json({ error: "invalid" }, 400);
+    }
+
+    const challenge = await context.storage.getPendingPasskeyChallenge(
+      challengeId,
+    );
+    const challengeError = passkeyRegistrationChallengeError(
+      challenge,
+      session.userId,
+    );
+    if (challengeError) {
+      if (challenge) {
+        await context.storage.deletePendingPasskeyChallenge(challenge.id);
+      }
+      return c.json({ error: challengeError }, 400);
+    }
+
+    const activeChallenge = challenge as PendingPasskeyChallenge;
+    const verifier =
+      (context as PasskeyRouteContext).passkeyRegistrationVerifier ??
+        verifyPasskeyRegistrationResponse;
+    const verification = await verifier({
+      challenge: activeChallenge,
+      config: context.config.passkey,
+      response: credentialResponse as never,
+    });
+
+    if (!verification.verified) {
+      await recordPasskeyChallengeFailure(context, activeChallenge);
+      logSecurityAuditEvent({
+        code: "passkey_credential_verification_failed",
+        level: "warn",
+        message: "Passkey 绑定校验失败。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+      return c.json({ error: "failed" }, 400);
+    }
+
+    const credential = passkeyCredentialFromRegistration({
+      label: passkeyCredentialLabel(payload.label),
+      registrationInfo: verification.registrationInfo,
+      userId: session.userId,
+    });
+    const existingCredential = await context.storage.getPasskeyCredential(
+      session.userId,
+      credential.credentialId,
+    );
+    if (existingCredential) {
+      await context.storage.deletePendingPasskeyChallenge(activeChallenge.id);
+      return c.json({ error: "alreadyBound" }, 409);
+    }
+
+    await context.storage.savePasskeyCredential(credential);
+    await context.storage.deletePendingPasskeyChallenge(activeChallenge.id);
+    logSecurityAuditEvent({
+      code: "passkey_credential_bound",
+      details: { credentialId: credential.credentialId },
+      level: "info",
+      message: "Passkey 已绑定。",
+      request: c.req.raw,
+      userId: session.userId,
+    });
+
+    return c.json({ ok: true, redirectTo: "/settings?passkey=updated" });
+  });
+
+  app.post("/account/passkeys/delete", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.redirect("/login?locale=zh-CN&returnTo=%2Fsettings", 303);
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return c.redirect(accountSettingsRedirect("notFound"), 303);
+    }
+
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const credentialId = String(form.credentialId ?? "").trim();
+    const credential = credentialId
+      ? await context.storage.getPasskeyCredential(session.userId, credentialId)
+      : undefined;
+    if (!credential) {
+      return c.redirect(passkeyBindingSettingsRedirect("notFound"), 303);
+    }
+
+    await context.storage.deletePasskeyCredential(
+      session.userId,
+      credential.credentialId,
+    );
+    await reconcileSecuritySettingsAfterCredentialChange(
+      context,
+      session.userId,
+    );
+    logSecurityAuditEvent({
+      code: "passkey_credential_deleted",
+      details: { credentialId: credential.credentialId },
+      level: "info",
+      message: "Passkey 已删除。",
+      request: c.req.raw,
+      userId: session.userId,
+    });
+
+    return c.redirect("/settings?passkey=deleted", 303);
+  });
+
   app.post("/account/security", async (c) => {
     const session = await authSessionForRequest(c, context);
     if (!session) {
@@ -709,8 +925,12 @@ export function createRoutes(context: AppContext): Hono {
     const totpCredential = await context.storage.getTotpCredential(
       session.userId,
     );
+    const passkeyCredentials = await context.storage.listPasskeyCredentials(
+      session.userId,
+    );
     const availableMethods = availableSecondFactorMethods({
       emailCredentials,
+      passkeyCredentials,
       totpCredential,
     });
     const twoFactorEnabled = form.twoFactorEnabled === "on";
@@ -1200,6 +1420,209 @@ function isTotpBindingErrorCode(
   value: string | null,
 ): value is TotpBindingErrorCode {
   return value === "alreadyBound" || value === "code" || value === "config";
+}
+
+type PasskeyBindingErrorCode = "failed" | "notFound";
+
+/**
+ * 构造 Passkey 绑定错误跳转地址。
+ *
+ * @param error Passkey 绑定错误码。
+ * @return 设置页 Passkey 绑定错误地址。
+ */
+function passkeyBindingSettingsRedirect(
+  error: PasskeyBindingErrorCode,
+): string {
+  return `/settings?passkeyError=${error}`;
+}
+
+/**
+ * 从设置页查询参数恢复 Passkey 绑定状态。
+ *
+ * @param searchParams 设置页查询参数。
+ * @return Passkey 绑定状态。
+ */
+function passkeyBindingStatusFromSearch(searchParams: URLSearchParams) {
+  const error = searchParams.get("passkeyError");
+  if (isPasskeyBindingErrorCode(error)) {
+    return { code: error, type: "error" as const };
+  }
+
+  const status = searchParams.get("passkey");
+  if (status === "updated") {
+    return { code: "updated" as const, type: "success" as const };
+  }
+  if (status === "deleted") {
+    return { code: "deleted" as const, type: "success" as const };
+  }
+  return undefined;
+}
+
+/**
+ * 判断查询参数是否为 Passkey 绑定错误码。
+ *
+ * @param value 待判断值。
+ * @return 合法错误码返回 true。
+ */
+function isPasskeyBindingErrorCode(
+  value: string | null,
+): value is PasskeyBindingErrorCode {
+  return value === "failed" || value === "notFound";
+}
+
+/**
+ * 生成 Passkey 注册 options 接口响应。
+ *
+ * @param registration Passkey 注册 options 结果。
+ * @return 可序列化响应体。
+ */
+function passkeyRegistrationOptionsResponse(
+  registration: PasskeyRegistrationOptionsResult,
+) {
+  return {
+    challengeId: registration.challenge.id,
+    optionsJSON: registration.optionsJSON,
+  };
+}
+
+/**
+ * 读取 Passkey JSON 请求体。
+ *
+ * @param c Hono 请求上下文。
+ * @return JSON 对象，请求体无效时返回空对象。
+ */
+async function passkeyJsonPayload(
+  c: Context,
+): Promise<Record<string, unknown>> {
+  try {
+    const payload = await c.req.json();
+    return isRecord(payload) ? payload : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * 判断值是否为普通对象。
+ *
+ * @param value 待判断值。
+ * @return 值为普通对象时返回 true。
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 检查 Passkey 注册 challenge 是否仍可使用。
+ *
+ * @param challenge 待检查 challenge。
+ * @param userId 当前用户 ID。
+ * @return 不可用时返回错误码。
+ */
+function passkeyRegistrationChallengeError(
+  challenge: PendingPasskeyChallenge | undefined,
+  userId: string,
+): "challenge" | undefined {
+  if (!challenge || challenge.userId !== userId) {
+    return "challenge";
+  }
+
+  if (challenge.purpose !== "passkey_registration") {
+    return "challenge";
+  }
+
+  if (Date.parse(challenge.expiresAt) <= Date.now()) {
+    return "challenge";
+  }
+
+  return challenge.attempts >= passkeyChallengeMaxAttempts
+    ? "challenge"
+    : undefined;
+}
+
+/**
+ * 记录一次 Passkey challenge 失败尝试。
+ *
+ * @param context 应用运行时上下文。
+ * @param challenge 待更新 challenge。
+ * @return 更新完成后的 Promise。
+ */
+async function recordPasskeyChallengeFailure(
+  context: AppContext,
+  challenge: PendingPasskeyChallenge,
+): Promise<void> {
+  const attempts = Math.max(0, challenge.attempts) + 1;
+  if (attempts >= passkeyChallengeMaxAttempts) {
+    await context.storage.deletePendingPasskeyChallenge(challenge.id);
+    return;
+  }
+
+  await context.storage.savePendingPasskeyChallenge({ ...challenge, attempts });
+}
+
+/**
+ * 规范化 Passkey 凭证标签。
+ *
+ * @param value 用户提交的标签。
+ * @return 规范化标签。
+ */
+function passkeyCredentialLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const label = value.trim().replaceAll(/\s+/g, " ");
+  return label ? label.slice(0, 80) : undefined;
+}
+
+/**
+ * 凭证变化后修正二次验证设置，避免 2FA 指向不可用方法。
+ *
+ * @param context 应用运行时上下文。
+ * @param userId 用户 ID。
+ * @return 修正完成后的 Promise。
+ */
+async function reconcileSecuritySettingsAfterCredentialChange(
+  context: AppContext,
+  userId: string,
+): Promise<void> {
+  const settings = await context.storage.getUserSecuritySettings(userId);
+  if (!settings.twoFactorEnabled) {
+    return;
+  }
+
+  const emailCredentials = await context.storage.listEmailCredentials(userId);
+  const passkeyCredentials = await context.storage.listPasskeyCredentials(
+    userId,
+  );
+  const totpCredential = await context.storage.getTotpCredential(userId);
+  const availableMethods = availableSecondFactorMethods({
+    emailCredentials,
+    passkeyCredentials,
+    totpCredential,
+  });
+  const preferredMethods = preferredSecondFactorMethods(availableMethods);
+  const preferredSecondFactor = preferredMethods[0];
+  const nextSettings = availableMethods.length === 0
+    ? {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId,
+    }
+    : {
+      ...settings,
+      preferredSecondFactor: settings.preferredSecondFactor &&
+          availableMethods.includes(settings.preferredSecondFactor)
+        ? settings.preferredSecondFactor
+        : preferredSecondFactor,
+    };
+
+  if (
+    settings.twoFactorEnabled !== nextSettings.twoFactorEnabled ||
+    settings.preferredSecondFactor !== nextSettings.preferredSecondFactor
+  ) {
+    await context.storage.saveUserSecuritySettings(nextSettings);
+  }
 }
 
 type EmailBindingErrorCode =

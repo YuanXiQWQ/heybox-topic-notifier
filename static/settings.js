@@ -83,6 +83,7 @@ function initSettingsEditors() {
   initPollingSettings();
   initAccountSettings();
   initEmailBinding();
+  initPasskeyBinding();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
   initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
@@ -996,6 +997,251 @@ function initEmailBinding() {
       resetTurnstileWidget();
     }
   }
+}
+
+/**
+ * 初始化 Passkey 绑定流程。
+ */
+function initPasskeyBinding() {
+  const section = document.querySelector("[data-passkey-binding-section]");
+  if (!(section instanceof HTMLElement)) {
+    return;
+  }
+
+  const bindButton = section.querySelector("[data-passkey-bind-button]");
+  const labelInput = section.querySelector("[data-passkey-label-input]");
+  const status = section.querySelector("[data-passkey-binding-status]");
+
+  if (!(bindButton instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  if (
+    !("PublicKeyCredential" in globalThis) ||
+    !navigator.credentials ||
+    typeof navigator.credentials.create !== "function"
+  ) {
+    bindButton.disabled = true;
+    setInlineStatus(
+      status,
+      section.dataset.passkeyUnsupported || "",
+      "error",
+    );
+    return;
+  }
+
+  bindButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+    await bindPasskey();
+  });
+
+  /**
+   * 请求浏览器创建 Passkey 并提交服务端校验。
+   *
+   * @return {Promise<void>} 绑定流程完成后的 Promise。
+   */
+  async function bindPasskey() {
+    bindButton.disabled = true;
+    setInlineStatus(
+      status,
+      section.dataset.passkeyBinding || "",
+      "pending",
+    );
+
+    try {
+      const optionsPayload = await fetchPasskeyRegistrationOptions(section);
+      const credential = await navigator.credentials.create({
+        publicKey: creationOptionsFromJson(optionsPayload.optionsJSON),
+      });
+      if (!(credential instanceof globalThis.PublicKeyCredential)) {
+        throw new Error("Browser did not return a Passkey credential.");
+      }
+
+      const verified = await verifyPasskeyRegistration(section, {
+        challengeId: optionsPayload.challengeId,
+        credential: registrationCredentialToJson(credential),
+        label: labelInput instanceof HTMLInputElement ? labelInput.value : "",
+      });
+      setInlineStatus(status, section.dataset.passkeyBound || "", "success");
+      if (typeof verified.redirectTo === "string") {
+        globalThis.location.assign(verified.redirectTo);
+      }
+    } catch {
+      setInlineStatus(status, section.dataset.passkeyFailed || "", "error");
+    } finally {
+      bindButton.disabled = false;
+    }
+  }
+}
+
+/**
+ * 向后端请求 Passkey 注册参数。
+ *
+ * @param {HTMLElement} section Passkey 绑定区域。
+ * @return {Promise<{challengeId: string, optionsJSON: Object}>} 注册参数。
+ */
+async function fetchPasskeyRegistrationOptions(section) {
+  const response = await fetch(
+    section.dataset.passkeyOptionsUrl ||
+      "/account/passkeys/register-options",
+    {
+      body: "{}",
+      headers: csrfRequestHeaders({
+        "content-type": "application/json",
+      }),
+      method: "POST",
+    },
+  );
+  const payload = await response.json().catch(() => ({}));
+  if (
+    !response.ok ||
+    typeof payload.challengeId !== "string" ||
+    typeof payload.optionsJSON !== "object" ||
+    payload.optionsJSON === null
+  ) {
+    throw new Error("Could not create Passkey registration options.");
+  }
+  return payload;
+}
+
+/**
+ * 向后端提交 Passkey 注册结果。
+ *
+ * @param {HTMLElement} section Passkey 绑定区域。
+ * @param {Object} payload 注册结果。
+ * @return {Promise<Object>} 后端校验结果。
+ */
+async function verifyPasskeyRegistration(section, payload) {
+  const response = await fetch(
+    section.dataset.passkeyRegisterUrl || "/account/passkeys/register",
+    {
+      body: JSON.stringify(payload),
+      headers: csrfRequestHeaders({
+        "content-type": "application/json",
+      }),
+      method: "POST",
+    },
+  );
+  const responsePayload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error("Could not verify Passkey registration.");
+  }
+  return responsePayload;
+}
+
+/**
+ * 将服务端 JSON 注册参数转换为浏览器 WebAuthn 参数。
+ *
+ * @param {Object} optionsJSON 服务端返回的注册参数。
+ * @return {PublicKeyCredentialCreationOptions} 浏览器注册参数。
+ */
+function creationOptionsFromJson(optionsJSON) {
+  return {
+    ...optionsJSON,
+    challenge: base64UrlToArrayBuffer(optionsJSON.challenge),
+    excludeCredentials: (optionsJSON.excludeCredentials || []).map(
+      credentialDescriptorFromJson,
+    ),
+    user: {
+      ...optionsJSON.user,
+      id: base64UrlToArrayBuffer(optionsJSON.user.id),
+    },
+  };
+}
+
+/**
+ * 将服务端 JSON 凭证描述符转换为浏览器 WebAuthn 描述符。
+ *
+ * @param {Object} descriptor 服务端凭证描述符。
+ * @return {PublicKeyCredentialDescriptor} 浏览器凭证描述符。
+ */
+function credentialDescriptorFromJson(descriptor) {
+  return {
+    ...descriptor,
+    id: base64UrlToArrayBuffer(descriptor.id),
+  };
+}
+
+/**
+ * 将浏览器注册凭证转换为服务端 SimpleWebAuthn JSON。
+ *
+ * @param {PublicKeyCredential} credential 浏览器注册凭证。
+ * @return {Object} 可提交服务端的注册凭证。
+ */
+function registrationCredentialToJson(credential) {
+  const response = credential.response;
+  return {
+    authenticatorAttachment: credential.authenticatorAttachment,
+    clientExtensionResults: credential.getClientExtensionResults(),
+    id: credential.id,
+    rawId: arrayBufferToBase64Url(credential.rawId),
+    response: {
+      attestationObject: arrayBufferToBase64Url(response.attestationObject),
+      authenticatorData: typeof response.getAuthenticatorData === "function"
+        ? arrayBufferToBase64Url(response.getAuthenticatorData())
+        : undefined,
+      clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+      publicKey: typeof response.getPublicKey === "function"
+        ? optionalArrayBufferToBase64Url(response.getPublicKey())
+        : undefined,
+      publicKeyAlgorithm: typeof response.getPublicKeyAlgorithm === "function"
+        ? response.getPublicKeyAlgorithm()
+        : undefined,
+      transports: typeof response.getTransports === "function"
+        ? response.getTransports()
+        : undefined,
+    },
+    type: credential.type,
+  };
+}
+
+/**
+ * 将 Base64URL 字符串解码为 ArrayBuffer。
+ *
+ * @param {string} value Base64URL 字符串。
+ * @return {ArrayBuffer} 解码后的 ArrayBuffer。
+ */
+function base64UrlToArrayBuffer(value) {
+  const normalized = String(value).replaceAll("-", "+").replaceAll("_", "/");
+  const padded = normalized.padEnd(
+    normalized.length + (4 - normalized.length % 4) % 4,
+    "=",
+  );
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+/**
+ * 将可空 ArrayBuffer 编码为 Base64URL 字符串。
+ *
+ * @param {ArrayBuffer|null} value 可空 ArrayBuffer。
+ * @return {string|undefined} Base64URL 字符串。
+ */
+function optionalArrayBufferToBase64Url(value) {
+  return value ? arrayBufferToBase64Url(value) : undefined;
+}
+
+/**
+ * 将 ArrayBuffer 编码为 Base64URL 字符串。
+ *
+ * @param {ArrayBuffer} value ArrayBuffer。
+ * @return {string} Base64URL 字符串。
+ */
+function arrayBufferToBase64Url(value) {
+  const bytes = new Uint8Array(value);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
 }
 
 /**
