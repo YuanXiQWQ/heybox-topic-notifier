@@ -7,6 +7,7 @@ import { getMessages } from "./locales/index.ts";
 import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
 import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
 import type {
+  AuthIdentity,
   EmailCredential,
   EmailVerificationPurpose,
   PasswordCredential,
@@ -58,6 +59,15 @@ import {
   sendEmailVerificationCode,
   verifyEmailVerificationCode,
 } from "./auth/email_verification.ts";
+import {
+  type GoogleAuthConfig,
+  GoogleAuthConfigError,
+  googleAuthConfigFromEnv,
+  type GoogleIdentityClaims,
+  GoogleIdTokenVerificationError,
+  type GoogleJwksFetch,
+  verifyGoogleIdToken,
+} from "./auth/google.ts";
 
 export { readAuthSession } from "./auth/session.ts";
 export type { AuthSession } from "./auth/session.ts";
@@ -76,6 +86,8 @@ export type AuthOptions = {
   loginLockoutSeconds?: number;
   maxLoginFailures?: number;
   defaultLocale?: Locale;
+  google?: GoogleAuthConfig;
+  googleJwksFetch?: GoogleJwksFetch;
   loginPath?: string;
   registerPath?: string;
   emailVerification?: EmailVerificationConfig;
@@ -95,6 +107,8 @@ type AuthConfig = {
   maxLoginFailures: number;
   defaultLocale: Locale;
   emailVerification: EmailVerificationConfig;
+  google: GoogleAuthConfig;
+  googleJwksFetch?: GoogleJwksFetch;
   loginPath: string;
   registerPath: string;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
@@ -123,6 +137,12 @@ const defaultEmailVerificationConfig: EmailVerificationConfig = {
   codeTtlSeconds: 10 * 60,
   maxAttempts: 5,
 };
+/**
+ * 默认 Google 认证配置。
+ */
+const defaultGoogleAuthConfig: GoogleAuthConfig = googleAuthConfigFromEnv(
+  () => undefined,
+);
 /**
  * 默认登录路径。
  */
@@ -171,6 +191,10 @@ const turnstileLoginFailureThreshold = 2;
  * 邮箱验证码发送接口路径。
  */
 const emailVerificationPath = "/auth/email-verifications";
+/**
+ * Google credential 登录接口路径。
+ */
+const googleCredentialPath = "/auth/google";
 
 /**
  * 创建认证中间件。
@@ -242,6 +266,7 @@ export function createAuthRoutes(
         csrfToken: csrf.token,
         emailTurnstileSiteKey: turnstileSiteKey(config),
         error: loginErrorMessage(url.searchParams.get("error"), messages),
+        googleClientId: googleClientId(config),
         heading: messages.authLogin,
         locale,
         messages,
@@ -659,6 +684,39 @@ export function createAuthRoutes(
     });
   });
 
+  app.post(googleCredentialPath, async (c) => {
+    const url = new URL(c.req.url);
+    const form = await c.req.parseBody();
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const syncLocale = shouldSyncAuthLocale(url) ||
+      String(form[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
+    const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
+    const clientLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${clientRateLimitIdentifier((name) => c.req.header(name))}:google-login`,
+      { request: c.req.raw },
+    );
+    if (clientLimitResponse) {
+      return clientLimitResponse;
+    }
+
+    return await handleGoogleCredentialLogin(c, storage, config, form, {
+      locale,
+      returnTo,
+      syncLocale,
+    });
+  });
+
   app.post("/logout", async (c) => {
     const form = await c.req.parseBody().catch(() => ({}));
     if (
@@ -689,6 +747,401 @@ type EmailLoginOptions = {
   returnTo: string;
   syncLocale: boolean;
 };
+
+type GoogleCredentialLoginOptions = {
+  locale: Locale;
+  returnTo: string;
+  syncLocale: boolean;
+};
+
+type GoogleAccountResult = {
+  account: UserAccount;
+  created: boolean;
+};
+
+/**
+ * 处理 Google credential 主登录。
+ *
+ * @param c Hono 请求上下文。
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @param form 已解析表单。
+ * @param options Google 登录选项。
+ * @return 登录响应。
+ */
+async function handleGoogleCredentialLogin(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  form: Record<string, unknown>,
+  options: GoogleCredentialLoginOptions,
+): Promise<Response> {
+  const credential = String(form.credential ?? "").trim();
+  if (!credential) {
+    logSecurityAuditEvent({
+      code: "google_login_failed",
+      details: { reason: "missing_credential" },
+      level: "warn",
+      message: "Google 登录失败：缺少 credential。",
+      request: c.req.raw,
+    });
+    return c.redirect(googleLoginErrorRedirect(config, options, "google"), 303);
+  }
+
+  let claims: GoogleIdentityClaims;
+  try {
+    claims = await verifyGoogleIdToken(credential, config.google, {
+      fetcher: config.googleJwksFetch,
+    });
+  } catch (error) {
+    if (error instanceof GoogleAuthConfigError) {
+      logSecurityAuditEvent({
+        code: "google_login_unavailable",
+        details: { reason: "config" },
+        level: "warn",
+        message: "Google 登录不可用：OAuth client ID 未配置。",
+        request: c.req.raw,
+      });
+      return c.redirect(
+        googleLoginErrorRedirect(config, options, "googleUnavailable"),
+        303,
+      );
+    }
+
+    if (error instanceof GoogleIdTokenVerificationError) {
+      logSecurityAuditEvent({
+        code: "google_login_failed",
+        details: { reason: auditText(error.message) },
+        level: "warn",
+        message: "Google 登录失败：ID token 校验未通过。",
+        request: c.req.raw,
+      });
+      return c.redirect(
+        googleLoginErrorRedirect(config, options, "google"),
+        303,
+      );
+    }
+
+    throw error;
+  }
+
+  const result = await findOrCreateGoogleAccount(storage, claims);
+  if (options.syncLocale) {
+    await saveAuthLocale(result.account.id, options.locale, storage);
+  }
+
+  if (result.created) {
+    logSecurityAuditEvent({
+      code: "google_login_account_created",
+      details: googleAuditDetails(claims),
+      level: "info",
+      message: "Google 登录已创建本地账号。",
+      request: c.req.raw,
+      userId: result.account.id,
+    });
+  }
+
+  logSecurityAuditEvent({
+    code: "google_login_succeeded",
+    details: {
+      ...googleAuditDetails(claims),
+      primaryMethod: "google",
+    },
+    level: "info",
+    message: "Google 登录成功。",
+    request: c.req.raw,
+    userId: result.account.id,
+  });
+
+  return await redirectWithSession(
+    c.req.url,
+    options.returnTo,
+    result.account,
+    storage,
+    config,
+  );
+}
+
+/**
+ * 按 Google subject 查找或创建本地账号。
+ *
+ * @param storage 应用存储。
+ * @param claims Google 身份声明。
+ * @return Google 登录对应的本地账号结果。
+ */
+async function findOrCreateGoogleAccount(
+  storage: Storage,
+  claims: GoogleIdentityClaims,
+): Promise<GoogleAccountResult> {
+  const identity = await storage.getAuthIdentity("google", claims.sub);
+  if (identity) {
+    const account = await storage.getAccountById(identity.userId);
+    if (account) {
+      return {
+        account: await updateGoogleAccountFromClaims(
+          storage,
+          account,
+          claims,
+          identity,
+        ),
+        created: false,
+      };
+    }
+  }
+
+  const now = new Date().toISOString();
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const account = googleAccountFromClaims(claims, now, attempt);
+    if (await storage.createAccount(account)) {
+      await saveGoogleAuthIdentity(storage, account.id, claims, now);
+      await saveVerifiedGoogleEmailCredential(storage, account, claims, now);
+      return { account, created: true };
+    }
+  }
+
+  throw new Error("Could not create a unique Google login account.");
+}
+
+/**
+ * 用最新 Google 声明刷新已绑定本地账号的资料。
+ *
+ * @param storage 应用存储。
+ * @param account 本地账号。
+ * @param claims Google 身份声明。
+ * @param identity 既有 Google 身份绑定。
+ * @return 刷新后的本地账号。
+ */
+async function updateGoogleAccountFromClaims(
+  storage: Storage,
+  account: UserAccount,
+  claims: GoogleIdentityClaims,
+  identity: AuthIdentity,
+): Promise<UserAccount> {
+  const now = new Date().toISOString();
+  const nextAccount = googleAccountProfileFromClaims(account, claims);
+  const changed = account.authVersion !== nextAccount.authVersion ||
+    account.displayName !== nextAccount.displayName ||
+    account.emailVerified !== nextAccount.emailVerified ||
+    account.primaryEmail !== nextAccount.primaryEmail;
+
+  if (changed && !(await storage.updateAccount(nextAccount))) {
+    throw new Error("Could not update the Google login account.");
+  }
+
+  await saveGoogleAuthIdentity(storage, account.id, claims, identity.createdAt);
+  await saveVerifiedGoogleEmailCredential(storage, nextAccount, claims, now);
+  return nextAccount;
+}
+
+/**
+ * 根据 Google 声明创建本地账号对象。
+ *
+ * @param claims Google 身份声明。
+ * @param createdAt 创建时间。
+ * @param attempt 用户名重试次数。
+ * @return 本地账号对象。
+ */
+function googleAccountFromClaims(
+  claims: GoogleIdentityClaims,
+  createdAt: string,
+  attempt: number,
+): UserAccount {
+  return googleAccountProfileFromClaims({
+    authVersion: 2,
+    createdAt,
+    id: crypto.randomUUID(),
+    username: googleUsernameCandidate(claims, attempt),
+  }, claims);
+}
+
+/**
+ * 将 Google 声明中的可用资料写入本地账号对象。
+ *
+ * @param account 本地账号。
+ * @param claims Google 身份声明。
+ * @return 合并 Google 资料后的本地账号对象。
+ */
+function googleAccountProfileFromClaims(
+  account: UserAccount,
+  claims: GoogleIdentityClaims,
+): UserAccount {
+  const email = verifiedGoogleEmail(claims);
+  const displayName = googleDisplayName(claims);
+  return {
+    ...account,
+    authVersion: 2,
+    ...(displayName ? { displayName } : {}),
+    ...(email ? { emailVerified: true, primaryEmail: email } : {}),
+  };
+}
+
+/**
+ * 保存 Google 外部身份绑定。
+ *
+ * @param storage 应用存储。
+ * @param userId 本地用户 ID。
+ * @param claims Google 身份声明。
+ * @param createdAt 绑定创建时间。
+ * @return 保存完成后的 Promise。
+ */
+async function saveGoogleAuthIdentity(
+  storage: Storage,
+  userId: string,
+  claims: GoogleIdentityClaims,
+  createdAt: string,
+): Promise<void> {
+  await storage.saveAuthIdentity({
+    createdAt,
+    email: verifiedGoogleEmail(claims),
+    emailVerified: verifiedGoogleEmail(claims) ? true : claims.emailVerified,
+    provider: "google",
+    providerUserId: claims.sub,
+    userId,
+  });
+}
+
+/**
+ * 将 Google 已验证邮箱保存为当前 Google 账号自己的邮箱凭证。
+ *
+ * @param storage 应用存储。
+ * @param account 本地账号。
+ * @param claims Google 身份声明。
+ * @param verifiedAt 本次验证时间。
+ * @return 保存完成后的 Promise。
+ */
+async function saveVerifiedGoogleEmailCredential(
+  storage: Storage,
+  account: UserAccount,
+  claims: GoogleIdentityClaims,
+  verifiedAt: string,
+): Promise<void> {
+  const email = verifiedGoogleEmail(claims);
+  if (!email) {
+    return;
+  }
+
+  const existingCredential = await storage.getEmailCredential(
+    account.id,
+    email,
+  );
+  await storage.saveEmailCredential({
+    createdAt: existingCredential?.createdAt ?? verifiedAt,
+    email,
+    lastVerifiedAt: verifiedAt,
+    userId: account.id,
+    verified: true,
+  });
+}
+
+/**
+ * 读取 Google 声明中可信的已验证邮箱。
+ *
+ * @param claims Google 身份声明。
+ * @return 规范化后的已验证邮箱。
+ */
+function verifiedGoogleEmail(
+  claims: GoogleIdentityClaims,
+): string | undefined {
+  return claims.emailVerified
+    ? normalizeEmailAddress(claims.email ?? "")
+    : undefined;
+}
+
+/**
+ * 读取 Google 声明中适合显示的名称。
+ *
+ * @param claims Google 身份声明。
+ * @return 清理后的显示名称。
+ */
+function googleDisplayName(
+  claims: GoogleIdentityClaims,
+): string | undefined {
+  const name = claims.name?.replaceAll(/[\r\n\t]+/g, " ").trim();
+  return name ? name.slice(0, 120) : undefined;
+}
+
+/**
+ * 生成 Google 登录新账号的候选用户名。
+ *
+ * @param claims Google 身份声明。
+ * @param attempt 当前尝试次数。
+ * @return 候选用户名。
+ */
+function googleUsernameCandidate(
+  claims: GoogleIdentityClaims,
+  attempt: number,
+): string {
+  const email = verifiedGoogleEmail(claims);
+  if (email) {
+    return emailLoginUsernameCandidate(email, attempt);
+  }
+
+  const base = googleUsernameBase(claims);
+  if (attempt === 0 && validUsername(base)) {
+    return base;
+  }
+
+  const suffix = base64UrlEncode(crypto.getRandomValues(new Uint8Array(4)))
+    .toLowerCase()
+    .slice(0, 6);
+  const prefix = base.slice(0, Math.max(3, 39 - suffix.length));
+  return `${prefix}-${suffix}`;
+}
+
+/**
+ * 从 Google 名称或 subject 派生用户名基础值。
+ *
+ * @param claims Google 身份声明。
+ * @return 用户名基础值。
+ */
+function googleUsernameBase(claims: GoogleIdentityClaims): string {
+  const source = claims.name || claims.sub;
+  const normalized = source
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9_-]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 32);
+  return validUsername(normalized) ? normalized : "google-user";
+}
+
+/**
+ * 构造 Google 登录审计详情。
+ *
+ * @param claims Google 身份声明。
+ * @return 可写入审计日志的详情。
+ */
+function googleAuditDetails(
+  claims: GoogleIdentityClaims,
+): Record<string, string> {
+  return {
+    ...(verifiedGoogleEmail(claims)
+      ? { email: maskedEmailAddress(verifiedGoogleEmail(claims) ?? "") }
+      : {}),
+    providerUserId: auditText(claims.sub),
+  };
+}
+
+/**
+ * 构造 Google 登录错误跳转地址。
+ *
+ * @param config 认证配置。
+ * @param options Google 登录选项。
+ * @param error 登录错误码。
+ * @return 登录页地址。
+ */
+function googleLoginErrorRedirect(
+  config: AuthConfig,
+  options: GoogleCredentialLoginOptions,
+  error: "google" | "googleUnavailable",
+): string {
+  return authPagePath(config.loginPath, options.locale, {
+    error,
+    returnTo: options.returnTo,
+    [authLocaleChangedParam]: options.syncLocale
+      ? authLocaleChangedValue
+      : undefined,
+  });
+}
 
 /**
  * 处理邮箱验证码主登录。
@@ -1071,9 +1524,12 @@ function authConfig(options: AuthOptions): AuthConfig {
           loginPath,
           registerPath,
           emailVerificationPath,
+          googleCredentialPath,
           "/static/app.css",
         ],
     ),
+    google: options.google ?? defaultGoogleAuthConfig,
+    googleJwksFetch: options.googleJwksFetch,
     loginLockoutSeconds: options.loginLockoutSeconds ??
       defaultLoginLockoutSeconds,
     maxLoginFailures: options.maxLoginFailures ?? defaultMaxLoginFailures,
@@ -1112,6 +1568,17 @@ function turnstileSiteKey(config: AuthConfig): string | undefined {
   return config.turnstile.enabled && config.turnstile.siteKey
     ? config.turnstile.siteKey
     : undefined;
+}
+
+/**
+ * 读取可用于前端 Google Identity Services 的 client ID。
+ *
+ * @param config 认证配置。
+ * @return 已配置时返回 Google OAuth client ID。
+ */
+function googleClientId(config: AuthConfig): string | undefined {
+  const clientId = config.google.clientId.trim();
+  return clientId ? clientId : undefined;
 }
 
 /**
@@ -1498,6 +1965,7 @@ function renderAuthPage(options: {
   csrfToken: string;
   emailTurnstileSiteKey?: string;
   error?: string;
+  googleClientId?: string;
   heading: string;
   locale: Locale;
   messages: Messages;
@@ -1538,6 +2006,7 @@ function renderAuthPage(options: {
       options.turnstileSiteKey ?? options.emailTurnstileSiteKey,
     )
   }
+    ${googleScriptHtml(options.googleClientId)}
     <style>
       body {
         min-height: 100vh;
@@ -1567,6 +2036,21 @@ function renderAuthPage(options: {
         font-size: 0.95rem;
         font-weight: 700;
         margin: 4px 0 0;
+      }
+
+      .auth-google-method {
+        display: grid;
+        gap: 10px;
+        min-height: 40px;
+      }
+
+      .auth-google-button {
+        min-height: 40px;
+        width: 100%;
+      }
+
+      .auth-google-button > div {
+        margin-inline: auto;
       }
 
       .auth-email-code-row {
@@ -1703,6 +2187,7 @@ function renderAuthPage(options: {
     <main class="auth-shell">
       <section class="auth-panel">
         <h1>${escapeHtml(options.heading)}</h1>
+        ${options.mode === "login" ? renderGoogleLoginForm(options) : ""}
         <form method="post" action="${escapeHtml(options.action)}">
           ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${
@@ -1741,8 +2226,62 @@ function renderAuthPage(options: {
       </section>
     </main>
     ${authEmailLoginScript(options.mode === "login")}
+    ${
+    authGoogleLoginScript(
+      options.mode === "login" && Boolean(options.googleClientId),
+    )
+  }
   </body>
 </html>`;
+}
+
+/**
+ * 渲染 Google 官方登录按钮容器和 credential 提交表单。
+ *
+ * @param options 认证页面渲染选项。
+ * @return Google 登录 HTML。
+ */
+function renderGoogleLoginForm(options: {
+  csrfToken: string;
+  googleClientId?: string;
+  locale: Locale;
+  returnTo: string;
+  syncLocale: boolean;
+}): string {
+  if (!options.googleClientId) {
+    return "";
+  }
+
+  const action = authPagePath(googleCredentialPath, options.locale, {
+    [authLocaleChangedParam]: options.syncLocale
+      ? authLocaleChangedValue
+      : undefined,
+  });
+
+  return `<div
+          class="auth-google-method"
+          data-google-login
+          data-google-client-id="${escapeHtml(options.googleClientId)}"
+        >
+          <div class="auth-google-button" data-google-button></div>
+          <form
+            method="post"
+            action="${escapeHtml(action)}"
+            data-google-login-form
+            hidden
+          >
+            ${csrfHiddenInput(options.csrfToken)}
+            <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
+            <input type="hidden" name="credential" data-google-credential>
+            ${
+    options.syncLocale
+      ? `<input type="hidden" name="${authLocaleChangedParam}" value="${authLocaleChangedValue}">`
+      : ""
+  }
+          </form>
+        </div>`;
 }
 
 /**
@@ -1919,6 +2458,67 @@ function authEmailLoginScript(enabled: boolean): string {
 }
 
 /**
+ * 渲染 Google Identity Services 登录交互脚本。
+ *
+ * @param enabled 是否需要渲染脚本。
+ * @return 交互脚本 HTML。
+ */
+function authGoogleLoginScript(enabled: boolean): string {
+  return enabled
+    ? `<script>
+(() => {
+  const root = document.querySelector("[data-google-login]");
+  if (!(root instanceof HTMLElement)) return;
+  const form = root.querySelector("[data-google-login-form]");
+  const credentialInput = root.querySelector("[data-google-credential]");
+  const button = root.querySelector("[data-google-button]");
+  const clientId = root.dataset.googleClientId || "";
+  if (!clientId || !(form instanceof HTMLFormElement) || !(credentialInput instanceof HTMLInputElement) || !(button instanceof HTMLElement)) return;
+  const submitCredential = (response) => {
+    const credential = typeof response?.credential === "string" ? response.credential.trim() : "";
+    if (!credential) return;
+    credentialInput.value = credential;
+    form.submit();
+  };
+  const initialize = () => {
+    const googleIdentity = globalThis.google?.accounts?.id;
+    if (!googleIdentity) return;
+    googleIdentity.initialize({
+      client_id: clientId,
+      callback: submitCredential,
+      use_fedcm_for_prompt: true,
+    });
+    googleIdentity.renderButton(button, {
+      logo_alignment: "left",
+      shape: "rectangular",
+      size: "large",
+      text: "continue_with",
+      theme: "outline",
+      type: "standard",
+      width: Math.min(320, Math.max(240, Math.floor(button.getBoundingClientRect().width || 320))),
+    });
+    googleIdentity.prompt();
+  };
+  if (globalThis.google?.accounts?.id) initialize();
+  else globalThis.addEventListener("load", initialize, { once: true });
+})();
+</script>`
+    : "";
+}
+
+/**
+ * 渲染 Google Identity Services 官方脚本。
+ *
+ * @param clientId Google OAuth client ID。
+ * @return 启用 Google 登录时返回脚本 HTML。
+ */
+function googleScriptHtml(clientId: string | undefined): string {
+  return clientId
+    ? `<script src="https://accounts.google.com/gsi/client" async defer></script>`
+    : "";
+}
+
+/**
  * 渲染 Turnstile 官方脚本。
  *
  * @param siteKey Turnstile site key。
@@ -2076,6 +2676,10 @@ function loginErrorMessage(
       return messages.authEmailCodeInvalid;
     case "emailInvalid":
       return messages.authEmailInvalid;
+    case "google":
+      return messages.authGoogleInvalid;
+    case "googleUnavailable":
+      return messages.authGoogleUnavailable;
     case "invalid":
       return messages.authInvalidCredentials;
     case "rateLimited":

@@ -9,16 +9,16 @@ import type { Context, MiddlewareHandler } from "@hono/hono";
 const contentSecurityPolicyDirectives = [
   "default-src 'self'",
   "base-uri 'self'",
-  "connect-src 'self' https://challenges.cloudflare.com",
+  "connect-src 'self' https://challenges.cloudflare.com https://accounts.google.com/gsi/",
   "font-src 'self' data:",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "frame-src https://challenges.cloudflare.com",
+  "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/",
   "img-src 'self' https://cdn.max-c.com data:",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://accounts.google.com/gsi/client",
   "script-src-attr 'none'",
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
   "style-src-attr 'unsafe-inline'",
 ];
 
@@ -27,7 +27,7 @@ const contentSecurityPolicyDirectives = [
  */
 const defaultSecurityHeaders = {
   "content-security-policy": contentSecurityPolicyDirectives.join("; "),
-  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-opener-policy": "same-origin-allow-popups",
   "cross-origin-resource-policy": "same-origin",
   "origin-agent-cluster": "?1",
   "permissions-policy": [

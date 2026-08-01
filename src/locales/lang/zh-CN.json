@@ -50,6 +50,8 @@
   "authEmailSendCode": "发送验证码",
   "authEmailSendingCode": "验证码发送中...",
   "authExistingAccountLogin": "已有账号，去登录",
+  "authGoogleInvalid": "Google 登录未通过验证，请重试。",
+  "authGoogleUnavailable": "Google 登录暂未配置，请改用其他登录方式。",
   "authHumanVerificationRequired": "请完成人机验证后再继续。",
   "authInvalidCredentials": "用户名或密码不正确。",
   "authLanguage": "语言",

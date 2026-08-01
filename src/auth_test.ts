@@ -16,12 +16,14 @@ import {
 } from "./auth/email_verification.ts";
 import type {
   AppSettings,
+  AuthIdentity,
   EmailCredential,
   PasswordCredential,
   PendingEmailVerification,
   UserAccount,
   UserSession,
 } from "./models.ts";
+import { base64UrlEncode } from "./security/crypto_utils.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 import {
   addUniqueAccount,
@@ -41,6 +43,11 @@ const testEmailVerificationConfig = {
   codeTtlSeconds: 600,
   maxAttempts: 5,
 };
+
+/**
+ * Google 登录测试使用的固定 client ID。
+ */
+const testGoogleClientId = "test-client-id.apps.googleusercontent.com";
 
 Deno.test("auth middleware redirects protected pages to login", async () => {
   const app = createTestApp();
@@ -67,6 +74,37 @@ Deno.test("auth routes render login page without extra configuration", async () 
   assertEquals(html.includes("data-auth-email-login-form"), true);
   assertEquals(html.includes("data-auth-email-send-code-button"), true);
   assertEquals(html.includes('name="authMethod" value="email"'), true);
+  assertEquals(html.includes("https://accounts.google.com/gsi/client"), false);
+  assertEquals(html.includes("data-google-login"), false);
+});
+
+Deno.test("auth routes render Google Identity Services when configured", async () => {
+  const app = createTestApp(
+    createMemoryStorage(),
+    googleAuthOptions({ keys: [] }),
+  );
+
+  const response = await app.request(
+    "/login?locale=en-US&localeChanged=1&returnTo=%2Fsettings",
+  );
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    html.includes("https://accounts.google.com/gsi/client"),
+    true,
+  );
+  assertEquals(html.includes("data-google-login"), true);
+  assertEquals(
+    html.includes(`data-google-client-id="${testGoogleClientId}"`),
+    true,
+  );
+  assertEquals(
+    html.includes('action="/auth/google?locale=en-US&amp;localeChanged=1"'),
+    true,
+  );
+  assertEquals(html.includes('name="credential" data-google-credential'), true);
+  assertEquals(html.includes("use_fedcm_for_prompt: true"), true);
 });
 
 Deno.test("auth routes render Turnstile widget when enabled", async () => {
@@ -409,6 +447,132 @@ Deno.test("auth routes sign in with email verification and create a passwordless
     await storage.getPendingEmailVerification("email-login-verification"),
     undefined,
   );
+});
+
+Deno.test("auth routes sign in with Google credential and create a passwordless account", async () => {
+  const storage = createMemoryStorage();
+  const fixture = await googleTokenFixture();
+  const app = createTestApp(storage, googleAuthOptions(fixture.jwks));
+
+  const response = await app.request(
+    "/auth/google?locale=en-US&localeChanged=1",
+    {
+      body: testCsrfForm(
+        new URLSearchParams({
+          credential: fixture.token,
+          returnTo: "/history",
+        }),
+      ),
+      headers: testCsrfHeaders(),
+      method: "POST",
+    },
+  );
+  const identity = await storage.getAuthIdentity(
+    "google",
+    "google-subject-id",
+  );
+  const account = identity
+    ? await storage.getAccountById(identity.userId)
+    : undefined;
+  const emailCredential = account
+    ? await storage.getEmailCredential(account.id, "alice@example.com")
+    : undefined;
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(identity?.provider, "google");
+  assertEquals(identity?.providerUserId, "google-subject-id");
+  assertEquals(identity?.email, "alice@example.com");
+  assertEquals(identity?.emailVerified, true);
+  assertEquals(account?.authVersion, 2);
+  assertEquals(account?.displayName, "Alice");
+  assertEquals(account?.primaryEmail, "alice@example.com");
+  assertEquals(account?.emailVerified, true);
+  assertEquals(account?.passwordHash, undefined);
+  assertEquals(emailCredential?.verified, true);
+  assertEquals(emailCredential?.lastVerifiedAt !== undefined, true);
+  assertEquals(session?.userId, account?.id);
+  assertEquals(storage.savedSessions[0]?.userId, account?.id);
+  assertEquals(
+    storage.settingsByUserId.get(account?.id ?? "")?.locale,
+    "en-US",
+  );
+});
+
+Deno.test("auth routes do not merge Google sign-in into an existing same-email account", async () => {
+  const storage = createMemoryStorage();
+  const fixture = await googleTokenFixture();
+  const existingAccount: UserAccount = {
+    authVersion: 2,
+    createdAt: "2026-07-31T00:00:00.000Z",
+    emailVerified: true,
+    id: "existing-user-id",
+    primaryEmail: "alice@example.com",
+    username: "alice",
+  };
+  await storage.createAccount(existingAccount);
+  await storage.saveEmailCredential({
+    createdAt: "2026-07-31T00:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-07-31T00:00:00.000Z",
+    userId: existingAccount.id,
+    verified: true,
+  });
+  const app = createTestApp(storage, googleAuthOptions(fixture.jwks));
+
+  const response = await app.request("/auth/google", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        credential: fixture.token,
+        returnTo: "/",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const identity = await storage.getAuthIdentity(
+    "google",
+    "google-subject-id",
+  );
+  const accounts = await storage.listAccounts();
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(accounts.length, 2);
+  assertEquals(identity?.userId === existingAccount.id, false);
+  assertEquals(storage.savedSessions[0]?.userId, identity?.userId);
+  assertEquals(
+    (await storage.getAccountById(existingAccount.id))?.primaryEmail,
+    "alice@example.com",
+  );
+});
+
+Deno.test("auth routes reject invalid Google credentials", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, googleAuthOptions({ keys: [] }));
+
+  const response = await app.request("/auth/google", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        credential: "not-a-google-id-token",
+        returnTo: "/settings",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/login?locale=zh-CN&error=google&returnTo=%2Fsettings",
+  );
+  assertEquals((await storage.listAccounts()).length, 0);
+  assertEquals(storage.savedSessions.length, 0);
 });
 
 Deno.test("auth routes reject email login with an incorrect code", async () => {
@@ -844,6 +1008,107 @@ function emailVerificationAuthOptions(options: {
 }
 
 /**
+ * 创建启用 Google 登录的认证测试配置。
+ *
+ * @param jwks Google JWKS 测试响应。
+ * @return 认证测试配置。
+ */
+function googleAuthOptions(jwks: { keys: JsonWebKey[] }): AuthOptions {
+  return {
+    google: {
+      clientId: testGoogleClientId,
+      jwksUrl: "https://keys.example.test/jwks",
+    },
+    googleJwksFetch: () => Promise.resolve(jsonResponse(jwks)),
+  };
+}
+
+/**
+ * Google token 测试夹具。
+ */
+type GoogleTokenFixture = {
+  jwks: { keys: JsonWebKey[] };
+  payload: Record<string, unknown>;
+  token: string;
+};
+
+/**
+ * 创建签名后的 Google ID token 测试夹具。
+ *
+ * @param payloadOverrides payload 覆盖项。
+ * @return Google token 测试夹具。
+ */
+async function googleTokenFixture(
+  payloadOverrides: Record<string, unknown> = {},
+): Promise<GoogleTokenFixture> {
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      hash: "SHA-256",
+      modulusLength: 2048,
+      name: "RSASSA-PKCS1-v1_5",
+      publicExponent: new Uint8Array([1, 0, 1]),
+    },
+    true,
+    ["sign", "verify"],
+  );
+  const publicJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+  const jwk = {
+    ...publicJwk,
+    alg: "RS256",
+    kid: "test-key-id",
+    use: "sig",
+  };
+  const header = { alg: "RS256", kid: "test-key-id", typ: "JWT" };
+  const payload = {
+    aud: testGoogleClientId,
+    email: "Alice@Example.COM",
+    email_verified: true,
+    exp: 4_102_444_800,
+    iat: 1_785_561_600,
+    iss: "https://accounts.google.com",
+    name: "Alice",
+    picture: "https://example.com/avatar.png",
+    sub: "google-subject-id",
+    ...payloadOverrides,
+  };
+  const signingInput = `${encodeJwtJson(header)}.${encodeJwtJson(payload)}`;
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    keyPair.privateKey,
+    new TextEncoder().encode(signingInput),
+  );
+
+  return {
+    jwks: { keys: [jwk] },
+    payload,
+    token: `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`,
+  };
+}
+
+/**
+ * 编码 JWT JSON 片段。
+ *
+ * @param value 待编码对象。
+ * @return Base64URL 编码片段。
+ */
+function encodeJwtJson(value: unknown): string {
+  return base64UrlEncode(new TextEncoder().encode(JSON.stringify(value)));
+}
+
+/**
+ * 创建 JSON 响应。
+ *
+ * @param value 响应对象。
+ * @return JSON 响应。
+ */
+function jsonResponse(value: unknown): Response {
+  return new Response(JSON.stringify(value), {
+    headers: { "content-type": "application/json" },
+    status: 200,
+  });
+}
+
+/**
  * 读取测试 fetch 请求体文本。
  *
  * @param body 请求体。
@@ -883,6 +1148,7 @@ async function requestText(body: BodyInit | null | undefined): Promise<string> {
  * @return 带会话记录能力的内存存储。
  */
 function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
+  authIdentitiesByKey: Map<string, AuthIdentity>;
   emailCredentialsByKey: Map<string, EmailCredential>;
   passwordCredentialsByUserId: Map<string, PasswordCredential>;
   pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
@@ -891,6 +1157,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
 } {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
+  const authIdentitiesByKey = new Map<string, AuthIdentity>();
   const emailCredentialsByKey = new Map<string, EmailCredential>();
   const loginFailuresByUsername = new Map<
     string,
@@ -907,6 +1174,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
 
   return {
     ...createMemoryRateLimitRecorder(),
+    authIdentitiesByKey,
     emailCredentialsByKey,
     passwordCredentialsByUserId,
     pendingEmailVerificationsById,
@@ -958,6 +1226,40 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       Promise.resolve(
         addUniqueAccount(accountsById, accountIdsByUsername, account),
       ),
+    updateAccount: (account: UserAccount) => {
+      const currentAccount = accountsById.get(account.id);
+      if (!currentAccount) {
+        return Promise.resolve(false);
+      }
+
+      const currentUsername = currentAccount.username.trim().toLowerCase();
+      const nextUsername = account.username.trim().toLowerCase();
+      const existingUserId = accountIdsByUsername.get(nextUsername);
+      if (existingUserId && existingUserId !== account.id) {
+        return Promise.resolve(false);
+      }
+
+      accountsById.set(account.id, account);
+      if (currentUsername !== nextUsername) {
+        accountIdsByUsername.delete(currentUsername);
+        accountIdsByUsername.set(nextUsername, account.id);
+      }
+      return Promise.resolve(true);
+    },
+    getAuthIdentity: (
+      provider: AuthIdentity["provider"],
+      providerUserId: string,
+    ) =>
+      Promise.resolve(
+        authIdentitiesByKey.get(authIdentityKey(provider, providerUserId)),
+      ),
+    saveAuthIdentity: (identity: AuthIdentity) => {
+      authIdentitiesByKey.set(
+        authIdentityKey(identity.provider, identity.providerUserId),
+        identity,
+      );
+      return Promise.resolve();
+    },
     getEmailCredential: (userId: string, email: string) =>
       Promise.resolve(
         emailCredentialsByKey.get(emailCredentialKey(userId, email)),
@@ -1038,6 +1340,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       return Promise.resolve();
     },
   } as unknown as ReturnType<typeof createKvStorage> & {
+    authIdentitiesByKey: Map<string, AuthIdentity>;
     emailCredentialsByKey: Map<string, EmailCredential>;
     passwordCredentialsByUserId: Map<string, PasswordCredential>;
     pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
@@ -1055,6 +1358,20 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
  */
 function emailCredentialKey(userId: string, email: string): string {
   return `${userId}:${email.trim().toLowerCase()}`;
+}
+
+/**
+ * 创建测试内存外部身份绑定键。
+ *
+ * @param provider 身份提供方。
+ * @param providerUserId 提供方用户 ID。
+ * @return 外部身份绑定键。
+ */
+function authIdentityKey(
+  provider: AuthIdentity["provider"],
+  providerUserId: string,
+): string {
+  return `${provider}:${providerUserId}`;
 }
 
 /**

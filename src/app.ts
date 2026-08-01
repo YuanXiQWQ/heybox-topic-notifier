@@ -28,6 +28,7 @@ export function createApplication() {
         context.config.defaultSettings,
       );
     },
+    google: context.config.google,
     turnstile: context.config.turnstile,
   };
 
