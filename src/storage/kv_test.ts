@@ -8,7 +8,9 @@ import type {
   MatchRecord,
   PasswordCredential,
   PendingEmailVerification,
+  PendingMfaChallenge,
   UserAccount,
+  UserSecuritySettings,
 } from "../models.ts";
 import { createKvStorage, latestMatchByMatchedTime } from "./kv.ts";
 
@@ -190,6 +192,28 @@ Deno.test("updateAccount rejects an existing username without changing the accou
   assertEquals((await storage.getAccountByUsername("bob"))?.id, "bob-id");
 });
 
+Deno.test("security settings storage reads defaults and saved settings", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const settings: UserSecuritySettings = {
+    preferredSecondFactor: "totp",
+    twoFactorEnabled: true,
+    userId: "alice-id",
+  };
+
+  assertEquals(await storage.getUserSecuritySettings("alice-id"), {
+    preferredSecondFactor: undefined,
+    twoFactorEnabled: false,
+    userId: "alice-id",
+  });
+
+  await storage.saveUserSecuritySettings(settings);
+
+  assertEquals(await storage.getUserSecuritySettings("alice-id"), settings);
+});
+
 Deno.test("password credential storage reads saved credentials by user id", async () => {
   const kv = new MemoryKv();
   const storage = createKvStorage(defaultSettings, {
@@ -231,6 +255,47 @@ Deno.test("auth identity storage reads saved Google identities", async () => {
   );
   assertEquals(
     await storage.getAuthIdentity("google", "missing-subject-id"),
+    undefined,
+  );
+});
+
+Deno.test("pending MFA challenge storage preserves attempts and methods", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const challenge: PendingMfaChallenge = {
+    allowedMethods: ["passkey", "email", "email"],
+    attempts: 0,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    expiresAt: "2026-08-01T00:10:00.000Z",
+    id: "mfa-challenge-id",
+    primaryMethod: "password",
+    userId: "alice-id",
+  };
+
+  await storage.savePendingMfaChallenge(challenge);
+
+  assertEquals(await storage.getPendingMfaChallenge("mfa-challenge-id"), {
+    ...challenge,
+    allowedMethods: ["email", "passkey"],
+  });
+
+  await storage.savePendingMfaChallenge({
+    ...challenge,
+    allowedMethods: ["email", "passkey"],
+    attempts: 1,
+  });
+
+  assertEquals(
+    (await storage.getPendingMfaChallenge("mfa-challenge-id"))?.attempts,
+    1,
+  );
+
+  await storage.deletePendingMfaChallenge("mfa-challenge-id");
+
+  assertEquals(
+    await storage.getPendingMfaChallenge("mfa-challenge-id"),
     undefined,
   );
 });
