@@ -4,6 +4,8 @@
 import type {
   AppSettings,
   AppState,
+  AuthIdentity,
+  AuthIdentityProvider,
   DashboardSnapshot,
   EmailCredential,
   KeywordRule,
@@ -30,6 +32,8 @@ const keys = {
   account: (id: string) => ["accounts", id] as const,
   accountUsername: (username: string) =>
     ["accountUsernames", normalizeUsername(username)] as const,
+  authIdentity: (provider: AuthIdentityProvider, providerUserId: string) =>
+    ["authIdentities", provider, providerUserId] as const,
   emailCredential: (userId: string, email: string) =>
     ["emailCredentials", userId, emailKey(email)] as const,
   emailCredentialPrefix: (userId: string) =>
@@ -553,6 +557,38 @@ export function createKvStorage(
     ): Promise<void> {
       const store = await kv();
       await store.set(keys.passwordCredential(credential.userId), credential);
+    },
+
+    /**
+     * 获取外部或邮箱身份绑定。
+     *
+     * @param provider 身份提供方。
+     * @param providerUserId 提供方用户 ID。
+     * @return 身份绑定，不存在时返回 undefined。
+     */
+    async getAuthIdentity(
+      provider: AuthIdentityProvider,
+      providerUserId: string,
+    ): Promise<AuthIdentity | undefined> {
+      const store = await kv();
+      const entry = await store.get<AuthIdentity>(
+        keys.authIdentity(provider, providerUserId),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 保存外部或邮箱身份绑定。
+     *
+     * @param identity 身份绑定。
+     * @return 保存完成后的 Promise。
+     */
+    async saveAuthIdentity(identity: AuthIdentity): Promise<void> {
+      const store = await kv();
+      await store.set(
+        keys.authIdentity(identity.provider, identity.providerUserId),
+        identity,
+      );
     },
 
     /**

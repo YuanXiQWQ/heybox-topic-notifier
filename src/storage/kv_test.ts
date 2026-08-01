@@ -3,6 +3,7 @@
  */
 import type {
   AppSettings,
+  AuthIdentity,
   EmailCredential,
   MatchRecord,
   PasswordCredential,
@@ -206,6 +207,32 @@ Deno.test("password credential storage reads saved credentials by user id", asyn
 
   assertEquals(await storage.getPasswordCredential("alice-id"), credential);
   assertEquals(await storage.getPasswordCredential("missing-id"), undefined);
+});
+
+Deno.test("auth identity storage reads saved Google identities", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const identity: AuthIdentity = {
+    createdAt: "2026-08-01T00:00:00.000Z",
+    email: "alice@example.com",
+    emailVerified: true,
+    provider: "google",
+    providerUserId: "google-subject-id",
+    userId: "alice-id",
+  };
+
+  await storage.saveAuthIdentity(identity);
+
+  assertEquals(
+    await storage.getAuthIdentity("google", "google-subject-id"),
+    identity,
+  );
+  assertEquals(
+    await storage.getAuthIdentity("google", "missing-subject-id"),
+    undefined,
+  );
 });
 
 Deno.test("email credential storage normalizes addresses under user scope", async () => {
