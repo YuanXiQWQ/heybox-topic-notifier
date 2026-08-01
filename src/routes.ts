@@ -41,7 +41,7 @@ import {
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderPendingMatches } from "./views/dashboard.ts";
-import { renderHistory } from "./views/history.ts";
+import { renderHistory, renderHistoryTable } from "./views/history.ts";
 import {
   applyMatchTableQuery,
   matchTableSignature,
@@ -70,6 +70,10 @@ const pollResetParam = "pollReset";
  * 手动轮询前进度条起始宽度查询参数名。
  */
 const pollResetStartParam = "pollResetStart";
+/**
+ * 命中记录表局部刷新请求头。
+ */
+const matchTableRefreshHeader = "x-match-table-refresh";
 
 /**
  * 创建应用业务路由。
@@ -181,6 +185,65 @@ export function createRoutes(context: AppContext): Hono {
         },
         totalMatches: state.totalMatches,
       }),
+      csrf,
+    );
+  }
+
+  /**
+   * 返回待处理命中表格局部刷新 HTML。
+   *
+   * @param c Hono 请求上下文。
+   * @param storage 当前用户作用域存储。
+   * @param returnTo 表格当前路径和查询参数。
+   * @return 待处理命中表格 HTML 响应。
+   */
+  async function pendingMatchesTableResponse(
+    c: Context,
+    storage: Awaited<ReturnType<typeof storageForRequest>>,
+    returnTo: string,
+  ): Promise<Response> {
+    const url = new URL(returnTo, "http://local");
+    const { pendingMatches, settings } = await storage.getDashboardSnapshot();
+    const table = applyMatchTableQuery(
+      pendingMatches,
+      parseMatchTableQuery(url.searchParams),
+    );
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    const messages = getMessages(settings.locale);
+
+    return withCsrfCookie(
+      c.html(
+        renderPendingMatches(table, messages, settings.locale, csrf.token),
+      ),
+      csrf,
+    );
+  }
+
+  /**
+   * 返回历史命中表格局部刷新 HTML。
+   *
+   * @param c Hono 请求上下文。
+   * @param storage 当前用户作用域存储。
+   * @param returnTo 表格当前路径和查询参数。
+   * @return 历史命中表格 HTML 响应。
+   */
+  async function historyTableResponse(
+    c: Context,
+    storage: Awaited<ReturnType<typeof storageForRequest>>,
+    returnTo: string,
+  ): Promise<Response> {
+    const url = new URL(returnTo, "http://local");
+    const settings = await storage.getSettings();
+    const history = await storage.listHistory();
+    const table = applyMatchTableQuery(
+      history,
+      parseMatchTableQuery(url.searchParams),
+    );
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    const messages = getMessages(settings.locale);
+
+    return withCsrfCookie(
+      c.html(renderHistoryTable(table, messages, settings.locale, csrf.token)),
       csrf,
     );
   }
@@ -446,7 +509,11 @@ export function createRoutes(context: AppContext): Hono {
     if (ids.length > 0) {
       await storage.completeMatches(ids);
     }
-    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
+    const returnTo = safeRedirectPath(form.get("returnTo"), "/");
+    if (isMatchTableRefreshRequest(c)) {
+      return await pendingMatchesTableResponse(c, storage, returnTo);
+    }
+    return c.redirect(returnTo);
   });
 
   app.post("/matches/delete", async (c) => {
@@ -460,7 +527,11 @@ export function createRoutes(context: AppContext): Hono {
     if (ids.length > 0) {
       await storage.deleteMatches(ids);
     }
-    return c.redirect(safeRedirectPath(form.get("returnTo"), "/history"));
+    const returnTo = safeRedirectPath(form.get("returnTo"), "/history");
+    if (isMatchTableRefreshRequest(c)) {
+      return await historyTableResponse(c, storage, returnTo);
+    }
+    return c.redirect(returnTo);
   });
 
   app.get("/static/app.css", async () => {
@@ -666,6 +737,18 @@ function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/hi
   } catch {
     return fallback;
   }
+}
+
+/**
+ * 判断请求是否要求命中记录表局部刷新。
+ *
+ * @param c Hono 请求上下文的最小结构。
+ * @return 请求要求局部刷新时返回 true。
+ */
+function isMatchTableRefreshRequest(
+  c: { req: { header(name: string): string | undefined } },
+) {
+  return c.req.header(matchTableRefreshHeader) === "1";
 }
 
 /**

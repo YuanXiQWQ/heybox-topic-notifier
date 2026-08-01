@@ -4,7 +4,7 @@
 import { Hono } from "@hono/hono";
 import { createRoutes, settingsFromForm } from "./routes.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
-import type { AppSettings, UserAccount, UserSession } from "./models.ts";
+import type { AppSettings, MatchRecord, UserAccount, UserSession } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { NotificationConfigError, NotificationDeliveryError } from "./services/notifier.ts";
 import {
@@ -753,6 +753,43 @@ Deno.test("complete matches handles all selected ids and ignores empty submissio
   assertEquals(completed, [["first", "second"]]);
 });
 
+Deno.test("complete matches ajax returns refreshed pending table", async () => {
+  const completed: string[][] = [];
+  const app = createRoutes({
+    storage: {
+      completeMatches: (ids: string[]) => {
+        completed.push(ids);
+        return Promise.resolve();
+      },
+      getDashboardSnapshot: () =>
+        Promise.resolve({
+          pendingMatches: [routeMatchRecord("remaining-pending")],
+          settings: currentSettings,
+          state: { totalMatches: 1 },
+        }),
+    },
+  } as unknown as AppContext);
+
+  const form = new URLSearchParams();
+  form.set("matchId", "finished-pending");
+  form.set("returnTo", "/?range=all&page=1&pageSize=10");
+
+  const response = await app.request("/matches/complete", {
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders({ "x-match-table-refresh": "1" }),
+    method: "POST",
+  });
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get("location"), null);
+  assertEquals(completed, [["finished-pending"]]);
+  assertIncludes(html, `data-match-table-section="pending-posts-heading"`);
+  assertIncludes(html, `data-match-table-form`);
+  assertIncludes(html, "remaining-pending");
+  assertNotIncludes(html, "<!doctype html>");
+});
+
 Deno.test("delete matches handles all selected ids and ignores empty submissions", async () => {
   const deleted: string[][] = [];
   const app = createRoutes({
@@ -785,6 +822,40 @@ Deno.test("delete matches handles all selected ids and ignores empty submissions
   assertEquals(selectedResponse.headers.get("location"), "/history?range=day&page=4&pageSize=100");
   assertEquals(emptyResponse.headers.get("location"), "/history");
   assertEquals(deleted, [["old-first", "old-second"]]);
+});
+
+Deno.test("delete matches ajax returns refreshed history table", async () => {
+  const deleted: string[][] = [];
+  const app = createRoutes({
+    storage: {
+      deleteMatches: (ids: string[]) => {
+        deleted.push(ids);
+        return Promise.resolve();
+      },
+      getSettings: () => Promise.resolve(currentSettings),
+      listHistory: () =>
+        Promise.resolve([routeMatchRecord("remaining-history")]),
+    },
+  } as unknown as AppContext);
+
+  const form = new URLSearchParams();
+  form.set("matchId", "deleted-history");
+  form.set("returnTo", "/history?range=all&page=1&pageSize=10");
+
+  const response = await app.request("/matches/delete", {
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders({ "x-match-table-refresh": "1" }),
+    method: "POST",
+  });
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get("location"), null);
+  assertEquals(deleted, [["deleted-history"]]);
+  assertIncludes(html, `data-match-table-section="history-table-heading"`);
+  assertIncludes(html, `data-match-table-form`);
+  assertIncludes(html, "remaining-history");
+  assertNotIncludes(html, "<!doctype html>");
 });
 
 Deno.test("match redirects reject paths outside their table", async () => {
@@ -885,4 +956,53 @@ function createAccountRouteStorage(): AccountRouteStorage {
       return Promise.resolve();
     },
   };
+}
+
+/**
+ * 创建路由测试使用的命中记录。
+ *
+ * @param id 命中记录与帖子 ID。
+ * @return 命中记录。
+ */
+function routeMatchRecord(id: string): MatchRecord {
+  return {
+    id,
+    keyword: "测试关键词",
+    location: "title",
+    matchedAt: "2026-06-30T12:00:00.000Z",
+    post: {
+      body: "测试正文",
+      commentReplies: [],
+      comments: [],
+      excerpt: "测试摘要",
+      id,
+      publishedAt: "2026-06-30T11:00:00.000Z",
+      title: id,
+      url: `https://example.com/${id}`,
+    },
+  };
+}
+
+/**
+ * 断言字符串包含指定片段。
+ *
+ * @param actual 实际字符串。
+ * @param expected 期望包含的片段。
+ */
+function assertIncludes(actual: string, expected: string): void {
+  if (!actual.includes(expected)) {
+    throw new Error(`Expected output to include ${expected}`);
+  }
+}
+
+/**
+ * 断言字符串不包含指定片段。
+ *
+ * @param actual 实际字符串。
+ * @param expected 不期望出现的片段。
+ */
+function assertNotIncludes(actual: string, expected: string): void {
+  if (actual.includes(expected)) {
+    throw new Error(`Expected output not to include ${expected}`);
+  }
 }
