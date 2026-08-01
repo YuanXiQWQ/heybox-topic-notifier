@@ -65,7 +65,7 @@ export type EmailBindingStatus = {
 };
 
 export type SecuritySettingsStatus = {
-  code: "preferred" | "unavailable" | "updated";
+  code: "preferred" | "reauth" | "unavailable" | "updated";
   type: "error" | "success";
 };
 
@@ -75,7 +75,7 @@ export type TotpBindingStatus = {
 };
 
 export type PasskeyBindingStatus = {
-  code: "deleted" | "failed" | "notFound" | "updated";
+  code: "deleted" | "failed" | "notFound" | "reauth" | "updated";
   type: "error" | "success";
 };
 
@@ -99,6 +99,8 @@ export function renderSettings(options: {
   emailCredentials?: EmailCredential[];
   passkeyBindingStatus?: PasskeyBindingStatus;
   passkeyCredentials?: PasskeyCredential[];
+  reauthPasswordAvailable?: boolean;
+  reauthRecentlyVerified?: boolean;
   secondFactorMethods?: SecondFactorMethod[];
   securitySettings?: UserSecuritySettings;
   securityStatus?: SecuritySettingsStatus;
@@ -151,6 +153,18 @@ export function renderSettings(options: {
         options.passkeyCredentials ?? [],
         options.passkeyBindingStatus,
         options.csrfToken,
+      )
+      : ""
+  }
+    ${
+    options.account
+      ? renderReauthSection(
+        options.settings,
+        options.emailCredentials ?? [],
+        options.passkeyCredentials ?? [],
+        Boolean(options.totpCredential),
+        options.reauthPasswordAvailable ?? false,
+        options.reauthRecentlyVerified ?? false,
       )
       : ""
   }
@@ -233,7 +247,7 @@ export function renderSettings(options: {
       </div>
     </form>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
-    <script src="/static/settings.js?v=20260801-passkey-binding" defer></script>
+    <script src="/static/settings.js?v=20260801-reauth" defer></script>
   `;
 
   return renderLayout({
@@ -929,6 +943,227 @@ function passkeyCredentialMeta(
 }
 
 /**
+ * 渲染敏感操作再认证区域。
+ *
+ * @param settings 应用设置。
+ * @param emailCredentials 已绑定邮箱凭证。
+ * @param passkeyCredentials 已绑定 Passkey 凭证。
+ * @param totpAvailable 验证器是否可用。
+ * @param passwordAvailable 密码是否可用。
+ * @param recentlyVerified 最近是否已经完成再认证。
+ * @return 再认证区域 HTML。
+ */
+function renderReauthSection(
+  settings: AppSettings,
+  emailCredentials: EmailCredential[],
+  passkeyCredentials: PasskeyCredential[],
+  totpAvailable: boolean,
+  passwordAvailable: boolean,
+  recentlyVerified: boolean,
+): string {
+  const messages = getMessages(settings.locale);
+  const verifiedEmails = emailCredentials.filter((credential) =>
+    credential.verified
+  );
+  const methodCount = Number(passwordAvailable) + Number(totpAvailable) +
+    Number(passkeyCredentials.length > 0) + Number(verifiedEmails.length > 0);
+  const statusMessage = methodCount === 0
+    ? messages.accountReauthUnavailable
+    : recentlyVerified
+    ? messages.accountReauthReady
+    : messages.accountReauthRequired;
+
+  return `
+    <section
+      class="settings-group"
+      aria-labelledby="account-reauth-heading"
+      data-reauth-section
+      data-reauth-password-url="/account/reauth/password"
+      data-reauth-totp-url="/account/reauth/totp"
+      data-reauth-email-send-url="/auth/email-verifications"
+      data-reauth-email-verify-url="/account/reauth/email"
+      data-reauth-passkey-options-url="/account/passkeys/reauth-options"
+      data-reauth-passkey-verify-url="/account/passkeys/reauth"
+      data-reauth-success="${escapeHtml(messages.accountReauthVerified)}"
+      data-reauth-failed="${escapeHtml(messages.accountReauthFailed)}"
+      data-reauth-passkey-pending="${
+    escapeHtml(messages.accountReauthPasskeyVerifying)
+  }"
+      data-reauth-email-code-required="${
+    escapeHtml(messages.accountEmailCodeRequired)
+  }"
+      data-reauth-email-send-failed="${
+    escapeHtml(messages.accountEmailCodeFailed)
+  }"
+      data-reauth-email-sending="${
+    escapeHtml(messages.accountEmailSendingCode)
+  }"
+      data-reauth-email-sent="${escapeHtml(messages.accountEmailCodeSent)}"
+    >
+      <h2 id="account-reauth-heading">${
+    escapeHtml(messages.accountReauthSettings)
+  }</h2>
+      <dl class="settings-list">
+        <div>
+          ${settingLabel("check_circle", messages.accountReauthStatus)}
+          <dd>
+            <span class="field-hint" data-reauth-status>${
+    escapeHtml(statusMessage)
+  }</span>
+          </dd>
+        </div>
+        ${passwordAvailable ? renderPasswordReauthMethod(messages) : ""}
+        ${totpAvailable ? renderTotpReauthMethod(messages) : ""}
+        ${renderEmailReauthMethod(verifiedEmails, messages)}
+        ${
+    passkeyCredentials.length > 0 ? renderPasskeyReauthMethod(messages) : ""
+  }
+      </dl>
+    </section>
+  `;
+}
+
+/**
+ * 渲染密码再认证方式。
+ *
+ * @param messages 当前语言文案。
+ * @return 密码再认证方式 HTML。
+ */
+function renderPasswordReauthMethod(
+  messages: ReturnType<typeof getMessages>,
+): string {
+  return `
+        <div>
+          ${settingLabel("lock", messages.accountCurrentPassword)}
+          <dd>
+            <form class="reauth-inline-form" data-reauth-password-form>
+              <input
+                type="password"
+                name="currentPassword"
+                dir="ltr"
+                autocomplete="current-password"
+                required
+              >
+              <button type="submit">${
+    escapeHtml(messages.accountReauthVerify)
+  }</button>
+              <span class="inline-action-status" data-reauth-password-status role="status" hidden></span>
+            </form>
+          </dd>
+        </div>
+  `;
+}
+
+/**
+ * 渲染验证器动态码再认证方式。
+ *
+ * @param messages 当前语言文案。
+ * @return 验证器再认证方式 HTML。
+ */
+function renderTotpReauthMethod(
+  messages: ReturnType<typeof getMessages>,
+): string {
+  return `
+        <div>
+          ${settingLabel("token", messages.accountTotpCode)}
+          <dd>
+            <form class="reauth-inline-form" data-reauth-totp-form>
+              <input
+                type="text"
+                name="code"
+                dir="ltr"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                autocomplete="one-time-code"
+                required
+              >
+              <button type="submit">${
+    escapeHtml(messages.accountReauthVerify)
+  }</button>
+              <span class="inline-action-status" data-reauth-totp-status role="status" hidden></span>
+            </form>
+          </dd>
+        </div>
+  `;
+}
+
+/**
+ * 渲染邮箱验证码再认证方式。
+ *
+ * @param credentials 已验证邮箱凭证。
+ * @param messages 当前语言文案。
+ * @return 邮箱再认证方式 HTML。
+ */
+function renderEmailReauthMethod(
+  credentials: EmailCredential[],
+  messages: ReturnType<typeof getMessages>,
+): string {
+  if (credentials.length === 0) {
+    return "";
+  }
+
+  const selectedEmail = credentials[0]?.email ?? "";
+  return `
+        <div>
+          ${settingLabel("mail", messages.accountReauthEmailVerification)}
+          <dd>
+            <form class="reauth-inline-form reauth-email-form" data-reauth-email-form>
+              <select name="email" data-reauth-email-input>
+                ${
+    credentials.map((credential) =>
+      option(credential.email, selectedEmail, credential.email)
+    ).join("")
+  }
+              </select>
+              <button type="button" class="secondary" data-reauth-email-send-button>${
+    escapeHtml(messages.accountEmailSendCode)
+  }</button>
+              <input type="hidden" name="verificationId" data-reauth-email-verification-id>
+              <input
+                type="text"
+                name="code"
+                dir="ltr"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                autocomplete="one-time-code"
+                data-reauth-email-code-input
+                required
+              >
+              <button type="submit">${
+    escapeHtml(messages.accountReauthVerify)
+  }</button>
+              <span class="inline-action-status" data-reauth-email-status role="status" hidden></span>
+            </form>
+          </dd>
+        </div>
+  `;
+}
+
+/**
+ * 渲染 Passkey 再认证方式。
+ *
+ * @param messages 当前语言文案。
+ * @return Passkey 再认证方式 HTML。
+ */
+function renderPasskeyReauthMethod(
+  messages: ReturnType<typeof getMessages>,
+): string {
+  return `
+        <div>
+          ${settingLabel("key", messages.accountSecondFactorPasskey)}
+          <dd>
+            <div class="reauth-inline-form">
+              <button type="button" data-reauth-passkey-button>${
+    escapeHtml(messages.authPasskeyVerify)
+  }</button>
+              <span class="inline-action-status" data-reauth-passkey-status role="status" hidden></span>
+            </div>
+          </dd>
+        </div>
+  `;
+}
+
+/**
  * 渲染账户安全设置区域。
  *
  * @param {AppSettings} settings 应用设置。
@@ -1128,6 +1363,8 @@ function securitySettingsStatusMessage(
   switch (status.code) {
     case "preferred":
       return messages.accountTwoFactorPreferredUnavailable;
+    case "reauth":
+      return messages.accountReauthRequired;
     case "unavailable":
       return messages.accountTwoFactorUnavailable;
     case "updated":
@@ -1176,6 +1413,8 @@ function passkeyBindingStatusMessage(
       return messages.accountPasskeyBindFailed;
     case "notFound":
       return messages.accountPasskeyNotFound;
+    case "reauth":
+      return messages.accountReauthRequired;
     case "updated":
       return messages.accountPasskeyBound;
   }

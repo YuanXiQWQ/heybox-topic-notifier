@@ -25,11 +25,19 @@ import {
   verifyEncryptedTotpCode,
 } from "./auth/totp.ts";
 import {
+  createPasskeyAuthenticationOptions,
   createPasskeyRegistrationOptions,
+  type PasskeyAuthenticationOptionsResult,
+  passkeyCredentialAfterAuthentication,
   passkeyCredentialFromRegistration,
   type PasskeyRegistrationOptionsResult,
+  verifyPasskeyAuthenticationResponse,
   verifyPasskeyRegistrationResponse,
 } from "./auth/passkey.ts";
+import {
+  createStrongAuthenticationEvent,
+  isRecentStrongAuthenticationEvent,
+} from "./auth/reauth.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import {
   csrfForbiddenResponse,
@@ -49,6 +57,7 @@ import {
 } from "./security/rate_limit.ts";
 import type {
   AppSettings,
+  AuthenticationEventMethod,
   EmailCredential,
   KeywordRule,
   MatchLocation,
@@ -118,6 +127,7 @@ const matchTableRefreshHeader = "x-match-table-refresh";
  * Passkey 路由可注入的测试依赖。
  */
 type PasskeyRouteContext = AppContext & {
+  passkeyAuthenticationVerifier?: typeof verifyPasskeyAuthenticationResponse;
   passkeyRegistrationVerifier?: typeof verifyPasskeyRegistrationResponse;
 };
 
@@ -318,6 +328,12 @@ export function createRoutes(context: AppContext): Hono {
     const passkeyCredentials = session
       ? await context.storage.listPasskeyCredentials(session.userId)
       : [];
+    const passwordCredential = session
+      ? await context.storage.getPasswordCredential(session.userId)
+      : undefined;
+    const reauthEvent = session
+      ? await context.storage.getAuthenticationEvent(session.userId, "reauth")
+      : undefined;
     const securitySettings = session
       ? await context.storage.getUserSecuritySettings(session.userId)
       : undefined;
@@ -360,6 +376,13 @@ export function createRoutes(context: AppContext): Hono {
           url.searchParams,
         ),
         passkeyCredentials,
+        reauthPasswordAvailable: Boolean(
+          account?.passwordHash || passwordCredential,
+        ),
+        reauthRecentlyVerified: isRecentStrongAuthenticationEvent(
+          reauthEvent,
+          context.config.reauth,
+        ),
         secondFactorMethods: availableSecondFactorMethods({
           emailCredentials,
           passkeyCredentials,
@@ -420,6 +443,7 @@ export function createRoutes(context: AppContext): Hono {
         303,
       );
     }
+    await saveStrongReauthEvent(context, session.userId, "password");
 
     if (accountAction === "username") {
       if (!validUsername(username)) {
@@ -506,12 +530,230 @@ export function createRoutes(context: AppContext): Hono {
     }
 
     const currentPassword = String(form.currentPassword ?? "");
-    return new Response(null, {
-      status:
-        await verifyAccountPassword(currentPassword, account, context.storage)
-          ? 204
-          : 403,
+    if (
+      await verifyAccountPassword(currentPassword, account, context.storage)
+    ) {
+      await saveStrongReauthEvent(context, session.userId, "password");
+      return new Response(null, { status: 204 });
+    }
+
+    return new Response(null, { status: 403 });
+  });
+
+  app.post("/account/reauth/password", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const currentPassword = String(form.currentPassword ?? "");
+    if (
+      !await verifyAccountPassword(currentPassword, account, context.storage)
+    ) {
+      logSecurityAuditEvent({
+        code: "reauth_failed",
+        details: { method: "password" },
+        level: "warn",
+        message: "敏感操作再认证失败。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+      return c.json({ error: "failed" }, 403);
+    }
+
+    await saveStrongReauthEvent(context, session.userId, "password");
+    logSecurityAuditEvent({
+      code: "reauth_succeeded",
+      details: { method: "password" },
+      level: "info",
+      message: "敏感操作再认证成功。",
+      request: c.req.raw,
+      userId: session.userId,
     });
+
+    return c.json({ ok: true });
+  });
+
+  app.post("/account/reauth/totp", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+
+    if (!await context.storage.getAccountById(session.userId)) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const credential = await context.storage.getTotpCredential(session.userId);
+    if (!credential) {
+      return c.json({ error: "unavailable" }, 400);
+    }
+
+    let validCode = false;
+    try {
+      validCode = await verifyEncryptedTotpCode(
+        String(form.code ?? ""),
+        credential.secretEncrypted,
+        context.config.totp,
+      );
+    } catch (error) {
+      if (!(error instanceof TotpConfigError)) {
+        throw error;
+      }
+      return c.json({ error: "unavailable" }, 503);
+    }
+
+    if (!validCode) {
+      logSecurityAuditEvent({
+        code: "reauth_failed",
+        details: { method: "totp" },
+        level: "warn",
+        message: "敏感操作再认证失败。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+      return c.json({ error: "failed" }, 403);
+    }
+
+    await saveStrongReauthEvent(context, session.userId, "totp");
+    logSecurityAuditEvent({
+      code: "reauth_succeeded",
+      details: { method: "totp" },
+      level: "info",
+      message: "敏感操作再认证成功。",
+      request: c.req.raw,
+      userId: session.userId,
+    });
+
+    return c.json({ ok: true });
+  });
+
+  app.post("/account/reauth/email", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+
+    if (!await context.storage.getAccountById(session.userId)) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const email = normalizeEmailAddress(String(form.email ?? ""));
+    const verificationId = String(form.verificationId ?? "").trim();
+    const code = String(form.code ?? "");
+    if (!email || !verificationId || !code.trim()) {
+      return c.json({ error: "invalid" }, 400);
+    }
+
+    const credential = await context.storage.getEmailCredential(
+      session.userId,
+      email,
+    );
+    if (!credential?.verified) {
+      return c.json({ error: "unavailable" }, 400);
+    }
+
+    const verification = await context.storage.getPendingEmailVerification(
+      verificationId,
+    );
+    const verificationError = reauthEmailVerificationError(
+      verification,
+      session.userId,
+      email,
+      context.config.emailVerification.maxAttempts,
+    );
+    if (verificationError) {
+      if (
+        verification &&
+        (verificationError === "expired" ||
+          verificationError === "attempts")
+      ) {
+        await context.storage.deletePendingEmailVerification(verification.id);
+      }
+      return c.json({ error: verificationError }, 400);
+    }
+
+    const activeVerification = verification as PendingEmailVerification;
+    const validCode = await verifyEmailVerificationCode(
+      code,
+      activeVerification,
+      context.config.emailVerification,
+    );
+    if (!validCode) {
+      await recordEmailBindingVerificationFailure(context, activeVerification);
+      logSecurityAuditEvent({
+        code: "reauth_failed",
+        details: { email: maskedEmailAddress(email), method: "email_otp" },
+        level: "warn",
+        message: "敏感操作再认证失败。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+      return c.json({ error: "code" }, 403);
+    }
+
+    await context.storage.deletePendingEmailVerification(activeVerification.id);
+    await saveStrongReauthEvent(context, session.userId, "email_otp");
+    logSecurityAuditEvent({
+      code: "reauth_succeeded",
+      details: { email: maskedEmailAddress(email), method: "email_otp" },
+      level: "info",
+      message: "敏感操作再认证成功。",
+      request: c.req.raw,
+      userId: session.userId,
+    });
+
+    return c.json({ ok: true });
   });
 
   app.post("/account/email/verify", async (c) => {
@@ -703,6 +945,160 @@ export function createRoutes(context: AppContext): Hono {
     return c.redirect("/settings?totp=updated", 303);
   });
 
+  app.post("/account/passkeys/reauth-options", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+
+    if (!await context.storage.getAccountById(session.userId)) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    if (!validCsrfForRequest(c, {})) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const credentials = await context.storage.listPasskeyCredentials(
+      session.userId,
+    );
+    if (credentials.length === 0) {
+      return c.json({ error: "unavailable" }, 400);
+    }
+
+    const authentication = await createPasskeyAuthenticationOptions({
+      config: context.config.passkey,
+      credentials,
+      purpose: "reauth",
+      userId: session.userId,
+    });
+    await context.storage.savePendingPasskeyChallenge(
+      authentication.challenge,
+    );
+
+    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+  });
+
+  app.post("/account/passkeys/reauth", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+
+    if (!await context.storage.getAccountById(session.userId)) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    const payload = await passkeyJsonPayload(c);
+    if (!validCsrfForRequest(c, {})) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const challengeId = String(payload.challengeId ?? "").trim();
+    const credentialResponse = payload.credential;
+    if (!challengeId || !isRecord(credentialResponse)) {
+      return c.json({ error: "invalid" }, 400);
+    }
+
+    const credentialId = typeof credentialResponse.id === "string"
+      ? credentialResponse.id.trim()
+      : "";
+    const challenge = await context.storage.getPendingPasskeyChallenge(
+      challengeId,
+    );
+    const challengeError = passkeyReauthChallengeError(
+      challenge,
+      session.userId,
+      credentialId,
+    );
+    if (challengeError) {
+      if (challenge) {
+        await context.storage.deletePendingPasskeyChallenge(challenge.id);
+      }
+      return c.json({ error: challengeError }, 400);
+    }
+
+    const activeChallenge = challenge as PendingPasskeyChallenge;
+    const credential = await context.storage.getPasskeyCredential(
+      session.userId,
+      credentialId,
+    );
+    if (!credential) {
+      await recordPasskeyChallengeFailure(context, activeChallenge);
+      logSecurityAuditEvent({
+        code: "reauth_failed",
+        details: { credentialId, method: "passkey", reason: "credential" },
+        level: "warn",
+        message: "敏感操作再认证失败。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+      return c.json({ error: "failed" }, 400);
+    }
+
+    const verifier =
+      (context as PasskeyRouteContext).passkeyAuthenticationVerifier ??
+        verifyPasskeyAuthenticationResponse;
+    const verification = await verifier({
+      challenge: activeChallenge,
+      config: context.config.passkey,
+      credential,
+      requireUserVerification: true,
+      response: credentialResponse as never,
+    });
+    if (!verification.verified) {
+      await recordPasskeyChallengeFailure(context, activeChallenge);
+      logSecurityAuditEvent({
+        code: "reauth_failed",
+        details: { credentialId, method: "passkey", reason: "assertion" },
+        level: "warn",
+        message: "敏感操作再认证失败。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+      return c.json({ error: "failed" }, 400);
+    }
+
+    await context.storage.savePasskeyCredential(
+      passkeyCredentialAfterAuthentication(
+        credential,
+        verification.authenticationInfo.newCounter,
+      ),
+    );
+    await context.storage.deletePendingPasskeyChallenge(activeChallenge.id);
+    await saveStrongReauthEvent(context, session.userId, "passkey");
+    logSecurityAuditEvent({
+      code: "reauth_succeeded",
+      details: { credentialId, method: "passkey" },
+      level: "info",
+      message: "敏感操作再认证成功。",
+      request: c.req.raw,
+      userId: session.userId,
+    });
+
+    return c.json({ ok: true });
+  });
+
   app.post("/account/passkeys/register-options", async (c) => {
     const session = await authSessionForRequest(c, context);
     if (!session) {
@@ -874,6 +1270,9 @@ export function createRoutes(context: AppContext): Hono {
     if (!credential) {
       return c.redirect(passkeyBindingSettingsRedirect("notFound"), 303);
     }
+    if (!await hasRecentStrongReauth(context, session.userId)) {
+      return c.redirect(passkeyBindingSettingsRedirect("reauth"), 303);
+    }
 
     await context.storage.deletePasskeyCredential(
       session.userId,
@@ -935,6 +1334,8 @@ export function createRoutes(context: AppContext): Hono {
       passkeyCredentials,
       totpCredential,
     });
+    const currentSecuritySettings = await context.storage
+      .getUserSecuritySettings(session.userId);
     const twoFactorEnabled = form.twoFactorEnabled === "on";
     const nextSettings = securitySettingsFromForm(
       form,
@@ -957,6 +1358,15 @@ export function createRoutes(context: AppContext): Hono {
         ),
         303,
       );
+    }
+
+    if (
+      requiresReauthForSecuritySettingsChange(
+        currentSecuritySettings,
+        nextSettings,
+      ) && !await hasRecentStrongReauth(context, session.userId)
+    ) {
+      return c.redirect(accountSecuritySettingsRedirect("reauth"), 303);
     }
 
     await context.storage.saveUserSecuritySettings(nextSettings);
@@ -1231,6 +1641,59 @@ async function cachedAuthSessionForRequest(
   return await promise;
 }
 
+/**
+ * 保存敏感操作再认证成功事件。
+ *
+ * @param context 应用运行时上下文。
+ * @param userId 用户 ID。
+ * @param method 完成本次再认证的方式。
+ * @return 保存完成后的 Promise。
+ */
+async function saveStrongReauthEvent(
+  context: AppContext,
+  userId: string,
+  method: AuthenticationEventMethod,
+): Promise<void> {
+  await context.storage.saveAuthenticationEvent(
+    createStrongAuthenticationEvent({
+      method,
+      purpose: "reauth",
+      userId,
+    }),
+  );
+}
+
+/**
+ * 判断用户是否已经在有效窗口内完成强再认证。
+ *
+ * @param context 应用运行时上下文。
+ * @param userId 用户 ID。
+ * @return 有效窗口内存在强再认证事件时返回 true。
+ */
+async function hasRecentStrongReauth(
+  context: AppContext,
+  userId: string,
+): Promise<boolean> {
+  return isRecentStrongAuthenticationEvent(
+    await context.storage.getAuthenticationEvent(userId, "reauth"),
+    context.config.reauth,
+  );
+}
+
+/**
+ * 判断安全设置变更是否需要先完成再认证。
+ *
+ * @param currentSettings 当前安全设置。
+ * @param nextSettings 即将保存的安全设置。
+ * @return 需要再认证时返回 true。
+ */
+function requiresReauthForSecuritySettingsChange(
+  currentSettings: UserSecuritySettings,
+  nextSettings: UserSecuritySettings,
+): boolean {
+  return currentSettings.twoFactorEnabled && !nextSettings.twoFactorEnabled;
+}
+
 type AccountErrorCode =
   | "confirmPassword"
   | "currentPassword"
@@ -1275,7 +1738,7 @@ function isAccountErrorCode(value: string | null): value is AccountErrorCode {
     value === "username";
 }
 
-type SecuritySettingsErrorCode = "preferred" | "unavailable";
+type SecuritySettingsErrorCode = "preferred" | "reauth" | "unavailable";
 
 /**
  * 构造账户安全设置错误跳转地址。
@@ -1315,7 +1778,8 @@ function securitySettingsStatusFromSearch(searchParams: URLSearchParams) {
 function isSecuritySettingsErrorCode(
   value: string | null,
 ): value is SecuritySettingsErrorCode {
-  return value === "preferred" || value === "unavailable";
+  return value === "preferred" || value === "reauth" ||
+    value === "unavailable";
 }
 
 /**
@@ -1424,7 +1888,7 @@ function isTotpBindingErrorCode(
   return value === "alreadyBound" || value === "code" || value === "config";
 }
 
-type PasskeyBindingErrorCode = "failed" | "notFound";
+type PasskeyBindingErrorCode = "failed" | "notFound" | "reauth";
 
 /**
  * 构造 Passkey 绑定错误跳转地址。
@@ -1469,7 +1933,7 @@ function passkeyBindingStatusFromSearch(searchParams: URLSearchParams) {
 function isPasskeyBindingErrorCode(
   value: string | null,
 ): value is PasskeyBindingErrorCode {
-  return value === "failed" || value === "notFound";
+  return value === "failed" || value === "notFound" || value === "reauth";
 }
 
 /**
@@ -1484,6 +1948,21 @@ function passkeyRegistrationOptionsResponse(
   return {
     challengeId: registration.challenge.id,
     optionsJSON: registration.optionsJSON,
+  };
+}
+
+/**
+ * 生成 Passkey 认证 options 接口响应。
+ *
+ * @param authentication Passkey 认证 options 结果。
+ * @return 可序列化响应体。
+ */
+function passkeyAuthenticationOptionsResponse(
+  authentication: PasskeyAuthenticationOptionsResult,
+) {
+  return {
+    challengeId: authentication.challenge.id,
+    optionsJSON: authentication.optionsJSON,
   };
 }
 
@@ -1530,6 +2009,42 @@ function passkeyRegistrationChallengeError(
   }
 
   if (challenge.purpose !== "passkey_registration") {
+    return "challenge";
+  }
+
+  if (Date.parse(challenge.expiresAt) <= Date.now()) {
+    return "challenge";
+  }
+
+  return challenge.attempts >= passkeyChallengeMaxAttempts
+    ? "challenge"
+    : undefined;
+}
+
+/**
+ * 检查 Passkey 再认证 challenge 是否可继续使用。
+ *
+ * @param challenge 待检查 challenge。
+ * @param userId 当前用户 ID。
+ * @param credentialId 浏览器返回的凭证 ID。
+ * @return 不可使用时返回错误码。
+ */
+function passkeyReauthChallengeError(
+  challenge: PendingPasskeyChallenge | undefined,
+  userId: string,
+  credentialId: string,
+): "challenge" | undefined {
+  if (!challenge || challenge.userId !== userId) {
+    return "challenge";
+  }
+
+  if (challenge.purpose !== "reauth") {
+    return "challenge";
+  }
+
+  if (
+    !credentialId || !challenge.allowedCredentialIds.includes(credentialId)
+  ) {
     return "challenge";
   }
 
@@ -1699,6 +2214,37 @@ function emailBindingVerificationError(
     verification.email !== email
   ) {
     return "notFound";
+  }
+
+  if (Date.parse(verification.expiresAt) <= Date.now()) {
+    return "expired";
+  }
+
+  return verification.attempts >= maxAttempts ? "attempts" : undefined;
+}
+
+/**
+ * 校验邮箱再认证验证码 challenge 是否可继续使用。
+ *
+ * @param verification 待验证挑战。
+ * @param userId 当前用户 ID。
+ * @param email 规范化后的邮箱地址。
+ * @param maxAttempts 最大尝试次数。
+ * @return 不可继续验证时返回错误码。
+ */
+function reauthEmailVerificationError(
+  verification: PendingEmailVerification | undefined,
+  userId: string,
+  email: string,
+  maxAttempts: number,
+): "attempts" | "code" | "expired" | undefined {
+  if (
+    !verification ||
+    verification.purpose !== "reauth" ||
+    verification.userId !== userId ||
+    verification.email !== email
+  ) {
+    return "code";
   }
 
   if (Date.parse(verification.expiresAt) <= Date.now()) {

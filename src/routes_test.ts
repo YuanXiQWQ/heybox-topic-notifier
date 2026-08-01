@@ -9,6 +9,7 @@ import { decryptTotpSecret, generateTotpCode } from "./auth/totp.ts";
 import { base64UrlEncode } from "./security/crypto_utils.ts";
 import type {
   AppSettings,
+  AuthenticationEvent,
   EmailCredential,
   MatchRecord,
   PasskeyCredential,
@@ -130,6 +131,10 @@ type AccountRouteStorage = {
   deleteSession(tokenHash: string): Promise<void>;
   getAccountById(id: string): Promise<UserAccount | undefined>;
   getAccountByUsername(username: string): Promise<UserAccount | undefined>;
+  getAuthenticationEvent(
+    userId: string,
+    purpose: AuthenticationEvent["purpose"],
+  ): Promise<AuthenticationEvent | undefined>;
   getLoginFailure(username: string): Promise<undefined>;
   getEmailCredential(
     userId: string,
@@ -167,6 +172,7 @@ type AccountRouteStorage = {
   >["recordRateLimitHit"];
   deletePendingEmailVerification(id: string): Promise<void>;
   saveEmailCredential(credential: EmailCredential): Promise<void>;
+  saveAuthenticationEvent(event: AuthenticationEvent): Promise<void>;
   savePendingEmailVerification(
     verification: PendingEmailVerification,
   ): Promise<void>;
@@ -652,6 +658,32 @@ Deno.test("account password verification endpoint checks the signed-in user's pa
   assertEquals(rejected.status, 403);
 });
 
+Deno.test("account reauth password endpoint records a strong reauth event", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const response = await app.request("/account/reauth/password", {
+    body: testCsrfForm(
+      new URLSearchParams({ currentPassword: "correct-password" }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+  const event = await storage.getAuthenticationEvent(account.id, "reauth");
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { ok: true });
+  assertEquals(event?.method, "password");
+  assertEquals(event?.purpose, "reauth");
+  assertEquals(event?.strength, "strong");
+});
+
 Deno.test("account email route binds a verified email for the signed-in user", async () => {
   const storage = createAccountRouteStorage();
   const app = createAccountRouteApp(storage);
@@ -749,6 +781,53 @@ Deno.test("account email route rejects an incorrect verification code", async ()
   assertEquals(updatedAccount?.emailVerified, undefined);
 });
 
+Deno.test("account reauth email endpoint records a strong reauth event", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  await storage.saveEmailCredential({
+    createdAt: "2026-07-31T12:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-07-31T12:05:00.000Z",
+    userId: account.id,
+    verified: true,
+  });
+  const challenge = await createEmailVerificationChallenge({
+    config: testEmailVerificationConfig,
+    email: "alice@example.com",
+    purpose: "reauth",
+    userId: account.id,
+  });
+  await storage.savePendingEmailVerification(challenge.verification);
+
+  const response = await app.request("/account/reauth/email", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        code: challenge.code,
+        email: "alice@example.com",
+        verificationId: challenge.verification.id,
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+  const event = await storage.getAuthenticationEvent(account.id, "reauth");
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { ok: true });
+  assertEquals(event?.method, "email_otp");
+  assertEquals(event?.strength, "strong");
+  assertEquals(
+    await storage.getPendingEmailVerification(challenge.verification.id),
+    undefined,
+  );
+});
+
 Deno.test("settings route renders TOTP setup material", async () => {
   const storage = createAccountRouteStorage();
   const app = createAccountRouteApp(storage);
@@ -812,6 +891,46 @@ Deno.test("account TOTP route binds an authenticator after a valid code", async 
   assertEquals(credential?.recoveryCodeHashes, []);
 });
 
+Deno.test("account reauth TOTP endpoint records a strong reauth event", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const setupResponse = await app.request("/settings?totpSetup=1", {
+    headers: testCsrfHeaders({ cookie }),
+  });
+  const setupHtml = await setupResponse.text();
+  const secretEncrypted = hiddenInputValue(setupHtml, "secretEncrypted");
+  const secret = await decryptTotpSecret(
+    secretEncrypted,
+    testTotpConfig.secretEncryptionKey,
+  );
+  await storage.saveTotpCredential({
+    enabledAt: "2026-08-01T00:00:00.000Z",
+    recoveryCodeHashes: [],
+    secretEncrypted,
+    userId: account.id,
+  });
+  const code = await generateTotpCode(secret, testTotpConfig);
+
+  const response = await app.request("/account/reauth/totp", {
+    body: testCsrfForm(new URLSearchParams({ code })),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+  const event = await storage.getAuthenticationEvent(account.id, "reauth");
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { ok: true });
+  assertEquals(event?.method, "totp");
+  assertEquals(event?.strength, "strong");
+});
+
 Deno.test("account TOTP route rejects an incorrect setup code", async () => {
   const storage = createAccountRouteStorage();
   const app = createAccountRouteApp(storage);
@@ -871,6 +990,59 @@ Deno.test("settings route renders Passkey binding controls", async () => {
   assertIncludes(
     html,
     `data-passkey-register-url="/account/passkeys/register"`,
+  );
+});
+
+Deno.test("settings route renders sensitive reauth controls", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  await storage.saveEmailCredential({
+    createdAt: "2026-07-31T12:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-07-31T12:05:00.000Z",
+    userId: account.id,
+    verified: true,
+  });
+  await storage.savePasskeyCredential({
+    backedUp: true,
+    counter: 0,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    credentialId: "reauth-passkey",
+    publicKey: base64UrlEncode(new Uint8Array([1, 2, 3])),
+    transports: ["internal"],
+    userId: account.id,
+  });
+  await storage.saveTotpCredential({
+    enabledAt: "2026-08-01T00:00:00.000Z",
+    recoveryCodeHashes: [],
+    secretEncrypted: "encrypted-secret",
+    userId: account.id,
+  });
+
+  const response = await app.request("/settings", {
+    headers: testCsrfHeaders({ cookie }),
+  });
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertIncludes(html, `data-reauth-section`);
+  assertIncludes(html, `data-reauth-password-form`);
+  assertIncludes(html, `data-reauth-email-form`);
+  assertIncludes(html, `data-reauth-totp-form`);
+  assertIncludes(html, `data-reauth-passkey-button`);
+  assertIncludes(
+    html,
+    `data-reauth-passkey-options-url="/account/passkeys/reauth-options"`,
+  );
+  assertIncludes(
+    html,
+    `data-reauth-passkey-verify-url="/account/passkeys/reauth"`,
   );
 });
 
@@ -984,7 +1156,93 @@ Deno.test("account Passkey route verifies registration and stores credential", a
   );
 });
 
-Deno.test("account Passkey route deletes a credential and reconciles 2FA", async () => {
+Deno.test("account Passkey reauth route verifies a bound credential", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage, {
+    passkeyAuthenticationVerifier: () =>
+      Promise.resolve({
+        authenticationInfo: { newCounter: 1 },
+        verified: true,
+      }),
+  });
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  await storage.savePasskeyCredential({
+    backedUp: true,
+    counter: 0,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    credentialId: "reauth-passkey",
+    publicKey: base64UrlEncode(new Uint8Array([1, 2, 3])),
+    transports: ["internal"],
+    userId: account.id,
+  });
+
+  const optionsResponse = await app.request(
+    "/account/passkeys/reauth-options",
+    {
+      body: "{}",
+      headers: testCsrfHeaders({
+        "content-type": "application/json",
+        "x-csrf-token": testCsrfToken,
+        cookie,
+      }),
+      method: "POST",
+    },
+  );
+  const optionsPayload = await optionsResponse.json();
+  const challenge = await storage.getPendingPasskeyChallenge(
+    optionsPayload.challengeId,
+  );
+
+  assertEquals(optionsResponse.status, 200);
+  assertEquals(challenge?.purpose, "reauth");
+  assertEquals(challenge?.userId, account.id);
+  assertEquals(challenge?.allowedCredentialIds, ["reauth-passkey"]);
+
+  const response = await app.request("/account/passkeys/reauth", {
+    body: JSON.stringify({
+      challengeId: optionsPayload.challengeId,
+      credential: {
+        clientExtensionResults: {},
+        id: "reauth-passkey",
+        rawId: "reauth-passkey",
+        response: {
+          authenticatorData: "authenticator-data",
+          clientDataJSON: "client-data",
+          signature: "signature",
+        },
+        type: "public-key",
+      },
+    }),
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+      cookie,
+    }),
+    method: "POST",
+  });
+  const credential = await storage.getPasskeyCredential(
+    account.id,
+    "reauth-passkey",
+  );
+  const event = await storage.getAuthenticationEvent(account.id, "reauth");
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { ok: true });
+  assertEquals(credential?.counter, 1);
+  assertEquals(event?.method, "passkey");
+  assertEquals(event?.strength, "strong");
+  assertEquals(
+    await storage.getPendingPasskeyChallenge(optionsPayload.challengeId),
+    undefined,
+  );
+});
+
+Deno.test("account Passkey route requires reauth before deleting a credential", async () => {
   const storage = createAccountRouteStorage();
   const app = createAccountRouteApp(storage);
   const registerResponse = await register(app, "alice", "correct-password");
@@ -1005,6 +1263,33 @@ Deno.test("account Passkey route deletes a credential and reconciles 2FA", async
   await storage.saveUserSecuritySettings({
     preferredSecondFactor: "passkey",
     twoFactorEnabled: true,
+    userId: account.id,
+  });
+
+  const blockedResponse = await app.request("/account/passkeys/delete", {
+    body: testCsrfForm(
+      new URLSearchParams({ credentialId: "delete-passkey" }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(blockedResponse.status, 303);
+  assertEquals(
+    blockedResponse.headers.get("location"),
+    "/settings?passkeyError=reauth",
+  );
+  assertEquals(
+    (await storage.getPasskeyCredential(account.id, "delete-passkey"))
+      ?.credentialId,
+    "delete-passkey",
+  );
+
+  await storage.saveAuthenticationEvent({
+    authenticatedAt: new Date().toISOString(),
+    method: "password",
+    purpose: "reauth",
+    strength: "strong",
     userId: account.id,
   });
 
@@ -1137,6 +1422,72 @@ Deno.test("account security route enables 2FA when a Passkey exists", async () =
   assertEquals(await storage.getUserSecuritySettings(account.id), {
     preferredSecondFactor: "passkey",
     twoFactorEnabled: true,
+    userId: account.id,
+  });
+});
+
+Deno.test("account security route requires reauth before disabling 2FA", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  await storage.saveEmailCredential({
+    createdAt: "2026-07-31T12:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-07-31T12:05:00.000Z",
+    userId: account.id,
+    verified: true,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "email",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
+
+  const blockedResponse = await app.request("/account/security", {
+    body: testCsrfForm(
+      new URLSearchParams({ preferredSecondFactor: "email" }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(blockedResponse.status, 303);
+  assertEquals(
+    blockedResponse.headers.get("location"),
+    "/settings?securityError=reauth",
+  );
+  assertEquals(await storage.getUserSecuritySettings(account.id), {
+    preferredSecondFactor: "email",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
+
+  await storage.saveAuthenticationEvent({
+    authenticatedAt: new Date().toISOString(),
+    method: "password",
+    purpose: "reauth",
+    strength: "strong",
+    userId: account.id,
+  });
+
+  const response = await app.request("/account/security", {
+    body: testCsrfForm(
+      new URLSearchParams({ preferredSecondFactor: "email" }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?security=updated");
+  assertEquals(await storage.getUserSecuritySettings(account.id), {
+    preferredSecondFactor: "email",
+    twoFactorEnabled: false,
     userId: account.id,
   });
 });
@@ -1644,7 +1995,10 @@ Deno.test("match redirects reject paths outside their table", async () => {
  */
 function createAccountRouteApp(
   storage: AccountRouteStorage,
-  options: { passkeyRegistrationVerifier?: unknown } = {},
+  options: {
+    passkeyAuthenticationVerifier?: unknown;
+    passkeyRegistrationVerifier?: unknown;
+  } = {},
 ): Hono {
   const app = new Hono();
   app.route("/", createAuthRoutes(storage as never));
@@ -1655,9 +2009,11 @@ function createAccountRouteApp(
       config: {
         emailVerification: testEmailVerificationConfig,
         passkey: testPasskeyConfig,
+        reauth: { maxAgeSeconds: 600 },
         totp: testTotpConfig,
         turnstile: { enabled: false, secretKey: "", siteKey: "" },
       },
+      passkeyAuthenticationVerifier: options.passkeyAuthenticationVerifier,
       passkeyRegistrationVerifier: options.passkeyRegistrationVerifier,
       storage,
     } as unknown as AppContext),
@@ -1668,6 +2024,7 @@ function createAccountRouteStorage(): AccountRouteStorage {
   let appSettings = currentSettings;
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
+  const authenticationEventsByKey = new Map<string, AuthenticationEvent>();
   const emailCredentialsByKey = new Map<string, EmailCredential>();
   const passkeyCredentialsByKey = new Map<string, PasskeyCredential>();
   const passkeyUserIdsByCredentialId = new Map<string, string>();
@@ -1717,6 +2074,20 @@ function createAccountRouteStorage(): AccountRouteStorage {
     getAccountByUsername: (username: string) => {
       const id = accountIdsByUsername.get(username.trim().toLowerCase());
       return Promise.resolve(id ? accountsById.get(id) : undefined);
+    },
+    getAuthenticationEvent: (
+      userId: string,
+      purpose: AuthenticationEvent["purpose"],
+    ) =>
+      Promise.resolve(
+        authenticationEventsByKey.get(authenticationEventKey(userId, purpose)),
+      ),
+    saveAuthenticationEvent: (event: AuthenticationEvent) => {
+      authenticationEventsByKey.set(
+        authenticationEventKey(event.userId, event.purpose),
+        event,
+      );
+      return Promise.resolve();
     },
     getEmailCredential: (userId: string, email: string) =>
       Promise.resolve(
@@ -1851,6 +2222,20 @@ function createAccountRouteStorage(): AccountRouteStorage {
  */
 function emailCredentialKey(userId: string, email: string): string {
   return `${userId}:${email.trim().toLowerCase()}`;
+}
+
+/**
+ * 创建内存认证事件键。
+ *
+ * @param userId 用户 ID。
+ * @param purpose 认证事件用途。
+ * @return 认证事件键。
+ */
+function authenticationEventKey(
+  userId: string,
+  purpose: AuthenticationEvent["purpose"],
+): string {
+  return `${userId}:${purpose}`;
 }
 
 /**

@@ -84,6 +84,7 @@ function initSettingsEditors() {
   initAccountSettings();
   initEmailBinding();
   initPasskeyBinding();
+  initReauth();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
   initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
@@ -1072,6 +1073,401 @@ function initPasskeyBinding() {
       bindButton.disabled = false;
     }
   }
+}
+
+/**
+ * 初始化敏感操作再认证交互。
+ */
+function initReauth() {
+  const section = document.querySelector("[data-reauth-section]");
+  if (!(section instanceof HTMLElement)) {
+    return;
+  }
+
+  const globalStatus = section.querySelector("[data-reauth-status]");
+  const passwordForm = section.querySelector("[data-reauth-password-form]");
+  const totpForm = section.querySelector("[data-reauth-totp-form]");
+  const emailForm = section.querySelector("[data-reauth-email-form]");
+  const passkeyButton = section.querySelector("[data-reauth-passkey-button]");
+
+  if (passwordForm instanceof HTMLFormElement) {
+    bindReauthForm(
+      passwordForm,
+      section.dataset.reauthPasswordUrl || "/account/reauth/password",
+      passwordForm.querySelector("[data-reauth-password-status]"),
+    );
+  }
+
+  if (totpForm instanceof HTMLFormElement) {
+    bindReauthForm(
+      totpForm,
+      section.dataset.reauthTotpUrl || "/account/reauth/totp",
+      totpForm.querySelector("[data-reauth-totp-status]"),
+    );
+  }
+
+  if (emailForm instanceof HTMLFormElement) {
+    initEmailReauthForm(section, emailForm, globalStatus);
+  }
+
+  if (passkeyButton instanceof HTMLButtonElement) {
+    initPasskeyReauth(section, passkeyButton, globalStatus);
+  }
+
+  /**
+   * 绑定普通表单式再认证方式。
+   *
+   * @param {HTMLFormElement} form 再认证表单。
+   * @param {string} url 再认证接口地址。
+   * @param {Element|null} status 方法状态元素。
+   */
+  function bindReauthForm(form, url, status) {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await submitReauthForm(section, form, url, status, globalStatus);
+    });
+  }
+}
+
+/**
+ * 初始化邮箱验证码再认证方式。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ * @param {HTMLFormElement} form 邮箱再认证表单。
+ * @param {Element|null} globalStatus 全局状态元素。
+ */
+function initEmailReauthForm(section, form, globalStatus) {
+  const emailInput = form.querySelector("[data-reauth-email-input]");
+  const verificationIdInput = form.querySelector(
+    "[data-reauth-email-verification-id]",
+  );
+  const codeInput = form.querySelector("[data-reauth-email-code-input]");
+  const sendButton = form.querySelector("[data-reauth-email-send-button]");
+  const status = form.querySelector("[data-reauth-email-status]");
+
+  if (
+    !(emailInput instanceof HTMLSelectElement) ||
+    !(verificationIdInput instanceof HTMLInputElement) ||
+    !(codeInput instanceof HTMLInputElement) ||
+    !(sendButton instanceof HTMLButtonElement)
+  ) {
+    return;
+  }
+
+  sendButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+    await sendReauthEmailCode();
+  });
+
+  emailInput.addEventListener("change", () => {
+    verificationIdInput.value = "";
+    codeInput.value = "";
+    clearInlineStatus(status);
+  });
+
+  codeInput.addEventListener("input", () => {
+    clearInlineStatus(status);
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!verificationIdInput.value.trim()) {
+      setInlineStatus(
+        status,
+        section.dataset.reauthEmailCodeRequired || "",
+        "error",
+      );
+      emailInput.focus();
+      return;
+    }
+
+    await submitReauthForm(
+      section,
+      form,
+      section.dataset.reauthEmailVerifyUrl || "/account/reauth/email",
+      status,
+      globalStatus,
+    );
+  });
+
+  /**
+   * 发送邮箱再认证验证码。
+   *
+   * @return {Promise<void>} 发送完成后的 Promise。
+   */
+  async function sendReauthEmailCode() {
+    sendButton.disabled = true;
+    setInlineStatus(
+      status,
+      section.dataset.reauthEmailSending || "",
+      "pending",
+    );
+
+    try {
+      const body = reauthFormBody(form);
+      body.set("purpose", "reauth");
+      const response = await fetch(
+        section.dataset.reauthEmailSendUrl || "/auth/email-verifications",
+        {
+          body,
+          headers: csrfRequestHeaders({
+            "content-type": "application/x-www-form-urlencoded",
+          }),
+          method: "POST",
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || typeof payload.id !== "string") {
+        verificationIdInput.value = "";
+        setInlineStatus(
+          status,
+          section.dataset.reauthEmailSendFailed || "",
+          "error",
+        );
+        return;
+      }
+
+      verificationIdInput.value = payload.id;
+      codeInput.value = "";
+      setInlineStatus(
+        status,
+        section.dataset.reauthEmailSent || "",
+        "success",
+      );
+      codeInput.focus();
+    } catch {
+      verificationIdInput.value = "";
+      setInlineStatus(
+        status,
+        section.dataset.reauthEmailSendFailed || "",
+        "error",
+      );
+    } finally {
+      sendButton.disabled = false;
+    }
+  }
+}
+
+/**
+ * 初始化 Passkey 再认证方式。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ * @param {HTMLButtonElement} button Passkey 再认证按钮。
+ * @param {Element|null} globalStatus 全局状态元素。
+ */
+function initPasskeyReauth(section, button, globalStatus) {
+  const status = section.querySelector("[data-reauth-passkey-status]");
+  if (
+    !("PublicKeyCredential" in globalThis) ||
+    !navigator.credentials ||
+    typeof navigator.credentials.get !== "function"
+  ) {
+    button.disabled = true;
+    setInlineStatus(
+      status,
+      section.dataset.reauthFailed || "",
+      "error",
+    );
+    return;
+  }
+
+  button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    button.disabled = true;
+    setInlineStatus(
+      status,
+      section.dataset.reauthPasskeyPending || "",
+      "pending",
+    );
+
+    try {
+      const optionsPayload = await fetchPasskeyReauthOptions(section);
+      const credential = await navigator.credentials.get({
+        publicKey: authenticationOptionsFromJson(optionsPayload.optionsJSON),
+      });
+      if (!(credential instanceof globalThis.PublicKeyCredential)) {
+        throw new Error("Browser did not return a Passkey credential.");
+      }
+
+      await verifyPasskeyReauth(section, {
+        challengeId: optionsPayload.challengeId,
+        credential: authenticationCredentialToJson(credential),
+      });
+      setReauthSuccess(section, status, globalStatus);
+    } catch {
+      setReauthFailure(section, status);
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+/**
+ * 提交普通再认证表单。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ * @param {HTMLFormElement} form 再认证表单。
+ * @param {string} url 再认证接口地址。
+ * @param {Element|null} status 方法状态元素。
+ * @param {Element|null} globalStatus 全局状态元素。
+ * @return {Promise<void>} 提交完成后的 Promise。
+ */
+async function submitReauthForm(section, form, url, status, globalStatus) {
+  try {
+    const response = await fetch(url, {
+      body: reauthFormBody(form),
+      headers: csrfRequestHeaders({
+        "content-type": "application/x-www-form-urlencoded",
+      }),
+      method: "POST",
+    });
+    if (!response.ok) {
+      setReauthFailure(section, status);
+      return;
+    }
+
+    setReauthSuccess(section, status, globalStatus);
+    form.reset();
+  } catch {
+    setReauthFailure(section, status);
+  }
+}
+
+/**
+ * 构造带 CSRF 的再认证表单请求体。
+ *
+ * @param {HTMLFormElement} form 再认证表单。
+ * @return {URLSearchParams} 编码后的请求体。
+ */
+function reauthFormBody(form) {
+  const body = new URLSearchParams();
+  for (const [key, value] of new FormData(form)) {
+    if (typeof value === "string") {
+      body.set(key, value);
+    }
+  }
+  body.set(csrfFieldName, currentCsrfToken());
+  return body;
+}
+
+/**
+ * 获取 Passkey 再认证参数。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ * @return {Promise<{challengeId: string, optionsJSON: Object}>} 认证参数。
+ */
+async function fetchPasskeyReauthOptions(section) {
+  const response = await fetch(
+    section.dataset.reauthPasskeyOptionsUrl ||
+      "/account/passkeys/reauth-options",
+    {
+      body: "{}",
+      headers: csrfRequestHeaders({
+        "content-type": "application/json",
+      }),
+      method: "POST",
+    },
+  );
+  const payload = await response.json().catch(() => ({}));
+  if (
+    !response.ok ||
+    typeof payload.challengeId !== "string" ||
+    typeof payload.optionsJSON !== "object" ||
+    payload.optionsJSON === null
+  ) {
+    throw new Error("Could not create Passkey authentication options.");
+  }
+  return payload;
+}
+
+/**
+ * 提交 Passkey 再认证结果。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ * @param {Object} payload Passkey 认证结果。
+ * @return {Promise<Object>} 后端校验结果。
+ */
+async function verifyPasskeyReauth(section, payload) {
+  const response = await fetch(
+    section.dataset.reauthPasskeyVerifyUrl || "/account/passkeys/reauth",
+    {
+      body: JSON.stringify(payload),
+      headers: csrfRequestHeaders({
+        "content-type": "application/json",
+      }),
+      method: "POST",
+    },
+  );
+  const responsePayload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error("Could not verify Passkey authentication.");
+  }
+  return responsePayload;
+}
+
+/**
+ * 将服务端 JSON 认证参数转换为浏览器 WebAuthn 参数。
+ *
+ * @param {Object} optionsJSON 服务端返回的认证参数。
+ * @return {PublicKeyCredentialRequestOptions} 浏览器认证参数。
+ */
+function authenticationOptionsFromJson(optionsJSON) {
+  return {
+    ...optionsJSON,
+    allowCredentials: (optionsJSON.allowCredentials || []).map(
+      credentialDescriptorFromJson,
+    ),
+    challenge: base64UrlToArrayBuffer(optionsJSON.challenge),
+  };
+}
+
+/**
+ * 将浏览器认证凭证转换为服务端 SimpleWebAuthn JSON。
+ *
+ * @param {PublicKeyCredential} credential 浏览器认证凭证。
+ * @return {Object} 可提交服务端的认证凭证。
+ */
+function authenticationCredentialToJson(credential) {
+  const response = credential.response;
+  return {
+    authenticatorAttachment: credential.authenticatorAttachment,
+    clientExtensionResults: credential.getClientExtensionResults(),
+    id: credential.id,
+    rawId: arrayBufferToBase64Url(credential.rawId),
+    response: {
+      authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
+      clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+      signature: arrayBufferToBase64Url(response.signature),
+      userHandle: optionalArrayBufferToBase64Url(response.userHandle),
+    },
+    type: credential.type,
+  };
+}
+
+/**
+ * 设置再认证成功状态。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ * @param {Element|null} status 方法状态元素。
+ * @param {Element|null} globalStatus 全局状态元素。
+ */
+function setReauthSuccess(section, status, globalStatus) {
+  setInlineStatus(status, section.dataset.reauthSuccess || "", "success");
+  setInlineStatus(
+    globalStatus,
+    section.dataset.reauthSuccess || "",
+    "success",
+  );
+}
+
+/**
+ * 设置再认证失败状态。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ * @param {Element|null} status 方法状态元素。
+ */
+function setReauthFailure(section, status) {
+  setInlineStatus(status, section.dataset.reauthFailed || "", "error");
 }
 
 /**

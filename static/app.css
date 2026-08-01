@@ -431,6 +431,27 @@ input[readonly]::placeholder {
   max-width: min(100%, 860px);
 }
 
+.reauth-inline-form {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: min(100%, 860px);
+}
+
+.reauth-inline-form input[type="password"],
+.reauth-inline-form input[type="text"],
+.reauth-inline-form select {
+  flex: 0 1 var(--settings-control-width);
+  min-width: min(100%, 180px);
+  max-width: var(--settings-control-width);
+}
+
+.reauth-inline-form .inline-action-status {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
 .security-toggle-row {
   align-items: center;
   display: flex;
@@ -2082,7 +2103,8 @@ tr:last-child td {
 
   .account-username-row,
   .account-single-input-row,
-  .email-binding-row {
+  .email-binding-row,
+  .reauth-inline-form {
     align-items: stretch;
     flex-direction: column;
     max-width: var(--settings-control-width);
@@ -2109,7 +2131,10 @@ tr:last-child td {
   .account-single-input-row input,
   .email-binding-row input[type="email"],
   .email-binding-row input[type="text"],
-  .notification-provider-row select {
+  .notification-provider-row select,
+  .reauth-inline-form input[type="password"],
+  .reauth-inline-form input[type="text"],
+  .reauth-inline-form select {
     flex-basis: auto;
     width: 100%;
   }

@@ -691,6 +691,23 @@ export function createAuthRoutes(
       skipHumanVerification = true;
     }
 
+    if (purpose === "reauth") {
+      if (!session) {
+        return c.json({ error: "authenticationRequired" }, 401);
+      }
+
+      const credential = await storage.getEmailCredential(
+        session.userId,
+        email,
+      );
+      if (!credential?.verified) {
+        return c.json({ error: "invalidEmailVerificationRequest" }, 400);
+      }
+
+      verificationUserId = session.userId;
+      skipHumanVerification = true;
+    }
+
     const clientLimitResponse = await rateLimitExceededResponseFor(
       storage,
       publicRateLimitPolicies.emailVerificationClient,
@@ -3076,6 +3093,7 @@ function supportedEmailVerificationPurpose(
 ): boolean {
   return purpose === "email_binding" ||
     purpose === "primary_login" ||
+    purpose === "reauth" ||
     purpose === "second_factor";
 }
 
