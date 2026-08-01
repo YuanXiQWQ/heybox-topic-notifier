@@ -18,6 +18,12 @@ import {
   MfaConfigurationError,
   normalizeUserSecuritySettings,
 } from "./auth/mfa.ts";
+import {
+  createTotpSecretMaterial,
+  TotpConfigError,
+  totpOtpAuthUri,
+  verifyEncryptedTotpCode,
+} from "./auth/totp.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import {
   csrfForbiddenResponse,
@@ -45,6 +51,7 @@ import type {
   PollSort,
   SecondFactorMethod,
   TopicRule,
+  TotpCredential,
   UserSecuritySettings,
 } from "./models.ts";
 import {
@@ -287,9 +294,39 @@ export function createRoutes(context: AppContext): Hono {
     const emailCredentials = session
       ? await context.storage.listEmailCredentials(session.userId)
       : [];
+    const totpCredential = session
+      ? await context.storage.getTotpCredential(session.userId)
+      : undefined;
     const securitySettings = session
       ? await context.storage.getUserSecuritySettings(session.userId)
       : undefined;
+    let totpStatus = totpBindingStatusFromSearch(url.searchParams);
+    let totpSetup: TotpSetupView | undefined;
+    if (session && account && url.searchParams.get("totpSetup") === "1") {
+      if (totpCredential) {
+        totpStatus = { code: "alreadyBound", type: "error" };
+      } else {
+        try {
+          const material = await createTotpSecretMaterial(context.config.totp);
+          totpSetup = {
+            otpAuthUri: totpOtpAuthUri({
+              accountName: account.primaryEmail ?? account.username,
+              digits: context.config.totp.digits,
+              issuer: context.config.totp.issuer,
+              periodSeconds: context.config.totp.periodSeconds,
+              secretBase32: material.secretBase32,
+            }),
+            secretBase32: material.secretBase32,
+            secretEncrypted: material.secretEncrypted,
+          };
+        } catch (error) {
+          if (!(error instanceof TotpConfigError)) {
+            throw error;
+          }
+          totpStatus = { code: "config", type: "error" };
+        }
+      }
+    }
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderSettings({
@@ -304,6 +341,9 @@ export function createRoutes(context: AppContext): Hono {
         securitySettings,
         securityStatus: securitySettingsStatusFromSearch(url.searchParams),
         settings,
+        totpBindingStatus: totpStatus,
+        totpCredential,
+        totpSetup,
         turnstileSiteKey: settingsTurnstileSiteKey(context),
       })),
       csrf,
@@ -552,6 +592,88 @@ export function createRoutes(context: AppContext): Hono {
     });
 
     return c.redirect("/settings?email=updated", 303);
+  });
+
+  app.post("/account/totp/verify", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) {
+      return c.redirect("/login?locale=zh-CN&returnTo=%2Fsettings", 303);
+    }
+
+    const account = await context.storage.getAccountById(session.userId);
+    if (!account) {
+      return c.redirect(accountSettingsRedirect("notFound"), 303);
+    }
+
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      context.storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const existingCredential = await context.storage.getTotpCredential(
+      session.userId,
+    );
+    if (existingCredential) {
+      return c.redirect(totpBindingSettingsRedirect("alreadyBound"), 303);
+    }
+
+    const secretEncrypted = String(form.secretEncrypted ?? "").trim();
+    const code = String(form.code ?? "");
+    if (!secretEncrypted || !code.trim()) {
+      return c.redirect(totpBindingSettingsRedirect("code"), 303);
+    }
+
+    let validCode = false;
+    try {
+      validCode = await verifyEncryptedTotpCode(
+        code,
+        secretEncrypted,
+        context.config.totp,
+      );
+    } catch (error) {
+      if (!(error instanceof TotpConfigError)) {
+        throw error;
+      }
+      return c.redirect(totpBindingSettingsRedirect("config"), 303);
+    }
+
+    if (!validCode) {
+      logSecurityAuditEvent({
+        code: "totp_credential_verification_failed",
+        level: "warn",
+        message: "验证器动态码绑定校验失败。",
+        request: c.req.raw,
+        userId: session.userId,
+      });
+      return c.redirect(totpBindingSettingsRedirect("code"), 303);
+    }
+
+    const credential: TotpCredential = {
+      enabledAt: new Date().toISOString(),
+      recoveryCodeHashes: [],
+      secretEncrypted,
+      userId: session.userId,
+    };
+    await context.storage.saveTotpCredential(credential);
+    logSecurityAuditEvent({
+      code: "totp_credential_bound",
+      level: "info",
+      message: "验证器动态码已绑定。",
+      request: c.req.raw,
+      userId: session.userId,
+    });
+
+    return c.redirect("/settings?totp=updated", 303);
   });
 
   app.post("/account/security", async (c) => {
@@ -1026,6 +1148,53 @@ function isPreferredSecondFactorMethod(
   value: unknown,
 ): value is Exclude<SecondFactorMethod, "recoveryCode"> {
   return value === "email" || value === "passkey" || value === "totp";
+}
+
+type TotpSetupView = {
+  otpAuthUri: string;
+  secretBase32: string;
+  secretEncrypted: string;
+};
+
+type TotpBindingErrorCode = "alreadyBound" | "code" | "config";
+
+/**
+ * 构造验证器绑定错误跳转地址。
+ *
+ * @param error 验证器绑定错误码。
+ * @return 设置页验证器绑定错误地址。
+ */
+function totpBindingSettingsRedirect(error: TotpBindingErrorCode): string {
+  return `/settings?totpError=${error}`;
+}
+
+/**
+ * 从设置页查询参数恢复验证器绑定状态。
+ *
+ * @param searchParams 设置页查询参数。
+ * @return 验证器绑定状态。
+ */
+function totpBindingStatusFromSearch(searchParams: URLSearchParams) {
+  const error = searchParams.get("totpError");
+  if (isTotpBindingErrorCode(error)) {
+    return { code: error, type: "error" as const };
+  }
+
+  return searchParams.get("totp") === "updated"
+    ? { code: "updated" as const, type: "success" as const }
+    : undefined;
+}
+
+/**
+ * 判断查询参数是否为验证器绑定错误码。
+ *
+ * @param value 待判断值。
+ * @return 合法错误码返回 true。
+ */
+function isTotpBindingErrorCode(
+  value: string | null,
+): value is TotpBindingErrorCode {
+  return value === "alreadyBound" || value === "code" || value === "config";
 }
 
 type EmailBindingErrorCode =

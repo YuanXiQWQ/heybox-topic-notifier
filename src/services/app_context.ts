@@ -21,6 +21,7 @@ import {
   type GoogleAuthConfig,
   googleAuthConfigFromEnv,
 } from "../auth/google.ts";
+import { type TotpConfig, totpConfigFromEnv } from "../auth/totp.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import type { HeyboxSignatureMode } from "./heybox_signer.ts";
@@ -35,6 +36,7 @@ export type AppConfig = {
   emailVerification: EmailVerificationConfig;
   google: GoogleAuthConfig;
   port: number;
+  totp: TotpConfig;
   turnstile: TurnstileConfig;
 };
 
@@ -98,6 +100,7 @@ export function createAppContext() {
     emailVerification: emailVerificationConfigFromEnv(),
     google: googleAuthConfigFromEnv(),
     port: Number(Deno.env.get("PORT") ?? "8000"),
+    totp: totpConfigFromEnv(),
     turnstile: turnstileConfigFromEnv(),
   };
 

@@ -11,6 +11,7 @@ import type {
   MatchLocation,
   SecondFactorMethod,
   TopicRule,
+  TotpCredential,
   UserAccount,
   UserSecuritySettings,
 } from "../models.ts";
@@ -67,6 +68,17 @@ export type SecuritySettingsStatus = {
   type: "error" | "success";
 };
 
+export type TotpBindingStatus = {
+  code: "alreadyBound" | "code" | "config" | "updated";
+  type: "error" | "success";
+};
+
+export type TotpSetupView = {
+  otpAuthUri: string;
+  secretBase32: string;
+  secretEncrypted: string;
+};
+
 /**
  * 渲染设置页面。
  *
@@ -83,6 +95,9 @@ export function renderSettings(options: {
   securitySettings?: UserSecuritySettings;
   securityStatus?: SecuritySettingsStatus;
   settings: AppSettings;
+  totpBindingStatus?: TotpBindingStatus;
+  totpCredential?: TotpCredential;
+  totpSetup?: TotpSetupView;
   turnstileSiteKey?: string;
 }): string {
   const messages = getMessages(options.settings.locale);
@@ -109,6 +124,17 @@ export function renderSettings(options: {
       options.csrfToken,
       options.turnstileSiteKey,
     )
+  }
+    ${
+    options.account
+      ? renderTotpBindingSection(
+        options.settings,
+        options.totpCredential,
+        options.totpSetup,
+        options.totpBindingStatus,
+        options.csrfToken,
+      )
+      : ""
   }
     ${
     options.securitySettings
@@ -587,6 +613,134 @@ function renderEmailBindingSection(
 }
 
 /**
+ * 渲染验证器动态码绑定区域。
+ *
+ * @param settings 应用设置。
+ * @param credential 已绑定的验证器凭证。
+ * @param setup 待确认的验证器绑定材料。
+ * @param status 验证器绑定状态。
+ * @param csrfToken CSRF 令牌。
+ * @return 验证器绑定区域 HTML。
+ */
+function renderTotpBindingSection(
+  settings: AppSettings,
+  credential: TotpCredential | undefined,
+  setup: TotpSetupView | undefined,
+  status: TotpBindingStatus | undefined,
+  csrfToken: string,
+): string {
+  const messages = getMessages(settings.locale);
+  const bound = Boolean(credential?.secretEncrypted);
+  const statusMessage = status
+    ? totpBindingStatusMessage(status, messages)
+    : "";
+  const statusState = status?.type === "error" ? 'data-state="error"' : "";
+  const action = setup ? "/account/totp/verify" : "/settings";
+  const method = setup ? "post" : "get";
+  const hiddenInputs = setup
+    ? `${csrfHiddenInput(csrfToken)}
+      <input type="hidden" name="secretEncrypted" value="${
+      escapeHtml(setup.secretEncrypted)
+    }">`
+    : `<input type="hidden" name="totpSetup" value="1">`;
+
+  return `
+    <form method="${method}" action="${action}" data-totp-binding-form>
+      ${bound ? "" : hiddenInputs}
+      <section class="settings-group" aria-labelledby="account-totp-heading">
+        <h2 id="account-totp-heading">${
+    escapeHtml(messages.accountTotpSettings)
+  }</h2>
+        <dl class="settings-list" data-totp-binding-section>
+          <div>
+            ${settingLabel("token", messages.accountTotpStatus)}
+            <dd>
+              <span class="field-hint">${
+    escapeHtml(bound ? messages.accountTotpBound : messages.accountTotpNotBound)
+  }</span>
+            </dd>
+          </div>
+          ${setup && !bound ? renderTotpSetupFields(setup, messages) : ""}
+        </dl>
+        <div class="form-actions account-form-actions">
+          ${
+    bound ? "" : `<button type="submit">${
+      escapeHtml(
+        setup ? messages.accountTotpVerify : messages.accountTotpBind,
+      )
+    }</button>`
+  }
+          <span
+            class="inline-action-status"
+            data-totp-binding-status
+            ${statusState}
+            ${statusMessage ? "" : "hidden"}
+            role="status"
+          >${escapeHtml(statusMessage)}</span>
+        </div>
+      </section>
+    </form>
+  `;
+}
+
+/**
+ * 渲染待确认的验证器绑定字段。
+ *
+ * @param setup 待确认的验证器绑定材料。
+ * @param messages 当前语言文案。
+ * @return 绑定字段 HTML。
+ */
+function renderTotpSetupFields(
+  setup: TotpSetupView,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  return `
+          <div>
+            ${settingLabel("key", messages.accountTotpManualKey)}
+            <dd>
+              <input
+                class="secret-display-input"
+                type="text"
+                dir="ltr"
+                value="${escapeHtml(setup.secretBase32)}"
+                readonly
+                data-totp-manual-key
+              >
+              <p class="field-hint">${
+    escapeHtml(messages.accountTotpSetupIntro)
+  }</p>
+            </dd>
+          </div>
+          <div>
+            ${settingLabel("link", messages.accountTotpOtpAuthUri)}
+            <dd>
+              <textarea
+                dir="ltr"
+                rows="2"
+                readonly
+                data-totp-otpauth-uri
+              >${escapeHtml(setup.otpAuthUri)}</textarea>
+            </dd>
+          </div>
+          <div>
+            ${settingLabel("numbers", messages.accountTotpCode)}
+            <dd>
+              <input
+                type="text"
+                name="code"
+                dir="ltr"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                autocomplete="one-time-code"
+                data-totp-code-input
+                required
+              >
+            </dd>
+          </div>
+  `;
+}
+
+/**
  * 渲染账户安全设置区域。
  *
  * @param {AppSettings} settings 应用设置。
@@ -790,6 +944,29 @@ function securitySettingsStatusMessage(
       return messages.accountTwoFactorUnavailable;
     case "updated":
       return messages.accountTwoFactorUpdated;
+  }
+}
+
+/**
+ * 生成验证器绑定状态文案。
+ *
+ * @param status 绑定状态。
+ * @param messages 当前语言文案。
+ * @return 状态文案。
+ */
+function totpBindingStatusMessage(
+  status: TotpBindingStatus,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  switch (status.code) {
+    case "alreadyBound":
+      return messages.accountTotpAlreadyBound;
+    case "code":
+      return messages.accountTotpInvalid;
+    case "config":
+      return messages.accountTotpConfigMissing;
+    case "updated":
+      return messages.accountTotpUpdated;
   }
 }
 

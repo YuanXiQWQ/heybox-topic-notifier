@@ -5,12 +5,14 @@ import { Hono } from "@hono/hono";
 import { createRoutes, settingsFromForm } from "./routes.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
 import { createEmailVerificationChallenge } from "./auth/email_verification.ts";
+import { decryptTotpSecret, generateTotpCode } from "./auth/totp.ts";
 import type {
   AppSettings,
   EmailCredential,
   MatchRecord,
   PasswordCredential,
   PendingEmailVerification,
+  TotpCredential,
   UserAccount,
   UserSecuritySettings,
   UserSession,
@@ -91,6 +93,18 @@ const testEmailVerificationConfig = {
 };
 
 /**
+ * 路由测试使用的验证器动态码配置。
+ */
+const testTotpConfig = {
+  digits: 6,
+  issuer: "Test",
+  periodSeconds: 30,
+  secretBytes: 20,
+  secretEncryptionKey: "test-totp-encryption-key",
+  verificationWindow: 1,
+};
+
+/**
  * 账户相关路由测试使用的内存存储能力。
  */
 type AccountRouteStorage = {
@@ -111,6 +125,8 @@ type AccountRouteStorage = {
     userId: string,
   ): Promise<PasswordCredential | undefined>;
   getSession(tokenHash: string): Promise<UserSession | undefined>;
+  getSettings(): Promise<AppSettings>;
+  getTotpCredential(userId: string): Promise<TotpCredential | undefined>;
   getUserSecuritySettings(userId: string): Promise<UserSecuritySettings>;
   listEmailCredentials(userId: string): Promise<EmailCredential[]>;
   recordLoginFailure(
@@ -127,8 +143,11 @@ type AccountRouteStorage = {
     verification: PendingEmailVerification,
   ): Promise<void>;
   savePasswordCredential(credential: PasswordCredential): Promise<void>;
+  saveSettings(settings: AppSettings): Promise<void>;
   saveSession(session: UserSession): Promise<void>;
+  saveTotpCredential(credential: TotpCredential): Promise<void>;
   saveUserSecuritySettings(settings: UserSecuritySettings): Promise<void>;
+  deleteTotpCredential(userId: string): Promise<void>;
   updateAccount(account: UserAccount): Promise<boolean>;
 };
 
@@ -698,6 +717,107 @@ Deno.test("account email route rejects an incorrect verification code", async ()
   assertEquals(updatedAccount?.emailVerified, undefined);
 });
 
+Deno.test("settings route renders TOTP setup material", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const response = await app.request("/settings?totpSetup=1", {
+    headers: testCsrfHeaders({ cookie }),
+  });
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertIncludes(html, `data-totp-binding-form`);
+  assertIncludes(html, `data-totp-manual-key`);
+  assertIncludes(html, `data-totp-otpauth-uri`);
+  assertIncludes(html, `otpauth://totp/`);
+  assertIncludes(html, `name="secretEncrypted"`);
+  assertEquals(await storage.getTotpCredential(account.id), undefined);
+});
+
+Deno.test("account TOTP route binds an authenticator after a valid code", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const setupResponse = await app.request("/settings?totpSetup=1", {
+    headers: testCsrfHeaders({ cookie }),
+  });
+  const setupHtml = await setupResponse.text();
+  const secretEncrypted = hiddenInputValue(setupHtml, "secretEncrypted");
+  const secret = await decryptTotpSecret(
+    secretEncrypted,
+    testTotpConfig.secretEncryptionKey,
+  );
+  const code = await generateTotpCode(secret, testTotpConfig);
+
+  const response = await app.request("/account/totp/verify", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        code,
+        secretEncrypted,
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+  const credential = await storage.getTotpCredential(account.id);
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?totp=updated");
+  assertEquals(credential?.secretEncrypted, secretEncrypted);
+  assertEquals(credential?.recoveryCodeHashes, []);
+});
+
+Deno.test("account TOTP route rejects an incorrect setup code", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const setupResponse = await app.request("/settings?totpSetup=1", {
+    headers: testCsrfHeaders({ cookie }),
+  });
+  const setupHtml = await setupResponse.text();
+  const secretEncrypted = hiddenInputValue(setupHtml, "secretEncrypted");
+  const secret = await decryptTotpSecret(
+    secretEncrypted,
+    testTotpConfig.secretEncryptionKey,
+  );
+  const currentCode = await generateTotpCode(secret, testTotpConfig);
+  const wrongCode = currentCode === "000000" ? "111111" : "000000";
+
+  const response = await app.request("/account/totp/verify", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        code: wrongCode,
+        secretEncrypted,
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?totpError=code");
+  assertEquals(await storage.getTotpCredential(account.id), undefined);
+});
+
 Deno.test("account security route enables 2FA when a verified method exists", async () => {
   const storage = createAccountRouteStorage();
   const app = createAccountRouteApp(storage);
@@ -1245,6 +1365,7 @@ function createAccountRouteApp(storage: AccountRouteStorage): Hono {
     createRoutes({
       config: {
         emailVerification: testEmailVerificationConfig,
+        totp: testTotpConfig,
         turnstile: { enabled: false, secretKey: "", siteKey: "" },
       },
       storage,
@@ -1253,6 +1374,7 @@ function createAccountRouteApp(storage: AccountRouteStorage): Hono {
   return app;
 }
 function createAccountRouteStorage(): AccountRouteStorage {
+  let appSettings = currentSettings;
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
   const emailCredentialsByKey = new Map<string, EmailCredential>();
@@ -1263,9 +1385,15 @@ function createAccountRouteStorage(): AccountRouteStorage {
   >();
   const securitySettingsByUserId = new Map<string, UserSecuritySettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
+  const totpCredentialsByUserId = new Map<string, TotpCredential>();
 
   return {
     ...createMemoryRateLimitRecorder(),
+    getSettings: () => Promise.resolve(appSettings),
+    saveSettings: (settings: AppSettings) => {
+      appSettings = settings;
+      return Promise.resolve();
+    },
     createAccount: (account: UserAccount) =>
       Promise.resolve(
         addUniqueAccount(accountsById, accountIdsByUsername, account),
@@ -1338,6 +1466,16 @@ function createAccountRouteStorage(): AccountRouteStorage {
       passwordCredentialsByUserId.set(credential.userId, credential);
       return Promise.resolve();
     },
+    getTotpCredential: (userId: string) =>
+      Promise.resolve(totpCredentialsByUserId.get(userId)),
+    saveTotpCredential: (credential: TotpCredential) => {
+      totpCredentialsByUserId.set(credential.userId, credential);
+      return Promise.resolve();
+    },
+    deleteTotpCredential: (userId: string) => {
+      totpCredentialsByUserId.delete(userId);
+      return Promise.resolve();
+    },
     getLoginFailure: () => Promise.resolve(undefined),
     recordLoginFailure: () => Promise.resolve({ failures: 1 }),
     clearLoginFailures: () => Promise.resolve(),
@@ -1388,6 +1526,36 @@ function routeMatchRecord(id: string): MatchRecord {
       url: `https://example.com/${id}`,
     },
   };
+}
+
+/**
+ * 从 HTML 中读取指定隐藏输入框的值。
+ *
+ * @param html HTML 字符串。
+ * @param name 输入框名称。
+ * @return 输入框值。
+ */
+function hiddenInputValue(html: string, name: string): string {
+  const pattern = new RegExp(
+    `<input[^>]*name="${escapeRegExp(name)}"[^>]*value="([^"]*)"`,
+    "i",
+  );
+  const match = html.match(pattern);
+  if (!match) {
+    throw new Error(`Expected hidden input ${name} to exist.`);
+  }
+
+  return match[1];
+}
+
+/**
+ * 转义正则表达式中的特殊字符。
+ *
+ * @param value 原始字符串。
+ * @return 可安全放入正则表达式的字符串。
+ */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

@@ -9,6 +9,7 @@ import type {
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  TotpCredential,
   UserAccount,
   UserSecuritySettings,
 } from "../models.ts";
@@ -231,6 +232,28 @@ Deno.test("password credential storage reads saved credentials by user id", asyn
 
   assertEquals(await storage.getPasswordCredential("alice-id"), credential);
   assertEquals(await storage.getPasswordCredential("missing-id"), undefined);
+});
+
+Deno.test("totp credential storage reads saved credentials by user id", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const credential: TotpCredential = {
+    enabledAt: "2026-08-01T00:00:00.000Z",
+    recoveryCodeHashes: ["recovery-code-hash"],
+    secretEncrypted: "encrypted-secret",
+    userId: "alice-id",
+  };
+
+  await storage.saveTotpCredential(credential);
+
+  assertEquals(await storage.getTotpCredential("alice-id"), credential);
+  assertEquals(await storage.getTotpCredential("missing-id"), undefined);
+
+  await storage.deleteTotpCredential("alice-id");
+
+  assertEquals(await storage.getTotpCredential("alice-id"), undefined);
 });
 
 Deno.test("auth identity storage reads saved Google identities", async () => {

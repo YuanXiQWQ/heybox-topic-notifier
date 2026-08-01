@@ -345,6 +345,31 @@ Deno.test("renderSettings renders email binding controls and verified email stat
   );
 });
 
+Deno.test("renderSettings renders TOTP binding setup controls", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    settings: settings(),
+    totpSetup: {
+      otpAuthUri:
+        "otpauth://totp/Test:alice@example.com?secret=ABCDEFGHIJKLMNOP&issuer=Test",
+      secretBase32: "ABCDEFGHIJKLMNOP",
+      secretEncrypted: "encrypted-secret",
+    },
+  });
+
+  assertIncludes(html, `data-totp-binding-form`);
+  assertIncludes(html, `action="/account/totp/verify"`);
+  assertIncludes(html, `name="secretEncrypted" value="encrypted-secret"`);
+  assertIncludes(html, `data-totp-manual-key`);
+  assertIncludes(html, `data-totp-code-input`);
+  assertIncludes(html, `确认绑定`);
+});
+
 Deno.test("renderSettings renders account security controls", () => {
   const html = renderSettings({
     csrfToken: testCsrfToken,

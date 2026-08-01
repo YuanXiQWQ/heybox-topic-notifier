@@ -17,6 +17,7 @@ import type {
   PollIntervalUnit,
   PollSort,
   TopicRule,
+  TotpCredential,
   UserAccount,
   UserSecuritySettings,
   UserSession,
@@ -58,6 +59,7 @@ const keys = {
   securitySettings: (userId: string) => ["securitySettings", userId] as const,
   settings: (userId: string) => ["userData", userId, "settings"] as const,
   state: (userId: string) => ["userData", userId, "state"] as const,
+  totpCredential: (userId: string) => ["totpCredentials", userId] as const,
 };
 
 /**
@@ -601,6 +603,50 @@ export function createKvStorage(
     },
 
     /**
+     * 获取指定用户的验证器动态码凭证。
+     *
+     * @param userId 用户 ID。
+     * @return 验证器动态码凭证，不存在时返回 undefined。
+     */
+    async getTotpCredential(
+      userId: string,
+    ): Promise<TotpCredential | undefined> {
+      const store = await kv();
+      const entry = await store.get<TotpCredential>(
+        keys.totpCredential(userId),
+      );
+      return entry.value
+        ? normalizeTotpCredential(entry.value, userId)
+        : undefined;
+    },
+
+    /**
+     * 保存指定用户的验证器动态码凭证。
+     *
+     * @param credential 验证器动态码凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async saveTotpCredential(credential: TotpCredential): Promise<void> {
+      const normalized = normalizeTotpCredential(
+        credential,
+        credential.userId,
+      );
+      const store = await kv();
+      await store.set(keys.totpCredential(normalized.userId), normalized);
+    },
+
+    /**
+     * 删除指定用户的验证器动态码凭证。
+     *
+     * @param userId 用户 ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deleteTotpCredential(userId: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.totpCredential(userId));
+    },
+
+    /**
      * 获取外部或邮箱身份绑定。
      *
      * @param provider 身份提供方。
@@ -1096,6 +1142,33 @@ function normalizeEmailCredential(
   return {
     ...credential,
     email: emailKey(credential.email),
+  };
+}
+
+/**
+ * 规范化验证器动态码凭证。
+ *
+ * @param credential 验证器动态码凭证。
+ * @param userId 用户 ID。
+ * @return 规范化后的验证器动态码凭证。
+ */
+function normalizeTotpCredential(
+  credential: TotpCredential,
+  userId: string,
+): TotpCredential {
+  return {
+    enabledAt: typeof credential.enabledAt === "string"
+      ? credential.enabledAt
+      : "",
+    recoveryCodeHashes: Array.isArray(credential.recoveryCodeHashes)
+      ? credential.recoveryCodeHashes.filter((value): value is string =>
+        typeof value === "string"
+      )
+      : [],
+    secretEncrypted: typeof credential.secretEncrypted === "string"
+      ? credential.secretEncrypted
+      : "",
+    userId,
   };
 }
 
