@@ -13,6 +13,10 @@ import {
   type TurnstileConfig,
   turnstileConfigFromEnv,
 } from "../auth/turnstile.ts";
+import {
+  type EmailVerificationConfig,
+  emailVerificationConfigFromEnv,
+} from "../auth/email_verification.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import type { HeyboxSignatureMode } from "./heybox_signer.ts";
@@ -24,6 +28,7 @@ import { createPoller } from "./poller.ts";
  */
 export type AppConfig = {
   defaultSettings: AppSettings;
+  emailVerification: EmailVerificationConfig;
   port: number;
   turnstile: TurnstileConfig;
 };
@@ -85,6 +90,7 @@ export function createAppContext() {
         },
       ],
     },
+    emailVerification: emailVerificationConfigFromEnv(),
     port: Number(Deno.env.get("PORT") ?? "8000"),
     turnstile: turnstileConfigFromEnv(),
   };

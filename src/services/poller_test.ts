@@ -92,8 +92,11 @@ Deno.test("recordMatches saves provided matches and marks successful notificatio
         sentRecords.push(records);
         return Promise.resolve({ provider: "webhook", sent: true });
       },
-      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendNotification: () =>
+        Promise.resolve({ provider: "webhook", sent: true }),
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendEmailMessage: () =>
+        Promise.resolve({ provider: "email", sent: true }),
     } as ReturnType<typeof createNotifier>,
     source: {
       listLatestPosts: () => Promise.resolve([]),
@@ -138,8 +141,11 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
         sentMatchCount = matchedRecords.length;
         return Promise.resolve({ provider: "webhook", sent: true });
       },
-      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendNotification: () =>
+        Promise.resolve({ provider: "webhook", sent: true }),
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendEmailMessage: () =>
+        Promise.resolve({ provider: "email", sent: true }),
     } as ReturnType<typeof createNotifier>,
     source: {
       listLatestPosts: (topicId, options) => {
@@ -179,10 +185,13 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
 
   assertEquals(listedTopicIds, ["12099"]);
   assertEquals(listedOptions, [{ limit: 50, sort: "replyTime" }]);
-  assertEquals(records.map((record) => [record.post.id, record.keyword, record.location]), [
-    ["p1", "common-hit", "title"],
-    ["p2", "topic-hit", "comments"],
-  ]);
+  assertEquals(
+    records.map((record) => [record.post.id, record.keyword, record.location]),
+    [
+      ["p1", "common-hit", "title"],
+      ["p2", "topic-hit", "comments"],
+    ],
+  );
   assertEquals(new Set(records.map((record) => record.matchedAt)).size, 1);
   assertEquals(sentMatches, 1);
   assertEquals(sentMatchCount, 2);
@@ -221,8 +230,11 @@ Deno.test("poller refreshes existing matched post details without notifying agai
         sentMatches += 1;
         return Promise.resolve({ provider: "webhook", sent: true });
       },
-      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendNotification: () =>
+        Promise.resolve({ provider: "webhook", sent: true }),
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendEmailMessage: () =>
+        Promise.resolve({ provider: "email", sent: true }),
     } as ReturnType<typeof createNotifier>,
     source: {
       getPostDetails: (listedPost) => {
@@ -266,8 +278,11 @@ Deno.test("poller saves detailed post time for new matches", async () => {
     notifier: {
       sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
       sendMatches: () => Promise.resolve({ provider: "webhook", sent: true }),
-      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendNotification: () =>
+        Promise.resolve({ provider: "webhook", sent: true }),
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendEmailMessage: () =>
+        Promise.resolve({ provider: "email", sent: true }),
     } as ReturnType<typeof createNotifier>,
     source: {
       getPostDetails: () => Promise.resolve(detailedPost),
@@ -298,11 +313,15 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
     notifier: {
       sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
       sendMatches: () => Promise.reject(new Error("webhook failed")),
-      sendNotification: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendNotification: () =>
+        Promise.resolve({ provider: "webhook", sent: true }),
       sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendEmailMessage: () =>
+        Promise.resolve({ provider: "email", sent: true }),
     } as ReturnType<typeof createNotifier>,
     source: {
-      listLatestPosts: () => Promise.resolve([post("retry-me", { title: "common-hit" })]),
+      listLatestPosts: () =>
+        Promise.resolve([post("retry-me", { title: "common-hit" })]),
     } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),

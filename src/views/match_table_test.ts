@@ -311,6 +311,40 @@ Deno.test("renderSettings does not expose notification secrets", () => {
   assertNotIncludes(html, appSettings.notificationWxPusherSpt);
 });
 
+Deno.test("renderSettings renders email binding controls and verified email state", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    emailCredentials: [{
+      createdAt: "2026-07-31T12:00:00.000Z",
+      email: "alice@example.com",
+      lastVerifiedAt: "2026-07-31T12:05:00.000Z",
+      userId: "user-1",
+      verified: true,
+    }],
+    settings: settings(),
+    turnstileSiteKey: "turnstile-site-key",
+  });
+
+  assertIncludes(html, `data-email-binding-form`);
+  assertIncludes(html, `action="/account/email/verify"`);
+  assertIncludes(html, `data-email-send-code-button`);
+  assertIncludes(html, `name="verificationId"`);
+  assertIncludes(html, `autocomplete="one-time-code"`);
+  assertIncludes(html, `alice@example.com`);
+  assertIncludes(html, `可用于双重验证`);
+  assertIncludes(html, `class="settings-turnstile cf-turnstile"`);
+  assertIncludes(html, `data-response-field-name="cf-turnstile-response"`);
+  assertIncludes(
+    html,
+    `https://challenges.cloudflare.com/turnstile/v0/api.js`,
+  );
+});
+
 /**
  * 创建表格测试数据。
  *

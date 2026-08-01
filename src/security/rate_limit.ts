@@ -46,6 +46,18 @@ const manualPollLimit = 6;
  */
 const debugOperationLimit = 10;
 /**
+ * 同一客户端每十分钟允许请求邮箱验证码的次数。
+ */
+const emailVerificationClientLimit = 10;
+/**
+ * 同一邮箱和用途每十分钟允许请求验证码的次数。
+ */
+const emailVerificationTargetLimit = 3;
+/**
+ * 邮箱验证码登录每十分钟允许的校验次数。
+ */
+const emailLoginLimit = 10;
+/**
  * 账号敏感操作每十分钟允许的次数。
  */
 const accountOperationLimit = 10;
@@ -70,6 +82,21 @@ export const publicRateLimitPolicies = {
   debugOperation: {
     limit: debugOperationLimit,
     scope: "debug-operation",
+    windowMs: 10 * minuteMs,
+  },
+  emailVerificationClient: {
+    limit: emailVerificationClientLimit,
+    scope: "email-verification-client",
+    windowMs: 10 * minuteMs,
+  },
+  emailVerificationTarget: {
+    limit: emailVerificationTargetLimit,
+    scope: "email-verification-target",
+    windowMs: 10 * minuteMs,
+  },
+  emailLogin: {
+    limit: emailLoginLimit,
+    scope: "email-login",
     windowMs: 10 * minuteMs,
   },
   manualPoll: {
@@ -104,7 +131,11 @@ export async function rateLimitExceededResponseFor(
   }
 
   const keyParts = [policy.scope, await hashedIdentifier(identifier)];
-  const hit = await storage.recordRateLimitHit(keyParts, policy.limit, policy.windowMs);
+  const hit = await storage.recordRateLimitHit(
+    keyParts,
+    policy.limit,
+    policy.windowMs,
+  );
   if (!hit.allowed) {
     logSecurityAuditEvent({
       code: "rate_limit_exceeded",
@@ -179,6 +210,9 @@ function rateLimitExceededResponse(hit: RateLimitHit): Response {
  * @return Base64URL 编码的 SHA-256 哈希。
  */
 async function hashedIdentifier(identifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identifier));
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(identifier),
+  );
   return base64UrlEncode(new Uint8Array(digest));
 }

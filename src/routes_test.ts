@@ -4,10 +4,13 @@
 import { Hono } from "@hono/hono";
 import { createRoutes, settingsFromForm } from "./routes.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
+import { createEmailVerificationChallenge } from "./auth/email_verification.ts";
 import type {
   AppSettings,
+  EmailCredential,
   MatchRecord,
   PasswordCredential,
+  PendingEmailVerification,
   UserAccount,
   UserSession,
 } from "./models.ts";
@@ -78,6 +81,15 @@ const currentSettings: AppSettings = {
 };
 
 /**
+ * 路由测试使用的邮箱验证码配置。
+ */
+const testEmailVerificationConfig = {
+  codeSecret: "test-email-code-secret",
+  codeTtlSeconds: 600,
+  maxAttempts: 5,
+};
+
+/**
  * 账户相关路由测试使用的内存存储能力。
  */
 type AccountRouteStorage = {
@@ -87,10 +99,18 @@ type AccountRouteStorage = {
   getAccountById(id: string): Promise<UserAccount | undefined>;
   getAccountByUsername(username: string): Promise<UserAccount | undefined>;
   getLoginFailure(username: string): Promise<undefined>;
+  getEmailCredential(
+    userId: string,
+    email: string,
+  ): Promise<EmailCredential | undefined>;
+  getPendingEmailVerification(
+    id: string,
+  ): Promise<PendingEmailVerification | undefined>;
   getPasswordCredential(
     userId: string,
   ): Promise<PasswordCredential | undefined>;
   getSession(tokenHash: string): Promise<UserSession | undefined>;
+  listEmailCredentials(userId: string): Promise<EmailCredential[]>;
   recordLoginFailure(
     username: string,
     maxFailures: number,
@@ -99,6 +119,11 @@ type AccountRouteStorage = {
   recordRateLimitHit: ReturnType<
     typeof createMemoryRateLimitRecorder
   >["recordRateLimitHit"];
+  deletePendingEmailVerification(id: string): Promise<void>;
+  saveEmailCredential(credential: EmailCredential): Promise<void>;
+  savePendingEmailVerification(
+    verification: PendingEmailVerification,
+  ): Promise<void>;
   savePasswordCredential(credential: PasswordCredential): Promise<void>;
   saveSession(session: UserSession): Promise<void>;
   updateAccount(account: UserAccount): Promise<boolean>;
@@ -573,6 +598,103 @@ Deno.test("account password verification endpoint checks the signed-in user's pa
   assertEquals(rejected.status, 403);
 });
 
+Deno.test("account email route binds a verified email for the signed-in user", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const challenge = await createEmailVerificationChallenge({
+    code: "123456",
+    config: testEmailVerificationConfig,
+    email: " Alice@Example.COM ",
+    id: "email-binding-verification",
+    purpose: "email_binding",
+    userId: account.id,
+  });
+  await storage.savePendingEmailVerification(challenge.verification);
+
+  const response = await app.request("/account/email/verify", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        code: "123456",
+        email: "Alice@Example.COM",
+        verificationId: "email-binding-verification",
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+  const updatedAccount = await storage.getAccountById(account.id);
+  const credential = await storage.getEmailCredential(
+    account.id,
+    "alice@example.com",
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?email=updated");
+  assertEquals(updatedAccount?.primaryEmail, "alice@example.com");
+  assertEquals(updatedAccount?.emailVerified, true);
+  assertEquals(credential?.email, "alice@example.com");
+  assertEquals(credential?.verified, true);
+  assertEquals(credential?.lastVerifiedAt !== undefined, true);
+  assertEquals(
+    await storage.getPendingEmailVerification("email-binding-verification"),
+    undefined,
+  );
+});
+
+Deno.test("account email route rejects an incorrect verification code", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const challenge = await createEmailVerificationChallenge({
+    code: "123456",
+    config: testEmailVerificationConfig,
+    email: "alice@example.com",
+    id: "email-binding-wrong-code",
+    purpose: "email_binding",
+    userId: account.id,
+  });
+  await storage.savePendingEmailVerification(challenge.verification);
+
+  const response = await app.request("/account/email/verify", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        code: "000000",
+        email: "alice@example.com",
+        verificationId: "email-binding-wrong-code",
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+  const pending = await storage.getPendingEmailVerification(
+    "email-binding-wrong-code",
+  );
+  const updatedAccount = await storage.getAccountById(account.id);
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?emailError=code");
+  assertEquals(pending?.attempts, 1);
+  assertEquals(
+    await storage.getEmailCredential(account.id, "alice@example.com"),
+    undefined,
+  );
+  assertEquals(updatedAccount?.primaryEmail, undefined);
+  assertEquals(updatedAccount?.emailVerified, undefined);
+});
+
 Deno.test("test notify returns a readable configuration error", async () => {
   const app = createRoutes({
     notifier: {
@@ -1006,13 +1128,27 @@ function createAccountRouteApp(storage: AccountRouteStorage): Hono {
   const app = new Hono();
   app.route("/", createAuthRoutes(storage as never));
   app.use("*", createAuthMiddleware(storage as never));
-  app.route("/", createRoutes({ storage } as unknown as AppContext));
+  app.route(
+    "/",
+    createRoutes({
+      config: {
+        emailVerification: testEmailVerificationConfig,
+        turnstile: { enabled: false, secretKey: "", siteKey: "" },
+      },
+      storage,
+    } as unknown as AppContext),
+  );
   return app;
 }
 function createAccountRouteStorage(): AccountRouteStorage {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
+  const emailCredentialsByKey = new Map<string, EmailCredential>();
   const passwordCredentialsByUserId = new Map<string, PasswordCredential>();
+  const pendingEmailVerificationsById = new Map<
+    string,
+    PendingEmailVerification
+  >();
   const sessionsByTokenHash = new Map<string, UserSession>();
 
   return {
@@ -1044,6 +1180,33 @@ function createAccountRouteStorage(): AccountRouteStorage {
       const id = accountIdsByUsername.get(username.trim().toLowerCase());
       return Promise.resolve(id ? accountsById.get(id) : undefined);
     },
+    getEmailCredential: (userId: string, email: string) =>
+      Promise.resolve(
+        emailCredentialsByKey.get(emailCredentialKey(userId, email)),
+      ),
+    listEmailCredentials: (userId: string) =>
+      Promise.resolve(
+        Array.from(emailCredentialsByKey.values())
+          .filter((credential) => credential.userId === userId)
+          .toSorted((left, right) => left.email.localeCompare(right.email)),
+      ),
+    saveEmailCredential: (credential: EmailCredential) => {
+      emailCredentialsByKey.set(
+        emailCredentialKey(credential.userId, credential.email),
+        credential,
+      );
+      return Promise.resolve();
+    },
+    getPendingEmailVerification: (id: string) =>
+      Promise.resolve(pendingEmailVerificationsById.get(id)),
+    savePendingEmailVerification: (verification: PendingEmailVerification) => {
+      pendingEmailVerificationsById.set(verification.id, verification);
+      return Promise.resolve();
+    },
+    deletePendingEmailVerification: (id: string) => {
+      pendingEmailVerificationsById.delete(id);
+      return Promise.resolve();
+    },
     getPasswordCredential: (userId: string) =>
       Promise.resolve(passwordCredentialsByUserId.get(userId)),
     savePasswordCredential: (credential: PasswordCredential) => {
@@ -1064,6 +1227,17 @@ function createAccountRouteStorage(): AccountRouteStorage {
       return Promise.resolve();
     },
   };
+}
+
+/**
+ * 创建内存邮箱凭证键。
+ *
+ * @param userId 用户 ID。
+ * @param email 邮箱地址。
+ * @return 邮箱凭证键。
+ */
+function emailCredentialKey(userId: string, email: string): string {
+  return `${userId}:${email.trim().toLowerCase()}`;
 }
 
 /**

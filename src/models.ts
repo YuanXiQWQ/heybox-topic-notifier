@@ -173,6 +173,15 @@ export type AuthenticationEventPurpose =
   | "second_factor";
 
 /**
+ * 邮箱验证码用途。
+ */
+export type EmailVerificationPurpose =
+  | "email_binding"
+  | "primary_login"
+  | "reauth"
+  | "second_factor";
+
+/**
  * 用户账号信息。
  */
 export type UserAccount = {
@@ -220,6 +229,20 @@ export type EmailCredential = {
   lastVerifiedAt?: string;
   userId: string;
   verified: boolean;
+};
+
+/**
+ * 待完成的邮箱验证码挑战。
+ */
+export type PendingEmailVerification = {
+  attempts: number;
+  codeHash: string;
+  createdAt: string;
+  email: string;
+  expiresAt: string;
+  id: string;
+  purpose: EmailVerificationPurpose;
+  userId?: string;
 };
 
 /**

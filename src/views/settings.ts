@@ -4,7 +4,15 @@
 import { getMessages } from "../locales/index.ts";
 import { languageOptions } from "../locales/languages.ts";
 import { isRtlLocale } from "../locales/types.ts";
-import type { AppSettings, KeywordRule, MatchLocation, TopicRule, UserAccount } from "../models.ts";
+import type {
+  AppSettings,
+  EmailCredential,
+  KeywordRule,
+  MatchLocation,
+  TopicRule,
+  UserAccount,
+} from "../models.ts";
+import { turnstileResponseFieldName } from "../auth/turnstile.ts";
 import {
   notificationEmailServices,
   notificationWebhookServices,
@@ -16,7 +24,12 @@ import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
 /**
  * 设置页可配置的关键词匹配位置列表。
  */
-const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
+const matchLocations: MatchLocation[] = [
+  "title",
+  "body",
+  "comments",
+  "replies",
+];
 /**
  * 已配置敏感项首次渲染时展示的固定遮罩长度。
  */
@@ -36,6 +49,17 @@ export type AccountStatus = {
   type: "error" | "success";
 };
 
+export type EmailBindingStatus = {
+  code:
+    | "attempts"
+    | "code"
+    | "expired"
+    | "invalid"
+    | "notFound"
+    | "updated";
+  type: "error" | "success";
+};
+
 /**
  * 渲染设置页面。
  *
@@ -43,10 +67,13 @@ export type AccountStatus = {
  * @return 完整设置页面 HTML。
  */
 export function renderSettings(options: {
-  account?: Pick<UserAccount, "username">;
+  account?: Pick<UserAccount, "emailVerified" | "primaryEmail" | "username">;
   accountStatus?: AccountStatus;
   csrfToken: string;
+  emailBindingStatus?: EmailBindingStatus;
+  emailCredentials?: EmailCredential[];
   settings: AppSettings;
+  turnstileSiteKey?: string;
 }): string {
   const messages = getMessages(options.settings.locale);
   const body = `
@@ -61,6 +88,16 @@ export function renderSettings(options: {
       options.account,
       options.accountStatus,
       options.csrfToken,
+    )
+  }
+    ${
+    renderEmailBindingSection(
+      options.settings,
+      options.account,
+      options.emailCredentials ?? [],
+      options.emailBindingStatus,
+      options.csrfToken,
+      options.turnstileSiteKey,
     )
   }
     <form
@@ -82,7 +119,9 @@ export function renderSettings(options: {
       ${renderPollingSection(options.settings)}
       ${renderNotificationSection(options.settings)}
       <section class="settings-group" aria-labelledby="global-settings-heading">
-        <h2 id="global-settings-heading">${escapeHtml(messages.globalSettings)}</h2>
+        <h2 id="global-settings-heading">${
+    escapeHtml(messages.globalSettings)
+  }</h2>
         <dl class="settings-list">
           <div>
             ${settingLabel("palette", messages.theme)}
@@ -128,6 +167,7 @@ export function renderSettings(options: {
         <span class="autosave-status" data-autosave-status role="status"></span>
       </div>
     </form>
+    ${turnstileScriptHtml(options.turnstileSiteKey)}
     <script src="/static/settings.js?v=20260723-draft-row-focusout" defer></script>
   `;
 
@@ -191,7 +231,10 @@ function secretSettingLabel(
  * @param label 设置项标签文本。
  * @return 外链提示文案。
  */
-function secretConfigLinkText(messages: ReturnType<typeof getMessages>, label: string): string {
+function secretConfigLinkText(
+  messages: ReturnType<typeof getMessages>,
+  label: string,
+): string {
   return messages.configureSecretLink.replace("{label}", label);
 }
 
@@ -213,7 +256,9 @@ function secretInputEditor(
   const maskLength = value.trim() ? configuredSecretMaskLength : 0;
 
   return `<div class="input-action-row secret-input-row" data-secret-editor>
-    <input type="hidden" name="${escapeHtml(name)}" value="" data-secret-hidden-input>
+    <input type="hidden" name="${
+    escapeHtml(name)
+  }" value="" data-secret-hidden-input>
     <input
       class="secret-display-input"
       type="text"
@@ -261,16 +306,19 @@ function renderAccountSection(
   const actionStatusMessage = status && accountStatusField(status) === "action"
     ? accountStatusMessage(status, messages)
     : undefined;
-  const statusState = status?.type === "error" && accountStatusField(status) === "action"
-    ? 'data-state="error"'
-    : "";
+  const statusState =
+    status?.type === "error" && accountStatusField(status) === "action"
+      ? 'data-state="error"'
+      : "";
   const escapedUsername = escapeHtml(account?.username ?? "");
   const initialMode = accountInitialMode(status);
   const accountActionsHidden = initialMode ? "" : "hidden";
   const currentPasswordHidden = initialMode ? "" : "hidden";
   const currentPasswordCollapsed = initialMode ? "" : "is-collapsed";
   const passwordFieldsHidden = initialMode === "password" ? "" : "hidden";
-  const passwordFieldsCollapsed = initialMode === "password" ? "" : "is-collapsed";
+  const passwordFieldsCollapsed = initialMode === "password"
+    ? ""
+    : "is-collapsed";
 
   return `
     <form
@@ -278,13 +326,21 @@ function renderAccountSection(
       action="/account"
       data-account-form
       data-account-initial-mode="${initialMode ?? ""}"
-      data-account-password-invalid="${escapeHtml(messages.accountPasswordCurrentInvalid)}"
-      data-account-password-required="${escapeHtml(messages.accountPasswordVerificationRequired)}"
-      data-account-password-verified="${escapeHtml(messages.accountPasswordVerified)}"
+      data-account-password-invalid="${
+    escapeHtml(messages.accountPasswordCurrentInvalid)
+  }"
+      data-account-password-required="${
+    escapeHtml(messages.accountPasswordVerificationRequired)
+  }"
+      data-account-password-verified="${
+    escapeHtml(messages.accountPasswordVerified)
+  }"
     >
       ${csrfHiddenInput(csrfToken)}
       <section class="settings-group" aria-labelledby="account-settings-heading">
-        <h2 id="account-settings-heading">${escapeHtml(messages.accountSettings)}</h2>
+        <h2 id="account-settings-heading">${
+    escapeHtml(messages.accountSettings)
+  }</h2>
         <dl class="settings-list">
           <div>
             ${settingLabel("person", messages.accountUsername)}
@@ -398,6 +454,234 @@ function renderAccountSection(
   `;
 }
 
+/**
+ * 渲染邮箱绑定和验证区域。
+ *
+ * @param settings 应用设置。
+ * @param account 当前登录账户。
+ * @param credentials 已绑定邮箱凭证。
+ * @param status 邮箱绑定状态。
+ * @param csrfToken CSRF 令牌。
+ * @param turnstileSiteKey Turnstile site key。
+ * @return 邮箱绑定区域 HTML。
+ */
+function renderEmailBindingSection(
+  settings: AppSettings,
+  account:
+    | Pick<UserAccount, "emailVerified" | "primaryEmail" | "username">
+    | undefined,
+  credentials: EmailCredential[],
+  status: EmailBindingStatus | undefined,
+  csrfToken: string,
+  turnstileSiteKey: string | undefined,
+): string {
+  const messages = getMessages(settings.locale);
+  const statusMessage = status
+    ? emailBindingStatusMessage(status, messages)
+    : "";
+  const statusState = status?.type === "error" ? 'data-state="error"' : "";
+  const emailValue = primaryEmailValue(account, credentials);
+
+  return `
+    <form
+      method="post"
+      action="/account/email/verify"
+      data-email-binding-form
+      data-email-code-required="${
+    escapeHtml(messages.accountEmailCodeRequired)
+  }"
+      data-email-invalid="${escapeHtml(messages.accountEmailInvalid)}"
+      data-email-send-failed="${escapeHtml(messages.accountEmailCodeFailed)}"
+      data-email-sending="${escapeHtml(messages.accountEmailSendingCode)}"
+      data-email-sent="${escapeHtml(messages.accountEmailCodeSent)}"
+    >
+      ${csrfHiddenInput(csrfToken)}
+      <section class="settings-group" aria-labelledby="account-email-heading">
+        <h2 id="account-email-heading">${
+    escapeHtml(messages.accountEmailSettings)
+  }</h2>
+        <dl class="settings-list">
+          <div>
+            ${settingLabel("mail", messages.accountEmail)}
+            <dd>
+              <div class="email-binding-row">
+                <input
+                  type="email"
+                  name="email"
+                  dir="ltr"
+                  value="${escapeHtml(emailValue)}"
+                  autocomplete="email"
+                  data-email-binding-input
+                  required
+                >
+                <button type="button" class="secondary" data-email-send-code-button>
+                  ${escapeHtml(messages.accountEmailSendCode)}
+                </button>
+                <span
+                  class="inline-action-status"
+                  data-email-send-status
+                  role="status"
+                  hidden
+                ></span>
+              </div>
+            </dd>
+          </div>
+          <div>
+            ${settingLabel("token", messages.accountEmailCode)}
+            <dd>
+              <div class="email-binding-row">
+                <input type="hidden" name="verificationId" data-email-verification-id>
+                <input
+                  type="text"
+                  name="code"
+                  dir="ltr"
+                  inputmode="numeric"
+                  pattern="[0-9]{6}"
+                  autocomplete="one-time-code"
+                  data-email-code-input
+                  required
+                >
+                <button type="submit" data-email-verify-button>
+                  ${escapeHtml(messages.accountEmailVerify)}
+                </button>
+                <span
+                  class="inline-action-status"
+                  data-email-verify-status
+                  ${statusState}
+                  ${statusMessage ? "" : "hidden"}
+                  role="status"
+                >${escapeHtml(statusMessage)}</span>
+              </div>
+              ${turnstileWidgetHtml(turnstileSiteKey)}
+            </dd>
+          </div>
+          <div>
+            ${settingLabel("alternate_email", messages.accountVerifiedEmails)}
+            <dd>${renderEmailCredentialList(credentials, messages)}</dd>
+          </div>
+        </dl>
+      </section>
+    </form>
+  `;
+}
+
+/**
+ * 选择设置页邮箱输入框初始值。
+ *
+ * @param account 当前账户。
+ * @param credentials 已绑定邮箱凭证。
+ * @return 初始邮箱地址。
+ */
+function primaryEmailValue(
+  account:
+    | Pick<UserAccount, "emailVerified" | "primaryEmail" | "username">
+    | undefined,
+  credentials: EmailCredential[],
+): string {
+  if (account?.primaryEmail && account.emailVerified) {
+    return account.primaryEmail;
+  }
+
+  return verifiedEmailCredentials(credentials)[0]?.email ?? "";
+}
+
+/**
+ * 渲染已验证邮箱列表。
+ *
+ * @param credentials 邮箱凭证列表。
+ * @param messages 当前语言文案。
+ * @return 已验证邮箱列表 HTML。
+ */
+function renderEmailCredentialList(
+  credentials: EmailCredential[],
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const verifiedCredentials = verifiedEmailCredentials(credentials);
+  if (verifiedCredentials.length === 0) {
+    return `<span class="field-hint">${
+      escapeHtml(messages.accountEmailNoVerified)
+    }</span>`;
+  }
+
+  return `<ul class="email-credential-list">
+    ${
+    verifiedCredentials.map((credential) =>
+      `<li><span dir="ltr">${escapeHtml(credential.email)}</span><span>${
+        escapeHtml(messages.accountEmailTwoFactorAvailable)
+      }</span></li>`
+    ).join("")
+  }
+  </ul>`;
+}
+
+/**
+ * 筛选并排序已验证邮箱凭证。
+ *
+ * @param credentials 邮箱凭证列表。
+ * @return 已验证邮箱凭证。
+ */
+function verifiedEmailCredentials(
+  credentials: EmailCredential[],
+): EmailCredential[] {
+  return credentials
+    .filter((credential) => credential.verified)
+    .toSorted((left, right) => left.email.localeCompare(right.email));
+}
+
+/**
+ * 渲染 Turnstile 官方脚本。
+ *
+ * @param siteKey Turnstile site key。
+ * @return 启用 Turnstile 时返回脚本 HTML。
+ */
+function turnstileScriptHtml(siteKey: string | undefined): string {
+  return siteKey
+    ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+    : "";
+}
+
+/**
+ * 渲染设置页邮箱验证使用的 Turnstile 组件。
+ *
+ * @param siteKey Turnstile site key。
+ * @return 启用 Turnstile 时返回组件 HTML。
+ */
+function turnstileWidgetHtml(siteKey: string | undefined): string {
+  return siteKey
+    ? `<div class="settings-turnstile cf-turnstile" data-sitekey="${
+      escapeHtml(siteKey)
+    }" data-response-field-name="${
+      escapeHtml(turnstileResponseFieldName)
+    }"></div>`
+    : "";
+}
+
+/**
+ * 生成邮箱绑定状态文案。
+ *
+ * @param status 邮箱绑定状态。
+ * @param messages 当前语言文案。
+ * @return 状态文案。
+ */
+function emailBindingStatusMessage(
+  status: EmailBindingStatus,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  switch (status.code) {
+    case "attempts":
+    case "code":
+      return messages.accountEmailCodeInvalid;
+    case "expired":
+      return messages.accountEmailVerificationExpired;
+    case "invalid":
+      return messages.accountEmailInvalid;
+    case "notFound":
+      return messages.accountEmailVerificationMissing;
+    case "updated":
+      return messages.accountEmailUpdated;
+  }
+}
+
 type AccountStatusField =
   | "action"
   | "confirmPassword"
@@ -427,7 +711,11 @@ function accountFieldStatusHtml(
   return `<span
     class="inline-action-status account-field-status"
     ${fieldAttribute}
-    ${status?.type === "error" && statusField === field ? 'data-state="error"' : ""}
+    ${
+    status?.type === "error" && statusField === field
+      ? 'data-state="error"'
+      : ""
+  }
     ${statusMessage ? "" : "hidden"}
     role="status"
   >${escapeHtml(statusMessage ?? "")}</span>`;
@@ -472,7 +760,10 @@ function accountInitialMode(
   return undefined;
 }
 
-function accountStatusMessage(status: AccountStatus, messages: ReturnType<typeof getMessages>) {
+function accountStatusMessage(
+  status: AccountStatus,
+  messages: ReturnType<typeof getMessages>,
+) {
   switch (status.code) {
     case "currentPassword":
       return messages.accountPasswordCurrentInvalid;
@@ -498,25 +789,45 @@ function renderNotificationSection(settings: AppSettings): string {
 
   return `
       <section class="settings-group" aria-labelledby="notification-settings-heading">
-        <h2 id="notification-settings-heading">${escapeHtml(messages.notificationSettings)}</h2>
+        <h2 id="notification-settings-heading">${
+    escapeHtml(messages.notificationSettings)
+  }</h2>
         <dl class="settings-list">
           <div>
             ${settingLabel("notifications", messages.notificationProvider)}
             <dd>
               <div class="notification-provider-row">
                 <select name="notificationProvider" data-notification-provider-select>
-                  ${option("webhook", settings.notificationProvider, messages.notificationWebhook)}
-                  ${option("email", settings.notificationProvider, messages.notificationEmail)}
                   ${
-    option("disabled", settings.notificationProvider, messages.notificationDisabled)
+    option(
+      "webhook",
+      settings.notificationProvider,
+      messages.notificationWebhook,
+    )
+  }
+                  ${
+    option("email", settings.notificationProvider, messages.notificationEmail)
+  }
+                  ${
+    option(
+      "disabled",
+      settings.notificationProvider,
+      messages.notificationDisabled,
+    )
   }
                 </select>
                 <button
                   type="button"
                   data-test-notify-button
-                  data-test-notify-sending="${escapeHtml(messages.testNotifySending)}"
-                  data-test-notify-failed="${escapeHtml(messages.testNotifyFailed)}"
-                  ${settings.notificationProvider === "disabled" ? "hidden" : ""}
+                  data-test-notify-sending="${
+    escapeHtml(messages.testNotifySending)
+  }"
+                  data-test-notify-failed="${
+    escapeHtml(messages.testNotifyFailed)
+  }"
+                  ${
+    settings.notificationProvider === "disabled" ? "hidden" : ""
+  }
                 >${escapeHtml(messages.testNotify)}</button>
                 <span class="inline-action-status" data-test-notify-status role="status">
                   <span data-test-notify-status-text></span>
@@ -524,18 +835,34 @@ function renderNotificationSection(settings: AppSettings): string {
                     class="inline-action-link"
                     data-test-notify-error-link
                     data-error-app-name="${escapeHtml(messages.appName)}"
-                    data-error-dark-mode="${settings.darkMode ? "true" : "false"}"
-                    data-error-direction="${isRtlLocale(settings.locale) ? "rtl" : "ltr"}"
+                    data-error-dark-mode="${
+    settings.darkMode ? "true" : "false"
+  }"
+                    data-error-direction="${
+    isRtlLocale(settings.locale) ? "rtl" : "ltr"
+  }"
                     data-error-locale="${escapeHtml(settings.locale)}"
-                    data-error-nav-dashboard="${escapeHtml(messages.navDashboard)}"
+                    data-error-nav-dashboard="${
+    escapeHtml(messages.navDashboard)
+  }"
                     data-error-nav-history="${escapeHtml(messages.navHistory)}"
-                    data-error-nav-settings="${escapeHtml(messages.navSettings)}"
-                    data-error-return-label="${escapeHtml(messages.testNotifyBackToSettings)}"
-                    data-error-summary="${escapeHtml(messages.testNotifyFailed)}"
+                    data-error-nav-settings="${
+    escapeHtml(messages.navSettings)
+  }"
+                    data-error-return-label="${
+    escapeHtml(messages.testNotifyBackToSettings)
+  }"
+                    data-error-summary="${
+    escapeHtml(messages.testNotifyFailed)
+  }"
                     data-error-theme-color="${escapeHtml(settings.themeColor)}"
-                    data-error-title="${escapeHtml(messages.testNotifyErrorTitle)}"
+                    data-error-title="${
+    escapeHtml(messages.testNotifyErrorTitle)
+  }"
                     hidden
-                  >${externalLinkIcon()}${escapeHtml(messages.testNotifyViewError)}</a>
+                  >${externalLinkIcon()}${
+    escapeHtml(messages.testNotifyViewError)
+  }</a>
                 </span>
               </div>
             </dd>
@@ -550,7 +877,11 @@ function renderNotificationSection(settings: AppSettings): string {
               <select name="notificationWebhookService" data-notification-webhook-service-select>
                 ${
     notificationWebhookServices.map((service) =>
-      option(service.id, settings.notificationWebhookService, messages[service.labelKey])
+      option(
+        service.id,
+        settings.notificationWebhookService,
+        messages[service.labelKey],
+      )
     ).join("")
   }
               </select>
@@ -642,7 +973,9 @@ function renderNotificationSection(settings: AppSettings): string {
                 name="notificationWebhookUrl"
                 dir="ltr"
                 value=""
-                placeholder="${secretInputPlaceholder(settings.notificationWebhookUrl, "https://")}"
+                placeholder="${
+    secretInputPlaceholder(settings.notificationWebhookUrl, "https://")
+  }"
                 autocomplete="off"
               >
             </dd>
@@ -657,7 +990,11 @@ function renderNotificationSection(settings: AppSettings): string {
               <select name="notificationEmailService" data-notification-email-service-select>
                 ${
     notificationEmailServices.map((service) =>
-      option(service.id, settings.notificationEmailService, messages[service.labelKey])
+      option(
+        service.id,
+        settings.notificationEmailService,
+        messages[service.labelKey],
+      )
     ).join("")
   }
               </select>
@@ -668,7 +1005,9 @@ function renderNotificationSection(settings: AppSettings): string {
             data-notification-field="email-address"
             data-notification-provider-field="email"
           >
-            ${settingLabel("alternate_email", messages.notificationEmailAddress)}
+            ${
+    settingLabel("alternate_email", messages.notificationEmailAddress)
+  }
             <dd>
               <input
                 type="email"
@@ -727,7 +1066,9 @@ function renderNotificationSection(settings: AppSettings): string {
                 name="notificationEmailApiToken"
                 dir="ltr"
                 value=""
-                placeholder="${secretInputPlaceholder(settings.notificationEmailApiToken)}"
+                placeholder="${
+    secretInputPlaceholder(settings.notificationEmailApiToken)
+  }"
                 autocomplete="off"
               >
             </dd>
@@ -809,7 +1150,9 @@ function renderNotificationSection(settings: AppSettings): string {
                 name="notificationSmtpPassword"
                 dir="ltr"
                 value=""
-                placeholder="${secretInputPlaceholder(settings.notificationSmtpPassword)}"
+                placeholder="${
+    secretInputPlaceholder(settings.notificationSmtpPassword)
+  }"
                 autocomplete="off"
               >
             </dd>
@@ -833,9 +1176,13 @@ function renderPollingSection(settings: AppSettings): string {
         class="settings-group"
         aria-labelledby="polling-settings-heading"
         data-polling-section
-        data-polling-interval-too-short="${escapeHtml(messages.pollIntervalTooShort)}"
+        data-polling-interval-too-short="${
+    escapeHtml(messages.pollIntervalTooShort)
+  }"
       >
-        <h2 id="polling-settings-heading">${escapeHtml(messages.pollingSettings)}</h2>
+        <h2 id="polling-settings-heading">${
+    escapeHtml(messages.pollingSettings)
+  }</h2>
         <dl class="settings-list">
           <div>
             ${settingLabel("toggle_on", messages.pollEnabled)}
@@ -865,12 +1212,24 @@ function renderPollingSection(settings: AppSettings): string {
                     data-polling-interval-value
                   >
                   <select name="pollIntervalUnit" data-polling-interval-unit>
-                    ${option("second", settings.polling.intervalUnit, messages.pollIntervalSecond)}
-                    ${option("minute", settings.polling.intervalUnit, messages.pollIntervalMinute)}
-                    ${option("hour", settings.polling.intervalUnit, messages.pollIntervalHour)}
-                    ${option("day", settings.polling.intervalUnit, messages.pollIntervalDay)}
-                    ${option("week", settings.polling.intervalUnit, messages.pollIntervalWeek)}
-                    ${option("month", settings.polling.intervalUnit, messages.pollIntervalMonth)}
+                    ${
+    option("second", settings.polling.intervalUnit, messages.pollIntervalSecond)
+  }
+                    ${
+    option("minute", settings.polling.intervalUnit, messages.pollIntervalMinute)
+  }
+                    ${
+    option("hour", settings.polling.intervalUnit, messages.pollIntervalHour)
+  }
+                    ${
+    option("day", settings.polling.intervalUnit, messages.pollIntervalDay)
+  }
+                    ${
+    option("week", settings.polling.intervalUnit, messages.pollIntervalWeek)
+  }
+                    ${
+    option("month", settings.polling.intervalUnit, messages.pollIntervalMonth)
+  }
                   </select>
                 </div>
                 <p
@@ -897,9 +1256,15 @@ function renderPollingSection(settings: AppSettings): string {
             ${settingLabel("sort", messages.pollSort)}
             <dd>
               <select name="pollSort">
-                ${option("publishTime", settings.polling.sort, messages.pollSortPublishTime)}
-                ${option("smart", settings.polling.sort, messages.pollSortSmart)}
-                ${option("replyTime", settings.polling.sort, messages.pollSortReplyTime)}
+                ${
+    option("publishTime", settings.polling.sort, messages.pollSortPublishTime)
+  }
+                ${
+    option("smart", settings.polling.sort, messages.pollSortSmart)
+  }
+                ${
+    option("replyTime", settings.polling.sort, messages.pollSortReplyTime)
+  }
               </select>
             </dd>
           </div>
@@ -915,7 +1280,8 @@ function renderPollingSection(settings: AppSettings): string {
  * @return 低于一分钟时返回 true。
  */
 function isSubMinutePolling(settings: AppSettings): boolean {
-  return settings.polling.intervalUnit === "second" && settings.polling.intervalValue < 60;
+  return settings.polling.intervalUnit === "second" &&
+    settings.polling.intervalValue < 60;
 }
 
 /**
@@ -949,9 +1315,9 @@ function renderTopicSection(settings: AppSettings): string {
           value="${escapeHtml(JSON.stringify(settings.commonKeywordRules))}"
           data-common-keyword-rules
         >
-        <span data-topic-summary data-common-label="${escapeHtml(messages.commonTopic)}">${
-    escapeHtml(summary)
-  }</span>
+        <span data-topic-summary data-common-label="${
+    escapeHtml(messages.commonTopic)
+  }">${escapeHtml(summary)}</span>
         <button
           type="button"
           class="dropdown-toggle"
@@ -967,13 +1333,20 @@ function renderTopicSection(settings: AppSettings): string {
         <div class="dropdown-panel-inner">
           <div class="topic-rule-grid" role="table">
             ${renderTopicRuleHeader(messages)}
-            ${topics.map((topic, index) => renderTopicRuleRow(topic, index, messages)).join("")}
+            ${
+    topics.map((topic, index) => renderTopicRuleRow(topic, index, messages))
+      .join("")
+  }
           </div>
         </div>
       </dd>
       <template data-topic-row-template>
         ${
-    renderTopicRuleRow({ enabled: true, id: "", keywordRules: [], note: "" }, "__index__", messages)
+    renderTopicRuleRow(
+      { enabled: true, id: "", keywordRules: [], note: "" },
+      "__index__",
+      messages,
+    )
   }
       </template>
     </div>
@@ -1019,13 +1392,21 @@ function renderKeywordSection(settings: AppSettings): string {
             ${renderKeywordRuleHeader(messages)}
             ${
     (rows.length > 0 ? rows : [{ keyword: "", locations: matchLocations }])
-      .map((rule, index) => renderKeywordRuleRow(rule, index, messages)).join("")
+      .map((rule, index) => renderKeywordRuleRow(rule, index, messages)).join(
+        "",
+      )
   }
           </div>
         </div>
       </dd>
       <template data-keyword-row-template>
-        ${renderKeywordRuleRow({ keyword: "", locations: matchLocations }, "__index__", messages)}
+        ${
+    renderKeywordRuleRow(
+      { keyword: "", locations: matchLocations },
+      "__index__",
+      messages,
+    )
+  }
       </template>
     </div>
   `;
@@ -1037,7 +1418,9 @@ function renderKeywordSection(settings: AppSettings): string {
  * @param messages 当前语言文案。
  * @return 话题规则表头 HTML。
  */
-function renderTopicRuleHeader(messages: ReturnType<typeof getMessages>): string {
+function renderTopicRuleHeader(
+  messages: ReturnType<typeof getMessages>,
+): string {
   return `
     <div class="topic-rule-row topic-rule-head" role="row">
       <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
@@ -1114,7 +1497,9 @@ function renderTopicRuleRow(
   }" data-topic-id-input>
       </div>
       <div role="cell">
-        <input name="topic_${index}_note" value="${escapeHtml(topic.note)}" data-topic-note-input>
+        <input name="topic_${index}_note" value="${
+    escapeHtml(topic.note)
+  }" data-topic-note-input>
       </div>
       <label class="checkbox-cell" role="cell">
         <input
@@ -1159,7 +1544,9 @@ function renderTopicRuleRow(
  * @param messages 当前语言文案。
  * @return 关键词规则表头 HTML。
  */
-function renderKeywordRuleHeader(messages: ReturnType<typeof getMessages>): string {
+function renderKeywordRuleHeader(
+  messages: ReturnType<typeof getMessages>,
+): string {
   return `
     <div class="keyword-rule-row keyword-rule-head" role="row">
       <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
@@ -1217,7 +1604,10 @@ function dragHandleButton(label: string): string {
  * @param location 匹配位置。
  * @return 匹配位置表头 HTML。
  */
-function renderKeywordLocationHeader(label: string, location: MatchLocation): string {
+function renderKeywordLocationHeader(
+  label: string,
+  location: MatchLocation,
+): string {
   return `
       <label class="checkbox-cell location-bulk-cell" role="columnheader">
         <span>${escapeHtml(label)}</span>
@@ -1328,7 +1718,9 @@ function renderKeywordRuleRow(
  * @return 活动话题，不存在时返回 undefined。
  */
 function findActiveTopic(settings: AppSettings): TopicRule | undefined {
-  return settings.topics.find((topic) => topic.id === settings.activeKeywordTarget);
+  return settings.topics.find((topic) =>
+    topic.id === settings.activeKeywordTarget
+  );
 }
 
 /**
@@ -1349,7 +1741,10 @@ function activeKeywordRules(settings: AppSettings): KeywordRule[] {
  * @param activeTopic 当前活动话题。
  * @return 话题摘要文本。
  */
-function topicSummary(settings: AppSettings, activeTopic: TopicRule | undefined): string {
+function topicSummary(
+  settings: AppSettings,
+  activeTopic: TopicRule | undefined,
+): string {
   const messages = getMessages(settings.locale);
 
   if (!activeTopic) {
@@ -1407,9 +1802,9 @@ function secretInputPlaceholder(
  * @return option HTML。
  */
 function option(value: string, current: string, label: string): string {
-  return `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${
-    escapeHtml(label)
-  }</option>`;
+  return `<option value="${escapeHtml(value)}" ${
+    value === current ? "selected" : ""
+  }>${escapeHtml(label)}</option>`;
 }
 
 /**
