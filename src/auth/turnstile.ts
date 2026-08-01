@@ -9,6 +9,11 @@ const defaultTurnstileVerifyUrl =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 /**
+ * Turnstile 前端组件提交响应 token 的字段名。
+ */
+export const turnstileResponseFieldName = "cf-turnstile-response";
+
+/**
  * Turnstile 配置。
  */
 export type TurnstileConfig = {

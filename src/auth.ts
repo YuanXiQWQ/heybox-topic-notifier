@@ -35,6 +35,12 @@ import {
   readAuthSession,
   redirectWithSession,
 } from "./auth/session.ts";
+import {
+  type TurnstileConfig,
+  type TurnstileFetch,
+  turnstileResponseFieldName,
+  verifyTurnstileToken,
+} from "./auth/turnstile.ts";
 
 export { readAuthSession } from "./auth/session.ts";
 export type { AuthSession } from "./auth/session.ts";
@@ -56,6 +62,8 @@ export type AuthOptions = {
   loginPath?: string;
   registerPath?: string;
   sessionMaxAgeSeconds?: number;
+  turnstile?: TurnstileConfig;
+  turnstileFetch?: TurnstileFetch;
 };
 
 /**
@@ -70,12 +78,22 @@ type AuthConfig = {
   loginPath: string;
   registerPath: string;
   sessionMaxAgeSeconds: number;
+  turnstile: TurnstileConfig;
+  turnstileFetch?: TurnstileFetch;
 };
 
 /**
  * 默认登录 Cookie 名称。
  */
 const defaultCookieName = defaultSessionCookieName;
+/**
+ * 默认关闭的人机验证配置。
+ */
+const defaultTurnstileConfig: TurnstileConfig = {
+  enabled: false,
+  secretKey: "",
+  siteKey: "",
+};
 /**
  * 默认登录路径。
  */
@@ -108,6 +126,18 @@ const authLocaleChangedParam = "localeChanged";
  * 显式语言切换查询参数使用的固定值。
  */
 const authLocaleChangedValue = "1";
+/**
+ * 登录页提示需要进行人机验证的查询参数名。
+ */
+const authTurnstileRequiredParam = "turnstile";
+/**
+ * 登录页提示需要进行人机验证的查询参数值。
+ */
+const authTurnstileRequiredValue = "1";
+/**
+ * 登录失败多少次后要求人机验证。
+ */
+const turnstileLoginFailureThreshold = 2;
 
 /**
  * 创建认证中间件。
@@ -185,6 +215,7 @@ export function createAuthRoutes(
         returnTo: safeReturnTo(url.searchParams.get("returnTo")),
         submitLabel: messages.authLogin,
         syncLocale,
+        turnstileSiteKey: loginTurnstileSiteKey(url, config),
       })),
       csrf,
     );
@@ -226,6 +257,27 @@ export function createAuthRoutes(
         locale,
         syncLocale,
       );
+    }
+
+    if (loginRequiresTurnstile(loginFailure, config)) {
+      const humanVerificationErrors = await humanVerificationErrorCodes(
+        c.req.raw,
+        form,
+        config,
+      );
+      if (humanVerificationErrors) {
+        return c.redirect(
+          authPagePath(config.loginPath, locale, {
+            error: "humanVerification",
+            returnTo,
+            [authLocaleChangedParam]: syncLocale
+              ? authLocaleChangedValue
+              : undefined,
+            [authTurnstileRequiredParam]: authTurnstileRequiredValue,
+          }),
+          303,
+        );
+      }
     }
 
     const account = await storage.getAccountByUsername(username);
@@ -278,6 +330,9 @@ export function createAuthRoutes(
           [authLocaleChangedParam]: syncLocale
             ? authLocaleChangedValue
             : undefined,
+          [authTurnstileRequiredParam]: loginRequiresTurnstile(failure, config)
+            ? authTurnstileRequiredValue
+            : undefined,
         }),
         303,
       );
@@ -321,6 +376,7 @@ export function createAuthRoutes(
         returnTo: safeReturnTo(url.searchParams.get("returnTo")),
         submitLabel: messages.authCreateAccount,
         syncLocale,
+        turnstileSiteKey: turnstileSiteKey(config),
       })),
       csrf,
     );
@@ -337,6 +393,8 @@ export function createAuthRoutes(
     ) {
       return csrfForbiddenResponse(c.req.raw);
     }
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const syncLocale = shouldSyncAuthLocale(url);
     const rateLimitResponse = await rateLimitExceededResponseFor(
       storage,
       publicRateLimitPolicies.registration,
@@ -347,12 +405,27 @@ export function createAuthRoutes(
       return rateLimitResponse;
     }
 
+    const humanVerificationErrors = await humanVerificationErrorCodes(
+      c.req.raw,
+      form,
+      config,
+    );
+    if (humanVerificationErrors) {
+      return c.redirect(
+        authPagePath(config.registerPath, locale, {
+          error: "humanVerification",
+          [authLocaleChangedParam]: syncLocale
+            ? authLocaleChangedValue
+            : undefined,
+        }),
+        303,
+      );
+    }
+
     const username = normalizeUsername(String(form.username ?? ""));
     const password = String(form.password ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
-    const syncLocale = shouldSyncAuthLocale(url);
     const validationError = validateRegistration(
       username,
       password,
@@ -453,7 +526,121 @@ function authConfig(options: AuthOptions): AuthConfig {
     registerPath,
     sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ??
       defaultSessionMaxAgeSeconds,
+    turnstile: options.turnstile ?? defaultTurnstileConfig,
+    turnstileFetch: options.turnstileFetch,
   };
+}
+
+/**
+ * 判断登录是否已经进入人机验证阶段。
+ *
+ * @param failure 登录失败记录。
+ * @param config 认证配置。
+ * @return 需要人机验证时返回 true。
+ */
+function loginRequiresTurnstile(
+  failure: { failures: number; lockedUntil?: string } | undefined,
+  config: AuthConfig,
+): boolean {
+  return config.turnstile.enabled &&
+    (failure?.failures ?? 0) >= turnstileLoginFailureThreshold;
+}
+
+/**
+ * 获取注册或验证状态下应渲染的 Turnstile site key。
+ *
+ * @param config 认证配置。
+ * @return 需要渲染 Turnstile 时返回 site key。
+ */
+function turnstileSiteKey(config: AuthConfig): string | undefined {
+  return config.turnstile.enabled && config.turnstile.siteKey
+    ? config.turnstile.siteKey
+    : undefined;
+}
+
+/**
+ * 获取登录页应渲染的 Turnstile site key。
+ *
+ * @param url 当前登录页 URL。
+ * @param config 认证配置。
+ * @return 登录页需要渲染 Turnstile 时返回 site key。
+ */
+function loginTurnstileSiteKey(
+  url: URL,
+  config: AuthConfig,
+): string | undefined {
+  return url.searchParams.get(authTurnstileRequiredParam) ===
+      authTurnstileRequiredValue
+    ? turnstileSiteKey(config)
+    : undefined;
+}
+
+/**
+ * 校验认证表单携带的人机验证结果。
+ *
+ * @param request 原始请求。
+ * @param form 表单数据。
+ * @param config 认证配置。
+ * @return 校验失败时返回错误码列表，成功时返回 undefined。
+ */
+async function humanVerificationErrorCodes(
+  request: Request,
+  form:
+    | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>
+    | FormData,
+  config: AuthConfig,
+): Promise<string[] | undefined> {
+  const result = await verifyTurnstileToken(
+    turnstileTokenFromForm(form),
+    config.turnstile,
+    {
+      fetcher: config.turnstileFetch,
+      remoteIp: remoteIpFromRequest(request),
+    },
+  );
+  if (result.success) {
+    return undefined;
+  }
+
+  logSecurityAuditEvent({
+    code: "human_verification_failed",
+    details: { errors: result.errorCodes.join(",") },
+    level: "warn",
+    message: "人机验证失败，已拒绝认证请求。",
+    request,
+  });
+
+  return result.errorCodes;
+}
+
+/**
+ * 从认证表单中读取 Turnstile 响应 token。
+ *
+ * @param form 表单数据。
+ * @return Turnstile 响应 token。
+ */
+function turnstileTokenFromForm(
+  form:
+    | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>
+    | FormData,
+): string | undefined {
+  const value = form instanceof FormData
+    ? form.get(turnstileResponseFieldName)
+    : form[turnstileResponseFieldName];
+  const firstValue = Array.isArray(value) ? value[0] : value;
+  return typeof firstValue === "string" ? firstValue : undefined;
+}
+
+/**
+ * 从请求头中读取可用于 Turnstile 校验的客户端地址。
+ *
+ * @param request 原始请求。
+ * @return 客户端地址，不存在时返回 undefined。
+ */
+function remoteIpFromRequest(request: Request): string | undefined {
+  return request.headers.get("cf-connecting-ip") ??
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    undefined;
 }
 
 /**
@@ -722,6 +909,7 @@ function renderAuthPage(options: {
   returnTo: string;
   submitLabel: string;
   syncLocale: boolean;
+  turnstileSiteKey?: string;
 }): string {
   const switchPath = options.mode === "login" ? "/register" : "/login";
   const switchHref = authPagePath(switchPath, options.locale, {
@@ -749,6 +937,7 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.appName)
   }</title>
     <link rel="stylesheet" href="/static/app.css">
+    ${turnstileScriptHtml(options.turnstileSiteKey)}
     <style>
       body {
         min-height: 100vh;
@@ -782,6 +971,10 @@ function renderAuthPage(options: {
       .auth-error {
         color: #b42318;
         font-size: 0.92rem;
+      }
+
+      .auth-turnstile {
+        min-height: 65px;
       }
 
       .auth-language-icon {
@@ -912,6 +1105,7 @@ function renderAuthPage(options: {
       : ""
   }
           </div>
+          ${turnstileWidgetHtml(options.turnstileSiteKey)}
           ${
     options.error
       ? `<div class="auth-error">${escapeHtml(options.error)}</div>`
@@ -924,6 +1118,32 @@ function renderAuthPage(options: {
     </main>
   </body>
 </html>`;
+}
+
+/**
+ * 渲染 Turnstile 官方脚本。
+ *
+ * @param siteKey Turnstile site key。
+ * @return 启用 Turnstile 时返回脚本 HTML。
+ */
+function turnstileScriptHtml(siteKey: string | undefined): string {
+  return siteKey
+    ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+    : "";
+}
+
+/**
+ * 渲染 Turnstile 表单组件。
+ *
+ * @param siteKey Turnstile site key。
+ * @return 启用 Turnstile 时返回组件 HTML。
+ */
+function turnstileWidgetHtml(siteKey: string | undefined): string {
+  return siteKey
+    ? `<div class="auth-turnstile cf-turnstile" data-sitekey="${
+      escapeHtml(siteKey)
+    }"></div>`
+    : "";
 }
 
 /**
@@ -1058,6 +1278,8 @@ function loginErrorMessage(
       return messages.authInvalidCredentials;
     case "rateLimited":
       return messages.authLoginRateLimited;
+    case "humanVerification":
+      return messages.authHumanVerificationRequired;
     default:
       return undefined;
   }
@@ -1123,6 +1345,8 @@ function registerErrorMessage(
       return messages.authPasswordConfirmationMismatch;
     case "username":
       return messages.authUsernameInvalid;
+    case "humanVerification":
+      return messages.authHumanVerificationRequired;
     default:
       return undefined;
   }

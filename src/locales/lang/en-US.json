@@ -23,6 +23,7 @@
   "authConfirmPassword": "Confirm password",
   "authCreateAccount": "Create account",
   "authExistingAccountLogin": "Already have an account? Sign in",
+  "authHumanVerificationRequired": "Complete the human verification before continuing.",
   "authInvalidCredentials": "Incorrect username or password.",
   "authLanguage": "Language",
   "authLogin": "Sign in",
