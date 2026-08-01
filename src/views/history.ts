@@ -55,7 +55,7 @@ export function renderHistory(options: {
  * @param csrfToken CSRF 令牌。
  * @return 历史表格 HTML。
  */
-function renderHistoryTable(
+export function renderHistoryTable(
   table: MatchTableResult,
   messages: ReturnType<typeof getMessages>,
   locale: AppSettings["locale"],
