@@ -12,14 +12,20 @@ import type {
   MatchRecord,
   PasswordCredential,
   PendingEmailVerification,
+  PendingMfaChallenge,
   PollingSettings,
   PollIntervalUnit,
   PollSort,
   TopicRule,
   UserAccount,
+  UserSecuritySettings,
   UserSession,
 } from "../models.ts";
 import { normalizeEmailAddress } from "../auth/email.ts";
+import {
+  normalizePendingMfaChallenge,
+  normalizeUserSecuritySettings,
+} from "../auth/mfa.ts";
 import {
   normalizeNotificationEmailService,
   normalizeNotificationWebhookService,
@@ -46,8 +52,10 @@ const keys = {
     ["passwordCredentials", userId] as const,
   pendingEmailVerification: (id: string) =>
     ["pendingEmailVerifications", id] as const,
+  pendingMfaChallenge: (id: string) => ["pendingMfaChallenges", id] as const,
   rateLimit: (parts: readonly string[]) => ["rateLimits", ...parts] as const,
   session: (tokenHash: string) => ["sessions", tokenHash] as const,
+  securitySettings: (userId: string) => ["securitySettings", userId] as const,
   settings: (userId: string) => ["userData", userId, "settings"] as const,
   state: (userId: string) => ["userData", userId, "state"] as const,
 };
@@ -531,6 +539,39 @@ export function createKvStorage(
     },
 
     /**
+     * 获取指定用户的安全设置。
+     *
+     * @param userId 用户 ID。
+     * @return 用户安全设置。
+     */
+    async getUserSecuritySettings(
+      userId: string,
+    ): Promise<UserSecuritySettings> {
+      const store = await kv();
+      const entry = await store.get<Partial<UserSecuritySettings>>(
+        keys.securitySettings(userId),
+      );
+      return normalizeUserSecuritySettings(entry.value, userId);
+    },
+
+    /**
+     * 保存指定用户的安全设置。
+     *
+     * @param settings 用户安全设置。
+     * @return 保存完成后的 Promise。
+     */
+    async saveUserSecuritySettings(
+      settings: UserSecuritySettings,
+    ): Promise<void> {
+      const normalized = normalizeUserSecuritySettings(
+        settings,
+        settings.userId,
+      );
+      const store = await kv();
+      await store.set(keys.securitySettings(normalized.userId), normalized);
+    },
+
+    /**
      * 获取指定用户的独立密码凭证。
      *
      * @param userId 用户 ID。
@@ -700,6 +741,53 @@ export function createKvStorage(
     async deletePendingEmailVerification(id: string): Promise<void> {
       const store = await kv();
       await store.delete(keys.pendingEmailVerification(id));
+    },
+
+    /**
+     * 获取待完成的 MFA challenge。
+     *
+     * @param id MFA challenge ID。
+     * @return 待完成 MFA challenge，不存在时返回 undefined。
+     */
+    async getPendingMfaChallenge(
+      id: string,
+    ): Promise<PendingMfaChallenge | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingMfaChallenge>(
+        keys.pendingMfaChallenge(id),
+      );
+      return entry.value
+        ? normalizePendingMfaChallenge(entry.value)
+        : undefined;
+    },
+
+    /**
+     * 保存待完成的 MFA challenge。
+     *
+     * @param challenge 待完成 MFA challenge。
+     * @return 保存完成后的 Promise。
+     */
+    async savePendingMfaChallenge(
+      challenge: PendingMfaChallenge,
+    ): Promise<void> {
+      const normalized = normalizePendingMfaChallenge(challenge);
+      const store = await kv();
+      await store.set(
+        keys.pendingMfaChallenge(normalized.id),
+        normalized,
+        expireInFromIso(normalized.expiresAt),
+      );
+    },
+
+    /**
+     * 删除待完成的 MFA challenge。
+     *
+     * @param id MFA challenge ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePendingMfaChallenge(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingMfaChallenge(id));
     },
 
     /**

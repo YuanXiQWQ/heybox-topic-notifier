@@ -284,6 +284,7 @@ export type UserSecuritySettings = {
  */
 export type PendingMfaChallenge = {
   allowedMethods: SecondFactorMethod[];
+  attempts: number;
   createdAt: string;
   expiresAt: string;
   id: string;

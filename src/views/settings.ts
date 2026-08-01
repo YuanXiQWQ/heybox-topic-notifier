@@ -9,8 +9,10 @@ import type {
   EmailCredential,
   KeywordRule,
   MatchLocation,
+  SecondFactorMethod,
   TopicRule,
   UserAccount,
+  UserSecuritySettings,
 } from "../models.ts";
 import { turnstileResponseFieldName } from "../auth/turnstile.ts";
 import {
@@ -60,6 +62,11 @@ export type EmailBindingStatus = {
   type: "error" | "success";
 };
 
+export type SecuritySettingsStatus = {
+  code: "preferred" | "unavailable" | "updated";
+  type: "error" | "success";
+};
+
 /**
  * 渲染设置页面。
  *
@@ -72,6 +79,9 @@ export function renderSettings(options: {
   csrfToken: string;
   emailBindingStatus?: EmailBindingStatus;
   emailCredentials?: EmailCredential[];
+  secondFactorMethods?: SecondFactorMethod[];
+  securitySettings?: UserSecuritySettings;
+  securityStatus?: SecuritySettingsStatus;
   settings: AppSettings;
   turnstileSiteKey?: string;
 }): string {
@@ -99,6 +109,17 @@ export function renderSettings(options: {
       options.csrfToken,
       options.turnstileSiteKey,
     )
+  }
+    ${
+    options.securitySettings
+      ? renderSecuritySection(
+        options.settings,
+        options.securitySettings,
+        options.secondFactorMethods ?? [],
+        options.securityStatus,
+        options.csrfToken,
+      )
+      : ""
   }
     <form
       method="post"
@@ -563,6 +584,213 @@ function renderEmailBindingSection(
       </section>
     </form>
   `;
+}
+
+/**
+ * 渲染账户安全设置区域。
+ *
+ * @param {AppSettings} settings 应用设置。
+ * @param {UserSecuritySettings} securitySettings 用户安全设置。
+ * @param {SecondFactorMethod[]} methods 当前可用二次验证方式。
+ * @param {SecuritySettingsStatus | undefined} status 最近一次保存状态。
+ * @param {string} csrfToken CSRF 令牌。
+ * @return {string} 账户安全设置区域 HTML。
+ */
+function renderSecuritySection(
+  settings: AppSettings,
+  securitySettings: UserSecuritySettings,
+  methods: SecondFactorMethod[],
+  status: SecuritySettingsStatus | undefined,
+  csrfToken: string,
+): string {
+  const messages = getMessages(settings.locale);
+  const preferredMethods = preferredSecondFactorMethods(methods);
+  const selectedPreferred = selectedPreferredSecondFactor(
+    securitySettings,
+    preferredMethods,
+  );
+  const statusMessage = status
+    ? securitySettingsStatusMessage(status, messages)
+    : "";
+  const statusState = status?.type === "error" ? 'data-state="error"' : "";
+  const toggleDisabled = methods.length === 0 &&
+      !securitySettings.twoFactorEnabled
+    ? "disabled"
+    : "";
+  const preferredDisabled = preferredMethods.length === 0 ? "disabled" : "";
+
+  return `
+    <form method="post" action="/account/security" data-security-settings-form>
+      ${csrfHiddenInput(csrfToken)}
+      <section class="settings-group" aria-labelledby="account-security-heading">
+        <h2 id="account-security-heading">${
+    escapeHtml(messages.accountSecuritySettings)
+  }</h2>
+        <dl class="settings-list">
+          <div>
+            ${settingLabel("toggle_on", messages.accountTwoFactor)}
+            <dd>
+              <div class="security-toggle-row">
+                <label class="switch-control">
+                  <input
+                    type="checkbox"
+                    name="twoFactorEnabled"
+                    aria-label="${escapeHtml(messages.accountTwoFactor)}"
+                    ${securitySettings.twoFactorEnabled ? "checked" : ""}
+                    ${toggleDisabled}
+                  >
+                </label>
+                <span class="field-hint">${
+    escapeHtml(
+      securitySettings.twoFactorEnabled
+        ? messages.accountTwoFactorEnabled
+        : messages.accountTwoFactorDisabled,
+    )
+  }</span>
+              </div>
+            </dd>
+          </div>
+          <div>
+            ${settingLabel("key", messages.accountTwoFactorMethods)}
+            <dd>${renderSecondFactorMethodList(methods, messages)}</dd>
+          </div>
+          <div>
+            ${settingLabel("token", messages.accountTwoFactorPreferred)}
+            <dd>
+              <select name="preferredSecondFactor" ${preferredDisabled}>
+                ${
+    preferredMethods.map((method) =>
+      option(
+        method,
+        selectedPreferred ?? "",
+        secondFactorMethodLabel(method, messages),
+      )
+    ).join("")
+  }
+              </select>
+            </dd>
+          </div>
+        </dl>
+        <div class="form-actions account-form-actions">
+          <button type="submit">${
+    escapeHtml(messages.accountTwoFactorSave)
+  }</button>
+          <span
+            class="inline-action-status"
+            data-security-settings-status
+            ${statusState}
+            ${statusMessage ? "" : "hidden"}
+            role="status"
+          >${escapeHtml(statusMessage)}</span>
+        </div>
+      </section>
+    </form>
+  `;
+}
+
+/**
+ * 渲染可用二次验证方式列表。
+ *
+ * @param {SecondFactorMethod[]} methods 当前可用二次验证方式。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 二次验证方式列表 HTML。
+ */
+function renderSecondFactorMethodList(
+  methods: SecondFactorMethod[],
+  messages: ReturnType<typeof getMessages>,
+): string {
+  if (methods.length === 0) {
+    return `<span class="field-hint">${
+      escapeHtml(messages.accountTwoFactorNoMethods)
+    }</span>`;
+  }
+
+  return `<ul class="email-credential-list security-method-list">
+    ${
+    methods.map((method) =>
+      `<li data-security-method="${escapeHtml(method)}"><span>${
+        escapeHtml(secondFactorMethodLabel(method, messages))
+      }</span></li>`
+    ).join("")
+  }
+  </ul>`;
+}
+
+/**
+ * 筛选可作为默认项的二次验证方式。
+ *
+ * @param {SecondFactorMethod[]} methods 当前可用二次验证方式。
+ * @return {Exclude<SecondFactorMethod, "recoveryCode">[]} 默认验证方式候选列表。
+ */
+function preferredSecondFactorMethods(
+  methods: SecondFactorMethod[],
+): Exclude<SecondFactorMethod, "recoveryCode">[] {
+  return methods.filter((
+    method,
+  ): method is Exclude<SecondFactorMethod, "recoveryCode"> =>
+    method !== "recoveryCode"
+  );
+}
+
+/**
+ * 选择默认二次验证方式。
+ *
+ * @param {UserSecuritySettings} securitySettings 用户安全设置。
+ * @param {Exclude<SecondFactorMethod, "recoveryCode">[]} methods 默认验证方式候选列表。
+ * @return {Exclude<SecondFactorMethod, "recoveryCode"> | undefined} 当前选中默认方式。
+ */
+function selectedPreferredSecondFactor(
+  securitySettings: UserSecuritySettings,
+  methods: Exclude<SecondFactorMethod, "recoveryCode">[],
+): Exclude<SecondFactorMethod, "recoveryCode"> | undefined {
+  return securitySettings.preferredSecondFactor &&
+      methods.includes(securitySettings.preferredSecondFactor)
+    ? securitySettings.preferredSecondFactor
+    : methods[0];
+}
+
+/**
+ * 生成二次验证方式展示文案。
+ *
+ * @param {SecondFactorMethod} method 二次验证方式。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 展示文案。
+ */
+function secondFactorMethodLabel(
+  method: SecondFactorMethod,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  switch (method) {
+    case "email":
+      return messages.accountSecondFactorEmail;
+    case "passkey":
+      return messages.accountSecondFactorPasskey;
+    case "recoveryCode":
+      return messages.accountSecondFactorRecoveryCode;
+    case "totp":
+      return messages.accountSecondFactorTotp;
+  }
+}
+
+/**
+ * 生成安全设置保存状态文案。
+ *
+ * @param {SecuritySettingsStatus} status 保存状态。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 状态文案。
+ */
+function securitySettingsStatusMessage(
+  status: SecuritySettingsStatus,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  switch (status.code) {
+    case "preferred":
+      return messages.accountTwoFactorPreferredUnavailable;
+    case "unavailable":
+      return messages.accountTwoFactorUnavailable;
+    case "updated":
+      return messages.accountTwoFactorUpdated;
+  }
 }
 
 /**

@@ -20,7 +20,9 @@ import type {
   EmailCredential,
   PasswordCredential,
   PendingEmailVerification,
+  PendingMfaChallenge,
   UserAccount,
+  UserSecuritySettings,
   UserSession,
 } from "./models.ts";
 import { base64UrlEncode } from "./security/crypto_utils.ts";
@@ -766,6 +768,162 @@ Deno.test("auth routes login existing users", async () => {
   assertEquals(session?.username, "alice");
 });
 
+Deno.test("auth routes require MFA after password login when enabled", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, emailVerificationAuthOptions());
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await enableEmailSecondFactor(storage, account.id);
+
+  const response = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const location = response.headers.get("location") ?? "";
+  const challengeId = mfaChallengeIdFromLocation(location);
+  const challenge = await storage.getPendingMfaChallenge(challengeId);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const pageResponse = await app.request(location);
+  const pageHtml = await pageResponse.text();
+
+  assertEquals(response.status, 303);
+  assertEquals(location.startsWith("/mfa?locale=zh-CN&challenge="), true);
+  assertEquals(
+    new URL(location, "http://local").searchParams.get("returnTo"),
+    "/history",
+  );
+  assertEquals(session, undefined);
+  assertEquals(challenge?.userId, account.id);
+  assertEquals(challenge?.primaryMethod, "password");
+  assertEquals(challenge?.allowedMethods, ["email"]);
+  assertEquals(pageResponse.status, 200);
+  assertEquals(pageHtml.includes("data-mfa-email-form"), true);
+  assertEquals(pageHtml.includes('data-mfa-method="email"'), true);
+  assertEquals(pageHtml.includes("双重验证"), true);
+});
+
+Deno.test("auth routes complete email MFA and create a session", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(
+    storage,
+    emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+  );
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await enableEmailSecondFactor(storage, account.id);
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const challengeId = mfaChallengeIdFromLocation(
+    loginResponse.headers.get("location"),
+  );
+  const codeResponse = await app.request("/auth/email-verifications", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        email: "alice@example.com",
+        purpose: "second_factor",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const codePayload = await codeResponse.json();
+  const sentCode = sentMessages[0].text.match(/[0-9]{6}/)?.[0] ?? "";
+  const response = await app.request("/mfa", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        code: sentCode,
+        email: "alice@example.com",
+        method: "email",
+        returnTo: "/history",
+        verificationId: String(codePayload.id),
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(codeResponse.status, 200);
+  assertEquals(codePayload.ok, true);
+  assertEquals(sentMessages.length, 1);
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(await storage.getPendingMfaChallenge(challengeId), undefined);
+  assertEquals(
+    await storage.getPendingEmailVerification(String(codePayload.id)),
+    undefined,
+  );
+});
+
+Deno.test("auth routes reject second-factor email codes without MFA challenge", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(
+    storage,
+    emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+  );
+
+  const response = await app.request("/auth/email-verifications", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId: "missing-challenge",
+        email: "alice@example.com",
+        purpose: "second_factor",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 400);
+  assertEquals((await response.json()).error, "mfaChallengeInvalid");
+  assertEquals(sentMessages.length, 0);
+  assertEquals(storage.pendingEmailVerificationsById.size, 0);
+});
+
 Deno.test("auth routes migrate legacy password credentials after login", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
@@ -1008,6 +1166,50 @@ function emailVerificationAuthOptions(options: {
 }
 
 /**
+ * 为测试账户启用邮箱二次验证。
+ *
+ * @param storage 测试存储。
+ * @param userId 用户 ID。
+ * @param email 已验证邮箱地址。
+ * @return 保存完成后的 Promise。
+ */
+async function enableEmailSecondFactor(
+  storage: ReturnType<typeof createMemoryStorage>,
+  userId: string,
+  email = "alice@example.com",
+): Promise<void> {
+  const now = new Date().toISOString();
+  await storage.saveEmailCredential({
+    createdAt: now,
+    email,
+    lastVerifiedAt: now,
+    userId,
+    verified: true,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "email",
+    twoFactorEnabled: true,
+    userId,
+  });
+}
+
+/**
+ * 从 MFA 重定向地址中读取 challenge ID。
+ *
+ * @param location 重定向地址。
+ * @return MFA challenge ID。
+ */
+function mfaChallengeIdFromLocation(location: string | null): string {
+  const challengeId = new URL(location ?? "", "http://local").searchParams.get(
+    "challenge",
+  );
+  if (!challengeId) {
+    throw new Error("MFA challenge ID 缺失。");
+  }
+  return challengeId;
+}
+
+/**
  * 创建启用 Google 登录的认证测试配置。
  *
  * @param jwks Google JWKS 测试响应。
@@ -1152,7 +1354,9 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
   emailCredentialsByKey: Map<string, EmailCredential>;
   passwordCredentialsByUserId: Map<string, PasswordCredential>;
   pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
+  pendingMfaChallengesById: Map<string, PendingMfaChallenge>;
   savedSessions: UserSession[];
+  securitySettingsByUserId: Map<string, UserSecuritySettings>;
   settingsByUserId: Map<string, AppSettings>;
 } {
   const accountsById = new Map<string, UserAccount>();
@@ -1168,6 +1372,8 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     string,
     PendingEmailVerification
   >();
+  const pendingMfaChallengesById = new Map<string, PendingMfaChallenge>();
+  const securitySettingsByUserId = new Map<string, UserSecuritySettings>();
   const settingsByUserId = new Map<string, AppSettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
   const savedSessions: UserSession[] = [];
@@ -1178,7 +1384,9 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     emailCredentialsByKey,
     passwordCredentialsByUserId,
     pendingEmailVerificationsById,
+    pendingMfaChallengesById,
     savedSessions,
+    securitySettingsByUserId,
     settingsByUserId,
     /**
      * 创建指定测试用户作用域的设置存储。
@@ -1297,6 +1505,28 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       pendingEmailVerificationsById.delete(id);
       return Promise.resolve();
     },
+    getPendingMfaChallenge: (id: string) =>
+      Promise.resolve(pendingMfaChallengesById.get(id)),
+    savePendingMfaChallenge: (challenge: PendingMfaChallenge) => {
+      pendingMfaChallengesById.set(challenge.id, challenge);
+      return Promise.resolve();
+    },
+    deletePendingMfaChallenge: (id: string) => {
+      pendingMfaChallengesById.delete(id);
+      return Promise.resolve();
+    },
+    getUserSecuritySettings: (userId: string) =>
+      Promise.resolve(
+        securitySettingsByUserId.get(userId) ?? {
+          preferredSecondFactor: undefined,
+          twoFactorEnabled: false,
+          userId,
+        },
+      ),
+    saveUserSecuritySettings: (settings: UserSecuritySettings) => {
+      securitySettingsByUserId.set(settings.userId, settings);
+      return Promise.resolve();
+    },
     getLoginFailure: (username: string) =>
       Promise.resolve(
         loginFailuresByUsername.get(username.trim().toLowerCase()),
@@ -1344,7 +1574,9 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     emailCredentialsByKey: Map<string, EmailCredential>;
     passwordCredentialsByUserId: Map<string, PasswordCredential>;
     pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
+    pendingMfaChallengesById: Map<string, PendingMfaChallenge>;
     savedSessions: UserSession[];
+    securitySettingsByUserId: Map<string, UserSecuritySettings>;
     settingsByUserId: Map<string, AppSettings>;
   };
 }

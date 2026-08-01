@@ -12,6 +12,7 @@ import type {
   PasswordCredential,
   PendingEmailVerification,
   UserAccount,
+  UserSecuritySettings,
   UserSession,
 } from "./models.ts";
 import type { AppContext } from "./services/app_context.ts";
@@ -110,6 +111,7 @@ type AccountRouteStorage = {
     userId: string,
   ): Promise<PasswordCredential | undefined>;
   getSession(tokenHash: string): Promise<UserSession | undefined>;
+  getUserSecuritySettings(userId: string): Promise<UserSecuritySettings>;
   listEmailCredentials(userId: string): Promise<EmailCredential[]>;
   recordLoginFailure(
     username: string,
@@ -126,6 +128,7 @@ type AccountRouteStorage = {
   ): Promise<void>;
   savePasswordCredential(credential: PasswordCredential): Promise<void>;
   saveSession(session: UserSession): Promise<void>;
+  saveUserSecuritySettings(settings: UserSecuritySettings): Promise<void>;
   updateAccount(account: UserAccount): Promise<boolean>;
 };
 
@@ -695,6 +698,115 @@ Deno.test("account email route rejects an incorrect verification code", async ()
   assertEquals(updatedAccount?.emailVerified, undefined);
 });
 
+Deno.test("account security route enables 2FA when a verified method exists", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  await storage.saveEmailCredential({
+    createdAt: "2026-07-31T12:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-07-31T12:05:00.000Z",
+    userId: account.id,
+    verified: true,
+  });
+
+  const response = await app.request("/account/security", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        preferredSecondFactor: "email",
+        twoFactorEnabled: "on",
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?security=updated");
+  assertEquals(await storage.getUserSecuritySettings(account.id), {
+    preferredSecondFactor: "email",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
+});
+
+Deno.test("account security route rejects enabling 2FA without a method", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+
+  const response = await app.request("/account/security", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        twoFactorEnabled: "on",
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/settings?securityError=unavailable",
+  );
+  assertEquals(await storage.getUserSecuritySettings(account.id), {
+    preferredSecondFactor: undefined,
+    twoFactorEnabled: false,
+    userId: account.id,
+  });
+});
+
+Deno.test("account security route rejects unavailable preferred 2FA methods", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("Expected test account to exist.");
+  }
+  await storage.saveEmailCredential({
+    createdAt: "2026-07-31T12:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-07-31T12:05:00.000Z",
+    userId: account.id,
+    verified: true,
+  });
+
+  const response = await app.request("/account/security", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        preferredSecondFactor: "passkey",
+        twoFactorEnabled: "on",
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/settings?securityError=preferred",
+  );
+  assertEquals(await storage.getUserSecuritySettings(account.id), {
+    preferredSecondFactor: undefined,
+    twoFactorEnabled: false,
+    userId: account.id,
+  });
+});
+
 Deno.test("test notify returns a readable configuration error", async () => {
   const app = createRoutes({
     notifier: {
@@ -1149,6 +1261,7 @@ function createAccountRouteStorage(): AccountRouteStorage {
     string,
     PendingEmailVerification
   >();
+  const securitySettingsByUserId = new Map<string, UserSecuritySettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
 
   return {
@@ -1195,6 +1308,18 @@ function createAccountRouteStorage(): AccountRouteStorage {
         emailCredentialKey(credential.userId, credential.email),
         credential,
       );
+      return Promise.resolve();
+    },
+    getUserSecuritySettings: (userId: string) =>
+      Promise.resolve(
+        securitySettingsByUserId.get(userId) ?? {
+          preferredSecondFactor: undefined,
+          twoFactorEnabled: false,
+          userId,
+        },
+      ),
+    saveUserSecuritySettings: (settings: UserSecuritySettings) => {
+      securitySettingsByUserId.set(settings.userId, settings);
       return Promise.resolve();
     },
     getPendingEmailVerification: (id: string) =>
