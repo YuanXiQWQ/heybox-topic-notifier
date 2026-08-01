@@ -82,13 +82,16 @@ Deno.test("poll scheduler runs one due poll and updates its in-memory start guar
         },
       },
       storage: {
-        getAppState: () => Promise.resolve({ lastPollAt, totalMatches: 0 }),
+        getAppState: () => {
+          throw new Error("getAppState should not be called");
+        },
+        getLastPollAt: () => Promise.resolve(lastPollAt),
         getSettings: () =>
           Promise.resolve({
             polling: { enabled: true, intervalUnit: "minute", intervalValue: 5 },
           }),
       },
-    } as Parameters<typeof createPollScheduler>[0],
+    } as unknown as Parameters<typeof createPollScheduler>[0],
   );
 
   assertEquals(await scheduler.tick(), true);
@@ -103,13 +106,16 @@ Deno.test("poll scheduler swallows scheduled poll failures", async () => {
         runOnce: () => Promise.reject(new Error("network failed")),
       },
       storage: {
-        getAppState: () => Promise.resolve({ totalMatches: 0 }),
+        getAppState: () => {
+          throw new Error("getAppState should not be called");
+        },
+        getLastPollAt: () => Promise.resolve(undefined),
         getSettings: () =>
           Promise.resolve({
             polling: { enabled: true, intervalUnit: "minute", intervalValue: 5 },
           }),
       },
-    } as Parameters<typeof createPollScheduler>[0],
+    } as unknown as Parameters<typeof createPollScheduler>[0],
   );
 
   assertEquals(await scheduler.tick(), false);

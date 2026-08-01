@@ -209,6 +209,17 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
       },
 
       /**
+       * 获取当前用户最后轮询时间。
+       *
+       * @return {Promise<string | undefined>} 最后轮询时间，不存在时返回 undefined。
+       */
+      async getLastPollAt(): Promise<string | undefined> {
+        const store = await kv();
+        const state = await store.get<AppState>(keys.state(userId));
+        return state.value?.lastPollAt;
+      },
+
+      /**
        * 获取当前用户仪表盘快照。
        *
        * @return 仪表盘快照。
@@ -633,6 +644,15 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
      */
     async getAppState(): Promise<AppState> {
       return await forUser("default").getAppState();
+    },
+
+    /**
+     * 获取默认用户最后轮询时间。
+     *
+     * @return {Promise<string | undefined>} 默认用户最后轮询时间，不存在时返回 undefined。
+     */
+    async getLastPollAt(): Promise<string | undefined> {
+      return await forUser("default").getLastPollAt();
     },
 
     /**

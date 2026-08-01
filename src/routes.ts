@@ -41,7 +41,7 @@ import {
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderPendingMatches } from "./views/dashboard.ts";
-import { renderHistory } from "./views/history.ts";
+import { renderHistory, renderHistoryTable } from "./views/history.ts";
 import {
   applyMatchTableQuery,
   matchTableSignature,
@@ -59,6 +59,10 @@ import {
  */
 const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
 /**
+ * 单次请求内的认证会话读取缓存。
+ */
+const authSessionPromisesByRequest = new WeakMap<Request, ReturnType<typeof readAuthSession>>();
+/**
  * 手动轮询后用于触发前端进度条重置的查询参数名。
  */
 const pollResetParam = "pollReset";
@@ -66,6 +70,10 @@ const pollResetParam = "pollReset";
  * 手动轮询前进度条起始宽度查询参数名。
  */
 const pollResetStartParam = "pollResetStart";
+/**
+ * 命中记录表局部刷新请求头。
+ */
+const matchTableRefreshHeader = "x-match-table-refresh";
 
 /**
  * 创建应用业务路由。
@@ -177,6 +185,65 @@ export function createRoutes(context: AppContext): Hono {
         },
         totalMatches: state.totalMatches,
       }),
+      csrf,
+    );
+  }
+
+  /**
+   * 返回待处理命中表格局部刷新 HTML。
+   *
+   * @param c Hono 请求上下文。
+   * @param storage 当前用户作用域存储。
+   * @param returnTo 表格当前路径和查询参数。
+   * @return 待处理命中表格 HTML 响应。
+   */
+  async function pendingMatchesTableResponse(
+    c: Context,
+    storage: Awaited<ReturnType<typeof storageForRequest>>,
+    returnTo: string,
+  ): Promise<Response> {
+    const url = new URL(returnTo, "http://local");
+    const { pendingMatches, settings } = await storage.getDashboardSnapshot();
+    const table = applyMatchTableQuery(
+      pendingMatches,
+      parseMatchTableQuery(url.searchParams),
+    );
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    const messages = getMessages(settings.locale);
+
+    return withCsrfCookie(
+      c.html(
+        renderPendingMatches(table, messages, settings.locale, csrf.token),
+      ),
+      csrf,
+    );
+  }
+
+  /**
+   * 返回历史命中表格局部刷新 HTML。
+   *
+   * @param c Hono 请求上下文。
+   * @param storage 当前用户作用域存储。
+   * @param returnTo 表格当前路径和查询参数。
+   * @return 历史命中表格 HTML 响应。
+   */
+  async function historyTableResponse(
+    c: Context,
+    storage: Awaited<ReturnType<typeof storageForRequest>>,
+    returnTo: string,
+  ): Promise<Response> {
+    const url = new URL(returnTo, "http://local");
+    const settings = await storage.getSettings();
+    const history = await storage.listHistory();
+    const table = applyMatchTableQuery(
+      history,
+      parseMatchTableQuery(url.searchParams),
+    );
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    const messages = getMessages(settings.locale);
+
+    return withCsrfCookie(
+      c.html(renderHistoryTable(table, messages, settings.locale, csrf.token)),
       csrf,
     );
   }
@@ -442,7 +509,11 @@ export function createRoutes(context: AppContext): Hono {
     if (ids.length > 0) {
       await storage.completeMatches(ids);
     }
-    return c.redirect(safeRedirectPath(form.get("returnTo"), "/"));
+    const returnTo = safeRedirectPath(form.get("returnTo"), "/");
+    if (isMatchTableRefreshRequest(c)) {
+      return await pendingMatchesTableResponse(c, storage, returnTo);
+    }
+    return c.redirect(returnTo);
   });
 
   app.post("/matches/delete", async (c) => {
@@ -456,7 +527,11 @@ export function createRoutes(context: AppContext): Hono {
     if (ids.length > 0) {
       await storage.deleteMatches(ids);
     }
-    return c.redirect(safeRedirectPath(form.get("returnTo"), "/history"));
+    const returnTo = safeRedirectPath(form.get("returnTo"), "/history");
+    if (isMatchTableRefreshRequest(c)) {
+      return await historyTableResponse(c, storage, returnTo);
+    }
+    return c.redirect(returnTo);
   });
 
   app.get("/static/app.css", async () => {
@@ -490,7 +565,7 @@ export function createRoutes(context: AppContext): Hono {
  * @return 当前请求用户作用域存储。
  */
 async function storageForRequest(
-  c: { req: { header(name: string): string | undefined } },
+  c: { req: { header(name: string): string | undefined; raw: Request } },
   context: AppContext,
 ) {
   const storage = await optionalStorageForRequest(c, context);
@@ -508,7 +583,7 @@ async function storageForRequest(
  * @return 当前请求用户作用域存储。
  */
 async function optionalStorageForRequest(
-  c: { req: { header(name: string): string | undefined } },
+  c: { req: { header(name: string): string | undefined; raw: Request } },
   context: AppContext,
 ) {
   const storage = (context as { storage?: AppContext["storage"] }).storage;
@@ -516,7 +591,7 @@ async function optionalStorageForRequest(
     return undefined;
   }
 
-  const session = await readAuthSession(c.req.header("cookie"), storage);
+  const session = await cachedAuthSessionForRequest(c, storage);
   return "forUser" in storage ? storage.forUser(session?.userId ?? "default") : storage;
 }
 
@@ -528,11 +603,31 @@ async function optionalStorageForRequest(
  * @return 当前登录会话，未登录时返回 undefined。
  */
 async function authSessionForRequest(
-  c: { req: { header(name: string): string | undefined } },
+  c: { req: { header(name: string): string | undefined; raw: Request } },
   context: AppContext,
 ) {
   const storage = (context as { storage?: AppContext["storage"] }).storage;
-  return storage ? await readAuthSession(c.req.header("cookie"), storage) : undefined;
+  return storage ? await cachedAuthSessionForRequest(c, storage) : undefined;
+}
+
+/**
+ * 在同一次请求内复用认证会话读取结果。
+ *
+ * @param {{ req: { header(name: string): string | undefined; raw: Request } }} c Hono 请求上下文的最小结构。
+ * @param {AppContext["storage"]} storage 应用存储。
+ * @return {ReturnType<typeof readAuthSession>} 当前登录会话，未登录时返回 undefined。
+ */
+async function cachedAuthSessionForRequest(
+  c: { req: { header(name: string): string | undefined; raw: Request } },
+  storage: AppContext["storage"],
+): ReturnType<typeof readAuthSession> {
+  let promise = authSessionPromisesByRequest.get(c.req.raw);
+  if (!promise) {
+    promise = readAuthSession(c.req.header("cookie"), storage);
+    authSessionPromisesByRequest.set(c.req.raw, promise);
+  }
+
+  return await promise;
 }
 
 type AccountErrorCode =
@@ -645,6 +740,18 @@ function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/hi
 }
 
 /**
+ * 判断请求是否要求命中记录表局部刷新。
+ *
+ * @param c Hono 请求上下文的最小结构。
+ * @return 请求要求局部刷新时返回 true。
+ */
+function isMatchTableRefreshRequest(
+  c: { req: { header(name: string): string | undefined } },
+) {
+  return c.req.header(matchTableRefreshHeader) === "1";
+}
+
+/**
  * 给路径追加轮询重置标记。
  *
  * @param path 原始路径。
@@ -749,8 +856,8 @@ async function rateLimitResponseForRequest(
   const storage = (context as { storage?: AppContext["storage"] }).storage;
   const canReadSession = typeof (storage as { getSession?: unknown } | undefined)?.getSession ===
     "function";
-  const session = canReadSession
-    ? await readAuthSession(c.req.header("cookie"), context.storage)
+  const session = canReadSession && storage
+    ? await cachedAuthSessionForRequest(c, storage)
     : undefined;
   const identifier = session
     ? userRateLimitIdentifier(session.userId)

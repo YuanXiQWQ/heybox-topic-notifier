@@ -58,6 +58,7 @@ export function renderMatchRecordsSection(
     <section
       class="table-section"
       aria-labelledby="${escapeHtml(options.headingId)}"
+      data-match-table-section="${escapeHtml(options.headingId)}"
       data-match-table-signature="${
     escapeHtml(matchTableSignature(options.table))
   }"
@@ -72,7 +73,9 @@ export function renderMatchRecordsSection(
     options.table.totalRecords === 0
       ? `<p>${escapeHtml(options.emptyMessage)}</p>`
       : `
-        <form method="post" action="${escapeHtml(options.formAction)}">
+        <form method="post" action="${
+        escapeHtml(options.formAction)
+      }" data-match-table-form>
           ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${
         escapeHtml(buildMatchTableUrl(options.path, options.table, {}))
@@ -118,6 +121,7 @@ export function renderMatchRecordsSection(
     ${renderPaginationScript()}
     ${renderRelativeTimeScript()}
     ${renderOverflowScript()}
+    ${renderTableActionScript()}
     ${renderSelectionScript(options.action)}
   `;
 }
@@ -940,6 +944,129 @@ function renderOverflowScript(): string {
       if (window.ResizeObserver) {
         const observer = new ResizeObserver(scheduleUpdate);
         for (const table of document.querySelectorAll(".match-table")) observer.observe(table);
+      }
+    })();
+  </script>`;
+}
+
+/**
+ * 渲染命中记录表操作后的局部刷新脚本。
+ *
+ * @return 表格局部刷新脚本 HTML。
+ */
+function renderTableActionScript(): string {
+  return `<script>
+    (() => {
+      const installedKey = "__matchTableActionScriptInstalled";
+      if (window[installedKey]) return;
+      window[installedKey] = true;
+
+      document.addEventListener("submit", async (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.matches("[data-match-table-form]")) {
+          return;
+        }
+        event.preventDefault();
+        await submitMatchTableForm(form, event.submitter);
+      });
+
+      async function submitMatchTableForm(form, submitter) {
+        if (form.dataset.matchTableSubmitting === "true") return;
+        form.dataset.matchTableSubmitting = "true";
+        setFormSubmitting(form, true);
+        try {
+          const nextLocation = tableReturnTo(form);
+          const response = await fetch(form.action, {
+            body: formDataWithSubmitter(form, submitter),
+            credentials: "same-origin",
+            headers: { "x-match-table-refresh": "1" },
+            method: form.method || "post",
+          });
+          if (!response.ok) throw new Error("match table action failed");
+          const html = await response.text();
+          if (!replaceMatchTableSection(form, html)) {
+            navigateToResponse(response);
+            return;
+          }
+          updateBrowserUrl(response.redirected ? response.url : nextLocation);
+          refreshMatchTableBehaviors();
+        } catch {
+          navigateToFallback(form);
+        } finally {
+          form.dataset.matchTableSubmitting = "false";
+          setFormSubmitting(form, false);
+        }
+      }
+
+      function formDataWithSubmitter(form, submitter) {
+        const formData = new FormData(form);
+        if (
+          (submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement) &&
+          submitter.name
+        ) {
+          formData.append(submitter.name, submitter.value);
+        }
+        return formData;
+      }
+
+      function replaceMatchTableSection(form, html) {
+        const currentSection = form.closest("[data-match-table-section]");
+        const sectionKey = currentSection?.dataset.matchTableSection ?? "";
+        if (!(currentSection instanceof HTMLElement) || !sectionKey) return false;
+
+        const parsedDocument = new DOMParser().parseFromString(html, "text/html");
+        const nextSection = Array.from(parsedDocument.querySelectorAll("[data-match-table-section]"))
+          .find((section) =>
+            section instanceof HTMLElement && section.dataset.matchTableSection === sectionKey
+          );
+        if (!(nextSection instanceof HTMLElement)) return false;
+
+        currentSection.replaceWith(nextSection);
+        return true;
+      }
+
+      function refreshMatchTableBehaviors() {
+        window["__matchTableFilterInit"]?.();
+        window["__adaptivePaginationUpdate"]?.();
+        window["__matchTableRelativeTimeUpdate"]?.();
+        window["__matchTableOverflowUpdate"]?.();
+      }
+
+      function setFormSubmitting(form, isSubmitting) {
+        form.toggleAttribute("aria-busy", isSubmitting);
+        for (const button of form.querySelectorAll("button[type='submit']")) {
+          button.disabled = isSubmitting;
+        }
+      }
+
+      function updateBrowserUrl(rawUrl) {
+        const url = sameOriginUrl(rawUrl);
+        if (!url) return;
+        history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+      }
+
+      function navigateToResponse(response) {
+        const url = sameOriginUrl(response.url);
+        location.assign(url ? url.pathname + url.search + url.hash : location.href);
+      }
+
+      function navigateToFallback(form) {
+        const url = sameOriginUrl(tableReturnTo(form) || form.action);
+        location.assign(url ? url.pathname + url.search + url.hash : location.href);
+      }
+
+      function tableReturnTo(form) {
+        const returnTo = form.querySelector('input[name="returnTo"]');
+        return returnTo instanceof HTMLInputElement ? returnTo.value : "";
+      }
+
+      function sameOriginUrl(rawUrl) {
+        try {
+          const url = new URL(rawUrl || location.href, location.href);
+          return url.origin === location.origin ? url : null;
+        } catch {
+          return null;
+        }
       }
     })();
   </script>`;

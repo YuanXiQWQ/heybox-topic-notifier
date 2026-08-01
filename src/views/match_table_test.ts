@@ -134,6 +134,45 @@ Deno.test("renderMatchRecordsSection marks timestamps for live relative updates"
   assertIncludes(html, `window[updateKey] = updateRelativeTimes;`);
 });
 
+Deno.test("renderMatchRecordsSection refreshes table actions without page navigation", () => {
+  const html = renderMatchRecordsSection({
+    action: {
+      bulkButtonAttribute: "data-test-bulk",
+      emptySelectionMessage: "empty",
+      icon: "",
+      label: "complete",
+      rowCheckboxAttribute: "data-test-row",
+      selectAllAttribute: "data-test-all",
+    },
+    csrfToken: testCsrfToken,
+    emptyMessage: "empty",
+    filterToggleId: "test-filter",
+    formAction: "/matches/complete",
+    heading: "heading",
+    headingId: "heading-id",
+    locale: "zh-CN",
+    messages: getMessages("zh-CN"),
+    path: "/",
+    table: table([record("scroll-row", "2026-06-30T12:00:00.000Z")]),
+    titleLinkClass: "pending-title-link",
+  });
+
+  assertIncludes(html, `data-match-table-section="heading-id"`);
+  assertIncludes(html, `data-match-table-form`);
+  assertIncludes(
+    html,
+    `const installedKey = "__matchTableActionScriptInstalled";`,
+  );
+  assertIncludes(html, `event.preventDefault();`);
+  assertIncludes(html, `const response = await fetch(form.action, {`);
+  assertIncludes(html, `headers: { "x-match-table-refresh": "1" },`);
+  assertIncludes(html, `formData.append(submitter.name, submitter.value);`);
+  assertIncludes(html, `currentSection.replaceWith(nextSection);`);
+  assertIncludes(html, `window["__matchTableFilterInit"]?.();`);
+  assertNotIncludes(html, `sessionStorage`);
+  assertNotIncludes(html, `scrollTo`);
+});
+
 Deno.test("renderMatchRecordsSection folds match metadata into one details column", () => {
   const match = record("detail-row", "2026-06-30T12:00:00.000Z");
   const html = renderMatchRecordsSection({
