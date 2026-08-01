@@ -3,6 +3,7 @@
  */
 import type {
   AppSettings,
+  AuthenticationEvent,
   AuthIdentity,
   EmailCredential,
   MatchRecord,
@@ -375,6 +376,35 @@ Deno.test("auth identity storage reads saved Google identities", async () => {
   );
   assertEquals(
     await storage.getAuthIdentity("google", "missing-subject-id"),
+    undefined,
+  );
+});
+
+Deno.test("authentication event storage reads the latest event by purpose", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const event: AuthenticationEvent = {
+    authenticatedAt: "2026-08-01T00:00:00.000Z",
+    method: "passkey",
+    purpose: "reauth",
+    strength: "strong",
+    userId: "alice-id",
+  };
+
+  await storage.saveAuthenticationEvent(event);
+
+  assertEquals(
+    await storage.getAuthenticationEvent("alice-id", "reauth"),
+    event,
+  );
+  assertEquals(
+    await storage.getAuthenticationEvent("alice-id", "primary_login"),
+    undefined,
+  );
+  assertEquals(
+    await storage.getAuthenticationEvent("bob-id", "reauth"),
     undefined,
   );
 });

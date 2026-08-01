@@ -22,6 +22,7 @@ import {
   googleAuthConfigFromEnv,
 } from "../auth/google.ts";
 import { type PasskeyConfig, passkeyConfigFromEnv } from "../auth/passkey.ts";
+import { type ReauthConfig, reauthConfigFromEnv } from "../auth/reauth.ts";
 import { type TotpConfig, totpConfigFromEnv } from "../auth/totp.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
@@ -38,6 +39,7 @@ export type AppConfig = {
   google: GoogleAuthConfig;
   passkey: PasskeyConfig;
   port: number;
+  reauth: ReauthConfig;
   totp: TotpConfig;
   turnstile: TurnstileConfig;
 };
@@ -103,6 +105,7 @@ export function createAppContext() {
     google: googleAuthConfigFromEnv(),
     passkey: passkeyConfigFromEnv(),
     port: Number(Deno.env.get("PORT") ?? "8000"),
+    reauth: reauthConfigFromEnv(),
     totp: totpConfigFromEnv(),
     turnstile: turnstileConfigFromEnv(),
   };

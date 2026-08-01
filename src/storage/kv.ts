@@ -4,6 +4,8 @@
 import type {
   AppSettings,
   AppState,
+  AuthenticationEvent,
+  AuthenticationEventPurpose,
   AuthIdentity,
   AuthIdentityProvider,
   DashboardSnapshot,
@@ -42,6 +44,10 @@ const keys = {
   account: (id: string) => ["accounts", id] as const,
   accountUsername: (username: string) =>
     ["accountUsernames", normalizeUsername(username)] as const,
+  authenticationEvent: (
+    userId: string,
+    purpose: AuthenticationEventPurpose,
+  ) => ["authenticationEvents", userId, purpose] as const,
   authIdentity: (provider: AuthIdentityProvider, providerUserId: string) =>
     ["authIdentities", provider, providerUserId] as const,
   emailCredential: (userId: string, email: string) =>
@@ -582,6 +588,45 @@ export function createKvStorage(
       );
       const store = await kv();
       await store.set(keys.securitySettings(normalized.userId), normalized);
+    },
+
+    /**
+     * 获取指定用途的最近认证事件。
+     *
+     * @param userId 用户 ID。
+     * @param purpose 认证用途。
+     * @return 最近认证事件，不存在时返回 undefined。
+     */
+    async getAuthenticationEvent(
+      userId: string,
+      purpose: AuthenticationEventPurpose,
+    ): Promise<AuthenticationEvent | undefined> {
+      const store = await kv();
+      const entry = await store.get<AuthenticationEvent>(
+        keys.authenticationEvent(userId, purpose),
+      );
+      return entry.value
+        ? normalizeAuthenticationEvent(entry.value, userId, purpose)
+        : undefined;
+    },
+
+    /**
+     * 保存最近认证事件。
+     *
+     * @param event 认证事件。
+     * @return 保存完成后的 Promise。
+     */
+    async saveAuthenticationEvent(event: AuthenticationEvent): Promise<void> {
+      const normalized = normalizeAuthenticationEvent(
+        event,
+        event.userId,
+        event.purpose,
+      );
+      const store = await kv();
+      await store.set(
+        keys.authenticationEvent(normalized.userId, normalized.purpose),
+        normalized,
+      );
     },
 
     /**
@@ -1412,6 +1457,61 @@ function normalizePasskeyCredential(
     transports,
     userId,
   };
+}
+
+/**
+ * 规范化认证事件。
+ *
+ * @param event 认证事件。
+ * @param userId 兜底用户 ID。
+ * @param purpose 兜底认证用途。
+ * @return 规范化后的认证事件。
+ */
+function normalizeAuthenticationEvent(
+  event: AuthenticationEvent,
+  userId: string,
+  purpose: AuthenticationEventPurpose,
+): AuthenticationEvent {
+  return {
+    authenticatedAt: typeof event.authenticatedAt === "string"
+      ? event.authenticatedAt
+      : new Date(0).toISOString(),
+    method: isAuthenticationEventMethod(event.method)
+      ? event.method
+      : "password",
+    purpose: isAuthenticationEventPurpose(event.purpose)
+      ? event.purpose
+      : purpose,
+    strength: event.strength === "strong" ? "strong" : "normal",
+    userId,
+  };
+}
+
+/**
+ * 判断值是否为认证事件方式。
+ *
+ * @param value 待判断值。
+ * @return 值是认证事件方式时返回 true。
+ */
+function isAuthenticationEventMethod(
+  value: unknown,
+): value is AuthenticationEvent["method"] {
+  return value === "email_otp" || value === "google" ||
+    value === "passkey" || value === "password" ||
+    value === "recovery_code" || value === "totp";
+}
+
+/**
+ * 判断值是否为认证事件用途。
+ *
+ * @param value 待判断值。
+ * @return 值是认证事件用途时返回 true。
+ */
+function isAuthenticationEventPurpose(
+  value: unknown,
+): value is AuthenticationEventPurpose {
+  return value === "primary_login" || value === "reauth" ||
+    value === "second_factor";
 }
 
 /**
