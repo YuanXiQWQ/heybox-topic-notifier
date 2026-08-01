@@ -3,11 +3,13 @@
  */
 import { Hono } from "@hono/hono";
 import {
+  type AuthOptions,
   createAuthMiddleware,
   createAuthRoutes,
   hashPassword,
   readAuthSession,
 } from "./auth.ts";
+import { turnstileResponseFieldName } from "./auth/turnstile.ts";
 import type {
   AppSettings,
   PasswordCredential,
@@ -45,6 +47,21 @@ Deno.test("auth routes render login page without extra configuration", async () 
 
   assertEquals(response.status, 200);
   assertEquals((await response.text()).includes("登录"), true);
+});
+
+Deno.test("auth routes render Turnstile widget when enabled", async () => {
+  const app = createTestApp(createMemoryStorage(), turnstileAuthOptions());
+
+  const response = await app.request("/register");
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    html.includes("https://challenges.cloudflare.com/turnstile/v0/api.js"),
+    true,
+  );
+  assertEquals(html.includes('class="auth-turnstile cf-turnstile"'), true);
+  assertEquals(html.includes('data-sitekey="test-site-key"'), true);
 });
 
 Deno.test("auth routes localize anonymous pages with a language-only navigation bar", async () => {
@@ -155,6 +172,64 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
     ),
     false,
   );
+});
+
+Deno.test("auth routes reject registration without Turnstile token when enabled", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, turnstileAuthOptions());
+
+  const response = await app.request("/register", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        confirmPassword: "correct-password",
+        password: "correct-password",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/register?locale=zh-CN&error=humanVerification",
+  );
+  assertEquals(await storage.getAccountByUsername("alice"), undefined);
+});
+
+Deno.test("auth routes register users after Turnstile verification", async () => {
+  const storage = createMemoryStorage();
+  let requestBody = "";
+  const app = createTestApp(
+    storage,
+    turnstileAuthOptions({
+      fetcher: async (_input, init) => {
+        requestBody = await requestText(init?.body);
+        return new Response(JSON.stringify({ success: true }));
+      },
+    }),
+  );
+  const form = new URLSearchParams({
+    confirmPassword: "correct-password",
+    password: "correct-password",
+    username: "alice",
+    [turnstileResponseFieldName]: "verified-token",
+  });
+
+  const response = await app.request("/register", {
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(
+    (await storage.getAccountByUsername("alice"))?.username,
+    "alice",
+  );
+  assertEquals(requestBody.includes("response=verified-token"), true);
 });
 
 Deno.test("auth routes save selected registration locale in user settings", async () => {
@@ -440,6 +515,52 @@ Deno.test("auth routes lock repeated failed login attempts", async () => {
   );
 });
 
+Deno.test("auth routes require Turnstile after repeated login failures", async () => {
+  const storage = createMemoryStorage();
+  let turnstileRequests = 0;
+  const app = createTestApp(
+    storage,
+    turnstileAuthOptions({
+      fetcher: () => {
+        turnstileRequests += 1;
+        return Promise.resolve(new Response(JSON.stringify({ success: true })));
+      },
+    }),
+  );
+  const account: UserAccount = {
+    createdAt: "2026-07-31T00:00:00.000Z",
+    id: "alice-id",
+    username: "alice",
+    ...(await hashPassword("correct-password")),
+  };
+  await storage.createAccount(account);
+
+  await login(app, "alice", "incorrect-password");
+  const challengedFailure = await login(app, "alice", "incorrect-password");
+  const challengedWithoutToken = await login(app, "alice", "correct-password");
+  const verifiedForm = new URLSearchParams({
+    password: "correct-password",
+    username: "alice",
+    [turnstileResponseFieldName]: "verified-token",
+  });
+  const verifiedResponse = await app.request("/login", {
+    body: testCsrfForm(verifiedForm),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(
+    challengedFailure.headers.get("location"),
+    "/login?locale=zh-CN&error=invalid&returnTo=%2F&turnstile=1",
+  );
+  assertEquals(
+    challengedWithoutToken.headers.get("location"),
+    "/login?locale=zh-CN&error=humanVerification&returnTo=%2F&turnstile=1",
+  );
+  assertEquals(verifiedResponse.headers.get("location"), "/");
+  assertEquals(turnstileRequests, 1);
+});
+
 Deno.test("auth middleware accepts a valid session cookie", async () => {
   const app = createTestApp();
   const registerResponse = await register(app, "alice", "correct-password");
@@ -458,13 +579,69 @@ Deno.test("auth middleware accepts a valid session cookie", async () => {
  * @param storage 测试存储。
  * @return Hono 测试应用。
  */
-function createTestApp(storage = createMemoryStorage()): Hono {
+function createTestApp(
+  storage = createMemoryStorage(),
+  options: AuthOptions = {},
+): Hono {
   const app = new Hono();
-  app.route("/", createAuthRoutes(storage));
+  app.route("/", createAuthRoutes(storage, options));
   app.get("/healthz", (c) => c.text("ok"));
-  app.use("*", createAuthMiddleware(storage));
+  app.use("*", createAuthMiddleware(storage, options));
   app.get("/settings", (c) => c.text("settings"));
   return app;
+}
+
+/**
+ * 创建开启 Turnstile 的认证测试配置。
+ *
+ * @param options Turnstile 测试选项。
+ * @return 认证测试配置。
+ */
+function turnstileAuthOptions(options: {
+  fetcher?: AuthOptions["turnstileFetch"];
+} = {}): AuthOptions {
+  return {
+    turnstile: {
+      enabled: true,
+      secretKey: "test-secret-key",
+      siteKey: "test-site-key",
+    },
+    turnstileFetch: options.fetcher,
+  };
+}
+
+/**
+ * 读取测试 fetch 请求体文本。
+ *
+ * @param body 请求体。
+ * @return 请求体文本。
+ */
+async function requestText(body: BodyInit | null | undefined): Promise<string> {
+  if (!body) {
+    return "";
+  }
+
+  if (typeof body === "string") {
+    return body;
+  }
+
+  if (body instanceof URLSearchParams) {
+    return body.toString();
+  }
+
+  if (body instanceof FormData) {
+    return new URLSearchParams(
+      Array.from(body.entries()).flatMap(([key, value]) =>
+        typeof value === "string" ? [[key, value]] : []
+      ),
+    ).toString();
+  }
+
+  if (body instanceof Blob) {
+    return await body.text();
+  }
+
+  return "";
 }
 
 /**

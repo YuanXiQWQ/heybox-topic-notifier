@@ -15,7 +15,10 @@ import { createAppContext } from "./services/app_context.ts";
 export function createApplication() {
   const app = new Hono();
   const context = createAppContext();
-  const authOptions = { defaultLocale: context.config.defaultSettings.locale };
+  const authOptions = {
+    defaultLocale: context.config.defaultSettings.locale,
+    turnstile: context.config.turnstile,
+  };
 
   app.use("*", createSecurityHeadersMiddleware());
   app.route("/", createAuthRoutes(context.storage, authOptions));

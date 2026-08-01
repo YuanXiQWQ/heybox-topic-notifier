@@ -102,6 +102,7 @@ export type Messages = {
   authConfirmPassword: string;
   authCreateAccount: string;
   authExistingAccountLogin: string;
+  authHumanVerificationRequired: string;
   authInvalidCredentials: string;
   authLanguage: string;
   authLogin: string;

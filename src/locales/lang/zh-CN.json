@@ -23,6 +23,7 @@
   "authConfirmPassword": "确认密码",
   "authCreateAccount": "创建账号",
   "authExistingAccountLogin": "已有账号，去登录",
+  "authHumanVerificationRequired": "请完成人机验证后再继续。",
   "authInvalidCredentials": "用户名或密码不正确。",
   "authLanguage": "语言",
   "authLogin": "登录",
