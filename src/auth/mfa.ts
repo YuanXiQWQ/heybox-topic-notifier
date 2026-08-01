@@ -35,6 +35,7 @@ export type SecondFactorAvailability = {
   emailCredentials?: readonly EmailCredential[];
   passkeyCredentials?: readonly PasskeyCredential[];
   totpCredential?: TotpCredential;
+  totpCredentials?: readonly TotpCredential[];
 };
 
 /**
@@ -115,15 +116,21 @@ const defaultMfaChallengeConfig: MfaChallengeConfig = {
 export function availableSecondFactorMethods(
   availability: SecondFactorAvailability,
 ): SecondFactorMethod[] {
+  const totpCredentials = availability.totpCredentials ??
+    (availability.totpCredential ? [availability.totpCredential] : []);
   return normalizeSecondFactorMethods([
     ...(hasVerifiedEmailCredential(availability.emailCredentials)
       ? ["email" as const]
       : []),
-    ...(availability.totpCredential?.secretEncrypted ? ["totp" as const] : []),
+    ...(totpCredentials.some((credential) => credential.secretEncrypted)
+      ? ["totp" as const]
+      : []),
     ...((availability.passkeyCredentials?.length ?? 0) > 0
       ? ["passkey" as const]
       : []),
-    ...((availability.totpCredential?.recoveryCodeHashes.length ?? 0) > 0
+    ...(totpCredentials.some((credential) =>
+        credential.recoveryCodeHashes.length > 0
+      )
       ? ["recoveryCode" as const]
       : []),
   ]);

@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供 CSRF 双提交令牌的生成、渲染和校验能力。
  */
+import { getMessages, localeFromRequest } from "../locales/index.ts";
 import { logSecurityAuditEvent } from "./audit_log.ts";
 import { parseCookies } from "./cookies.ts";
 import { base64UrlEncode, constantTimeEquals } from "./crypto_utils.ts";
@@ -69,7 +70,10 @@ export function csrfTokenForRequest(
  * @param {CsrfTokenState} state CSRF 令牌状态。
  * @return {Response} 写入 Cookie 后的响应。
  */
-export function withCsrfCookie(response: Response, state: CsrfTokenState): Response {
+export function withCsrfCookie(
+  response: Response,
+  state: CsrfTokenState,
+): Response {
   if (state.setCookie) {
     response.headers.append("set-cookie", state.setCookie);
   }
@@ -99,7 +103,8 @@ export function verifyCsrfToken(
 ): boolean {
   const cookieToken = csrfTokenFromCookie(cookieHeader);
   const token = typeof submittedToken === "string" ? submittedToken : "";
-  return Boolean(cookieToken) && isValidCsrfToken(token) && constantTimeEquals(cookieToken, token);
+  return Boolean(cookieToken) && isValidCsrfToken(token) &&
+    constantTimeEquals(cookieToken, token);
 }
 
 /**
@@ -117,7 +122,9 @@ export function submittedCsrfToken(
     return headerToken;
   }
 
-  const value = form instanceof FormData ? form.get(csrfFieldName) : form[csrfFieldName];
+  const value = form instanceof FormData
+    ? form.get(csrfFieldName)
+    : form[csrfFieldName];
   if (typeof value === "string") {
     return value;
   }
@@ -143,7 +150,10 @@ export function csrfForbiddenResponse(request?: Request): Response {
     });
   }
 
-  return new Response("Invalid CSRF token.", {
+  const message = request
+    ? getMessages(localeFromRequest(request)).authMfaInvalid
+    : getMessages("zh-CN").authMfaInvalid;
+  return new Response(message, {
     headers: { "content-type": "text/plain; charset=utf-8" },
     status: 403,
   });
@@ -155,7 +165,9 @@ export function csrfForbiddenResponse(request?: Request): Response {
  * @param {string | undefined} cookieHeader Cookie 请求头。
  * @return {string | undefined} 有效 CSRF 令牌。
  */
-function csrfTokenFromCookie(cookieHeader: string | undefined): string | undefined {
+function csrfTokenFromCookie(
+  cookieHeader: string | undefined,
+): string | undefined {
   const token = parseCookies(cookieHeader).get(csrfCookieName);
   return isValidCsrfToken(token) ? token : undefined;
 }

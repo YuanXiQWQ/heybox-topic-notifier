@@ -3,12 +3,16 @@
  */
 import type {
   AppSettings,
+  AuthenticationEvent,
   AuthIdentity,
   EmailCredential,
   MatchRecord,
+  PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  PendingPasskeyChallenge,
+  TotpCredential,
   UserAccount,
   UserSecuritySettings,
 } from "../models.ts";
@@ -233,6 +237,173 @@ Deno.test("password credential storage reads saved credentials by user id", asyn
   assertEquals(await storage.getPasswordCredential("missing-id"), undefined);
 });
 
+Deno.test("totp credential storage reads saved credentials by user id", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const credential: TotpCredential = {
+    enabledAt: "2026-08-01T00:00:00.000Z",
+    recoveryCodeHashes: ["recovery-code-hash"],
+    secretEncrypted: "encrypted-secret",
+    userId: "alice-id",
+  };
+
+  await storage.saveTotpCredential(credential);
+
+  const normalizedCredential: TotpCredential = {
+    credentialId: "legacy",
+    enabledAt: credential.enabledAt,
+    recoveryCodeHashes: credential.recoveryCodeHashes,
+    secretEncrypted: credential.secretEncrypted,
+    userId: credential.userId,
+  };
+  assertEquals(
+    await storage.getTotpCredential("alice-id"),
+    normalizedCredential,
+  );
+  assertEquals(await storage.listTotpCredentials("alice-id"), [
+    normalizedCredential,
+  ]);
+  assertEquals(await storage.getTotpCredential("missing-id"), undefined);
+
+  await storage.deleteTotpCredential("alice-id");
+
+  assertEquals(await storage.getTotpCredential("alice-id"), undefined);
+});
+
+Deno.test("totp credential storage lists and deletes individual credentials", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const firstCredential: TotpCredential = {
+    credentialId: "first-authenticator",
+    enabledAt: "2026-08-01T00:00:00.000Z",
+    label: "Phone",
+    recoveryCodeHashes: [],
+    secretEncrypted: "first-encrypted-secret",
+    userId: "alice-id",
+  };
+  const secondCredential: TotpCredential = {
+    credentialId: "second-authenticator",
+    enabledAt: "2026-08-01T00:05:00.000Z",
+    label: "Tablet",
+    recoveryCodeHashes: [],
+    secretEncrypted: "second-encrypted-secret",
+    userId: "alice-id",
+  };
+
+  await storage.saveTotpCredential(firstCredential);
+  await storage.saveTotpCredential(secondCredential);
+
+  assertEquals(await storage.listTotpCredentials("alice-id"), [
+    firstCredential,
+    secondCredential,
+  ]);
+
+  await storage.deleteTotpCredential("alice-id", "first-authenticator");
+
+  assertEquals(await storage.listTotpCredentials("alice-id"), [
+    secondCredential,
+  ]);
+});
+
+Deno.test("passkey credential storage lists and deletes credentials by user id", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const newerCredential: PasskeyCredential = {
+    backedUp: true,
+    counter: 2,
+    createdAt: "2026-08-01T00:05:00.000Z",
+    credentialId: "newer-credential",
+    label: "Newer device",
+    lastUsedAt: "2026-08-01T00:06:00.000Z",
+    publicKey: "newer-public-key",
+    transports: ["internal", "internal"],
+    userId: "alice-id",
+  };
+  const olderCredential: PasskeyCredential = {
+    backedUp: false,
+    counter: -1,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    credentialId: "older-credential",
+    label: " Older device ",
+    publicKey: "older-public-key",
+    transports: ["usb", ""],
+    userId: "alice-id",
+  };
+  const bobCredential: PasskeyCredential = {
+    ...newerCredential,
+    credentialId: "bob-credential",
+    userId: "bob-id",
+  };
+
+  await storage.savePasskeyCredential(newerCredential);
+  await storage.savePasskeyCredential(olderCredential);
+  await storage.savePasskeyCredential(bobCredential);
+
+  assertEquals(
+    (await storage.listPasskeyCredentials("alice-id")).map((item) => ({
+      counter: item.counter,
+      credentialId: item.credentialId,
+      label: item.label,
+      transports: item.transports,
+    })),
+    [
+      {
+        counter: 0,
+        credentialId: "older-credential",
+        label: "Older device",
+        transports: ["usb"],
+      },
+      {
+        counter: 2,
+        credentialId: "newer-credential",
+        label: "Newer device",
+        transports: ["internal"],
+      },
+    ],
+  );
+  assertEquals(
+    (await storage.getPasskeyCredential("alice-id", "newer-credential"))
+      ?.credentialId,
+    "newer-credential",
+  );
+  assertEquals(
+    (await storage.getPasskeyCredentialByCredentialId("newer-credential"))
+      ?.userId,
+    "alice-id",
+  );
+  assertEquals(
+    await storage.getPasskeyCredential("alice-id", "bob-credential"),
+    undefined,
+  );
+
+  await storage.deletePasskeyCredential("alice-id", "newer-credential");
+
+  assertEquals(
+    await storage.getPasskeyCredential("alice-id", "newer-credential"),
+    undefined,
+  );
+  assertEquals(
+    await storage.getPasskeyCredentialByCredentialId("newer-credential"),
+    undefined,
+  );
+  assertEquals(
+    (await storage.getPasskeyCredential("bob-id", "bob-credential"))
+      ?.credentialId,
+    "bob-credential",
+  );
+  assertEquals(
+    (await storage.getPasskeyCredentialByCredentialId("bob-credential"))
+      ?.userId,
+    "bob-id",
+  );
+});
+
 Deno.test("auth identity storage reads saved Google identities", async () => {
   const kv = new MemoryKv();
   const storage = createKvStorage(defaultSettings, {
@@ -246,15 +417,102 @@ Deno.test("auth identity storage reads saved Google identities", async () => {
     providerUserId: "google-subject-id",
     userId: "alice-id",
   };
+  const newerIdentity: AuthIdentity = {
+    ...identity,
+    createdAt: "2026-08-01T00:05:00.000Z",
+    email: "alice-work@example.com",
+    providerUserId: "google-subject-work-id",
+  };
+  const otherUserIdentity: AuthIdentity = {
+    ...identity,
+    email: "bob@example.com",
+    providerUserId: "google-bob-id",
+    userId: "bob-id",
+  };
 
   await storage.saveAuthIdentity(identity);
+  await storage.saveAuthIdentity(newerIdentity);
+  await storage.saveAuthIdentity(otherUserIdentity);
 
   assertEquals(
     await storage.getAuthIdentity("google", "google-subject-id"),
     identity,
   );
   assertEquals(
+    (await storage.listAuthIdentitiesForUser("google", "alice-id")).map((
+      candidate,
+    ) => candidate.providerUserId),
+    ["google-subject-id", "google-subject-work-id"],
+  );
+
+  await storage.deleteAuthIdentity("google", "google-subject-id");
+
+  assertEquals(
+    await storage.getAuthIdentity("google", "google-subject-id"),
+    undefined,
+  );
+  assertEquals(
+    (await storage.listAuthIdentitiesForUser("google", "alice-id")).map((
+      candidate,
+    ) => candidate.providerUserId),
+    ["google-subject-work-id"],
+  );
+  assertEquals(
     await storage.getAuthIdentity("google", "missing-subject-id"),
+    undefined,
+  );
+});
+
+Deno.test("authentication event storage reads the latest event by purpose", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const event: AuthenticationEvent = {
+    authenticatedAt: "2026-08-01T00:00:00.000Z",
+    method: "passkey",
+    purpose: "reauth",
+    strength: "strong",
+    userId: "alice-id",
+  };
+
+  await storage.saveAuthenticationEvent(event);
+
+  assertEquals(
+    await storage.getAuthenticationEvent("alice-id", "reauth"),
+    event,
+  );
+  assertEquals(
+    await storage.getAuthenticationEvent("alice-id", "primary_login"),
+    undefined,
+  );
+  assertEquals(
+    await storage.getAuthenticationEvent("bob-id", "reauth"),
+    undefined,
+  );
+});
+
+Deno.test("authentication event storage consumes a purpose-specific event once", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const event: AuthenticationEvent = {
+    authenticatedAt: "2026-08-01T00:00:00.000Z",
+    method: "password",
+    purpose: "recovery_codes",
+    strength: "strong",
+    userId: "alice-id",
+  };
+
+  await storage.saveAuthenticationEvent(event);
+
+  assertEquals(
+    await storage.consumeAuthenticationEvent("alice-id", "recovery_codes"),
+    event,
+  );
+  assertEquals(
+    await storage.consumeAuthenticationEvent("alice-id", "recovery_codes"),
     undefined,
   );
 });
@@ -296,6 +554,75 @@ Deno.test("pending MFA challenge storage preserves attempts and methods", async 
 
   assertEquals(
     await storage.getPendingMfaChallenge("mfa-challenge-id"),
+    undefined,
+  );
+});
+
+Deno.test("pending passkey challenge storage preserves attempts and purpose", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const challenge: PendingPasskeyChallenge = {
+    allowedCredentialIds: ["credential-a", "credential-a", ""],
+    attempts: -1,
+    challenge: "webauthn-challenge",
+    createdAt: "2026-08-01T00:00:00.000Z",
+    expiresAt: "2026-08-01T00:05:00.000Z",
+    id: "passkey-challenge-id",
+    purpose: "primary_login",
+    userId: "alice-id",
+  };
+
+  await storage.savePendingPasskeyChallenge(challenge);
+
+  assertEquals(
+    await storage.getPendingPasskeyChallenge("passkey-challenge-id"),
+    {
+      ...challenge,
+      allowedCredentialIds: ["credential-a"],
+      attempts: 0,
+    },
+  );
+
+  await storage.savePendingPasskeyChallenge({
+    ...challenge,
+    allowedCredentialIds: ["credential-a"],
+    attempts: 1,
+  });
+
+  assertEquals(
+    (await storage.getPendingPasskeyChallenge("passkey-challenge-id"))
+      ?.attempts,
+    1,
+  );
+
+  await storage.deletePendingPasskeyChallenge("passkey-challenge-id");
+
+  assertEquals(
+    await storage.getPendingPasskeyChallenge("passkey-challenge-id"),
+    undefined,
+  );
+});
+
+Deno.test("pending recovery codes are stored temporarily and can be deleted", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const reveal = {
+    codes: ["2345-6789-ABCD"],
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    id: "recovery-reveal-id",
+    userId: "alice-id",
+  };
+
+  await storage.savePendingRecoveryCodeReveal(reveal);
+  assertEquals(await storage.getPendingRecoveryCodeReveal(reveal.id), reveal);
+
+  await storage.deletePendingRecoveryCodeReveal(reveal.id);
+  assertEquals(
+    await storage.getPendingRecoveryCodeReveal(reveal.id),
     undefined,
   );
 });

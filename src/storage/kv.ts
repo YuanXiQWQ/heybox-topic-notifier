@@ -4,19 +4,26 @@
 import type {
   AppSettings,
   AppState,
+  AuthenticationEvent,
+  AuthenticationEventPurpose,
   AuthIdentity,
   AuthIdentityProvider,
   DashboardSnapshot,
   EmailCredential,
   KeywordRule,
   MatchRecord,
+  PasskeyChallengePurpose,
+  PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  PendingPasskeyChallenge,
+  PendingRecoveryCodeReveal,
   PollingSettings,
   PollIntervalUnit,
   PollSort,
   TopicRule,
+  TotpCredential,
   UserAccount,
   UserSecuritySettings,
   UserSession,
@@ -38,8 +45,14 @@ const keys = {
   account: (id: string) => ["accounts", id] as const,
   accountUsername: (username: string) =>
     ["accountUsernames", normalizeUsername(username)] as const,
+  authenticationEvent: (
+    userId: string,
+    purpose: AuthenticationEventPurpose,
+  ) => ["authenticationEvents", userId, purpose] as const,
   authIdentity: (provider: AuthIdentityProvider, providerUserId: string) =>
     ["authIdentities", provider, providerUserId] as const,
+  authIdentityProviderPrefix: (provider: AuthIdentityProvider) =>
+    ["authIdentities", provider] as const,
   emailCredential: (userId: string, email: string) =>
     ["emailCredentials", userId, emailKey(email)] as const,
   emailCredentialPrefix: (userId: string) =>
@@ -48,16 +61,32 @@ const keys = {
     ["loginFailures", normalizeUsername(username)] as const,
   match: (userId: string, id: string) =>
     ["userData", userId, "matches", id] as const,
+  passkeyCredential: (userId: string, credentialId: string) =>
+    ["passkeyCredentials", userId, credentialId] as const,
+  passkeyCredentialIndex: (credentialId: string) =>
+    ["passkeyCredentialIndex", credentialId] as const,
+  passkeyCredentialPrefix: (userId: string) =>
+    ["passkeyCredentials", userId] as const,
   passwordCredential: (userId: string) =>
     ["passwordCredentials", userId] as const,
   pendingEmailVerification: (id: string) =>
     ["pendingEmailVerifications", id] as const,
   pendingMfaChallenge: (id: string) => ["pendingMfaChallenges", id] as const,
+  pendingPasskeyChallenge: (id: string) =>
+    ["pendingPasskeyChallenges", id] as const,
+  pendingRecoveryCodeReveal: (id: string) =>
+    ["pendingRecoveryCodeReveals", id] as const,
   rateLimit: (parts: readonly string[]) => ["rateLimits", ...parts] as const,
   session: (tokenHash: string) => ["sessions", tokenHash] as const,
   securitySettings: (userId: string) => ["securitySettings", userId] as const,
   settings: (userId: string) => ["userData", userId, "settings"] as const,
   state: (userId: string) => ["userData", userId, "state"] as const,
+  totpCredential: (userId: string, credentialId: string) =>
+    ["totpCredentials", userId, credentialId] as const,
+  totpCredentialLegacy: (userId: string) =>
+    ["totpCredentials", userId] as const,
+  totpCredentialPrefix: (userId: string) =>
+    ["totpCredentials", userId] as const,
 };
 
 /**
@@ -395,6 +424,38 @@ export function createKvStorage(
     };
   }
 
+  /**
+   * 读取指定用户的新旧格式验证器动态码凭证。
+   *
+   * @param {string} userId 用户 ID。
+   * @return {Promise<TotpCredential[]>} 验证器动态码凭证列表。
+   */
+  async function listTotpCredentialsForUser(
+    userId: string,
+  ): Promise<TotpCredential[]> {
+    const store = await kv();
+    const credentialsById = new Map<string, TotpCredential>();
+    const legacyEntry = await store.get<TotpCredential>(
+      keys.totpCredentialLegacy(userId),
+    );
+    if (legacyEntry.value) {
+      const credential = normalizeTotpCredential(legacyEntry.value, userId);
+      credentialsById.set(credential.credentialId ?? "legacy", credential);
+    }
+    for await (
+      const entry of store.list<TotpCredential>({
+        prefix: keys.totpCredentialPrefix(userId),
+      })
+    ) {
+      const credential = normalizeTotpCredential(entry.value, userId);
+      credentialsById.set(credential.credentialId ?? "legacy", credential);
+    }
+    return Array.from(credentialsById.values()).toSorted((left, right) =>
+      left.enabledAt.localeCompare(right.enabledAt) ||
+      (left.credentialId ?? "").localeCompare(right.credentialId ?? "")
+    );
+  }
+
   return {
     forUser,
 
@@ -572,6 +633,74 @@ export function createKvStorage(
     },
 
     /**
+     * 获取指定用途的最近认证事件。
+     *
+     * @param userId 用户 ID。
+     * @param purpose 认证用途。
+     * @return 最近认证事件，不存在时返回 undefined。
+     */
+    async getAuthenticationEvent(
+      userId: string,
+      purpose: AuthenticationEventPurpose,
+    ): Promise<AuthenticationEvent | undefined> {
+      const store = await kv();
+      const entry = await store.get<AuthenticationEvent>(
+        keys.authenticationEvent(userId, purpose),
+      );
+      return entry.value
+        ? normalizeAuthenticationEvent(entry.value, userId, purpose)
+        : undefined;
+    },
+
+    /**
+     * 原子读取并删除指定用途的认证事件，确保事件只能消费一次。
+     *
+     * @param userId 用户 ID。
+     * @param purpose 认证用途。
+     * @return 成功消费的认证事件，不存在或并发消费失败时返回 undefined。
+     */
+    async consumeAuthenticationEvent(
+      userId: string,
+      purpose: AuthenticationEventPurpose,
+    ): Promise<AuthenticationEvent | undefined> {
+      const store = await kv();
+      const key = keys.authenticationEvent(userId, purpose);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const entry = await store.get<AuthenticationEvent>(key);
+        if (!entry.value) {
+          return undefined;
+        }
+        const result = await store.atomic()
+          .check({ key, versionstamp: entry.versionstamp })
+          .delete(key)
+          .commit();
+        if (result.ok) {
+          return normalizeAuthenticationEvent(entry.value, userId, purpose);
+        }
+      }
+      return undefined;
+    },
+
+    /**
+     * 保存最近认证事件。
+     *
+     * @param event 认证事件。
+     * @return 保存完成后的 Promise。
+     */
+    async saveAuthenticationEvent(event: AuthenticationEvent): Promise<void> {
+      const normalized = normalizeAuthenticationEvent(
+        event,
+        event.userId,
+        event.purpose,
+      );
+      const store = await kv();
+      await store.set(
+        keys.authenticationEvent(normalized.userId, normalized.purpose),
+        normalized,
+      );
+    },
+
+    /**
      * 获取指定用户的独立密码凭证。
      *
      * @param userId 用户 ID。
@@ -601,6 +730,205 @@ export function createKvStorage(
     },
 
     /**
+     * 获取指定用户的验证器动态码凭证。
+     *
+     * @param userId 用户 ID。
+     * @return 验证器动态码凭证，不存在时返回 undefined。
+     */
+    async getTotpCredential(
+      userId: string,
+    ): Promise<TotpCredential | undefined> {
+      return (await listTotpCredentialsForUser(userId))[0];
+    },
+
+    /**
+     * 列出指定用户的全部验证器动态码凭证。
+     *
+     * @param {string} userId 用户 ID。
+     * @return {Promise<TotpCredential[]>} 验证器动态码凭证列表。
+     */
+    async listTotpCredentials(userId: string): Promise<TotpCredential[]> {
+      return await listTotpCredentialsForUser(userId);
+    },
+
+    /**
+     * 保存指定用户的验证器动态码凭证。
+     *
+     * @param credential 验证器动态码凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async saveTotpCredential(credential: TotpCredential): Promise<void> {
+      const normalized = normalizeTotpCredential(
+        credential,
+        credential.userId,
+      );
+      const store = await kv();
+      const credentialKey = normalized.credentialId === "legacy"
+        ? keys.totpCredentialLegacy(normalized.userId)
+        : keys.totpCredential(normalized.userId, normalized.credentialId!);
+      await store.set(credentialKey, normalized);
+    },
+
+    /**
+     * 删除指定用户的验证器动态码凭证。
+     *
+     * @param userId 用户 ID。
+     * @param credentialId 验证器凭证 ID；省略时删除旧版单凭证记录。
+     * @return 删除完成后的 Promise。
+     */
+    async deleteTotpCredential(
+      userId: string,
+      credentialId?: string,
+    ): Promise<void> {
+      const store = await kv();
+      await store.delete(
+        !credentialId || credentialId === "legacy"
+          ? keys.totpCredentialLegacy(userId)
+          : keys.totpCredential(userId, credentialId),
+      );
+    },
+
+    /**
+     * 获取指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @param credentialId Passkey 凭证 ID。
+     * @return Passkey 凭证，不存在时返回 undefined。
+     */
+    async getPasskeyCredential(
+      userId: string,
+      credentialId: string,
+    ): Promise<PasskeyCredential | undefined> {
+      const store = await kv();
+      const entry = await store.get<PasskeyCredential>(
+        keys.passkeyCredential(userId, credentialId),
+      );
+      return entry.value
+        ? normalizePasskeyCredential(entry.value, userId)
+        : undefined;
+    },
+
+    /**
+     * 列出指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @return Passkey 凭证列表。
+     */
+    async listPasskeyCredentials(userId: string): Promise<PasskeyCredential[]> {
+      const store = await kv();
+      const credentials: PasskeyCredential[] = [];
+      for await (
+        const entry of store.list<PasskeyCredential>({
+          prefix: keys.passkeyCredentialPrefix(userId),
+        })
+      ) {
+        credentials.push(normalizePasskeyCredential(entry.value, userId));
+      }
+      return credentials.toSorted((left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.credentialId.localeCompare(right.credentialId)
+      );
+    },
+
+    /**
+     * 按 Passkey 凭证 ID 反查凭证。
+     *
+     * @param credentialId Passkey 凭证 ID。
+     * @return Passkey 凭证，不存在时返回 undefined。
+     */
+    async getPasskeyCredentialByCredentialId(
+      credentialId: string,
+    ): Promise<PasskeyCredential | undefined> {
+      const normalizedCredentialId = credentialId.trim();
+      if (!normalizedCredentialId) {
+        return undefined;
+      }
+
+      const store = await kv();
+      const indexEntry = await store.get<string>(
+        keys.passkeyCredentialIndex(normalizedCredentialId),
+      );
+      if (!indexEntry.value) {
+        return undefined;
+      }
+
+      const credentialEntry = await store.get<PasskeyCredential>(
+        keys.passkeyCredential(indexEntry.value, normalizedCredentialId),
+      );
+      return credentialEntry.value
+        ? normalizePasskeyCredential(credentialEntry.value, indexEntry.value)
+        : undefined;
+    },
+
+    /**
+     * 保存指定用户的 Passkey 凭证。
+     *
+     * @param credential Passkey 凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async savePasskeyCredential(
+      credential: PasskeyCredential,
+    ): Promise<void> {
+      const normalized = normalizePasskeyCredential(
+        credential,
+        credential.userId,
+      );
+      const store = await kv();
+      const indexKey = keys.passkeyCredentialIndex(normalized.credentialId);
+      const indexEntry = await store.get<string>(indexKey);
+      if (indexEntry.value && indexEntry.value !== normalized.userId) {
+        throw new Error("Passkey credential already belongs to another user.");
+      }
+
+      const result = await store.atomic()
+        .check({ key: indexKey, versionstamp: indexEntry.versionstamp })
+        .set(
+          keys.passkeyCredential(normalized.userId, normalized.credentialId),
+          normalized,
+        )
+        .set(indexKey, normalized.userId)
+        .commit();
+      if (!result.ok) {
+        throw new Error("Could not save the Passkey credential.");
+      }
+    },
+
+    /**
+     * 删除指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @param credentialId Passkey 凭证 ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePasskeyCredential(
+      userId: string,
+      credentialId: string,
+    ): Promise<void> {
+      const store = await kv();
+      const credentialKey = keys.passkeyCredential(userId, credentialId);
+      const indexKey = keys.passkeyCredentialIndex(credentialId);
+      const credentialEntry = await store.get<PasskeyCredential>(credentialKey);
+      const indexEntry = await store.get<string>(indexKey);
+
+      let operation = store.atomic()
+        .check({
+          key: credentialKey,
+          versionstamp: credentialEntry.versionstamp,
+        })
+        .delete(credentialKey);
+      if (indexEntry.value === userId) {
+        operation = operation
+          .check({ key: indexKey, versionstamp: indexEntry.versionstamp })
+          .delete(indexKey);
+      }
+
+      const result = await operation.commit();
+      if (!result.ok) {
+        throw new Error("Could not delete the Passkey credential.");
+      }
+    },
+
+    /**
      * 获取外部或邮箱身份绑定。
      *
      * @param provider 身份提供方。
@@ -619,6 +947,33 @@ export function createKvStorage(
     },
 
     /**
+     * 列出指定用户绑定的外部或邮箱身份。
+     *
+     * @param provider 身份提供方。
+     * @param userId 用户 ID。
+     * @return 身份绑定列表。
+     */
+    async listAuthIdentitiesForUser(
+      provider: AuthIdentityProvider,
+      userId: string,
+    ): Promise<AuthIdentity[]> {
+      const store = await kv();
+      const entries = store.list<AuthIdentity>({
+        prefix: keys.authIdentityProviderPrefix(provider),
+      });
+      const identities: AuthIdentity[] = [];
+      for await (const entry of entries) {
+        if (entry.value.userId === userId) {
+          identities.push(entry.value);
+        }
+      }
+      return identities.toSorted((left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.providerUserId.localeCompare(right.providerUserId)
+      );
+    },
+
+    /**
      * 保存外部或邮箱身份绑定。
      *
      * @param identity 身份绑定。
@@ -630,6 +985,21 @@ export function createKvStorage(
         keys.authIdentity(identity.provider, identity.providerUserId),
         identity,
       );
+    },
+
+    /**
+     * 删除外部或邮箱身份绑定。
+     *
+     * @param provider 身份提供方。
+     * @param providerUserId 提供方用户 ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deleteAuthIdentity(
+      provider: AuthIdentityProvider,
+      providerUserId: string,
+    ): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.authIdentity(provider, providerUserId));
     },
 
     /**
@@ -788,6 +1158,97 @@ export function createKvStorage(
     async deletePendingMfaChallenge(id: string): Promise<void> {
       const store = await kv();
       await store.delete(keys.pendingMfaChallenge(id));
+    },
+
+    /**
+     * 获取待完成的 Passkey challenge。
+     *
+     * @param id Passkey challenge ID。
+     * @return 待完成 Passkey challenge，不存在时返回 undefined。
+     */
+    async getPendingPasskeyChallenge(
+      id: string,
+    ): Promise<PendingPasskeyChallenge | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingPasskeyChallenge>(
+        keys.pendingPasskeyChallenge(id),
+      );
+      return entry.value
+        ? normalizePendingPasskeyChallenge(entry.value)
+        : undefined;
+    },
+
+    /**
+     * 保存待完成的 Passkey challenge。
+     *
+     * @param challenge 待完成 Passkey challenge。
+     * @return 保存完成后的 Promise。
+     */
+    async savePendingPasskeyChallenge(
+      challenge: PendingPasskeyChallenge,
+    ): Promise<void> {
+      const normalized = normalizePendingPasskeyChallenge(challenge);
+      const store = await kv();
+      await store.set(
+        keys.pendingPasskeyChallenge(normalized.id),
+        normalized,
+        expireInFromIso(normalized.expiresAt),
+      );
+    },
+
+    /**
+     * 删除待完成的 Passkey challenge。
+     *
+     * @param id Passkey challenge ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePendingPasskeyChallenge(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingPasskeyChallenge(id));
+    },
+
+    /**
+     * 获取等待首次展示的恢复码。
+     *
+     * @param {string} id 展示记录 ID。
+     * @return {Promise<PendingRecoveryCodeReveal | undefined>} 待展示恢复码。
+     */
+    async getPendingRecoveryCodeReveal(
+      id: string,
+    ): Promise<PendingRecoveryCodeReveal | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingRecoveryCodeReveal>(
+        keys.pendingRecoveryCodeReveal(id),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 短期保存等待首次展示的恢复码。
+     *
+     * @param {PendingRecoveryCodeReveal} reveal 待展示恢复码。
+     * @return {Promise<void>} 保存完成后的 Promise。
+     */
+    async savePendingRecoveryCodeReveal(
+      reveal: PendingRecoveryCodeReveal,
+    ): Promise<void> {
+      const store = await kv();
+      await store.set(
+        keys.pendingRecoveryCodeReveal(reveal.id),
+        reveal,
+        expireInFromIso(reveal.expiresAt),
+      );
+    },
+
+    /**
+     * 删除已展示或失效的恢复码记录。
+     *
+     * @param {string} id 展示记录 ID。
+     * @return {Promise<void>} 删除完成后的 Promise。
+     */
+    async deletePendingRecoveryCodeReveal(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingRecoveryCodeReveal(id));
     },
 
     /**
@@ -1100,6 +1561,140 @@ function normalizeEmailCredential(
 }
 
 /**
+ * 规范化验证器动态码凭证。
+ *
+ * @param credential 验证器动态码凭证。
+ * @param userId 用户 ID。
+ * @return 规范化后的验证器动态码凭证。
+ */
+function normalizeTotpCredential(
+  credential: TotpCredential,
+  userId: string,
+): TotpCredential {
+  return {
+    credentialId: typeof credential.credentialId === "string" &&
+        credential.credentialId.trim()
+      ? credential.credentialId.trim()
+      : "legacy",
+    enabledAt: typeof credential.enabledAt === "string"
+      ? credential.enabledAt
+      : "",
+    label: typeof credential.label === "string" && credential.label.trim()
+      ? credential.label.trim().slice(0, 80)
+      : undefined,
+    recoveryCodeHashes: Array.isArray(credential.recoveryCodeHashes)
+      ? credential.recoveryCodeHashes.filter((value): value is string =>
+        typeof value === "string"
+      )
+      : [],
+    secretEncrypted: typeof credential.secretEncrypted === "string"
+      ? credential.secretEncrypted
+      : "",
+    userId,
+  };
+}
+
+/**
+ * 规范化 Passkey 凭证。
+ *
+ * @param credential Passkey 凭证。
+ * @param userId 用户 ID。
+ * @return 规范化后的 Passkey 凭证。
+ */
+function normalizePasskeyCredential(
+  credential: PasskeyCredential,
+  userId: string,
+): PasskeyCredential {
+  const transports = Array.isArray(credential.transports)
+    ? Array.from(
+      new Set(
+        credential.transports.filter((value): value is string =>
+          typeof value === "string" && value.trim().length > 0
+        ).map((value) => value.trim()),
+      ),
+    )
+    : undefined;
+  return {
+    backedUp: credential.backedUp === true,
+    counter: Math.max(0, Math.floor(Number(credential.counter) || 0)),
+    createdAt: typeof credential.createdAt === "string"
+      ? credential.createdAt
+      : "",
+    credentialId: typeof credential.credentialId === "string"
+      ? credential.credentialId
+      : "",
+    label: typeof credential.label === "string" &&
+        credential.label.trim().length > 0
+      ? credential.label.trim()
+      : undefined,
+    lastUsedAt: typeof credential.lastUsedAt === "string"
+      ? credential.lastUsedAt
+      : undefined,
+    publicKey: typeof credential.publicKey === "string"
+      ? credential.publicKey
+      : "",
+    transports,
+    userId,
+  };
+}
+
+/**
+ * 规范化认证事件。
+ *
+ * @param event 认证事件。
+ * @param userId 兜底用户 ID。
+ * @param purpose 兜底认证用途。
+ * @return 规范化后的认证事件。
+ */
+function normalizeAuthenticationEvent(
+  event: AuthenticationEvent,
+  userId: string,
+  purpose: AuthenticationEventPurpose,
+): AuthenticationEvent {
+  return {
+    authenticatedAt: typeof event.authenticatedAt === "string"
+      ? event.authenticatedAt
+      : new Date(0).toISOString(),
+    method: isAuthenticationEventMethod(event.method)
+      ? event.method
+      : "password",
+    purpose: isAuthenticationEventPurpose(event.purpose)
+      ? event.purpose
+      : purpose,
+    strength: event.strength === "strong" ? "strong" : "normal",
+    userId,
+  };
+}
+
+/**
+ * 判断值是否为认证事件方式。
+ *
+ * @param value 待判断值。
+ * @return 值是认证事件方式时返回 true。
+ */
+function isAuthenticationEventMethod(
+  value: unknown,
+): value is AuthenticationEvent["method"] {
+  return value === "email_otp" || value === "google" ||
+    value === "passkey" || value === "password" ||
+    value === "recovery_code" || value === "totp";
+}
+
+/**
+ * 判断值是否为认证事件用途。
+ *
+ * @param value 待判断值。
+ * @return 值是认证事件用途时返回 true。
+ */
+function isAuthenticationEventPurpose(
+  value: unknown,
+): value is AuthenticationEventPurpose {
+  return value === "primary_login" || value === "reauth" ||
+    value === "recovery_codes" ||
+    value === "second_factor";
+}
+
+/**
  * 规范化待验证挑战中的邮箱地址。
  *
  * @param verification 待验证挑战。
@@ -1112,6 +1707,47 @@ function normalizePendingEmailVerification(
     ...verification,
     email: emailKey(verification.email),
   };
+}
+
+/**
+ * 规范化待完成的 Passkey challenge。
+ *
+ * @param challenge 待完成 Passkey challenge。
+ * @return 规范化后的 Passkey challenge。
+ */
+function normalizePendingPasskeyChallenge(
+  challenge: PendingPasskeyChallenge,
+): PendingPasskeyChallenge {
+  const allowedCredentialIds = Array.isArray(challenge.allowedCredentialIds)
+    ? challenge.allowedCredentialIds
+    : [];
+  return {
+    ...challenge,
+    allowedCredentialIds: Array.from(
+      new Set(
+        allowedCredentialIds.filter((value) =>
+          typeof value === "string" && value.trim().length > 0
+        ).map((value) => value.trim()),
+      ),
+    ),
+    attempts: Math.max(0, Math.floor(Number(challenge.attempts) || 0)),
+    purpose: isPasskeyChallengePurpose(challenge.purpose)
+      ? challenge.purpose
+      : "primary_login",
+  };
+}
+
+/**
+ * 判断值是否为支持的 Passkey challenge 用途。
+ *
+ * @param value 待判断值。
+ * @return 值是 Passkey challenge 用途时返回 true。
+ */
+function isPasskeyChallengePurpose(
+  value: unknown,
+): value is PasskeyChallengePurpose {
+  return value === "passkey_registration" || value === "primary_login" ||
+    value === "reauth" || value === "second_factor";
 }
 
 /**

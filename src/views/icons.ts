@@ -6,13 +6,18 @@
  * 设置项可使用的 Material Symbols 图标名称。
  */
 export type MaterialSymbolName =
+  | "add"
   | "alternate_email"
   | "api"
   | "badge"
+  | "check"
   | "check_circle"
   | "dark_mode"
+  | "delete"
   | "dns"
+  | "download"
   | "drag_indicator"
+  | "edit"
   | "format_list_numbered"
   | "key"
   | "link"
@@ -23,6 +28,7 @@ export type MaterialSymbolName =
   | "palette"
   | "password"
   | "person"
+  | "refresh"
   | "sell"
   | "sort"
   | "timer"
@@ -33,23 +39,47 @@ export type MaterialSymbolName =
   | "webhook";
 
 /**
+ * 认证设置专用的细线图标名称。
+ */
+export type AuthIconName =
+  | "authenticator"
+  | "confirmation"
+  | "email"
+  | "google"
+  | "passkey"
+  | "password"
+  | "preferred-method"
+  | "recovery-codes"
+  | "two-factor"
+  | "username"
+  | "verification-code";
+
+/**
  * Material Symbols Outlined 24px 图标路径。
  */
 const materialSymbolPaths: Record<MaterialSymbolName, string> = {
+  add: "M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z",
   alternate_email:
     "M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480v58q0 59-40.5 100.5T740-280q-35 0-66-15t-52-43q-29 29-65.5 43.5T480-280q-83 0-141.5-58.5T280-480q0-83 58.5-141.5T480-680q83 0 141.5 58.5T680-480v58q0 26 17 44t43 18q26 0 43-18t17-44v-58q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93h200v80H480Zm0-280q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35Z",
   api:
     "m480-400-80-80 80-80 80 80-80 80Zm-85-235L295-735l185-185 185 185-100 100-85-85-85 85ZM225-295 40-480l185-185 100 100-85 85 85 85-100 100Zm510 0L635-395l85-85-85-85 100-100 185 185-185 185ZM480-40 295-225l100-100 85 85 85-85 100 100L480-40Z",
   badge:
     "M160-80q-33 0-56.5-23.5T80-160v-440q0-33 23.5-56.5T160-680h200v-120q0-33 23.5-56.5T440-880h80q33 0 56.5 23.5T600-800v120h200q33 0 56.5 23.5T880-600v440q0 33-23.5 56.5T800-80H160Zm0-80h640v-440H600q0 33-23.5 56.5T520-520h-80q-33 0-56.5-23.5T360-600H160v440Zm80-80h240v-18q0-17-9.5-31.5T444-312q-20-9-40.5-13.5T360-330q-23 0-43.5 4.5T276-312q-17 8-26.5 22.5T240-258v18Zm320-60h160v-60H560v60Zm-200-60q25 0 42.5-17.5T420-420q0-25-17.5-42.5T360-480q-25 0-42.5 17.5T300-420q0 25 17.5 42.5T360-360Zm200-60h160v-60H560v60ZM440-600h80v-200h-80v200Zm40 220Z",
+  check: "m382-240-210-210 57-57 153 153 349-349 57 57-406 406Z",
   check_circle:
     "m424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z",
   dark_mode:
     "M480-120q-150 0-255-105T120-480q0-150 105-255t255-105q14 0 27.5 1t26.5 3q-41 29-65.5 75.5T444-660q0 90 63 153t153 63q55 0 101-24.5t75-65.5q2 13 3 26.5t1 27.5q0 150-105 255T480-120Zm0-80q88 0 158-48.5T740-375q-20 5-40 8t-40 3q-123 0-209.5-86.5T364-660q0-20 3-40t8-40q-78 32-126.5 102T200-480q0 116 82 198t198 82Zm-10-270Z",
+  delete:
+    "M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z",
   dns:
     "M300-720q-25 0-42.5 17.5T240-660q0 25 17.5 42.5T300-600q25 0 42.5-17.5T360-660q0-25-17.5-42.5T300-720Zm0 400q-25 0-42.5 17.5T240-260q0 25 17.5 42.5T300-200q25 0 42.5-17.5T360-260q0-25-17.5-42.5T300-320ZM160-840h640q17 0 28.5 11.5T840-800v280q0 17-11.5 28.5T800-480H160q-17 0-28.5-11.5T120-520v-280q0-17 11.5-28.5T160-840Zm40 80v200h560v-200H200Zm-40 320h640q17 0 28.5 11.5T840-400v280q0 17-11.5 28.5T800-80H160q-17 0-28.5-11.5T120-120v-280q0-17 11.5-28.5T160-440Zm40 80v200h560v-200H200Zm0-400v200-200Zm0 400v200-200Z",
+  download:
+    "M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z",
   drag_indicator:
     "M360-160q-33 0-56.5-23.5T280-240q0-33 23.5-56.5T360-320q33 0 56.5 23.5T440-240q0 33-23.5 56.5T360-160Zm240 0q-33 0-56.5-23.5T520-240q0-33 23.5-56.5T600-320q33 0 56.5 23.5T680-240q0 33-23.5 56.5T600-160ZM360-400q-33 0-56.5-23.5T280-480q0-33 23.5-56.5T360-560q33 0 56.5 23.5T440-480q0 33-23.5 56.5T360-400Zm240 0q-33 0-56.5-23.5T520-480q0-33 23.5-56.5T600-560q33 0 56.5 23.5T680-480q0 33-23.5 56.5T600-400ZM360-640q-33 0-56.5-23.5T280-720q0-33 23.5-56.5T360-800q33 0 56.5 23.5T440-720q0 33-23.5 56.5T360-640Zm240 0q-33 0-56.5-23.5T520-720q0-33 23.5-56.5T600-800q33 0 56.5 23.5T680-720q0 33-23.5 56.5T600-640Z",
+  edit:
+    "M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z",
   format_list_numbered:
     "M120-80v-60h100v-30h-60v-60h60v-30H120v-60h120q17 0 28.5 11.5T280-280v40q0 17-11.5 28.5T240-200q17 0 28.5 11.5T280-160v40q0 17-11.5 28.5T240-80H120Zm0-280v-110q0-17 11.5-28.5T160-510h60v-30H120v-60h120q17 0 28.5 11.5T280-560v70q0 17-11.5 28.5T240-450h-60v30h100v60H120Zm60-280v-180h-60v-60h120v240h-60Zm180 440v-80h480v80H360Zm0-240v-80h480v80H360Zm0-240v-80h480v80H360Z",
   key:
@@ -70,6 +100,8 @@ const materialSymbolPaths: Record<MaterialSymbolName, string> = {
     "M80-200v-80h800v80H80Zm46-242-52-30 34-60H40v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Zm320 0-52-30 34-60h-68v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Zm320 0-52-30 34-60h-68v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Z",
   person:
     "M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Zm80-80h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm240-320q33 0 56.5-23.5T560-640q0-33-23.5-56.5T480-720q-33 0-56.5 23.5T400-640q0 33 23.5 56.5T480-560Zm0-80Zm0 400Z",
+  refresh:
+    "M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z",
   sell:
     "M856-390 570-104q-12 12-27 18t-30 6q-15 0-30-6t-27-18L103-457q-11-11-17-25.5T80-513v-287q0-33 23.5-56.5T160-880h287q16 0 31 6.5t26 17.5l352 353q12 12 17.5 27t5.5 30q0 15-5.5 29.5T856-390ZM513-160l286-286-353-354H160v286l353 354ZM260-640q25 0 42.5-17.5T320-700q0-25-17.5-42.5T260-760q-25 0-42.5 17.5T200-700q0 25 17.5 42.5T260-640Zm220 160Z",
   sort: "M120-240v-80h240v80H120Zm0-200v-80h480v80H120Zm0-200v-80h720v80H120Z",
@@ -86,6 +118,106 @@ const materialSymbolPaths: Record<MaterialSymbolName, string> = {
   webhook:
     "M280-120q-83 0-141.5-58.5T80-320q0-73 45.5-127.5T240-516v83q-35 12-57.5 43T160-320q0 50 35 85t85 35q50 0 85-35t35-85v-40h235q8-9 19.5-14.5T680-380q25 0 42.5 17.5T740-320q0 25-17.5 42.5T680-260q-14 0-25.5-5.5T635-280H476q-14 69-68.5 114.5T280-120Zm400 0q-56 0-101.5-27.5T507-220h107q14 10 31 15t35 5q50 0 85-35t35-85q0-50-35-85t-85-35q-20 0-37 5.5T611-418L489-621q-21-4-35-20t-14-39q0-25 17.5-42.5T500-740q25 0 42.5 17.5T560-680v8.5q0 3.5-2 8.5l87 146q8-2 17-2.5t18-.5q83 0 141.5 58.5T880-320q0 83-58.5 141.5T680-120ZM280-260q-25 0-42.5-17.5T220-320q0-22 14-38t34-21l94-156q-29-27-45.5-64.5T300-680q0-83 58.5-141.5T500-880q83 0 141.5 58.5T700-680h-80q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 43 26 75.5t66 41.5L337-338q2 5 2.5 9t.5 9q0 25-17.5 42.5T280-260Z",
 };
+
+/**
+ * 认证设置专用的 Lucide 风格细线图标内容。
+ */
+const authIconContents: Record<Exclude<AuthIconName, "google">, string> = {
+  authenticator: `
+    <rect width="14" height="20" x="5" y="2" rx="2"></rect>
+    <circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"></circle>
+    <circle cx="12" cy="10" r="0.7" fill="currentColor" stroke="none"></circle>
+    <circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"></circle>
+    <path d="M12 18h.01"></path>
+  `,
+  confirmation: `
+    <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"></path>
+    <path d="m16 9-5.5 5.5L8 12"></path>
+  `,
+  email: `
+    <path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"></path>
+    <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+  `,
+  passkey: `
+    <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"></path>
+    <path d="M14 13.12c0 2.38 0 6.38-1 8.88"></path>
+    <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"></path>
+    <path d="M2 12a10 10 0 0 1 18-6"></path>
+    <path d="M2 16h.01"></path>
+    <path d="M21.8 16c.2-2 .131-5.354 0-6"></path>
+    <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"></path>
+    <path d="M8.65 22c.21-.66.45-1.32.57-2"></path>
+    <path d="M9 6.8a6 6 0 0 1 9 5.2v2"></path>
+  `,
+  password: `
+    <circle cx="12" cy="16" r="1"></circle>
+    <rect x="3" y="10" width="18" height="12" rx="2"></rect>
+    <path d="M7 10V7a5 5 0 0 1 10 0v3"></path>
+  `,
+  "preferred-method": `
+    <path d="M13 5h8"></path>
+    <path d="M13 12h8"></path>
+    <path d="M13 19h8"></path>
+    <path d="m3 17 2 2 4-4"></path>
+    <path d="m3 7 2 2 4-4"></path>
+  `,
+  "recovery-codes": `
+    <circle cx="7.5" cy="15.5" r="5.5"></circle>
+    <path d="m11.5 11.5 9-9"></path>
+    <path d="m16 7 2 2"></path>
+    <path d="m18 5 2 2"></path>
+  `,
+  "two-factor": `
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
+    <path d="m9 12 2 2 4-4"></path>
+  `,
+  username: `
+    <circle cx="12" cy="8" r="5"></circle>
+    <path d="M20 21a8 8 0 0 0-16 0"></path>
+  `,
+  "verification-code": `
+    <rect width="20" height="12" x="2" y="6" rx="2"></rect>
+    <path d="M7 12h.01"></path>
+    <path d="M12 12h.01"></path>
+    <path d="M17 12h.01"></path>
+  `,
+};
+
+/**
+ * 渲染认证设置专用图标。
+ *
+ * @param name 认证图标名称。
+ * @param className 图标 CSS 类名。
+ * @return SVG 图标 HTML。
+ */
+export function authIcon(
+  name: AuthIconName,
+  className = "ui-icon",
+): string {
+  if (name === "google") {
+    return googleAuthIcon(className);
+  }
+
+  return `<svg class="${className}" data-auth-icon="${name}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${
+    authIconContents[name]
+  }</svg>`;
+}
+
+/**
+ * 渲染符合品牌配色的 Google 认证图标。
+ *
+ * @param className 图标 CSS 类名。
+ * @return Google 图标 SVG HTML。
+ */
+function googleAuthIcon(className: string): string {
+  return `<svg class="${className}" data-auth-icon="google" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="12" fill="#fff"></circle>
+    <path fill="#4285f4" d="M21.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.35a4.58 4.58 0 0 1-1.98 3v2.77h3.21c1.88-1.73 2.98-4.28 2.98-7.78Z"></path>
+    <path fill="#34a853" d="M12 22c2.7 0 4.96-.9 6.58-1.97l-3.21-2.77c-.9.6-2.04.96-3.37.96-2.6 0-4.8-1.75-5.59-4.11H3.1v2.84A9.94 9.94 0 0 0 12 22Z"></path>
+    <path fill="#fbbc05" d="M6.41 14.11A6.02 6.02 0 0 1 6.1 12c0-.73.12-1.44.31-2.11V7.05H3.1A9.98 9.98 0 0 0 2 12c0 1.79.39 3.48 1.1 4.95l3.31-2.84Z"></path>
+    <path fill="#ea4335" d="M12 5.78c1.47 0 2.78.51 3.82 1.5l2.83-2.83A9.49 9.49 0 0 0 12 2a9.94 9.94 0 0 0-8.9 5.05l3.31 2.84A5.98 5.98 0 0 1 12 5.78Z"></path>
+  </svg>`;
+}
 
 /**
  * 渲染仪表盘图标。
@@ -170,13 +302,32 @@ export function languageTextIcon(className = "ui-icon"): string {
 }
 
 /**
+ * 渲染复制操作使用的 Lucide 风格双层方框图标。
+ *
+ * @param className 图标 CSS 类名。
+ * @return SVG 图标 HTML。
+ */
+export function copyIcon(className = "ui-icon"): string {
+  return strokedIcon(
+    className,
+    `
+      <rect width="14" height="14" x="8" y="8" rx="2"></rect>
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+    `,
+  );
+}
+
+/**
  * 渲染 Material Symbols 图标。
  *
  * @param name 图标名称。
  * @param className 图标 CSS 类名。
  * @return SVG 图标 HTML。
  */
-export function materialSymbolIcon(name: MaterialSymbolName, className = "ui-icon"): string {
+export function materialSymbolIcon(
+  name: MaterialSymbolName,
+  className = "ui-icon",
+): string {
   return `<svg class="${className}" aria-hidden="true" focusable="false" viewBox="0 -960 960 960" fill="currentColor"><path d="${
     materialSymbolPaths[name]
   }"></path></svg>`;

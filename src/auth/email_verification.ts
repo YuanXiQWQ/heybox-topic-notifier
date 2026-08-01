@@ -6,6 +6,7 @@ import type {
   PendingEmailVerification,
 } from "../models.ts";
 import type { Locale } from "../locales/types.ts";
+import { getMessages } from "../locales/index.ts";
 import {
   base64UrlEncode,
   constantTimeEquals,
@@ -258,18 +259,20 @@ export async function sendEmailVerificationCode(
 export function emailVerificationEmailMessage(
   delivery: EmailVerificationDelivery,
 ): EmailVerificationEmailMessage {
-  const english = delivery.locale.startsWith("en");
+  const messages = getMessages(delivery.locale);
   const minutes = Math.max(
     1,
     Math.ceil((Date.parse(delivery.expiresAt) - Date.now()) / 60_000),
   );
-  const subject = english ? "Your verification code" : "你的验证码";
-  const text = english
-    ? `Your verification code is ${delivery.code}. It expires in ${minutes} minutes.`
-    : `你的验证码是 ${delivery.code}，${minutes} 分钟内有效。`;
+  const expiresIn = new Intl.RelativeTimeFormat(delivery.locale, {
+    numeric: "always",
+    style: "long",
+  }).format(minutes, "minute");
+  const subject = `${messages.appName} · ${messages.authEmailCode}`;
+  const text = `${messages.authEmailCode}: ${delivery.code}\n${expiresIn}`;
 
   return {
-    html: `<p>${escapeHtml(text)}</p>`,
+    html: text.split("\n").map((line) => `<p>${escapeHtml(line)}</p>`).join(""),
     subject,
     text,
     to: delivery.email,

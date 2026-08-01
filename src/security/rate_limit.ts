@@ -2,6 +2,7 @@
  * @file 本文件提供公开部署下的轻量服务端频率限制能力。
  */
 import type { RateLimitHit } from "../storage/kv.ts";
+import { getMessages, localeFromRequest } from "../locales/index.ts";
 import { logSecurityAuditEvent } from "./audit_log.ts";
 import { base64UrlEncode } from "./crypto_utils.ts";
 
@@ -154,7 +155,9 @@ export async function rateLimitExceededResponseFor(
     });
   }
 
-  return hit.allowed ? undefined : rateLimitExceededResponse(hit);
+  return hit.allowed
+    ? undefined
+    : rateLimitExceededResponse(hit, auditContext.request);
 }
 
 /**
@@ -188,10 +191,17 @@ export function userRateLimitIdentifier(userId: string): string {
  * 创建频率限制超限响应。
  *
  * @param hit 频率限制命中结果。
+ * @param request 触发频率限制的请求。
  * @return HTTP 429 响应。
  */
-function rateLimitExceededResponse(hit: RateLimitHit): Response {
-  return new Response("Too many requests. Try again later.", {
+function rateLimitExceededResponse(
+  hit: RateLimitHit,
+  request: Request | undefined,
+): Response {
+  const message = request
+    ? getMessages(localeFromRequest(request)).authLoginRateLimited
+    : getMessages("zh-CN").authLoginRateLimited;
+  return new Response(message, {
     headers: {
       "content-type": "text/plain; charset=utf-8",
       "retry-after": String(hit.retryAfterSeconds),

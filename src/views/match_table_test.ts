@@ -239,6 +239,18 @@ Deno.test("settings and history pages keep the app tab title", () => {
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 
+Deno.test("settings page loads the stable new-password focus flow", () => {
+  const html = renderSettings({
+    csrfToken: testCsrfToken,
+    settings: settings(),
+  });
+
+  assertIncludes(
+    html,
+    `/static/settings.js?v=20260902-recovery-unbind`,
+  );
+});
+
 Deno.test("renderSettings marks navigation and locale controls with icons", () => {
   const html = renderSettings({
     csrfToken: testCsrfToken,
@@ -263,6 +275,82 @@ Deno.test("renderSettings marks navigation and locale controls with icons", () =
   assertIncludes(html, `viewBox="0 -960 960 960"`);
   assertIncludes(html, `d="m476-80`);
   assertNotIncludes(html, `<dt>`);
+});
+
+Deno.test("renderSettings keeps settings row actions compact", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: false,
+      primaryEmail: undefined,
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    secondFactorMethods: [],
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+  });
+
+  assertIncludes(html, `data-account-mode="username"`);
+  assertIncludes(html, `data-account-mode-trigger="password"`);
+  assertIncludes(html, `aria-label="修改用户名"`);
+  assertIncludes(html, `aria-label="修改密码"`);
+  assertIncludes(html, `title="修改用户名"`);
+  assertIncludes(html, `title="修改密码"`);
+  assertIncludes(html, `class="settings-row-switch-cell"`);
+  assertIncludes(html, `data-test-notify-status`);
+  assertIncludes(html, `data-security-settings-status-row`);
+  assertNotIncludes(html, `data-account-verify-button`);
+  assertNotIncludes(html, `data-account-mode="password"`);
+  assertNotIncludes(html, `>修改用户名</button>`);
+  assertNotIncludes(html, `>修改密码</button>`);
+  assertNotIncludes(html, `>验证当前密码</button>`);
+});
+
+Deno.test("renderSettings keeps account password mode behind current password verification", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: false,
+      primaryEmail: undefined,
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    secondFactorMethods: [],
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+  });
+
+  assertIncludes(html, `data-account-mode-trigger="password"`);
+  assertIncludes(html, `data-account-new-password-row`);
+  assertIncludes(html, `data-account-unlocked-field`);
+  assertIncludes(
+    html,
+    `autocomplete="current-password"
+                  data-account-current-password-input
+                  disabled`,
+  );
+  assertIncludes(html, `name="newPassword"`);
+  assertIncludes(html, `name="confirmPassword"`);
+  assertIncludes(
+    html,
+    `data-account-unlocked-field
+                  disabled`,
+  );
+  assertNotIncludes(html, `data-auth-method-panel="password"`);
+  assertNotIncludes(html, `data-password-login-method-form`);
+  assertNotIncludes(html, `data-password-login-current-input`);
+  assertNotIncludes(html, `data-password-login-target-row`);
+  assertNotIncludes(html, `data-password-login-unlocked-field`);
+  assertNotIncludes(html, `data-password-login-actions`);
+  assertNotIncludes(html, `data-password-login-save-button`);
+  assertNotIncludes(html, `data-account-verify-button`);
 });
 
 Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => {
@@ -302,6 +390,12 @@ Deno.test("renderSettings does not expose notification secrets", () => {
   });
 
   assertIncludes(html, `class="secret-display-input"`);
+  assertIncludes(
+    html,
+    `class="settings-row-action-button settings-icon-action-button"`,
+  );
+  assertIncludes(html, `class="settings-row-action-icon"`);
+  assertIncludes(html, `data-secret-edit-button`);
   assertIncludes(html, `data-secret-configured="true"`);
   assertNotIncludes(html, appSettings.notificationEmailApiToken);
   assertNotIncludes(html, appSettings.notificationPushPlusToken);
@@ -331,12 +425,31 @@ Deno.test("renderSettings renders email binding controls and verified email stat
   });
 
   assertIncludes(html, `data-email-binding-form`);
-  assertIncludes(html, `action="/account/email/verify"`);
+  assertIncludes(html, `id="email-binding-form"`);
+  assertIncludes(html, `action="/account/email/verify?locale=zh-CN"`);
+  assertIncludes(
+    html,
+    `data-email-send-url="/auth/email-verifications?locale=zh-CN"`,
+  );
+  assertIncludes(html, `data-email-binding-edit-button`);
+  assertIncludes(html, `data-email-summary-row`);
+  assertIncludes(html, `data-email-binding-original="alice@example.com"`);
+  assertIncludes(html, `form="email-binding-form"`);
+  assertIncludes(
+    html,
+    `class="auth-method-row account-option-row email-binding-code-row`,
+  );
+  assertIncludes(html, `data-email-code-row`);
   assertIncludes(html, `data-email-send-code-button`);
+  assertIncludes(html, `data-email-code-invalid=`);
   assertIncludes(html, `name="verificationId"`);
   assertIncludes(html, `autocomplete="one-time-code"`);
   assertIncludes(html, `alice@example.com`);
-  assertIncludes(html, `可用于双重验证`);
+  assertIncludes(html, `readonly`);
+  assertNotIncludes(html, `data-auth-method-toggle="email"`);
+  assertNotIncludes(html, `data-auth-method-panel="email"`);
+  assertNotIncludes(html, `email-binding-code-panel`);
+  assertBefore(html, `data-email-summary-row`, `data-email-code-row`);
   assertIncludes(html, `class="settings-turnstile cf-turnstile"`);
   assertIncludes(html, `data-response-field-name="cf-turnstile-response"`);
   assertIncludes(
@@ -345,8 +458,347 @@ Deno.test("renderSettings renders email binding controls and verified email stat
   );
 });
 
+Deno.test("renderSettings renders TOTP binding setup controls", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+    recoveryCodes: [
+      "2345-6789-ABCD",
+      "EFGH-JKLM-NPQR",
+    ],
+    totpCredentials: [{
+      credentialId: "authenticator-credential-id",
+      enabledAt: "2026-08-01T00:00:00.000Z",
+      label: "Work phone",
+      recoveryCodeHashes: ["hash-1", "hash-2"],
+      secretEncrypted: "stored-encrypted-secret",
+      userId: "user-1",
+    }],
+    totpSetup: {
+      qrCodeDataUrl: "data:image/png;base64,test-qr-code",
+      secretBase32: "ABCDEFGHIJKLMNOP",
+      secretEncrypted: "encrypted-secret",
+    },
+  });
+
+  assertIncludes(html, `data-totp-binding-form`);
+  assertIncludes(html, `action="/account/totp/verify?locale=zh-CN"`);
+  assertIncludes(html, `name="secretEncrypted" value="encrypted-secret"`);
+  assertIncludes(html, `data-totp-qr-code`);
+  assertIncludes(html, `src="data:image/png;base64,test-qr-code"`);
+  assertIncludes(html, `data-totp-manual-key`);
+  assertIncludes(html, `>ABCDEFGHIJKLMNOP</code>`);
+  assertIncludes(html, `data-totp-copy-button`);
+  assertIncludes(html, `class="totp-copy-icon"`);
+  assertNotIncludes(html, `value="ABCDEFGHIJKLMNOP"`);
+  assertNotIncludes(html, `data-totp-otpauth-uri`);
+  assertIncludes(html, `data-totp-code-input`);
+  assertIncludes(html, `data-totp-code-error=`);
+  assertIncludes(html, `data-totp-config-error=`);
+  assertIncludes(html, `data-totp-not-found-error=`);
+  assertIncludes(html, `确认绑定`);
+  const totpPanel = html.slice(
+    html.indexOf(`data-totp-binding-section`),
+    html.indexOf(`data-auth-method-panel="recovery-codes"`),
+  );
+  assertIncludes(totpPanel, `action="/account/totp/delete?locale=zh-CN"`);
+  assertIncludes(totpPanel, `data-auth-credential-action="delete"`);
+  assertIncludes(totpPanel, `data-sensitive-action-form`);
+  assertIncludes(totpPanel, `data-sensitive-reauth-template`);
+  assertIncludes(totpPanel, `data-reauth-recovery-code-form`);
+  assertIncludes(
+    totpPanel,
+    `data-reauth-recovery-code-url="/account/reauth/recovery-code?locale=zh-CN"`,
+  );
+  assertIncludes(totpPanel, `class="auth-method-credential-heading"`);
+  assertIncludes(totpPanel, `data-auth-credential-action="confirm"`);
+  assertIncludes(totpPanel, `aria-label="删除"`);
+  assertIncludes(totpPanel, `aria-label="确认绑定"`);
+  assertNotIncludes(totpPanel, `>状态</span>`);
+  assertNotIncludes(totpPanel, `已绑定 1 个验证器。`);
+  assertBefore(
+    totpPanel,
+    `data-auth-credential-action="confirm"`,
+    `data-auth-credential-action="delete"`,
+  );
+  assertNotIncludes(totpPanel, `>删除</button>`);
+  assertNotIncludes(totpPanel, `>确认绑定</button>`);
+  assertIncludes(html, `data-recovery-code-reveal`);
+  assertIncludes(html, `data-recovery-codes-download`);
+  assertIncludes(html, `data-recovery-codes-confirm`);
+  assertIncludes(html, `data-recovery-codes-generate`);
+  assertIncludes(html, `data-auth-credential-action="refresh"`);
+  assertIncludes(html, `data-recovery-code-generation`);
+  assertIncludes(html, `data-reauth-purpose="recovery_codes"`);
+  assertIncludes(html, `class="auth-method-toggle-button" hidden`);
+  assertIncludes(html, `data-recovery-code-generation\n    hidden`);
+  assertIncludes(html, `>确认</button>`);
+  assertIncludes(html, `aria-label="下载恢复码"`);
+  assertIncludes(
+    html,
+    `data-recovery-download-app-name="小黑盒话题提醒"`,
+  );
+  assertIncludes(html, `data-recovery-download-file-label="恢复码"`);
+  assertNotIncludes(html, `data-recovery-codes-copy`);
+  assertIncludes(html, `2345-6789-ABCD`);
+});
+
+Deno.test("renderSettings offers recovery code generation for an existing authenticator", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+    totpCredentials: [{
+      credentialId: "legacy-authenticator",
+      enabledAt: "2026-08-01T00:00:00.000Z",
+      label: "旧验证器",
+      recoveryCodeHashes: [],
+      secretEncrypted: "stored-encrypted-secret",
+      userId: "user-1",
+    }],
+  });
+
+  assertIncludes(html, `data-recovery-codes-generate`);
+  assertIncludes(html, `data-auth-credential-action="add"`);
+  assertIncludes(html, `data-auth-method-toggle="recovery-codes"`);
+  assertIncludes(html, `aria-label="生成恢复码"`);
+  assertIncludes(html, `data-recovery-code-generation`);
+  assertIncludes(html, `data-reauth-section`);
+  assertIncludes(html, `data-reauth-purpose="recovery_codes"`);
+  assertIncludes(html, `请选择一种方式确认身份`);
+  assertNotIncludes(html, `action="/account/recovery-codes/generate"`);
+  assertNotIncludes(html, `data-recovery-code-reveal`);
+});
+
+Deno.test("renderSettings offers recovery code regeneration when codes already exist", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+    totpCredentials: [{
+      credentialId: "authenticator-with-recovery-codes",
+      enabledAt: "2026-08-01T00:00:00.000Z",
+      label: "手机验证器",
+      recoveryCodeHashes: ["old-hash"],
+      secretEncrypted: "stored-encrypted-secret",
+      userId: "user-1",
+    }],
+  });
+
+  assertIncludes(html, `data-recovery-codes-generate`);
+  assertIncludes(html, `data-auth-credential-action="refresh"`);
+  assertIncludes(html, `aria-label="重新生成恢复码"`);
+  assertIncludes(html, `data-recovery-code-generation`);
+  assertIncludes(html, `data-reauth-purpose="recovery_codes"`);
+  assertIncludes(html, `确认成功后将废除全部旧恢复码`);
+  assertNotIncludes(html, `data-recovery-code-reveal`);
+});
+
+Deno.test("renderSettings localizes the recovery code download filename parts", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    recoveryCodes: ["2345-6789-ABCD"],
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: { ...settings(), locale: "en-US" },
+    totpCredentials: [{
+      credentialId: "authenticator-with-recovery-codes",
+      enabledAt: "2026-08-01T00:00:00.000Z",
+      label: "Phone authenticator",
+      recoveryCodeHashes: ["stored-hash"],
+      secretEncrypted: "stored-encrypted-secret",
+      userId: "user-1",
+    }],
+  });
+
+  assertIncludes(html, `aria-label="Download recovery codes"`);
+  assertIncludes(
+    html,
+    `data-recovery-download-app-name="Heybox Topic Notifier"`,
+  );
+  assertIncludes(
+    html,
+    `data-recovery-download-file-label="Recovery codes"`,
+  );
+  assertNotIncludes(html, `data-recovery-download-file-label="恢复码"`);
+});
+
+Deno.test("renderSettings places auth sections below notifications and above global settings", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+  });
+
+  assertBefore(
+    html,
+    `id="notification-settings-heading"`,
+    `id="login-methods-heading"`,
+  );
+  assertBefore(
+    html,
+    `id="login-methods-heading"`,
+    `id="account-two-step-heading"`,
+  );
+  assertBefore(
+    html,
+    `id="account-two-step-heading"`,
+    `id="global-settings-heading"`,
+  );
+  assertIncludes(html, `data-email-binding-edit-button`);
+  assertIncludes(html, `data-email-code-row`);
+  assertBefore(html, `data-email-code-row`, `data-auth-method-toggle="totp"`);
+  assertIncludes(html, `data-auth-method-toggle="totp"`);
+  assertNotIncludes(html, `data-auth-method-toggle="recovery-codes"`);
+  assertNotIncludes(html, `class="auth-method-text-button"`);
+  assertIncludes(html, `data-account-mode-trigger="password"`);
+  assertNotIncludes(html, `data-auth-method-panel="password"`);
+  assertIncludes(html, `data-auth-method-panel="passkey"`);
+  assertIncludes(html, `data-auth-method-panel="google"`);
+  assertIncludes(html, `class="auth-method-toggle-button"`);
+  assertIncludes(html, `class="auth-method-action-icon"`);
+  assertIncludes(html, `data-auth-icon="email"`);
+  assertIncludes(html, `data-auth-icon="password"`);
+  assertIncludes(html, `data-auth-icon="passkey"`);
+  assertIncludes(html, `data-auth-icon="google"`);
+  assertIncludes(html, `data-auth-icon="two-factor"`);
+  assertIncludes(html, `data-auth-icon="preferred-method"`);
+  assertIncludes(html, `data-auth-icon="authenticator"`);
+  assertIncludes(html, `data-auth-icon="recovery-codes"`);
+  assertIncludes(html, `aria-label="修改密码"`);
+  assertIncludes(html, `title="添加 Passkey"`);
+  assertNotIncludes(html, `>修改密码</button>`);
+  assertNotIncludes(html, `>添加 Passkey</button>`);
+  assertNotIncludes(html, `>绑定</button>`);
+  assertNotIncludes(html, `class="secondary"`);
+  assertNotIncludes(html, `class="secondary `);
+  assertIncludes(html, `form="settings-autosave-form"`);
+  assertNotIncludes(html, `敏感操作确认`);
+});
+
+Deno.test("renderSettings renders Passkey binding controls", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    passkeyBindingStatus: { code: "updated", type: "success" },
+    passkeyCredentials: [{
+      backedUp: true,
+      counter: 0,
+      createdAt: "2026-08-01T00:00:00.000Z",
+      credentialId: "passkey-credential-id",
+      label: "Work laptop",
+      lastUsedAt: "2026-08-01T00:10:00.000Z",
+      publicKey: "public-key",
+      transports: ["internal"],
+      userId: "user-1",
+    }],
+    reauthPasswordAvailable: true,
+    reauthRecentlyVerified: false,
+    settings: settings(),
+  });
+
+  assertIncludes(html, `data-passkey-binding-section`);
+  assertIncludes(html, `data-passkey-bind-button`);
+  assertIncludes(html, `data-passkey-label-input`);
+  assertIncludes(html, `action="/account/passkeys/delete?locale=zh-CN"`);
+  assertIncludes(html, `name="credentialId"`);
+  assertIncludes(html, `Work laptop`);
+  const localizedCreatedAt = new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  }).format(new Date("2026-08-01T00:00:00.000Z"));
+  assertIncludes(html, localizedCreatedAt);
+  assertIncludes(localizedCreatedAt, "年");
+  assertNotIncludes(html, "2026-08-01T00:00:00.000Z");
+  assertIncludes(html, `Passkey 已绑定。`);
+  assertIncludes(html, `data-account-passkey-available="true"`);
+  assertIncludes(html, `data-account-password-available="true"`);
+  assertIncludes(html, `data-account-recently-verified="false"`);
+  assertIncludes(html, `data-account-passkey-reauth-row`);
+  assertIncludes(html, `data-account-passkey-retry-button`);
+  assertIncludes(html, `data-account-password-fallback-button`);
+  assertBefore(html, `data-account-status`, `data-account-actions`);
+  assertIncludes(html, `data-reauth-passkey-options-url=`);
+  assertIncludes(html, `data-reauth-passkey-verify-url=`);
+  assertIncludes(html, `>改用当前密码</button>`);
+  const passkeyPanel = html.slice(
+    html.indexOf(`data-passkey-binding-section`),
+    html.indexOf(`data-auth-method-panel="google"`),
+  );
+  assertIncludes(passkeyPanel, `data-auth-credential-action="delete"`);
+  assertIncludes(passkeyPanel, `data-sensitive-action-form`);
+  assertIncludes(passkeyPanel, `data-sensitive-reauth-template`);
+  assertIncludes(passkeyPanel, `class="auth-method-credential-heading"`);
+  assertIncludes(passkeyPanel, `data-auth-credential-action="add"`);
+  assertIncludes(passkeyPanel, `aria-label="删除"`);
+  assertIncludes(passkeyPanel, `aria-label="绑定 Passkey"`);
+  assertNotIncludes(passkeyPanel, `>状态</span>`);
+  assertNotIncludes(passkeyPanel, `已绑定 1 个 Passkey。`);
+  assertBefore(
+    passkeyPanel,
+    `data-auth-credential-action="add"`,
+    `data-auth-credential-action="delete"`,
+  );
+  assertNotIncludes(passkeyPanel, `>删除</button>`);
+  assertNotIncludes(passkeyPanel, `>绑定 Passkey</button>`);
+});
+
 Deno.test("renderSettings renders account security controls", () => {
   const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
     csrfToken: testCsrfToken,
     secondFactorMethods: ["email"],
     securitySettings: {
@@ -359,14 +811,46 @@ Deno.test("renderSettings renders account security controls", () => {
   });
 
   assertIncludes(html, `data-security-settings-form`);
-  assertIncludes(html, `action="/account/security"`);
+  assertIncludes(html, `data-security-saving=`);
+  assertIncludes(html, `action="/account/security?locale=zh-CN"`);
   assertIncludes(html, `name="twoFactorEnabled"`);
   assertIncludes(html, `checked`);
   assertIncludes(html, `name="preferredSecondFactor"`);
   assertIncludes(html, `value="email" selected`);
-  assertIncludes(html, `data-security-method="email"`);
+  assertIncludes(html, `data-auth-method-toggle="totp"`);
+  assertIncludes(html, `aria-label="编辑"`);
+  assertIncludes(html, `开启两步验证`);
   assertIncludes(html, `邮箱验证码`);
   assertIncludes(html, `双重验证设置已保存。`);
+  assertNotIncludes(html, `保存安全设置`);
+});
+
+Deno.test("renderSettings renders Google unbind as an icon action", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: true,
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    googleBindingStatus: { code: "updated", type: "success" },
+    googleIdentity: {
+      createdAt: "2026-08-01T00:00:00.000Z",
+      email: "alice@example.com",
+      provider: "google",
+      providerUserId: "google-subject-id",
+      userId: "user-1",
+    },
+    settings: settings(),
+  });
+
+  assertIncludes(html, `action="/account/google/unbind?locale=zh-CN"`);
+  assertIncludes(html, `class="auth-method-toggle-button"`);
+  assertIncludes(html, `aria-label="解绑"`);
+  assertIncludes(html, `title="解绑"`);
+  assertIncludes(html, `已绑定 alice@example.com`);
+  assertNotIncludes(html, `Google 已绑定。`);
+  assertNotIncludes(html, `>解绑</button>`);
 });
 
 /**
@@ -491,5 +975,20 @@ function assertIncludes(actual: string, expected: string): void {
 function assertNotIncludes(actual: string, expected: string): void {
   if (actual.includes(expected)) {
     throw new Error(`Expected output not to include ${expected}`);
+  }
+}
+
+/**
+ * 断言一个片段先于另一个片段出现。
+ *
+ * @param actual 实际字符串。
+ * @param first 期望先出现的片段。
+ * @param second 期望后出现的片段。
+ */
+function assertBefore(actual: string, first: string, second: string): void {
+  const firstIndex = actual.indexOf(first);
+  const secondIndex = actual.indexOf(second);
+  if (firstIndex < 0 || secondIndex < 0 || firstIndex >= secondIndex) {
+    throw new Error(`Expected ${first} to appear before ${second}`);
   }
 }

@@ -2,6 +2,7 @@
  * @file 本文件验证邮箱验证码生成、哈希和邮件渲染能力。
  */
 import { assertEquals } from "../test_helpers.ts";
+import { getMessages } from "../locales/index.ts";
 import {
   createEmailVerificationChallenge,
   emailVerificationConfigFromEnv,
@@ -93,7 +94,11 @@ Deno.test("sendEmailVerificationCode renders localized message", async () => {
 
   assertEquals(sentMessages.length, 1);
   assertEquals(sentMessages[0].to, "alice@example.com");
-  assertEquals(sentMessages[0].subject, "Your verification code");
+  const messages = getMessages("en-US");
+  assertEquals(
+    sentMessages[0].subject,
+    `${messages.appName} · ${messages.authEmailCode}`,
+  );
   assertEquals(sentMessages[0].text.includes("123456"), true);
 });
 
@@ -106,6 +111,23 @@ Deno.test("emailVerificationEmailMessage renders Chinese by default", () => {
     purpose: "email_binding",
   });
 
-  assertEquals(message.subject, "你的验证码");
+  const messages = getMessages("zh-CN");
+  assertEquals(
+    message.subject,
+    `${messages.appName} · ${messages.authEmailCode}`,
+  );
   assertEquals(message.text.includes("123456"), true);
+});
+
+Deno.test("emailVerificationEmailMessage formats expiry with the requested locale", () => {
+  const message = emailVerificationEmailMessage({
+    code: "123456",
+    email: "alice@example.com",
+    expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+    locale: "ja-JP",
+    purpose: "primary_login",
+  });
+
+  assertEquals(message.text.includes("10 分後"), true);
+  assertEquals(message.text.includes("分钟内有效"), false);
 });

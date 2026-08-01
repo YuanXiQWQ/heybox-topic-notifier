@@ -3,18 +3,22 @@
  */
 import { Hono } from "@hono/hono";
 import type { Context, MiddlewareHandler } from "@hono/hono";
-import { getMessages } from "./locales/index.ts";
+import { getMessages, localeFromRequest } from "./locales/index.ts";
 import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
 import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
 import type {
   AuthIdentity,
   EmailCredential,
   EmailVerificationPurpose,
+  PasskeyChallengePurpose,
+  PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
+  PendingPasskeyChallenge,
   PrimaryAuthMethod,
   SecondFactorMethod,
+  TotpCredential,
   UserAccount,
 } from "./models.ts";
 import {
@@ -36,6 +40,7 @@ import {
   clientRateLimitIdentifier,
   publicRateLimitPolicies,
   rateLimitExceededResponseFor,
+  userRateLimitIdentifier,
 } from "./security/rate_limit.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 import { languageTextIcon } from "./views/icons.ts";
@@ -73,6 +78,23 @@ import {
   verifyGoogleIdToken,
 } from "./auth/google.ts";
 import {
+  type TotpConfig,
+  TotpConfigError,
+  verifyEncryptedTotpCode,
+} from "./auth/totp.ts";
+import {
+  RecoveryCodeConfigError,
+  verifyRecoveryCodeHash,
+} from "./auth/recovery_codes.ts";
+import {
+  createPasskeyAuthenticationOptions,
+  type PasskeyAuthenticationOptionsResult,
+  type PasskeyConfig,
+  passkeyConfigFromEnv,
+  passkeyCredentialAfterAuthentication,
+  verifyPasskeyAuthenticationResponse,
+} from "./auth/passkey.ts";
+import {
   availableSecondFactorMethods,
   completePrimaryAuthentication,
   isSecondFactorMethod,
@@ -91,6 +113,11 @@ export type { AuthSession } from "./auth/session.ts";
 type Storage = ReturnType<typeof createKvStorage>;
 
 /**
+ * Passkey 认证响应校验函数。
+ */
+type PasskeyAuthenticationVerifier = typeof verifyPasskeyAuthenticationResponse;
+
+/**
  * 认证模块配置选项。
  */
 export type AuthOptions = {
@@ -103,10 +130,13 @@ export type AuthOptions = {
   googleJwksFetch?: GoogleJwksFetch;
   loginPath?: string;
   mfa?: Partial<MfaChallengeConfig>;
+  passkey?: PasskeyConfig;
+  passkeyAuthenticationVerifier?: PasskeyAuthenticationVerifier;
   registerPath?: string;
   emailVerification?: EmailVerificationConfig;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
   sessionMaxAgeSeconds?: number;
+  totp?: TotpConfig;
   turnstile?: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
 };
@@ -125,9 +155,12 @@ type AuthConfig = {
   googleJwksFetch?: GoogleJwksFetch;
   loginPath: string;
   mfa?: Partial<MfaChallengeConfig>;
+  passkey: PasskeyConfig;
+  passkeyAuthenticationVerifier: PasskeyAuthenticationVerifier;
   registerPath: string;
   sendEmailVerificationEmail?: EmailVerificationEmailSender;
   sessionMaxAgeSeconds: number;
+  totp: TotpConfig;
   turnstile: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
 };
@@ -153,9 +186,26 @@ const defaultEmailVerificationConfig: EmailVerificationConfig = {
   maxAttempts: 5,
 };
 /**
+ * 默认验证器动态码配置。
+ */
+const defaultTotpConfig: TotpConfig = {
+  digits: 6,
+  issuer: "",
+  periodSeconds: 30,
+  secretBytes: 20,
+  secretEncryptionKey: "",
+  verificationWindow: 1,
+};
+/**
  * 默认 Google 认证配置。
  */
 const defaultGoogleAuthConfig: GoogleAuthConfig = googleAuthConfigFromEnv(
+  () => undefined,
+);
+/**
+ * 默认 Passkey 配置。
+ */
+const defaultPasskeyConfig: PasskeyConfig = passkeyConfigFromEnv(
   () => undefined,
 );
 /**
@@ -211,9 +261,29 @@ const emailVerificationPath = "/auth/email-verifications";
  */
 const googleCredentialPath = "/auth/google";
 /**
+ * Passkey 登录 options 接口路径。
+ */
+const passkeyLoginOptionsPath = "/auth/passkeys/login-options";
+/**
+ * Passkey 登录校验接口路径。
+ */
+const passkeyLoginPath = "/auth/passkeys/login";
+/**
+ * Passkey 二次验证 options 接口路径。
+ */
+const passkeyMfaOptionsPath = "/auth/passkeys/mfa-options";
+/**
+ * Passkey 二次验证校验接口路径。
+ */
+const passkeyMfaPath = "/auth/passkeys/mfa";
+/**
  * MFA 挑战页面路径。
  */
 const mfaPath = "/mfa";
+/**
+ * Passkey challenge 最大校验失败次数。
+ */
+const passkeyChallengeMaxAttempts = 5;
 
 /**
  * 创建认证中间件。
@@ -287,6 +357,9 @@ export function createAuthRoutes(
         error: loginErrorMessage(url.searchParams.get("error"), messages),
         googleClientId: googleClientId(config),
         heading: messages.authLogin,
+        initialAuthMethod: url.searchParams.get("authMethod") === "email"
+          ? "email"
+          : "password",
         locale,
         messages,
         mode: "login",
@@ -321,17 +394,19 @@ export function createAuthRoutes(
       });
     }
 
-    const username = normalizeUsername(String(form.username ?? ""));
+    const loginIdentifier = passwordLoginFailureIdentifier(
+      String(form.username ?? ""),
+    );
     const password = String(form.password ?? "");
-    const canRateLimit = validUsername(username);
+    const canRateLimit = loginIdentifier.length > 0;
     const loginFailure = canRateLimit
-      ? await storage.getLoginFailure(username)
+      ? await storage.getLoginFailure(loginIdentifier)
       : undefined;
 
     if (isLoginLocked(loginFailure)) {
       logSecurityAuditEvent({
         code: "login_locked",
-        details: { username: auditText(username) },
+        details: { username: auditText(loginIdentifier) },
         level: "warn",
         message: "登录已处于临时锁定状态，已拒绝本次尝试。",
         request: c.req.raw,
@@ -366,14 +441,17 @@ export function createAuthRoutes(
       }
     }
 
-    const account = await storage.getAccountByUsername(username);
+    const account = await findPasswordLoginAccount(
+      storage,
+      String(form.username ?? ""),
+    );
 
     if (
       !account || !(await verifyAccountPassword(password, account, storage))
     ) {
       const failure = canRateLimit
         ? await storage.recordLoginFailure(
-          username,
+          loginIdentifier,
           config.maxLoginFailures,
           config.loginLockoutSeconds * 1000,
         )
@@ -383,7 +461,7 @@ export function createAuthRoutes(
           code: "login_lockout_triggered",
           details: {
             failures: failure?.failures ?? "",
-            username: auditText(username),
+            username: auditText(loginIdentifier),
           },
           level: "warn",
           message: "登录失败次数过多，已触发临时锁定。",
@@ -402,7 +480,7 @@ export function createAuthRoutes(
         code: "login_failed",
         details: {
           failures: failure?.failures ?? "",
-          username: auditText(username),
+          username: auditText(loginIdentifier),
         },
         level: "warn",
         message: "登录失败：用户名或密码不正确。",
@@ -425,7 +503,7 @@ export function createAuthRoutes(
     }
 
     if (canRateLimit) {
-      await storage.clearLoginFailures(username);
+      await storage.clearLoginFailures(loginIdentifier);
     }
 
     if (syncLocale) {
@@ -627,6 +705,23 @@ export function createAuthRoutes(
       skipHumanVerification = true;
     }
 
+    if (purpose === "reauth") {
+      if (!session) {
+        return c.json({ error: "authenticationRequired" }, 401);
+      }
+
+      const credential = await storage.getEmailCredential(
+        session.userId,
+        email,
+      );
+      if (!credential?.verified) {
+        return c.json({ error: "invalidEmailVerificationRequest" }, 400);
+      }
+
+      verificationUserId = session.userId;
+      skipHumanVerification = true;
+    }
+
     const clientLimitResponse = await rateLimitExceededResponseFor(
       storage,
       publicRateLimitPolicies.emailVerificationClient,
@@ -737,6 +832,161 @@ export function createAuthRoutes(
     });
   });
 
+  app.post(passkeyLoginOptionsPath, async (c) => {
+    const payload = await passkeyJsonPayload(c);
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedJsonCsrfToken(payload, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${
+        clientRateLimitIdentifier((name) => c.req.header(name))
+      }:passkey-login-options`,
+      { request: c.req.raw },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const authentication = await createPasskeyAuthenticationOptions({
+      config: config.passkey,
+      purpose: "primary_login",
+    });
+    await storage.savePendingPasskeyChallenge(authentication.challenge);
+
+    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+  });
+
+  app.post(passkeyLoginPath, async (c) => {
+    const url = new URL(c.req.url);
+    const payload = await passkeyJsonPayload(c);
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedJsonCsrfToken(payload, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${
+        clientRateLimitIdentifier((name) => c.req.header(name))
+      }:passkey-login`,
+      { request: c.req.raw },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const syncLocale = shouldSyncAuthLocale(url) ||
+      String(payload[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
+    return await handlePasskeyLogin(c, storage, config, payload, {
+      locale,
+      returnTo: safeReturnTo(String(payload.returnTo ?? "/")),
+      syncLocale,
+    });
+  });
+
+  app.post(passkeyMfaOptionsPath, async (c) => {
+    const payload = await passkeyJsonPayload(c);
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedJsonCsrfToken(payload, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const challengeId = passkeyMfaChallengeId(payload);
+    const challenge = challengeId
+      ? await storage.getPendingMfaChallenge(challengeId)
+      : undefined;
+    const challengeError = challenge
+      ? mfaChallengeVerificationError(challenge, "passkey", config.mfa)
+      : "expired";
+    if (!challenge || challengeError) {
+      if (
+        challenge &&
+        (challengeError === "attempts" || challengeError === "expired")
+      ) {
+        await storage.deletePendingMfaChallenge(challenge.id);
+      }
+      return c.json({ error: "mfaChallengeInvalid" }, 400);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${
+        clientRateLimitIdentifier((name) => c.req.header(name))
+      }:passkey-mfa-options`,
+      { request: c.req.raw, userId: challenge.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const credentials = await storage.listPasskeyCredentials(challenge.userId);
+    if (credentials.length === 0) {
+      return c.json({ error: "unavailable" }, 400);
+    }
+
+    const authentication = await createPasskeyAuthenticationOptions({
+      config: config.passkey,
+      credentials,
+      purpose: "second_factor",
+      userId: challenge.userId,
+    });
+    await storage.savePendingPasskeyChallenge(authentication.challenge);
+
+    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+  });
+
+  app.post(passkeyMfaPath, async (c) => {
+    const url = new URL(c.req.url);
+    const payload = await passkeyJsonPayload(c);
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedJsonCsrfToken(payload, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.emailLogin,
+      `${clientRateLimitIdentifier((name) => c.req.header(name))}:passkey-mfa`,
+      { request: c.req.raw },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    return await handlePasskeySecondFactor(
+      c,
+      storage,
+      config,
+      payload,
+      locale,
+      safeReturnTo(String(payload.returnTo ?? "/")),
+    );
+  });
+
   app.post(googleCredentialPath, async (c) => {
     const url = new URL(c.req.url);
     const form = await c.req.parseBody();
@@ -770,6 +1020,48 @@ export function createAuthRoutes(
     });
   });
 
+  app.post("/account/google/bind", async (c) => {
+    const form = await c.req.parseBody();
+    if (
+      !verifyCsrfToken(
+        c.req.header("cookie"),
+        submittedCsrfToken(form, c.req.header(csrfHeaderName)),
+      )
+    ) {
+      return csrfForbiddenResponse(c.req.raw);
+    }
+
+    const session = await readAuthSession(c.req.header("cookie"), storage);
+    if (!session) {
+      const locale = authPageLocale(
+        new URL(c.req.url),
+        c.req.header("accept-language"),
+        config,
+      );
+      return c.redirect(
+        authPagePath(config.loginPath, locale, { returnTo: "/settings" }),
+        303,
+      );
+    }
+
+    const account = await storage.getAccountById(session.userId);
+    if (!account) {
+      return c.redirect("/settings?accountError=notFound", 303);
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.accountSensitiveOperation,
+      userRateLimitIdentifier(session.userId),
+      { request: c.req.raw, userId: session.userId },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    return await handleGoogleCredentialBind(c, storage, config, form, account);
+  });
+
   app.get(mfaPath, async (c) => {
     const url = new URL(c.req.url);
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
@@ -793,6 +1085,10 @@ export function createAuthRoutes(
     const emailCredentials = await storage.listEmailCredentials(
       challenge.userId,
     );
+    const passkeyCredentials = await storage.listPasskeyCredentials(
+      challenge.userId,
+    );
+    const requestedMethod = url.searchParams.get("method");
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderMfaPage({
@@ -803,6 +1099,11 @@ export function createAuthRoutes(
         error: mfaErrorMessage(url.searchParams.get("error"), messages),
         locale,
         messages,
+        passkeyCredentials,
+        selectedMethod: isSecondFactorMethod(requestedMethod) &&
+            challenge.allowedMethods.includes(requestedMethod)
+          ? requestedMethod
+          : challenge.allowedMethods[0],
         returnTo,
       })),
       csrf,
@@ -857,6 +1158,7 @@ export function createAuthRoutes(
           challenge.id,
           returnTo,
           challengeError,
+          method,
         ),
         303,
       );
@@ -874,8 +1176,38 @@ export function createAuthRoutes(
       );
     }
 
+    if (method === "totp") {
+      return await handleTotpSecondFactor(
+        c,
+        storage,
+        config,
+        form,
+        challenge,
+        locale,
+        returnTo,
+      );
+    }
+
+    if (method === "recoveryCode") {
+      return await handleRecoveryCodeSecondFactor(
+        c,
+        storage,
+        config,
+        form,
+        challenge,
+        locale,
+        returnTo,
+      );
+    }
+
     return c.redirect(
-      mfaErrorRedirect(locale, challenge.id, returnTo, "unavailable"),
+      mfaErrorRedirect(
+        locale,
+        challenge.id,
+        returnTo,
+        "unavailable",
+        method,
+      ),
       303,
     );
   });
@@ -892,10 +1224,11 @@ export function createAuthRoutes(
     }
 
     await deleteSessionForCookie(c.req.header("cookie"), storage, config);
+    const locale = localeFromRequest(c.req.raw, config.defaultLocale);
 
     return new Response(null, {
       headers: {
-        location: authPagePath(config.loginPath, config.defaultLocale),
+        location: authPagePath(config.loginPath, locale),
         "set-cookie": clearSessionCookie(c.req.url, config),
       },
       status: 303,
@@ -912,6 +1245,12 @@ type EmailLoginOptions = {
 };
 
 type GoogleCredentialLoginOptions = {
+  locale: Locale;
+  returnTo: string;
+  syncLocale: boolean;
+};
+
+type PasskeyLoginOptions = {
   locale: Locale;
   returnTo: string;
   syncLocale: boolean;
@@ -948,7 +1287,13 @@ async function completePrimaryLogin(
 ): Promise<Response> {
   const securitySettings = await storage.getUserSecuritySettings(account.id);
   const emailCredentials = await storage.listEmailCredentials(account.id);
-  const availableMethods = availableSecondFactorMethods({ emailCredentials });
+  const passkeyCredentials = await storage.listPasskeyCredentials(account.id);
+  const totpCredentials = await storage.listTotpCredentials(account.id);
+  const availableMethods = availableSecondFactorMethods({
+    emailCredentials,
+    passkeyCredentials,
+    totpCredentials,
+  });
 
   try {
     const completion = completePrimaryAuthentication({
@@ -1012,6 +1357,141 @@ async function completePrimaryLogin(
       303,
     );
   }
+}
+
+/**
+ * 处理 Passkey 主登录。
+ *
+ * @param c Hono 请求上下文。
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @param payload JSON 请求体。
+ * @param options Passkey 登录选项。
+ * @return 登录响应。
+ */
+async function handlePasskeyLogin(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  payload: Record<string, unknown>,
+  options: PasskeyLoginOptions,
+): Promise<Response> {
+  const challengeId = String(payload.challengeId ?? "").trim();
+  const credentialResponse = payload.credential;
+  const credentialId = passkeyCredentialId(credentialResponse);
+  if (!challengeId || !isRecord(credentialResponse) || !credentialId) {
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { reason: "invalid_request" },
+      level: "warn",
+      message: "Passkey 登录失败：请求无效。",
+      request: c.req.raw,
+    });
+    return c.json({ error: "invalid" }, 400);
+  }
+
+  const challenge = await storage.getPendingPasskeyChallenge(challengeId);
+  const challengeError = passkeyAuthenticationChallengeError(
+    challenge,
+    "primary_login",
+    credentialId,
+  );
+  if (challengeError) {
+    if (challenge) {
+      await storage.deletePendingPasskeyChallenge(challenge.id);
+    }
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { credentialId, reason: "challenge" },
+      level: "warn",
+      message: "Passkey 登录失败：challenge 不可用。",
+      request: c.req.raw,
+      userId: challenge?.userId,
+    });
+    return c.json({ error: "challenge" }, 400);
+  }
+
+  const activeChallenge = challenge as PendingPasskeyChallenge;
+  const credential = await storage.getPasskeyCredentialByCredentialId(
+    credentialId,
+  );
+  if (
+    !credential ||
+    (activeChallenge.userId && activeChallenge.userId !== credential.userId)
+  ) {
+    await recordPasskeyChallengeFailure(storage, activeChallenge);
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { credentialId, reason: "credential" },
+      level: "warn",
+      message: "Passkey 登录失败：凭证不存在或不属于当前 challenge。",
+      request: c.req.raw,
+      userId: activeChallenge.userId,
+    });
+    return c.json({ error: "failed" }, 400);
+  }
+
+  const verification = await verifyPasskeyAssertionResponse(
+    config,
+    activeChallenge,
+    credential,
+    credentialResponse,
+  );
+  if (!verification?.verified) {
+    await recordPasskeyChallengeFailure(storage, activeChallenge);
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { credentialId, reason: "assertion" },
+      level: "warn",
+      message: "Passkey 登录失败：assertion 校验未通过。",
+      request: c.req.raw,
+      userId: credential.userId,
+    });
+    return c.json({ error: "failed" }, 400);
+  }
+
+  const account = await storage.getAccountById(credential.userId);
+  if (!account) {
+    await storage.deletePendingPasskeyChallenge(activeChallenge.id);
+    logSecurityAuditEvent({
+      code: "passkey_login_failed",
+      details: { credentialId, reason: "account" },
+      level: "warn",
+      message: "Passkey 登录失败：账号不存在。",
+      request: c.req.raw,
+      userId: credential.userId,
+    });
+    return c.json({ error: "failed" }, 400);
+  }
+
+  await storage.savePasskeyCredential(passkeyCredentialAfterAuthentication(
+    credential,
+    verification.authenticationInfo.newCounter,
+  ));
+  await storage.deletePendingPasskeyChallenge(activeChallenge.id);
+  if (options.syncLocale) {
+    await saveAuthLocale(account.id, options.locale, storage);
+  }
+
+  logSecurityAuditEvent({
+    code: "passkey_login_succeeded",
+    details: {
+      credentialId,
+      primaryMethod: "passkey",
+      secondFactorExcluded: "passkey",
+    },
+    level: "info",
+    message: "Passkey 登录成功。",
+    request: c.req.raw,
+    userId: account.id,
+  });
+
+  return await completePrimaryLogin(c, storage, config, account, {
+    locale: options.locale,
+    primaryMethod: "passkey",
+    returnTo: options.returnTo,
+    syncLocale: options.syncLocale,
+  });
 }
 
 /**
@@ -1114,6 +1594,104 @@ async function handleGoogleCredentialLogin(
     returnTo: options.returnTo,
     syncLocale: options.syncLocale,
   });
+}
+
+/**
+ * 处理当前账号绑定 Google credential。
+ *
+ * @param c Hono 请求上下文。
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @param form 已解析表单。
+ * @param account 当前本地账号。
+ * @return 绑定响应。
+ */
+async function handleGoogleCredentialBind(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  form: Record<string, unknown>,
+  account: UserAccount,
+): Promise<Response> {
+  const credential = String(form.credential ?? "").trim();
+  if (!credential) {
+    return c.redirect("/settings?googleError=failed", 303);
+  }
+
+  let claims: GoogleIdentityClaims;
+  try {
+    claims = await verifyGoogleIdToken(credential, config.google, {
+      fetcher: config.googleJwksFetch,
+    });
+  } catch (error) {
+    if (error instanceof GoogleAuthConfigError) {
+      return c.redirect("/settings?googleError=failed", 303);
+    }
+    if (error instanceof GoogleIdTokenVerificationError) {
+      logSecurityAuditEvent({
+        code: "google_identity_bind_failed",
+        details: { reason: auditText(error.message) },
+        level: "warn",
+        message: "Google 绑定失败：ID token 校验未通过。",
+        request: c.req.raw,
+        userId: account.id,
+      });
+      return c.redirect("/settings?googleError=failed", 303);
+    }
+    throw error;
+  }
+
+  const existingIdentity = await storage.getAuthIdentity("google", claims.sub);
+  if (existingIdentity && existingIdentity.userId !== account.id) {
+    logSecurityAuditEvent({
+      code: "google_identity_bind_conflict",
+      details: googleAuditDetails(claims),
+      level: "warn",
+      message: "Google 绑定失败：该 Google 身份已绑定其他账号。",
+      request: c.req.raw,
+      userId: account.id,
+    });
+    return c.redirect("/settings?googleError=conflict", 303);
+  }
+
+  const boundIdentities = await storage.listAuthIdentitiesForUser(
+    "google",
+    account.id,
+  );
+  const boundDifferentIdentity = boundIdentities.some((identity) =>
+    identity.providerUserId !== claims.sub
+  );
+  if (boundDifferentIdentity) {
+    return c.redirect("/settings?googleError=alreadyBound", 303);
+  }
+
+  const now = new Date().toISOString();
+  const nextAccount = googleAccountProfileFromClaims(account, claims);
+  const accountChanged = account.authVersion !== nextAccount.authVersion ||
+    account.displayName !== nextAccount.displayName ||
+    account.emailVerified !== nextAccount.emailVerified ||
+    account.primaryEmail !== nextAccount.primaryEmail;
+  if (accountChanged && !(await storage.updateAccount(nextAccount))) {
+    return c.redirect("/settings?accountError=notFound", 303);
+  }
+
+  await saveGoogleAuthIdentity(
+    storage,
+    account.id,
+    claims,
+    existingIdentity?.createdAt ?? now,
+  );
+  await saveVerifiedGoogleEmailCredential(storage, nextAccount, claims, now);
+  logSecurityAuditEvent({
+    code: "google_identity_bound",
+    details: googleAuditDetails(claims),
+    level: "info",
+    message: "Google 身份已绑定到当前账号。",
+    request: c.req.raw,
+    userId: account.id,
+  });
+
+  return c.redirect("/settings?google=updated", 303);
 }
 
 /**
@@ -1567,7 +2145,7 @@ async function handleEmailSecondFactor(
     return mfaFailure === "attempts"
       ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
       : c.redirect(
-        mfaErrorRedirect(locale, challenge.id, returnTo, "code"),
+        mfaErrorRedirect(locale, challenge.id, returnTo, "code", "email"),
         303,
       );
   }
@@ -1603,6 +2181,7 @@ async function handleEmailSecondFactor(
           challenge.id,
           returnTo,
           verificationError,
+          "email",
         ),
         303,
       );
@@ -1630,7 +2209,7 @@ async function handleEmailSecondFactor(
     return error === "attempts"
       ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
       : c.redirect(
-        mfaErrorRedirect(locale, challenge.id, returnTo, error),
+        mfaErrorRedirect(locale, challenge.id, returnTo, error, "email"),
         303,
       );
   }
@@ -1651,6 +2230,413 @@ async function handleEmailSecondFactor(
     message: "双重验证已完成。",
     request: c.req.raw,
     userId: challenge.userId,
+  });
+
+  return await redirectWithSession(
+    c.req.url,
+    returnTo,
+    account,
+    storage,
+    config,
+  );
+}
+
+/**
+ * 处理验证器动态码二次验证。
+ *
+ * @param {Context} c Hono 请求上下文。
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
+ * @param {PendingMfaChallenge} challenge MFA challenge。
+ * @param {Locale} locale 当前页面语言。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @return {Promise<Response>} MFA 处理响应。
+ */
+async function handleTotpSecondFactor(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  challenge: PendingMfaChallenge,
+  locale: Locale,
+  returnTo: string,
+): Promise<Response> {
+  const code = String(form.code ?? "");
+  if (!code.trim()) {
+    const mfaFailure = await recordMfaChallengeFailure(
+      storage,
+      config,
+      challenge,
+    );
+    logMfaFailure(c.req.raw, challenge, "code");
+    return mfaFailure === "attempts"
+      ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+      : c.redirect(
+        mfaErrorRedirect(locale, challenge.id, returnTo, "code", "totp"),
+        303,
+      );
+  }
+
+  const credentials = await storage.listTotpCredentials(challenge.userId);
+  if (credentials.length === 0) {
+    logMfaFailure(c.req.raw, challenge, "unavailable");
+    return c.redirect(
+      mfaErrorRedirect(
+        locale,
+        challenge.id,
+        returnTo,
+        "unavailable",
+        "totp",
+      ),
+      303,
+    );
+  }
+
+  let validCode = false;
+  try {
+    validCode = await verifyTotpCodeAgainstCredentials(
+      code,
+      credentials,
+      config.totp,
+    );
+  } catch (error) {
+    if (!(error instanceof TotpConfigError)) {
+      throw error;
+    }
+
+    logSecurityAuditEvent({
+      code: "mfa_totp_configuration_invalid",
+      level: "warn",
+      message: "验证器动态码配置不可用，已拒绝 MFA 校验。",
+      request: c.req.raw,
+      userId: challenge.userId,
+    });
+    return c.redirect(
+      mfaErrorRedirect(
+        locale,
+        challenge.id,
+        returnTo,
+        "unavailable",
+        "totp",
+      ),
+      303,
+    );
+  }
+
+  if (!validCode) {
+    const mfaFailure = await recordMfaChallengeFailure(
+      storage,
+      config,
+      challenge,
+    );
+    logMfaFailure(c.req.raw, challenge, "code");
+    return mfaFailure === "attempts"
+      ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+      : c.redirect(
+        mfaErrorRedirect(locale, challenge.id, returnTo, "code", "totp"),
+        303,
+      );
+  }
+
+  const account = await storage.getAccountById(challenge.userId);
+  if (!account) {
+    await storage.deletePendingMfaChallenge(challenge.id);
+    return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+  }
+
+  await storage.deletePendingMfaChallenge(challenge.id);
+  logSecurityAuditEvent({
+    code: "mfa_succeeded",
+    details: { method: "totp" },
+    level: "info",
+    message: "双重验证已完成。",
+    request: c.req.raw,
+    userId: challenge.userId,
+  });
+
+  return await redirectWithSession(
+    c.req.url,
+    returnTo,
+    account,
+    storage,
+    config,
+  );
+}
+
+/**
+ * 处理一次性恢复码二次验证，并在成功后立即消费该恢复码。
+ *
+ * @param {Context} c Hono 请求上下文。
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
+ * @param {PendingMfaChallenge} challenge MFA challenge。
+ * @param {Locale} locale 当前页面语言。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @return {Promise<Response>} MFA 处理响应。
+ */
+async function handleRecoveryCodeSecondFactor(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  challenge: PendingMfaChallenge,
+  locale: Locale,
+  returnTo: string,
+): Promise<Response> {
+  const code = String(form.code ?? "");
+  const credentials = await storage.listTotpCredentials(challenge.userId);
+  let matchedCredential: TotpCredential | undefined;
+  let matchedHash: string | undefined;
+  try {
+    for (const credential of credentials) {
+      for (const hash of credential.recoveryCodeHashes) {
+        if (
+          await verifyRecoveryCodeHash(
+            code,
+            hash,
+            config.totp.secretEncryptionKey,
+          )
+        ) {
+          matchedCredential = credential;
+          matchedHash = hash;
+          break;
+        }
+      }
+      if (matchedCredential) {
+        break;
+      }
+    }
+  } catch (error) {
+    if (!(error instanceof RecoveryCodeConfigError)) {
+      throw error;
+    }
+    return c.redirect(
+      mfaErrorRedirect(
+        locale,
+        challenge.id,
+        returnTo,
+        "unavailable",
+        "recoveryCode",
+      ),
+      303,
+    );
+  }
+
+  if (!matchedCredential || !matchedHash) {
+    const mfaFailure = await recordMfaChallengeFailure(
+      storage,
+      config,
+      challenge,
+    );
+    logMfaFailure(c.req.raw, challenge, "code");
+    return mfaFailure === "attempts"
+      ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+      : c.redirect(
+        mfaErrorRedirect(
+          locale,
+          challenge.id,
+          returnTo,
+          "code",
+          "recoveryCode",
+        ),
+        303,
+      );
+  }
+
+  const account = await storage.getAccountById(challenge.userId);
+  if (!account) {
+    await storage.deletePendingMfaChallenge(challenge.id);
+    return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+  }
+
+  await storage.saveTotpCredential({
+    ...matchedCredential,
+    recoveryCodeHashes: matchedCredential.recoveryCodeHashes.filter((hash) =>
+      hash !== matchedHash
+    ),
+  });
+  await storage.deletePendingMfaChallenge(challenge.id);
+  logSecurityAuditEvent({
+    code: "mfa_succeeded",
+    details: { method: "recovery_code" },
+    level: "info",
+    message: "已使用一次性恢复码完成双重验证。",
+    request: c.req.raw,
+    userId: challenge.userId,
+  });
+
+  return await redirectWithSession(
+    c.req.url,
+    returnTo,
+    account,
+    storage,
+    config,
+  );
+}
+
+/**
+ * 使用任一已绑定验证器校验动态码。
+ *
+ * @param {string} code 用户提交的动态码。
+ * @param {readonly TotpCredential[]} credentials 已绑定验证器凭证。
+ * @param {TotpConfig} config 验证器动态码配置。
+ * @return {Promise<boolean>} 任一验证器校验成功时返回 true。
+ */
+async function verifyTotpCodeAgainstCredentials(
+  code: string,
+  credentials: readonly TotpCredential[],
+  config: TotpConfig,
+): Promise<boolean> {
+  for (const credential of credentials) {
+    if (
+      credential.secretEncrypted &&
+      await verifyEncryptedTotpCode(code, credential.secretEncrypted, config)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 处理 Passkey 二次验证。
+ *
+ * @param {Context} c Hono 请求上下文。
+ * @param {Storage} storage 应用存储。
+ * @param {AuthConfig} config 认证配置。
+ * @param {Record<string, unknown>} payload JSON 请求体。
+ * @param {Locale} locale 当前页面语言。
+ * @param {string} returnTo 登录完成后返回路径。
+ * @return {Promise<Response>} MFA 处理响应。
+ */
+async function handlePasskeySecondFactor(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  payload: Record<string, unknown>,
+  locale: Locale,
+  returnTo: string,
+): Promise<Response> {
+  const mfaChallengeId = passkeyMfaChallengeId(payload);
+  const passkeyChallengeId = String(payload.challengeId ?? "").trim();
+  const credentialResponse = payload.credential;
+  const credentialId = passkeyCredentialId(credentialResponse);
+  if (
+    !mfaChallengeId ||
+    !passkeyChallengeId ||
+    !isRecord(credentialResponse) ||
+    !credentialId
+  ) {
+    return c.json({ error: "invalid" }, 400);
+  }
+
+  const mfaChallenge = await storage.getPendingMfaChallenge(mfaChallengeId);
+  if (!mfaChallenge) {
+    return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+  }
+
+  const mfaChallengeError = mfaChallengeVerificationError(
+    mfaChallenge,
+    "passkey",
+    config.mfa,
+  );
+  if (mfaChallengeError) {
+    if (
+      mfaChallengeError === "attempts" ||
+      mfaChallengeError === "expired"
+    ) {
+      await storage.deletePendingMfaChallenge(mfaChallenge.id);
+      return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+    }
+    logMfaFailure(c.req.raw, mfaChallenge, mfaChallengeError);
+    return c.json({ error: mfaChallengeError }, 400);
+  }
+
+  const passkeyChallenge = await storage.getPendingPasskeyChallenge(
+    passkeyChallengeId,
+  );
+  const passkeyChallengeError = passkeyAuthenticationChallengeError(
+    passkeyChallenge,
+    "second_factor",
+    credentialId,
+  );
+  if (
+    passkeyChallengeError ||
+    !passkeyChallenge ||
+    passkeyChallenge.userId !== mfaChallenge.userId
+  ) {
+    if (passkeyChallenge) {
+      await storage.deletePendingPasskeyChallenge(passkeyChallenge.id);
+    }
+    return await passkeySecondFactorFailureResponse(
+      c,
+      storage,
+      config,
+      mfaChallenge,
+      locale,
+      returnTo,
+      "challenge",
+    );
+  }
+
+  const credential = await storage.getPasskeyCredential(
+    mfaChallenge.userId,
+    credentialId,
+  );
+  if (!credential) {
+    await recordPasskeyChallengeFailure(storage, passkeyChallenge);
+    return await passkeySecondFactorFailureResponse(
+      c,
+      storage,
+      config,
+      mfaChallenge,
+      locale,
+      returnTo,
+      "credential",
+    );
+  }
+
+  const verification = await verifyPasskeyAssertionResponse(
+    config,
+    passkeyChallenge,
+    credential,
+    credentialResponse,
+  );
+  if (!verification?.verified) {
+    await recordPasskeyChallengeFailure(storage, passkeyChallenge);
+    return await passkeySecondFactorFailureResponse(
+      c,
+      storage,
+      config,
+      mfaChallenge,
+      locale,
+      returnTo,
+      "code",
+    );
+  }
+
+  const account = await storage.getAccountById(mfaChallenge.userId);
+  if (!account) {
+    await storage.deletePendingMfaChallenge(mfaChallenge.id);
+    await storage.deletePendingPasskeyChallenge(passkeyChallenge.id);
+    return c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303);
+  }
+
+  await storage.savePasskeyCredential(passkeyCredentialAfterAuthentication(
+    credential,
+    verification.authenticationInfo.newCounter,
+  ));
+  await storage.deletePendingMfaChallenge(mfaChallenge.id);
+  await storage.deletePendingPasskeyChallenge(passkeyChallenge.id);
+  logSecurityAuditEvent({
+    code: "mfa_succeeded",
+    details: { method: "passkey" },
+    level: "info",
+    message: "双重验证已完成。",
+    request: c.req.raw,
+    userId: mfaChallenge.userId,
   });
 
   return await redirectWithSession(
@@ -2038,12 +3024,204 @@ function emailLoginErrorRedirect(
   error: "emailCode" | "emailInvalid",
 ): string {
   return authPagePath(config.loginPath, options.locale, {
+    authMethod: "email",
     error,
     returnTo: options.returnTo,
     [authLocaleChangedParam]: options.syncLocale
       ? authLocaleChangedValue
       : undefined,
   });
+}
+
+/**
+ * 生成 Passkey 登录 options 接口响应。
+ *
+ * @param authentication Passkey 认证 options 结果。
+ * @return 可序列化响应体。
+ */
+function passkeyAuthenticationOptionsResponse(
+  authentication: PasskeyAuthenticationOptionsResult,
+) {
+  return {
+    challengeId: authentication.challenge.id,
+    optionsJSON: authentication.optionsJSON,
+  };
+}
+
+/**
+ * 读取 JSON 请求体。
+ *
+ * @param c Hono 请求上下文。
+ * @return JSON 对象，请求体无效时返回空对象。
+ */
+async function passkeyJsonPayload(
+  c: Context,
+): Promise<Record<string, unknown>> {
+  try {
+    const payload = await c.req.json();
+    return isRecord(payload) ? payload : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * 从 JSON 请求体或请求头中读取 CSRF 令牌。
+ *
+ * @param payload JSON 请求体。
+ * @param headerToken 请求头令牌。
+ * @return 提交的 CSRF 令牌。
+ */
+function submittedJsonCsrfToken(
+  payload: Record<string, unknown>,
+  headerToken: string | undefined,
+): string | undefined {
+  return submittedCsrfToken(
+    payload as Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+    headerToken,
+  );
+}
+
+/**
+ * 判断值是否为普通对象。
+ *
+ * @param value 待判断值。
+ * @return 值为普通对象时返回 true。
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 读取 Passkey assertion 中的凭证 ID。
+ *
+ * @param value Passkey assertion JSON。
+ * @return 凭证 ID，缺失时返回空字符串。
+ */
+function passkeyCredentialId(value: unknown): string {
+  return isRecord(value) && typeof value.id === "string" ? value.id.trim() : "";
+}
+
+/**
+ * 检查 Passkey 认证 challenge 是否仍可使用。
+ *
+ * @param challenge 待检查 challenge。
+ * @param purpose 期望用途。
+ * @param credentialId 当前 assertion 使用的凭证 ID。
+ * @return 不可用时返回错误码。
+ */
+function passkeyAuthenticationChallengeError(
+  challenge: PendingPasskeyChallenge | undefined,
+  purpose: Exclude<PasskeyChallengePurpose, "passkey_registration">,
+  credentialId: string,
+): "challenge" | undefined {
+  if (!challenge || challenge.purpose !== purpose) {
+    return "challenge";
+  }
+
+  if (Date.parse(challenge.expiresAt) <= Date.now()) {
+    return "challenge";
+  }
+
+  if (challenge.attempts >= passkeyChallengeMaxAttempts) {
+    return "challenge";
+  }
+
+  return challenge.allowedCredentialIds.length > 0 &&
+      !challenge.allowedCredentialIds.includes(credentialId)
+    ? "challenge"
+    : undefined;
+}
+
+/**
+ * 记录一次 Passkey challenge 失败尝试。
+ *
+ * @param storage 应用存储。
+ * @param challenge 待更新 challenge。
+ * @return 更新完成后的 Promise。
+ */
+async function recordPasskeyChallengeFailure(
+  storage: Storage,
+  challenge: PendingPasskeyChallenge,
+): Promise<"attempts" | undefined> {
+  const attempts = Math.max(0, challenge.attempts) + 1;
+  if (attempts >= passkeyChallengeMaxAttempts) {
+    await storage.deletePendingPasskeyChallenge(challenge.id);
+    return "attempts";
+  }
+
+  await storage.savePendingPasskeyChallenge({ ...challenge, attempts });
+  return undefined;
+}
+
+/**
+ * 创建 Passkey MFA 失败响应。
+ *
+ * @param c Hono 请求上下文。
+ * @param storage 应用存储。
+ * @param config 认证配置。
+ * @param challenge MFA challenge。
+ * @param locale 当前页面语言。
+ * @param returnTo 登录完成后返回路径。
+ * @param reason 失败原因。
+ * @return 失败响应。
+ */
+async function passkeySecondFactorFailureResponse(
+  c: Context,
+  storage: Storage,
+  config: AuthConfig,
+  challenge: PendingMfaChallenge,
+  locale: Locale,
+  returnTo: string,
+  reason: string,
+): Promise<Response> {
+  const mfaFailure = await recordMfaChallengeFailure(
+    storage,
+    config,
+    challenge,
+  );
+  logMfaFailure(c.req.raw, challenge, reason);
+  return mfaFailure === "attempts"
+    ? c.redirect(mfaExpiredLoginRedirect(config, locale, returnTo), 303)
+    : c.json({ error: "failed" }, 400);
+}
+
+/**
+ * 从 Passkey MFA JSON 中读取外层 MFA challenge ID。
+ *
+ * @param payload JSON 请求体。
+ * @return MFA challenge ID。
+ */
+function passkeyMfaChallengeId(payload: Record<string, unknown>): string {
+  return String(payload.mfaChallengeId ?? "").trim();
+}
+
+/**
+ * 校验 Passkey 登录 assertion。
+ *
+ * @param config 认证配置。
+ * @param challenge 待完成 Passkey challenge。
+ * @param credential 已绑定 Passkey 凭证。
+ * @param response 浏览器返回的 assertion。
+ * @return 校验结果，校验过程失败时返回 undefined。
+ */
+async function verifyPasskeyAssertionResponse(
+  config: AuthConfig,
+  challenge: PendingPasskeyChallenge,
+  credential: PasskeyCredential,
+  response: Record<string, unknown>,
+): Promise<Awaited<ReturnType<PasskeyAuthenticationVerifier>> | undefined> {
+  try {
+    return await config.passkeyAuthenticationVerifier({
+      challenge,
+      config: config.passkey,
+      credential,
+      requireUserVerification: config.passkey.userVerification === "required",
+      response: response as never,
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -2069,6 +3247,10 @@ function authConfig(options: AuthOptions): AuthConfig {
           registerPath,
           emailVerificationPath,
           googleCredentialPath,
+          passkeyLoginOptionsPath,
+          passkeyLoginPath,
+          passkeyMfaOptionsPath,
+          passkeyMfaPath,
           mfaPath,
           "/static/app.css",
         ],
@@ -2080,10 +3262,14 @@ function authConfig(options: AuthOptions): AuthConfig {
     maxLoginFailures: options.maxLoginFailures ?? defaultMaxLoginFailures,
     loginPath,
     mfa: options.mfa,
+    passkey: options.passkey ?? defaultPasskeyConfig,
+    passkeyAuthenticationVerifier: options.passkeyAuthenticationVerifier ??
+      verifyPasskeyAuthenticationResponse,
     registerPath,
     sendEmailVerificationEmail: options.sendEmailVerificationEmail,
     sessionMaxAgeSeconds: options.sessionMaxAgeSeconds ??
       defaultSessionMaxAgeSeconds,
+    totp: options.totp ?? defaultTotpConfig,
     turnstile: options.turnstile ?? defaultTurnstileConfig,
     turnstileFetch: options.turnstileFetch,
   };
@@ -2236,6 +3422,7 @@ function supportedEmailVerificationPurpose(
 ): boolean {
   return purpose === "email_binding" ||
     purpose === "primary_login" ||
+    purpose === "reauth" ||
     purpose === "second_factor";
 }
 
@@ -2515,6 +3702,7 @@ function renderAuthPage(options: {
   error?: string;
   googleClientId?: string;
   heading: string;
+  initialAuthMethod?: "email" | "password";
   locale: Locale;
   messages: Messages;
   mode: "login" | "register";
@@ -2533,6 +3721,15 @@ function renderAuthPage(options: {
   const switchLabel = options.mode === "login"
     ? options.messages.authCreateAccount
     : options.messages.authExistingAccountLogin;
+  const emailLoginHref = authPagePath("/login", options.locale, {
+    authMethod: "email",
+    returnTo: options.returnTo,
+    [authLocaleChangedParam]: options.syncLocale
+      ? authLocaleChangedValue
+      : undefined,
+  });
+  const emailLoginInitiallyVisible = options.mode === "login" &&
+    options.initialAuthMethod === "email";
   const languageOptionsHtml = renderLanguageOptions(
     options.action,
     options.locale,
@@ -2580,25 +3777,117 @@ function renderAuthPage(options: {
         gap: 12px;
       }
 
-      .auth-method-title {
-        font-size: 0.95rem;
-        font-weight: 700;
-        margin: 4px 0 0;
+      .auth-panel form[hidden] {
+        display: none;
       }
 
       .auth-google-method {
-        display: grid;
-        gap: 10px;
-        min-height: 40px;
+        display: none;
       }
 
-      .auth-google-button {
-        min-height: 40px;
+      .auth-link-row {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: space-between;
+        line-height: 1.35;
+      }
+
+      .auth-link-row a,
+      .auth-link-button {
+        background: none;
+        border: 0;
+        color: var(--theme-link);
+        cursor: pointer;
+        font: inherit;
+        min-height: 0;
+        padding: 0;
+        text-decoration: none;
+      }
+
+      .auth-link-row a:hover,
+      .auth-link-row a:focus-visible,
+      .auth-link-button:hover,
+      .auth-link-button:focus-visible {
+        text-decoration: underline;
+      }
+
+      .auth-link-row .auth-link-button:hover:not(:disabled),
+      .auth-link-row .auth-link-button:focus-visible:not(:disabled),
+      .auth-link-row .auth-link-button:active:not(:disabled) {
+        background: none;
+        box-shadow: none;
+        transform: none;
+      }
+
+      .auth-action-row {
+        border-radius: 6px;
+        display: grid;
+        gap: 1px;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+        overflow: hidden;
+      }
+
+      .auth-action-row > button,
+      .auth-action-row > .button-link {
+        border-radius: 0;
+        box-sizing: border-box;
+        justify-content: center;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        padding-inline: 10px;
+        text-align: center;
+        white-space: normal;
         width: 100%;
       }
 
-      .auth-google-button > div {
-        margin-inline: auto;
+      .auth-action-row > button:hover:not(:disabled),
+      .auth-action-row > button:focus-visible:not(:disabled),
+      .auth-action-row > .button-link:hover,
+      .auth-action-row > .button-link:focus-visible,
+      .auth-action-row > button:active:not(:disabled),
+      .auth-action-row > .button-link:active {
+        box-shadow: none;
+        transform: none;
+      }
+
+      .auth-method-dialog {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 18px 48px var(--shadow-strong);
+        color: var(--ink);
+        padding: 20px;
+        width: min(calc(100vw - 32px), 360px);
+      }
+
+      .auth-method-dialog::backdrop {
+        background: rgb(16 12 24 / 0.36);
+      }
+
+      .auth-method-dialog-actions {
+        display: grid;
+        gap: 10px;
+      }
+
+      .auth-passkey-method {
+        display: grid;
+        gap: 8px;
+      }
+
+      .auth-passkey-button {
+        width: 100%;
+      }
+
+      .auth-passkey-status {
+        color: var(--muted);
+        font-size: 0.9rem;
+        min-height: 18px;
+      }
+
+      .auth-passkey-status[data-state="error"] {
+        color: #b42318;
       }
 
       .auth-email-code-row {
@@ -2735,16 +4024,34 @@ function renderAuthPage(options: {
     <main class="auth-shell">
       <section class="auth-panel">
         <h1>${escapeHtml(options.heading)}</h1>
+        ${
+    options.error
+      ? `<div class="auth-error">${escapeHtml(options.error)}</div>`
+      : ""
+  }
         ${options.mode === "login" ? renderGoogleLoginForm(options) : ""}
-        <form method="post" action="${escapeHtml(options.action)}">
+        <form
+          method="post"
+          action="${escapeHtml(options.action)}"
+          data-auth-password-login-form
+          ${emailLoginInitiallyVisible ? "hidden" : ""}
+        >
           ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${
     escapeHtml(options.returnTo)
   }">
           <div class="auth-fields">
             <label>
-              ${escapeHtml(options.messages.authUsername)}
-              <input name="username" dir="ltr" autocomplete="username" required autofocus>
+              ${
+    escapeHtml(
+      options.mode === "login"
+        ? options.messages.authUsernameOrEmail
+        : options.messages.authUsername,
+    )
+  }
+              <input name="username" dir="ltr" autocomplete="${
+    options.mode === "login" ? "username webauthn" : "username"
+  }" required ${emailLoginInitiallyVisible ? "" : "autofocus"}>
             </label>
             <label>
               ${escapeHtml(options.messages.authPassword)}
@@ -2761,19 +4068,40 @@ function renderAuthPage(options: {
       : ""
   }
           </div>
-          ${turnstileWidgetHtml(options.turnstileSiteKey)}
           ${
-    options.error
-      ? `<div class="auth-error">${escapeHtml(options.error)}</div>`
+    options.mode === "login"
+      ? renderLoginLinkRow({
+        emailLoginHref,
+        messages: options.messages,
+      })
       : ""
   }
-          <button type="submit">${escapeHtml(options.submitLabel)}</button>
+          ${turnstileWidgetHtml(options.turnstileSiteKey)}
+          ${
+    options.mode === "login"
+      ? renderAuthActionRow({
+        primaryLabel: options.submitLabel,
+        secondaryHtml: renderRegisterButton(switchHref, options.messages),
+      })
+      : `<button type="submit">${escapeHtml(options.submitLabel)}</button>`
+  }
         </form>
-        ${options.mode === "login" ? renderEmailLoginForm(options) : ""}
-        <a href="${escapeHtml(switchHref)}">${escapeHtml(switchLabel)}</a>
+        ${
+    options.mode === "login"
+      ? renderEmailLoginForm({
+        ...options,
+        initiallyVisible: emailLoginInitiallyVisible,
+      })
+      : `<a href="${escapeHtml(switchHref)}">${escapeHtml(switchLabel)}</a>`
+  }
+        ${
+    options.mode === "login" ? renderOtherLoginMethodsDialog(options) : ""
+  }
       </section>
     </main>
-    ${authEmailLoginScript(options.mode === "login")}
+    ${authLoginModeScript(options.mode === "login")}
+    ${authEmailLoginScript(options.mode === "login", options.locale)}
+    ${authPasskeyLoginScript(options.mode === "login")}
     ${
     authGoogleLoginScript(
       options.mode === "login" && Boolean(options.googleClientId),
@@ -2781,6 +4109,88 @@ function renderAuthPage(options: {
   }
   </body>
 </html>`;
+}
+
+/**
+ * 渲染登录页的辅助链接行。
+ *
+ * @param options 登录链接渲染选项。
+ * @return 登录链接行 HTML。
+ */
+function renderLoginLinkRow(options: {
+  emailLoginHref: string;
+  messages: Messages;
+}): string {
+  return `<div class="auth-link-row">
+            <button type="button" class="auth-link-button" data-auth-other-methods-open>
+              ${escapeHtml(options.messages.authOtherLoginMethods)}
+            </button>
+            <a href="${
+    escapeHtml(options.emailLoginHref)
+  }" data-auth-email-mode-trigger>
+              ${escapeHtml(options.messages.authForgotPassword)}
+            </a>
+          </div>`;
+}
+
+/**
+ * 渲染登录页的主次操作按钮行。
+ *
+ * @param options 操作按钮行渲染选项。
+ * @return 操作按钮行 HTML。
+ */
+function renderAuthActionRow(options: {
+  primaryLabel: string;
+  secondaryHtml: string;
+}): string {
+  return `<div class="auth-action-row">
+            <button type="submit">${escapeHtml(options.primaryLabel)}</button>
+            ${options.secondaryHtml}
+          </div>`;
+}
+
+/**
+ * 渲染登录页注册按钮。
+ *
+ * @param href 注册页地址。
+ * @param messages 当前语言文案。
+ * @return 注册按钮 HTML。
+ */
+function renderRegisterButton(href: string, messages: Messages): string {
+  return `<a class="button-link auth-register-button" href="${
+    escapeHtml(href)
+  }">${escapeHtml(messages.authRegister)}</a>`;
+}
+
+/**
+ * 渲染其它登录方式弹窗。
+ *
+ * @param options 认证页面渲染选项。
+ * @return 其它登录方式弹窗 HTML。
+ */
+function renderOtherLoginMethodsDialog(options: {
+  csrfToken: string;
+  locale: Locale;
+  messages: Messages;
+  returnTo: string;
+  syncLocale: boolean;
+}): string {
+  return `<dialog
+          class="auth-method-dialog"
+          data-auth-method-dialog
+          aria-label="${escapeHtml(options.messages.authOtherLoginMethods)}"
+        >
+          <div class="auth-method-dialog-actions">
+            ${renderPasskeyLoginForm(options)}
+            <button
+              type="button"
+              class="secondary"
+              data-auth-email-mode-trigger
+            >
+              ${escapeHtml(options.messages.authUseEmailCodeLogin)}
+            </button>
+          </div>
+        </dialog>`;
 }
 
 /**
@@ -2810,8 +4220,8 @@ function renderGoogleLoginForm(options: {
           class="auth-google-method"
           data-google-login
           data-google-client-id="${escapeHtml(options.googleClientId)}"
+          hidden
         >
-          <div class="auth-google-button" data-google-button></div>
           <form
             method="post"
             action="${escapeHtml(action)}"
@@ -2833,6 +4243,64 @@ function renderGoogleLoginForm(options: {
 }
 
 /**
+ * 渲染 Passkey 登录按钮。
+ *
+ * @param options 认证页渲染选项。
+ * @return Passkey 登录 HTML。
+ */
+function renderPasskeyLoginForm(options: {
+  csrfToken: string;
+  locale: Locale;
+  messages: Messages;
+  returnTo: string;
+  syncLocale: boolean;
+}): string {
+  const action = authPagePath(passkeyLoginPath, options.locale, {
+    [authLocaleChangedParam]: options.syncLocale
+      ? authLocaleChangedValue
+      : undefined,
+  });
+
+  return `<div
+          class="auth-passkey-method"
+          data-passkey-login
+          data-passkey-conditional="1"
+          data-passkey-options-url="${passkeyLoginOptionsPath}"
+          data-passkey-login-url="${escapeHtml(action)}"
+          data-passkey-failed="${
+    escapeHtml(options.messages.authPasskeyFailed)
+  }"
+          data-passkey-signing-in="${
+    escapeHtml(options.messages.authPasskeySigningIn)
+  }"
+          data-passkey-unsupported="${
+    escapeHtml(options.messages.authPasskeyUnsupported)
+  }"
+        >
+          <input type="hidden" data-passkey-csrf value="${
+    escapeHtml(options.csrfToken)
+  }">
+          <input type="hidden" data-passkey-return-to value="${
+    escapeHtml(options.returnTo)
+  }">
+          ${
+    options.syncLocale
+      ? `<input type="hidden" data-passkey-locale-changed value="${authLocaleChangedValue}">`
+      : ""
+  }
+          <button type="button" class="secondary auth-passkey-button" data-passkey-login-button>
+            ${escapeHtml(options.messages.authPasskeyLogin)}
+          </button>
+          <div
+            class="auth-passkey-status"
+            data-passkey-login-status
+            role="status"
+            hidden
+          ></div>
+        </div>`;
+}
+
+/**
  * 渲染邮箱验证码登录表单。
  *
  * @param options 认证页渲染选项。
@@ -2842,13 +4310,11 @@ function renderEmailLoginForm(options: {
   action: string;
   csrfToken: string;
   emailTurnstileSiteKey?: string;
+  initiallyVisible?: boolean;
   messages: Messages;
   returnTo: string;
 }): string {
-  return `<div class="auth-method-title">${
-    escapeHtml(options.messages.authEmailLogin)
-  }</div>
-        <form
+  return `<form
           method="post"
           action="${escapeHtml(options.action)}"
           data-auth-email-login-form
@@ -2863,6 +4329,7 @@ function renderEmailLoginForm(options: {
     escapeHtml(options.messages.authEmailSendingCode)
   }"
           data-email-sent="${escapeHtml(options.messages.authEmailCodeSent)}"
+          ${options.initiallyVisible ? "" : "hidden"}
         >
           ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="authMethod" value="email">
@@ -2879,6 +4346,7 @@ function renderEmailLoginForm(options: {
               autocomplete="email"
               data-auth-email-input
               required
+              ${options.initiallyVisible ? "autofocus" : ""}
             >
           </label>
           <label>
@@ -2906,18 +4374,91 @@ function renderEmailLoginForm(options: {
             role="status"
             hidden
           ></div>
-          <button type="submit">${
-    escapeHtml(options.messages.authEmailLogin)
-  }</button>
+          ${
+    renderAuthActionRow({
+      primaryLabel: options.messages.authLogin,
+      secondaryHtml:
+        `<button type="button" class="secondary auth-password-mode-button" data-auth-password-mode-trigger>${
+          escapeHtml(options.messages.authUsePasswordLogin)
+        }</button>`,
+    })
+  }
         </form>`;
 }
 
 /**
- * 渲染邮箱验证码登录的前端交互脚本。
+ * 渲染登录页模式切换脚本。
  *
  * @param enabled 是否需要渲染脚本。
  * @return 交互脚本 HTML。
  */
+function authLoginModeScript(enabled: boolean): string {
+  return enabled
+    ? `<script>
+(() => {
+  const passwordForm = document.querySelector("[data-auth-password-login-form]");
+  const emailForm = document.querySelector("[data-auth-email-login-form]");
+  const dialog = document.querySelector("[data-auth-method-dialog]");
+  const openButton = document.querySelector("[data-auth-other-methods-open]");
+  const emailTriggers = document.querySelectorAll("[data-auth-email-mode-trigger]");
+  const passwordTriggers = document.querySelectorAll("[data-auth-password-mode-trigger]");
+  const passkeyButton = dialog?.querySelector("[data-passkey-login-button]");
+  const usernameInput = passwordForm?.querySelector("input[name='username']");
+  const emailInput = emailForm?.querySelector("[data-auth-email-input]");
+  if (!(passwordForm instanceof HTMLFormElement) || !(emailForm instanceof HTMLFormElement)) return;
+
+  const supportsDialog = () =>
+    typeof HTMLDialogElement !== "undefined" && dialog instanceof HTMLDialogElement;
+  const openDialog = () => {
+    if (!supportsDialog()) return;
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+  };
+  const closeDialog = () => {
+    if (!supportsDialog()) return;
+    if (typeof dialog.close === "function" && dialog.open) dialog.close();
+    else dialog.removeAttribute("open");
+  };
+  const setEmailMode = (enabled) => {
+    passwordForm.hidden = enabled;
+    emailForm.hidden = !enabled;
+    if (enabled && emailInput instanceof HTMLInputElement) {
+      emailInput.focus();
+      return;
+    }
+    if (!enabled && usernameInput instanceof HTMLInputElement) {
+      usernameInput.focus();
+    }
+  };
+
+  openButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openDialog();
+  });
+  dialog?.addEventListener("click", (event) => {
+    if (event.target === dialog) closeDialog();
+  });
+  emailTriggers.forEach((trigger) => {
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      closeDialog();
+      setEmailMode(true);
+    });
+  });
+  passwordTriggers.forEach((trigger) => {
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      setEmailMode(false);
+    });
+  });
+  passkeyButton?.addEventListener("click", () => {
+    closeDialog();
+  });
+})();
+</script>`
+    : "";
+}
+
 /**
  * 渲染 MFA challenge 页面。
  *
@@ -2952,11 +4493,11 @@ function mfaErrorMessage(
 /**
  * 生成 MFA 错误跳转地址。
  *
- * @param {AuthConfig} config 认证配置。
  * @param {Locale} locale 当前语言。
  * @param {string} challengeId MFA challenge ID。
  * @param {string} returnTo 登录完成后返回路径。
  * @param {MfaErrorCode} error 错误码。
+ * @param {SecondFactorMethod} method 发生错误的二次验证方式。
  * @return {string} MFA 错误跳转地址。
  */
 function mfaErrorRedirect(
@@ -2964,8 +4505,9 @@ function mfaErrorRedirect(
   challengeId: string,
   returnTo: string,
   error: MfaErrorCode,
+  method: SecondFactorMethod,
 ): string {
-  return mfaPagePath(locale, challengeId, returnTo, { error });
+  return mfaPagePath(locale, challengeId, returnTo, { error, method });
 }
 
 /**
@@ -2995,17 +4537,57 @@ function renderMfaPage(options: {
   error?: string;
   locale: Locale;
   messages: Messages;
+  passkeyCredentials: PasskeyCredential[];
   returnTo: string;
+  selectedMethod?: SecondFactorMethod;
 }): string {
   const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
+  const methodPanels = ([
+    {
+      html: options.challenge.allowedMethods.includes("email")
+        ? renderMfaEmailForm(options)
+        : "",
+      method: "email",
+    },
+    {
+      html: options.challenge.allowedMethods.includes("totp")
+        ? renderMfaTotpForm(options)
+        : "",
+      method: "totp",
+    },
+    {
+      html: options.challenge.allowedMethods.includes("passkey")
+        ? renderMfaPasskeyForm(options)
+        : "",
+      method: "passkey",
+    },
+    {
+      html: options.challenge.allowedMethods.includes("recoveryCode")
+        ? renderMfaRecoveryCodeForm(options)
+        : "",
+      method: "recoveryCode",
+    },
+  ] satisfies Array<{ html: string; method: SecondFactorMethod }>).filter(
+    (panel) => panel.html.length > 0,
+  );
+  const selectedMethod =
+    methodPanels.some((panel) => panel.method === options.selectedMethod)
+      ? options.selectedMethod
+      : methodPanels[0]?.method;
+  const availableMethods = methodPanels.map((panel) => panel.method);
   const languageOptionsHtml = renderMfaLanguageOptions(
     options.challenge.id,
     options.locale,
     options.returnTo,
+    selectedMethod,
   );
-  const emailForm = options.challenge.allowedMethods.includes("email")
-    ? renderMfaEmailForm(options)
-    : "";
+  const methodForms = methodPanels.map((panel) =>
+    renderMfaMethodPanel(
+      panel.method,
+      panel.html,
+      panel.method === selectedMethod,
+    )
+  ).join("");
 
   return `<!doctype html>
 <html lang="${options.locale}" dir="${direction}">
@@ -3106,11 +4688,21 @@ function renderMfaPage(options: {
         padding: 0;
       }
 
-      .mfa-method-list li {
+      .mfa-method-link {
         background: #F6F2FB;
         border: 1px solid #E3D7F2;
         border-radius: 6px;
+        color: #4B276F;
+        display: block;
+        font-weight: 700;
         padding: 6px 10px;
+        text-decoration: none;
+      }
+
+      .mfa-method-link[aria-current="true"] {
+        background: #7C3AED;
+        border-color: #7C3AED;
+        color: #FFFFFF;
       }
 
       .auth-panel form {
@@ -3158,6 +4750,24 @@ function renderMfaPage(options: {
         min-width: 0;
       }
 
+      .auth-passkey-method {
+        display: grid;
+        gap: 8px;
+      }
+
+      .auth-passkey-button {
+        width: 100%;
+      }
+
+      .auth-passkey-status {
+        color: #5F526D;
+        font-size: 0.92rem;
+      }
+
+      .auth-passkey-status[data-state="error"] {
+        color: #B42318;
+      }
+
       .auth-email-status,
       .auth-error {
         color: #5F526D;
@@ -3196,7 +4806,14 @@ function renderMfaPage(options: {
     escapeHtml(options.messages.authMfaRequired)
   }</p>
         ${
-    renderMfaMethodList(options.challenge.allowedMethods, options.messages)
+    renderMfaMethodList({
+      challengeId: options.challenge.id,
+      currentMethod: selectedMethod,
+      locale: options.locale,
+      messages: options.messages,
+      methods: availableMethods,
+      returnTo: options.returnTo,
+    })
   }
         ${
     options.error
@@ -3204,14 +4821,16 @@ function renderMfaPage(options: {
       : ""
   }
         ${
-    emailForm ||
+    methodForms ||
     `<div class="auth-error">${
       escapeHtml(options.messages.authMfaMethodUnavailable)
     }</div>`
   }
       </section>
     </main>
-    ${mfaEmailScript(Boolean(emailForm))}
+    ${mfaMethodSelectorScript(availableMethods.length > 1)}
+    ${mfaEmailScript(availableMethods.includes("email"), options.locale)}
+    ${authPasskeyLoginScript(availableMethods.includes("passkey"))}
   </body>
 </html>`;
 }
@@ -3302,24 +4921,199 @@ function renderMfaEmailForm(options: {
 }
 
 /**
- * 渲染 MFA 允许的验证方式列表。
+ * 渲染 MFA Passkey 验证按钮。
  *
- * @param {SecondFactorMethod[]} methods 允许的二次验证方式。
- * @param {Messages} messages 当前语言文案。
- * @return {string} 验证方式列表 HTML。
+ * @param options MFA 页面渲染选项。
+ * @return Passkey 验证按钮 HTML。
  */
-function renderMfaMethodList(
-  methods: SecondFactorMethod[],
-  messages: Messages,
-): string {
-  return `<ul class="mfa-method-list" aria-label="${
-    escapeHtml(messages.authMfaChooseMethod)
+function renderMfaPasskeyForm(options: {
+  challenge: PendingMfaChallenge;
+  csrfToken: string;
+  messages: Messages;
+  passkeyCredentials: PasskeyCredential[];
+  returnTo: string;
+}): string {
+  if (options.passkeyCredentials.length === 0) {
+    return "";
+  }
+
+  return `<div
+          class="auth-passkey-method"
+          data-passkey-login
+          data-passkey-options-url="${passkeyMfaOptionsPath}"
+          data-passkey-login-url="${passkeyMfaPath}"
+          data-passkey-failed="${
+    escapeHtml(options.messages.authPasskeyFailed)
+  }"
+          data-passkey-signing-in="${
+    escapeHtml(options.messages.authPasskeySigningIn)
+  }"
+          data-passkey-unsupported="${
+    escapeHtml(options.messages.authPasskeyUnsupported)
+  }"
+        >
+          <input type="hidden" data-passkey-csrf value="${
+    escapeHtml(options.csrfToken)
   }">
+          <input type="hidden" data-passkey-return-to value="${
+    escapeHtml(options.returnTo)
+  }">
+          <input type="hidden" data-passkey-mfa-challenge value="${
+    escapeHtml(options.challenge.id)
+  }">
+          <button type="button" class="secondary auth-passkey-button" data-passkey-login-button>
+            ${escapeHtml(options.messages.authPasskeyVerify)}
+          </button>
+          <div
+            class="auth-passkey-status"
+            data-passkey-login-status
+            role="status"
+            hidden
+          ></div>
+        </div>`;
+}
+
+/**
+ * 渲染 MFA 验证器动态码表单。
+ *
+ * @param options MFA 页面渲染选项。
+ * @return 验证器动态码表单 HTML。
+ */
+function renderMfaTotpForm(options: {
+  action: string;
+  challenge: PendingMfaChallenge;
+  csrfToken: string;
+  messages: Messages;
+  returnTo: string;
+}): string {
+  return `<form
+          method="post"
+          action="${escapeHtml(options.action)}"
+          data-mfa-totp-form
+        >
+          ${csrfHiddenInput(options.csrfToken)}
+          <input type="hidden" name="challengeId" value="${
+    escapeHtml(options.challenge.id)
+  }">
+          <input type="hidden" name="method" value="totp">
+          <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
+          <label>
+            ${escapeHtml(options.messages.accountSecondFactorTotp)}
+            <input
+              name="code"
+              type="text"
+              dir="ltr"
+              inputmode="numeric"
+              pattern="[0-9]{6}"
+              autocomplete="one-time-code"
+              data-mfa-totp-code-input
+              required
+            >
+          </label>
+          <button type="submit">${
+    escapeHtml(options.messages.authMfaVerify)
+  }</button>
+        </form>`;
+}
+
+/**
+ * 渲染 MFA 一次性恢复码表单。
+ *
+ * @param options MFA 页面渲染选项。
+ * @return 恢复码表单 HTML。
+ */
+function renderMfaRecoveryCodeForm(options: {
+  action: string;
+  challenge: PendingMfaChallenge;
+  csrfToken: string;
+  messages: Messages;
+  returnTo: string;
+}): string {
+  return `<form
+          method="post"
+          action="${escapeHtml(options.action)}"
+          data-mfa-recovery-code-form
+        >
+          ${csrfHiddenInput(options.csrfToken)}
+          <input type="hidden" name="challengeId" value="${
+    escapeHtml(options.challenge.id)
+  }">
+          <input type="hidden" name="method" value="recoveryCode">
+          <input type="hidden" name="returnTo" value="${
+    escapeHtml(options.returnTo)
+  }">
+          <label>
+            ${escapeHtml(options.messages.accountSecondFactorRecoveryCode)}
+            <input
+              name="code"
+              type="text"
+              dir="ltr"
+              autocomplete="one-time-code"
+              data-mfa-recovery-code-input
+              required
+            >
+          </label>
+          <button type="submit">${
+    escapeHtml(options.messages.authMfaVerify)
+  }</button>
+        </form>`;
+}
+
+/**
+ * 包装单个 MFA 验证方式面板，并标记初始可见状态。
+ *
+ * @param {SecondFactorMethod} method 二次验证方式。
+ * @param {string} html 验证方式表单 HTML。
+ * @param {boolean} active 是否为初始选中的验证方式。
+ * @return {string} 验证方式面板 HTML。
+ */
+function renderMfaMethodPanel(
+  method: SecondFactorMethod,
+  html: string,
+  active: boolean,
+): string {
+  return `<div data-mfa-method-panel="${escapeHtml(method)}"${
+    active ? "" : " hidden"
+  }>${html}</div>`;
+}
+
+/**
+ * 渲染 MFA 允许的验证方式选择器。
+ *
+ * @param options 验证方式选择器渲染选项。
+ * @return {string} 验证方式选择器 HTML。
+ */
+function renderMfaMethodList(options: {
+  challengeId: string;
+  currentMethod?: SecondFactorMethod;
+  locale: Locale;
+  messages: Messages;
+  methods: SecondFactorMethod[];
+  returnTo: string;
+}): string {
+  return `<ul
+    class="mfa-method-list"
+    aria-label="${escapeHtml(options.messages.authMfaChooseMethod)}"
+    data-mfa-method-selector
+  >
     ${
-    methods.map((method) =>
-      `<li data-mfa-method="${escapeHtml(method)}">${
-        escapeHtml(secondFactorMethodLabel(method, messages))
-      }</li>`
+    options.methods.map((method) =>
+      `<li><a
+        class="mfa-method-link"
+        data-mfa-method="${escapeHtml(method)}"
+        href="${
+        escapeHtml(mfaPagePath(
+          options.locale,
+          options.challengeId,
+          options.returnTo,
+          { method },
+        ))
+      }"${method === options.currentMethod ? ' aria-current="true"' : ""}
+      >${
+        escapeHtml(secondFactorMethodLabel(method, options.messages))
+      }</a></li>`
     ).join("")
   }
   </ul>`;
@@ -3331,26 +5125,87 @@ function renderMfaMethodList(
  * @param {string} challengeId MFA challenge ID。
  * @param {Locale} currentLocale 当前语言。
  * @param {string} returnTo 登录完成后返回路径。
+ * @param {SecondFactorMethod | undefined} currentMethod 当前验证方式。
  * @return {string} 语言选项 HTML。
  */
 function renderMfaLanguageOptions(
   challengeId: string,
   currentLocale: Locale,
   returnTo: string,
+  currentMethod: SecondFactorMethod | undefined,
 ): string {
   return languageOptions.map((option) => {
     const currentAttribute = option.code === currentLocale
       ? ' aria-current="true"'
       : "";
-    return `<a href="${
+    return `<a data-mfa-language-link href="${
       escapeHtml(mfaPagePath(
         option.code,
         challengeId,
         returnTo,
-        { [authLocaleChangedParam]: authLocaleChangedValue },
+        {
+          [authLocaleChangedParam]: authLocaleChangedValue,
+          method: currentMethod,
+        },
       ))
     }" role="menuitem"${currentAttribute}>${escapeHtml(option.label)}</a>`;
   }).join("");
+}
+
+/**
+ * 渲染 MFA 验证方式的前端切换脚本。
+ *
+ * @param {boolean} enabled 是否需要渲染切换脚本。
+ * @return {string} 验证方式切换脚本 HTML。
+ */
+function mfaMethodSelectorScript(enabled: boolean): string {
+  return enabled
+    ? `<script>
+(() => {
+  const selector = document.querySelector("[data-mfa-method-selector]");
+  if (!(selector instanceof HTMLElement)) return;
+  const links = Array.from(selector.querySelectorAll("[data-mfa-method]"));
+  const panels = Array.from(document.querySelectorAll("[data-mfa-method-panel]"));
+  const languageLinks = Array.from(document.querySelectorAll("[data-mfa-language-link]"));
+  const selectMethod = (method, href, focusPanel) => {
+    let activePanel;
+    for (const link of links) {
+      if (!(link instanceof HTMLAnchorElement)) continue;
+      if (link.dataset.mfaMethod === method) link.setAttribute("aria-current", "true");
+      else link.removeAttribute("aria-current");
+    }
+    for (const panel of panels) {
+      if (!(panel instanceof HTMLElement)) continue;
+      const active = panel.dataset.mfaMethodPanel === method;
+      panel.hidden = !active;
+      if (active) activePanel = panel;
+    }
+    for (const link of languageLinks) {
+      if (!(link instanceof HTMLAnchorElement)) continue;
+      const url = new URL(link.href);
+      url.searchParams.set("method", method);
+      link.href = url.toString();
+    }
+    if (href) {
+      const url = new URL(href);
+      globalThis.history.replaceState(null, "", url.pathname + url.search);
+    }
+    if (focusPanel && activePanel instanceof HTMLElement) {
+      activePanel.querySelector("input:not([type='hidden']), select, button")?.focus();
+    }
+  };
+  for (const link of links) {
+    if (!(link instanceof HTMLAnchorElement)) continue;
+    link.addEventListener("click", (event) => {
+      const method = link.dataset.mfaMethod;
+      if (!method || !panels.some((panel) => panel instanceof HTMLElement && panel.dataset.mfaMethodPanel === method)) return;
+      event.preventDefault();
+      selectMethod(method, link.href, true);
+    });
+  }
+})();
+</script>`
+    : "";
 }
 
 /**
@@ -3393,9 +5248,10 @@ function secondFactorMethodLabel(
  * 渲染 MFA 邮箱验证码发送脚本。
  *
  * @param {boolean} enabled 是否启用脚本。
+ * @param {Locale} locale 当前页面语言。
  * @return {string} 脚本 HTML。
  */
-function mfaEmailScript(enabled: boolean): string {
+function mfaEmailScript(enabled: boolean, locale: Locale): string {
   return enabled
     ? `<script>
 (() => {
@@ -3437,7 +5293,9 @@ function mfaEmailScript(enabled: boolean): string {
     sendButton.disabled = true;
     setStatus(form.dataset.emailSending || "");
     try {
-      const response = await fetch("${emailVerificationPath}", {
+      const response = await fetch("${
+      authPagePath(emailVerificationPath, locale)
+    }", {
         body: bodyFromForm(),
         headers: {
           "content-type": "application/x-www-form-urlencoded",
@@ -3473,7 +5331,14 @@ function mfaEmailScript(enabled: boolean): string {
     : "";
 }
 
-function authEmailLoginScript(enabled: boolean): string {
+/**
+ * 渲染邮箱验证码登录脚本。
+ *
+ * @param enabled 是否启用脚本。
+ * @param locale 当前页面语言。
+ * @return 脚本 HTML。
+ */
+function authEmailLoginScript(enabled: boolean, locale: Locale): string {
   return enabled
     ? `<script>
 (() => {
@@ -3523,7 +5388,9 @@ function authEmailLoginScript(enabled: boolean): string {
     sendButton.disabled = true;
     setStatus(form.dataset.emailSending || "");
     try {
-      const response = await fetch("${emailVerificationPath}", {
+      const response = await fetch("${
+      authPagePath(emailVerificationPath, locale)
+    }", {
         body: bodyFromForm(),
         headers: {
           "content-type": "application/x-www-form-urlencoded",
@@ -3561,6 +5428,203 @@ function authEmailLoginScript(enabled: boolean): string {
 }
 
 /**
+ * 渲染 Passkey 登录的前端交互脚本。
+ *
+ * @param enabled 是否需要渲染脚本。
+ * @return 交互脚本 HTML。
+ */
+function authPasskeyLoginScript(enabled: boolean): string {
+  return enabled
+    ? `<script>
+(() => {
+  const root = document.querySelector("[data-passkey-login]");
+  if (!(root instanceof HTMLElement)) return;
+  const button = root.querySelector("[data-passkey-login-button]");
+  const csrfInput = root.querySelector("[data-passkey-csrf]");
+  const returnToInput = root.querySelector("[data-passkey-return-to]");
+  const mfaChallengeInput = root.querySelector("[data-passkey-mfa-challenge]");
+  const localeChangedInput = root.querySelector("[data-passkey-locale-changed]");
+  const status = root.querySelector("[data-passkey-login-status]");
+  if (!(button instanceof HTMLButtonElement) || !(csrfInput instanceof HTMLInputElement) || !(returnToInput instanceof HTMLInputElement)) return;
+
+  const optionsUrl = root.dataset.passkeyOptionsUrl || "";
+  const loginUrl = root.dataset.passkeyLoginUrl || "";
+  let conditionalAbortController;
+  const csrfToken = () => csrfInput.value;
+  const setStatus = (message, state = "") => {
+    if (!(status instanceof HTMLElement)) return;
+    status.textContent = message;
+    status.hidden = message.length === 0;
+    if (state === "error") status.dataset.state = "error";
+    else delete status.dataset.state;
+  };
+  const supportsPasskey = () =>
+    Boolean(globalThis.PublicKeyCredential && navigator.credentials?.get);
+  const csrfHeaders = () => ({
+    "content-type": "application/json",
+    "${csrfHeaderName}": csrfToken(),
+  });
+  const basePayload = () => {
+    const body = { "${csrfFieldName}": csrfToken() };
+    if (mfaChallengeInput instanceof HTMLInputElement) {
+      body.mfaChallengeId = mfaChallengeInput.value;
+    }
+    return body;
+  };
+  const fetchOptions = async () => {
+    const response = await fetch(optionsUrl, {
+      body: JSON.stringify(basePayload()),
+      headers: csrfHeaders(),
+      method: "POST",
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || typeof payload.challengeId !== "string" || !payload.optionsJSON) {
+      throw new Error("Passkey options unavailable.");
+    }
+    return payload;
+  };
+  const submitCredential = async (challengeId, credential) => {
+    const body = {
+      ...basePayload(),
+      challengeId,
+      credential: assertionCredentialToJson(credential),
+      returnTo: returnToInput.value,
+    };
+    if (localeChangedInput instanceof HTMLInputElement) {
+      body["${authLocaleChangedParam}"] = localeChangedInput.value;
+    }
+    const response = await fetch(loginUrl, {
+      body: JSON.stringify(body),
+      headers: csrfHeaders(),
+      method: "POST",
+    });
+    if (response.redirected) {
+      const url = new URL(response.url);
+      globalThis.location.assign(url.pathname + url.search + url.hash);
+      return;
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok && typeof payload.redirectTo === "string") {
+      globalThis.location.assign(payload.redirectTo);
+      return;
+    }
+    throw new Error("Passkey login failed.");
+  };
+  const beginPasskeyLogin = async ({ conditional = false } = {}) => {
+    if (!supportsPasskey()) {
+      if (!conditional) {
+        button.disabled = true;
+        setStatus(root.dataset.passkeyUnsupported || "", "error");
+      }
+      return;
+    }
+    if (!conditional) {
+      conditionalAbortController?.abort();
+      button.disabled = true;
+      setStatus(root.dataset.passkeySigningIn || "");
+    }
+    try {
+      const payload = await fetchOptions();
+      const controller = conditional ? new AbortController() : undefined;
+      if (conditional) conditionalAbortController = controller;
+      const credential = await navigator.credentials.get({
+        publicKey: requestOptionsFromJson(payload.optionsJSON),
+        ...(conditional ? { mediation: "conditional", signal: controller?.signal } : {}),
+      });
+      if (!credential) return;
+      setStatus(root.dataset.passkeySigningIn || "");
+      await submitCredential(payload.challengeId, credential);
+    } catch (error) {
+      if (conditional && error?.name === "AbortError") return;
+      if (!conditional) setStatus(root.dataset.passkeyFailed || "", "error");
+    } finally {
+      if (!conditional) button.disabled = false;
+    }
+  };
+  button.addEventListener("click", () => {
+    void beginPasskeyLogin();
+  });
+  document.addEventListener("submit", () => {
+    conditionalAbortController?.abort();
+  }, { capture: true });
+  const startConditionalLogin = async () => {
+    if (root.dataset.passkeyConditional !== "1") return;
+    if (!supportsPasskey() || typeof PublicKeyCredential.isConditionalMediationAvailable !== "function") {
+      return;
+    }
+    const available = await PublicKeyCredential.isConditionalMediationAvailable()
+      .catch(() => false);
+    if (available) {
+      void beginPasskeyLogin({ conditional: true });
+    }
+  };
+  void startConditionalLogin();
+})();
+
+function requestOptionsFromJson(options) {
+  return {
+    ...options,
+    allowCredentials: Array.isArray(options.allowCredentials)
+      ? options.allowCredentials.map(credentialDescriptorFromJson)
+      : undefined,
+    challenge: base64UrlToArrayBuffer(options.challenge),
+  };
+}
+
+function credentialDescriptorFromJson(descriptor) {
+  return {
+    ...descriptor,
+    id: base64UrlToArrayBuffer(descriptor.id),
+  };
+}
+
+function assertionCredentialToJson(credential) {
+  const response = credential.response || {};
+  return {
+    authenticatorAttachment: typeof credential.authenticatorAttachment === "string"
+      ? credential.authenticatorAttachment
+      : undefined,
+    clientExtensionResults: typeof credential.getClientExtensionResults === "function"
+      ? credential.getClientExtensionResults()
+      : {},
+    id: credential.id,
+    rawId: arrayBufferToBase64Url(credential.rawId),
+    response: {
+      authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
+      clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+      signature: arrayBufferToBase64Url(response.signature),
+      userHandle: optionalArrayBufferToBase64Url(response.userHandle),
+    },
+    type: credential.type,
+  };
+}
+
+function base64UrlToArrayBuffer(value) {
+  const normalized = String(value).replaceAll("-", "+").replaceAll("_", "/");
+  const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+function optionalArrayBufferToBase64Url(value) {
+  return value instanceof ArrayBuffer ? arrayBufferToBase64Url(value) : undefined;
+}
+
+function arrayBufferToBase64Url(value) {
+  const bytes = new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+</script>`
+    : "";
+}
+
+/**
  * 渲染 Google Identity Services 登录交互脚本。
  *
  * @param enabled 是否需要渲染脚本。
@@ -3576,7 +5640,7 @@ function authGoogleLoginScript(enabled: boolean): string {
   const credentialInput = root.querySelector("[data-google-credential]");
   const button = root.querySelector("[data-google-button]");
   const clientId = root.dataset.googleClientId || "";
-  if (!clientId || !(form instanceof HTMLFormElement) || !(credentialInput instanceof HTMLInputElement) || !(button instanceof HTMLElement)) return;
+  if (!clientId || !(form instanceof HTMLFormElement) || !(credentialInput instanceof HTMLInputElement)) return;
   const submitCredential = (response) => {
     const credential = typeof response?.credential === "string" ? response.credential.trim() : "";
     if (!credential) return;
@@ -3591,15 +5655,17 @@ function authGoogleLoginScript(enabled: boolean): string {
       callback: submitCredential,
       use_fedcm_for_prompt: true,
     });
-    googleIdentity.renderButton(button, {
-      logo_alignment: "left",
-      shape: "rectangular",
-      size: "large",
-      text: "continue_with",
-      theme: "outline",
-      type: "standard",
-      width: Math.min(320, Math.max(240, Math.floor(button.getBoundingClientRect().width || 320))),
-    });
+    if (button instanceof HTMLElement) {
+      googleIdentity.renderButton(button, {
+        logo_alignment: "left",
+        shape: "rectangular",
+        size: "large",
+        text: "continue_with",
+        theme: "outline",
+        type: "standard",
+        width: Math.min(320, Math.max(240, Math.floor(button.getBoundingClientRect().width || 320))),
+      });
+    }
     googleIdentity.prompt();
   };
   if (globalThis.google?.accounts?.id) initialize();
@@ -3851,6 +5917,38 @@ function primaryLoginErrorRedirect(
 function isLoginLocked(failure: { lockedUntil?: string } | undefined): boolean {
   return failure?.lockedUntil !== undefined &&
     Date.parse(failure.lockedUntil) > Date.now();
+}
+
+/**
+ * 生成密码登录失败计数使用的身份标识。
+ *
+ * @param value 用户输入的用户名或邮箱。
+ * @return 规范化后的限流标识。
+ */
+function passwordLoginFailureIdentifier(value: string): string {
+  return normalizeEmailAddress(value) ?? normalizeUsername(value);
+}
+
+/**
+ * 按用户名或已验证邮箱查找可用于密码登录的账号。
+ *
+ * @param storage 应用存储。
+ * @param value 用户输入的用户名或邮箱。
+ * @return 匹配账号，不存在时返回 undefined。
+ */
+async function findPasswordLoginAccount(
+  storage: Storage,
+  value: string,
+): Promise<UserAccount | undefined> {
+  const email = normalizeEmailAddress(value);
+  if (email) {
+    return await findAccountByVerifiedEmail(storage, email);
+  }
+
+  const username = normalizeUsername(value);
+  return validUsername(username)
+    ? await storage.getAccountByUsername(username)
+    : undefined;
 }
 
 /**

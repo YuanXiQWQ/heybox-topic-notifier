@@ -170,6 +170,7 @@ export type AuthenticationEventMethod =
 export type AuthenticationEventPurpose =
   | "primary_login"
   | "reauth"
+  | "recovery_codes"
   | "second_factor";
 
 /**
@@ -177,6 +178,15 @@ export type AuthenticationEventPurpose =
  */
 export type EmailVerificationPurpose =
   | "email_binding"
+  | "primary_login"
+  | "reauth"
+  | "second_factor";
+
+/**
+ * Passkey challenge 用途。
+ */
+export type PasskeyChallengePurpose =
+  | "passkey_registration"
   | "primary_login"
   | "reauth"
   | "second_factor";
@@ -246,6 +256,20 @@ export type PendingEmailVerification = {
 };
 
 /**
+ * 待完成的 Passkey challenge。
+ */
+export type PendingPasskeyChallenge = {
+  allowedCredentialIds: string[];
+  attempts: number;
+  challenge: string;
+  createdAt: string;
+  expiresAt: string;
+  id: string;
+  purpose: PasskeyChallengePurpose;
+  userId?: string;
+};
+
+/**
  * Passkey 凭证。
  */
 export type PasskeyCredential = {
@@ -264,9 +288,21 @@ export type PasskeyCredential = {
  * Authenticator 动态验证码凭证。
  */
 export type TotpCredential = {
+  credentialId?: string;
   enabledAt: string;
+  label?: string;
   recoveryCodeHashes: string[];
   secretEncrypted: string;
+  userId: string;
+};
+
+/**
+ * 等待用户首次查看的一次性恢复码。
+ */
+export type PendingRecoveryCodeReveal = {
+  codes: string[];
+  expiresAt: string;
+  id: string;
   userId: string;
 };
 
