@@ -7,6 +7,7 @@ import type {
   DashboardSnapshot,
   KeywordRule,
   MatchRecord,
+  PasswordCredential,
   PollingSettings,
   PollIntervalUnit,
   PollSort,
@@ -24,9 +25,14 @@ import {
  */
 const keys = {
   account: (id: string) => ["accounts", id] as const,
-  accountUsername: (username: string) => ["accountUsernames", normalizeUsername(username)] as const,
-  loginFailure: (username: string) => ["loginFailures", normalizeUsername(username)] as const,
-  match: (userId: string, id: string) => ["userData", userId, "matches", id] as const,
+  accountUsername: (username: string) =>
+    ["accountUsernames", normalizeUsername(username)] as const,
+  loginFailure: (username: string) =>
+    ["loginFailures", normalizeUsername(username)] as const,
+  match: (userId: string, id: string) =>
+    ["userData", userId, "matches", id] as const,
+  passwordCredential: (userId: string) =>
+    ["passwordCredentials", userId] as const,
   rateLimit: (parts: readonly string[]) => ["rateLimits", ...parts] as const,
   session: (tokenHash: string) => ["sessions", tokenHash] as const,
   settings: (userId: string) => ["userData", userId, "settings"] as const,
@@ -75,7 +81,11 @@ type KvAtomicOperation = {
   check(check: KvCheck): KvAtomicOperation;
   commit(): Promise<{ ok: boolean }>;
   delete(key: Deno.KvKey): KvAtomicOperation;
-  set(key: Deno.KvKey, value: unknown, options?: { expireIn?: number }): KvAtomicOperation;
+  set(
+    key: Deno.KvKey,
+    value: unknown,
+    options?: { expireIn?: number },
+  ): KvAtomicOperation;
 };
 
 /**
@@ -89,7 +99,9 @@ type KvStore = {
   /**
    * 读取指定 KV 键。
    */
-  get<T>(key: Deno.KvKey): Promise<{ value: T | null; versionstamp: string | null }>;
+  get<T>(
+    key: Deno.KvKey,
+  ): Promise<{ value: T | null; versionstamp: string | null }>;
   /**
    * 按前缀列出 KV 条目。
    */
@@ -97,7 +109,11 @@ type KvStore = {
   /**
    * 写入指定 KV 键值。
    */
-  set(key: Deno.KvKey, value: unknown, options?: { expireIn?: number }): Promise<unknown>;
+  set(
+    key: Deno.KvKey,
+    value: unknown,
+    options?: { expireIn?: number },
+  ): Promise<unknown>;
   /**
    * 创建原子读写操作。
    *
@@ -120,7 +136,10 @@ type KvStorageOptions = {
  * @param options KV 存储创建选项。
  * @return 应用存储操作集合。
  */
-export function createKvStorage(defaultSettings: AppSettings, options: KvStorageOptions = {}) {
+export function createKvStorage(
+  defaultSettings: AppSettings,
+  options: KvStorageOptions = {},
+) {
   let kvPromise: Promise<KvStore> | undefined;
 
   /**
@@ -153,7 +172,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
     const records: MatchRecord[] = [];
 
     for await (
-      const entry of store.list<MatchRecord>({ prefix: ["userData", userId, "matches"] })
+      const entry of store.list<MatchRecord>({
+        prefix: ["userData", userId, "matches"],
+      })
     ) {
       records.push(entry.value);
     }
@@ -176,7 +197,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
        */
       async getSettings(): Promise<AppSettings> {
         const store = await kv();
-        const entry = await store.get<Partial<AppSettings> & LegacySettings>(keys.settings(userId));
+        const entry = await store.get<Partial<AppSettings> & LegacySettings>(
+          keys.settings(userId),
+        );
         return normalizeSettings(entry.value, defaultSettings);
       },
 
@@ -226,12 +249,17 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
        */
       async getDashboardSnapshot(): Promise<DashboardSnapshot> {
         const store = await kv();
-        const settingsEntry = await store.get<Partial<AppSettings> & LegacySettings>(
+        const settingsEntry = await store.get<
+          Partial<AppSettings> & LegacySettings
+        >(
           keys.settings(userId),
         );
         const stateEntry = await store.get<AppState>(keys.state(userId));
         const records = await listMatchRecords(userId);
-        const settings = normalizeSettings(settingsEntry.value, defaultSettings);
+        const settings = normalizeSettings(
+          settingsEntry.value,
+          defaultSettings,
+        );
 
         return {
           pendingMatches: pendingFromRecords(records),
@@ -299,7 +327,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
       async completeMatches(ids: string[]): Promise<void> {
         const store = await kv();
         const completedAt = new Date().toISOString();
-        const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+        const uniqueIds = Array.from(
+          new Set(ids.filter((id) => id.trim().length > 0)),
+        );
 
         for (const id of uniqueIds) {
           const entry = await store.get<MatchRecord>(keys.match(userId, id));
@@ -307,7 +337,10 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
             continue;
           }
 
-          await store.set(keys.match(userId, id), { ...entry.value, completedAt });
+          await store.set(keys.match(userId, id), {
+            ...entry.value,
+            completedAt,
+          });
         }
       },
 
@@ -319,7 +352,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
        */
       async deleteMatches(ids: string[]): Promise<void> {
         const store = await kv();
-        const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+        const uniqueIds = Array.from(
+          new Set(ids.filter((id) => id.trim().length > 0)),
+        );
 
         for (const id of uniqueIds) {
           await store.delete(keys.match(userId, id));
@@ -360,14 +395,18 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
      * @param username 用户名。
      * @return 账号信息，不存在时返回 undefined。
      */
-    async getAccountByUsername(username: string): Promise<UserAccount | undefined> {
+    async getAccountByUsername(
+      username: string,
+    ): Promise<UserAccount | undefined> {
       const store = await kv();
       const accountId = await store.get<string>(keys.accountUsername(username));
       if (!accountId.value) {
         return undefined;
       }
 
-      const account = await store.get<UserAccount>(keys.account(accountId.value));
+      const account = await store.get<UserAccount>(
+        keys.account(accountId.value),
+      );
       return account.value ?? undefined;
     },
 
@@ -379,7 +418,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
     async listAccounts(): Promise<UserAccount[]> {
       const store = await kv();
       const accounts: UserAccount[] = [];
-      for await (const entry of store.list<UserAccount>({ prefix: ["accounts"] })) {
+      for await (
+        const entry of store.list<UserAccount>({ prefix: ["accounts"] })
+      ) {
         accounts.push(entry.value);
       }
       return accounts;
@@ -427,10 +468,12 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
           return false;
         }
 
-        const currentUsernameKey = keys.accountUsername(currentAccount.username);
+        const currentUsernameKey = keys.accountUsername(
+          currentAccount.username,
+        );
         const nextUsernameKey = keys.accountUsername(account.username);
-        const usernameChanged =
-          normalizeUsername(currentAccount.username) !== normalizeUsername(account.username);
+        const usernameChanged = normalizeUsername(currentAccount.username) !==
+          normalizeUsername(account.username);
         const currentUsernameEntry = usernameChanged
           ? await store.get<string>(currentUsernameKey)
           : undefined;
@@ -472,6 +515,35 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
       }
 
       throw new Error("Could not update the account after concurrent updates.");
+    },
+
+    /**
+     * 获取指定用户的独立密码凭证。
+     *
+     * @param userId 用户 ID。
+     * @return 密码凭证，不存在时返回 undefined。
+     */
+    async getPasswordCredential(
+      userId: string,
+    ): Promise<PasswordCredential | undefined> {
+      const store = await kv();
+      const entry = await store.get<PasswordCredential>(
+        keys.passwordCredential(userId),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 保存指定用户的独立密码凭证。
+     *
+     * @param credential 密码凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async savePasswordCredential(
+      credential: PasswordCredential,
+    ): Promise<void> {
+      const store = await kv();
+      await store.set(keys.passwordCredential(credential.userId), credential);
     },
 
     /**
@@ -525,7 +597,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
         }
       }
 
-      throw new Error("Could not record a login failure after concurrent updates.");
+      throw new Error(
+        "Could not record a login failure after concurrent updates.",
+      );
     },
 
     /**
@@ -562,11 +636,15 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
         const entry = await store.get<RateLimitEntry>(key);
         const previous = entry.value;
         const previousResetAt = Date.parse(previous?.resetAt ?? "");
-        const previousCount = previous && Number.isInteger(previous.count) && previous.count > 0
-          ? previous.count
-          : 0;
-        const hasActiveWindow = Number.isFinite(previousResetAt) && previousResetAt > now;
-        const resetAtMs = hasActiveWindow ? previousResetAt : now + normalizedWindowMs;
+        const previousCount =
+          previous && Number.isInteger(previous.count) && previous.count > 0
+            ? previous.count
+            : 0;
+        const hasActiveWindow = Number.isFinite(previousResetAt) &&
+          previousResetAt > now;
+        const resetAtMs = hasActiveWindow
+          ? previousResetAt
+          : now + normalizedWindowMs;
         const next: RateLimitEntry = {
           count: hasActiveWindow ? previousCount + 1 : 1,
           resetAt: new Date(resetAtMs).toISOString(),
@@ -581,7 +659,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
         }
       }
 
-      throw new Error("Could not record a rate limit hit after concurrent updates.");
+      throw new Error(
+        "Could not record a rate limit hit after concurrent updates.",
+      );
     },
 
     /**
@@ -753,7 +833,11 @@ function normalizeUsername(value: string): string {
  * @param now 当前时间戳毫秒数。
  * @return 频率限制命中结果。
  */
-function rateLimitHitFromEntry(entry: RateLimitEntry, limit: number, now: number): RateLimitHit {
+function rateLimitHitFromEntry(
+  entry: RateLimitEntry,
+  limit: number,
+  now: number,
+): RateLimitHit {
   const resetAtMs = Date.parse(entry.resetAt);
   return {
     allowed: entry.count <= limit,
@@ -773,7 +857,9 @@ function rateLimitHitFromEntry(entry: RateLimitEntry, limit: number, now: number
  * @return 按命中时间倒序排列的历史记录。
  */
 function historyFromRecords(records: MatchRecord[]): MatchRecord[] {
-  return records.toSorted((left, right) => right.matchedAt.localeCompare(left.matchedAt));
+  return records.toSorted((left, right) =>
+    right.matchedAt.localeCompare(left.matchedAt)
+  );
 }
 
 /**
@@ -814,7 +900,9 @@ function compareIsoDesc(left: string, right: string): number {
  * @param records 命中记录列表。
  * @return 最新命中记录，不存在时返回 undefined。
  */
-export function latestMatchByMatchedTime(records: MatchRecord[]): MatchRecord | undefined {
+export function latestMatchByMatchedTime(
+  records: MatchRecord[],
+): MatchRecord | undefined {
   return records.toSorted((left, right) =>
     compareIsoDesc(left.matchedAt, right.matchedAt) ||
     compareIsoDesc(left.post.publishedAt, right.post.publishedAt)
@@ -846,21 +934,28 @@ function normalizeSettings(
     return defaultSettings;
   }
 
-  const commonKeywordRules = normalizeKeywordRules(value, defaultSettings.commonKeywordRules);
+  const commonKeywordRules = normalizeKeywordRules(
+    value,
+    defaultSettings.commonKeywordRules,
+  );
   const topics = normalizeTopics(value, defaultSettings.topics);
 
   return {
     ...defaultSettings,
     ...value,
-    activeKeywordTarget: value.activeKeywordTarget ?? defaultSettings.activeKeywordTarget,
+    activeKeywordTarget: value.activeKeywordTarget ??
+      defaultSettings.activeKeywordTarget,
     commonKeywordRules,
-    darkMode: typeof value.darkMode === "boolean" ? value.darkMode : defaultSettings.darkMode,
+    darkMode: typeof value.darkMode === "boolean"
+      ? value.darkMode
+      : defaultSettings.darkMode,
     notificationEmailAddress: typeof value.notificationEmailAddress === "string"
       ? value.notificationEmailAddress
       : defaultSettings.notificationEmailAddress,
-    notificationEmailApiToken: typeof value.notificationEmailApiToken === "string"
-      ? value.notificationEmailApiToken
-      : defaultSettings.notificationEmailApiToken,
+    notificationEmailApiToken:
+      typeof value.notificationEmailApiToken === "string"
+        ? value.notificationEmailApiToken
+        : defaultSettings.notificationEmailApiToken,
     notificationEmailApiUrl: typeof value.notificationEmailApiUrl === "string"
       ? value.notificationEmailApiUrl
       : defaultSettings.notificationEmailApiUrl,
@@ -870,12 +965,14 @@ function normalizeSettings(
     notificationEmailService: value.notificationEmailService
       ? normalizeNotificationEmailService(value.notificationEmailService)
       : defaultSettings.notificationEmailService,
-    notificationPushPlusToken: typeof value.notificationPushPlusToken === "string"
-      ? value.notificationPushPlusToken
-      : defaultSettings.notificationPushPlusToken,
-    notificationServerChanSendKey: typeof value.notificationServerChanSendKey === "string"
-      ? value.notificationServerChanSendKey
-      : defaultSettings.notificationServerChanSendKey,
+    notificationPushPlusToken:
+      typeof value.notificationPushPlusToken === "string"
+        ? value.notificationPushPlusToken
+        : defaultSettings.notificationPushPlusToken,
+    notificationServerChanSendKey:
+      typeof value.notificationServerChanSendKey === "string"
+        ? value.notificationServerChanSendKey
+        : defaultSettings.notificationServerChanSendKey,
     notificationSmtpHost: typeof value.notificationSmtpHost === "string"
       ? value.notificationSmtpHost
       : defaultSettings.notificationSmtpHost,
@@ -902,7 +999,10 @@ function normalizeSettings(
       ? value.notificationWxPusherSpt
       : defaultSettings.notificationWxPusherSpt,
     polling: normalizePollingSettings(value.polling, defaultSettings.polling),
-    themeColor: normalizeThemeColor(value.themeColor, defaultSettings.themeColor),
+    themeColor: normalizeThemeColor(
+      value.themeColor,
+      defaultSettings.themeColor,
+    ),
     topics,
   };
 }
@@ -923,10 +1023,15 @@ function normalizePollingSettings(
       intervalMinutes?: unknown;
     }
     | undefined)?.intervalMinutes;
-  const intervalUnit = normalizePollIntervalUnit(value?.intervalUnit, fallback.intervalUnit);
+  const intervalUnit = normalizePollIntervalUnit(
+    value?.intervalUnit,
+    fallback.intervalUnit,
+  );
 
   return {
-    enabled: typeof value?.enabled === "boolean" ? value.enabled : fallback.enabled,
+    enabled: typeof value?.enabled === "boolean"
+      ? value.enabled
+      : fallback.enabled,
     intervalUnit,
     intervalValue: normalizePollIntervalValue(
       value?.intervalValue ?? legacyIntervalMinutes,
@@ -946,7 +1051,9 @@ function normalizePollingSettings(
  * @return 合法正整数。
  */
 function normalizePositiveInteger(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : fallback;
 }
 
 /**
@@ -957,7 +1064,9 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
  * @return 合法轮询排序方式。
  */
 function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
-  return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
+  return value === "publishTime" || value === "smart" || value === "replyTime"
+    ? value
+    : fallback;
 }
 
 /**
@@ -967,8 +1076,12 @@ function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
  * @param fallback 兜底间隔单位。
  * @return 合法轮询间隔单位。
  */
-function normalizePollIntervalUnit(value: unknown, fallback: PollIntervalUnit): PollIntervalUnit {
-  return value === "second" || value === "minute" || value === "hour" || value === "day" ||
+function normalizePollIntervalUnit(
+  value: unknown,
+  fallback: PollIntervalUnit,
+): PollIntervalUnit {
+  return value === "second" || value === "minute" || value === "hour" ||
+      value === "day" ||
       value === "week" || value === "month"
     ? value
     : fallback;

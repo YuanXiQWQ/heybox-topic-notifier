@@ -1,7 +1,12 @@
 /**
  * @file 本文件验证 KV 存储的排序、用户隔离、仪表盘快照和删除逻辑。
  */
-import type { AppSettings, MatchRecord, UserAccount } from "../models.ts";
+import type {
+  AppSettings,
+  MatchRecord,
+  PasswordCredential,
+  UserAccount,
+} from "../models.ts";
 import { createKvStorage, latestMatchByMatchedTime } from "./kv.ts";
 
 Deno.test("latestMatchByMatchedTime prefers the newest match before post time", () => {
@@ -30,7 +35,10 @@ Deno.test("latestMatchByMatchedTime uses post time within the same match batch",
     publishedAt: "2026-07-12T12:00:00.000Z",
   });
 
-  assertEquals(latestMatchByMatchedTime([olderPost, newerPost])?.id, "newer-post");
+  assertEquals(
+    latestMatchByMatchedTime([olderPost, newerPost])?.id,
+    "newer-post",
+  );
 });
 
 Deno.test("deleteMatches removes records from match history", async () => {
@@ -45,7 +53,9 @@ Deno.test("deleteMatches removes records from match history", async () => {
 
   await storage.saveMatch(match);
 
-  assertEquals((await storage.listHistory()).map((item) => item.id), ["match-id"]);
+  assertEquals((await storage.listHistory()).map((item) => item.id), [
+    "match-id",
+  ]);
 
   await storage.deleteMatches([match.id]);
 
@@ -136,7 +146,9 @@ Deno.test("createAccount atomically rejects an existing username", async () => {
   const createdAccountId = results[0] ? "first-id" : "second-id";
 
   assertEquals(results.sort(), [false, true]);
-  assertEquals((await storage.listAccounts()).map((item) => item.id), [createdAccountId]);
+  assertEquals((await storage.listAccounts()).map((item) => item.id), [
+    createdAccountId,
+  ]);
 });
 
 Deno.test("updateAccount atomically moves the username index", async () => {
@@ -154,7 +166,10 @@ Deno.test("updateAccount atomically moves the username index", async () => {
   assertEquals(updated, true);
   assertEquals(await storage.getAccountByUsername("alice"), undefined);
   assertEquals((await storage.getAccountByUsername("yuanxi"))?.id, "alice-id");
-  assertEquals((await storage.getAccountById("alice-id"))?.passwordHash, "new-hash");
+  assertEquals(
+    (await storage.getAccountById("alice-id"))?.passwordHash,
+    "new-hash",
+  );
 });
 
 Deno.test("updateAccount rejects an existing username without changing the account", async () => {
@@ -172,15 +187,46 @@ Deno.test("updateAccount rejects an existing username without changing the accou
   assertEquals((await storage.getAccountByUsername("bob"))?.id, "bob-id");
 });
 
+Deno.test("password credential storage reads saved credentials by user id", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const credential: PasswordCredential = {
+    passwordHash: "password-hash",
+    passwordIterations: 210_000,
+    passwordSalt: "password-salt",
+    updatedAt: "2026-07-31T00:00:00.000Z",
+    userId: "alice-id",
+  };
+
+  await storage.savePasswordCredential(credential);
+
+  assertEquals(await storage.getPasswordCredential("alice-id"), credential);
+  assertEquals(await storage.getPasswordCredential("missing-id"), undefined);
+});
+
 Deno.test("recordRateLimitHit blocks requests after the configured limit", async () => {
   const kv = new MemoryKv();
   const storage = createKvStorage(defaultSettings, {
     openKv: () => Promise.resolve(kv),
   });
 
-  const first = await storage.recordRateLimitHit(["registration", "client"], 2, 60_000);
-  const second = await storage.recordRateLimitHit(["registration", "client"], 2, 60_000);
-  const third = await storage.recordRateLimitHit(["registration", "client"], 2, 60_000);
+  const first = await storage.recordRateLimitHit(
+    ["registration", "client"],
+    2,
+    60_000,
+  );
+  const second = await storage.recordRateLimitHit(
+    ["registration", "client"],
+    2,
+    60_000,
+  );
+  const third = await storage.recordRateLimitHit(
+    ["registration", "client"],
+    2,
+    60_000,
+  );
 
   assertEquals(first.allowed, true);
   assertEquals(second.allowed, true);
@@ -258,7 +304,10 @@ const defaultSettings: AppSettings = {
  * 测试使用的内存 KV 实现。
  */
 class MemoryKv {
-  #entries = new Map<string, { key: Deno.KvKey; value: unknown; versionstamp: string }>();
+  #entries = new Map<
+    string,
+    { key: Deno.KvKey; value: unknown; versionstamp: string }
+  >();
   #version = 0;
   /**
    * get 调用次数。
@@ -277,7 +326,9 @@ class MemoryKv {
    */
   get<T>(
     key: Deno.KvKey,
-  ): Promise<{ key: Deno.KvKey; value: T | null; versionstamp: string | null }> {
+  ): Promise<
+    { key: Deno.KvKey; value: T | null; versionstamp: string | null }
+  > {
     this.getCalls += 1;
     const entry = this.#entries.get(this.#key(key));
     return Promise.resolve({
@@ -323,7 +374,11 @@ class MemoryKv {
         deletes.push(key);
         return operation;
       },
-      set: (key: Deno.KvKey, value: unknown, _options?: { expireIn?: number }) => {
+      set: (
+        key: Deno.KvKey,
+        value: unknown,
+        _options?: { expireIn?: number },
+      ) => {
         sets.push({ key, value });
         return operation;
       },
@@ -452,7 +507,9 @@ function account(id: string, username: string): UserAccount {
  * 内存 KV 的原子操作。
  */
 type MemoryKvAtomicOperation = {
-  check(check: { key: Deno.KvKey; versionstamp: string | null }): MemoryKvAtomicOperation;
+  check(
+    check: { key: Deno.KvKey; versionstamp: string | null },
+  ): MemoryKvAtomicOperation;
   commit(): Promise<{ ok: boolean }>;
   delete(key: Deno.KvKey): MemoryKvAtomicOperation;
   set(

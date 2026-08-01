@@ -6,8 +6,9 @@ import {
   hashPassword,
   normalizeUsername,
   readAuthSession,
+  saveAccountPasswordCredential,
   validUsername,
-  verifyPassword,
+  verifyAccountPassword,
 } from "./auth.ts";
 import { getMessages, normalizeLocale } from "./locales/index.ts";
 import {
@@ -57,11 +58,19 @@ import {
 /**
  * 设置表单中支持的关键词匹配位置。
  */
-const matchLocations: MatchLocation[] = ["title", "body", "comments", "replies"];
+const matchLocations: MatchLocation[] = [
+  "title",
+  "body",
+  "comments",
+  "replies",
+];
 /**
  * 单次请求内的认证会话读取缓存。
  */
-const authSessionPromisesByRequest = new WeakMap<Request, ReturnType<typeof readAuthSession>>();
+const authSessionPromisesByRequest = new WeakMap<
+  Request,
+  ReturnType<typeof readAuthSession>
+>();
 /**
  * 手动轮询后用于触发前端进度条重置的查询参数名。
  */
@@ -94,7 +103,8 @@ export function createRoutes(context: AppContext): Hono {
   app.get("/", async (c) => {
     const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
-    const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
+    const { pendingMatches, settings, state } = await storage
+      .getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
@@ -159,7 +169,8 @@ export function createRoutes(context: AppContext): Hono {
     storage: Awaited<ReturnType<typeof storageForRequest>>,
     searchParams: URLSearchParams,
   ): Promise<Response> {
-    const { pendingMatches, settings, state } = await storage.getDashboardSnapshot();
+    const { pendingMatches, settings, state } = await storage
+      .getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       parseMatchTableQuery(searchParams),
@@ -176,7 +187,12 @@ export function createRoutes(context: AppContext): Hono {
             url: state.latestMatch.post.url,
           }
           : null,
-        pendingHtml: renderPendingMatches(pendingTable, messages, settings.locale, csrf.token),
+        pendingHtml: renderPendingMatches(
+          pendingTable,
+          messages,
+          settings.locale,
+          csrf.token,
+        ),
         pendingSignature: matchTableSignature(pendingTable),
         polling: {
           enabled: settings.polling.enabled,
@@ -253,7 +269,9 @@ export function createRoutes(context: AppContext): Hono {
     const storage = await storageForRequest(c, context);
     const session = await authSessionForRequest(c, context);
     const settings = await storage.getSettings();
-    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    const account = session
+      ? await context.storage.getAccountById(session.userId)
+      : undefined;
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderSettings({
@@ -301,8 +319,13 @@ export function createRoutes(context: AppContext): Hono {
       return c.redirect("/settings", 303);
     }
 
-    if (!(await verifyPassword(currentPassword, account))) {
-      return c.redirect(accountSettingsRedirect("currentPassword", accountAction), 303);
+    if (
+      !(await verifyAccountPassword(currentPassword, account, context.storage))
+    ) {
+      return c.redirect(
+        accountSettingsRedirect("currentPassword", accountAction),
+        303,
+      );
     }
 
     if (accountAction === "username") {
@@ -310,7 +333,10 @@ export function createRoutes(context: AppContext): Hono {
         return c.redirect(accountSettingsRedirect("username", "username"), 303);
       }
 
-      const updated = await context.storage.updateAccount({ ...account, username });
+      const updated = await context.storage.updateAccount({
+        ...account,
+        username,
+      });
       if (!updated) {
         return c.redirect(accountSettingsRedirect("exists", "username"), 303);
       }
@@ -324,20 +350,28 @@ export function createRoutes(context: AppContext): Hono {
       }
 
       if (newPassword !== confirmPassword) {
-        return c.redirect(accountSettingsRedirect("confirmPassword", "password"), 303);
+        return c.redirect(
+          accountSettingsRedirect("confirmPassword", "password"),
+          303,
+        );
       }
 
-      if (await verifyPassword(newPassword, account)) {
-        return c.redirect(accountSettingsRedirect("samePassword", "password"), 303);
+      if (await verifyAccountPassword(newPassword, account, context.storage)) {
+        return c.redirect(
+          accountSettingsRedirect("samePassword", "password"),
+          303,
+        );
       }
 
-      const updated = await context.storage.updateAccount({
+      const nextAccount = {
         ...account,
         ...(await hashPassword(newPassword)),
-      });
+      };
+      const updated = await context.storage.updateAccount(nextAccount);
       if (!updated) {
         return c.redirect(accountSettingsRedirect("notFound"), 303);
       }
+      await saveAccountPasswordCredential(nextAccount, context.storage);
 
       logSecurityAuditEvent({
         code: "password_changed",
@@ -380,7 +414,10 @@ export function createRoutes(context: AppContext): Hono {
 
     const currentPassword = String(form.currentPassword ?? "");
     return new Response(null, {
-      status: await verifyPassword(currentPassword, account) ? 204 : 403,
+      status:
+        await verifyAccountPassword(currentPassword, account, context.storage)
+          ? 204
+          : 403,
     });
   });
 
@@ -452,7 +489,10 @@ export function createRoutes(context: AppContext): Hono {
         await context.poller.runOnce();
       }
       return c.redirect(
-        withPollResetFlag(safeRedirectPath(form.get("returnTo"), "/"), form.get("pollResetStart")),
+        withPollResetFlag(
+          safeRedirectPath(form.get("returnTo"), "/"),
+          form.get("pollResetStart"),
+        ),
       );
     } catch (error) {
       return notificationErrorResponse(error, c.req.raw);
@@ -535,7 +575,9 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.get("/static/app.css", async () => {
-    const css = await Deno.readTextFile(new URL("../static/app.css", import.meta.url));
+    const css = await Deno.readTextFile(
+      new URL("../static/app.css", import.meta.url),
+    );
     return new Response(css, {
       headers: {
         "cache-control": "no-store",
@@ -545,7 +587,9 @@ export function createRoutes(context: AppContext): Hono {
   });
 
   app.get("/static/settings.js", async () => {
-    const script = await Deno.readTextFile(new URL("../static/settings.js", import.meta.url));
+    const script = await Deno.readTextFile(
+      new URL("../static/settings.js", import.meta.url),
+    );
     return new Response(script, {
       headers: {
         "cache-control": "no-store",
@@ -592,7 +636,9 @@ async function optionalStorageForRequest(
   }
 
   const session = await cachedAuthSessionForRequest(c, storage);
-  return "forUser" in storage ? storage.forUser(session?.userId ?? "default") : storage;
+  return "forUser" in storage
+    ? storage.forUser(session?.userId ?? "default")
+    : storage;
 }
 
 /**
@@ -639,7 +685,10 @@ type AccountErrorCode =
   | "samePassword"
   | "username";
 
-function accountSettingsRedirect(error: AccountErrorCode, mode?: "password" | "username"): string {
+function accountSettingsRedirect(
+  error: AccountErrorCode,
+  mode?: "password" | "username",
+): string {
   return `/settings?accountError=${error}${mode ? `&accountMode=${mode}` : ""}`;
 }
 
@@ -655,7 +704,9 @@ function accountStatusFromSearch(searchParams: URLSearchParams) {
     : undefined;
 }
 
-function accountModeFromSearch(value: string | null): "password" | "username" | undefined {
+function accountModeFromSearch(
+  value: string | null,
+): "password" | "username" | undefined {
   return value === "password" || value === "username" ? value : undefined;
 }
 
@@ -669,7 +720,10 @@ function isAccountErrorCode(value: string | null): value is AccountErrorCode {
     value === "username";
 }
 
-function notificationErrorResponse(error: unknown, request?: Request): Response {
+function notificationErrorResponse(
+  error: unknown,
+  request?: Request,
+): Response {
   if (error instanceof NotificationConfigError) {
     logSecurityAuditEvent({
       code: "notification_config_rejected",
@@ -723,7 +777,10 @@ function notificationDeliveryStatus(error: NotificationDeliveryError): number {
  * @param fallback 允许的兜底路径。
  * @return 安全的返回路径。
  */
-function safeRedirectPath(value: FormDataEntryValue | null, fallback: "/" | "/history"): string {
+function safeRedirectPath(
+  value: FormDataEntryValue | null,
+  fallback: "/" | "/history",
+): string {
   if (typeof value !== "string") {
     return fallback;
   }
@@ -758,7 +815,10 @@ function isMatchTableRefreshRequest(
  * @param startWidth 进度条起始宽度。
  * @return 带轮询重置标记的路径。
  */
-function withPollResetFlag(path: string, startWidth: FormDataEntryValue | null): string {
+function withPollResetFlag(
+  path: string,
+  startWidth: FormDataEntryValue | null,
+): string {
   const url = new URL(path, "http://local");
   url.searchParams.set(pollResetParam, "1");
   const normalizedStartWidth = normalizePollResetStart(startWidth);
@@ -800,7 +860,9 @@ function initialNextPollProgress(params: URLSearchParams): string | undefined {
  * @param value 原始起始宽度。
  * @return 0 到 100 之间的宽度字符串。
  */
-function normalizePollResetStart(value: FormDataEntryValue | null): string | undefined {
+function normalizePollResetStart(
+  value: FormDataEntryValue | null,
+): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -854,8 +916,9 @@ async function rateLimitResponseForRequest(
   policy: RateLimitPolicy,
 ): Promise<Response | undefined> {
   const storage = (context as { storage?: AppContext["storage"] }).storage;
-  const canReadSession = typeof (storage as { getSession?: unknown } | undefined)?.getSession ===
-    "function";
+  const canReadSession =
+    typeof (storage as { getSession?: unknown } | undefined)?.getSession ===
+      "function";
   const session = canReadSession && storage
     ? await cachedAuthSessionForRequest(c, storage)
     : undefined;
@@ -910,12 +973,19 @@ export function settingsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   currentSettings: AppSettings,
 ): AppSettings {
-  const activeKeywordTarget = String(form.activeKeywordTarget ?? "common").trim() || "common";
+  const activeKeywordTarget =
+    String(form.activeKeywordTarget ?? "common").trim() || "common";
   const keywordRules = keywordRulesFromForm(form);
   const commonKeywordRules = activeKeywordTarget === "common"
     ? keywordRules
-    : keywordRulesFromJson(form.commonKeywordRulesJson) ?? currentSettings.commonKeywordRules;
-  const topics = topicsFromForm(form, currentSettings, activeKeywordTarget, keywordRules);
+    : keywordRulesFromJson(form.commonKeywordRulesJson) ??
+      currentSettings.commonKeywordRules;
+  const topics = topicsFromForm(
+    form,
+    currentSettings,
+    activeKeywordTarget,
+    keywordRules,
+  );
 
   return {
     ...currentSettings,
@@ -923,15 +993,20 @@ export function settingsFromForm(
     commonKeywordRules,
     darkMode: form.darkMode === "on",
     locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
-    notificationEmailAddress: String(form.notificationEmailAddress ?? "").trim(),
+    notificationEmailAddress: String(form.notificationEmailAddress ?? "")
+      .trim(),
     notificationEmailApiToken: secretValueFromForm(
       form.notificationEmailApiToken,
       currentSettings.notificationEmailApiToken,
     ),
     notificationEmailApiUrl: String(form.notificationEmailApiUrl ?? "").trim(),
     notificationEmailFrom: String(form.notificationEmailFrom ?? "").trim(),
-    notificationEmailService: normalizeNotificationEmailService(form.notificationEmailService),
-    notificationProvider: normalizeNotificationProvider(form.notificationProvider),
+    notificationEmailService: normalizeNotificationEmailService(
+      form.notificationEmailService,
+    ),
+    notificationProvider: normalizeNotificationProvider(
+      form.notificationProvider,
+    ),
     notificationPushPlusToken: secretValueFromForm(
       form.notificationPushPlusSecret ?? form.notificationPushPlusToken,
       currentSettings.notificationPushPlusToken,
@@ -952,7 +1027,8 @@ export function settingsFromForm(
       currentSettings.notificationSmtpPort,
     ),
     notificationSmtpSecure: form.notificationSmtpSecure === "on",
-    notificationSmtpUsername: String(form.notificationSmtpUsername ?? "").trim(),
+    notificationSmtpUsername: String(form.notificationSmtpUsername ?? "")
+      .trim(),
     notificationWebhookService: normalizeNotificationWebhookService(
       form.notificationWebhookService,
     ),
@@ -974,13 +1050,22 @@ export function settingsFromForm(
       ),
       intervalValue: normalizePollIntervalValue(
         form.pollIntervalValue,
-        normalizePollIntervalUnit(form.pollIntervalUnit, currentSettings.polling.intervalUnit),
+        normalizePollIntervalUnit(
+          form.pollIntervalUnit,
+          currentSettings.polling.intervalUnit,
+        ),
         currentSettings.polling.intervalValue,
       ),
-      postLimit: normalizePositiveInteger(form.pollPostLimit, currentSettings.polling.postLimit),
+      postLimit: normalizePositiveInteger(
+        form.pollPostLimit,
+        currentSettings.polling.postLimit,
+      ),
       sort: normalizePollSort(form.pollSort, currentSettings.polling.sort),
     },
-    themeColor: normalizeThemeColor(form.themeColor, currentSettings.themeColor),
+    themeColor: normalizeThemeColor(
+      form.themeColor,
+      currentSettings.themeColor,
+    ),
     topics,
   };
 }
@@ -1039,12 +1124,16 @@ function topicsFromForm(
   activeKeywordTarget: string,
   activeKeywordRules: KeywordRule[],
 ): TopicRule[] {
-  const existingTopics = new Map(currentSettings.topics.map((topic) => [topic.id, topic]));
+  const existingTopics = new Map(
+    currentSettings.topics.map((topic) => [topic.id, topic]),
+  );
 
   return formIndexes(form, /^topic_(\d+)_id$/).map((index) => {
     const id = String(form[`topic_${index}_id`] ?? "").trim();
     const existingTopic = existingTopics.get(id);
-    const submittedKeywordRules = keywordRulesFromJson(form[`topic_${index}_keywordRulesJson`]);
+    const submittedKeywordRules = keywordRulesFromJson(
+      form[`topic_${index}_keywordRulesJson`],
+    );
     const keywordRules = activeKeywordTarget === id
       ? activeKeywordRules
       : submittedKeywordRules ?? existingTopic?.keywordRules ?? [];
@@ -1078,7 +1167,9 @@ function keywordRulesFromJson(
     }
 
     return parsed.map((rule) => {
-      const keyword = typeof rule?.keyword === "string" ? rule.keyword.trim() : "";
+      const keyword = typeof rule?.keyword === "string"
+        ? rule.keyword.trim()
+        : "";
       const locations = Array.isArray(rule?.locations)
         ? rule.locations.filter(isMatchLocation)
         : [];
@@ -1099,7 +1190,8 @@ function keywordRulesFromJson(
  * @return 是合法匹配位置时返回 true。
  */
 function isMatchLocation(value: unknown): value is MatchLocation {
-  return value === "title" || value === "body" || value === "comments" || value === "replies";
+  return value === "title" || value === "body" || value === "comments" ||
+    value === "replies";
 }
 
 /**
@@ -1132,7 +1224,9 @@ function formIndexes(
 function normalizeNotificationProvider(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
 ): AppSettings["notificationProvider"] {
-  return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
+  return value === "disabled" || value === "email" || value === "webhook"
+    ? value
+    : "webhook";
 }
 
 /**
@@ -1147,7 +1241,9 @@ function normalizePositiveInteger(
   fallback: number,
 ): number {
   const numericValue = Number(typeof value === "string" ? value : undefined);
-  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : fallback;
+  return Number.isInteger(numericValue) && numericValue > 0
+    ? numericValue
+    : fallback;
 }
 
 /**
@@ -1161,7 +1257,9 @@ function normalizePollSort(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
   fallback: PollSort,
 ): PollSort {
-  return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
+  return value === "publishTime" || value === "smart" || value === "replyTime"
+    ? value
+    : fallback;
 }
 
 /**
@@ -1175,7 +1273,8 @@ function normalizePollIntervalUnit(
   value: FormDataEntryValue | FormDataEntryValue[] | undefined,
   fallback: PollIntervalUnit,
 ): PollIntervalUnit {
-  return value === "second" || value === "minute" || value === "hour" || value === "day" ||
+  return value === "second" || value === "minute" || value === "hour" ||
+      value === "day" ||
       value === "week" || value === "month"
     ? value
     : fallback;

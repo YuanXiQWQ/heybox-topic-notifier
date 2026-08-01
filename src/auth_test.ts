@@ -2,8 +2,18 @@
  * @file 本文件验证认证中间件和登录注册路由行为。
  */
 import { Hono } from "@hono/hono";
-import { createAuthMiddleware, createAuthRoutes, readAuthSession } from "./auth.ts";
-import type { AppSettings, UserAccount, UserSession } from "./models.ts";
+import {
+  createAuthMiddleware,
+  createAuthRoutes,
+  hashPassword,
+  readAuthSession,
+} from "./auth.ts";
+import type {
+  AppSettings,
+  PasswordCredential,
+  UserAccount,
+  UserSession,
+} from "./models.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 import {
   addUniqueAccount,
@@ -21,7 +31,10 @@ Deno.test("auth middleware redirects protected pages to login", async () => {
   const response = await app.request("/settings");
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/login?locale=zh-CN&returnTo=%2Fsettings");
+  assertEquals(
+    response.headers.get("location"),
+    "/login?locale=zh-CN&returnTo=%2Fsettings",
+  );
 });
 
 Deno.test("auth routes render login page without extra configuration", async () => {
@@ -43,7 +56,10 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
   assertEquals(response.status, 200);
   assertEquals(html.includes('lang="en-US"'), true);
   assertEquals(html.includes("Sign in"), true);
-  assertEquals(html.includes("Too many sign-in attempts. Try again in 15 minutes."), true);
+  assertEquals(
+    html.includes("Too many sign-in attempts. Try again in 15 minutes."),
+    true,
+  );
   assertEquals(html.includes("Confirm password"), false);
   assertEquals(html.includes('aria-label="Authentication navigation"'), true);
   assertEquals(html.includes('class="auth-language-menu"'), true);
@@ -53,11 +69,15 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
   assertEquals(html.includes("<summary"), true);
   assertEquals(html.includes(">语言/Language</span>"), true);
   assertEquals(
-    html.includes('href="/login?locale=zh-CN&amp;returnTo=%2F&amp;localeChanged=1"'),
+    html.includes(
+      'href="/login?locale=zh-CN&amp;returnTo=%2F&amp;localeChanged=1"',
+    ),
     true,
   );
   assertEquals(
-    html.includes('href="/login?locale=en-US&amp;returnTo=%2F&amp;localeChanged=1"'),
+    html.includes(
+      'href="/login?locale=en-US&amp;returnTo=%2F&amp;localeChanged=1"',
+    ),
     true,
   );
   assertEquals(html.includes("/settings"), false);
@@ -68,13 +88,20 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
 Deno.test("auth routes preserve explicit locale selection in auth links", async () => {
   const app = createTestApp();
 
-  const response = await app.request("/login?locale=en-US&localeChanged=1&returnTo=%2Fsettings");
+  const response = await app.request(
+    "/login?locale=en-US&localeChanged=1&returnTo=%2Fsettings",
+  );
   const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals(html.includes('action="/login?locale=en-US&amp;localeChanged=1"'), true);
   assertEquals(
-    html.includes('href="/register?locale=en-US&amp;returnTo=%2Fsettings&amp;localeChanged=1"'),
+    html.includes('action="/login?locale=en-US&amp;localeChanged=1"'),
+    true,
+  );
+  assertEquals(
+    html.includes(
+      'href="/register?locale=en-US&amp;returnTo=%2Fsettings&amp;localeChanged=1"',
+    ),
     true,
   );
 });
@@ -109,16 +136,23 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
     method: "POST",
   });
   const account = await storage.getAccountByUsername("alice");
-  const session = await readAuthSession(response.headers.get("set-cookie") ?? "", storage);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const credential = storage.passwordCredentialsByUserId.get(account?.id ?? "");
 
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/settings");
   assertEquals(account?.username, "alice");
   assertEquals(account?.passwordHash === "correct-password", false);
+  assertEquals(credential?.passwordHash, account?.passwordHash);
   assertEquals(session?.userId, account?.id);
   assertEquals(storage.savedSessions.length, 1);
   assertEquals(
-    response.headers.get("set-cookie")?.includes(storage.savedSessions[0].tokenHash),
+    response.headers.get("set-cookie")?.includes(
+      storage.savedSessions[0].tokenHash,
+    ),
     false,
   );
 });
@@ -155,17 +189,28 @@ Deno.test("auth routes reject duplicate registrations", async () => {
   const response = await register(app, "alice", "another-password");
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/register?locale=zh-CN&error=exists");
+  assertEquals(
+    response.headers.get("location"),
+    "/register?locale=zh-CN&error=exists",
+  );
 });
 
 Deno.test("auth routes reject registrations with mismatched passwords", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
 
-  const response = await register(app, "alice", "correct-password", "different-password");
+  const response = await register(
+    app,
+    "alice",
+    "correct-password",
+    "different-password",
+  );
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/register?locale=zh-CN&error=confirmPassword");
+  assertEquals(
+    response.headers.get("location"),
+    "/register?locale=zh-CN&error=confirmPassword",
+  );
   assertEquals(await storage.getAccountByUsername("alice"), undefined);
 });
 
@@ -254,11 +299,34 @@ Deno.test("auth routes login existing users", async () => {
     headers: testCsrfHeaders(),
     method: "POST",
   });
-  const session = await readAuthSession(response.headers.get("set-cookie") ?? "", storage);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
 
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/history");
   assertEquals(session?.username, "alice");
+});
+
+Deno.test("auth routes migrate legacy password credentials after login", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+  const account: UserAccount = {
+    createdAt: "2026-07-31T00:00:00.000Z",
+    id: "legacy-user-id",
+    username: "alice",
+    ...(await hashPassword("correct-password")),
+  };
+  await storage.createAccount(account);
+
+  const response = await login(app, "alice", "correct-password");
+  const credential = storage.passwordCredentialsByUserId.get(account.id);
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(credential?.passwordHash, account.passwordHash);
+  assertEquals(credential?.userId, account.id);
 });
 
 Deno.test("auth routes preserve explicit locale selection across login errors", async () => {
@@ -356,7 +424,11 @@ Deno.test("auth routes lock repeated failed login attempts", async () => {
   }
 
   const lockedResponse = await login(app, "alice", "incorrect-password");
-  const blockedCorrectPasswordResponse = await login(app, "alice", "correct-password");
+  const blockedCorrectPasswordResponse = await login(
+    app,
+    "alice",
+    "correct-password",
+  );
 
   assertEquals(
     lockedResponse.headers.get("location"),
@@ -401,18 +473,24 @@ function createTestApp(storage = createMemoryStorage()): Hono {
  * @return 带会话记录能力的内存存储。
  */
 function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
+  passwordCredentialsByUserId: Map<string, PasswordCredential>;
   savedSessions: UserSession[];
   settingsByUserId: Map<string, AppSettings>;
 } {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
-  const loginFailuresByUsername = new Map<string, { failures: number; lockedUntil?: string }>();
+  const loginFailuresByUsername = new Map<
+    string,
+    { failures: number; lockedUntil?: string }
+  >();
+  const passwordCredentialsByUserId = new Map<string, PasswordCredential>();
   const settingsByUserId = new Map<string, AppSettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
   const savedSessions: UserSession[] = [];
 
   return {
     ...createMemoryRateLimitRecorder(),
+    passwordCredentialsByUserId,
     savedSessions,
     settingsByUserId,
     /**
@@ -429,7 +507,9 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
          * @return 测试用户应用设置。
          */
         getSettings: () =>
-          Promise.resolve(cloneSettings(settingsByUserId.get(userId) ?? defaultSettings)),
+          Promise.resolve(
+            cloneSettings(settingsByUserId.get(userId) ?? defaultSettings),
+          ),
         /**
          * 保存测试用户设置。
          *
@@ -449,14 +529,31 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     listAccounts: () => Promise.resolve(Array.from(accountsById.values())),
     saveAccount: (account: UserAccount) => {
       accountsById.set(account.id, account);
-      accountIdsByUsername.set(account.username.trim().toLowerCase(), account.id);
+      accountIdsByUsername.set(
+        account.username.trim().toLowerCase(),
+        account.id,
+      );
       return Promise.resolve();
     },
     createAccount: (account: UserAccount) =>
-      Promise.resolve(addUniqueAccount(accountsById, accountIdsByUsername, account)),
+      Promise.resolve(
+        addUniqueAccount(accountsById, accountIdsByUsername, account),
+      ),
+    getPasswordCredential: (userId: string) =>
+      Promise.resolve(passwordCredentialsByUserId.get(userId)),
+    savePasswordCredential: (credential: PasswordCredential) => {
+      passwordCredentialsByUserId.set(credential.userId, credential);
+      return Promise.resolve();
+    },
     getLoginFailure: (username: string) =>
-      Promise.resolve(loginFailuresByUsername.get(username.trim().toLowerCase())),
-    recordLoginFailure: (username: string, maxFailures: number, lockoutMs: number) => {
+      Promise.resolve(
+        loginFailuresByUsername.get(username.trim().toLowerCase()),
+      ),
+    recordLoginFailure: (
+      username: string,
+      maxFailures: number,
+      lockoutMs: number,
+    ) => {
       const key = username.trim().toLowerCase();
       const previous = loginFailuresByUsername.get(key);
       const failures = (previous?.failures ?? 0) + 1;
@@ -473,7 +570,8 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       loginFailuresByUsername.delete(username.trim().toLowerCase());
       return Promise.resolve();
     },
-    getSession: (tokenHash: string) => Promise.resolve(sessionsByTokenHash.get(tokenHash)),
+    getSession: (tokenHash: string) =>
+      Promise.resolve(sessionsByTokenHash.get(tokenHash)),
     /**
      * 保存测试会话并记录保存历史。
      *
@@ -490,6 +588,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       return Promise.resolve();
     },
   } as unknown as ReturnType<typeof createKvStorage> & {
+    passwordCredentialsByUserId: Map<string, PasswordCredential>;
     savedSessions: UserSession[];
     settingsByUserId: Map<string, AppSettings>;
   };
