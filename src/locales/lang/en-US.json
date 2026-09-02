@@ -99,7 +99,7 @@
   "accountTotpCredentials": "Bound authenticators",
   "accountTotpDelete": "Delete",
   "accountTotpDeleted": "Authenticator deleted.",
-  "accountTotpInvalid": "The authenticator code is incorrect or the setup material is no longer valid.",
+  "accountTotpInvalid": "The authenticator code is incorrect, or the setup material is no longer valid.",
   "accountTotpLabel": "Label",
   "accountTotpLabelPlaceholder": "My authenticator",
   "accountTotpManualKey": "Manual key",
