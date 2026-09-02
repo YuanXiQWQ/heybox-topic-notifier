@@ -2,8 +2,43 @@
  * @file 本文件验证认证中间件和登录注册路由行为。
  */
 import { Hono } from "@hono/hono";
-import { createAuthMiddleware, createAuthRoutes, readAuthSession } from "./auth.ts";
-import type { AppSettings, UserAccount, UserSession } from "./models.ts";
+import {
+  type AuthOptions,
+  createAuthMiddleware,
+  createAuthRoutes,
+  hashPassword,
+  readAuthSession,
+} from "./auth.ts";
+import { turnstileResponseFieldName } from "./auth/turnstile.ts";
+import {
+  createEmailVerificationChallenge,
+  type EmailVerificationEmailMessage,
+} from "./auth/email_verification.ts";
+import {
+  createTotpSecretMaterial,
+  decryptTotpSecret,
+  generateTotpCode,
+} from "./auth/totp.ts";
+import {
+  createRecoveryCodes,
+  hashRecoveryCodes,
+} from "./auth/recovery_codes.ts";
+import { getMessages } from "./locales/index.ts";
+import type {
+  AppSettings,
+  AuthIdentity,
+  EmailCredential,
+  PasskeyCredential,
+  PasswordCredential,
+  PendingEmailVerification,
+  PendingMfaChallenge,
+  PendingPasskeyChallenge,
+  TotpCredential,
+  UserAccount,
+  UserSecuritySettings,
+  UserSession,
+} from "./models.ts";
+import { base64UrlEncode } from "./security/crypto_utils.ts";
 import type { createKvStorage } from "./storage/kv.ts";
 import {
   addUniqueAccount,
@@ -13,7 +48,46 @@ import {
   submitRegistration as register,
   testCsrfForm,
   testCsrfHeaders,
+  testCsrfToken,
 } from "./test_helpers.ts";
+
+/**
+ * 邮箱验证码测试使用的固定配置。
+ */
+const testEmailVerificationConfig = {
+  codeSecret: "test-email-code-secret",
+  codeTtlSeconds: 600,
+  maxAttempts: 5,
+};
+
+/**
+ * 验证器动态码测试使用的固定配置。
+ */
+const testTotpConfig = {
+  digits: 6,
+  issuer: "Test",
+  periodSeconds: 30,
+  secretBytes: 20,
+  secretEncryptionKey: "test-totp-encryption-key",
+  verificationWindow: 1,
+};
+
+/**
+ * Google 登录测试使用的固定 client ID。
+ */
+const testGoogleClientId = "test-client-id.apps.googleusercontent.com";
+
+/**
+ * Passkey 测试使用的固定配置。
+ */
+const testPasskeyConfig = {
+  challengeTtlSeconds: 300,
+  expectedOrigin: "http://localhost:8000",
+  rpId: "localhost",
+  rpName: "WarmNest",
+  timeoutMs: 60_000,
+  userVerification: "required" as const,
+};
 
 Deno.test("auth middleware redirects protected pages to login", async () => {
   const app = createTestApp();
@@ -21,7 +95,10 @@ Deno.test("auth middleware redirects protected pages to login", async () => {
   const response = await app.request("/settings");
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/login?locale=zh-CN&returnTo=%2Fsettings");
+  assertEquals(
+    response.headers.get("location"),
+    "/login?locale=zh-CN&returnTo=%2Fsettings",
+  );
 });
 
 Deno.test("auth routes render login page without extra configuration", async () => {
@@ -29,9 +106,105 @@ Deno.test("auth routes render login page without extra configuration", async () 
   app.route("/", createAuthRoutes(createMemoryStorage()));
 
   const response = await app.request("/login");
+  const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals((await response.text()).includes("登录"), true);
+  assertEquals(html.includes("登录"), true);
+  assertEquals(html.includes("用户名/邮箱"), true);
+  assertEquals(html.includes("其它登录方式"), true);
+  assertEquals(html.includes("忘记密码"), true);
+  assertEquals(html.includes("注册"), true);
+  assertEquals(html.includes("创建账号"), false);
+  assertEquals(html.includes("auth-action-row"), true);
+  assertEquals(html.includes("gap: 1px;"), true);
+  assertEquals(html.includes("overflow: hidden;"), true);
+  assertEquals(html.includes("border-radius: 0;"), true);
+  assertEquals(html.includes("auth-register-button"), true);
+  assertEquals(html.includes("data-auth-password-login-form"), true);
+  assertEquals(html.includes("data-auth-other-methods-open"), true);
+  assertEquals(html.includes("data-auth-method-dialog"), true);
+  assertEquals(html.includes("data-auth-email-mode-trigger"), true);
+  assertEquals(html.includes("使用验证码登录"), true);
+  assertEquals(html.includes("使用密码"), true);
+  assertEquals(html.includes("data-auth-password-mode-trigger"), true);
+  assertEquals(html.includes("data-auth-email-login-form"), true);
+  assertEquals(html.includes("data-auth-email-send-code-button"), true);
+  assertEquals(html.includes('name="authMethod" value="email"'), true);
+  assertEquals(html.includes("data-passkey-login"), true);
+  assertEquals(html.includes("data-passkey-login-button"), true);
+  assertEquals(html.includes('autocomplete="username webauthn"'), true);
+  assertEquals(html.includes("https://accounts.google.com/gsi/client"), false);
+  assertEquals(html.includes("data-google-login"), false);
+});
+
+Deno.test("auth routes render email code login mode from query", async () => {
+  const app = new Hono();
+  app.route("/", createAuthRoutes(createMemoryStorage()));
+
+  const response = await app.request("/login?authMethod=email");
+  const html = await response.text();
+  const passwordFormIndex = html.indexOf("data-auth-password-login-form");
+  const passwordFormOpenTag = html.slice(
+    html.lastIndexOf("<form", passwordFormIndex),
+    html.indexOf(">", passwordFormIndex) + 1,
+  );
+  const emailFormIndex = html.indexOf("data-auth-email-login-form");
+  const emailFormOpenTag = html.slice(
+    html.lastIndexOf("<form", emailFormIndex),
+    html.indexOf(">", emailFormIndex) + 1,
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(passwordFormOpenTag.includes("hidden"), true);
+  assertEquals(emailFormOpenTag.includes("hidden"), false);
+  assertEquals(html.includes("autofocus"), true);
+  assertEquals(html.includes("使用密码"), true);
+  assertEquals(html.includes("data-auth-password-mode-trigger"), true);
+});
+
+Deno.test("auth routes render Google Identity Services when configured", async () => {
+  const app = createTestApp(
+    createMemoryStorage(),
+    googleAuthOptions({ keys: [] }),
+  );
+
+  const response = await app.request(
+    "/login?locale=en-US&localeChanged=1&returnTo=%2Fsettings",
+  );
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    html.includes("https://accounts.google.com/gsi/client"),
+    true,
+  );
+  assertEquals(html.includes("data-google-login"), true);
+  assertEquals(html.includes('class="auth-google-button"'), false);
+  assertEquals(
+    html.includes(`data-google-client-id="${testGoogleClientId}"`),
+    true,
+  );
+  assertEquals(
+    html.includes('action="/auth/google?locale=en-US&amp;localeChanged=1"'),
+    true,
+  );
+  assertEquals(html.includes('name="credential" data-google-credential'), true);
+  assertEquals(html.includes("use_fedcm_for_prompt: true"), true);
+});
+
+Deno.test("auth routes render Turnstile widget when enabled", async () => {
+  const app = createTestApp(createMemoryStorage(), turnstileAuthOptions());
+
+  const response = await app.request("/register");
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    html.includes("https://challenges.cloudflare.com/turnstile/v0/api.js"),
+    true,
+  );
+  assertEquals(html.includes('class="auth-turnstile cf-turnstile"'), true);
+  assertEquals(html.includes('data-sitekey="test-site-key"'), true);
 });
 
 Deno.test("auth routes localize anonymous pages with a language-only navigation bar", async () => {
@@ -43,7 +216,10 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
   assertEquals(response.status, 200);
   assertEquals(html.includes('lang="en-US"'), true);
   assertEquals(html.includes("Sign in"), true);
-  assertEquals(html.includes("Too many sign-in attempts. Try again in 15 minutes."), true);
+  assertEquals(
+    html.includes("Too many sign-in attempts. Try again in 15 minutes."),
+    true,
+  );
   assertEquals(html.includes("Confirm password"), false);
   assertEquals(html.includes('aria-label="Authentication navigation"'), true);
   assertEquals(html.includes('class="auth-language-menu"'), true);
@@ -53,11 +229,15 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
   assertEquals(html.includes("<summary"), true);
   assertEquals(html.includes(">语言/Language</span>"), true);
   assertEquals(
-    html.includes('href="/login?locale=zh-CN&amp;returnTo=%2F&amp;localeChanged=1"'),
+    html.includes(
+      'href="/login?locale=zh-CN&amp;returnTo=%2F&amp;localeChanged=1"',
+    ),
     true,
   );
   assertEquals(
-    html.includes('href="/login?locale=en-US&amp;returnTo=%2F&amp;localeChanged=1"'),
+    html.includes(
+      'href="/login?locale=en-US&amp;returnTo=%2F&amp;localeChanged=1"',
+    ),
     true,
   );
   assertEquals(html.includes("/settings"), false);
@@ -68,13 +248,20 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
 Deno.test("auth routes preserve explicit locale selection in auth links", async () => {
   const app = createTestApp();
 
-  const response = await app.request("/login?locale=en-US&localeChanged=1&returnTo=%2Fsettings");
+  const response = await app.request(
+    "/login?locale=en-US&localeChanged=1&returnTo=%2Fsettings",
+  );
   const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals(html.includes('action="/login?locale=en-US&amp;localeChanged=1"'), true);
   assertEquals(
-    html.includes('href="/register?locale=en-US&amp;returnTo=%2Fsettings&amp;localeChanged=1"'),
+    html.includes('action="/login?locale=en-US&amp;localeChanged=1"'),
+    true,
+  );
+  assertEquals(
+    html.includes(
+      'href="/register?locale=en-US&amp;returnTo=%2Fsettings&amp;localeChanged=1"',
+    ),
     true,
   );
 });
@@ -109,18 +296,581 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
     method: "POST",
   });
   const account = await storage.getAccountByUsername("alice");
-  const session = await readAuthSession(response.headers.get("set-cookie") ?? "", storage);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const credential = storage.passwordCredentialsByUserId.get(account?.id ?? "");
 
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/settings");
   assertEquals(account?.username, "alice");
   assertEquals(account?.passwordHash === "correct-password", false);
+  assertEquals(credential?.passwordHash, account?.passwordHash);
   assertEquals(session?.userId, account?.id);
   assertEquals(storage.savedSessions.length, 1);
   assertEquals(
-    response.headers.get("set-cookie")?.includes(storage.savedSessions[0].tokenHash),
+    response.headers.get("set-cookie")?.includes(
+      storage.savedSessions[0].tokenHash,
+    ),
     false,
   );
+});
+
+Deno.test("auth routes reject registration without Turnstile token when enabled", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, turnstileAuthOptions());
+
+  const response = await app.request("/register", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        confirmPassword: "correct-password",
+        password: "correct-password",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/register?locale=zh-CN&error=humanVerification",
+  );
+  assertEquals(await storage.getAccountByUsername("alice"), undefined);
+});
+
+Deno.test("auth routes register users after Turnstile verification", async () => {
+  const storage = createMemoryStorage();
+  let requestBody = "";
+  const app = createTestApp(
+    storage,
+    turnstileAuthOptions({
+      fetcher: async (_input, init) => {
+        requestBody = await requestText(init?.body);
+        return new Response(JSON.stringify({ success: true }));
+      },
+    }),
+  );
+  const form = new URLSearchParams({
+    confirmPassword: "correct-password",
+    password: "correct-password",
+    username: "alice",
+    [turnstileResponseFieldName]: "verified-token",
+  });
+
+  const response = await app.request("/register", {
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(
+    (await storage.getAccountByUsername("alice"))?.username,
+    "alice",
+  );
+  assertEquals(requestBody.includes("response=verified-token"), true);
+});
+
+Deno.test("auth routes send email verification codes", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(
+    storage,
+    emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+  );
+
+  const response = await app.request("/auth/email-verifications?locale=en-US", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        email: " Alice@Example.COM ",
+        purpose: "primary_login",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const payload = await response.json();
+  const verification = Array.from(
+    storage.pendingEmailVerificationsById.values(),
+  )[0];
+  const sentCode = sentMessages[0].text.match(/[0-9]{6}/)?.[0] ?? "";
+
+  assertEquals(response.status, 200);
+  assertEquals(payload.ok, true);
+  assertEquals(sentMessages.length, 1);
+  assertEquals(sentMessages[0].to, "alice@example.com");
+  assertEquals(verification.email, "alice@example.com");
+  assertEquals(verification.purpose, "primary_login");
+  assertEquals(verification.codeHash === sentCode, false);
+});
+
+Deno.test("auth pages submit email verification with the selected locale", async () => {
+  const app = createTestApp(
+    createMemoryStorage(),
+    emailVerificationAuthOptions(),
+  );
+  const response = await app.request(
+    "/login?locale=ja-JP&authMethod=email",
+  );
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    html.includes('fetch("/auth/email-verifications?locale=ja-JP"'),
+    true,
+  );
+});
+
+Deno.test("logout preserves the selected locale", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+  const registration = await register(app, "alice", "correct-password");
+  const cookie = registration.headers.get("set-cookie") ?? "";
+
+  const response = await app.request("/logout?locale=en-GB", {
+    body: testCsrfForm(),
+    headers: testCsrfHeaders({ cookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/login?locale=en-GB");
+});
+
+Deno.test("auth routes reject email verification without Turnstile token when enabled", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(storage, {
+    ...emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+    ...turnstileAuthOptions(),
+  });
+
+  const response = await app.request("/auth/email-verifications", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        email: "alice@example.com",
+        purpose: "primary_login",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 403);
+  assertEquals((await response.json()).error, "humanVerification");
+  assertEquals(sentMessages.length, 0);
+  assertEquals(storage.pendingEmailVerificationsById.size, 0);
+});
+
+Deno.test("auth routes rate limit email verification by target and purpose", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(
+    storage,
+    emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+  );
+  const headers = testCsrfHeaders({ "x-forwarded-for": "203.0.113.20" });
+
+  for (let index = 0; index < 3; index += 1) {
+    const response = await app.request("/auth/email-verifications", {
+      body: testCsrfForm(
+        new URLSearchParams({
+          email: "alice@example.com",
+          purpose: "primary_login",
+        }),
+      ),
+      headers,
+      method: "POST",
+    });
+    assertEquals(response.status, 200);
+  }
+
+  const limitedResponse = await app.request("/auth/email-verifications", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        email: "alice@example.com",
+        purpose: "primary_login",
+      }),
+    ),
+    headers,
+    method: "POST",
+  });
+
+  assertEquals(limitedResponse.status, 429);
+  assertEquals(sentMessages.length, 3);
+});
+
+Deno.test("auth routes sign in with email verification and create a passwordless account", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, emailVerificationAuthOptions());
+  const challenge = await createEmailVerificationChallenge({
+    code: "123456",
+    config: testEmailVerificationConfig,
+    email: " Alice@Example.COM ",
+    id: "email-login-verification",
+    purpose: "primary_login",
+  });
+  await storage.savePendingEmailVerification(challenge.verification);
+
+  const response = await app.request("/login?locale=en-US&localeChanged=1", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        authMethod: "email",
+        code: "123456",
+        email: "Alice@Example.COM",
+        returnTo: "/",
+        verificationId: "email-login-verification",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const account = await storage.getAccountByUsername("alice");
+  const credential = account
+    ? await storage.getEmailCredential(account.id, "alice@example.com")
+    : undefined;
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(account?.primaryEmail, "alice@example.com");
+  assertEquals(account?.emailVerified, true);
+  assertEquals(account?.passwordHash, undefined);
+  assertEquals(credential?.verified, true);
+  assertEquals(credential?.lastVerifiedAt !== undefined, true);
+  assertEquals(storage.savedSessions[0]?.userId, account?.id);
+  assertEquals(
+    storage.settingsByUserId.get(account?.id ?? "")?.locale,
+    "en-US",
+  );
+  assertEquals(
+    await storage.getPendingEmailVerification("email-login-verification"),
+    undefined,
+  );
+});
+
+Deno.test("auth routes sign in with Google credential and create a passwordless account", async () => {
+  const storage = createMemoryStorage();
+  const fixture = await googleTokenFixture();
+  const app = createTestApp(storage, googleAuthOptions(fixture.jwks));
+
+  const response = await app.request(
+    "/auth/google?locale=en-US&localeChanged=1",
+    {
+      body: testCsrfForm(
+        new URLSearchParams({
+          credential: fixture.token,
+          returnTo: "/history",
+        }),
+      ),
+      headers: testCsrfHeaders(),
+      method: "POST",
+    },
+  );
+  const identity = await storage.getAuthIdentity(
+    "google",
+    "google-subject-id",
+  );
+  const account = identity
+    ? await storage.getAccountById(identity.userId)
+    : undefined;
+  const emailCredential = account
+    ? await storage.getEmailCredential(account.id, "alice@example.com")
+    : undefined;
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(identity?.provider, "google");
+  assertEquals(identity?.providerUserId, "google-subject-id");
+  assertEquals(identity?.email, "alice@example.com");
+  assertEquals(identity?.emailVerified, true);
+  assertEquals(account?.authVersion, 2);
+  assertEquals(account?.displayName, "Alice");
+  assertEquals(account?.primaryEmail, "alice@example.com");
+  assertEquals(account?.emailVerified, true);
+  assertEquals(account?.passwordHash, undefined);
+  assertEquals(emailCredential?.verified, true);
+  assertEquals(emailCredential?.lastVerifiedAt !== undefined, true);
+  assertEquals(session?.userId, account?.id);
+  assertEquals(storage.savedSessions[0]?.userId, account?.id);
+  assertEquals(
+    storage.settingsByUserId.get(account?.id ?? "")?.locale,
+    "en-US",
+  );
+});
+
+Deno.test("auth routes do not merge Google sign-in into an existing same-email account", async () => {
+  const storage = createMemoryStorage();
+  const fixture = await googleTokenFixture();
+  const existingAccount: UserAccount = {
+    authVersion: 2,
+    createdAt: "2026-07-31T00:00:00.000Z",
+    emailVerified: true,
+    id: "existing-user-id",
+    primaryEmail: "alice@example.com",
+    username: "alice",
+  };
+  await storage.createAccount(existingAccount);
+  await storage.saveEmailCredential({
+    createdAt: "2026-07-31T00:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-07-31T00:00:00.000Z",
+    userId: existingAccount.id,
+    verified: true,
+  });
+  const app = createTestApp(storage, googleAuthOptions(fixture.jwks));
+
+  const response = await app.request("/auth/google", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        credential: fixture.token,
+        returnTo: "/",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const identity = await storage.getAuthIdentity(
+    "google",
+    "google-subject-id",
+  );
+  const accounts = await storage.listAccounts();
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(accounts.length, 2);
+  assertEquals(identity?.userId === existingAccount.id, false);
+  assertEquals(storage.savedSessions[0]?.userId, identity?.userId);
+  assertEquals(
+    (await storage.getAccountById(existingAccount.id))?.primaryEmail,
+    "alice@example.com",
+  );
+});
+
+Deno.test("auth routes sign in with a Passkey credential", async () => {
+  const storage = createMemoryStorage();
+  const verifier: NonNullable<AuthOptions["passkeyAuthenticationVerifier"]> = (
+    input,
+  ) => {
+    assertEquals(input.challenge.purpose, "primary_login");
+    assertEquals(input.credential.credentialId, "passkey-credential");
+    return Promise.resolve({
+      authenticationInfo: { newCounter: 7 },
+      verified: true,
+    } as never);
+  };
+  const app = createTestApp(storage, passkeyAuthOptions({ verifier }));
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await storage.savePasskeyCredential(testPasskeyCredential(account.id));
+
+  const optionsResponse = await app.request("/auth/passkeys/login-options", {
+    body: "{}",
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const optionsPayload = await optionsResponse.json();
+  const challenge = await storage.getPendingPasskeyChallenge(
+    optionsPayload.challengeId,
+  );
+  const response = await app.request(
+    "/auth/passkeys/login?locale=en-US&localeChanged=1",
+    {
+      body: JSON.stringify({
+        challengeId: optionsPayload.challengeId,
+        credential: testPasskeyAssertion("passkey-credential"),
+        returnTo: "/history",
+      }),
+      headers: testCsrfHeaders({
+        "content-type": "application/json",
+        "x-csrf-token": testCsrfToken,
+      }),
+      method: "POST",
+    },
+  );
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const credential = await storage.getPasskeyCredential(
+    account.id,
+    "passkey-credential",
+  );
+
+  assertEquals(optionsResponse.status, 200);
+  assertEquals(typeof optionsPayload.optionsJSON.challenge, "string");
+  assertEquals(optionsPayload.optionsJSON.allowCredentials, undefined);
+  assertEquals(challenge?.purpose, "primary_login");
+  assertEquals(challenge?.userId, undefined);
+  assertEquals(challenge?.allowedCredentialIds, []);
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(credential?.counter, 7);
+  assertEquals(credential?.lastUsedAt !== undefined, true);
+  assertEquals(
+    await storage.getPendingPasskeyChallenge(optionsPayload.challengeId),
+    undefined,
+  );
+  assertEquals(
+    storage.settingsByUserId.get(account.id)?.locale,
+    "en-US",
+  );
+});
+
+Deno.test("auth routes require alternate MFA after Passkey login", async () => {
+  const storage = createMemoryStorage();
+  const verifier: NonNullable<AuthOptions["passkeyAuthenticationVerifier"]> =
+    () =>
+      Promise.resolve({
+        authenticationInfo: { newCounter: 2 },
+        verified: true,
+      } as never);
+  const app = createTestApp(storage, passkeyAuthOptions({ verifier }));
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await storage.savePasskeyCredential(testPasskeyCredential(account.id));
+  await storage.saveEmailCredential({
+    createdAt: "2026-08-01T00:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-08-01T00:00:00.000Z",
+    userId: account.id,
+    verified: true,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "passkey",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
+  const optionsResponse = await app.request("/auth/passkeys/login-options", {
+    body: "{}",
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const optionsPayload = await optionsResponse.json();
+
+  const response = await app.request("/auth/passkeys/login", {
+    body: JSON.stringify({
+      challengeId: optionsPayload.challengeId,
+      credential: testPasskeyAssertion("passkey-credential"),
+      returnTo: "/history",
+    }),
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const location = response.headers.get("location") ?? "";
+  const mfaChallengeId = mfaChallengeIdFromLocation(location);
+  const mfaChallenge = await storage.getPendingMfaChallenge(mfaChallengeId);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(location.startsWith("/mfa?locale=zh-CN&challenge="), true);
+  assertEquals(session, undefined);
+  assertEquals(mfaChallenge?.primaryMethod, "passkey");
+  assertEquals(mfaChallenge?.allowedMethods, ["email"]);
+});
+
+Deno.test("auth routes reject invalid Google credentials", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, googleAuthOptions({ keys: [] }));
+
+  const response = await app.request("/auth/google", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        credential: "not-a-google-id-token",
+        returnTo: "/settings",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/login?locale=zh-CN&error=google&returnTo=%2Fsettings",
+  );
+  assertEquals((await storage.listAccounts()).length, 0);
+  assertEquals(storage.savedSessions.length, 0);
+});
+
+Deno.test("auth routes reject email login with an incorrect code", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, emailVerificationAuthOptions());
+  const challenge = await createEmailVerificationChallenge({
+    code: "123456",
+    config: testEmailVerificationConfig,
+    email: "alice@example.com",
+    id: "email-login-wrong-code",
+    purpose: "primary_login",
+  });
+  await storage.savePendingEmailVerification(challenge.verification);
+
+  const response = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        authMethod: "email",
+        code: "000000",
+        email: "alice@example.com",
+        returnTo: "/",
+        verificationId: "email-login-wrong-code",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const pending = await storage.getPendingEmailVerification(
+    "email-login-wrong-code",
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/login?locale=zh-CN&authMethod=email&error=emailCode&returnTo=%2F",
+  );
+  assertEquals(pending?.attempts, 1);
+  assertEquals((await storage.listAccounts()).length, 0);
+  assertEquals(storage.savedSessions.length, 0);
 });
 
 Deno.test("auth routes save selected registration locale in user settings", async () => {
@@ -155,17 +905,28 @@ Deno.test("auth routes reject duplicate registrations", async () => {
   const response = await register(app, "alice", "another-password");
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/register?locale=zh-CN&error=exists");
+  assertEquals(
+    response.headers.get("location"),
+    "/register?locale=zh-CN&error=exists",
+  );
 });
 
 Deno.test("auth routes reject registrations with mismatched passwords", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
 
-  const response = await register(app, "alice", "correct-password", "different-password");
+  const response = await register(
+    app,
+    "alice",
+    "correct-password",
+    "different-password",
+  );
 
   assertEquals(response.status, 303);
-  assertEquals(response.headers.get("location"), "/register?locale=zh-CN&error=confirmPassword");
+  assertEquals(
+    response.headers.get("location"),
+    "/register?locale=zh-CN&error=confirmPassword",
+  );
   assertEquals(await storage.getAccountByUsername("alice"), undefined);
 });
 
@@ -254,11 +1015,559 @@ Deno.test("auth routes login existing users", async () => {
     headers: testCsrfHeaders(),
     method: "POST",
   });
-  const session = await readAuthSession(response.headers.get("set-cookie") ?? "", storage);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
 
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/history");
   assertEquals(session?.username, "alice");
+});
+
+Deno.test("auth routes login existing users by verified email and password", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await storage.updateAccount({
+    ...account,
+    emailVerified: true,
+    primaryEmail: "alice@example.com",
+  });
+  await storage.saveEmailCredential({
+    createdAt: "2026-08-10T00:00:00.000Z",
+    email: "alice@example.com",
+    lastVerifiedAt: "2026-08-10T00:00:00.000Z",
+    userId: account.id,
+    verified: true,
+  });
+
+  const response = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: " Alice@Example.COM ",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+});
+
+Deno.test("auth routes require MFA after password login when enabled", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, emailVerificationAuthOptions());
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await enableEmailSecondFactor(storage, account.id);
+
+  const response = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const location = response.headers.get("location") ?? "";
+  const challengeId = mfaChallengeIdFromLocation(location);
+  const challenge = await storage.getPendingMfaChallenge(challengeId);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const pageResponse = await app.request(location);
+  const pageHtml = await pageResponse.text();
+
+  assertEquals(response.status, 303);
+  assertEquals(location.startsWith("/mfa?locale=zh-CN&challenge="), true);
+  assertEquals(
+    new URL(location, "http://local").searchParams.get("returnTo"),
+    "/history",
+  );
+  assertEquals(session, undefined);
+  assertEquals(challenge?.userId, account.id);
+  assertEquals(challenge?.primaryMethod, "password");
+  assertEquals(challenge?.allowedMethods, ["email"]);
+  assertEquals(pageResponse.status, 200);
+  assertEquals(pageHtml.includes("data-mfa-email-form"), true);
+  assertEquals(pageHtml.includes('data-mfa-method="email"'), true);
+  assertEquals(pageHtml.includes("双重验证"), true);
+});
+
+Deno.test("auth routes complete email MFA and create a session", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(
+    storage,
+    emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+  );
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await enableEmailSecondFactor(storage, account.id);
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const challengeId = mfaChallengeIdFromLocation(
+    loginResponse.headers.get("location"),
+  );
+  const codeResponse = await app.request("/auth/email-verifications", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        email: "alice@example.com",
+        purpose: "second_factor",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const codePayload = await codeResponse.json();
+  const sentCode = sentMessages[0].text.match(/[0-9]{6}/)?.[0] ?? "";
+  const response = await app.request("/mfa", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        code: sentCode,
+        email: "alice@example.com",
+        method: "email",
+        returnTo: "/history",
+        verificationId: String(codePayload.id),
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(codeResponse.status, 200);
+  assertEquals(codePayload.ok, true);
+  assertEquals(sentMessages.length, 1);
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(await storage.getPendingMfaChallenge(challengeId), undefined);
+  assertEquals(
+    await storage.getPendingEmailVerification(String(codePayload.id)),
+    undefined,
+  );
+});
+
+Deno.test("auth routes complete TOTP MFA and create a session", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, totpAuthOptions());
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  const material = await enableTotpSecondFactor(storage, account.id);
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const location = loginResponse.headers.get("location") ?? "";
+  const challengeId = mfaChallengeIdFromLocation(location);
+  const pageResponse = await app.request(location);
+  const pageHtml = await pageResponse.text();
+  const secret = await decryptTotpSecret(
+    material.secretEncrypted,
+    testTotpConfig.secretEncryptionKey,
+  );
+  const code = await generateTotpCode(secret, testTotpConfig);
+
+  const response = await app.request("/mfa", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        code,
+        method: "totp",
+        returnTo: "/history",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(loginResponse.status, 303);
+  assertEquals(pageResponse.status, 200);
+  assertEquals(pageHtml.includes("data-mfa-totp-form"), true);
+  assertEquals(pageHtml.includes('data-mfa-method="totp"'), true);
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(await storage.getPendingMfaChallenge(challengeId), undefined);
+});
+
+Deno.test("auth routes consume a one-time recovery code for MFA", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, totpAuthOptions());
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  const material = await createTotpSecretMaterial(testTotpConfig);
+  const recoveryCodes = createRecoveryCodes();
+  await storage.saveTotpCredential({
+    credentialId: "phone-authenticator",
+    enabledAt: new Date().toISOString(),
+    recoveryCodeHashes: await hashRecoveryCodes(
+      recoveryCodes,
+      testTotpConfig.secretEncryptionKey,
+    ),
+    secretEncrypted: material.secretEncrypted,
+    userId: account.id,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "totp",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const location = loginResponse.headers.get("location") ?? "";
+  const challengeId = mfaChallengeIdFromLocation(location);
+  const pageHtml = await (await app.request(location)).text();
+  const selectedPageHtml = await (
+    await app.request(`${location}&method=recoveryCode`)
+  ).text();
+  const invalidResponse = await app.request("/mfa", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        code: "invalid",
+        method: "recoveryCode",
+        returnTo: "/history",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const invalidLocation = invalidResponse.headers.get("location") ?? "";
+  const invalidPageHtml = await (await app.request(invalidLocation)).text();
+  const response = await app.request("/mfa", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        code: recoveryCodes[0],
+        method: "recoveryCode",
+        returnTo: "/history",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const credential = await storage.getTotpCredential(account.id);
+
+  assertEquals(pageHtml.includes("data-mfa-method-selector"), true);
+  assertEquals(pageHtml.includes("data-mfa-recovery-code-form"), true);
+  assertEquals(pageHtml.includes('data-mfa-method="recoveryCode"'), true);
+  assertEquals(
+    pageHtml.includes('<div data-mfa-method-panel="totp"><form'),
+    true,
+  );
+  assertEquals(
+    pageHtml.includes(
+      '<div data-mfa-method-panel="recoveryCode" hidden><form',
+    ),
+    true,
+  );
+  assertEquals(
+    selectedPageHtml.includes(
+      '<div data-mfa-method-panel="recoveryCode"><form',
+    ),
+    true,
+  );
+  assertEquals(invalidResponse.status, 303);
+  assertEquals(
+    new URL(invalidLocation, "http://local").searchParams.get("method"),
+    "recoveryCode",
+  );
+  assertEquals(
+    invalidPageHtml.includes(
+      '<div data-mfa-method-panel="recoveryCode"><form',
+    ),
+    true,
+  );
+  assertEquals(
+    invalidPageHtml.includes(getMessages("zh-CN").authMfaInvalid),
+    true,
+  );
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(credential?.recoveryCodeHashes.length, 7);
+  assertEquals(await storage.getPendingMfaChallenge(challengeId), undefined);
+});
+
+Deno.test("auth routes complete Passkey MFA and create a session", async () => {
+  const storage = createMemoryStorage();
+  const verifier: NonNullable<AuthOptions["passkeyAuthenticationVerifier"]> = (
+    input,
+  ) => {
+    assertEquals(input.challenge.purpose, "second_factor");
+    assertEquals(input.credential.credentialId, "passkey-credential");
+    return Promise.resolve({
+      authenticationInfo: { newCounter: 5 },
+      verified: true,
+    } as never);
+  };
+  const app = createTestApp(storage, passkeyAuthOptions({ verifier }));
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await enablePasskeySecondFactor(storage, account.id);
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const location = loginResponse.headers.get("location") ?? "";
+  const mfaChallengeId = mfaChallengeIdFromLocation(location);
+  const pageResponse = await app.request(location);
+  const pageHtml = await pageResponse.text();
+  const optionsResponse = await app.request("/auth/passkeys/mfa-options", {
+    body: JSON.stringify({ mfaChallengeId }),
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const optionsPayload = await optionsResponse.json();
+  const passkeyChallenge = await storage.getPendingPasskeyChallenge(
+    optionsPayload.challengeId,
+  );
+  const response = await app.request("/auth/passkeys/mfa", {
+    body: JSON.stringify({
+      challengeId: optionsPayload.challengeId,
+      credential: testPasskeyAssertion("passkey-credential"),
+      mfaChallengeId,
+      returnTo: "/history",
+    }),
+    headers: testCsrfHeaders({
+      "content-type": "application/json",
+      "x-csrf-token": testCsrfToken,
+    }),
+    method: "POST",
+  });
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+  const credential = await storage.getPasskeyCredential(
+    account.id,
+    "passkey-credential",
+  );
+
+  assertEquals(loginResponse.status, 303);
+  assertEquals(pageResponse.status, 200);
+  assertEquals(pageHtml.includes("data-passkey-login"), true);
+  assertEquals(pageHtml.includes("data-passkey-mfa-challenge"), true);
+  assertEquals(optionsResponse.status, 200);
+  assertEquals(
+    optionsPayload.optionsJSON.allowCredentials?.map((item: { id: string }) =>
+      item.id
+    ),
+    ["passkey-credential"],
+  );
+  assertEquals(passkeyChallenge?.purpose, "second_factor");
+  assertEquals(passkeyChallenge?.userId, account.id);
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/history");
+  assertEquals(session?.username, "alice");
+  assertEquals(credential?.counter, 5);
+  assertEquals(credential?.lastUsedAt !== undefined, true);
+  assertEquals(await storage.getPendingMfaChallenge(mfaChallengeId), undefined);
+  assertEquals(
+    await storage.getPendingPasskeyChallenge(optionsPayload.challengeId),
+    undefined,
+  );
+});
+
+Deno.test("auth routes reject incorrect TOTP MFA codes", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, totpAuthOptions());
+  await register(app, "alice", "correct-password");
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  const material = await enableTotpSecondFactor(storage, account.id);
+
+  const loginResponse = await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const challengeId = mfaChallengeIdFromLocation(
+    loginResponse.headers.get("location"),
+  );
+  const secret = await decryptTotpSecret(
+    material.secretEncrypted,
+    testTotpConfig.secretEncryptionKey,
+  );
+  const currentCode = await generateTotpCode(secret, testTotpConfig);
+  const wrongCode = currentCode === "000000" ? "111111" : "000000";
+
+  const response = await app.request("/mfa", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId,
+        code: wrongCode,
+        method: "totp",
+        returnTo: "/",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const challenge = await storage.getPendingMfaChallenge(challengeId);
+  const session = await readAuthSession(
+    response.headers.get("set-cookie") ?? "",
+    storage,
+  );
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location")?.startsWith(
+      `/mfa?locale=zh-CN&challenge=${challengeId}`,
+    ),
+    true,
+  );
+  assertEquals(challenge?.attempts, 1);
+  assertEquals(session, undefined);
+});
+
+Deno.test("auth routes reject second-factor email codes without MFA challenge", async () => {
+  const storage = createMemoryStorage();
+  const sentMessages: EmailVerificationEmailMessage[] = [];
+  const app = createTestApp(
+    storage,
+    emailVerificationAuthOptions({
+      sender: (message) => {
+        sentMessages.push(message);
+        return Promise.resolve();
+      },
+    }),
+  );
+
+  const response = await app.request("/auth/email-verifications", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        challengeId: "missing-challenge",
+        email: "alice@example.com",
+        purpose: "second_factor",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 400);
+  assertEquals((await response.json()).error, "mfaChallengeInvalid");
+  assertEquals(sentMessages.length, 0);
+  assertEquals(storage.pendingEmailVerificationsById.size, 0);
+});
+
+Deno.test("auth routes migrate legacy password credentials after login", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+  const account: UserAccount = {
+    createdAt: "2026-07-31T00:00:00.000Z",
+    id: "legacy-user-id",
+    username: "alice",
+    ...(await hashPassword("correct-password")),
+  };
+  await storage.createAccount(account);
+
+  const response = await login(app, "alice", "correct-password");
+  const credential = storage.passwordCredentialsByUserId.get(account.id);
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(credential?.passwordHash, account.passwordHash);
+  assertEquals(credential?.userId, account.id);
 });
 
 Deno.test("auth routes preserve explicit locale selection across login errors", async () => {
@@ -356,7 +1665,11 @@ Deno.test("auth routes lock repeated failed login attempts", async () => {
   }
 
   const lockedResponse = await login(app, "alice", "incorrect-password");
-  const blockedCorrectPasswordResponse = await login(app, "alice", "correct-password");
+  const blockedCorrectPasswordResponse = await login(
+    app,
+    "alice",
+    "correct-password",
+  );
 
   assertEquals(
     lockedResponse.headers.get("location"),
@@ -366,6 +1679,52 @@ Deno.test("auth routes lock repeated failed login attempts", async () => {
     blockedCorrectPasswordResponse.headers.get("location"),
     "/login?locale=zh-CN&error=rateLimited&returnTo=%2F",
   );
+});
+
+Deno.test("auth routes require Turnstile after repeated login failures", async () => {
+  const storage = createMemoryStorage();
+  let turnstileRequests = 0;
+  const app = createTestApp(
+    storage,
+    turnstileAuthOptions({
+      fetcher: () => {
+        turnstileRequests += 1;
+        return Promise.resolve(new Response(JSON.stringify({ success: true })));
+      },
+    }),
+  );
+  const account: UserAccount = {
+    createdAt: "2026-07-31T00:00:00.000Z",
+    id: "alice-id",
+    username: "alice",
+    ...(await hashPassword("correct-password")),
+  };
+  await storage.createAccount(account);
+
+  await login(app, "alice", "incorrect-password");
+  const challengedFailure = await login(app, "alice", "incorrect-password");
+  const challengedWithoutToken = await login(app, "alice", "correct-password");
+  const verifiedForm = new URLSearchParams({
+    password: "correct-password",
+    username: "alice",
+    [turnstileResponseFieldName]: "verified-token",
+  });
+  const verifiedResponse = await app.request("/login", {
+    body: testCsrfForm(verifiedForm),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(
+    challengedFailure.headers.get("location"),
+    "/login?locale=zh-CN&error=invalid&returnTo=%2F&turnstile=1",
+  );
+  assertEquals(
+    challengedWithoutToken.headers.get("location"),
+    "/login?locale=zh-CN&error=humanVerification&returnTo=%2F&turnstile=1",
+  );
+  assertEquals(verifiedResponse.headers.get("location"), "/");
+  assertEquals(turnstileRequests, 1);
 });
 
 Deno.test("auth middleware accepts a valid session cookie", async () => {
@@ -386,13 +1745,342 @@ Deno.test("auth middleware accepts a valid session cookie", async () => {
  * @param storage 测试存储。
  * @return Hono 测试应用。
  */
-function createTestApp(storage = createMemoryStorage()): Hono {
+function createTestApp(
+  storage = createMemoryStorage(),
+  options: AuthOptions = {},
+): Hono {
   const app = new Hono();
-  app.route("/", createAuthRoutes(storage));
+  app.route("/", createAuthRoutes(storage, options));
   app.get("/healthz", (c) => c.text("ok"));
-  app.use("*", createAuthMiddleware(storage));
+  app.use("*", createAuthMiddleware(storage, options));
   app.get("/settings", (c) => c.text("settings"));
   return app;
+}
+
+/**
+ * 创建开启 Turnstile 的认证测试配置。
+ *
+ * @param options Turnstile 测试选项。
+ * @return 认证测试配置。
+ */
+function turnstileAuthOptions(options: {
+  fetcher?: AuthOptions["turnstileFetch"];
+} = {}): AuthOptions {
+  return {
+    turnstile: {
+      enabled: true,
+      secretKey: "test-secret-key",
+      siteKey: "test-site-key",
+    },
+    turnstileFetch: options.fetcher,
+  };
+}
+
+/**
+ * 创建开启邮箱验证码的认证测试配置。
+ *
+ * @param options 邮箱验证码测试选项。
+ * @return 认证测试配置。
+ */
+function emailVerificationAuthOptions(options: {
+  sender?: AuthOptions["sendEmailVerificationEmail"];
+} = {}): AuthOptions {
+  return {
+    emailVerification: testEmailVerificationConfig,
+    sendEmailVerificationEmail: options.sender,
+  };
+}
+
+/**
+ * 创建开启验证器动态码的认证测试配置。
+ *
+ * @return 认证测试配置。
+ */
+function totpAuthOptions(): AuthOptions {
+  return {
+    totp: testTotpConfig,
+  };
+}
+
+/**
+ * 创建开启 Passkey 登录的认证测试配置。
+ *
+ * @param options Passkey 测试选项。
+ * @return 认证测试配置。
+ */
+function passkeyAuthOptions(options: {
+  verifier?: AuthOptions["passkeyAuthenticationVerifier"];
+} = {}): AuthOptions {
+  return {
+    passkey: testPasskeyConfig,
+    passkeyAuthenticationVerifier: options.verifier,
+  };
+}
+
+/**
+ * 创建测试 Passkey 凭证。
+ *
+ * @param userId 用户 ID。
+ * @param credentialId Passkey 凭证 ID。
+ * @return Passkey 凭证。
+ */
+function testPasskeyCredential(
+  userId: string,
+  credentialId = "passkey-credential",
+): PasskeyCredential {
+  return {
+    backedUp: true,
+    counter: 0,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    credentialId,
+    publicKey: base64UrlEncode(new Uint8Array([1, 2, 3])),
+    transports: ["internal"],
+    userId,
+  };
+}
+
+/**
+ * 创建测试 Passkey assertion JSON。
+ *
+ * @param credentialId Passkey 凭证 ID。
+ * @return 测试 assertion。
+ */
+function testPasskeyAssertion(credentialId: string) {
+  return {
+    clientExtensionResults: {},
+    id: credentialId,
+    rawId: credentialId,
+    response: {
+      authenticatorData: "authenticator-data",
+      clientDataJSON: "client-data",
+      signature: "signature",
+    },
+    type: "public-key",
+  };
+}
+
+/**
+ * 为测试账户启用邮箱二次验证。
+ *
+ * @param storage 测试存储。
+ * @param userId 用户 ID。
+ * @param email 已验证邮箱地址。
+ * @return 保存完成后的 Promise。
+ */
+async function enableEmailSecondFactor(
+  storage: ReturnType<typeof createMemoryStorage>,
+  userId: string,
+  email = "alice@example.com",
+): Promise<void> {
+  const now = new Date().toISOString();
+  await storage.saveEmailCredential({
+    createdAt: now,
+    email,
+    lastVerifiedAt: now,
+    userId,
+    verified: true,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "email",
+    twoFactorEnabled: true,
+    userId,
+  });
+}
+
+/**
+ * 为测试账户启用验证器动态码二次验证。
+ *
+ * @param storage 测试存储。
+ * @param userId 用户 ID。
+ * @return 已创建的 TOTP secret 材料。
+ */
+async function enableTotpSecondFactor(
+  storage: ReturnType<typeof createMemoryStorage>,
+  userId: string,
+) {
+  const material = await createTotpSecretMaterial(testTotpConfig);
+  await storage.saveTotpCredential({
+    enabledAt: new Date().toISOString(),
+    recoveryCodeHashes: [],
+    secretEncrypted: material.secretEncrypted,
+    userId,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "totp",
+    twoFactorEnabled: true,
+    userId,
+  });
+  return material;
+}
+
+/**
+ * 为测试账户启用 Passkey 二次验证。
+ *
+ * @param storage 测试存储。
+ * @param userId 用户 ID。
+ * @return 保存完成后的 Promise。
+ */
+async function enablePasskeySecondFactor(
+  storage: ReturnType<typeof createMemoryStorage>,
+  userId: string,
+): Promise<void> {
+  await storage.savePasskeyCredential(testPasskeyCredential(userId));
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "passkey",
+    twoFactorEnabled: true,
+    userId,
+  });
+}
+
+/**
+ * 从 MFA 重定向地址中读取 challenge ID。
+ *
+ * @param location 重定向地址。
+ * @return MFA challenge ID。
+ */
+function mfaChallengeIdFromLocation(location: string | null): string {
+  const challengeId = new URL(location ?? "", "http://local").searchParams.get(
+    "challenge",
+  );
+  if (!challengeId) {
+    throw new Error("MFA challenge ID 缺失。");
+  }
+  return challengeId;
+}
+
+/**
+ * 创建启用 Google 登录的认证测试配置。
+ *
+ * @param jwks Google JWKS 测试响应。
+ * @return 认证测试配置。
+ */
+function googleAuthOptions(jwks: { keys: JsonWebKey[] }): AuthOptions {
+  return {
+    google: {
+      clientId: testGoogleClientId,
+      jwksUrl: "https://keys.example.test/jwks",
+    },
+    googleJwksFetch: () => Promise.resolve(jsonResponse(jwks)),
+  };
+}
+
+/**
+ * Google token 测试夹具。
+ */
+type GoogleTokenFixture = {
+  jwks: { keys: JsonWebKey[] };
+  payload: Record<string, unknown>;
+  token: string;
+};
+
+/**
+ * 创建签名后的 Google ID token 测试夹具。
+ *
+ * @param payloadOverrides payload 覆盖项。
+ * @return Google token 测试夹具。
+ */
+async function googleTokenFixture(
+  payloadOverrides: Record<string, unknown> = {},
+): Promise<GoogleTokenFixture> {
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      hash: "SHA-256",
+      modulusLength: 2048,
+      name: "RSASSA-PKCS1-v1_5",
+      publicExponent: new Uint8Array([1, 0, 1]),
+    },
+    true,
+    ["sign", "verify"],
+  );
+  const publicJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+  const jwk = {
+    ...publicJwk,
+    alg: "RS256",
+    kid: "test-key-id",
+    use: "sig",
+  };
+  const header = { alg: "RS256", kid: "test-key-id", typ: "JWT" };
+  const payload = {
+    aud: testGoogleClientId,
+    email: "Alice@Example.COM",
+    email_verified: true,
+    exp: 4_102_444_800,
+    iat: 1_785_561_600,
+    iss: "https://accounts.google.com",
+    name: "Alice",
+    picture: "https://example.com/avatar.png",
+    sub: "google-subject-id",
+    ...payloadOverrides,
+  };
+  const signingInput = `${encodeJwtJson(header)}.${encodeJwtJson(payload)}`;
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    keyPair.privateKey,
+    new TextEncoder().encode(signingInput),
+  );
+
+  return {
+    jwks: { keys: [jwk] },
+    payload,
+    token: `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`,
+  };
+}
+
+/**
+ * 编码 JWT JSON 片段。
+ *
+ * @param value 待编码对象。
+ * @return Base64URL 编码片段。
+ */
+function encodeJwtJson(value: unknown): string {
+  return base64UrlEncode(new TextEncoder().encode(JSON.stringify(value)));
+}
+
+/**
+ * 创建 JSON 响应。
+ *
+ * @param value 响应对象。
+ * @return JSON 响应。
+ */
+function jsonResponse(value: unknown): Response {
+  return new Response(JSON.stringify(value), {
+    headers: { "content-type": "application/json" },
+    status: 200,
+  });
+}
+
+/**
+ * 读取测试 fetch 请求体文本。
+ *
+ * @param body 请求体。
+ * @return 请求体文本。
+ */
+async function requestText(body: BodyInit | null | undefined): Promise<string> {
+  if (!body) {
+    return "";
+  }
+
+  if (typeof body === "string") {
+    return body;
+  }
+
+  if (body instanceof URLSearchParams) {
+    return body.toString();
+  }
+
+  if (body instanceof FormData) {
+    return new URLSearchParams(
+      Array.from(body.entries()).flatMap(([key, value]) =>
+        typeof value === "string" ? [[key, value]] : []
+      ),
+    ).toString();
+  }
+
+  if (body instanceof Blob) {
+    return await body.text();
+  }
+
+  return "";
 }
 
 /**
@@ -401,20 +2089,59 @@ function createTestApp(storage = createMemoryStorage()): Hono {
  * @return 带会话记录能力的内存存储。
  */
 function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
+  authIdentitiesByKey: Map<string, AuthIdentity>;
+  emailCredentialsByKey: Map<string, EmailCredential>;
+  passkeyCredentialsByKey: Map<string, PasskeyCredential>;
+  passkeyUserIdsByCredentialId: Map<string, string>;
+  passwordCredentialsByUserId: Map<string, PasswordCredential>;
+  pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
+  pendingPasskeyChallengesById: Map<string, PendingPasskeyChallenge>;
+  pendingMfaChallengesById: Map<string, PendingMfaChallenge>;
   savedSessions: UserSession[];
+  securitySettingsByUserId: Map<string, UserSecuritySettings>;
   settingsByUserId: Map<string, AppSettings>;
+  totpCredentialsByUserId: Map<string, TotpCredential>;
 } {
   const accountsById = new Map<string, UserAccount>();
   const accountIdsByUsername = new Map<string, string>();
-  const loginFailuresByUsername = new Map<string, { failures: number; lockedUntil?: string }>();
+  const authIdentitiesByKey = new Map<string, AuthIdentity>();
+  const emailCredentialsByKey = new Map<string, EmailCredential>();
+  const passkeyCredentialsByKey = new Map<string, PasskeyCredential>();
+  const passkeyUserIdsByCredentialId = new Map<string, string>();
+  const loginFailuresByUsername = new Map<
+    string,
+    { failures: number; lockedUntil?: string }
+  >();
+  const passwordCredentialsByUserId = new Map<string, PasswordCredential>();
+  const pendingEmailVerificationsById = new Map<
+    string,
+    PendingEmailVerification
+  >();
+  const pendingMfaChallengesById = new Map<string, PendingMfaChallenge>();
+  const pendingPasskeyChallengesById = new Map<
+    string,
+    PendingPasskeyChallenge
+  >();
+  const securitySettingsByUserId = new Map<string, UserSecuritySettings>();
   const settingsByUserId = new Map<string, AppSettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
   const savedSessions: UserSession[] = [];
+  const totpCredentialsByUserId = new Map<string, TotpCredential>();
 
   return {
     ...createMemoryRateLimitRecorder(),
+    authIdentitiesByKey,
+    emailCredentialsByKey,
+    passkeyCredentialsByKey,
+    passkeyUserIdsByCredentialId,
+    passwordCredentialsByUserId,
+    pendingEmailVerificationsById,
+    pendingPasskeyChallengesById,
+    pendingMfaChallengesById,
     savedSessions,
+    securitySettingsByUserId,
     settingsByUserId,
+    totpCredentialsByUserId,
     /**
      * 创建指定测试用户作用域的设置存储。
      *
@@ -429,7 +2156,9 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
          * @return 测试用户应用设置。
          */
         getSettings: () =>
-          Promise.resolve(cloneSettings(settingsByUserId.get(userId) ?? defaultSettings)),
+          Promise.resolve(
+            cloneSettings(settingsByUserId.get(userId) ?? defaultSettings),
+          ),
         /**
          * 保存测试用户设置。
          *
@@ -449,14 +2178,217 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
     listAccounts: () => Promise.resolve(Array.from(accountsById.values())),
     saveAccount: (account: UserAccount) => {
       accountsById.set(account.id, account);
-      accountIdsByUsername.set(account.username.trim().toLowerCase(), account.id);
+      accountIdsByUsername.set(
+        account.username.trim().toLowerCase(),
+        account.id,
+      );
       return Promise.resolve();
     },
     createAccount: (account: UserAccount) =>
-      Promise.resolve(addUniqueAccount(accountsById, accountIdsByUsername, account)),
+      Promise.resolve(
+        addUniqueAccount(accountsById, accountIdsByUsername, account),
+      ),
+    updateAccount: (account: UserAccount) => {
+      const currentAccount = accountsById.get(account.id);
+      if (!currentAccount) {
+        return Promise.resolve(false);
+      }
+
+      const currentUsername = currentAccount.username.trim().toLowerCase();
+      const nextUsername = account.username.trim().toLowerCase();
+      const existingUserId = accountIdsByUsername.get(nextUsername);
+      if (existingUserId && existingUserId !== account.id) {
+        return Promise.resolve(false);
+      }
+
+      accountsById.set(account.id, account);
+      if (currentUsername !== nextUsername) {
+        accountIdsByUsername.delete(currentUsername);
+        accountIdsByUsername.set(nextUsername, account.id);
+      }
+      return Promise.resolve(true);
+    },
+    getAuthIdentity: (
+      provider: AuthIdentity["provider"],
+      providerUserId: string,
+    ) =>
+      Promise.resolve(
+        authIdentitiesByKey.get(authIdentityKey(provider, providerUserId)),
+      ),
+    listAuthIdentitiesForUser: (
+      provider: AuthIdentity["provider"],
+      userId: string,
+    ) =>
+      Promise.resolve(
+        Array.from(authIdentitiesByKey.values())
+          .filter((identity) =>
+            identity.provider === provider && identity.userId === userId
+          )
+          .toSorted((left, right) =>
+            left.createdAt.localeCompare(right.createdAt) ||
+            left.providerUserId.localeCompare(right.providerUserId)
+          ),
+      ),
+    saveAuthIdentity: (identity: AuthIdentity) => {
+      authIdentitiesByKey.set(
+        authIdentityKey(identity.provider, identity.providerUserId),
+        identity,
+      );
+      return Promise.resolve();
+    },
+    deleteAuthIdentity: (
+      provider: AuthIdentity["provider"],
+      providerUserId: string,
+    ) => {
+      authIdentitiesByKey.delete(authIdentityKey(provider, providerUserId));
+      return Promise.resolve();
+    },
+    getEmailCredential: (userId: string, email: string) =>
+      Promise.resolve(
+        emailCredentialsByKey.get(emailCredentialKey(userId, email)),
+      ),
+    listEmailCredentials: (userId: string) =>
+      Promise.resolve(
+        Array.from(emailCredentialsByKey.values())
+          .filter((credential) => credential.userId === userId)
+          .toSorted((left, right) => left.email.localeCompare(right.email)),
+      ),
+    saveEmailCredential: (credential: EmailCredential) => {
+      emailCredentialsByKey.set(
+        emailCredentialKey(credential.userId, credential.email),
+        credential,
+      );
+      return Promise.resolve();
+    },
+    deleteEmailCredential: (userId: string, email: string) => {
+      emailCredentialsByKey.delete(emailCredentialKey(userId, email));
+      return Promise.resolve();
+    },
+    getPasskeyCredential: (userId: string, credentialId: string) =>
+      Promise.resolve(
+        passkeyCredentialsByKey.get(passkeyCredentialKey(userId, credentialId)),
+      ),
+    getPasskeyCredentialByCredentialId: (credentialId: string) => {
+      const userId = passkeyUserIdsByCredentialId.get(credentialId);
+      return Promise.resolve(
+        userId
+          ? passkeyCredentialsByKey.get(
+            passkeyCredentialKey(userId, credentialId),
+          )
+          : undefined,
+      );
+    },
+    listPasskeyCredentials: (userId: string) =>
+      Promise.resolve(
+        Array.from(passkeyCredentialsByKey.values())
+          .filter((credential) => credential.userId === userId)
+          .toSorted((left, right) =>
+            left.createdAt.localeCompare(right.createdAt) ||
+            left.credentialId.localeCompare(right.credentialId)
+          ),
+      ),
+    savePasskeyCredential: (credential: PasskeyCredential) => {
+      passkeyCredentialsByKey.set(
+        passkeyCredentialKey(credential.userId, credential.credentialId),
+        credential,
+      );
+      passkeyUserIdsByCredentialId.set(
+        credential.credentialId,
+        credential.userId,
+      );
+      return Promise.resolve();
+    },
+    deletePasskeyCredential: (userId: string, credentialId: string) => {
+      passkeyCredentialsByKey.delete(
+        passkeyCredentialKey(userId, credentialId),
+      );
+      if (passkeyUserIdsByCredentialId.get(credentialId) === userId) {
+        passkeyUserIdsByCredentialId.delete(credentialId);
+      }
+      return Promise.resolve();
+    },
+    getPasswordCredential: (userId: string) =>
+      Promise.resolve(passwordCredentialsByUserId.get(userId)),
+    savePasswordCredential: (credential: PasswordCredential) => {
+      passwordCredentialsByUserId.set(credential.userId, credential);
+      return Promise.resolve();
+    },
+    getTotpCredential: (userId: string) =>
+      Promise.resolve(
+        Array.from(totpCredentialsByUserId.values()).find((credential) =>
+          credential.userId === userId
+        ),
+      ),
+    listTotpCredentials: (userId: string) =>
+      Promise.resolve(
+        Array.from(totpCredentialsByUserId.values()).filter((credential) =>
+          credential.userId === userId
+        ),
+      ),
+    saveTotpCredential: (credential: TotpCredential) => {
+      totpCredentialsByUserId.set(
+        `${credential.userId}:${credential.credentialId ?? "legacy"}`,
+        credential,
+      );
+      return Promise.resolve();
+    },
+    deleteTotpCredential: (userId: string, credentialId?: string) => {
+      totpCredentialsByUserId.delete(
+        `${userId}:${credentialId ?? "legacy"}`,
+      );
+      return Promise.resolve();
+    },
+    getPendingEmailVerification: (id: string) =>
+      Promise.resolve(pendingEmailVerificationsById.get(id)),
+    savePendingEmailVerification: (verification: PendingEmailVerification) => {
+      pendingEmailVerificationsById.set(verification.id, verification);
+      return Promise.resolve();
+    },
+    deletePendingEmailVerification: (id: string) => {
+      pendingEmailVerificationsById.delete(id);
+      return Promise.resolve();
+    },
+    getPendingMfaChallenge: (id: string) =>
+      Promise.resolve(pendingMfaChallengesById.get(id)),
+    savePendingMfaChallenge: (challenge: PendingMfaChallenge) => {
+      pendingMfaChallengesById.set(challenge.id, challenge);
+      return Promise.resolve();
+    },
+    deletePendingMfaChallenge: (id: string) => {
+      pendingMfaChallengesById.delete(id);
+      return Promise.resolve();
+    },
+    getPendingPasskeyChallenge: (id: string) =>
+      Promise.resolve(pendingPasskeyChallengesById.get(id)),
+    savePendingPasskeyChallenge: (challenge: PendingPasskeyChallenge) => {
+      pendingPasskeyChallengesById.set(challenge.id, challenge);
+      return Promise.resolve();
+    },
+    deletePendingPasskeyChallenge: (id: string) => {
+      pendingPasskeyChallengesById.delete(id);
+      return Promise.resolve();
+    },
+    getUserSecuritySettings: (userId: string) =>
+      Promise.resolve(
+        securitySettingsByUserId.get(userId) ?? {
+          preferredSecondFactor: undefined,
+          twoFactorEnabled: false,
+          userId,
+        },
+      ),
+    saveUserSecuritySettings: (settings: UserSecuritySettings) => {
+      securitySettingsByUserId.set(settings.userId, settings);
+      return Promise.resolve();
+    },
     getLoginFailure: (username: string) =>
-      Promise.resolve(loginFailuresByUsername.get(username.trim().toLowerCase())),
-    recordLoginFailure: (username: string, maxFailures: number, lockoutMs: number) => {
+      Promise.resolve(
+        loginFailuresByUsername.get(username.trim().toLowerCase()),
+      ),
+    recordLoginFailure: (
+      username: string,
+      maxFailures: number,
+      lockoutMs: number,
+    ) => {
       const key = username.trim().toLowerCase();
       const previous = loginFailuresByUsername.get(key);
       const failures = (previous?.failures ?? 0) + 1;
@@ -473,7 +2405,8 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       loginFailuresByUsername.delete(username.trim().toLowerCase());
       return Promise.resolve();
     },
-    getSession: (tokenHash: string) => Promise.resolve(sessionsByTokenHash.get(tokenHash)),
+    getSession: (tokenHash: string) =>
+      Promise.resolve(sessionsByTokenHash.get(tokenHash)),
     /**
      * 保存测试会话并记录保存历史。
      *
@@ -490,9 +2423,55 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       return Promise.resolve();
     },
   } as unknown as ReturnType<typeof createKvStorage> & {
+    authIdentitiesByKey: Map<string, AuthIdentity>;
+    emailCredentialsByKey: Map<string, EmailCredential>;
+    passkeyCredentialsByKey: Map<string, PasskeyCredential>;
+    passkeyUserIdsByCredentialId: Map<string, string>;
+    passwordCredentialsByUserId: Map<string, PasswordCredential>;
+    pendingEmailVerificationsById: Map<string, PendingEmailVerification>;
+    pendingPasskeyChallengesById: Map<string, PendingPasskeyChallenge>;
+    pendingMfaChallengesById: Map<string, PendingMfaChallenge>;
     savedSessions: UserSession[];
+    securitySettingsByUserId: Map<string, UserSecuritySettings>;
     settingsByUserId: Map<string, AppSettings>;
+    totpCredentialsByUserId: Map<string, TotpCredential>;
   };
+}
+
+/**
+ * 创建测试内存邮箱凭证键。
+ *
+ * @param userId 用户 ID。
+ * @param email 邮箱地址。
+ * @return 邮箱凭证键。
+ */
+function emailCredentialKey(userId: string, email: string): string {
+  return `${userId}:${email.trim().toLowerCase()}`;
+}
+
+/**
+ * 创建测试内存 Passkey 凭证键。
+ *
+ * @param userId 用户 ID。
+ * @param credentialId Passkey 凭证 ID。
+ * @return Passkey 凭证键。
+ */
+function passkeyCredentialKey(userId: string, credentialId: string): string {
+  return `${userId}:${credentialId}`;
+}
+
+/**
+ * 创建测试内存外部身份绑定键。
+ *
+ * @param provider 身份提供方。
+ * @param providerUserId 提供方用户 ID。
+ * @return 外部身份绑定键。
+ */
+function authIdentityKey(
+  provider: AuthIdentity["provider"],
+  providerUserId: string,
+): string {
+  return `${provider}:${providerUserId}`;
 }
 
 /**

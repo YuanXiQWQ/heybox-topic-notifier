@@ -6,5 +6,5 @@ Thumbs.db
 coverage/
 .vscode/
 .idea/
-
+临时文件/
 reset_password.ts

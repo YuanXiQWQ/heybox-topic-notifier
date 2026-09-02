@@ -16,14 +16,18 @@ type PollStorage = Pick<
   | "setLastPollAt"
 >;
 
+type PollNotifier = Pick<ReturnType<typeof createNotifier>, "sendMatches">;
+
 type PollerDependencies = {
   matcher: ReturnType<typeof createMatcher>;
-  notifier: ReturnType<typeof createNotifier>;
+  notifier: PollNotifier;
   source: TopicSource;
   storage: ReturnType<typeof createKvStorage>;
 };
 
-export function createPoller({ matcher, notifier, source, storage }: PollerDependencies) {
+export function createPoller(
+  { matcher, notifier, source, storage }: PollerDependencies,
+) {
   return {
     async recordMatches(
       records: MatchRecord[],
@@ -36,8 +40,12 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
 
     async runOnce(runStorage: PollStorage = storage): Promise<void> {
       const settings = await runStorage.getSettings();
-      const enabledTopics = settings.topics.filter((topic) => topic.enabled && topic.id.trim());
-      const existingMatchesByPostId = matchesByPostId(await runStorage.listHistory());
+      const enabledTopics = settings.topics.filter((topic) =>
+        topic.enabled && topic.id.trim()
+      );
+      const existingMatchesByPostId = matchesByPostId(
+        await runStorage.listHistory(),
+      );
       const existingMatchedPostIds = new Set(existingMatchesByPostId.keys());
       const matchedRecords: MatchRecord[] = [];
       const matchedPostIds = new Set<string>();
@@ -48,7 +56,10 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
           limit: settings.polling.postLimit,
           sort: settings.polling.sort,
         });
-        const keywordRules = [...settings.commonKeywordRules, ...topic.keywordRules];
+        const keywordRules = [
+          ...settings.commonKeywordRules,
+          ...topic.keywordRules,
+        ];
 
         for (const post of posts) {
           const alreadyMatched = existingMatchedPostIds.has(post.id);
@@ -70,7 +81,8 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
 
           const detailedPost = await resolvePostDetails(source, post);
           const record: MatchRecord = {
-            id: `${topic.id}:${detailedPost.id}:${match.keyword}:${match.location}`,
+            id:
+              `${topic.id}:${detailedPost.id}:${match.keyword}:${match.location}`,
             keyword: match.keyword,
             location: match.location,
             matchedAt,
@@ -84,7 +96,12 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
         }
       }
 
-      await notifyMatchedRecords(runStorage, notifier, matchedRecords, settings);
+      await notifyMatchedRecords(
+        runStorage,
+        notifier,
+        matchedRecords,
+        settings,
+      );
       await runStorage.setLastPollAt(new Date().toISOString());
     },
   };
@@ -92,7 +109,7 @@ export function createPoller({ matcher, notifier, source, storage }: PollerDepen
 
 async function saveAndNotifyMatches(
   storage: Pick<PollStorage, "markMatchNotified" | "saveMatch">,
-  notifier: ReturnType<typeof createNotifier>,
+  notifier: PollNotifier,
   records: MatchRecord[],
   settings: AppSettings,
 ): Promise<void> {
@@ -112,7 +129,7 @@ async function saveMatchRecord(
 
 async function notifyMatchedRecords(
   storage: Pick<PollStorage, "markMatchNotified">,
-  notifier: ReturnType<typeof createNotifier>,
+  notifier: PollNotifier,
   records: MatchRecord[],
   settings: AppSettings,
 ): Promise<void> {
@@ -130,7 +147,10 @@ async function notifyMatchedRecords(
   }
 }
 
-async function resolvePostDetails(source: TopicSource, post: MatchRecord["post"]) {
+async function resolvePostDetails(
+  source: TopicSource,
+  post: MatchRecord["post"],
+) {
   return source.getPostDetails ? await source.getPostDetails(post) : post;
 }
 

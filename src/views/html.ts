@@ -4,7 +4,12 @@
 import { getMessages } from "../locales/index.ts";
 import { isRtlLocale, type Locale } from "../locales/types.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
-import { dashboardIcon, historyIcon, logoutIcon, settingsIcon } from "./icons.ts";
+import {
+  dashboardIcon,
+  historyIcon,
+  logoutIcon,
+  settingsIcon,
+} from "./icons.ts";
 import {
   renderMatchTableRowLinkScript,
   renderMatchTableRowLinkStyle,
@@ -76,7 +81,9 @@ export function renderLayout(options: {
     renderNavItem(historyIcon("nav-icon"), messages.navHistory)
   }</button>
         </form>
-        <form class="nav-item" method="post" action="/logout">
+        <form class="nav-item" method="post" action="/logout?locale=${
+    encodeURIComponent(options.locale)
+  }">
           ${csrfHiddenInput(options.csrfToken)}
           <button class="nav-link-button" type="submit">${
     renderNavItem(logoutIcon("nav-icon"), messages.navLogout)
