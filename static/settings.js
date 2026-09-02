@@ -62,6 +62,10 @@ const accountPasswordVerifyDelayMs = 650;
  */
 const emailBindingVerifyDelayMs = 650;
 /**
+ * 邮箱再认证验证码允许重新发送前的等待秒数。
+ */
+const reauthEmailResendDelaySeconds = 60;
+/**
  * 认证方法面板过渡序号。
  */
 let authMethodPanelTransitionId = 0;
@@ -513,6 +517,22 @@ function initRecoveryCodeGeneration() {
 
   root.addEventListener("reauth-success", () => {
     void generateRecoveryCodes();
+  });
+  root.addEventListener("reauth-cancel", (event) => {
+    if (
+      !(event.target instanceof HTMLElement) ||
+      !event.target.matches(
+        '[data-reauth-section][data-reauth-purpose="recovery_codes"]',
+      )
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    const panel = root.closest("[data-auth-method-panel]");
+    if (panel instanceof HTMLElement) {
+      setAuthMethodPanelVisible(panel, button, false);
+    }
   });
 
   /**
@@ -1970,6 +1990,7 @@ function removeTransientReauthSections(scope, retainedPanel) {
       return;
     }
 
+    section.dispatchEvent(new CustomEvent("reauth-dispose"));
     section.remove();
     removed = true;
   });
@@ -2005,14 +2026,28 @@ function removeTransientReauthSections(scope, retainedPanel) {
 function initSecuritySettingsAutoSave() {
   const form = document.querySelector("[data-security-settings-form]");
   const status = document.querySelector("[data-security-settings-status]");
-  if (!(form instanceof HTMLFormElement)) {
+  if (
+    !(form instanceof HTMLFormElement) ||
+    form.dataset.securityAutoSaveInitialized === "true"
+  ) {
     return;
   }
 
+  form.dataset.securityAutoSaveInitialized = "true";
   lastSavedSecuritySignature = formSignature(form);
   const controls = externalAutoSaveControls(form);
+  const toggle = securitySettingsToggle(form);
   controls.forEach((control) => {
     control.addEventListener("change", () => {
+      if (
+        control === toggle &&
+        !toggle.checked &&
+        form.dataset.securityRecentlyVerified !== "true"
+      ) {
+        requireSecuritySettingsReauth(form);
+        return;
+      }
+
       scheduleSecurityAutoSave(form, status);
     });
   });
@@ -2020,6 +2055,122 @@ function initSecuritySettingsAutoSave() {
     event.preventDefault();
     void saveSecuritySettingsNow(form, status);
   });
+
+  const reauthHost = document.querySelector(
+    "[data-security-settings-reauth]",
+  );
+  reauthHost?.addEventListener("reauth-success", (event) => {
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.matches(
+        '[data-reauth-section][data-reauth-purpose="reauth"]',
+      )
+    ) {
+      void completeSecuritySettingsDisable(form, status, reauthHost);
+    }
+  });
+  reauthHost?.addEventListener("reauth-cancel", (event) => {
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.matches(
+        '[data-reauth-section][data-reauth-purpose="reauth"]',
+      )
+    ) {
+      event.preventDefault();
+      pendingSensitiveActionForm = undefined;
+      setAuthMethodPanelVisible(reauthHost, undefined, false);
+    }
+  });
+}
+
+/**
+ * 获取两步验证设置表单关联的启用开关。
+ *
+ * @param {HTMLFormElement} form 安全设置表单。
+ * @return {HTMLInputElement|undefined} 两步验证开关；未找到时返回 undefined。
+ */
+function securitySettingsToggle(form) {
+  const toggle = Array.from(externalAutoSaveControls(form)).find((control) =>
+    control instanceof HTMLInputElement && control.name === "twoFactorEnabled"
+  );
+  return toggle instanceof HTMLInputElement ? toggle : undefined;
+}
+
+/**
+ * 保持两步验证为开启状态，并原地展示关闭前的身份验证方法。
+ *
+ * @param {HTMLFormElement} form 安全设置表单。
+ */
+function requireSecuritySettingsReauth(form) {
+  const toggle = securitySettingsToggle(form);
+  if (toggle) {
+    toggle.checked = true;
+  }
+  pendingSensitiveActionForm = undefined;
+  form.dataset.securityRecentlyVerified = "false";
+  syncSecuritySettingsSummary(form);
+  showSecuritySettingsReauth();
+}
+
+/**
+ * 从惰性模板原地展开关闭两步验证所需的身份验证方法。
+ */
+function showSecuritySettingsReauth() {
+  const host = document.querySelector("[data-security-settings-reauth]");
+  const template = host?.querySelector("[data-security-reauth-template]");
+  if (
+    !(host instanceof HTMLElement) ||
+    !(template instanceof HTMLTemplateElement)
+  ) {
+    return;
+  }
+
+  collapseOtherAuthEditors(host);
+  let section = host.querySelector(
+    '[data-reauth-section][data-reauth-purpose="reauth"]',
+  );
+  let created = false;
+  if (!(section instanceof HTMLElement)) {
+    host.insertBefore(template.content.cloneNode(true), template);
+    section = host.querySelector(
+      '[data-reauth-section][data-reauth-purpose="reauth"]',
+    );
+    created = true;
+  }
+  if (section instanceof HTMLElement) {
+    if (created) {
+      initReauthSection(section);
+    }
+    setAuthMethodPanelVisible(host, undefined, true);
+  }
+}
+
+/**
+ * 身份验证成功后自动关闭两步验证，并立即收起身份验证方法。
+ *
+ * @param {HTMLFormElement} form 安全设置表单。
+ * @param {Element|null} status 状态元素。
+ * @param {Element} reauthHost 身份验证方法面板。
+ * @return {Promise<void>} 自动保存完成后的 Promise。
+ */
+async function completeSecuritySettingsDisable(form, status, reauthHost) {
+  form.dataset.securityRecentlyVerified = "true";
+  if (reauthHost instanceof HTMLElement) {
+    setAuthMethodPanelVisible(reauthHost, undefined, false);
+  }
+
+  const toggle = securitySettingsToggle(form);
+  if (!(toggle instanceof HTMLInputElement)) {
+    return;
+  }
+
+  toggle.checked = false;
+  syncSecuritySettingsSummary(form);
+  const saved = await saveSecuritySettingsNow(form, status);
+  if (!saved && form.dataset.securityRecentlyVerified === "true") {
+    toggle.checked = true;
+    syncSecuritySettingsSummary(form);
+  }
 }
 
 /**
@@ -2062,7 +2213,14 @@ async function saveSecuritySettingsNow(form, status) {
     });
 
     if (!response.ok) {
-      await setSecuritySettingsError(form, status, response);
+      const errorCode = await setSecuritySettingsError(
+        form,
+        status,
+        response,
+      );
+      if (errorCode === "reauth") {
+        requireSecuritySettingsReauth(form);
+      }
       return false;
     }
 
@@ -2086,7 +2244,7 @@ async function saveSecuritySettingsNow(form, status) {
  * @param {HTMLFormElement} form 安全设置表单。
  * @param {Element|null} status 状态元素。
  * @param {Response} response 保存响应。
- * @return {Promise<void>} 错误状态更新完成后的 Promise。
+ * @return {Promise<string>} 服务端返回的错误码。
  */
 async function setSecuritySettingsError(form, status, response) {
   const payload = await response.json().catch(() => ({}));
@@ -2096,6 +2254,7 @@ async function setSecuritySettingsError(form, status, response) {
     "";
   setInlineStatus(status, message, "error");
   setSecurityStatusRowVisible(status, message.length > 0);
+  return code;
 }
 
 /**
@@ -2135,9 +2294,7 @@ function syncSecuritySettingsSummary(form) {
     return;
   }
 
-  const toggle = Array.from(externalAutoSaveControls(form)).find((control) =>
-    control instanceof HTMLInputElement && control.name === "twoFactorEnabled"
-  );
+  const toggle = securitySettingsToggle(form);
   if (!(toggle instanceof HTMLInputElement)) {
     return;
   }
@@ -2703,7 +2860,9 @@ function showSensitiveActionReauth(form) {
     '[data-reauth-section][data-reauth-purpose="reauth"]',
   );
   if (section instanceof HTMLElement) {
+    section.classList.add("is-collapsed");
     initReauthSection(section);
+    requestAnimationFrame(() => section.classList.remove("is-collapsed"));
   }
 }
 
@@ -2772,9 +2931,13 @@ function initReauth(scope = document) {
  * @param {HTMLElement} section 再认证区域。
  */
 function initReauthSection(section) {
-  if (!(section instanceof HTMLElement)) {
+  if (
+    !(section instanceof HTMLElement) ||
+    section.dataset.reauthInitialized === "true"
+  ) {
     return;
   }
+  section.dataset.reauthInitialized = "true";
 
   const globalStatus = section.querySelector("[data-reauth-status]");
   const passwordForm = section.querySelector("[data-reauth-password-form]");
@@ -2784,6 +2947,9 @@ function initReauthSection(section) {
   );
   const emailForm = section.querySelector("[data-reauth-email-form]");
   const passkeyButton = section.querySelector("[data-reauth-passkey-button]");
+  const cancelButton = section.querySelector("[data-reauth-cancel-button]");
+
+  initReauthMethodSelector(section);
 
   if (passwordForm instanceof HTMLFormElement) {
     bindReauthForm(
@@ -2818,6 +2984,10 @@ function initReauthSection(section) {
     initPasskeyReauth(section, passkeyButton, globalStatus);
   }
 
+  if (cancelButton instanceof HTMLButtonElement) {
+    cancelButton.addEventListener("click", () => cancelReauth(section));
+  }
+
   /**
    * 绑定普通表单式再认证方式。
    *
@@ -2834,6 +3004,174 @@ function initReauthSection(section) {
 }
 
 /**
+ * 初始化再认证方式按钮与对应输入区域的展开收起。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ */
+function initReauthMethodSelector(section) {
+  const buttons = Array.from(
+    section.querySelectorAll("[data-reauth-method-button]"),
+  ).filter((button) => button instanceof HTMLButtonElement);
+  const panels = Array.from(
+    section.querySelectorAll("[data-reauth-method-panel]"),
+  ).filter((panel) => panel instanceof HTMLElement);
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const selectedMethod = button.dataset.reauthMethodButton || "";
+      buttons.forEach((candidate) => {
+        candidate.setAttribute(
+          "aria-pressed",
+          candidate === button ? "true" : "false",
+        );
+      });
+      panels.forEach((panel) => {
+        setReauthMethodPanelVisible(
+          panel,
+          panel.dataset.reauthMethodPanel === selectedMethod,
+        );
+      });
+
+      const selectedPanel = panels.find((panel) =>
+        panel.dataset.reauthMethodPanel === selectedMethod
+      );
+      const input = selectedPanel?.querySelector(
+        'input:not([type="hidden"])',
+      );
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+      }
+    });
+  });
+}
+
+/**
+ * 设置单个再认证输入区域的显示状态。
+ *
+ * @param {HTMLElement} panel 再认证输入区域。
+ * @param {boolean} visible 是否显示。
+ */
+function setReauthMethodPanelVisible(panel, visible) {
+  const transitionToken = String(++authMethodPanelTransitionId);
+  panel.dataset.reauthMethodTransitionToken = transitionToken;
+  if (visible) {
+    panel.hidden = false;
+    panel.classList.add("is-collapsed");
+    requestAnimationFrame(() => {
+      if (panel.dataset.reauthMethodTransitionToken === transitionToken) {
+        panel.classList.remove("is-collapsed");
+      }
+    });
+    return;
+  }
+
+  panel.classList.add("is-collapsed");
+  setTimeout(() => {
+    if (
+      panel.dataset.reauthMethodTransitionToken === transitionToken &&
+      panel.classList.contains("is-collapsed")
+    ) {
+      panel.hidden = true;
+    }
+  }, notificationTransitionMs);
+}
+
+/**
+ * 取消当前再认证，并通知所属设置入口收起面板。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ */
+function cancelReauth(section) {
+  invalidateReauthAttempt(section);
+  section.dispatchEvent(new CustomEvent("reauth-dispose"));
+  resetReauthSection(section);
+  pendingSensitiveActionForm = undefined;
+  const cancelEvent = new CustomEvent("reauth-cancel", {
+    bubbles: true,
+    cancelable: true,
+  });
+  section.dispatchEvent(cancelEvent);
+  if (cancelEvent.defaultPrevented) {
+    return;
+  }
+
+  section.classList.add("is-collapsed");
+  setTimeout(() => {
+    if (section.classList.contains("is-collapsed")) {
+      section.remove();
+    }
+  }, notificationTransitionMs);
+}
+
+/**
+ * 清空再认证方式选择、输入内容和方法状态。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ */
+function resetReauthSection(section) {
+  section.querySelectorAll("form").forEach((form) => form.reset());
+  section.querySelectorAll("[data-reauth-method-button]").forEach((button) => {
+    button.setAttribute("aria-pressed", "false");
+  });
+  section.querySelectorAll("[data-reauth-method-panel]").forEach((panel) => {
+    if (panel instanceof HTMLElement) {
+      setReauthMethodPanelVisible(panel, false);
+    }
+  });
+  section.querySelectorAll(
+    "[data-reauth-password-status], [data-reauth-totp-status], " +
+      "[data-reauth-recovery-code-status], [data-reauth-email-status]",
+  ).forEach((status) => clearInlineStatus(status));
+
+  const delivery = section.querySelector("[data-reauth-email-delivery]");
+  if (delivery instanceof HTMLElement) {
+    delivery.hidden = true;
+  }
+  const countdown = section.querySelector("[data-reauth-email-countdown]");
+  if (countdown instanceof HTMLElement) {
+    countdown.textContent = String(reauthEmailResendDelaySeconds);
+  }
+  const resendButton = section.querySelector(
+    "[data-reauth-email-resend-button]",
+  );
+  if (resendButton instanceof HTMLButtonElement) {
+    resendButton.disabled = true;
+  }
+  const emailMethodButton = section.querySelector(
+    '[data-reauth-method-button="email"]',
+  );
+  if (emailMethodButton instanceof HTMLButtonElement) {
+    emailMethodButton.disabled = false;
+  }
+  setInlineStatus(
+    section.querySelector("[data-reauth-status]"),
+    section.dataset.reauthInitialStatus || "",
+    "success",
+  );
+}
+
+/**
+ * 为新一次再认证请求生成序号，使旧请求结果失效。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ * @return {string} 新请求序号。
+ */
+function nextReauthAttempt(section) {
+  const attempt = Number(section.dataset.reauthAttempt || "0") + 1;
+  section.dataset.reauthAttempt = String(attempt);
+  return section.dataset.reauthAttempt;
+}
+
+/**
+ * 使当前尚未结束的再认证请求失效。
+ *
+ * @param {HTMLElement} section 再认证区域。
+ */
+function invalidateReauthAttempt(section) {
+  nextReauthAttempt(section);
+}
+
+/**
  * 初始化邮箱验证码再认证方式。
  *
  * @param {HTMLElement} section 再认证区域。
@@ -2846,27 +3184,44 @@ function initEmailReauthForm(section, form, globalStatus) {
     "[data-reauth-email-verification-id]",
   );
   const codeInput = form.querySelector("[data-reauth-email-code-input]");
-  const sendButton = form.querySelector("[data-reauth-email-send-button]");
+  const methodButton = section.querySelector(
+    '[data-reauth-method-button="email"]',
+  );
+  const delivery = form.querySelector("[data-reauth-email-delivery]");
+  const countdown = form.querySelector("[data-reauth-email-countdown]");
+  const resendButton = form.querySelector(
+    "[data-reauth-email-resend-button]",
+  );
   const status = form.querySelector("[data-reauth-email-status]");
 
   if (
-    !(emailInput instanceof HTMLSelectElement) ||
+    !(emailInput instanceof HTMLInputElement) ||
     !(verificationIdInput instanceof HTMLInputElement) ||
     !(codeInput instanceof HTMLInputElement) ||
-    !(sendButton instanceof HTMLButtonElement)
+    !(methodButton instanceof HTMLButtonElement) ||
+    !(delivery instanceof HTMLElement) ||
+    !(countdown instanceof HTMLElement) ||
+    !(resendButton instanceof HTMLButtonElement)
   ) {
     return;
   }
 
-  sendButton.addEventListener("click", async (event) => {
+  let resendTimer;
+  let requestId = 0;
+  let sending = false;
+
+  methodButton.addEventListener("click", async (event) => {
     event.preventDefault();
-    await sendReauthEmailCode();
+    if (!verificationIdInput.value.trim()) {
+      await sendReauthEmailCode();
+    }
   });
 
-  emailInput.addEventListener("change", () => {
-    verificationIdInput.value = "";
-    codeInput.value = "";
-    clearInlineStatus(status);
+  resendButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+    if (!resendButton.disabled) {
+      await sendReauthEmailCode();
+    }
   });
 
   codeInput.addEventListener("input", () => {
@@ -2881,7 +3236,7 @@ function initEmailReauthForm(section, form, globalStatus) {
         section.dataset.reauthEmailCodeRequired || "",
         "error",
       );
-      emailInput.focus();
+      codeInput.focus();
       return;
     }
 
@@ -2894,13 +3249,27 @@ function initEmailReauthForm(section, form, globalStatus) {
     );
   });
 
+  section.addEventListener("reauth-dispose", () => {
+    requestId += 1;
+    sending = false;
+    clearInterval(resendTimer);
+  });
+
   /**
    * 发送邮箱再认证验证码。
    *
    * @return {Promise<void>} 发送完成后的 Promise。
    */
   async function sendReauthEmailCode() {
-    sendButton.disabled = true;
+    if (sending) {
+      return;
+    }
+
+    sending = true;
+    const currentRequestId = ++requestId;
+    methodButton.disabled = true;
+    resendButton.disabled = true;
+    clearInterval(resendTimer);
     setInlineStatus(
       status,
       section.dataset.reauthEmailSending || "",
@@ -2921,8 +3290,12 @@ function initEmailReauthForm(section, form, globalStatus) {
         },
       );
       const payload = await response.json().catch(() => ({}));
+      if (currentRequestId !== requestId) {
+        return;
+      }
       if (!response.ok || typeof payload.id !== "string") {
         verificationIdInput.value = "";
+        delivery.hidden = true;
         setInlineStatus(
           status,
           section.dataset.reauthEmailSendFailed || "",
@@ -2933,22 +3306,45 @@ function initEmailReauthForm(section, form, globalStatus) {
 
       verificationIdInput.value = payload.id;
       codeInput.value = "";
-      setInlineStatus(
-        status,
-        section.dataset.reauthEmailSent || "",
-        "success",
-      );
+      clearInlineStatus(status);
+      delivery.hidden = false;
+      startEmailResendCountdown();
       codeInput.focus();
     } catch {
+      if (currentRequestId !== requestId) {
+        return;
+      }
       verificationIdInput.value = "";
+      delivery.hidden = true;
       setInlineStatus(
         status,
         section.dataset.reauthEmailSendFailed || "",
         "error",
       );
     } finally {
-      sendButton.disabled = false;
+      if (currentRequestId === requestId) {
+        sending = false;
+        methodButton.disabled = false;
+      }
     }
+  }
+
+  /**
+   * 启动邮箱验证码重新发送倒计时。
+   */
+  function startEmailResendCountdown() {
+    let remainingSeconds = reauthEmailResendDelaySeconds;
+    countdown.textContent = String(remainingSeconds);
+    resendButton.disabled = true;
+    clearInterval(resendTimer);
+    resendTimer = setInterval(() => {
+      remainingSeconds -= 1;
+      countdown.textContent = String(Math.max(remainingSeconds, 0));
+      if (remainingSeconds <= 0) {
+        clearInterval(resendTimer);
+        resendButton.disabled = false;
+      }
+    }, 1000);
   }
 }
 
@@ -2960,7 +3356,8 @@ function initEmailReauthForm(section, form, globalStatus) {
  * @param {Element|null} globalStatus 全局状态元素。
  */
 function initPasskeyReauth(section, button, globalStatus) {
-  const status = section.querySelector("[data-reauth-passkey-status]");
+  const status = section.querySelector("[data-reauth-passkey-status]") ||
+    globalStatus;
   if (!supportsPasskeyReauth()) {
     button.disabled = true;
     setInlineStatus(
@@ -2973,6 +3370,7 @@ function initPasskeyReauth(section, button, globalStatus) {
 
   button.addEventListener("click", async (event) => {
     event.preventDefault();
+    const attempt = nextReauthAttempt(section);
     button.disabled = true;
     setInlineStatus(
       status,
@@ -2982,9 +3380,14 @@ function initPasskeyReauth(section, button, globalStatus) {
 
     try {
       await performPasskeyReauth(section);
+      if (section.dataset.reauthAttempt !== attempt) {
+        return;
+      }
       setReauthSuccess(section, status, globalStatus);
     } catch {
-      setReauthFailure(section, status);
+      if (section.dataset.reauthAttempt === attempt) {
+        setReauthFailure(section, status);
+      }
     } finally {
       button.disabled = false;
     }
@@ -3035,6 +3438,7 @@ async function performPasskeyReauth(section) {
  * @return {Promise<void>} 提交完成后的 Promise。
  */
 async function submitReauthForm(section, form, url, status, globalStatus) {
+  const attempt = nextReauthAttempt(section);
   try {
     const response = await fetch(url, {
       body: reauthFormBody(form, section),
@@ -3043,6 +3447,9 @@ async function submitReauthForm(section, form, url, status, globalStatus) {
       }),
       method: "POST",
     });
+    if (section.dataset.reauthAttempt !== attempt) {
+      return;
+    }
     if (!response.ok) {
       setReauthFailure(section, status);
       return;
@@ -3051,7 +3458,9 @@ async function submitReauthForm(section, form, url, status, globalStatus) {
     setReauthSuccess(section, status, globalStatus);
     form.reset();
   } catch {
-    setReauthFailure(section, status);
+    if (section.dataset.reauthAttempt === attempt) {
+      setReauthFailure(section, status);
+    }
   }
 }
 
@@ -3169,13 +3578,23 @@ function authenticationCredentialToJson(credential) {
 }
 
 /**
- * 设置再认证成功状态。
+ * 设置再认证成功状态，同步页面认证状态并继续等待中的敏感操作。
  *
  * @param {HTMLElement} section 再认证区域。
  * @param {Element|null} status 方法状态元素。
  * @param {Element|null} globalStatus 全局状态元素。
  */
 function setReauthSuccess(section, status, globalStatus) {
+  section.dispatchEvent(new CustomEvent("reauth-dispose"));
+  if (section.dataset.reauthPurpose === "reauth") {
+    const securityForm = document.querySelector(
+      "[data-security-settings-form]",
+    );
+    if (securityForm instanceof HTMLFormElement) {
+      securityForm.dataset.securityRecentlyVerified = "true";
+    }
+  }
+
   if (
     section.dataset.reauthPurpose === "reauth" &&
     pendingSensitiveActionForm instanceof HTMLFormElement &&

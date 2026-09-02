@@ -255,7 +255,7 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/settings.js?v=20260902-recovery-unbind" defer></script>
+    <script src="/static/settings.js?v=20260902-reauth-selector" defer></script>
   `;
 
   return renderLayout({
@@ -1107,6 +1107,8 @@ function renderGoogleLoginMethodRow(options: {
         statusCode: "reauth",
         totpAvailable: options.totpAvailable,
       })
+      : options.status?.code === "updated"
+      ? undefined
       : renderGoogleStatus(options.status, messages))
     : renderGoogleBindingPanel(
       options.settings,
@@ -1119,7 +1121,9 @@ function renderGoogleLoginMethodRow(options: {
     action,
     icon: "google",
     label: messages.accountGoogle,
-    open: options.open || options.reauthOpen || Boolean(options.status),
+    open: options.open || options.reauthOpen || (
+      Boolean(options.status) && options.status?.code !== "updated"
+    ),
     panel,
     panelId: "google",
     summary: options.googleIdentity
@@ -1796,6 +1800,29 @@ function renderInlineReauthPanel(options: {
       : options.recentlyVerified
       ? messages.accountReauthReady
       : messages.accountReauthRequired);
+  const methodButtons = [
+    options.passwordAvailable
+      ? renderReauthMethodButton("password", messages.authPassword)
+      : "",
+    options.totpAvailable
+      ? renderReauthMethodButton("totp", messages.accountTotpCode)
+      : "",
+    options.recoveryCodeAvailable
+      ? renderReauthMethodButton(
+        "recovery-code",
+        messages.accountSecondFactorRecoveryCode,
+      )
+      : "",
+    verifiedEmails.length > 0
+      ? renderReauthMethodButton("email", messages.accountEmail)
+      : "",
+    options.passkeyCredentials.length > 0
+      ? renderReauthMethodButton(
+        "passkey",
+        messages.accountSecondFactorPasskey,
+      )
+      : "",
+  ].join("");
 
   return `
     <div
@@ -1834,6 +1861,7 @@ function renderInlineReauthPanel(options: {
   }"
       data-reauth-success="${escapeHtml(messages.accountReauthVerified)}"
       data-reauth-failed="${escapeHtml(messages.accountReauthFailed)}"
+      data-reauth-initial-status="${escapeHtml(statusMessage)}"
       data-reauth-passkey-pending="${
     escapeHtml(messages.accountReauthPasskeyVerifying)
   }"
@@ -1846,17 +1874,19 @@ function renderInlineReauthPanel(options: {
       data-reauth-email-sending="${
     escapeHtml(messages.accountEmailSendingCode)
   }"
-      data-reauth-email-sent="${escapeHtml(messages.accountEmailCodeSent)}"
     >
-      <div class="auth-method-credential-block">
+      <div class="reauth-status-line">
         <span class="auth-method-panel-label">${
     escapeHtml(options.statusLabel ?? messages.accountReauthStatus)
   }</span>
-            <span class="field-hint" data-reauth-status>${
+        <span class="field-hint" data-reauth-status>${
     escapeHtml(statusMessage)
   }</span>
       </div>
-      <div class="auth-method-panel-fields">
+      <div class="reauth-method-buttons" data-reauth-method-buttons>
+        ${methodButtons}
+      </div>
+      <div class="reauth-method-details" data-reauth-method-details>
         ${options.passwordAvailable ? renderPasswordReauthMethod(messages) : ""}
         ${options.totpAvailable ? renderTotpReauthMethod(messages) : ""}
         ${
@@ -1865,11 +1895,11 @@ function renderInlineReauthPanel(options: {
       : ""
   }
         ${renderEmailReauthMethod(verifiedEmails, messages)}
-        ${
-    options.passkeyCredentials.length > 0
-      ? renderPasskeyReauthMethod(messages)
-      : ""
-  }
+      </div>
+      <div class="reauth-cancel-row">
+        <button type="button" data-reauth-cancel-button>${
+    escapeHtml(messages.accountCancel)
+  }</button>
       </div>
     </div>
   `;
@@ -1889,32 +1919,57 @@ function renderSensitiveReauthPanel(panel: string, open: boolean): string {
 }
 
 /**
- * 渲染密码再认证方式。
+ * 渲染一个再认证方式选择按钮。
+ *
+ * @param method 再认证方式标识。
+ * @param label 按钮文案。
+ * @return 再认证方式选择按钮 HTML。
+ */
+function renderReauthMethodButton(
+  method: "password" | "totp" | "recovery-code" | "email" | "passkey",
+  label: string,
+): string {
+  return `<button
+    type="button"
+    class="reauth-method-button"
+    data-reauth-method-button="${method}"
+    ${method === "passkey" ? "data-reauth-passkey-button" : ""}
+    aria-pressed="false"
+  >${escapeHtml(label)}</button>`;
+}
+
+/**
+ * 渲染密码再认证输入区域。
  *
  * @param messages 当前语言文案。
- * @return 密码再认证方式 HTML。
+ * @return 密码再认证输入区域 HTML。
  */
 function renderPasswordReauthMethod(
   messages: ReturnType<typeof getMessages>,
 ): string {
   return `
-        <div class="auth-method-plain-row">
-          <span class="auth-method-panel-label">${
-    escapeHtml(messages.accountCurrentPassword)
-  }</span>
-            <form class="reauth-inline-form" data-reauth-password-form>
+        <div
+          class="reauth-method-detail is-collapsed"
+          data-reauth-method-panel="password"
+          hidden
+        >
+          <form class="reauth-detail-form" data-reauth-password-form>
+            <div class="reauth-input-action-row">
               <input
                 type="password"
                 name="currentPassword"
                 dir="ltr"
                 autocomplete="current-password"
+                aria-label="${escapeHtml(messages.accountCurrentPassword)}"
+                placeholder="${escapeHtml(messages.accountCurrentPassword)}"
                 required
               >
-              <span class="inline-action-status" data-reauth-password-status role="status" hidden></span>
               <button type="submit" class="settings-row-action-button">${
     escapeHtml(messages.accountReauthVerify)
   }</button>
-            </form>
+            </div>
+            <span class="inline-action-status" data-reauth-password-status role="status" hidden></span>
+          </form>
         </div>
   `;
 }
@@ -1929,11 +1984,13 @@ function renderTotpReauthMethod(
   messages: ReturnType<typeof getMessages>,
 ): string {
   return `
-        <div class="auth-method-plain-row">
-          <span class="auth-method-panel-label">${
-    escapeHtml(messages.accountTotpCode)
-  }</span>
-            <form class="reauth-inline-form" data-reauth-totp-form>
+        <div
+          class="reauth-method-detail is-collapsed"
+          data-reauth-method-panel="totp"
+          hidden
+        >
+          <form class="reauth-detail-form" data-reauth-totp-form>
+            <div class="reauth-input-action-row">
               <input
                 type="text"
                 name="code"
@@ -1941,13 +1998,16 @@ function renderTotpReauthMethod(
                 inputmode="numeric"
                 pattern="[0-9]{6}"
                 autocomplete="one-time-code"
+                aria-label="${escapeHtml(messages.accountTotpCode)}"
+                placeholder="${escapeHtml(messages.accountTotpCode)}"
                 required
               >
-              <span class="inline-action-status" data-reauth-totp-status role="status" hidden></span>
               <button type="submit" class="settings-row-action-button">${
     escapeHtml(messages.accountReauthVerify)
   }</button>
-            </form>
+            </div>
+            <span class="inline-action-status" data-reauth-totp-status role="status" hidden></span>
+          </form>
         </div>
   `;
 }
@@ -1962,23 +2022,32 @@ function renderRecoveryCodeReauthMethod(
   messages: ReturnType<typeof getMessages>,
 ): string {
   return `
-        <div class="auth-method-plain-row">
-          <span class="auth-method-panel-label">${
-    escapeHtml(messages.accountSecondFactorRecoveryCode)
-  }</span>
-            <form class="reauth-inline-form" data-reauth-recovery-code-form>
+        <div
+          class="reauth-method-detail is-collapsed"
+          data-reauth-method-panel="recovery-code"
+          hidden
+        >
+          <form class="reauth-detail-form" data-reauth-recovery-code-form>
+            <div class="reauth-input-action-row">
               <input
                 type="text"
                 name="code"
                 dir="ltr"
                 autocomplete="one-time-code"
+                aria-label="${
+    escapeHtml(messages.accountSecondFactorRecoveryCode)
+  }"
+                placeholder="${
+    escapeHtml(messages.accountSecondFactorRecoveryCode)
+  }"
                 required
               >
-              <span class="inline-action-status" data-reauth-recovery-code-status role="status" hidden></span>
               <button type="submit" class="settings-row-action-button">${
     escapeHtml(messages.accountReauthVerify)
   }</button>
-            </form>
+            </div>
+            <span class="inline-action-status" data-reauth-recovery-code-status role="status" hidden></span>
+          </form>
         </div>
   `;
 }
@@ -2000,22 +2069,20 @@ function renderEmailReauthMethod(
 
   const selectedEmail = credentials[0]?.email ?? "";
   return `
-        <div class="auth-method-plain-row">
-          <span class="auth-method-panel-label">${
-    escapeHtml(messages.accountReauthEmailVerification)
-  }</span>
-            <form class="reauth-inline-form reauth-email-form" data-reauth-email-form>
-              <select name="email" data-reauth-email-input>
-                ${
-    credentials.map((credential) =>
-      option(credential.email, selectedEmail, credential.email)
-    ).join("")
-  }
-              </select>
-              <button type="button" data-reauth-email-send-button>${
-    escapeHtml(messages.accountEmailSendCode)
-  }</button>
-              <input type="hidden" name="verificationId" data-reauth-email-verification-id>
+        <div
+          class="reauth-method-detail is-collapsed"
+          data-reauth-method-panel="email"
+          hidden
+        >
+          <form class="reauth-detail-form reauth-email-form" data-reauth-email-form>
+            <input
+              type="hidden"
+              name="email"
+              value="${escapeHtml(selectedEmail)}"
+              data-reauth-email-input
+            >
+            <input type="hidden" name="verificationId" data-reauth-email-verification-id>
+            <div class="reauth-input-action-row">
               <input
                 type="text"
                 name="code"
@@ -2023,42 +2090,27 @@ function renderEmailReauthMethod(
                 inputmode="numeric"
                 pattern="[0-9]{6}"
                 autocomplete="one-time-code"
+                aria-label="${escapeHtml(messages.accountEmailCode)}"
+                placeholder="${escapeHtml(messages.accountEmailCode)}"
                 data-reauth-email-code-input
                 required
               >
-              <span class="inline-action-status" data-reauth-email-status role="status" hidden></span>
               <button type="submit" class="settings-row-action-button">${
     escapeHtml(messages.accountReauthVerify)
   }</button>
-            </form>
-        </div>
-  `;
-}
-
-/**
- * 渲染 Passkey 再认证方式。
- *
- * @param messages 当前语言文案。
- * @return Passkey 再认证方式 HTML。
- */
-function renderPasskeyReauthMethod(
-  messages: ReturnType<typeof getMessages>,
-): string {
-  return `
-        <div class="auth-method-plain-row">
-          <span class="auth-method-panel-label">${
-    escapeHtml(messages.accountSecondFactorPasskey)
-  }</span>
-            <div class="reauth-inline-form reauth-passkey-row">
-              <span class="reauth-passkey-status-slot">
-                <span class="inline-action-status" data-reauth-passkey-status role="status" hidden></span>
-              </span>
+            </div>
+            <div class="reauth-email-delivery" data-reauth-email-delivery hidden>
+              <span>${escapeHtml(messages.accountReauthEmailCodeSent)}</span>
+              <span data-reauth-email-countdown>60</span>
               <button
                 type="button"
-                class="settings-row-action-button"
-                data-reauth-passkey-button
-              >${escapeHtml(messages.authPasskeyVerify)}</button>
+                class="text-action-button reauth-email-resend-button"
+                data-reauth-email-resend-button
+                disabled
+              >${escapeHtml(messages.accountReauthEmailResend)}</button>
             </div>
+            <span class="inline-action-status" data-reauth-email-status role="status" hidden></span>
+          </form>
         </div>
   `;
 }
@@ -2108,14 +2160,24 @@ function renderTwoStepVerificationSection(options: {
   const totpOpen = Boolean(options.totpBindingStatus || options.totpSetup);
   const securityReauthOpen = options.securityStatus?.code === "reauth";
   const totpReauthOpen = options.totpBindingStatus?.code === "reauth";
+  const recoveryCodeAvailable = options.totpCredentials.some((credential) =>
+    credential.recoveryCodeHashes.length > 0
+  );
+  const securityReauthPanel = renderInlineReauthPanel({
+    emailCredentials: options.emailCredentials,
+    passkeyCredentials: options.passkeyCredentials,
+    passwordAvailable: options.passwordAvailable,
+    recentlyVerified: options.recentlyVerified,
+    settings: options.settings,
+    statusCode: "reauth",
+    totpAvailable: options.totpCredentials.length > 0,
+  });
   const totpReauthPanel = renderInlineReauthPanel({
     emailCredentials: options.emailCredentials,
     passkeyCredentials: options.passkeyCredentials,
     passwordAvailable: options.passwordAvailable,
     recentlyVerified: options.recentlyVerified,
-    recoveryCodeAvailable: options.totpCredentials.some((credential) =>
-      credential.recoveryCodeHashes.length > 0
-    ),
+    recoveryCodeAvailable,
     settings: options.settings,
     statusCode: "reauth",
     totpAvailable: options.totpCredentials.length > 0,
@@ -2134,6 +2196,7 @@ function renderTwoStepVerificationSection(options: {
       data-security-error="${escapeHtml(messages.autoSaveError)}"
       data-security-enabled="${escapeHtml(messages.accountTwoFactorEnabled)}"
       data-security-disabled="${escapeHtml(messages.accountTwoFactorDisabled)}"
+      data-security-recently-verified="${options.recentlyVerified}"
       data-security-preferred="${
     escapeHtml(
       messages.accountTwoFactorPreferredUnavailable,
@@ -2153,7 +2216,7 @@ function renderTwoStepVerificationSection(options: {
     escapeHtml(messages.accountTwoStepSettings)
   }</h2>
       <dl class="settings-list">
-        <div class="auth-method-row">
+        <div class="auth-method-row ${securityReauthOpen ? "is-open" : ""}">
           ${authSettingLabel("two-factor", messages.accountTwoFactorToggle)}
           <dd>
             <div class="auth-method-summary-row">
@@ -2181,6 +2244,17 @@ function renderTwoStepVerificationSection(options: {
                   >
                 </label>
               </div>
+            </div>
+            <div
+              class="auth-method-panel ${
+    securityReauthOpen ? "" : "is-collapsed"
+  }"
+              data-auth-method-panel="two-factor"
+              data-security-settings-reauth
+              ${securityReauthOpen ? "" : "hidden"}
+            >
+              ${securityReauthOpen ? securityReauthPanel : ""}
+              <template data-security-reauth-template>${securityReauthPanel}</template>
             </div>
           </dd>
         </div>
@@ -2256,19 +2330,6 @@ function renderTwoStepVerificationSection(options: {
           role="status"
         >${escapeHtml(statusMessage)}</span>
       </div>
-      ${
-    securityReauthOpen
-      ? renderInlineReauthPanel({
-        emailCredentials: options.emailCredentials,
-        passkeyCredentials: options.passkeyCredentials,
-        passwordAvailable: options.passwordAvailable,
-        recentlyVerified: options.recentlyVerified,
-        settings: options.settings,
-        statusCode: "reauth",
-        totpAvailable: options.totpCredentials.length > 0,
-      })
-      : ""
-  }
     </section>
   `;
 }
@@ -2838,6 +2899,9 @@ function renderNotificationSection(settings: AppSettings): string {
                 </select>
                 <button
                   type="button"
+                  class="settings-row-action-button settings-icon-action-button"
+                  aria-label="${escapeHtml(messages.testNotify)}"
+                  title="${escapeHtml(messages.testNotify)}"
                   data-test-notify-button
                   data-test-notify-sending="${
     escapeHtml(messages.testNotifySending)
@@ -2848,7 +2912,12 @@ function renderNotificationSection(settings: AppSettings): string {
                   ${
     settings.notificationProvider === "disabled" ? "hidden" : ""
   }
-                >${escapeHtml(messages.testNotify)}</button>
+                >${
+    materialSymbolIcon(
+      "notifications",
+      "settings-row-action-icon",
+    )
+  }</button>
                 <span
                   class="inline-action-status"
                   data-test-notify-status

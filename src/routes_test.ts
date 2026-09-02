@@ -1716,6 +1716,14 @@ Deno.test("settings route renders inline sensitive reauth controls", async () =>
   assertIncludes(html, `data-reauth-email-form`);
   assertIncludes(html, `data-reauth-totp-form`);
   assertIncludes(html, `data-reauth-passkey-button`);
+  assertIncludes(html, `data-reauth-method-button="password"`);
+  assertIncludes(html, `data-reauth-method-button="totp"`);
+  assertIncludes(html, `data-reauth-method-button="email"`);
+  assertIncludes(html, `data-reauth-method-button="passkey"`);
+  assertIncludes(html, `data-reauth-cancel-button`);
+  assertIncludes(html, `data-reauth-email-delivery hidden`);
+  assertIncludes(html, `data-reauth-email-resend-button`);
+  assertNotIncludes(html, `data-reauth-email-send-button`);
   const passkeyBindingStatusIndex = html.indexOf(
     "data-passkey-binding-status",
   );
@@ -1723,10 +1731,21 @@ Deno.test("settings route renders inline sensitive reauth controls", async () =>
     "data-reauth-section",
     passkeyBindingStatusIndex,
   );
-  const passkeyStatusSlotIndex = html.indexOf("reauth-passkey-status-slot");
+  const passkeyPanelEndIndex = html.indexOf(
+    'data-auth-method-panel="google"',
+    reauthPanelIndex,
+  );
+  assertNotIncludes(
+    html.slice(reauthPanelIndex, passkeyPanelEndIndex),
+    `data-reauth-method-button="recovery-code"`,
+  );
   const passkeyButtonIndex = html.indexOf("data-reauth-passkey-button");
-  assertEquals(passkeyStatusSlotIndex >= 0, true);
-  assertEquals(passkeyStatusSlotIndex < passkeyButtonIndex, true);
+  const reauthDetailsIndex = html.indexOf(
+    "data-reauth-method-details",
+    reauthPanelIndex,
+  );
+  assertEquals(passkeyButtonIndex >= reauthPanelIndex, true);
+  assertEquals(passkeyButtonIndex < reauthDetailsIndex, true);
   assertNotIncludes(
     html.slice(passkeyBindingStatusIndex, reauthPanelIndex),
     getMessages(currentSettings.locale).accountReauthRequired,
@@ -2241,16 +2260,26 @@ Deno.test("account security route requires reauth before disabling 2FA", async (
   const securityStatusIndex = blockedSettingsHtml.indexOf(
     "data-security-settings-status",
   );
-  const securityReauthPanelIndex = blockedSettingsHtml.indexOf(
-    "data-reauth-section",
+  const securityStatusEndIndex = blockedSettingsHtml.indexOf(
+    "</span>",
     securityStatusIndex,
   );
+  const securityReauthPanelIndex = blockedSettingsHtml.indexOf(
+    'data-auth-method-panel="two-factor"',
+  );
+  const preferredSecondFactorIndex = blockedSettingsHtml.indexOf(
+    'name="preferredSecondFactor"',
+    securityReauthPanelIndex,
+  );
   assertNotIncludes(
-    blockedSettingsHtml.slice(securityStatusIndex, securityReauthPanelIndex),
+    blockedSettingsHtml.slice(securityStatusIndex, securityStatusEndIndex),
     getMessages(currentSettings.locale).accountReauthRequired,
   );
   assertIncludes(
-    blockedSettingsHtml.slice(securityReauthPanelIndex),
+    blockedSettingsHtml.slice(
+      securityReauthPanelIndex,
+      preferredSecondFactorIndex,
+    ),
     getMessages(currentSettings.locale).accountReauthRequired,
   );
   assertEquals(await storage.getUserSecuritySettings(account.id), {

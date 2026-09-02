@@ -148,7 +148,8 @@ export type Messages = {
   accountPasskeySettings: string;
   accountPasskeyStatus: string;
   accountPasskeyUnsupported: string;
-  accountReauthEmailVerification: string;
+  accountReauthEmailCodeSent: string;
+  accountReauthEmailResend: string;
   accountReauthFailed: string;
   accountReauthPasskeyVerifying: string;
   accountReauthReady: string;

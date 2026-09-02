@@ -247,7 +247,7 @@ Deno.test("settings page loads the stable new-password focus flow", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260902-recovery-unbind`,
+    `/static/settings.js?v=20260902-reauth-selector`,
   );
 });
 
@@ -302,6 +302,12 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
   assertIncludes(html, `title="修改密码"`);
   assertIncludes(html, `class="settings-row-switch-cell"`);
   assertIncludes(html, `data-test-notify-status`);
+  assertIncludes(html, `data-test-notify-button`);
+  assertIncludes(
+    html,
+    `aria-label="${getMessages(settings().locale).testNotify}"`,
+  );
+  assertIncludes(html, `title="${getMessages(settings().locale).testNotify}"`);
   assertIncludes(html, `data-security-settings-status-row`);
   assertNotIncludes(html, `data-account-verify-button`);
   assertNotIncludes(html, `data-account-mode="password"`);
@@ -516,6 +522,10 @@ Deno.test("renderSettings renders TOTP binding setup controls", () => {
   assertIncludes(totpPanel, `data-sensitive-action-form`);
   assertIncludes(totpPanel, `data-sensitive-reauth-template`);
   assertIncludes(totpPanel, `data-reauth-recovery-code-form`);
+  assertIncludes(
+    totpPanel,
+    `data-reauth-method-button="recovery-code"`,
+  );
   assertIncludes(
     totpPanel,
     `data-reauth-recovery-code-url="/account/reauth/recovery-code?locale=zh-CN"`,
@@ -800,7 +810,7 @@ Deno.test("renderSettings renders account security controls", () => {
       username: "alice",
     },
     csrfToken: testCsrfToken,
-    secondFactorMethods: ["email"],
+    secondFactorMethods: ["email", "totp"],
     securitySettings: {
       preferredSecondFactor: "email",
       twoFactorEnabled: true,
@@ -808,9 +818,25 @@ Deno.test("renderSettings renders account security controls", () => {
     },
     securityStatus: { code: "updated", type: "success" },
     settings: settings(),
+    totpCredentials: [{
+      credentialId: "authenticator-with-recovery-codes",
+      enabledAt: "2026-08-01T00:00:00.000Z",
+      label: "手机验证器",
+      recoveryCodeHashes: ["stored-hash"],
+      secretEncrypted: "stored-encrypted-secret",
+      userId: "user-1",
+    }],
   });
 
   assertIncludes(html, `data-security-settings-form`);
+  assertIncludes(html, `data-security-recently-verified="false"`);
+  assertIncludes(html, `data-security-settings-reauth`);
+  assertIncludes(html, `data-security-reauth-template`);
+  assertIncludes(html, `data-auth-method-panel="two-factor"`);
+  assertIncludes(
+    html,
+    `class="auth-method-panel is-collapsed"\n              data-auth-method-panel="two-factor"\n              data-security-settings-reauth\n              hidden`,
+  );
   assertIncludes(html, `data-security-saving=`);
   assertIncludes(html, `action="/account/security?locale=zh-CN"`);
   assertIncludes(html, `name="twoFactorEnabled"`);
@@ -823,6 +849,15 @@ Deno.test("renderSettings renders account security controls", () => {
   assertIncludes(html, `邮箱验证码`);
   assertIncludes(html, `双重验证设置已保存。`);
   assertNotIncludes(html, `保存安全设置`);
+  const securityPanel = html.slice(
+    html.indexOf(`data-auth-method-panel="two-factor"`),
+    html.indexOf(`name="preferredSecondFactor"`),
+  );
+  assertIncludes(securityPanel, `data-reauth-method-button="totp"`);
+  assertNotIncludes(
+    securityPanel,
+    `data-reauth-method-button="recovery-code"`,
+  );
 });
 
 Deno.test("renderSettings renders Google unbind as an icon action", () => {
@@ -850,6 +885,7 @@ Deno.test("renderSettings renders Google unbind as an icon action", () => {
   assertIncludes(html, `title="解绑"`);
   assertIncludes(html, `已绑定 alice@example.com`);
   assertNotIncludes(html, `Google 已绑定。`);
+  assertNotIncludes(html, `data-auth-method-panel="google"`);
   assertNotIncludes(html, `>解绑</button>`);
 });
 
