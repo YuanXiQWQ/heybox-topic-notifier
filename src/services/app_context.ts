@@ -104,7 +104,7 @@ export function defaultAppSettingsFromEnv(): AppSettings {
 /**
  * 创建应用运行时上下文。
  *
- * @return 包含配置、存储、匹配器、通知器、数据源、轮询器和调度器的上下文对象。
+ * @return {AppContext} 包含配置、存储、匹配器、通知器、数据源、轮询器和调度器的上下文对象。
  */
 export function createAppContext() {
   const config: AppConfig = {
