@@ -37,6 +37,12 @@ import {
   normalizeNotificationEmailService,
   normalizeNotificationWebhookService,
 } from "../notification_services.ts";
+import type {
+  LoginFailure,
+  RateLimitHit,
+  Storage,
+  UserStorage,
+} from "./types.ts";
 
 /**
  * Deno KV 中各类数据使用的键构造器。
@@ -90,30 +96,11 @@ const keys = {
 };
 
 /**
- * 登录失败计数及锁定状态。
- */
-type LoginFailure = {
-  failures: number;
-  lockedUntil?: string;
-};
-
-/**
  * 频率限制计数记录。
  */
 type RateLimitEntry = {
   count: number;
   resetAt: string;
-};
-
-/**
- * 频率限制命中结果。
- */
-export type RateLimitHit = {
-  allowed: boolean;
-  count: number;
-  limit: number;
-  resetAt: string;
-  retryAfterSeconds: number;
 };
 
 /**
@@ -189,7 +176,7 @@ type KvStorageOptions = {
 export function createKvStorage(
   defaultSettings: AppSettings,
   options: KvStorageOptions = {},
-) {
+): Storage {
   let kvPromise: Promise<KvStore> | undefined;
 
   /**
@@ -238,7 +225,7 @@ export function createKvStorage(
    * @param userId 用户 ID。
    * @return 指定用户的数据存储操作集合。
    */
-  function forUser(userId: string) {
+  function forUser(userId: string): UserStorage {
     return {
       /**
        * 获取当前用户设置。

@@ -2,13 +2,13 @@
  * @file 本文件负责轮询话题帖子、匹配关键词并触发通知。
  */
 import type { AppSettings, MatchRecord } from "../models.ts";
-import type { createKvStorage } from "../storage/kv.ts";
+import type { Storage } from "../storage/types.ts";
 import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import type { TopicSource } from "./topic_source.ts";
 
 type PollStorage = Pick<
-  ReturnType<typeof createKvStorage>,
+  Storage,
   | "getSettings"
   | "listHistory"
   | "markMatchNotified"
@@ -22,7 +22,7 @@ type PollerDependencies = {
   matcher: ReturnType<typeof createMatcher>;
   notifier: PollNotifier;
   source: TopicSource;
-  storage: ReturnType<typeof createKvStorage>;
+  storage: Storage;
 };
 
 export function createPoller(

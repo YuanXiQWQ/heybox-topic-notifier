@@ -4,7 +4,7 @@
 import type { Hono } from "@hono/hono";
 import type { UserAccount } from "./models.ts";
 import { csrfCookieName, csrfFieldName } from "./security/csrf.ts";
-import type { RateLimitHit } from "./storage/kv.ts";
+import type { RateLimitHit } from "./storage/types.ts";
 
 /**
  * 测试请求使用的固定 CSRF 令牌。
