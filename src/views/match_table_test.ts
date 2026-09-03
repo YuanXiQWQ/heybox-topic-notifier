@@ -103,6 +103,38 @@ Deno.test("renderMatchRecordsSection opens post title links in a new tab", () =>
   );
 });
 
+Deno.test("renderMatchRecordsSection repairs stored rich-content JSON", () => {
+  const match = record("rich-content", "2026-06-30T12:00:00.000Z");
+  match.post.body = JSON.stringify([
+    { text: "可见正文", type: "text" },
+    { text: "/storage/emulated/0/image.jpg", type: "img" },
+  ]);
+  const html = renderMatchRecordsSection({
+    action: {
+      bulkButtonAttribute: "data-test-bulk",
+      emptySelectionMessage: "empty",
+      icon: "",
+      label: "complete",
+      rowCheckboxAttribute: "data-test-row",
+      selectAllAttribute: "data-test-all",
+    },
+    csrfToken: testCsrfToken,
+    emptyMessage: "empty",
+    filterToggleId: "test-filter",
+    formAction: "/matches/complete",
+    heading: "heading",
+    headingId: "heading-id",
+    locale: "zh-CN",
+    messages: getMessages("zh-CN"),
+    path: "/",
+    table: table([match]),
+  });
+
+  assertIncludes(html, '<span class="table-clip">可见正文</span>');
+  assertNotIncludes(html, "storage/emulated");
+  assertNotIncludes(html, "&quot;type&quot;");
+});
+
 Deno.test("renderMatchRecordsSection marks timestamps for live relative updates", () => {
   const match = record("relative-time", "2026-06-30T12:05:00.000Z");
   match.post.publishedAt = "2026-06-30T12:00:00.000Z";
@@ -307,7 +339,10 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
     html,
     `aria-label="${getMessages(settings().locale).testNotify}"`,
   );
-  assertIncludes(html, `data-tooltip="${getMessages(settings().locale).testNotify}"`);
+  assertIncludes(
+    html,
+    `data-tooltip="${getMessages(settings().locale).testNotify}"`,
+  );
   assertIncludes(html, `data-security-settings-status-row`);
   assertNotIncludes(html, `data-account-verify-button`);
   assertNotIncludes(html, `data-account-mode="password"`);

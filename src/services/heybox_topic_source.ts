@@ -292,14 +292,14 @@ function postFromHeyboxRecord(
   const url = safeHeyboxPostUrl(webLinkId, shareUrl, topicId);
 
   return {
-    body: stringField(record, ["text", "content", "body", "description"]),
+    body: contentField(record, ["text", "content", "body", "description"]),
     commentReplies: textList(record, [
       "reply_list",
       "replies",
       "comment_replies",
     ]),
     comments: textList(record, ["comment_list", "comments", "hot_comments"]),
-    excerpt: stringField(record, [
+    excerpt: contentField(record, [
       "description",
       "summary",
       "brief",
@@ -556,6 +556,96 @@ function stringField(record: Record<string, unknown>, keys: string[]): string {
 }
 
 /**
+ * 小黑盒富文本中不应作为正文展示的媒体节点类型。
+ */
+const heyboxMediaNodeTypes = new Set([
+  "audio",
+  "img",
+  "image",
+  "video",
+]);
+
+/**
+ * 从记录对象的候选字段中读取正文并转换为纯文本。
+ *
+ * @param {Record<string, unknown>} record 待读取的记录对象。
+ * @param {string[]} keys 候选字段名列表。
+ * @return {string} 第一个可用字段的纯文本内容。
+ */
+function contentField(
+  record: Record<string, unknown>,
+  keys: string[],
+): string {
+  for (const key of keys) {
+    if (!(key in record)) {
+      continue;
+    }
+    const text = plainTextFromHeyboxContent(record[key]);
+    if (text) {
+      return text;
+    }
+  }
+  return "";
+}
+
+/**
+ * 将小黑盒正文的纯文本、富文本数组或 JSON 字符串统一转换为可展示文本。
+ *
+ * @param {unknown} value 小黑盒正文值。
+ * @return {string} 去除媒体元数据后的纯文本。
+ */
+export function plainTextFromHeyboxContent(value: unknown): string {
+  if (typeof value === "number") {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text || !looksLikeJsonContainer(text)) {
+      return text;
+    }
+    try {
+      return plainTextFromHeyboxContent(JSON.parse(text));
+    } catch {
+      return text;
+    }
+  }
+  if (Array.isArray(value)) {
+    return value.map(plainTextFromHeyboxContent).filter(Boolean).join("\n")
+      .trim();
+  }
+
+  const record = asRecord(value);
+  if (Object.keys(record).length === 0) {
+    return "";
+  }
+  const nodeType = typeof record.type === "string"
+    ? record.type.trim().toLowerCase()
+    : "";
+  if (heyboxMediaNodeTypes.has(nodeType)) {
+    return "";
+  }
+  return contentField(record, [
+    "text",
+    "content",
+    "description",
+    "body",
+    "children",
+    "items",
+  ]);
+}
+
+/**
+ * 判断字符串是否可能是 JSON 对象或数组。
+ *
+ * @param {string} value 待判断字符串。
+ * @return {boolean} 可能是 JSON 容器时返回 true。
+ */
+function looksLikeJsonContainer(value: string): boolean {
+  return (value.startsWith("[") && value.endsWith("]")) ||
+    (value.startsWith("{") && value.endsWith("}"));
+}
+
+/**
  * 从链接中提取小黑盒帖子 ID。
  *
  * @param value 待解析链接。
@@ -632,11 +722,11 @@ function textList(record: Record<string, unknown>, keys: string[]): string[] {
  */
 function textFromUnknown(value: unknown): string {
   if (typeof value === "string") {
-    return value.trim();
+    return plainTextFromHeyboxContent(value);
   }
 
   const record = asRecord(value);
-  return stringField(record, [
+  return contentField(record, [
     "content",
     "text",
     "description",

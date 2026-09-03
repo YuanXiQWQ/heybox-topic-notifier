@@ -39,6 +39,30 @@ Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
   ]);
 });
 
+Deno.test("parseHeyboxTopicPosts extracts text from rich-content JSON", () => {
+  const posts = parseHeyboxTopicPosts({
+    result: {
+      links: [{
+        content: JSON.stringify([
+          { text: "第一段正文", type: "text" },
+          {
+            height: "240",
+            text: "/storage/emulated/0/Pictures/image.jpg",
+            type: "img",
+          },
+          { text: "第二段正文", type: "text" },
+        ]),
+        linkid: "rich-content",
+        title: "富文本帖子",
+      }],
+    },
+    status: "ok",
+  }, "12099");
+
+  assertEquals(posts[0].body, "第一段正文\n第二段正文");
+  assertEquals(posts[0].body.includes("storage/emulated"), false);
+});
+
 Deno.test("parseHeyboxTopicPosts rejects untrusted post share URLs", () => {
   const posts = parseHeyboxTopicPosts({
     result: {

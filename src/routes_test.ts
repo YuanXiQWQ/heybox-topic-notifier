@@ -2598,6 +2598,9 @@ Deno.test("run now rate limits repeated manual polling attempts", async () => {
 Deno.test("dashboard state ticks scheduler only when requested", async () => {
   let ticks = 0;
   const app = createRoutes({
+    poller: {
+      runOnce: () => Promise.resolve(),
+    },
     scheduler: {
       tick: () => {
         ticks += 1;
@@ -2605,6 +2608,7 @@ Deno.test("dashboard state ticks scheduler only when requested", async () => {
       },
     },
     storage: {
+      ...createMemoryRateLimitRecorder(),
       getDashboardSnapshot: () =>
         Promise.resolve({
           pendingMatches: [],
@@ -2616,6 +2620,14 @@ Deno.test("dashboard state ticks scheduler only when requested", async () => {
         }),
     },
   } as unknown as AppContext);
+
+  for (let index = 0; index < 6; index += 1) {
+    await app.request("/run-now", {
+      body: testCsrfForm(),
+      headers: testCsrfHeaders(),
+      method: "POST",
+    });
+  }
 
   const regularResponse = await app.request("/dashboard-state?page=2");
   const ignoredTickResponse = await app.request(
