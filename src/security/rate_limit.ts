@@ -43,6 +43,12 @@ const registrationLimit = 5;
  */
 const manualPollLimit = 6;
 /**
+ * 前台倒计时每十分钟允许触发的到期检查次数。
+ *
+ * 最短三秒轮询在十分钟内需要约 200 次检查，额外余量用于页面恢复和计时误差。
+ */
+const dashboardPollLimit = 220;
+/**
  * 调试类操作每十分钟允许的次数。
  */
 const debugOperationLimit = 10;
@@ -83,6 +89,11 @@ export const publicRateLimitPolicies = {
   debugOperation: {
     limit: debugOperationLimit,
     scope: "debug-operation",
+    windowMs: 10 * minuteMs,
+  },
+  dashboardPoll: {
+    limit: dashboardPollLimit,
+    scope: "dashboard-poll",
     windowMs: 10 * minuteMs,
   },
   emailVerificationClient: {

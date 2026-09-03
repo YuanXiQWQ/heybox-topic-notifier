@@ -204,7 +204,7 @@ export function createRoutes(context: AppContext): Hono {
     const rateLimitResponse = await rateLimitResponseForRequest(
       c,
       context,
-      publicRateLimitPolicies.manualPoll,
+      publicRateLimitPolicies.dashboardPoll,
     );
     if (rateLimitResponse) {
       return rateLimitResponse;

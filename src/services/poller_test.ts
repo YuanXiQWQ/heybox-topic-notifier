@@ -308,6 +308,7 @@ Deno.test("poller saves detailed post time for new matches", async () => {
 Deno.test("poller leaves matched posts retryable when notification fails", async () => {
   const records: MatchRecord[] = [];
   const notifiedMatches: string[] = [];
+  let lastPollAt = "";
   const poller = createPoller({
     matcher: createMatcher(),
     notifier: {
@@ -334,7 +335,10 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
         records.push(record);
         return Promise.resolve();
       },
-      setLastPollAt: () => Promise.resolve(),
+      setLastPollAt: (value: string) => {
+        lastPollAt = value;
+        return Promise.resolve();
+      },
     } as unknown as Storage,
   });
 
@@ -342,6 +346,7 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
 
   assertEquals(records.map((record) => record.post.id), ["retry-me"]);
   assertEquals(notifiedMatches, []);
+  assertEquals(Boolean(lastPollAt), true);
 });
 
 /**

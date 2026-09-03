@@ -5,6 +5,7 @@ import { getMessages } from "../locales/index.ts";
 import { type Locale, locales, type Messages } from "../locales/types.ts";
 import type { MatchLocation } from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
+import { plainTextFromHeyboxContent } from "../services/heybox_topic_source.ts";
 import { escapeHtml } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import {
@@ -139,6 +140,9 @@ function renderRows(options: MatchRecordsSectionOptions): string {
     const titleClasses = ["match-table-title-link", options.titleLinkClass]
       .filter((className): className is string => Boolean(className))
       .join(" ");
+    const postContent = plainTextFromHeyboxContent(
+      record.post.body || record.post.excerpt,
+    );
 
     return `
     <tr>
@@ -160,7 +164,7 @@ function renderRows(options: MatchRecordsSectionOptions): string {
       escapeHtml(record.post.title)
     }</a></td>
       <td class="match-content-cell">${`<span class="table-clip">${
-      escapeHtml(record.post.body || record.post.excerpt)
+      escapeHtml(postContent)
     }</span>`}</td>
       <td>${
       renderMatchDetails(record, now, options.locale, options.messages)
