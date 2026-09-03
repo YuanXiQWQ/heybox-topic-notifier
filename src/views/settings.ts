@@ -452,7 +452,7 @@ function secretInputEditor(
       class="settings-row-action-button settings-icon-action-button"
       data-secret-edit-button
       aria-label="${escapedLabel}"
-      title="${escapedLabel}"
+      data-tooltip="${escapedLabel}"
     >${materialSymbolIcon("edit", "settings-row-action-icon")}</button>
   </div>`;
 }
@@ -575,7 +575,7 @@ function renderAccountSection(
                     class="settings-row-action-button settings-icon-action-button"
                     data-account-mode="username"
                     aria-label="${editUsernameLabel}"
-                    title="${editUsernameLabel}"
+                    data-tooltip="${editUsernameLabel}"
                   >${
     materialSymbolIcon("edit", "settings-row-action-icon")
   }</button>
@@ -872,7 +872,7 @@ function renderEmailLoginMethodRow(options: {
                   class="auth-method-toggle-button"
                   data-email-binding-edit-button
                   aria-label="${editLabel}"
-                  title="${editLabel}"
+                  data-tooltip="${editLabel}"
                 >${
     materialSymbolIcon("edit", "auth-method-action-icon")
   }</button>
@@ -1023,7 +1023,7 @@ function renderAuthPanelToggle(
     data-auth-method-toggle="${escapeHtml(panelId)}"
     aria-expanded="${open ? "true" : "false"}"
     aria-label="${escapedLabel}"
-    title="${escapedLabel}"
+    data-tooltip="${escapedLabel}"
   >${materialSymbolIcon("edit", "auth-method-action-icon")}</button>`;
 }
 
@@ -1044,7 +1044,7 @@ function renderAccountModeTrigger(
     class="auth-method-toggle-button"
     data-account-mode-trigger="${escapeHtml(mode)}"
     aria-label="${escapedLabel}"
-    title="${escapedLabel}"
+    data-tooltip="${escapedLabel}"
   >${materialSymbolIcon("edit", "auth-method-action-icon")}</button>`;
 }
 
@@ -1179,7 +1179,7 @@ function renderGoogleUnbindForm(
       type="submit"
       class="auth-method-toggle-button"
       aria-label="${escapedLabel}"
-      title="${escapedLabel}"
+      data-tooltip="${escapedLabel}"
     >${materialSymbolIcon("edit", "auth-method-action-icon")}</button>
   </form>`;
 }
@@ -1328,7 +1328,7 @@ function renderCredentialActionButton(options: {
     class="auth-method-toggle-button"${hiddenAttribute}
     data-auth-credential-action="${options.action}"${formAttribute}${passkeyBindAttribute}${panelToggleAttribute}${recoveryCodeGenerateAttribute}
     aria-label="${escapeHtml(options.label)}"
-    title="${escapeHtml(options.label)}"
+    data-tooltip="${escapeHtml(options.label)}"
   >${materialSymbolIcon(icon, "auth-method-action-icon")}</button>`;
 }
 
@@ -1492,7 +1492,7 @@ function renderTotpSetupFields(
     escapeHtml(messages.accountTotpCopyFailed)
   }"
                 aria-label="${escapeHtml(messages.accountTotpCopyKey)}"
-                title="${escapeHtml(messages.accountTotpCopyKey)}"
+                data-tooltip="${escapeHtml(messages.accountTotpCopyKey)}"
               >${copyIcon("totp-copy-icon")}</button>
               <span
                 class="totp-copy-status"
@@ -2511,7 +2511,7 @@ function renderNewRecoveryCodes(
     escapeHtml(messages.accountRecoveryCodesSaveHint)
   }"
         aria-label="${escapeHtml(messages.accountRecoveryCodesDownload)}"
-        title="${escapeHtml(messages.accountRecoveryCodesDownload)}"
+        data-tooltip="${escapeHtml(messages.accountRecoveryCodesDownload)}"
       >${materialSymbolIcon("download", "recovery-code-download-icon")}</button>
     </div>
     <ul class="recovery-code-list" data-recovery-code-list>
@@ -2901,7 +2901,7 @@ function renderNotificationSection(settings: AppSettings): string {
                   type="button"
                   class="settings-row-action-button settings-icon-action-button"
                   aria-label="${escapeHtml(messages.testNotify)}"
-                  title="${escapeHtml(messages.testNotify)}"
+                  data-tooltip="${escapeHtml(messages.testNotify)}"
                   data-test-notify-button
                   data-test-notify-sending="${
     escapeHtml(messages.testNotifySending)
@@ -3540,7 +3540,7 @@ function renderTopicRuleHeader(
           type="button"
           class="icon-button"
           data-action="delete-topics"
-          title="${escapeHtml(messages.selectTopicToDelete)}"
+          data-tooltip="${escapeHtml(messages.selectTopicToDelete)}"
           aria-label="${escapeHtml(messages.selectTopicToDelete)}"
         >${trashIcon()}</button>
       </div>
@@ -3657,7 +3657,7 @@ function renderKeywordRuleHeader(
           type="button"
           class="icon-button"
           data-action="delete-keywords"
-          title="${escapeHtml(messages.selectKeywordToDelete)}"
+          data-tooltip="${escapeHtml(messages.selectKeywordToDelete)}"
           aria-label="${escapeHtml(messages.selectKeywordToDelete)}"
         >${trashIcon()}</button>
       </div>
@@ -3686,7 +3686,7 @@ function dragHandleButton(label: string): string {
     type="button"
     class="icon-button rule-drag-handle"
     data-rule-drag-handle
-    title="${escapedLabel}"
+    data-tooltip="${escapedLabel}"
     aria-label="${escapedLabel}"
   >${materialSymbolIcon("drag_indicator", "rule-drag-icon")}</button>`;
 }
