@@ -2055,6 +2055,18 @@ export function createRoutes(context: AppContext): Hono {
     });
   });
 
+  app.get("/static/tooltip.js", async () => {
+    const script = await Deno.readTextFile(
+      new URL("../static/tooltip.js", import.meta.url),
+    );
+    return new Response(script, {
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "text/javascript; charset=utf-8",
+      },
+    });
+  });
+
   return app;
 }
 

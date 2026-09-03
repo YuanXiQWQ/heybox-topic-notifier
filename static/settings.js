@@ -383,13 +383,13 @@ function initTotpManualKeyCopy(scope = document) {
     button.disabled = false;
     button.dataset.state = copied ? "copied" : "failed";
     button.setAttribute("aria-label", feedback);
-    button.title = feedback;
+    button.dataset.tooltip = feedback;
     status.textContent = feedback;
     clearTimeout(resetTimer);
     resetTimer = setTimeout(() => {
       delete button.dataset.state;
       button.setAttribute("aria-label", copyLabel);
-      button.title = copyLabel;
+      button.dataset.tooltip = copyLabel;
       status.textContent = "";
     }, 1800);
   });

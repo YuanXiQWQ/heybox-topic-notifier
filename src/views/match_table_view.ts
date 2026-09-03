@@ -97,7 +97,7 @@ export function renderMatchRecordsSection(
                     type="submit"
                     class="icon-button"
                     ${options.action.bulkButtonAttribute}
-                    title="${escapeHtml(options.action.label)}"
+                    data-tooltip="${escapeHtml(options.action.label)}"
                     aria-label="${escapeHtml(options.action.label)}"
                   >${options.action.icon}</button>
                 </th>
@@ -171,7 +171,7 @@ function renderRows(options: MatchRecordsSectionOptions): string {
           class="icon-button"
           name="matchId"
           value="${escapeHtml(record.id)}"
-          title="${escapeHtml(options.action.label)}"
+          data-tooltip="${escapeHtml(options.action.label)}"
           aria-label="${escapeHtml(options.action.label)}"
         >${options.action.icon}</button>
       </td>
@@ -321,7 +321,7 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
       <label
         class="filter-toggle"
         for="${escapeHtml(options.filterToggleId)}"
-        title="${escapeHtml(messages.filter)}"
+        data-tooltip="${escapeHtml(messages.filter)}"
         aria-label="${escapeHtml(messages.filter)}"
       >
         ${filterIcon()}

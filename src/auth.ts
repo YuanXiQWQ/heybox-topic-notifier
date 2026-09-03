@@ -3248,6 +3248,7 @@ function authConfig(options: AuthOptions): AuthConfig {
           passkeyMfaPath,
           mfaPath,
           "/static/app.css",
+          "/static/tooltip.js",
         ],
     ),
     google: options.google ?? defaultGoogleAuthConfig,
@@ -3741,6 +3742,7 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.appName)
   }</title>
     <link rel="stylesheet" href="/static/app.css">
+    <script src="/static/tooltip.js" defer></script>
     ${
     turnstileScriptHtml(
       options.turnstileSiteKey ?? options.emailTurnstileSiteKey,
@@ -4004,7 +4006,7 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.authNavigation)
   }">
         <details class="auth-language-menu">
-          <summary class="auth-language-button" title="${
+          <summary class="auth-language-button" data-tooltip="${
     escapeHtml(options.messages.authLanguage)
   }">
             ${languageTextIcon("auth-language-icon")}
@@ -4782,7 +4784,7 @@ function renderMfaPage(options: {
     escapeHtml(options.messages.authNavigation)
   }">
         <details class="auth-language-menu">
-          <summary class="auth-language-button" title="${
+          <summary class="auth-language-button" data-tooltip="${
     escapeHtml(options.messages.authLanguage)
   }">
             ${languageTextIcon("auth-language-icon")}

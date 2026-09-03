@@ -60,6 +60,7 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="https://cdn.max-c.com/heybox/logo/app_251.png">
     <link rel="stylesheet" href="/static/app.css">
+    <script src="/static/tooltip.js" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>

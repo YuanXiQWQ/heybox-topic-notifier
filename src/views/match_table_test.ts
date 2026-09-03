@@ -298,8 +298,8 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
   assertIncludes(html, `data-account-mode-trigger="password"`);
   assertIncludes(html, `aria-label="修改用户名"`);
   assertIncludes(html, `aria-label="修改密码"`);
-  assertIncludes(html, `title="修改用户名"`);
-  assertIncludes(html, `title="修改密码"`);
+  assertIncludes(html, `data-tooltip="修改用户名"`);
+  assertIncludes(html, `data-tooltip="修改密码"`);
   assertIncludes(html, `class="settings-row-switch-cell"`);
   assertIncludes(html, `data-test-notify-status`);
   assertIncludes(html, `data-test-notify-button`);
@@ -307,7 +307,7 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
     html,
     `aria-label="${getMessages(settings().locale).testNotify}"`,
   );
-  assertIncludes(html, `title="${getMessages(settings().locale).testNotify}"`);
+  assertIncludes(html, `data-tooltip="${getMessages(settings().locale).testNotify}"`);
   assertIncludes(html, `data-security-settings-status-row`);
   assertNotIncludes(html, `data-account-verify-button`);
   assertNotIncludes(html, `data-account-mode="password"`);
@@ -721,7 +721,7 @@ Deno.test("renderSettings places auth sections below notifications and above glo
   assertIncludes(html, `data-auth-icon="authenticator"`);
   assertIncludes(html, `data-auth-icon="recovery-codes"`);
   assertIncludes(html, `aria-label="修改密码"`);
-  assertIncludes(html, `title="添加 Passkey"`);
+  assertIncludes(html, `data-tooltip="添加 Passkey"`);
   assertNotIncludes(html, `>修改密码</button>`);
   assertNotIncludes(html, `>添加 Passkey</button>`);
   assertNotIncludes(html, `>绑定</button>`);
@@ -882,7 +882,7 @@ Deno.test("renderSettings renders Google unbind as an icon action", () => {
   assertIncludes(html, `action="/account/google/unbind?locale=zh-CN"`);
   assertIncludes(html, `class="auth-method-toggle-button"`);
   assertIncludes(html, `aria-label="解绑"`);
-  assertIncludes(html, `title="解绑"`);
+  assertIncludes(html, `data-tooltip="解绑"`);
   assertIncludes(html, `已绑定 alice@example.com`);
   assertNotIncludes(html, `Google 已绑定。`);
   assertNotIncludes(html, `data-auth-method-panel="google"`);
