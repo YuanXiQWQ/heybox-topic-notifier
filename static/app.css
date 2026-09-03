@@ -346,8 +346,8 @@ input[readonly]::placeholder {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  max-width: min(100%, calc(var(--settings-control-width) +
-    var(--settings-action-width) + 300px));
+  max-width: 100%;
+  width: 100%;
 }
 
 .notification-provider-row select {
@@ -375,6 +375,11 @@ input[readonly]::placeholder {
   margin-inline-start: auto;
   max-width: 40px;
   min-inline-size: 40px;
+  order: 2;
+}
+
+.notification-provider-row .inline-action-status {
+  order: 1;
 }
 
 .inline-action-status {
@@ -2639,6 +2644,10 @@ tr:last-child td {
     align-self: flex-start;
     max-width: 100%;
     width: auto;
+  }
+
+  .notification-provider-row .settings-icon-action-button {
+    align-self: flex-end;
   }
 
   .settings-row-action-button,
