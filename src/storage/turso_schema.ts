@@ -6,7 +6,7 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 2;
+export const TURSO_SCHEMA_VERSION = 3;
 
 /**
  * 首版 Turso schema 迁移语句。
@@ -44,10 +44,12 @@ export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
     value_json TEXT NOT NULL,
     PRIMARY KEY (user_id, id)
   )`,
-  `CREATE INDEX IF NOT EXISTS matches_user_history_idx
-    ON matches (user_id, matched_at DESC, post_published_at DESC, id DESC)`,
-  `CREATE INDEX IF NOT EXISTS matches_user_pending_idx
-    ON matches (user_id, completed_at, matched_at DESC, post_published_at DESC, id DESC)`,
+  "DROP INDEX IF EXISTS matches_user_history_idx",
+  `CREATE INDEX matches_user_history_idx
+    ON matches (user_id, matched_at DESC, id ASC)`,
+  "DROP INDEX IF EXISTS matches_user_pending_idx",
+  `CREATE INDEX matches_user_pending_idx
+    ON matches (user_id, completed_at, post_published_at DESC, matched_at DESC, id ASC)`,
   `CREATE TABLE IF NOT EXISTS password_credentials (
     user_id TEXT PRIMARY KEY,
     updated_at TEXT NOT NULL,

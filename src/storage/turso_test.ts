@@ -75,6 +75,24 @@ Deno.test("Turso storage updates and deletes matches without changing records", 
   });
 });
 
+Deno.test("Turso match ordering preserves Deno KV key order for time ties", async () => {
+  await withStorage(async (storage) => {
+    const matchedAt = "2026-09-01T00:00:00.000Z";
+    const publishedAt = "2026-09-01T01:00:00.000Z";
+    await storage.saveMatch(record("b-id", matchedAt, publishedAt));
+    await storage.saveMatch(record("a-id", matchedAt, publishedAt));
+
+    assertEquals((await storage.listHistory()).map((item) => item.id), [
+      "a-id",
+      "b-id",
+    ]);
+    assertEquals((await storage.listPendingMatches()).map((item) => item.id), [
+      "a-id",
+      "b-id",
+    ]);
+  });
+});
+
 Deno.test("Turso account constraints preserve atomic username behavior", async () => {
   await withStorage(async (storage) => {
     const results = await Promise.all([

@@ -214,8 +214,8 @@ export function createTursoStorage(
   ): Promise<MatchRecord[]> {
     const where = mode === "pending" ? " AND completed_at IS NULL" : "";
     const order = mode === "pending"
-      ? "post_published_at DESC, matched_at DESC"
-      : "matched_at DESC";
+      ? "post_published_at DESC, matched_at DESC, id ASC"
+      : "matched_at DESC, id ASC";
     const result = await execute({
       sql: `SELECT value_json FROM matches
         WHERE user_id = ?${where}
@@ -233,6 +233,11 @@ export function createTursoStorage(
    */
   function forUser(userId: string): UserStorage {
     return {
+      /**
+       * 获取当前用户设置。
+       *
+       * @return {Promise<AppSettings>} 规范化后的应用设置。
+       */
       async getSettings(): Promise<AppSettings> {
         const result = await execute({
           sql: "SELECT value_json FROM user_settings WHERE user_id = ?",
@@ -245,6 +250,12 @@ export function createTursoStorage(
           defaultSettings,
         );
       },
+      /**
+       * 保存当前用户设置。
+       *
+       * @param {AppSettings} settings 应用设置。
+       * @return {Promise<void>} 保存完成后的 Promise。
+       */
       async saveSettings(settings: AppSettings): Promise<void> {
         await writeEntity("settings", userId, {
           sql: `INSERT INTO user_settings (user_id, value_json)
@@ -253,6 +264,11 @@ export function createTursoStorage(
           args: [userId, JSON.stringify(settings)],
         });
       },
+      /**
+       * 获取当前用户应用状态。
+       *
+       * @return {Promise<AppState>} 应用状态。
+       */
       async getAppState(): Promise<AppState> {
         const [stateResult, matchResult] = await Promise.all([
           execute({
@@ -263,13 +279,18 @@ export function createTursoStorage(
             sql: `SELECT value_json, COUNT(*) OVER () AS total_matches
               FROM matches
               WHERE user_id = ?
-              ORDER BY matched_at DESC, post_published_at DESC
+              ORDER BY matched_at DESC, post_published_at DESC, id ASC
               LIMIT 1`,
             args: [userId],
           }),
         ]);
         return appStateFromRows(stateResult.rows[0], matchResult.rows[0]);
       },
+      /**
+       * 获取当前用户最后轮询时间。
+       *
+       * @return {Promise<string | undefined>} 最后轮询时间或 undefined。
+       */
       async getLastPollAt(): Promise<string | undefined> {
         const result = await execute({
           sql: "SELECT last_poll_at FROM app_states WHERE user_id = ?",
@@ -277,6 +298,11 @@ export function createTursoStorage(
         });
         return stringValue(result.rows[0]?.last_poll_at);
       },
+      /**
+       * 获取当前用户仪表盘快照。
+       *
+       * @return {Promise<DashboardSnapshot>} 设置、状态和待处理记录快照。
+       */
       async getDashboardSnapshot(): Promise<DashboardSnapshot> {
         const [settings, state, pendingMatches] = await Promise.all([
           this.getSettings(),
@@ -285,12 +311,28 @@ export function createTursoStorage(
         ]);
         return { pendingMatches, settings, state };
       },
+      /**
+       * 列出当前用户历史命中记录。
+       *
+       * @return {Promise<MatchRecord[]>} 按既有 KV 规则排序的历史记录。
+       */
       async listHistory(): Promise<MatchRecord[]> {
         return await listMatches(userId, "history");
       },
+      /**
+       * 列出当前用户待处理命中记录。
+       *
+       * @return {Promise<MatchRecord[]>} 按既有 KV 规则排序的待处理记录。
+       */
       async listPendingMatches(): Promise<MatchRecord[]> {
         return await listMatches(userId, "pending");
       },
+      /**
+       * 保存当前用户的一条命中记录。
+       *
+       * @param {MatchRecord} record 命中记录。
+       * @return {Promise<void>} 保存完成后的 Promise。
+       */
       async saveMatch(record: MatchRecord): Promise<void> {
         await writeEntity("match", entityKey(userId, record.id), {
           sql: `INSERT INTO matches
@@ -314,6 +356,13 @@ export function createTursoStorage(
           ],
         });
       },
+      /**
+       * 标记一条命中记录已经通知。
+       *
+       * @param {string} id 命中记录 ID。
+       * @param {string} notifiedAt 通知时间。
+       * @return {Promise<void>} 更新完成后的 Promise。
+       */
       async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
         await writeEntity("match", entityKey(userId, id), {
           sql: `UPDATE matches
@@ -323,6 +372,12 @@ export function createTursoStorage(
           args: [notifiedAt, notifiedAt, userId, id],
         });
       },
+      /**
+       * 批量完成命中记录。
+       *
+       * @param {string[]} ids 命中记录 ID 列表。
+       * @return {Promise<void>} 更新完成后的 Promise。
+       */
       async completeMatches(ids: string[]): Promise<void> {
         const uniqueIds = normalizedIds(ids);
         if (uniqueIds.length === 0) {
@@ -341,6 +396,12 @@ export function createTursoStorage(
           clearTombstoneStatement("match", entityKey(userId, id)),
         ]));
       },
+      /**
+       * 批量删除命中记录。
+       *
+       * @param {string[]} ids 命中记录 ID 列表。
+       * @return {Promise<void>} 删除完成后的 Promise。
+       */
       async deleteMatches(ids: string[]): Promise<void> {
         const uniqueIds = normalizedIds(ids);
         if (uniqueIds.length === 0) {
@@ -362,6 +423,12 @@ export function createTursoStorage(
           ),
         ]);
       },
+      /**
+       * 保存当前用户最后轮询时间。
+       *
+       * @param {string} value ISO 时间字符串。
+       * @return {Promise<void>} 保存完成后的 Promise。
+       */
       async setLastPollAt(value: string): Promise<void> {
         await writeEntity("state", userId, {
           sql: `INSERT INTO app_states (user_id, last_poll_at)
@@ -439,7 +506,7 @@ export function createTursoStorage(
      */
     async listAccounts(): Promise<UserAccount[]> {
       const result = await execute(
-        "SELECT value_json FROM user_accounts ORDER BY created_at, id",
+        "SELECT value_json FROM user_accounts ORDER BY id",
       );
       return result.rows.map((row) => parseJsonRow<UserAccount>(row));
     },
