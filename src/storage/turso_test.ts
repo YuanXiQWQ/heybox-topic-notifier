@@ -211,6 +211,60 @@ Deno.test("Turso sessions preserve the current session payload contract", async 
   });
 });
 
+Deno.test("Turso backfill guard preserves live writes and deletions", async () => {
+  await withStorage(async (storage) => {
+    const tursoStorage = storage as ReturnType<typeof createTursoStorage>;
+    assertEquals(
+      await tursoStorage.canImportKvEntity("session", "live-session"),
+      true,
+    );
+    await storage.saveSession({
+      ...testSession(),
+      tokenHash: "live-session",
+    });
+    assertEquals(
+      await tursoStorage.canImportKvEntity("session", "live-session"),
+      false,
+    );
+    await storage.deleteSession("deleted-session");
+    assertEquals(
+      await tursoStorage.canImportKvEntity("session", "deleted-session"),
+      false,
+    );
+  });
+});
+
+Deno.test("Turso KV import cannot race with a newer live write", async () => {
+  const client = new MemorySqlClient();
+  try {
+    const liveStorage = createTursoStorage(defaultSettings, { client });
+    const importStorage = createTursoStorage(defaultSettings, {
+      client,
+      writeMode: "kv-import",
+    });
+    await liveStorage.saveSession({
+      ...testSession(),
+      tokenHash: "shared-session",
+      username: "newer-live-value",
+    });
+
+    await assertRejects(() =>
+      importStorage.saveSession({
+        ...testSession(),
+        tokenHash: "shared-session",
+        username: "older-kv-value",
+      })
+    );
+
+    assertEquals(
+      (await liveStorage.getSession("shared-session"))?.username,
+      "newer-live-value",
+    );
+  } finally {
+    client.close();
+  }
+});
+
 /**
  * 使用独立内存 libSQL 数据库运行测试。
  *
@@ -473,6 +527,21 @@ function passkey(userId: string, credentialId: string): PasskeyCredential {
     credentialId,
     publicKey: "public-key",
     userId,
+  };
+}
+
+/**
+ * 创建测试会话。
+ *
+ * @return {UserSession} 测试会话。
+ */
+function testSession(): UserSession {
+  return {
+    createdAt: "2026-09-01T00:00:00.000Z",
+    expiresAt: "2026-10-01T00:00:00.000Z",
+    tokenHash: "token-hash",
+    userId: "alice-id",
+    username: "alice",
   };
 }
 

@@ -6,7 +6,7 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 1;
+export const TURSO_SCHEMA_VERSION = 2;
 
 /**
  * 首版 Turso schema 迁移语句。
@@ -158,6 +158,15 @@ export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
     entity_key TEXT NOT NULL,
     deleted_at TEXT NOT NULL,
     PRIMARY KEY (entity_type, entity_key)
+  )`,
+  `CREATE TABLE IF NOT EXISTS storage_mutations (
+    entity_type TEXT NOT NULL,
+    entity_key TEXT NOT NULL,
+    mutated_at TEXT NOT NULL,
+    PRIMARY KEY (entity_type, entity_key)
+  )`,
+  `CREATE TABLE IF NOT EXISTS storage_import_guard (
+    id INTEGER NOT NULL CONSTRAINT storage_import_allowed CHECK (id = 1)
   )`,
   {
     sql: `INSERT OR IGNORE INTO schema_migrations (version, applied_at)

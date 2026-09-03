@@ -3,6 +3,7 @@
     "dev": "deno run --env-file=.env --allow-net --allow-env --allow-read --unstable-kv --watch src/main.ts",
     "start": "deno run --allow-net --allow-env --allow-read --unstable-kv src/main.ts",
     "clear-seen": "deno run --unstable-kv src/storage/clear_seen.ts",
+    "storage:migrate-kv": "deno run --allow-env --allow-net --unstable-kv src/storage/migrate_kv_to_turso.ts",
     "auth:check-legacy": "deno run --allow-env --unstable-kv src/auth/check_legacy_accounts.ts",
     "check": "deno lint && deno check src/main.ts src/deploy.ts && deno test --allow-env --unstable-kv"
   },

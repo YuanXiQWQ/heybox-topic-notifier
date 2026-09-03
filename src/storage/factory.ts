@@ -4,6 +4,7 @@
 import type { AppSettings } from "../models.ts";
 import { createDualWriteStorage } from "./dual_write.ts";
 import { createKvStorage } from "./kv.ts";
+import { createShadowReadStorage } from "./shadow_read.ts";
 import { createTursoStorage } from "./turso.ts";
 import type { Storage } from "./types.ts";
 
@@ -40,16 +41,22 @@ export function createAppStorage(
   const environment = options.environment ?? Deno.env;
   const readBackend = environment.get("STORAGE_READ_BACKEND")?.trim() || "kv";
   const dualWriteBackend = environment.get("STORAGE_DUAL_WRITE")?.trim() || "";
+  const shadowReadBackend = environment.get("STORAGE_SHADOW_READ")?.trim() ||
+    "";
   if (readBackend !== "kv" && readBackend !== "turso") {
     throw new Error("STORAGE_READ_BACKEND must be kv or turso.");
   }
   if (dualWriteBackend !== "" && dualWriteBackend !== "turso") {
     throw new Error("STORAGE_DUAL_WRITE must be empty or turso.");
   }
+  if (shadowReadBackend !== "" && shadowReadBackend !== "turso") {
+    throw new Error("STORAGE_SHADOW_READ must be empty or turso.");
+  }
 
   const kvStorage = options.kvStorage ??
     (readBackend === "kv" ? createKvStorage(defaultSettings) : undefined);
-  const needsTurso = readBackend === "turso" || dualWriteBackend === "turso";
+  const needsTurso = readBackend === "turso" || dualWriteBackend === "turso" ||
+    shadowReadBackend === "turso";
   const tursoStorage = options.tursoStorage ??
     (needsTurso
       ? createTursoStorage(defaultSettings, {
@@ -67,7 +74,10 @@ export function createAppStorage(
   if (!kvStorage) {
     throw new Error("KV storage is not available.");
   }
-  return dualWriteBackend === "turso" && tursoStorage
+  const authoritative = dualWriteBackend === "turso" && tursoStorage
     ? createDualWriteStorage(kvStorage, tursoStorage)
     : kvStorage;
+  return shadowReadBackend === "turso" && tursoStorage
+    ? createShadowReadStorage(authoritative, tursoStorage)
+    : authoritative;
 }

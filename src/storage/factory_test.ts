@@ -23,6 +23,24 @@ Deno.test("storage factory selects Turso only when explicitly configured", () =>
   assertSame(storage, tursoStorage);
 });
 
+Deno.test("storage factory enables shadow reads without replacing KV authority", async () => {
+  const kvStorage = {
+    getSession: () => Promise.resolve({ username: "kv" }),
+  } as unknown as Storage;
+  const tursoStorage = {
+    getSession: () => Promise.resolve({ username: "kv" }),
+  } as unknown as Storage;
+  const storage = createAppStorage(defaultSettings, {
+    environment: environment({ STORAGE_SHADOW_READ: "turso" }),
+    kvStorage,
+    tursoStorage,
+  });
+
+  const session = await storage.getSession("token-hash");
+
+  assertSame(session?.username, "kv");
+});
+
 /**
  * 创建测试环境变量读取器。
  *

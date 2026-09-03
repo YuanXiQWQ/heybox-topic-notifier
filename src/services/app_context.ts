@@ -50,57 +50,65 @@ export type AppConfig = {
 export type AppContext = ReturnType<typeof createAppContext>;
 
 /**
- * 创建应用运行时上下文。
+ * 从环境变量创建默认应用设置。
  *
- * @return 包含配置、存储、匹配器、通知器、数据源、轮询器和调度器的上下文对象。
+ * @return {AppSettings} 默认应用设置。
  */
-export function createAppContext() {
+export function defaultAppSettingsFromEnv(): AppSettings {
   const defaultKeywordRules: KeywordRule[] = ["求助", "怎么", "卡住", "打不开"]
     .map((keyword) => ({
       keyword,
       locations: ["title", "body", "comments", "replies"],
     }));
-
-  const config: AppConfig = {
-    defaultSettings: {
-      activeKeywordTarget: "common",
-      commonKeywordRules: defaultKeywordRules,
-      darkMode: false,
-      locale: normalizeLocale(Deno.env.get("APP_LOCALE")),
-      notificationEmailAddress: Deno.env.get("NOTIFIER_EMAIL_ADDRESS") ?? "",
-      notificationEmailApiToken: Deno.env.get("NOTIFIER_EMAIL_API_TOKEN") ?? "",
-      notificationEmailApiUrl: Deno.env.get("NOTIFIER_EMAIL_API_URL") ?? "",
-      notificationEmailFrom: Deno.env.get("NOTIFIER_EMAIL_FROM") ?? "",
-      notificationEmailService: notificationEmailServiceFromEnv(),
-      notificationProvider: notificationProviderFromEnv(),
-      notificationPushPlusToken: Deno.env.get("NOTIFIER_PUSHPLUS_TOKEN") ?? "",
-      notificationServerChanSendKey:
-        Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_KEY") ?? "",
-      notificationSmtpHost: Deno.env.get("NOTIFIER_SMTP_HOST") ?? "",
-      notificationSmtpPassword: Deno.env.get("NOTIFIER_SMTP_PASSWORD") ?? "",
-      notificationSmtpPort: positiveIntegerFromEnv("NOTIFIER_SMTP_PORT", 465),
-      notificationSmtpSecure: Deno.env.get("NOTIFIER_SMTP_SECURE") !== "false",
-      notificationSmtpUsername: Deno.env.get("NOTIFIER_SMTP_USERNAME") ?? "",
-      notificationWebhookService: notificationWebhookServiceFromEnv(),
-      notificationWebhookUrl: Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "",
-      notificationWxPusherSpt: Deno.env.get("NOTIFIER_WXPUSHER_SPT") ?? "",
-      polling: {
-        enabled: Deno.env.get("POLL_ENABLED") === "true",
-        intervalUnit: "minute",
-        intervalValue: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
-        postLimit: positiveIntegerFromEnv("POLL_POST_LIMIT", 20),
-        sort: pollSortFromEnv(),
-      },
-      themeColor: "#bd7fff",
-      topics: [
-        {
-          enabled: true,
-          id: Deno.env.get("HEYBOX_TOPIC_ID") ?? "12099",
-          keywordRules: [],
-          note: "蔚蓝",
-        },
-      ],
+  return {
+    activeKeywordTarget: "common",
+    commonKeywordRules: defaultKeywordRules,
+    darkMode: false,
+    locale: normalizeLocale(Deno.env.get("APP_LOCALE")),
+    notificationEmailAddress: Deno.env.get("NOTIFIER_EMAIL_ADDRESS") ?? "",
+    notificationEmailApiToken: Deno.env.get("NOTIFIER_EMAIL_API_TOKEN") ?? "",
+    notificationEmailApiUrl: Deno.env.get("NOTIFIER_EMAIL_API_URL") ?? "",
+    notificationEmailFrom: Deno.env.get("NOTIFIER_EMAIL_FROM") ?? "",
+    notificationEmailService: notificationEmailServiceFromEnv(),
+    notificationProvider: notificationProviderFromEnv(),
+    notificationPushPlusToken: Deno.env.get("NOTIFIER_PUSHPLUS_TOKEN") ?? "",
+    notificationServerChanSendKey:
+      Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_KEY") ?? "",
+    notificationSmtpHost: Deno.env.get("NOTIFIER_SMTP_HOST") ?? "",
+    notificationSmtpPassword: Deno.env.get("NOTIFIER_SMTP_PASSWORD") ?? "",
+    notificationSmtpPort: positiveIntegerFromEnv("NOTIFIER_SMTP_PORT", 465),
+    notificationSmtpSecure: Deno.env.get("NOTIFIER_SMTP_SECURE") !== "false",
+    notificationSmtpUsername: Deno.env.get("NOTIFIER_SMTP_USERNAME") ?? "",
+    notificationWebhookService: notificationWebhookServiceFromEnv(),
+    notificationWebhookUrl: Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "",
+    notificationWxPusherSpt: Deno.env.get("NOTIFIER_WXPUSHER_SPT") ?? "",
+    polling: {
+      enabled: Deno.env.get("POLL_ENABLED") === "true",
+      intervalUnit: "minute",
+      intervalValue: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
+      postLimit: positiveIntegerFromEnv("POLL_POST_LIMIT", 20),
+      sort: pollSortFromEnv(),
     },
+    themeColor: "#bd7fff",
+    topics: [
+      {
+        enabled: true,
+        id: Deno.env.get("HEYBOX_TOPIC_ID") ?? "12099",
+        keywordRules: [],
+        note: "蔚蓝",
+      },
+    ],
+  };
+}
+
+/**
+ * 创建应用运行时上下文。
+ *
+ * @return 包含配置、存储、匹配器、通知器、数据源、轮询器和调度器的上下文对象。
+ */
+export function createAppContext() {
+  const config: AppConfig = {
+    defaultSettings: defaultAppSettingsFromEnv(),
     emailVerification: emailVerificationConfigFromEnv(),
     google: googleAuthConfigFromEnv(),
     passkey: passkeyConfigFromEnv(),

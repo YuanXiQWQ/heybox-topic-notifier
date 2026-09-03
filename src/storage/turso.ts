@@ -65,6 +65,21 @@ export type TursoStorageOptions = {
   authToken?: string;
   client?: TursoClient;
   url?: string;
+  writeMode?: "kv-import" | "live";
+};
+
+/**
+ * Turso 存储额外提供的迁移保护能力。
+ */
+export type TursoStorage = Storage & {
+  /**
+   * 判断 KV 实体是否可以安全回填。
+   *
+   * @param {string} entityType 实体类型。
+   * @param {string} entityKey 实体稳定键。
+   * @return {Promise<boolean>} 未实时变更且未删除时返回 true。
+   */
+  canImportKvEntity(entityType: string, entityKey: string): Promise<boolean>;
 };
 
 /**
@@ -77,8 +92,9 @@ export type TursoStorageOptions = {
 export function createTursoStorage(
   defaultSettings: AppSettings,
   options: TursoStorageOptions = {},
-): Storage {
+): TursoStorage {
   const client = options.client ?? createRemoteClient(options);
+  const writeMode = options.writeMode ?? "live";
   let readyPromise: Promise<void> | undefined;
 
   /**
@@ -128,8 +144,27 @@ export function createTursoStorage(
     entityKey: string,
     statement: InStatement,
   ): Promise<ResultSet> {
+    if (writeMode === "kv-import") {
+      try {
+        const results = await batch([
+          "DELETE FROM storage_import_guard",
+          claimKvImportStatement(entityType, entityKey),
+          `INSERT INTO storage_import_guard (id)
+            VALUES (CASE WHEN changes() = 1 THEN 1 ELSE 0 END)`,
+          statement,
+          "DELETE FROM storage_import_guard",
+        ]);
+        return results[3];
+      } catch (error) {
+        if (isImportGuardConstraintError(error)) {
+          throw kvImportBlockedError();
+        }
+        throw error;
+      }
+    }
     const results = await batch([
       statement,
+      mutationStatement(entityType, entityKey, true),
       {
         sql: `DELETE FROM storage_tombstones
           WHERE entity_type = ? AND entity_key = ?`,
@@ -162,6 +197,7 @@ export function createTursoStorage(
             deleted_at = excluded.deleted_at`,
         args: [entityType, entityKey, new Date().toISOString()],
       },
+      mutationStatement(entityType, entityKey),
     ]);
   }
 
@@ -301,6 +337,7 @@ export function createTursoStorage(
               WHERE user_id = ? AND id = ?`,
             args: [completedAt, completedAt, userId, id],
           },
+          mutationStatement("match", entityKey(userId, id), true),
           clearTombstoneStatement("match", entityKey(userId, id)),
         ]));
       },
@@ -341,6 +378,29 @@ export function createTursoStorage(
   return {
     ...defaultUserStorage,
     forUser,
+
+    /**
+     * 判断 KV 实体是否可以安全回填。
+     *
+     * @param {string} entityType 实体类型。
+     * @param {string} entityKey 实体稳定键。
+     * @return {Promise<boolean>} 未实时变更且未删除时返回 true。
+     */
+    async canImportKvEntity(
+      entityType: string,
+      entityKey: string,
+    ): Promise<boolean> {
+      const result = await execute({
+        sql: `SELECT 1 AS blocked FROM storage_tombstones
+            WHERE entity_type = ? AND entity_key = ?
+          UNION ALL
+          SELECT 1 AS blocked FROM storage_mutations
+            WHERE entity_type = ? AND entity_key = ?
+          LIMIT 1`,
+        args: [entityType, entityKey, entityType, entityKey],
+      });
+      return result.rows.length === 0;
+    },
 
     /**
      * 按账号 ID 获取账号。
@@ -402,12 +462,15 @@ export function createTursoStorage(
      */
     async createAccount(account: UserAccount): Promise<boolean> {
       try {
-        const result = await execute({
-          sql: `INSERT INTO user_accounts
-              (id, username, username_normalized, created_at, value_json)
-            VALUES (?, ?, ?, ?, ?)`,
-          args: accountArgs(account),
-        });
+        const [result] = await batch([
+          {
+            sql: `INSERT INTO user_accounts
+                (id, username, username_normalized, created_at, value_json)
+              VALUES (?, ?, ?, ?, ?)`,
+            args: accountArgs(account),
+          },
+          mutationStatement("account", account.id, true),
+        ]);
         return result.rowsAffected === 1;
       } catch (error) {
         if (isConstraintError(error)) {
@@ -425,18 +488,21 @@ export function createTursoStorage(
      */
     async updateAccount(account: UserAccount): Promise<boolean> {
       try {
-        const result = await execute({
-          sql: `UPDATE user_accounts SET
-              username = ?, username_normalized = ?, created_at = ?, value_json = ?
-            WHERE id = ?`,
-          args: [
-            account.username,
-            normalizeUsername(account.username),
-            account.createdAt,
-            JSON.stringify(account),
-            account.id,
-          ],
-        });
+        const [result] = await batch([
+          {
+            sql: `UPDATE user_accounts SET
+                username = ?, username_normalized = ?, created_at = ?, value_json = ?
+              WHERE id = ?`,
+            args: [
+              account.username,
+              normalizeUsername(account.username),
+              account.createdAt,
+              JSON.stringify(account),
+              account.id,
+            ],
+          },
+          mutationStatement("account", account.id, true),
+        ]);
         return result.rowsAffected === 1;
       } catch (error) {
         if (isConstraintError(error)) {
@@ -1912,6 +1978,101 @@ function tombstoneStatement(
         deleted_at = excluded.deleted_at`,
     args: [entityType, entityKey, deletedAt],
   };
+}
+
+/**
+ * 创建实时变更标记 UPSERT 语句。
+ *
+ * @param {string} entityType 实体类型。
+ * @param {string} entityKey 实体键。
+ * @param {boolean} onlyIfChanged 是否仅在上一条语句实际修改数据时记录。
+ * @return {InStatement} SQL 语句。
+ */
+function mutationStatement(
+  entityType: string,
+  entityKey: string,
+  onlyIfChanged = false,
+): InStatement {
+  return {
+    sql: `INSERT INTO storage_mutations
+        (entity_type, entity_key, mutated_at)
+      SELECT ?, ?, ?
+      ${onlyIfChanged ? "WHERE changes() > 0" : ""}
+      ON CONFLICT(entity_type, entity_key) DO UPDATE SET
+        mutated_at = excluded.mutated_at`,
+    args: [entityType, entityKey, new Date().toISOString()],
+  };
+}
+
+/**
+ * 创建原子声明 KV 回填权的 SQL 语句。
+ *
+ * @param {string} entityType 实体类型。
+ * @param {string} entityKey 实体键。
+ * @return {InStatement} SQL 语句。
+ */
+function claimKvImportStatement(
+  entityType: string,
+  entityKey: string,
+): InStatement {
+  return {
+    sql: `INSERT OR IGNORE INTO storage_mutations
+        (entity_type, entity_key, mutated_at)
+      SELECT ?, ?, ?
+      WHERE NOT EXISTS (
+        SELECT 1 FROM storage_mutations
+        WHERE entity_type = ? AND entity_key = ?
+      ) AND NOT EXISTS (
+        SELECT 1 FROM storage_tombstones
+        WHERE entity_type = ? AND entity_key = ?
+      )`,
+    args: [
+      entityType,
+      entityKey,
+      new Date().toISOString(),
+      entityType,
+      entityKey,
+      entityType,
+      entityKey,
+    ],
+  };
+}
+
+/**
+ * 创建 KV 实体因实时变更而不能回填的内部错误。
+ *
+ * @return {Error} 带稳定名称的内部错误。
+ */
+function kvImportBlockedError(): Error {
+  const error = new Error("KV import was blocked by a newer mutation.");
+  error.name = "KvImportBlockedError";
+  return error;
+}
+
+/**
+ * 判断错误是否为 KV 回填保护约束错误。
+ *
+ * @param {unknown} error 捕获到的错误。
+ * @return {boolean} 是否为回填保护约束错误。
+ */
+function isImportGuardConstraintError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const candidate = error as { message?: unknown; statementIndex?: unknown };
+  return candidate.statementIndex === 2 ||
+    (typeof candidate.message === "string" &&
+      candidate.message.includes("storage_import_allowed"));
+}
+
+/**
+ * 判断错误是否表示 KV 实体已被实时变更阻止回填。
+ *
+ * @param {unknown} error 捕获到的错误。
+ * @return {boolean} 是否为回填被阻止错误。
+ */
+export function isKvImportBlockedError(error: unknown): boolean {
+  return error instanceof Error && error.name === "KvImportBlockedError";
 }
 
 /**
