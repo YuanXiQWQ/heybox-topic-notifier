@@ -304,28 +304,51 @@ async function refreshTwoStepSettings(url) {
 }
 
 /**
- * 原地同步 Passkey 设置行并重新绑定交互。
+ * 原地同步 Passkey 设置行和两步验证设置区域并重新绑定交互。
  *
  * @param {string} url 最新设置页地址。
- * @return {Promise<boolean>} 设置行更新成功时返回 true。
+ * @return {Promise<boolean>} 所有相关设置区域更新成功时返回 true。
  */
 async function refreshPasskeySettings(url) {
   const parsed = await fetchSettingsDocument(url);
   const currentRow = document.querySelector("#auth-method-passkey");
   const nextRow = parsed.querySelector("#auth-method-passkey");
+  const currentForm = document.querySelector("[data-security-settings-form]");
+  const nextForm = parsed.querySelector("[data-security-settings-form]");
+  const currentSection = document.querySelector(
+    'section[aria-labelledby="account-two-step-heading"]',
+  );
+  const nextSection = parsed.querySelector(
+    'section[aria-labelledby="account-two-step-heading"]',
+  );
   if (
     !(currentRow instanceof HTMLElement) ||
-    !(nextRow instanceof HTMLElement)
+    !(nextRow instanceof HTMLElement) ||
+    !(currentForm instanceof HTMLFormElement) ||
+    !(nextForm instanceof HTMLFormElement) ||
+    !(currentSection instanceof HTMLElement) ||
+    !(nextSection instanceof HTMLElement)
   ) {
     return false;
   }
 
   currentRow.replaceWith(nextRow);
+  currentForm.replaceWith(nextForm);
+  currentSection.replaceWith(nextSection);
   pendingSensitiveActionForm = undefined;
   initAuthMethodPanels(nextRow);
   initPasskeyBinding(nextRow);
   initSensitiveActionForms(nextRow);
   initReauth(nextRow);
+  initAuthMethodPanels(nextSection);
+  initTotpBinding(nextSection);
+  initTotpManualKeyCopy(nextSection);
+  initRecoveryCodeDownload();
+  initRecoveryCodeConfirmation();
+  initRecoveryCodeGeneration();
+  initSensitiveActionForms(nextSection);
+  initReauth(nextSection);
+  initSecuritySettingsAutoSave();
   return true;
 }
 
@@ -2825,7 +2848,7 @@ async function submitSensitiveAction(form) {
       return false;
     }
 
-    completeCredentialDeletion(form, payload);
+    await completeCredentialDeletion(form, payload);
     return true;
   } catch {
     return false;
@@ -2867,12 +2890,13 @@ function showSensitiveActionReauth(form) {
 }
 
 /**
- * 将已删除的凭证从页面移除并同步摘要和状态。
+ * 将已删除的凭证从页面移除，并同步两步验证设置。
  *
  * @param {HTMLFormElement} form 已完成的删除表单。
  * @param {{remainingCount?: number}} payload 服务端删除结果。
+ * @return {Promise<void>} 两步验证设置同步完成后的 Promise。
  */
-function completeCredentialDeletion(form, payload) {
+async function completeCredentialDeletion(form, payload) {
   const section = form.closest(
     "[data-totp-binding-section], [data-passkey-binding-section]",
   );
@@ -2880,6 +2904,9 @@ function completeCredentialDeletion(form, payload) {
     return;
   }
 
+  const credentialType = section.matches("[data-totp-binding-section]")
+    ? "totp"
+    : "passkey";
   const remainingCount = Number(payload.remainingCount);
   form.closest("li")?.remove();
   const list = section.querySelector(".passkey-credential-list");
@@ -2910,6 +2937,13 @@ function completeCredentialDeletion(form, payload) {
   if (panel instanceof HTMLElement) {
     removeTransientReauthSections(panel);
   }
+
+  const refreshUrl = new URL(globalThis.location.href);
+  refreshUrl.searchParams.set(credentialType, "deleted");
+  refreshUrl.hash = credentialType === "totp"
+    ? "auth-method-totp"
+    : "auth-method-passkey";
+  await refreshTwoStepSettings(refreshUrl.href).catch(() => false);
 }
 
 /**
