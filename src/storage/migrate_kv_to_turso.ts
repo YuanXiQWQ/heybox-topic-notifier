@@ -397,8 +397,27 @@ function migrationTargetFromEnv(): TursoStorage {
   });
 }
 
+/**
+ * 读取需要回填的源 KV 连接地址。
+ *
+ * 迁移命令刻意不回退到无参数的 `Deno.openKv()`，避免在本地误打开空白 KV
+ * 并把“迁移了零条数据”当作生产回填成功。
+ *
+ * @param {(name: string) => string | undefined} readEnv 环境变量读取函数。
+ * @return {string} 源 KV 连接地址。
+ */
+export function sourceKvUrlFromEnv(
+  readEnv: (name: string) => string | undefined = (name) => Deno.env.get(name),
+): string {
+  const value = readEnv("DENO_KV_SOURCE_URL")?.trim();
+  if (!value) {
+    throw new Error("DENO_KV_SOURCE_URL is required for KV migration.");
+  }
+  return value;
+}
+
 if (import.meta.main) {
-  const kv = await Deno.openKv();
+  const kv = await Deno.openKv(sourceKvUrlFromEnv());
   try {
     const report = await migrateKvToTurso(kv, migrationTargetFromEnv());
     console.log(JSON.stringify(report, null, 2));

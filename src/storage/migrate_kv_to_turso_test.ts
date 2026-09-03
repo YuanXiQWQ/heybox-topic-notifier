@@ -5,9 +5,30 @@ import type { AppSettings, UserSession } from "../models.ts";
 import {
   type KvMigrationSource,
   migrateKvToTurso,
+  sourceKvUrlFromEnv,
 } from "./migrate_kv_to_turso.ts";
 import type { TursoStorage } from "./turso.ts";
 import type { UserStorage } from "./types.ts";
+
+Deno.test("KV backfill requires an explicit source connection URL", () => {
+  let error: unknown;
+  try {
+    sourceKvUrlFromEnv(() => undefined);
+  } catch (cause) {
+    error = cause;
+  }
+
+  assertEquals(
+    error instanceof Error ? error.message : undefined,
+    "DENO_KV_SOURCE_URL is required for KV migration.",
+  );
+  assertEquals(
+    sourceKvUrlFromEnv(() =>
+      "  https://api.deno.com/v2/databases/id/connect  "
+    ),
+    "https://api.deno.com/v2/databases/id/connect",
+  );
+});
 
 Deno.test("KV backfill skips live mutations, indexes and expired sessions", async () => {
   const now = Date.parse("2026-09-03T00:00:00.000Z");
