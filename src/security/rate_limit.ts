@@ -1,7 +1,7 @@
 /**
  * @file 本文件提供公开部署下的轻量服务端频率限制能力。
  */
-import type { RateLimitHit } from "../storage/kv.ts";
+import type { RateLimitHit } from "../storage/types.ts";
 import { getMessages, localeFromRequest } from "../locales/index.ts";
 import { logSecurityAuditEvent } from "./audit_log.ts";
 import { base64UrlEncode } from "./crypto_utils.ts";

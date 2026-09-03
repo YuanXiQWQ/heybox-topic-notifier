@@ -4,13 +4,13 @@
 import type { UserAccount } from "../models.ts";
 import { parseCookies } from "../security/cookies.ts";
 import { base64UrlEncode } from "../security/crypto_utils.ts";
-import type { createKvStorage } from "../storage/kv.ts";
+import type { Storage } from "../storage/types.ts";
 
 /**
  * 认证会话模块使用的存储能力。
  */
 type SessionStorage = Pick<
-  ReturnType<typeof createKvStorage>,
+  Storage,
   "deleteSession" | "getSession" | "saveSession"
 >;
 

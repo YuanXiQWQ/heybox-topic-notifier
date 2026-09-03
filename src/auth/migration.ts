@@ -2,13 +2,13 @@
  * @file 本文件提供认证数据迁移检查辅助能力。
  */
 import type { PasswordCredential, UserAccount } from "../models.ts";
-import type { createKvStorage } from "../storage/kv.ts";
+import type { Storage } from "../storage/types.ts";
 
 /**
  * 认证迁移检查需要使用的存储能力。
  */
 type MigrationStorage = Pick<
-  ReturnType<typeof createKvStorage>,
+  Storage,
   "getPasswordCredential" | "listAccounts"
 >;
 

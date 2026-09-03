@@ -42,7 +42,7 @@ import {
   rateLimitExceededResponseFor,
   userRateLimitIdentifier,
 } from "./security/rate_limit.ts";
-import type { createKvStorage } from "./storage/kv.ts";
+import type { Storage } from "./storage/types.ts";
 import { languageTextIcon } from "./views/icons.ts";
 import {
   clearSessionCookie,
@@ -106,11 +106,6 @@ import {
 
 export { readAuthSession } from "./auth/session.ts";
 export type { AuthSession } from "./auth/session.ts";
-
-/**
- * 认证模块使用的存储类型。
- */
-type Storage = ReturnType<typeof createKvStorage>;
 
 /**
  * Passkey 认证响应校验函数。

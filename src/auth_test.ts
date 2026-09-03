@@ -39,7 +39,7 @@ import type {
   UserSession,
 } from "./models.ts";
 import { base64UrlEncode } from "./security/crypto_utils.ts";
-import type { createKvStorage } from "./storage/kv.ts";
+import type { Storage, UserStorage } from "./storage/types.ts";
 import {
   addUniqueAccount,
   assertEquals,
@@ -2088,7 +2088,7 @@ async function requestText(body: BodyInit | null | undefined): Promise<string> {
  *
  * @return 带会话记录能力的内存存储。
  */
-function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
+function createMemoryStorage(): Storage & {
   authIdentitiesByKey: Map<string, AuthIdentity>;
   emailCredentialsByKey: Map<string, EmailCredential>;
   passkeyCredentialsByKey: Map<string, PasskeyCredential>;
@@ -2169,7 +2169,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
           settingsByUserId.set(userId, cloneSettings(settings));
           return Promise.resolve();
         },
-      }) as ReturnType<ReturnType<typeof createKvStorage>["forUser"]>,
+      }) as UserStorage,
     getAccountById: (id: string) => Promise.resolve(accountsById.get(id)),
     getAccountByUsername: (username: string) => {
       const id = accountIdsByUsername.get(username.trim().toLowerCase());
@@ -2422,7 +2422,7 @@ function createMemoryStorage(): ReturnType<typeof createKvStorage> & {
       sessionsByTokenHash.delete(tokenHash);
       return Promise.resolve();
     },
-  } as unknown as ReturnType<typeof createKvStorage> & {
+  } as unknown as Storage & {
     authIdentitiesByKey: Map<string, AuthIdentity>;
     emailCredentialsByKey: Map<string, EmailCredential>;
     passkeyCredentialsByKey: Map<string, PasskeyCredential>;
