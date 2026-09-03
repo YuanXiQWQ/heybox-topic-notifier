@@ -30,7 +30,7 @@ Deno.test("KV backfill requires an explicit source connection URL", () => {
   );
 });
 
-Deno.test("KV backfill skips live mutations, indexes and expired sessions", async () => {
+Deno.test("KV backfill avoids derived indexes and skips expired sessions", async () => {
   const now = Date.parse("2026-09-03T00:00:00.000Z");
   const calls: string[] = [];
   const source = new MemoryMigrationSource([
@@ -57,10 +57,11 @@ Deno.test("KV backfill skips live mutations, indexes and expired sessions", asyn
 
   const report = await migrateKvToTurso(source, target, now);
 
-  assertEquals(report.scanned, 5);
+  assertEquals(report.scanned, 4);
   assertEquals(report.imported, 2);
-  assertEquals(report.skipped, 3);
+  assertEquals(report.skipped, 2);
   assertEquals(report.failed, 0);
+  assertEquals(report.families.accountUsernames, undefined);
   assertEquals(calls, ["session:active-session", "alice-id:settings"]);
   assertEquals(report.families.sessions, {
     failed: 0,
