@@ -9,16 +9,16 @@ import type { Context, MiddlewareHandler } from "@hono/hono";
 const contentSecurityPolicyDirectives = [
   "default-src 'self'",
   "base-uri 'self'",
-  "connect-src 'self'",
+  "connect-src 'self' https://challenges.cloudflare.com https://accounts.google.com/gsi/",
   "font-src 'self' data:",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "frame-src 'none'",
+  "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/",
   "img-src 'self' https://cdn.max-c.com data:",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://accounts.google.com/gsi/client",
   "script-src-attr 'none'",
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
   "style-src-attr 'unsafe-inline'",
 ];
 
@@ -27,7 +27,7 @@ const contentSecurityPolicyDirectives = [
  */
 const defaultSecurityHeaders = {
   "content-security-policy": contentSecurityPolicyDirectives.join("; "),
-  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-opener-policy": "same-origin-allow-popups",
   "cross-origin-resource-policy": "same-origin",
   "origin-agent-cluster": "?1",
   "permissions-policy": [
@@ -63,7 +63,11 @@ export function createSecurityHeadersMiddleware(): MiddlewareHandler {
     }
 
     if (isHttpsRequest(c.req.url)) {
-      setHeaderIfAbsent(c, "strict-transport-security", strictTransportSecurityHeader);
+      setHeaderIfAbsent(
+        c,
+        "strict-transport-security",
+        strictTransportSecurityHeader,
+      );
     }
   };
 }
@@ -75,7 +79,11 @@ export function createSecurityHeadersMiddleware(): MiddlewareHandler {
  * @param {string} name 响应头名称。
  * @param {string} value 响应头值。
  */
-function setHeaderIfAbsent(context: Context, name: string, value: string): void {
+function setHeaderIfAbsent(
+  context: Context,
+  name: string,
+  value: string,
+): void {
   if (!context.res.headers.has(name)) {
     context.header(name, value);
   }

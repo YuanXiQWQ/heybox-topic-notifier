@@ -4,16 +4,35 @@
 import type {
   AppSettings,
   AppState,
+  AuthenticationEvent,
+  AuthenticationEventPurpose,
+  AuthIdentity,
+  AuthIdentityProvider,
   DashboardSnapshot,
+  EmailCredential,
   KeywordRule,
   MatchRecord,
+  PasskeyChallengePurpose,
+  PasskeyCredential,
+  PasswordCredential,
+  PendingEmailVerification,
+  PendingMfaChallenge,
+  PendingPasskeyChallenge,
+  PendingRecoveryCodeReveal,
   PollingSettings,
   PollIntervalUnit,
   PollSort,
   TopicRule,
+  TotpCredential,
   UserAccount,
+  UserSecuritySettings,
   UserSession,
 } from "../models.ts";
+import { normalizeEmailAddress } from "../auth/email.ts";
+import {
+  normalizePendingMfaChallenge,
+  normalizeUserSecuritySettings,
+} from "../auth/mfa.ts";
 import {
   normalizeNotificationEmailService,
   normalizeNotificationWebhookService,
@@ -24,13 +43,50 @@ import {
  */
 const keys = {
   account: (id: string) => ["accounts", id] as const,
-  accountUsername: (username: string) => ["accountUsernames", normalizeUsername(username)] as const,
-  loginFailure: (username: string) => ["loginFailures", normalizeUsername(username)] as const,
-  match: (userId: string, id: string) => ["userData", userId, "matches", id] as const,
+  accountUsername: (username: string) =>
+    ["accountUsernames", normalizeUsername(username)] as const,
+  authenticationEvent: (
+    userId: string,
+    purpose: AuthenticationEventPurpose,
+  ) => ["authenticationEvents", userId, purpose] as const,
+  authIdentity: (provider: AuthIdentityProvider, providerUserId: string) =>
+    ["authIdentities", provider, providerUserId] as const,
+  authIdentityProviderPrefix: (provider: AuthIdentityProvider) =>
+    ["authIdentities", provider] as const,
+  emailCredential: (userId: string, email: string) =>
+    ["emailCredentials", userId, emailKey(email)] as const,
+  emailCredentialPrefix: (userId: string) =>
+    ["emailCredentials", userId] as const,
+  loginFailure: (username: string) =>
+    ["loginFailures", normalizeUsername(username)] as const,
+  match: (userId: string, id: string) =>
+    ["userData", userId, "matches", id] as const,
+  passkeyCredential: (userId: string, credentialId: string) =>
+    ["passkeyCredentials", userId, credentialId] as const,
+  passkeyCredentialIndex: (credentialId: string) =>
+    ["passkeyCredentialIndex", credentialId] as const,
+  passkeyCredentialPrefix: (userId: string) =>
+    ["passkeyCredentials", userId] as const,
+  passwordCredential: (userId: string) =>
+    ["passwordCredentials", userId] as const,
+  pendingEmailVerification: (id: string) =>
+    ["pendingEmailVerifications", id] as const,
+  pendingMfaChallenge: (id: string) => ["pendingMfaChallenges", id] as const,
+  pendingPasskeyChallenge: (id: string) =>
+    ["pendingPasskeyChallenges", id] as const,
+  pendingRecoveryCodeReveal: (id: string) =>
+    ["pendingRecoveryCodeReveals", id] as const,
   rateLimit: (parts: readonly string[]) => ["rateLimits", ...parts] as const,
   session: (tokenHash: string) => ["sessions", tokenHash] as const,
+  securitySettings: (userId: string) => ["securitySettings", userId] as const,
   settings: (userId: string) => ["userData", userId, "settings"] as const,
   state: (userId: string) => ["userData", userId, "state"] as const,
+  totpCredential: (userId: string, credentialId: string) =>
+    ["totpCredentials", userId, credentialId] as const,
+  totpCredentialLegacy: (userId: string) =>
+    ["totpCredentials", userId] as const,
+  totpCredentialPrefix: (userId: string) =>
+    ["totpCredentials", userId] as const,
 };
 
 /**
@@ -75,7 +131,11 @@ type KvAtomicOperation = {
   check(check: KvCheck): KvAtomicOperation;
   commit(): Promise<{ ok: boolean }>;
   delete(key: Deno.KvKey): KvAtomicOperation;
-  set(key: Deno.KvKey, value: unknown, options?: { expireIn?: number }): KvAtomicOperation;
+  set(
+    key: Deno.KvKey,
+    value: unknown,
+    options?: { expireIn?: number },
+  ): KvAtomicOperation;
 };
 
 /**
@@ -89,7 +149,9 @@ type KvStore = {
   /**
    * 读取指定 KV 键。
    */
-  get<T>(key: Deno.KvKey): Promise<{ value: T | null; versionstamp: string | null }>;
+  get<T>(
+    key: Deno.KvKey,
+  ): Promise<{ value: T | null; versionstamp: string | null }>;
   /**
    * 按前缀列出 KV 条目。
    */
@@ -97,7 +159,11 @@ type KvStore = {
   /**
    * 写入指定 KV 键值。
    */
-  set(key: Deno.KvKey, value: unknown, options?: { expireIn?: number }): Promise<unknown>;
+  set(
+    key: Deno.KvKey,
+    value: unknown,
+    options?: { expireIn?: number },
+  ): Promise<unknown>;
   /**
    * 创建原子读写操作。
    *
@@ -120,7 +186,10 @@ type KvStorageOptions = {
  * @param options KV 存储创建选项。
  * @return 应用存储操作集合。
  */
-export function createKvStorage(defaultSettings: AppSettings, options: KvStorageOptions = {}) {
+export function createKvStorage(
+  defaultSettings: AppSettings,
+  options: KvStorageOptions = {},
+) {
   let kvPromise: Promise<KvStore> | undefined;
 
   /**
@@ -153,7 +222,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
     const records: MatchRecord[] = [];
 
     for await (
-      const entry of store.list<MatchRecord>({ prefix: ["userData", userId, "matches"] })
+      const entry of store.list<MatchRecord>({
+        prefix: ["userData", userId, "matches"],
+      })
     ) {
       records.push(entry.value);
     }
@@ -176,7 +247,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
        */
       async getSettings(): Promise<AppSettings> {
         const store = await kv();
-        const entry = await store.get<Partial<AppSettings> & LegacySettings>(keys.settings(userId));
+        const entry = await store.get<Partial<AppSettings> & LegacySettings>(
+          keys.settings(userId),
+        );
         return normalizeSettings(entry.value, defaultSettings);
       },
 
@@ -226,12 +299,17 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
        */
       async getDashboardSnapshot(): Promise<DashboardSnapshot> {
         const store = await kv();
-        const settingsEntry = await store.get<Partial<AppSettings> & LegacySettings>(
+        const settingsEntry = await store.get<
+          Partial<AppSettings> & LegacySettings
+        >(
           keys.settings(userId),
         );
         const stateEntry = await store.get<AppState>(keys.state(userId));
         const records = await listMatchRecords(userId);
-        const settings = normalizeSettings(settingsEntry.value, defaultSettings);
+        const settings = normalizeSettings(
+          settingsEntry.value,
+          defaultSettings,
+        );
 
         return {
           pendingMatches: pendingFromRecords(records),
@@ -299,7 +377,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
       async completeMatches(ids: string[]): Promise<void> {
         const store = await kv();
         const completedAt = new Date().toISOString();
-        const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+        const uniqueIds = Array.from(
+          new Set(ids.filter((id) => id.trim().length > 0)),
+        );
 
         for (const id of uniqueIds) {
           const entry = await store.get<MatchRecord>(keys.match(userId, id));
@@ -307,7 +387,10 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
             continue;
           }
 
-          await store.set(keys.match(userId, id), { ...entry.value, completedAt });
+          await store.set(keys.match(userId, id), {
+            ...entry.value,
+            completedAt,
+          });
         }
       },
 
@@ -319,7 +402,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
        */
       async deleteMatches(ids: string[]): Promise<void> {
         const store = await kv();
-        const uniqueIds = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+        const uniqueIds = Array.from(
+          new Set(ids.filter((id) => id.trim().length > 0)),
+        );
 
         for (const id of uniqueIds) {
           await store.delete(keys.match(userId, id));
@@ -337,6 +422,38 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
         await store.set(keys.state(userId), { lastPollAt: value });
       },
     };
+  }
+
+  /**
+   * 读取指定用户的新旧格式验证器动态码凭证。
+   *
+   * @param {string} userId 用户 ID。
+   * @return {Promise<TotpCredential[]>} 验证器动态码凭证列表。
+   */
+  async function listTotpCredentialsForUser(
+    userId: string,
+  ): Promise<TotpCredential[]> {
+    const store = await kv();
+    const credentialsById = new Map<string, TotpCredential>();
+    const legacyEntry = await store.get<TotpCredential>(
+      keys.totpCredentialLegacy(userId),
+    );
+    if (legacyEntry.value) {
+      const credential = normalizeTotpCredential(legacyEntry.value, userId);
+      credentialsById.set(credential.credentialId ?? "legacy", credential);
+    }
+    for await (
+      const entry of store.list<TotpCredential>({
+        prefix: keys.totpCredentialPrefix(userId),
+      })
+    ) {
+      const credential = normalizeTotpCredential(entry.value, userId);
+      credentialsById.set(credential.credentialId ?? "legacy", credential);
+    }
+    return Array.from(credentialsById.values()).toSorted((left, right) =>
+      left.enabledAt.localeCompare(right.enabledAt) ||
+      (left.credentialId ?? "").localeCompare(right.credentialId ?? "")
+    );
   }
 
   return {
@@ -360,14 +477,18 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
      * @param username 用户名。
      * @return 账号信息，不存在时返回 undefined。
      */
-    async getAccountByUsername(username: string): Promise<UserAccount | undefined> {
+    async getAccountByUsername(
+      username: string,
+    ): Promise<UserAccount | undefined> {
       const store = await kv();
       const accountId = await store.get<string>(keys.accountUsername(username));
       if (!accountId.value) {
         return undefined;
       }
 
-      const account = await store.get<UserAccount>(keys.account(accountId.value));
+      const account = await store.get<UserAccount>(
+        keys.account(accountId.value),
+      );
       return account.value ?? undefined;
     },
 
@@ -379,7 +500,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
     async listAccounts(): Promise<UserAccount[]> {
       const store = await kv();
       const accounts: UserAccount[] = [];
-      for await (const entry of store.list<UserAccount>({ prefix: ["accounts"] })) {
+      for await (
+        const entry of store.list<UserAccount>({ prefix: ["accounts"] })
+      ) {
         accounts.push(entry.value);
       }
       return accounts;
@@ -427,10 +550,12 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
           return false;
         }
 
-        const currentUsernameKey = keys.accountUsername(currentAccount.username);
+        const currentUsernameKey = keys.accountUsername(
+          currentAccount.username,
+        );
         const nextUsernameKey = keys.accountUsername(account.username);
-        const usernameChanged =
-          normalizeUsername(currentAccount.username) !== normalizeUsername(account.username);
+        const usernameChanged = normalizeUsername(currentAccount.username) !==
+          normalizeUsername(account.username);
         const currentUsernameEntry = usernameChanged
           ? await store.get<string>(currentUsernameKey)
           : undefined;
@@ -472,6 +597,658 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
       }
 
       throw new Error("Could not update the account after concurrent updates.");
+    },
+
+    /**
+     * 获取指定用户的安全设置。
+     *
+     * @param userId 用户 ID。
+     * @return 用户安全设置。
+     */
+    async getUserSecuritySettings(
+      userId: string,
+    ): Promise<UserSecuritySettings> {
+      const store = await kv();
+      const entry = await store.get<Partial<UserSecuritySettings>>(
+        keys.securitySettings(userId),
+      );
+      return normalizeUserSecuritySettings(entry.value, userId);
+    },
+
+    /**
+     * 保存指定用户的安全设置。
+     *
+     * @param settings 用户安全设置。
+     * @return 保存完成后的 Promise。
+     */
+    async saveUserSecuritySettings(
+      settings: UserSecuritySettings,
+    ): Promise<void> {
+      const normalized = normalizeUserSecuritySettings(
+        settings,
+        settings.userId,
+      );
+      const store = await kv();
+      await store.set(keys.securitySettings(normalized.userId), normalized);
+    },
+
+    /**
+     * 获取指定用途的最近认证事件。
+     *
+     * @param userId 用户 ID。
+     * @param purpose 认证用途。
+     * @return 最近认证事件，不存在时返回 undefined。
+     */
+    async getAuthenticationEvent(
+      userId: string,
+      purpose: AuthenticationEventPurpose,
+    ): Promise<AuthenticationEvent | undefined> {
+      const store = await kv();
+      const entry = await store.get<AuthenticationEvent>(
+        keys.authenticationEvent(userId, purpose),
+      );
+      return entry.value
+        ? normalizeAuthenticationEvent(entry.value, userId, purpose)
+        : undefined;
+    },
+
+    /**
+     * 原子读取并删除指定用途的认证事件，确保事件只能消费一次。
+     *
+     * @param userId 用户 ID。
+     * @param purpose 认证用途。
+     * @return 成功消费的认证事件，不存在或并发消费失败时返回 undefined。
+     */
+    async consumeAuthenticationEvent(
+      userId: string,
+      purpose: AuthenticationEventPurpose,
+    ): Promise<AuthenticationEvent | undefined> {
+      const store = await kv();
+      const key = keys.authenticationEvent(userId, purpose);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const entry = await store.get<AuthenticationEvent>(key);
+        if (!entry.value) {
+          return undefined;
+        }
+        const result = await store.atomic()
+          .check({ key, versionstamp: entry.versionstamp })
+          .delete(key)
+          .commit();
+        if (result.ok) {
+          return normalizeAuthenticationEvent(entry.value, userId, purpose);
+        }
+      }
+      return undefined;
+    },
+
+    /**
+     * 保存最近认证事件。
+     *
+     * @param event 认证事件。
+     * @return 保存完成后的 Promise。
+     */
+    async saveAuthenticationEvent(event: AuthenticationEvent): Promise<void> {
+      const normalized = normalizeAuthenticationEvent(
+        event,
+        event.userId,
+        event.purpose,
+      );
+      const store = await kv();
+      await store.set(
+        keys.authenticationEvent(normalized.userId, normalized.purpose),
+        normalized,
+      );
+    },
+
+    /**
+     * 获取指定用户的独立密码凭证。
+     *
+     * @param userId 用户 ID。
+     * @return 密码凭证，不存在时返回 undefined。
+     */
+    async getPasswordCredential(
+      userId: string,
+    ): Promise<PasswordCredential | undefined> {
+      const store = await kv();
+      const entry = await store.get<PasswordCredential>(
+        keys.passwordCredential(userId),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 保存指定用户的独立密码凭证。
+     *
+     * @param credential 密码凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async savePasswordCredential(
+      credential: PasswordCredential,
+    ): Promise<void> {
+      const store = await kv();
+      await store.set(keys.passwordCredential(credential.userId), credential);
+    },
+
+    /**
+     * 获取指定用户的验证器动态码凭证。
+     *
+     * @param userId 用户 ID。
+     * @return 验证器动态码凭证，不存在时返回 undefined。
+     */
+    async getTotpCredential(
+      userId: string,
+    ): Promise<TotpCredential | undefined> {
+      return (await listTotpCredentialsForUser(userId))[0];
+    },
+
+    /**
+     * 列出指定用户的全部验证器动态码凭证。
+     *
+     * @param {string} userId 用户 ID。
+     * @return {Promise<TotpCredential[]>} 验证器动态码凭证列表。
+     */
+    async listTotpCredentials(userId: string): Promise<TotpCredential[]> {
+      return await listTotpCredentialsForUser(userId);
+    },
+
+    /**
+     * 保存指定用户的验证器动态码凭证。
+     *
+     * @param credential 验证器动态码凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async saveTotpCredential(credential: TotpCredential): Promise<void> {
+      const normalized = normalizeTotpCredential(
+        credential,
+        credential.userId,
+      );
+      const store = await kv();
+      const credentialKey = normalized.credentialId === "legacy"
+        ? keys.totpCredentialLegacy(normalized.userId)
+        : keys.totpCredential(normalized.userId, normalized.credentialId!);
+      await store.set(credentialKey, normalized);
+    },
+
+    /**
+     * 删除指定用户的验证器动态码凭证。
+     *
+     * @param userId 用户 ID。
+     * @param credentialId 验证器凭证 ID；省略时删除旧版单凭证记录。
+     * @return 删除完成后的 Promise。
+     */
+    async deleteTotpCredential(
+      userId: string,
+      credentialId?: string,
+    ): Promise<void> {
+      const store = await kv();
+      await store.delete(
+        !credentialId || credentialId === "legacy"
+          ? keys.totpCredentialLegacy(userId)
+          : keys.totpCredential(userId, credentialId),
+      );
+    },
+
+    /**
+     * 获取指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @param credentialId Passkey 凭证 ID。
+     * @return Passkey 凭证，不存在时返回 undefined。
+     */
+    async getPasskeyCredential(
+      userId: string,
+      credentialId: string,
+    ): Promise<PasskeyCredential | undefined> {
+      const store = await kv();
+      const entry = await store.get<PasskeyCredential>(
+        keys.passkeyCredential(userId, credentialId),
+      );
+      return entry.value
+        ? normalizePasskeyCredential(entry.value, userId)
+        : undefined;
+    },
+
+    /**
+     * 列出指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @return Passkey 凭证列表。
+     */
+    async listPasskeyCredentials(userId: string): Promise<PasskeyCredential[]> {
+      const store = await kv();
+      const credentials: PasskeyCredential[] = [];
+      for await (
+        const entry of store.list<PasskeyCredential>({
+          prefix: keys.passkeyCredentialPrefix(userId),
+        })
+      ) {
+        credentials.push(normalizePasskeyCredential(entry.value, userId));
+      }
+      return credentials.toSorted((left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.credentialId.localeCompare(right.credentialId)
+      );
+    },
+
+    /**
+     * 按 Passkey 凭证 ID 反查凭证。
+     *
+     * @param credentialId Passkey 凭证 ID。
+     * @return Passkey 凭证，不存在时返回 undefined。
+     */
+    async getPasskeyCredentialByCredentialId(
+      credentialId: string,
+    ): Promise<PasskeyCredential | undefined> {
+      const normalizedCredentialId = credentialId.trim();
+      if (!normalizedCredentialId) {
+        return undefined;
+      }
+
+      const store = await kv();
+      const indexEntry = await store.get<string>(
+        keys.passkeyCredentialIndex(normalizedCredentialId),
+      );
+      if (!indexEntry.value) {
+        return undefined;
+      }
+
+      const credentialEntry = await store.get<PasskeyCredential>(
+        keys.passkeyCredential(indexEntry.value, normalizedCredentialId),
+      );
+      return credentialEntry.value
+        ? normalizePasskeyCredential(credentialEntry.value, indexEntry.value)
+        : undefined;
+    },
+
+    /**
+     * 保存指定用户的 Passkey 凭证。
+     *
+     * @param credential Passkey 凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async savePasskeyCredential(
+      credential: PasskeyCredential,
+    ): Promise<void> {
+      const normalized = normalizePasskeyCredential(
+        credential,
+        credential.userId,
+      );
+      const store = await kv();
+      const indexKey = keys.passkeyCredentialIndex(normalized.credentialId);
+      const indexEntry = await store.get<string>(indexKey);
+      if (indexEntry.value && indexEntry.value !== normalized.userId) {
+        throw new Error("Passkey credential already belongs to another user.");
+      }
+
+      const result = await store.atomic()
+        .check({ key: indexKey, versionstamp: indexEntry.versionstamp })
+        .set(
+          keys.passkeyCredential(normalized.userId, normalized.credentialId),
+          normalized,
+        )
+        .set(indexKey, normalized.userId)
+        .commit();
+      if (!result.ok) {
+        throw new Error("Could not save the Passkey credential.");
+      }
+    },
+
+    /**
+     * 删除指定用户的 Passkey 凭证。
+     *
+     * @param userId 用户 ID。
+     * @param credentialId Passkey 凭证 ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePasskeyCredential(
+      userId: string,
+      credentialId: string,
+    ): Promise<void> {
+      const store = await kv();
+      const credentialKey = keys.passkeyCredential(userId, credentialId);
+      const indexKey = keys.passkeyCredentialIndex(credentialId);
+      const credentialEntry = await store.get<PasskeyCredential>(credentialKey);
+      const indexEntry = await store.get<string>(indexKey);
+
+      let operation = store.atomic()
+        .check({
+          key: credentialKey,
+          versionstamp: credentialEntry.versionstamp,
+        })
+        .delete(credentialKey);
+      if (indexEntry.value === userId) {
+        operation = operation
+          .check({ key: indexKey, versionstamp: indexEntry.versionstamp })
+          .delete(indexKey);
+      }
+
+      const result = await operation.commit();
+      if (!result.ok) {
+        throw new Error("Could not delete the Passkey credential.");
+      }
+    },
+
+    /**
+     * 获取外部或邮箱身份绑定。
+     *
+     * @param provider 身份提供方。
+     * @param providerUserId 提供方用户 ID。
+     * @return 身份绑定，不存在时返回 undefined。
+     */
+    async getAuthIdentity(
+      provider: AuthIdentityProvider,
+      providerUserId: string,
+    ): Promise<AuthIdentity | undefined> {
+      const store = await kv();
+      const entry = await store.get<AuthIdentity>(
+        keys.authIdentity(provider, providerUserId),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 列出指定用户绑定的外部或邮箱身份。
+     *
+     * @param provider 身份提供方。
+     * @param userId 用户 ID。
+     * @return 身份绑定列表。
+     */
+    async listAuthIdentitiesForUser(
+      provider: AuthIdentityProvider,
+      userId: string,
+    ): Promise<AuthIdentity[]> {
+      const store = await kv();
+      const entries = store.list<AuthIdentity>({
+        prefix: keys.authIdentityProviderPrefix(provider),
+      });
+      const identities: AuthIdentity[] = [];
+      for await (const entry of entries) {
+        if (entry.value.userId === userId) {
+          identities.push(entry.value);
+        }
+      }
+      return identities.toSorted((left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.providerUserId.localeCompare(right.providerUserId)
+      );
+    },
+
+    /**
+     * 保存外部或邮箱身份绑定。
+     *
+     * @param identity 身份绑定。
+     * @return 保存完成后的 Promise。
+     */
+    async saveAuthIdentity(identity: AuthIdentity): Promise<void> {
+      const store = await kv();
+      await store.set(
+        keys.authIdentity(identity.provider, identity.providerUserId),
+        identity,
+      );
+    },
+
+    /**
+     * 删除外部或邮箱身份绑定。
+     *
+     * @param provider 身份提供方。
+     * @param providerUserId 提供方用户 ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deleteAuthIdentity(
+      provider: AuthIdentityProvider,
+      providerUserId: string,
+    ): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.authIdentity(provider, providerUserId));
+    },
+
+    /**
+     * 获取指定用户的邮箱凭证。
+     *
+     * @param userId 用户 ID。
+     * @param email 邮箱地址。
+     * @return 邮箱凭证，不存在时返回 undefined。
+     */
+    async getEmailCredential(
+      userId: string,
+      email: string,
+    ): Promise<EmailCredential | undefined> {
+      const store = await kv();
+      const entry = await store.get<EmailCredential>(
+        keys.emailCredential(userId, email),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 列出指定用户的邮箱凭证。
+     *
+     * @param userId 用户 ID。
+     * @return 邮箱凭证列表。
+     */
+    async listEmailCredentials(userId: string): Promise<EmailCredential[]> {
+      const store = await kv();
+      const credentials: EmailCredential[] = [];
+      for await (
+        const entry of store.list<EmailCredential>({
+          prefix: keys.emailCredentialPrefix(userId),
+        })
+      ) {
+        credentials.push(entry.value);
+      }
+      return credentials.toSorted((left, right) =>
+        left.email.localeCompare(right.email)
+      );
+    },
+
+    /**
+     * 保存指定用户的邮箱凭证。
+     *
+     * @param credential 邮箱凭证。
+     * @return 保存完成后的 Promise。
+     */
+    async saveEmailCredential(credential: EmailCredential): Promise<void> {
+      const normalized = normalizeEmailCredential(credential);
+      const store = await kv();
+      await store.set(
+        keys.emailCredential(normalized.userId, normalized.email),
+        normalized,
+      );
+    },
+
+    /**
+     * 删除指定用户的邮箱凭证。
+     *
+     * @param userId 用户 ID。
+     * @param email 邮箱地址。
+     * @return 删除完成后的 Promise。
+     */
+    async deleteEmailCredential(userId: string, email: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.emailCredential(userId, email));
+    },
+
+    /**
+     * 获取待完成的邮箱验证码挑战。
+     *
+     * @param id 验证码挑战 ID。
+     * @return 待验证挑战，不存在时返回 undefined。
+     */
+    async getPendingEmailVerification(
+      id: string,
+    ): Promise<PendingEmailVerification | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingEmailVerification>(
+        keys.pendingEmailVerification(id),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 保存待完成的邮箱验证码挑战。
+     *
+     * @param verification 待验证挑战。
+     * @return 保存完成后的 Promise。
+     */
+    async savePendingEmailVerification(
+      verification: PendingEmailVerification,
+    ): Promise<void> {
+      const normalized = normalizePendingEmailVerification(verification);
+      const store = await kv();
+      await store.set(
+        keys.pendingEmailVerification(normalized.id),
+        normalized,
+        expireInFromIso(normalized.expiresAt),
+      );
+    },
+
+    /**
+     * 删除待完成的邮箱验证码挑战。
+     *
+     * @param id 验证码挑战 ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePendingEmailVerification(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingEmailVerification(id));
+    },
+
+    /**
+     * 获取待完成的 MFA challenge。
+     *
+     * @param id MFA challenge ID。
+     * @return 待完成 MFA challenge，不存在时返回 undefined。
+     */
+    async getPendingMfaChallenge(
+      id: string,
+    ): Promise<PendingMfaChallenge | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingMfaChallenge>(
+        keys.pendingMfaChallenge(id),
+      );
+      return entry.value
+        ? normalizePendingMfaChallenge(entry.value)
+        : undefined;
+    },
+
+    /**
+     * 保存待完成的 MFA challenge。
+     *
+     * @param challenge 待完成 MFA challenge。
+     * @return 保存完成后的 Promise。
+     */
+    async savePendingMfaChallenge(
+      challenge: PendingMfaChallenge,
+    ): Promise<void> {
+      const normalized = normalizePendingMfaChallenge(challenge);
+      const store = await kv();
+      await store.set(
+        keys.pendingMfaChallenge(normalized.id),
+        normalized,
+        expireInFromIso(normalized.expiresAt),
+      );
+    },
+
+    /**
+     * 删除待完成的 MFA challenge。
+     *
+     * @param id MFA challenge ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePendingMfaChallenge(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingMfaChallenge(id));
+    },
+
+    /**
+     * 获取待完成的 Passkey challenge。
+     *
+     * @param id Passkey challenge ID。
+     * @return 待完成 Passkey challenge，不存在时返回 undefined。
+     */
+    async getPendingPasskeyChallenge(
+      id: string,
+    ): Promise<PendingPasskeyChallenge | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingPasskeyChallenge>(
+        keys.pendingPasskeyChallenge(id),
+      );
+      return entry.value
+        ? normalizePendingPasskeyChallenge(entry.value)
+        : undefined;
+    },
+
+    /**
+     * 保存待完成的 Passkey challenge。
+     *
+     * @param challenge 待完成 Passkey challenge。
+     * @return 保存完成后的 Promise。
+     */
+    async savePendingPasskeyChallenge(
+      challenge: PendingPasskeyChallenge,
+    ): Promise<void> {
+      const normalized = normalizePendingPasskeyChallenge(challenge);
+      const store = await kv();
+      await store.set(
+        keys.pendingPasskeyChallenge(normalized.id),
+        normalized,
+        expireInFromIso(normalized.expiresAt),
+      );
+    },
+
+    /**
+     * 删除待完成的 Passkey challenge。
+     *
+     * @param id Passkey challenge ID。
+     * @return 删除完成后的 Promise。
+     */
+    async deletePendingPasskeyChallenge(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingPasskeyChallenge(id));
+    },
+
+    /**
+     * 获取等待首次展示的恢复码。
+     *
+     * @param {string} id 展示记录 ID。
+     * @return {Promise<PendingRecoveryCodeReveal | undefined>} 待展示恢复码。
+     */
+    async getPendingRecoveryCodeReveal(
+      id: string,
+    ): Promise<PendingRecoveryCodeReveal | undefined> {
+      const store = await kv();
+      const entry = await store.get<PendingRecoveryCodeReveal>(
+        keys.pendingRecoveryCodeReveal(id),
+      );
+      return entry.value ?? undefined;
+    },
+
+    /**
+     * 短期保存等待首次展示的恢复码。
+     *
+     * @param {PendingRecoveryCodeReveal} reveal 待展示恢复码。
+     * @return {Promise<void>} 保存完成后的 Promise。
+     */
+    async savePendingRecoveryCodeReveal(
+      reveal: PendingRecoveryCodeReveal,
+    ): Promise<void> {
+      const store = await kv();
+      await store.set(
+        keys.pendingRecoveryCodeReveal(reveal.id),
+        reveal,
+        expireInFromIso(reveal.expiresAt),
+      );
+    },
+
+    /**
+     * 删除已展示或失效的恢复码记录。
+     *
+     * @param {string} id 展示记录 ID。
+     * @return {Promise<void>} 删除完成后的 Promise。
+     */
+    async deletePendingRecoveryCodeReveal(id: string): Promise<void> {
+      const store = await kv();
+      await store.delete(keys.pendingRecoveryCodeReveal(id));
     },
 
     /**
@@ -525,7 +1302,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
         }
       }
 
-      throw new Error("Could not record a login failure after concurrent updates.");
+      throw new Error(
+        "Could not record a login failure after concurrent updates.",
+      );
     },
 
     /**
@@ -562,11 +1341,15 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
         const entry = await store.get<RateLimitEntry>(key);
         const previous = entry.value;
         const previousResetAt = Date.parse(previous?.resetAt ?? "");
-        const previousCount = previous && Number.isInteger(previous.count) && previous.count > 0
-          ? previous.count
-          : 0;
-        const hasActiveWindow = Number.isFinite(previousResetAt) && previousResetAt > now;
-        const resetAtMs = hasActiveWindow ? previousResetAt : now + normalizedWindowMs;
+        const previousCount =
+          previous && Number.isInteger(previous.count) && previous.count > 0
+            ? previous.count
+            : 0;
+        const hasActiveWindow = Number.isFinite(previousResetAt) &&
+          previousResetAt > now;
+        const resetAtMs = hasActiveWindow
+          ? previousResetAt
+          : now + normalizedWindowMs;
         const next: RateLimitEntry = {
           count: hasActiveWindow ? previousCount + 1 : 1,
           resetAt: new Date(resetAtMs).toISOString(),
@@ -581,7 +1364,9 @@ export function createKvStorage(defaultSettings: AppSettings, options: KvStorage
         }
       }
 
-      throw new Error("Could not record a rate limit hit after concurrent updates.");
+      throw new Error(
+        "Could not record a rate limit hit after concurrent updates.",
+      );
     },
 
     /**
@@ -746,6 +1531,241 @@ function normalizeUsername(value: string): string {
 }
 
 /**
+ * 将邮箱地址规范化为 KV key 使用的稳定片段。
+ *
+ * @param value 原始邮箱地址。
+ * @return 规范化邮箱地址。
+ */
+function emailKey(value: string): string {
+  const normalized = normalizeEmailAddress(value);
+  if (!normalized) {
+    throw new Error("Invalid email address.");
+  }
+
+  return normalized;
+}
+
+/**
+ * 规范化邮箱凭证中的邮箱地址。
+ *
+ * @param credential 邮箱凭证。
+ * @return 规范化后的邮箱凭证。
+ */
+function normalizeEmailCredential(
+  credential: EmailCredential,
+): EmailCredential {
+  return {
+    ...credential,
+    email: emailKey(credential.email),
+  };
+}
+
+/**
+ * 规范化验证器动态码凭证。
+ *
+ * @param credential 验证器动态码凭证。
+ * @param userId 用户 ID。
+ * @return 规范化后的验证器动态码凭证。
+ */
+function normalizeTotpCredential(
+  credential: TotpCredential,
+  userId: string,
+): TotpCredential {
+  return {
+    credentialId: typeof credential.credentialId === "string" &&
+        credential.credentialId.trim()
+      ? credential.credentialId.trim()
+      : "legacy",
+    enabledAt: typeof credential.enabledAt === "string"
+      ? credential.enabledAt
+      : "",
+    label: typeof credential.label === "string" && credential.label.trim()
+      ? credential.label.trim().slice(0, 80)
+      : undefined,
+    recoveryCodeHashes: Array.isArray(credential.recoveryCodeHashes)
+      ? credential.recoveryCodeHashes.filter((value): value is string =>
+        typeof value === "string"
+      )
+      : [],
+    secretEncrypted: typeof credential.secretEncrypted === "string"
+      ? credential.secretEncrypted
+      : "",
+    userId,
+  };
+}
+
+/**
+ * 规范化 Passkey 凭证。
+ *
+ * @param credential Passkey 凭证。
+ * @param userId 用户 ID。
+ * @return 规范化后的 Passkey 凭证。
+ */
+function normalizePasskeyCredential(
+  credential: PasskeyCredential,
+  userId: string,
+): PasskeyCredential {
+  const transports = Array.isArray(credential.transports)
+    ? Array.from(
+      new Set(
+        credential.transports.filter((value): value is string =>
+          typeof value === "string" && value.trim().length > 0
+        ).map((value) => value.trim()),
+      ),
+    )
+    : undefined;
+  return {
+    backedUp: credential.backedUp === true,
+    counter: Math.max(0, Math.floor(Number(credential.counter) || 0)),
+    createdAt: typeof credential.createdAt === "string"
+      ? credential.createdAt
+      : "",
+    credentialId: typeof credential.credentialId === "string"
+      ? credential.credentialId
+      : "",
+    label: typeof credential.label === "string" &&
+        credential.label.trim().length > 0
+      ? credential.label.trim()
+      : undefined,
+    lastUsedAt: typeof credential.lastUsedAt === "string"
+      ? credential.lastUsedAt
+      : undefined,
+    publicKey: typeof credential.publicKey === "string"
+      ? credential.publicKey
+      : "",
+    transports,
+    userId,
+  };
+}
+
+/**
+ * 规范化认证事件。
+ *
+ * @param event 认证事件。
+ * @param userId 兜底用户 ID。
+ * @param purpose 兜底认证用途。
+ * @return 规范化后的认证事件。
+ */
+function normalizeAuthenticationEvent(
+  event: AuthenticationEvent,
+  userId: string,
+  purpose: AuthenticationEventPurpose,
+): AuthenticationEvent {
+  return {
+    authenticatedAt: typeof event.authenticatedAt === "string"
+      ? event.authenticatedAt
+      : new Date(0).toISOString(),
+    method: isAuthenticationEventMethod(event.method)
+      ? event.method
+      : "password",
+    purpose: isAuthenticationEventPurpose(event.purpose)
+      ? event.purpose
+      : purpose,
+    strength: event.strength === "strong" ? "strong" : "normal",
+    userId,
+  };
+}
+
+/**
+ * 判断值是否为认证事件方式。
+ *
+ * @param value 待判断值。
+ * @return 值是认证事件方式时返回 true。
+ */
+function isAuthenticationEventMethod(
+  value: unknown,
+): value is AuthenticationEvent["method"] {
+  return value === "email_otp" || value === "google" ||
+    value === "passkey" || value === "password" ||
+    value === "recovery_code" || value === "totp";
+}
+
+/**
+ * 判断值是否为认证事件用途。
+ *
+ * @param value 待判断值。
+ * @return 值是认证事件用途时返回 true。
+ */
+function isAuthenticationEventPurpose(
+  value: unknown,
+): value is AuthenticationEventPurpose {
+  return value === "primary_login" || value === "reauth" ||
+    value === "recovery_codes" ||
+    value === "second_factor";
+}
+
+/**
+ * 规范化待验证挑战中的邮箱地址。
+ *
+ * @param verification 待验证挑战。
+ * @return 规范化后的待验证挑战。
+ */
+function normalizePendingEmailVerification(
+  verification: PendingEmailVerification,
+): PendingEmailVerification {
+  return {
+    ...verification,
+    email: emailKey(verification.email),
+  };
+}
+
+/**
+ * 规范化待完成的 Passkey challenge。
+ *
+ * @param challenge 待完成 Passkey challenge。
+ * @return 规范化后的 Passkey challenge。
+ */
+function normalizePendingPasskeyChallenge(
+  challenge: PendingPasskeyChallenge,
+): PendingPasskeyChallenge {
+  const allowedCredentialIds = Array.isArray(challenge.allowedCredentialIds)
+    ? challenge.allowedCredentialIds
+    : [];
+  return {
+    ...challenge,
+    allowedCredentialIds: Array.from(
+      new Set(
+        allowedCredentialIds.filter((value) =>
+          typeof value === "string" && value.trim().length > 0
+        ).map((value) => value.trim()),
+      ),
+    ),
+    attempts: Math.max(0, Math.floor(Number(challenge.attempts) || 0)),
+    purpose: isPasskeyChallengePurpose(challenge.purpose)
+      ? challenge.purpose
+      : "primary_login",
+  };
+}
+
+/**
+ * 判断值是否为支持的 Passkey challenge 用途。
+ *
+ * @param value 待判断值。
+ * @return 值是 Passkey challenge 用途时返回 true。
+ */
+function isPasskeyChallengePurpose(
+  value: unknown,
+): value is PasskeyChallengePurpose {
+  return value === "passkey_registration" || value === "primary_login" ||
+    value === "reauth" || value === "second_factor";
+}
+
+/**
+ * 按 ISO 过期时间生成 KV 自动过期选项。
+ *
+ * @param expiresAt ISO 格式过期时间。
+ * @return KV 自动过期选项，时间无效时返回 undefined。
+ */
+function expireInFromIso(expiresAt: string): { expireIn: number } | undefined {
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) {
+    return undefined;
+  }
+
+  return { expireIn: Math.max(1, expiresAtMs - Date.now()) };
+}
+
+/**
  * 将频率限制记录转换为命中结果。
  *
  * @param entry 频率限制计数记录。
@@ -753,7 +1773,11 @@ function normalizeUsername(value: string): string {
  * @param now 当前时间戳毫秒数。
  * @return 频率限制命中结果。
  */
-function rateLimitHitFromEntry(entry: RateLimitEntry, limit: number, now: number): RateLimitHit {
+function rateLimitHitFromEntry(
+  entry: RateLimitEntry,
+  limit: number,
+  now: number,
+): RateLimitHit {
   const resetAtMs = Date.parse(entry.resetAt);
   return {
     allowed: entry.count <= limit,
@@ -773,7 +1797,9 @@ function rateLimitHitFromEntry(entry: RateLimitEntry, limit: number, now: number
  * @return 按命中时间倒序排列的历史记录。
  */
 function historyFromRecords(records: MatchRecord[]): MatchRecord[] {
-  return records.toSorted((left, right) => right.matchedAt.localeCompare(left.matchedAt));
+  return records.toSorted((left, right) =>
+    right.matchedAt.localeCompare(left.matchedAt)
+  );
 }
 
 /**
@@ -814,7 +1840,9 @@ function compareIsoDesc(left: string, right: string): number {
  * @param records 命中记录列表。
  * @return 最新命中记录，不存在时返回 undefined。
  */
-export function latestMatchByMatchedTime(records: MatchRecord[]): MatchRecord | undefined {
+export function latestMatchByMatchedTime(
+  records: MatchRecord[],
+): MatchRecord | undefined {
   return records.toSorted((left, right) =>
     compareIsoDesc(left.matchedAt, right.matchedAt) ||
     compareIsoDesc(left.post.publishedAt, right.post.publishedAt)
@@ -846,21 +1874,28 @@ function normalizeSettings(
     return defaultSettings;
   }
 
-  const commonKeywordRules = normalizeKeywordRules(value, defaultSettings.commonKeywordRules);
+  const commonKeywordRules = normalizeKeywordRules(
+    value,
+    defaultSettings.commonKeywordRules,
+  );
   const topics = normalizeTopics(value, defaultSettings.topics);
 
   return {
     ...defaultSettings,
     ...value,
-    activeKeywordTarget: value.activeKeywordTarget ?? defaultSettings.activeKeywordTarget,
+    activeKeywordTarget: value.activeKeywordTarget ??
+      defaultSettings.activeKeywordTarget,
     commonKeywordRules,
-    darkMode: typeof value.darkMode === "boolean" ? value.darkMode : defaultSettings.darkMode,
+    darkMode: typeof value.darkMode === "boolean"
+      ? value.darkMode
+      : defaultSettings.darkMode,
     notificationEmailAddress: typeof value.notificationEmailAddress === "string"
       ? value.notificationEmailAddress
       : defaultSettings.notificationEmailAddress,
-    notificationEmailApiToken: typeof value.notificationEmailApiToken === "string"
-      ? value.notificationEmailApiToken
-      : defaultSettings.notificationEmailApiToken,
+    notificationEmailApiToken:
+      typeof value.notificationEmailApiToken === "string"
+        ? value.notificationEmailApiToken
+        : defaultSettings.notificationEmailApiToken,
     notificationEmailApiUrl: typeof value.notificationEmailApiUrl === "string"
       ? value.notificationEmailApiUrl
       : defaultSettings.notificationEmailApiUrl,
@@ -870,12 +1905,14 @@ function normalizeSettings(
     notificationEmailService: value.notificationEmailService
       ? normalizeNotificationEmailService(value.notificationEmailService)
       : defaultSettings.notificationEmailService,
-    notificationPushPlusToken: typeof value.notificationPushPlusToken === "string"
-      ? value.notificationPushPlusToken
-      : defaultSettings.notificationPushPlusToken,
-    notificationServerChanSendKey: typeof value.notificationServerChanSendKey === "string"
-      ? value.notificationServerChanSendKey
-      : defaultSettings.notificationServerChanSendKey,
+    notificationPushPlusToken:
+      typeof value.notificationPushPlusToken === "string"
+        ? value.notificationPushPlusToken
+        : defaultSettings.notificationPushPlusToken,
+    notificationServerChanSendKey:
+      typeof value.notificationServerChanSendKey === "string"
+        ? value.notificationServerChanSendKey
+        : defaultSettings.notificationServerChanSendKey,
     notificationSmtpHost: typeof value.notificationSmtpHost === "string"
       ? value.notificationSmtpHost
       : defaultSettings.notificationSmtpHost,
@@ -902,7 +1939,10 @@ function normalizeSettings(
       ? value.notificationWxPusherSpt
       : defaultSettings.notificationWxPusherSpt,
     polling: normalizePollingSettings(value.polling, defaultSettings.polling),
-    themeColor: normalizeThemeColor(value.themeColor, defaultSettings.themeColor),
+    themeColor: normalizeThemeColor(
+      value.themeColor,
+      defaultSettings.themeColor,
+    ),
     topics,
   };
 }
@@ -923,10 +1963,15 @@ function normalizePollingSettings(
       intervalMinutes?: unknown;
     }
     | undefined)?.intervalMinutes;
-  const intervalUnit = normalizePollIntervalUnit(value?.intervalUnit, fallback.intervalUnit);
+  const intervalUnit = normalizePollIntervalUnit(
+    value?.intervalUnit,
+    fallback.intervalUnit,
+  );
 
   return {
-    enabled: typeof value?.enabled === "boolean" ? value.enabled : fallback.enabled,
+    enabled: typeof value?.enabled === "boolean"
+      ? value.enabled
+      : fallback.enabled,
     intervalUnit,
     intervalValue: normalizePollIntervalValue(
       value?.intervalValue ?? legacyIntervalMinutes,
@@ -946,7 +1991,9 @@ function normalizePollingSettings(
  * @return 合法正整数。
  */
 function normalizePositiveInteger(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : fallback;
 }
 
 /**
@@ -957,7 +2004,9 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
  * @return 合法轮询排序方式。
  */
 function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
-  return value === "publishTime" || value === "smart" || value === "replyTime" ? value : fallback;
+  return value === "publishTime" || value === "smart" || value === "replyTime"
+    ? value
+    : fallback;
 }
 
 /**
@@ -967,8 +2016,12 @@ function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
  * @param fallback 兜底间隔单位。
  * @return 合法轮询间隔单位。
  */
-function normalizePollIntervalUnit(value: unknown, fallback: PollIntervalUnit): PollIntervalUnit {
-  return value === "second" || value === "minute" || value === "hour" || value === "day" ||
+function normalizePollIntervalUnit(
+  value: unknown,
+  fallback: PollIntervalUnit,
+): PollIntervalUnit {
+  return value === "second" || value === "minute" || value === "hour" ||
+      value === "day" ||
       value === "week" || value === "month"
     ? value
     : fallback;

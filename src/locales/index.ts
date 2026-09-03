@@ -134,7 +134,9 @@ const englishFallbackLocales: ReadonlySet<Locale> = new Set([
  * 按语言标识小写形式建立的精确语言映射。
  */
 const normalizedLocaleMap: ReadonlyMap<string, Locale> = new Map(
-  Object.keys(overrides).map((locale) => [locale.toLowerCase(), locale as Locale]),
+  Object.keys(overrides).map((
+    locale,
+  ) => [locale.toLowerCase(), locale as Locale]),
 );
 
 /**
@@ -169,7 +171,56 @@ export function normalizeLocale(value: string | undefined): Locale {
     return normalized;
   }
   const lowerCaseValue = normalized.toLowerCase();
-  return normalizedLocaleMap.get(lowerCaseValue) ?? localeAliases[lowerCaseValue] ?? "zh-CN";
+  return normalizedLocaleMap.get(lowerCaseValue) ??
+    localeAliases[lowerCaseValue] ?? "zh-CN";
+}
+
+/**
+ * 从请求查询参数和浏览器语言头中解析应用支持的语言。
+ *
+ * @param request 当前 HTTP 请求。
+ * @param fallback 无法识别请求语言时使用的兜底语言。
+ * @return 应用支持的语言标识。
+ */
+export function localeFromRequest(
+  request: Request,
+  fallback: Locale = "zh-CN",
+): Locale {
+  const url = new URL(request.url);
+  const queryLocale = supportedLocaleFromLanguageTag(
+    url.searchParams.get("locale"),
+  );
+  if (queryLocale) {
+    return queryLocale;
+  }
+
+  for (const part of request.headers.get("accept-language")?.split(",") ?? []) {
+    const locale = supportedLocaleFromLanguageTag(part.split(";")[0]?.trim());
+    if (locale) {
+      return locale;
+    }
+  }
+
+  return fallback;
+}
+
+/**
+ * 将外部语言标签匹配为应用支持的语言。
+ *
+ * @param value 原始语言标签。
+ * @return 匹配到的语言标识，无法匹配时返回 undefined。
+ */
+function supportedLocaleFromLanguageTag(
+  value: string | null | undefined,
+): Locale | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  return normalizedLocaleMap.get(normalized) ??
+    localeAliases[normalized] ??
+    localeAliases[normalized.split("-")[0]];
 }
 
 /**

@@ -8,17 +8,50 @@ Deno.test("application adds baseline security headers", async () => {
   const { app } = createApplication();
 
   const response = await app.request("https://example.com/login");
-  const contentSecurityPolicy = response.headers.get("content-security-policy") ?? "";
+  const contentSecurityPolicy =
+    response.headers.get("content-security-policy") ?? "";
 
   assertEquals(response.status, 200);
   assertEquals(contentSecurityPolicy.includes("default-src 'self'"), true);
   assertEquals(contentSecurityPolicy.includes("frame-ancestors 'none'"), true);
+  assertEquals(
+    contentSecurityPolicy.includes(
+      "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/",
+    ),
+    true,
+  );
   assertEquals(contentSecurityPolicy.includes("object-src 'none'"), true);
-  assertEquals(contentSecurityPolicy.includes("script-src 'self' 'unsafe-inline'"), true);
-  assertEquals(response.headers.get("cross-origin-opener-policy"), "same-origin");
-  assertEquals(response.headers.get("cross-origin-resource-policy"), "same-origin");
+  assertEquals(
+    contentSecurityPolicy.includes(
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://accounts.google.com/gsi/client",
+    ),
+    true,
+  );
+  assertEquals(
+    contentSecurityPolicy.includes(
+      "connect-src 'self' https://challenges.cloudflare.com https://accounts.google.com/gsi/",
+    ),
+    true,
+  );
+  assertEquals(
+    contentSecurityPolicy.includes(
+      "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+    ),
+    true,
+  );
+  assertEquals(
+    response.headers.get("cross-origin-opener-policy"),
+    "same-origin-allow-popups",
+  );
+  assertEquals(
+    response.headers.get("cross-origin-resource-policy"),
+    "same-origin",
+  );
   assertEquals(response.headers.get("origin-agent-cluster"), "?1");
-  assertEquals(response.headers.get("referrer-policy"), "strict-origin-when-cross-origin");
+  assertEquals(
+    response.headers.get("referrer-policy"),
+    "strict-origin-when-cross-origin",
+  );
   assertEquals(response.headers.get("x-content-type-options"), "nosniff");
   assertEquals(response.headers.get("x-frame-options"), "DENY");
   assertEquals(

@@ -9,6 +9,21 @@ import {
 } from "../notification_services.ts";
 import { createPollScheduler } from "../crons.ts";
 import { createKvStorage } from "../storage/kv.ts";
+import {
+  type TurnstileConfig,
+  turnstileConfigFromEnv,
+} from "../auth/turnstile.ts";
+import {
+  type EmailVerificationConfig,
+  emailVerificationConfigFromEnv,
+} from "../auth/email_verification.ts";
+import {
+  type GoogleAuthConfig,
+  googleAuthConfigFromEnv,
+} from "../auth/google.ts";
+import { type PasskeyConfig, passkeyConfigFromEnv } from "../auth/passkey.ts";
+import { type ReauthConfig, reauthConfigFromEnv } from "../auth/reauth.ts";
+import { type TotpConfig, totpConfigFromEnv } from "../auth/totp.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import type { HeyboxSignatureMode } from "./heybox_signer.ts";
@@ -20,7 +35,13 @@ import { createPoller } from "./poller.ts";
  */
 export type AppConfig = {
   defaultSettings: AppSettings;
+  emailVerification: EmailVerificationConfig;
+  google: GoogleAuthConfig;
+  passkey: PasskeyConfig;
   port: number;
+  reauth: ReauthConfig;
+  totp: TotpConfig;
+  turnstile: TurnstileConfig;
 };
 
 /**
@@ -34,10 +55,11 @@ export type AppContext = ReturnType<typeof createAppContext>;
  * @return 包含配置、存储、匹配器、通知器、数据源、轮询器和调度器的上下文对象。
  */
 export function createAppContext() {
-  const defaultKeywordRules: KeywordRule[] = ["求助", "怎么", "卡住", "打不开"].map((keyword) => ({
-    keyword,
-    locations: ["title", "body", "comments", "replies"],
-  }));
+  const defaultKeywordRules: KeywordRule[] = ["求助", "怎么", "卡住", "打不开"]
+    .map((keyword) => ({
+      keyword,
+      locations: ["title", "body", "comments", "replies"],
+    }));
 
   const config: AppConfig = {
     defaultSettings: {
@@ -52,7 +74,8 @@ export function createAppContext() {
       notificationEmailService: notificationEmailServiceFromEnv(),
       notificationProvider: notificationProviderFromEnv(),
       notificationPushPlusToken: Deno.env.get("NOTIFIER_PUSHPLUS_TOKEN") ?? "",
-      notificationServerChanSendKey: Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_KEY") ?? "",
+      notificationServerChanSendKey:
+        Deno.env.get("NOTIFIER_SERVER_CHAN_SEND_KEY") ?? "",
       notificationSmtpHost: Deno.env.get("NOTIFIER_SMTP_HOST") ?? "",
       notificationSmtpPassword: Deno.env.get("NOTIFIER_SMTP_PASSWORD") ?? "",
       notificationSmtpPort: positiveIntegerFromEnv("NOTIFIER_SMTP_PORT", 465),
@@ -78,7 +101,13 @@ export function createAppContext() {
         },
       ],
     },
+    emailVerification: emailVerificationConfigFromEnv(),
+    google: googleAuthConfigFromEnv(),
+    passkey: passkeyConfigFromEnv(),
     port: Number(Deno.env.get("PORT") ?? "8000"),
+    reauth: reauthConfigFromEnv(),
+    totp: totpConfigFromEnv(),
+    turnstile: turnstileConfigFromEnv(),
   };
 
   const storage = createKvStorage(config.defaultSettings);
@@ -137,7 +166,9 @@ function pollSortFromEnv(): PollSort {
  */
 function notificationProviderFromEnv(): AppSettings["notificationProvider"] {
   const value = Deno.env.get("NOTIFIER_PROVIDER");
-  return value === "disabled" || value === "email" || value === "webhook" ? value : "webhook";
+  return value === "disabled" || value === "email" || value === "webhook"
+    ? value
+    : "webhook";
 }
 
 /**
@@ -145,8 +176,12 @@ function notificationProviderFromEnv(): AppSettings["notificationProvider"] {
  *
  * @return 规范化后的 Webhook 通知服务类型。
  */
-function notificationWebhookServiceFromEnv(): AppSettings["notificationWebhookService"] {
-  return normalizeNotificationWebhookService(Deno.env.get("NOTIFIER_WEBHOOK_SERVICE"));
+function notificationWebhookServiceFromEnv(): AppSettings[
+  "notificationWebhookService"
+] {
+  return normalizeNotificationWebhookService(
+    Deno.env.get("NOTIFIER_WEBHOOK_SERVICE"),
+  );
 }
 
 /**
@@ -154,8 +189,12 @@ function notificationWebhookServiceFromEnv(): AppSettings["notificationWebhookSe
  *
  * @return 规范化后的邮件通知服务类型。
  */
-function notificationEmailServiceFromEnv(): AppSettings["notificationEmailService"] {
-  return normalizeNotificationEmailService(Deno.env.get("NOTIFIER_EMAIL_SERVICE"));
+function notificationEmailServiceFromEnv(): AppSettings[
+  "notificationEmailService"
+] {
+  return normalizeNotificationEmailService(
+    Deno.env.get("NOTIFIER_EMAIL_SERVICE"),
+  );
 }
 
 /**

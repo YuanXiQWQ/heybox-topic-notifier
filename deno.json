@@ -1,12 +1,16 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-env --allow-read --unstable-kv --watch src/main.ts",
+    "dev": "deno run --env-file=.env --allow-net --allow-env --allow-read --unstable-kv --watch src/main.ts",
     "start": "deno run --allow-net --allow-env --allow-read --unstable-kv src/main.ts",
     "clear-seen": "deno run --unstable-kv src/storage/clear_seen.ts",
+    "auth:check-legacy": "deno run --allow-env --unstable-kv src/auth/check_legacy_accounts.ts",
     "check": "deno lint && deno check src/main.ts src/deploy.ts && deno test --allow-env --unstable-kv"
   },
   "imports": {
-    "@hono/hono": "jsr:@hono/hono@^4.8.3"
+    "@hono/hono": "jsr:@hono/hono@^4.8.3",
+    "@simplewebauthn/browser": "jsr:@simplewebauthn/browser@^13.3.0",
+    "@simplewebauthn/server": "jsr:@simplewebauthn/server@^13.3.2",
+    "qrcode": "npm:qrcode@^1.5.4"
   },
   "lint": {
     "rules": {

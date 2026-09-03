@@ -2,6 +2,7 @@
  * @file 本文件提供公开部署下的轻量服务端频率限制能力。
  */
 import type { RateLimitHit } from "../storage/kv.ts";
+import { getMessages, localeFromRequest } from "../locales/index.ts";
 import { logSecurityAuditEvent } from "./audit_log.ts";
 import { base64UrlEncode } from "./crypto_utils.ts";
 
@@ -46,6 +47,18 @@ const manualPollLimit = 6;
  */
 const debugOperationLimit = 10;
 /**
+ * 同一客户端每十分钟允许请求邮箱验证码的次数。
+ */
+const emailVerificationClientLimit = 10;
+/**
+ * 同一邮箱和用途每十分钟允许请求验证码的次数。
+ */
+const emailVerificationTargetLimit = 3;
+/**
+ * 邮箱验证码登录每十分钟允许的校验次数。
+ */
+const emailLoginLimit = 10;
+/**
  * 账号敏感操作每十分钟允许的次数。
  */
 const accountOperationLimit = 10;
@@ -70,6 +83,21 @@ export const publicRateLimitPolicies = {
   debugOperation: {
     limit: debugOperationLimit,
     scope: "debug-operation",
+    windowMs: 10 * minuteMs,
+  },
+  emailVerificationClient: {
+    limit: emailVerificationClientLimit,
+    scope: "email-verification-client",
+    windowMs: 10 * minuteMs,
+  },
+  emailVerificationTarget: {
+    limit: emailVerificationTargetLimit,
+    scope: "email-verification-target",
+    windowMs: 10 * minuteMs,
+  },
+  emailLogin: {
+    limit: emailLoginLimit,
+    scope: "email-login",
     windowMs: 10 * minuteMs,
   },
   manualPoll: {
@@ -104,7 +132,11 @@ export async function rateLimitExceededResponseFor(
   }
 
   const keyParts = [policy.scope, await hashedIdentifier(identifier)];
-  const hit = await storage.recordRateLimitHit(keyParts, policy.limit, policy.windowMs);
+  const hit = await storage.recordRateLimitHit(
+    keyParts,
+    policy.limit,
+    policy.windowMs,
+  );
   if (!hit.allowed) {
     logSecurityAuditEvent({
       code: "rate_limit_exceeded",
@@ -123,7 +155,9 @@ export async function rateLimitExceededResponseFor(
     });
   }
 
-  return hit.allowed ? undefined : rateLimitExceededResponse(hit);
+  return hit.allowed
+    ? undefined
+    : rateLimitExceededResponse(hit, auditContext.request);
 }
 
 /**
@@ -157,10 +191,17 @@ export function userRateLimitIdentifier(userId: string): string {
  * 创建频率限制超限响应。
  *
  * @param hit 频率限制命中结果。
+ * @param request 触发频率限制的请求。
  * @return HTTP 429 响应。
  */
-function rateLimitExceededResponse(hit: RateLimitHit): Response {
-  return new Response("Too many requests. Try again later.", {
+function rateLimitExceededResponse(
+  hit: RateLimitHit,
+  request: Request | undefined,
+): Response {
+  const message = request
+    ? getMessages(localeFromRequest(request)).authLoginRateLimited
+    : getMessages("zh-CN").authLoginRateLimited;
+  return new Response(message, {
     headers: {
       "content-type": "text/plain; charset=utf-8",
       "retry-after": String(hit.retryAfterSeconds),
@@ -179,6 +220,9 @@ function rateLimitExceededResponse(hit: RateLimitHit): Response {
  * @return Base64URL 编码的 SHA-256 哈希。
  */
 async function hashedIdentifier(identifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identifier));
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(identifier),
+  );
   return base64UrlEncode(new Uint8Array(digest));
 }
