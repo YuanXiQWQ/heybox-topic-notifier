@@ -650,12 +650,23 @@ export function createTursoStorage(
       userId: string,
       purpose: AuthenticationEventPurpose,
     ): Promise<AuthenticationEvent | undefined> {
-      const result = await execute({
-        sql: `DELETE FROM authentication_events
-          WHERE user_id = ? AND purpose = ?
-          RETURNING value_json`,
-        args: [userId, purpose],
-      });
+      const [result] = await batch([
+        {
+          sql: `DELETE FROM authentication_events
+            WHERE user_id = ? AND purpose = ?
+            RETURNING value_json`,
+          args: [userId, purpose],
+        },
+        tombstoneStatement(
+          "authentication-event",
+          entityKey(userId, purpose),
+          new Date().toISOString(),
+        ),
+        mutationStatement(
+          "authentication-event",
+          entityKey(userId, purpose),
+        ),
+      ]);
       if (!result.rows[0]) {
         return undefined;
       }
