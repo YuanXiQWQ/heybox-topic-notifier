@@ -283,6 +283,39 @@ Deno.test("Turso KV import cannot race with a newer live write", async () => {
   }
 });
 
+Deno.test("Turso KV import cannot restore a consumed authentication event", async () => {
+  const client = new MemorySqlClient();
+  try {
+    const liveStorage = createTursoStorage(defaultSettings, { client });
+    const importStorage = createTursoStorage(defaultSettings, {
+      client,
+      writeMode: "kv-import",
+    });
+    const event: AuthenticationEvent = {
+      authenticatedAt: "2026-09-01T00:00:00.000Z",
+      method: "password",
+      purpose: "recovery_codes",
+      strength: "strong",
+      userId: "alice-id",
+    };
+
+    assertEquals(
+      await liveStorage.consumeAuthenticationEvent(
+        event.userId,
+        event.purpose,
+      ),
+      undefined,
+    );
+    await assertRejects(() => importStorage.saveAuthenticationEvent(event));
+    assertEquals(
+      await liveStorage.getAuthenticationEvent(event.userId, event.purpose),
+      undefined,
+    );
+  } finally {
+    client.close();
+  }
+});
+
 /**
  * 使用独立内存 libSQL 数据库运行测试。
  *

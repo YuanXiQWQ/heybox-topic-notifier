@@ -49,74 +49,74 @@ export type UserStorage = {
   /**
    * 获取当前用户设置。
    *
-   * @return 规范化后的应用设置。
+   * @return {Promise<AppSettings>} 规范化后的应用设置。
    */
   getSettings(): Promise<AppSettings>;
   /**
    * 保存当前用户设置。
    *
-   * @param settings 应用设置。
+   * @param {AppSettings} settings 应用设置。
    */
   saveSettings(settings: AppSettings): Promise<void>;
   /**
    * 获取当前用户应用状态。
    *
-   * @return 应用状态。
+   * @return {Promise<AppState>} 应用状态。
    */
   getAppState(): Promise<AppState>;
   /**
    * 获取当前用户最后轮询时间。
    *
-   * @return 最后轮询时间，不存在时返回 undefined。
+   * @return {Promise<string | undefined>} 最后轮询时间，不存在时返回 undefined。
    */
   getLastPollAt(): Promise<string | undefined>;
   /**
    * 获取当前用户仪表盘快照。
    *
-   * @return 仪表盘快照。
+   * @return {Promise<DashboardSnapshot>} 仪表盘快照。
    */
   getDashboardSnapshot(): Promise<DashboardSnapshot>;
   /**
    * 列出当前用户历史命中记录。
    *
-   * @return 历史命中记录。
+   * @return {Promise<MatchRecord[]>} 历史命中记录。
    */
   listHistory(): Promise<MatchRecord[]>;
   /**
    * 列出当前用户未完成的命中记录。
    *
-   * @return 未完成的命中记录。
+   * @return {Promise<MatchRecord[]>} 未完成的命中记录。
    */
   listPendingMatches(): Promise<MatchRecord[]>;
   /**
    * 保存当前用户命中记录。
    *
-   * @param record 命中记录。
+   * @param {MatchRecord} record 命中记录。
    */
   saveMatch(record: MatchRecord): Promise<void>;
   /**
    * 标记当前用户命中记录已经通知。
    *
-   * @param id 命中记录 ID。
-   * @param notifiedAt 通知时间。
+   * @param {string} id 命中记录 ID。
+   * @param {string} notifiedAt 通知时间。
    */
   markMatchNotified(id: string, notifiedAt: string): Promise<void>;
   /**
    * 批量完成当前用户命中记录。
    *
-   * @param ids 命中记录 ID 列表。
+   * @param {string[]} ids 命中记录 ID 列表。
    */
   completeMatches(ids: string[]): Promise<void>;
   /**
    * 批量删除当前用户命中记录。
    *
-   * @param ids 命中记录 ID 列表。
+   * @param {string[]} ids 命中记录 ID 列表。
    */
   deleteMatches(ids: string[]): Promise<void>;
   /**
    * 保存当前用户最后轮询时间。
    *
-   * @param value ISO 格式轮询时间。
+   * @param {string} value ISO 格式轮询时间。
    */
   setLastPollAt(value: string): Promise<void>;
 };
@@ -128,69 +128,69 @@ export type Storage = UserStorage & {
   /**
    * 创建指定用户作用域的存储操作集合。
    *
-   * @param userId 用户 ID。
-   * @return 指定用户作用域的存储操作集合。
+   * @param {string} userId 用户 ID。
+   * @return {UserStorage} 指定用户作用域的存储操作集合。
    */
   forUser(userId: string): UserStorage;
   /**
    * 按账号 ID 获取账号。
    *
-   * @param id 账号 ID。
-   * @return 账号信息，不存在时返回 undefined。
+   * @param {string} id 账号 ID。
+   * @return {Promise<UserAccount | undefined>} 账号信息，不存在时返回 undefined。
    */
   getAccountById(id: string): Promise<UserAccount | undefined>;
   /**
    * 按用户名获取账号。
    *
-   * @param username 用户名。
-   * @return 账号信息，不存在时返回 undefined。
+   * @param {string} username 用户名。
+   * @return {Promise<UserAccount | undefined>} 账号信息，不存在时返回 undefined。
    */
   getAccountByUsername(username: string): Promise<UserAccount | undefined>;
   /**
    * 列出全部账号。
    *
-   * @return 账号列表。
+   * @return {Promise<UserAccount[]>} 账号列表。
    */
   listAccounts(): Promise<UserAccount[]>;
   /**
    * 保存账号信息。
    *
-   * @param account 账号信息。
+   * @param {UserAccount} account 账号信息。
    */
   saveAccount(account: UserAccount): Promise<void>;
   /**
    * 原子创建账号。
    *
-   * @param account 账号信息。
-   * @return 创建成功时返回 true。
+   * @param {UserAccount} account 账号信息。
+   * @return {Promise<boolean>} 创建成功时返回 true。
    */
   createAccount(account: UserAccount): Promise<boolean>;
   /**
    * 原子更新账号。
    *
-   * @param account 账号信息。
-   * @return 更新成功时返回 true。
+   * @param {UserAccount} account 账号信息。
+   * @return {Promise<boolean>} 更新成功时返回 true。
    */
   updateAccount(account: UserAccount): Promise<boolean>;
   /**
    * 获取用户安全设置。
    *
-   * @param userId 用户 ID。
-   * @return 用户安全设置。
+   * @param {string} userId 用户 ID。
+   * @return {Promise<UserSecuritySettings>} 用户安全设置。
    */
   getUserSecuritySettings(userId: string): Promise<UserSecuritySettings>;
   /**
    * 保存用户安全设置。
    *
-   * @param settings 用户安全设置。
+   * @param {UserSecuritySettings} settings 用户安全设置。
    */
   saveUserSecuritySettings(settings: UserSecuritySettings): Promise<void>;
   /**
    * 获取指定用途的认证事件。
    *
-   * @param userId 用户 ID。
-   * @param purpose 认证用途。
-   * @return 认证事件，不存在时返回 undefined。
+   * @param {string} userId 用户 ID。
+   * @param {AuthenticationEventPurpose} purpose 认证用途。
+   * @return {Promise<AuthenticationEvent | undefined>} 认证事件，不存在时返回 undefined。
    */
   getAuthenticationEvent(
     userId: string,
@@ -199,9 +199,9 @@ export type Storage = UserStorage & {
   /**
    * 原子消费指定用途的认证事件。
    *
-   * @param userId 用户 ID。
-   * @param purpose 认证用途。
-   * @return 成功消费的认证事件。
+   * @param {string} userId 用户 ID。
+   * @param {AuthenticationEventPurpose} purpose 认证用途。
+   * @return {Promise<AuthenticationEvent | undefined>} 成功消费的认证事件。
    */
   consumeAuthenticationEvent(
     userId: string,
@@ -210,14 +210,14 @@ export type Storage = UserStorage & {
   /**
    * 保存认证事件。
    *
-   * @param event 认证事件。
+   * @param {AuthenticationEvent} event 认证事件。
    */
   saveAuthenticationEvent(event: AuthenticationEvent): Promise<void>;
   /**
    * 获取密码凭证。
    *
-   * @param userId 用户 ID。
-   * @return 密码凭证，不存在时返回 undefined。
+   * @param {string} userId 用户 ID。
+   * @return {Promise<PasswordCredential | undefined>} 密码凭证，不存在时返回 undefined。
    */
   getPasswordCredential(
     userId: string,
@@ -225,42 +225,42 @@ export type Storage = UserStorage & {
   /**
    * 保存密码凭证。
    *
-   * @param credential 密码凭证。
+   * @param {PasswordCredential} credential 密码凭证。
    */
   savePasswordCredential(credential: PasswordCredential): Promise<void>;
   /**
    * 获取首个 TOTP 凭证。
    *
-   * @param userId 用户 ID。
-   * @return TOTP 凭证，不存在时返回 undefined。
+   * @param {string} userId 用户 ID。
+   * @return {Promise<TotpCredential | undefined>} TOTP 凭证，不存在时返回 undefined。
    */
   getTotpCredential(userId: string): Promise<TotpCredential | undefined>;
   /**
    * 列出 TOTP 凭证。
    *
-   * @param userId 用户 ID。
-   * @return TOTP 凭证列表。
+   * @param {string} userId 用户 ID。
+   * @return {Promise<TotpCredential[]>} TOTP 凭证列表。
    */
   listTotpCredentials(userId: string): Promise<TotpCredential[]>;
   /**
    * 保存 TOTP 凭证。
    *
-   * @param credential TOTP 凭证。
+   * @param {TotpCredential} credential TOTP 凭证。
    */
   saveTotpCredential(credential: TotpCredential): Promise<void>;
   /**
    * 删除 TOTP 凭证。
    *
-   * @param userId 用户 ID。
-   * @param credentialId 凭证 ID。
+   * @param {string} userId 用户 ID。
+   * @param {string | undefined} credentialId 凭证 ID。
    */
   deleteTotpCredential(userId: string, credentialId?: string): Promise<void>;
   /**
    * 获取 Passkey 凭证。
    *
-   * @param userId 用户 ID。
-   * @param credentialId 凭证 ID。
-   * @return Passkey 凭证，不存在时返回 undefined。
+   * @param {string} userId 用户 ID。
+   * @param {string} credentialId 凭证 ID。
+   * @return {Promise<PasskeyCredential | undefined>} Passkey 凭证，不存在时返回 undefined。
    */
   getPasskeyCredential(
     userId: string,
@@ -269,15 +269,15 @@ export type Storage = UserStorage & {
   /**
    * 列出 Passkey 凭证。
    *
-   * @param userId 用户 ID。
-   * @return Passkey 凭证列表。
+   * @param {string} userId 用户 ID。
+   * @return {Promise<PasskeyCredential[]>} Passkey 凭证列表。
    */
   listPasskeyCredentials(userId: string): Promise<PasskeyCredential[]>;
   /**
    * 按凭证 ID 反查 Passkey 凭证。
    *
-   * @param credentialId 凭证 ID。
-   * @return Passkey 凭证，不存在时返回 undefined。
+   * @param {string} credentialId 凭证 ID。
+   * @return {Promise<PasskeyCredential | undefined>} Passkey 凭证，不存在时返回 undefined。
    */
   getPasskeyCredentialByCredentialId(
     credentialId: string,
@@ -285,22 +285,22 @@ export type Storage = UserStorage & {
   /**
    * 保存 Passkey 凭证。
    *
-   * @param credential Passkey 凭证。
+   * @param {PasskeyCredential} credential Passkey 凭证。
    */
   savePasskeyCredential(credential: PasskeyCredential): Promise<void>;
   /**
    * 删除 Passkey 凭证。
    *
-   * @param userId 用户 ID。
-   * @param credentialId 凭证 ID。
+   * @param {string} userId 用户 ID。
+   * @param {string} credentialId 凭证 ID。
    */
   deletePasskeyCredential(userId: string, credentialId: string): Promise<void>;
   /**
    * 获取身份绑定。
    *
-   * @param provider 身份提供方。
-   * @param providerUserId 提供方用户 ID。
-   * @return 身份绑定，不存在时返回 undefined。
+   * @param {AuthIdentityProvider} provider 身份提供方。
+   * @param {string} providerUserId 提供方用户 ID。
+   * @return {Promise<AuthIdentity | undefined>} 身份绑定，不存在时返回 undefined。
    */
   getAuthIdentity(
     provider: AuthIdentityProvider,
@@ -309,9 +309,9 @@ export type Storage = UserStorage & {
   /**
    * 列出用户在指定提供方的身份绑定。
    *
-   * @param provider 身份提供方。
-   * @param userId 用户 ID。
-   * @return 身份绑定列表。
+   * @param {AuthIdentityProvider} provider 身份提供方。
+   * @param {string} userId 用户 ID。
+   * @return {Promise<AuthIdentity[]>} 身份绑定列表。
    */
   listAuthIdentitiesForUser(
     provider: AuthIdentityProvider,
@@ -320,14 +320,14 @@ export type Storage = UserStorage & {
   /**
    * 保存身份绑定。
    *
-   * @param identity 身份绑定。
+   * @param {AuthIdentity} identity 身份绑定。
    */
   saveAuthIdentity(identity: AuthIdentity): Promise<void>;
   /**
    * 删除身份绑定。
    *
-   * @param provider 身份提供方。
-   * @param providerUserId 提供方用户 ID。
+   * @param {AuthIdentityProvider} provider 身份提供方。
+   * @param {string} providerUserId 提供方用户 ID。
    */
   deleteAuthIdentity(
     provider: AuthIdentityProvider,
@@ -336,9 +336,9 @@ export type Storage = UserStorage & {
   /**
    * 获取邮箱凭证。
    *
-   * @param userId 用户 ID。
-   * @param email 邮箱地址。
-   * @return 邮箱凭证，不存在时返回 undefined。
+   * @param {string} userId 用户 ID。
+   * @param {string} email 邮箱地址。
+   * @return {Promise<EmailCredential | undefined>} 邮箱凭证，不存在时返回 undefined。
    */
   getEmailCredential(
     userId: string,
@@ -347,28 +347,28 @@ export type Storage = UserStorage & {
   /**
    * 列出邮箱凭证。
    *
-   * @param userId 用户 ID。
-   * @return 邮箱凭证列表。
+   * @param {string} userId 用户 ID。
+   * @return {Promise<EmailCredential[]>} 邮箱凭证列表。
    */
   listEmailCredentials(userId: string): Promise<EmailCredential[]>;
   /**
    * 保存邮箱凭证。
    *
-   * @param credential 邮箱凭证。
+   * @param {EmailCredential} credential 邮箱凭证。
    */
   saveEmailCredential(credential: EmailCredential): Promise<void>;
   /**
    * 删除邮箱凭证。
    *
-   * @param userId 用户 ID。
-   * @param email 邮箱地址。
+   * @param {string} userId 用户 ID。
+   * @param {string} email 邮箱地址。
    */
   deleteEmailCredential(userId: string, email: string): Promise<void>;
   /**
    * 获取待处理邮箱验证。
    *
-   * @param id 验证 ID。
-   * @return 待处理邮箱验证。
+   * @param {string} id 验证 ID。
+   * @return {Promise<PendingEmailVerification | undefined>} 待处理邮箱验证。
    */
   getPendingEmailVerification(
     id: string,
@@ -376,7 +376,7 @@ export type Storage = UserStorage & {
   /**
    * 保存待处理邮箱验证。
    *
-   * @param verification 待处理邮箱验证。
+   * @param {PendingEmailVerification} verification 待处理邮箱验证。
    */
   savePendingEmailVerification(
     verification: PendingEmailVerification,
@@ -384,33 +384,33 @@ export type Storage = UserStorage & {
   /**
    * 删除待处理邮箱验证。
    *
-   * @param id 验证 ID。
+   * @param {string} id 验证 ID。
    */
   deletePendingEmailVerification(id: string): Promise<void>;
   /**
    * 获取待处理 MFA challenge。
    *
-   * @param id challenge ID。
-   * @return 待处理 MFA challenge。
+   * @param {string} id challenge ID。
+   * @return {Promise<PendingMfaChallenge | undefined>} 待处理 MFA challenge。
    */
   getPendingMfaChallenge(id: string): Promise<PendingMfaChallenge | undefined>;
   /**
    * 保存待处理 MFA challenge。
    *
-   * @param challenge 待处理 MFA challenge。
+   * @param {PendingMfaChallenge} challenge 待处理 MFA challenge。
    */
   savePendingMfaChallenge(challenge: PendingMfaChallenge): Promise<void>;
   /**
    * 删除待处理 MFA challenge。
    *
-   * @param id challenge ID。
+   * @param {string} id challenge ID。
    */
   deletePendingMfaChallenge(id: string): Promise<void>;
   /**
    * 获取待处理 Passkey challenge。
    *
-   * @param id challenge ID。
-   * @return 待处理 Passkey challenge。
+   * @param {string} id challenge ID。
+   * @return {Promise<PendingPasskeyChallenge | undefined>} 待处理 Passkey challenge。
    */
   getPendingPasskeyChallenge(
     id: string,
@@ -418,7 +418,7 @@ export type Storage = UserStorage & {
   /**
    * 保存待处理 Passkey challenge。
    *
-   * @param challenge 待处理 Passkey challenge。
+   * @param {PendingPasskeyChallenge} challenge 待处理 Passkey challenge。
    */
   savePendingPasskeyChallenge(
     challenge: PendingPasskeyChallenge,
@@ -426,14 +426,14 @@ export type Storage = UserStorage & {
   /**
    * 删除待处理 Passkey challenge。
    *
-   * @param id challenge ID。
+   * @param {string} id challenge ID。
    */
   deletePendingPasskeyChallenge(id: string): Promise<void>;
   /**
    * 获取等待展示的恢复码。
    *
-   * @param id 记录 ID。
-   * @return 等待展示的恢复码。
+   * @param {string} id 记录 ID。
+   * @return {Promise<PendingRecoveryCodeReveal | undefined>} 等待展示的恢复码。
    */
   getPendingRecoveryCodeReveal(
     id: string,
@@ -441,7 +441,7 @@ export type Storage = UserStorage & {
   /**
    * 保存等待展示的恢复码。
    *
-   * @param reveal 等待展示的恢复码。
+   * @param {PendingRecoveryCodeReveal} reveal 等待展示的恢复码。
    */
   savePendingRecoveryCodeReveal(
     reveal: PendingRecoveryCodeReveal,
@@ -449,23 +449,23 @@ export type Storage = UserStorage & {
   /**
    * 删除等待展示的恢复码。
    *
-   * @param id 记录 ID。
+   * @param {string} id 记录 ID。
    */
   deletePendingRecoveryCodeReveal(id: string): Promise<void>;
   /**
    * 获取登录失败状态。
    *
-   * @param username 用户名或登录标识。
-   * @return 登录失败状态。
+   * @param {string} username 用户名或登录标识。
+   * @return {Promise<LoginFailure | undefined>} 登录失败状态。
    */
   getLoginFailure(username: string): Promise<LoginFailure | undefined>;
   /**
    * 原子记录登录失败。
    *
-   * @param username 用户名或登录标识。
-   * @param maxFailures 最大失败次数。
-   * @param lockoutMs 锁定时长。
-   * @return 更新后的登录失败状态。
+   * @param {string} username 用户名或登录标识。
+   * @param {number} maxFailures 最大失败次数。
+   * @param {number} lockoutMs 锁定时长。
+   * @return {Promise<LoginFailure>} 更新后的登录失败状态。
    */
   recordLoginFailure(
     username: string,
@@ -475,16 +475,16 @@ export type Storage = UserStorage & {
   /**
    * 清除登录失败状态。
    *
-   * @param username 用户名或登录标识。
+   * @param {string} username 用户名或登录标识。
    */
   clearLoginFailures(username: string): Promise<void>;
   /**
    * 原子记录频率限制命中。
    *
-   * @param keyParts 频率限制键片段。
-   * @param limit 窗口内最大次数。
-   * @param windowMs 窗口时长。
-   * @return 频率限制命中结果。
+   * @param {readonly string[]} keyParts 频率限制键片段。
+   * @param {number} limit 窗口内最大次数。
+   * @param {number} windowMs 窗口时长。
+   * @return {Promise<RateLimitHit>} 频率限制命中结果。
    */
   recordRateLimitHit(
     keyParts: readonly string[],
@@ -494,20 +494,20 @@ export type Storage = UserStorage & {
   /**
    * 获取登录会话。
    *
-   * @param tokenHash 会话令牌哈希。
-   * @return 登录会话，不存在时返回 undefined。
+   * @param {string} tokenHash 会话令牌哈希。
+   * @return {Promise<UserSession | undefined>} 登录会话，不存在时返回 undefined。
    */
   getSession(tokenHash: string): Promise<UserSession | undefined>;
   /**
    * 保存登录会话。
    *
-   * @param session 登录会话。
+   * @param {UserSession} session 登录会话。
    */
   saveSession(session: UserSession): Promise<void>;
   /**
    * 删除登录会话。
    *
-   * @param tokenHash 会话令牌哈希。
+   * @param {string} tokenHash 会话令牌哈希。
    */
   deleteSession(tokenHash: string): Promise<void>;
 };
