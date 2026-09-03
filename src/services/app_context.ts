@@ -8,7 +8,7 @@ import {
   normalizeNotificationWebhookService,
 } from "../notification_services.ts";
 import { createPollScheduler } from "../crons.ts";
-import { createKvStorage } from "../storage/kv.ts";
+import { createAppStorage } from "../storage/factory.ts";
 import {
   type TurnstileConfig,
   turnstileConfigFromEnv,
@@ -110,7 +110,7 @@ export function createAppContext() {
     turnstile: turnstileConfigFromEnv(),
   };
 
-  const storage = createKvStorage(config.defaultSettings);
+  const storage = createAppStorage(config.defaultSettings);
   const matcher = createMatcher();
   const notifier = createNotifier();
   const source = createHeyboxTopicSource({

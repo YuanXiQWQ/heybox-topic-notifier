@@ -1853,7 +1853,7 @@ type LegacySettings = {
  * @param defaultSettings 默认应用设置。
  * @return 规范化后的应用设置。
  */
-function normalizeSettings(
+export function normalizeSettings(
   value: (Partial<AppSettings> & LegacySettings) | null,
   defaultSettings: AppSettings,
 ): AppSettings {

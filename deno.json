@@ -8,6 +8,8 @@
   },
   "imports": {
     "@hono/hono": "jsr:@hono/hono@^4.8.3",
+    "@libsql/client": "npm:@libsql/client@0.17.4",
+    "@libsql/client/web": "npm:@libsql/client@0.17.4/web",
     "@simplewebauthn/browser": "jsr:@simplewebauthn/browser@^13.3.0",
     "@simplewebauthn/server": "jsr:@simplewebauthn/server@^13.3.2",
     "qrcode": "npm:qrcode@^1.5.4"
