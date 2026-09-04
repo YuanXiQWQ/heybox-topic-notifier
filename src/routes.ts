@@ -204,7 +204,7 @@ export function createRoutes(context: AppContext): Hono {
     const rateLimitResponse = await rateLimitResponseForRequest(
       c,
       context,
-      publicRateLimitPolicies.manualPoll,
+      publicRateLimitPolicies.dashboardPoll,
     );
     if (rateLimitResponse) {
       return rateLimitResponse;
@@ -2046,6 +2046,18 @@ export function createRoutes(context: AppContext): Hono {
   app.get("/static/settings.js", async () => {
     const script = await Deno.readTextFile(
       new URL("../static/settings.js", import.meta.url),
+    );
+    return new Response(script, {
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "text/javascript; charset=utf-8",
+      },
+    });
+  });
+
+  app.get("/static/tooltip.js", async () => {
+    const script = await Deno.readTextFile(
+      new URL("../static/tooltip.js", import.meta.url),
     );
     return new Response(script, {
       headers: {

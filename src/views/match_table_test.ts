@@ -103,6 +103,38 @@ Deno.test("renderMatchRecordsSection opens post title links in a new tab", () =>
   );
 });
 
+Deno.test("renderMatchRecordsSection repairs stored rich-content JSON", () => {
+  const match = record("rich-content", "2026-06-30T12:00:00.000Z");
+  match.post.body = JSON.stringify([
+    { text: "可见正文", type: "text" },
+    { text: "/storage/emulated/0/image.jpg", type: "img" },
+  ]);
+  const html = renderMatchRecordsSection({
+    action: {
+      bulkButtonAttribute: "data-test-bulk",
+      emptySelectionMessage: "empty",
+      icon: "",
+      label: "complete",
+      rowCheckboxAttribute: "data-test-row",
+      selectAllAttribute: "data-test-all",
+    },
+    csrfToken: testCsrfToken,
+    emptyMessage: "empty",
+    filterToggleId: "test-filter",
+    formAction: "/matches/complete",
+    heading: "heading",
+    headingId: "heading-id",
+    locale: "zh-CN",
+    messages: getMessages("zh-CN"),
+    path: "/",
+    table: table([match]),
+  });
+
+  assertIncludes(html, '<span class="table-clip">可见正文</span>');
+  assertNotIncludes(html, "storage/emulated");
+  assertNotIncludes(html, "&quot;type&quot;");
+});
+
 Deno.test("renderMatchRecordsSection marks timestamps for live relative updates", () => {
   const match = record("relative-time", "2026-06-30T12:05:00.000Z");
   match.post.publishedAt = "2026-06-30T12:00:00.000Z";
@@ -239,7 +271,7 @@ Deno.test("settings and history pages keep the app tab title", () => {
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 
-Deno.test("settings page loads the stable new-password focus flow", () => {
+Deno.test("settings page loads the latest settings interactions", () => {
   const html = renderSettings({
     csrfToken: testCsrfToken,
     settings: settings(),
@@ -247,7 +279,7 @@ Deno.test("settings page loads the stable new-password focus flow", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260902-reauth-selector`,
+    `/static/settings.js?v=20260903-transient-status`,
   );
 });
 
@@ -298,8 +330,8 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
   assertIncludes(html, `data-account-mode-trigger="password"`);
   assertIncludes(html, `aria-label="修改用户名"`);
   assertIncludes(html, `aria-label="修改密码"`);
-  assertIncludes(html, `title="修改用户名"`);
-  assertIncludes(html, `title="修改密码"`);
+  assertIncludes(html, `data-tooltip="修改用户名"`);
+  assertIncludes(html, `data-tooltip="修改密码"`);
   assertIncludes(html, `class="settings-row-switch-cell"`);
   assertIncludes(html, `data-test-notify-status`);
   assertIncludes(html, `data-test-notify-button`);
@@ -307,7 +339,10 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
     html,
     `aria-label="${getMessages(settings().locale).testNotify}"`,
   );
-  assertIncludes(html, `title="${getMessages(settings().locale).testNotify}"`);
+  assertIncludes(
+    html,
+    `data-tooltip="${getMessages(settings().locale).testNotify}"`,
+  );
   assertIncludes(html, `data-security-settings-status-row`);
   assertNotIncludes(html, `data-account-verify-button`);
   assertNotIncludes(html, `data-account-mode="password"`);
@@ -721,7 +756,7 @@ Deno.test("renderSettings places auth sections below notifications and above glo
   assertIncludes(html, `data-auth-icon="authenticator"`);
   assertIncludes(html, `data-auth-icon="recovery-codes"`);
   assertIncludes(html, `aria-label="修改密码"`);
-  assertIncludes(html, `title="添加 Passkey"`);
+  assertIncludes(html, `data-tooltip="添加 Passkey"`);
   assertNotIncludes(html, `>修改密码</button>`);
   assertNotIncludes(html, `>添加 Passkey</button>`);
   assertNotIncludes(html, `>绑定</button>`);
@@ -770,6 +805,7 @@ Deno.test("renderSettings renders Passkey binding controls", () => {
   assertIncludes(localizedCreatedAt, "年");
   assertNotIncludes(html, "2026-08-01T00:00:00.000Z");
   assertIncludes(html, `Passkey 已绑定。`);
+  assertIncludes(html, `data-transient-success-status`);
   assertIncludes(html, `data-account-passkey-available="true"`);
   assertIncludes(html, `data-account-password-available="true"`);
   assertIncludes(html, `data-account-recently-verified="false"`);
@@ -848,6 +884,8 @@ Deno.test("renderSettings renders account security controls", () => {
   assertIncludes(html, `开启两步验证`);
   assertIncludes(html, `邮箱验证码`);
   assertIncludes(html, `双重验证设置已保存。`);
+  assertIncludes(html, `data-transient-success-status`);
+  assertIncludes(html, `data-inline-status-container`);
   assertNotIncludes(html, `保存安全设置`);
   const securityPanel = html.slice(
     html.indexOf(`data-auth-method-panel="two-factor"`),
@@ -882,7 +920,7 @@ Deno.test("renderSettings renders Google unbind as an icon action", () => {
   assertIncludes(html, `action="/account/google/unbind?locale=zh-CN"`);
   assertIncludes(html, `class="auth-method-toggle-button"`);
   assertIncludes(html, `aria-label="解绑"`);
-  assertIncludes(html, `title="解绑"`);
+  assertIncludes(html, `data-tooltip="解绑"`);
   assertIncludes(html, `已绑定 alice@example.com`);
   assertNotIncludes(html, `Google 已绑定。`);
   assertNotIncludes(html, `data-auth-method-panel="google"`);

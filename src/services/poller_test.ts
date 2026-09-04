@@ -2,7 +2,7 @@
  * @file 本文件验证轮询器的帖子拉取、匹配、通知和历史更新逻辑。
  */
 import type { AppSettings, MatchRecord, TopicPost } from "../models.ts";
-import type { createKvStorage } from "../storage/kv.ts";
+import type { Storage } from "../storage/types.ts";
 import { assertEquals, assertRejects } from "../test_helpers.ts";
 import { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
@@ -113,7 +113,7 @@ Deno.test("recordMatches saves provided matches and marks successful notificatio
         return Promise.resolve();
       },
       setLastPollAt: () => Promise.resolve(),
-    } as unknown as ReturnType<typeof createKvStorage>,
+    } as unknown as Storage,
   });
 
   await poller.recordMatches([record]);
@@ -178,7 +178,7 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
         lastPollAt = value;
         return Promise.resolve();
       },
-    } as unknown as ReturnType<typeof createKvStorage>,
+    } as unknown as Storage,
   });
 
   await poller.runOnce();
@@ -252,7 +252,7 @@ Deno.test("poller refreshes existing matched post details without notifying agai
       },
       markMatchNotified: () => Promise.resolve(),
       setLastPollAt: () => Promise.resolve(),
-    } as unknown as ReturnType<typeof createKvStorage>,
+    } as unknown as Storage,
   });
 
   await poller.runOnce();
@@ -297,7 +297,7 @@ Deno.test("poller saves detailed post time for new matches", async () => {
       },
       markMatchNotified: () => Promise.resolve(),
       setLastPollAt: () => Promise.resolve(),
-    } as unknown as ReturnType<typeof createKvStorage>,
+    } as unknown as Storage,
   });
 
   await poller.runOnce();
@@ -308,6 +308,7 @@ Deno.test("poller saves detailed post time for new matches", async () => {
 Deno.test("poller leaves matched posts retryable when notification fails", async () => {
   const records: MatchRecord[] = [];
   const notifiedMatches: string[] = [];
+  let lastPollAt = "";
   const poller = createPoller({
     matcher: createMatcher(),
     notifier: {
@@ -334,14 +335,18 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
         records.push(record);
         return Promise.resolve();
       },
-      setLastPollAt: () => Promise.resolve(),
-    } as unknown as ReturnType<typeof createKvStorage>,
+      setLastPollAt: (value: string) => {
+        lastPollAt = value;
+        return Promise.resolve();
+      },
+    } as unknown as Storage,
   });
 
   await assertRejects(() => poller.runOnce(), "webhook failed");
 
   assertEquals(records.map((record) => record.post.id), ["retry-me"]);
   assertEquals(notifiedMatches, []);
+  assertEquals(Boolean(lastPollAt), true);
 });
 
 /**

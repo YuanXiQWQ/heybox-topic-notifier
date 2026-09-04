@@ -5,6 +5,7 @@ import { getMessages } from "../locales/index.ts";
 import { type Locale, locales, type Messages } from "../locales/types.ts";
 import type { MatchLocation } from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
+import { plainTextFromHeyboxContent } from "../services/heybox_topic_source.ts";
 import { escapeHtml } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import {
@@ -97,7 +98,7 @@ export function renderMatchRecordsSection(
                     type="submit"
                     class="icon-button"
                     ${options.action.bulkButtonAttribute}
-                    title="${escapeHtml(options.action.label)}"
+                    data-tooltip="${escapeHtml(options.action.label)}"
                     aria-label="${escapeHtml(options.action.label)}"
                   >${options.action.icon}</button>
                 </th>
@@ -139,6 +140,9 @@ function renderRows(options: MatchRecordsSectionOptions): string {
     const titleClasses = ["match-table-title-link", options.titleLinkClass]
       .filter((className): className is string => Boolean(className))
       .join(" ");
+    const postContent = plainTextFromHeyboxContent(
+      record.post.body || record.post.excerpt,
+    );
 
     return `
     <tr>
@@ -160,7 +164,7 @@ function renderRows(options: MatchRecordsSectionOptions): string {
       escapeHtml(record.post.title)
     }</a></td>
       <td class="match-content-cell">${`<span class="table-clip">${
-      escapeHtml(record.post.body || record.post.excerpt)
+      escapeHtml(postContent)
     }</span>`}</td>
       <td>${
       renderMatchDetails(record, now, options.locale, options.messages)
@@ -171,7 +175,7 @@ function renderRows(options: MatchRecordsSectionOptions): string {
           class="icon-button"
           name="matchId"
           value="${escapeHtml(record.id)}"
-          title="${escapeHtml(options.action.label)}"
+          data-tooltip="${escapeHtml(options.action.label)}"
           aria-label="${escapeHtml(options.action.label)}"
         >${options.action.icon}</button>
       </td>
@@ -321,7 +325,7 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
       <label
         class="filter-toggle"
         for="${escapeHtml(options.filterToggleId)}"
-        title="${escapeHtml(messages.filter)}"
+        data-tooltip="${escapeHtml(messages.filter)}"
         aria-label="${escapeHtml(messages.filter)}"
       >
         ${filterIcon()}

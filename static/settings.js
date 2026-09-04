@@ -54,6 +54,14 @@ let reloadAfterSave = false;
  */
 const notificationTransitionMs = 190;
 /**
+ * 保存成功提示自动隐藏前的显示时间。
+ */
+const successStatusDurationMs = 3000;
+/**
+ * 各状态元素当前等待执行的自动隐藏定时器。
+ */
+const transientStatusTimers = new WeakMap();
+/**
  * 当前密码输入停止后触发自动验证的等待时间。
  */
 const accountPasswordVerifyDelayMs = 650;
@@ -107,6 +115,7 @@ function initSettingsEditors() {
 
   initDropdown(topicEditor, "topics");
   initDropdown(keywordEditor, "keywords");
+  initRenderedSuccessStatuses();
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
   initRuleDragging(topicEditor, keywordEditor);
@@ -291,6 +300,7 @@ async function refreshTwoStepSettings(url) {
   currentForm.replaceWith(nextForm);
   currentSection.replaceWith(nextSection);
   pendingSensitiveActionForm = undefined;
+  initRenderedSuccessStatuses(nextSection);
   initAuthMethodPanels(nextSection);
   initTotpBinding(nextSection);
   initTotpManualKeyCopy(nextSection);
@@ -304,28 +314,53 @@ async function refreshTwoStepSettings(url) {
 }
 
 /**
- * 原地同步 Passkey 设置行并重新绑定交互。
+ * 原地同步 Passkey 设置行和两步验证设置区域并重新绑定交互。
  *
  * @param {string} url 最新设置页地址。
- * @return {Promise<boolean>} 设置行更新成功时返回 true。
+ * @return {Promise<boolean>} 所有相关设置区域更新成功时返回 true。
  */
 async function refreshPasskeySettings(url) {
   const parsed = await fetchSettingsDocument(url);
   const currentRow = document.querySelector("#auth-method-passkey");
   const nextRow = parsed.querySelector("#auth-method-passkey");
+  const currentForm = document.querySelector("[data-security-settings-form]");
+  const nextForm = parsed.querySelector("[data-security-settings-form]");
+  const currentSection = document.querySelector(
+    'section[aria-labelledby="account-two-step-heading"]',
+  );
+  const nextSection = parsed.querySelector(
+    'section[aria-labelledby="account-two-step-heading"]',
+  );
   if (
     !(currentRow instanceof HTMLElement) ||
-    !(nextRow instanceof HTMLElement)
+    !(nextRow instanceof HTMLElement) ||
+    !(currentForm instanceof HTMLFormElement) ||
+    !(nextForm instanceof HTMLFormElement) ||
+    !(currentSection instanceof HTMLElement) ||
+    !(nextSection instanceof HTMLElement)
   ) {
     return false;
   }
 
   currentRow.replaceWith(nextRow);
+  currentForm.replaceWith(nextForm);
+  currentSection.replaceWith(nextSection);
   pendingSensitiveActionForm = undefined;
+  initRenderedSuccessStatuses(nextRow);
+  initRenderedSuccessStatuses(nextSection);
   initAuthMethodPanels(nextRow);
   initPasskeyBinding(nextRow);
   initSensitiveActionForms(nextRow);
   initReauth(nextRow);
+  initAuthMethodPanels(nextSection);
+  initTotpBinding(nextSection);
+  initTotpManualKeyCopy(nextSection);
+  initRecoveryCodeDownload();
+  initRecoveryCodeConfirmation();
+  initRecoveryCodeGeneration();
+  initSensitiveActionForms(nextSection);
+  initReauth(nextSection);
+  initSecuritySettingsAutoSave();
   return true;
 }
 
@@ -360,13 +395,13 @@ function initTotpManualKeyCopy(scope = document) {
     button.disabled = false;
     button.dataset.state = copied ? "copied" : "failed";
     button.setAttribute("aria-label", feedback);
-    button.title = feedback;
+    button.dataset.tooltip = feedback;
     status.textContent = feedback;
     clearTimeout(resetTimer);
     resetTimer = setTimeout(() => {
       delete button.dataset.state;
       button.setAttribute("aria-label", copyLabel);
-      button.title = copyLabel;
+      button.dataset.tooltip = copyLabel;
       status.textContent = "";
     }, 1800);
   });
@@ -1246,7 +1281,7 @@ function initAccountSettings() {
 
     reauthVerified = false;
     lockAccountTargets();
-    clearStatus(currentPasswordStatus);
+    clearInlineStatus(currentPasswordStatus);
     scheduleCurrentPasswordVerification();
   });
 
@@ -1309,7 +1344,7 @@ function initAccountSettings() {
   }, true);
 
   usernameInput.addEventListener("input", () => {
-    clearStatus(usernameStatus);
+    clearInlineStatus(usernameStatus);
   });
 
   unlockedFields.forEach((field) => {
@@ -1319,10 +1354,10 @@ function initAccountSettings() {
       }
 
       if (field.name === "newPassword") {
-        clearStatus(newPasswordStatus);
+        clearInlineStatus(newPasswordStatus);
       }
       if (field.name === "confirmPassword") {
-        clearStatus(confirmPasswordStatus);
+        clearInlineStatus(confirmPasswordStatus);
       }
     });
   });
@@ -1406,7 +1441,7 @@ function initAccountSettings() {
     }
 
     showAccountElement(passkeyReauthRow, false, ++transitionToken);
-    setStatus(
+    setInlineStatus(
       passkeyStatus,
       passkeyAvailable
         ? form.dataset.accountPasskeyUnsupported || ""
@@ -1603,12 +1638,12 @@ function initAccountSettings() {
     passkeyRetryButton.disabled = true;
     passkeyRetryButton.hidden = true;
     passwordFallbackButton.hidden = !passwordAvailable;
-    setStatus(
+    setInlineStatus(
       passkeyStatus,
       form.dataset.accountPasskeyPending || "",
       "pending",
     );
-    clearStatus(actionStatus);
+    clearInlineStatus(actionStatus);
 
     try {
       await performPasskeyReauth(form);
@@ -1618,7 +1653,7 @@ function initAccountSettings() {
 
       reauthVerified = true;
       form.dataset.accountRecentlyVerified = "true";
-      setStatus(
+      setInlineStatus(
         passkeyStatus,
         form.dataset.accountPasskeyVerified || "",
         "success",
@@ -1638,7 +1673,7 @@ function initAccountSettings() {
         showAccountElement(passkeyReauthRow, false, ++transitionToken);
         setCurrentPasswordInputEnabled(false);
         hideAccountElement(currentPasswordRow, false, ++transitionToken);
-        setStatus(
+        setInlineStatus(
           passkeyStatus,
           form.dataset.accountPasskeyFailed || "",
           "error",
@@ -1646,7 +1681,7 @@ function initAccountSettings() {
         passkeyRetryButton.hidden = false;
         passwordFallbackButton.hidden = false;
       } else {
-        setStatus(
+        setInlineStatus(
           passkeyStatus,
           form.dataset.accountPasskeyFailed || "",
           "error",
@@ -1674,9 +1709,9 @@ function initAccountSettings() {
     setCurrentPasswordInputEnabled(true);
     showAccountElement(currentPasswordRow, false, ++transitionToken);
     if (options.message) {
-      setStatus(actionStatus, options.message, "error");
+      setInlineStatus(actionStatus, options.message, "error");
     } else {
-      clearStatus(actionStatus);
+      clearInlineStatus(actionStatus);
     }
     focusAccountControl(
       currentPasswordInput,
@@ -1693,7 +1728,7 @@ function initAccountSettings() {
   async function verifyCurrentPassword(showRequired = false) {
     if (!currentPasswordInput.value) {
       if (showRequired) {
-        setStatus(
+        setInlineStatus(
           currentPasswordStatus,
           form.dataset.accountPasswordRequired || "",
           "error",
@@ -1728,7 +1763,7 @@ function initAccountSettings() {
       if (response.ok) {
         reauthVerified = true;
         form.dataset.accountRecentlyVerified = "true";
-        setStatus(
+        setInlineStatus(
           currentPasswordStatus,
           form.dataset.accountPasswordVerified || "",
           "success",
@@ -1740,7 +1775,7 @@ function initAccountSettings() {
       } else {
         reauthVerified = false;
         lockAccountTargets();
-        setStatus(
+        setInlineStatus(
           currentPasswordStatus,
           form.dataset.accountPasswordInvalid || "",
           "error",
@@ -1754,7 +1789,7 @@ function initAccountSettings() {
 
       reauthVerified = false;
       lockAccountTargets();
-      setStatus(
+      setInlineStatus(
         currentPasswordStatus,
         form.dataset.accountPasswordInvalid || "",
         "error",
@@ -1796,39 +1831,21 @@ function initAccountSettings() {
     }, notificationTransitionMs);
   }
 
-  function setStatus(element, message, state) {
-    if (!(element instanceof HTMLElement)) {
-      return;
-    }
-
-    element.textContent = message;
-    element.hidden = message.length === 0;
-    if (state === "error") {
-      element.dataset.state = "error";
-    } else {
-      delete element.dataset.state;
-    }
-  }
-
-  function clearStatus(element) {
-    setStatus(element, "", "success");
-  }
-
   function clearAllAccountStatuses() {
-    clearStatus(actionStatus);
-    clearStatus(passkeyStatus);
-    fieldStatuses.forEach((status) => clearStatus(status));
+    clearInlineStatus(actionStatus);
+    clearInlineStatus(passkeyStatus);
+    fieldStatuses.forEach((status) => clearInlineStatus(status));
   }
 
   /**
    * 清空当前编辑目标的字段状态，并保留当前密码验证通过提示。
    */
   function clearAccountTargetStatuses() {
-    clearStatus(actionStatus);
-    clearStatus(passkeyStatus);
-    clearStatus(usernameStatus);
-    clearStatus(newPasswordStatus);
-    clearStatus(confirmPasswordStatus);
+    clearInlineStatus(actionStatus);
+    clearInlineStatus(passkeyStatus);
+    clearInlineStatus(usernameStatus);
+    clearInlineStatus(newPasswordStatus);
+    clearInlineStatus(confirmPasswordStatus);
   }
 }
 
@@ -2253,7 +2270,6 @@ async function setSecuritySettingsError(form, status, response) {
     form.dataset.securityError ||
     "";
   setInlineStatus(status, message, "error");
-  setSecurityStatusRowVisible(status, message.length > 0);
   return code;
 }
 
@@ -2266,21 +2282,12 @@ async function setSecuritySettingsError(form, status, response) {
  */
 function setSecuritySettingsStatus(form, status, state) {
   const message = form.dataset[`security${capitalize(state)}`] || "";
-  setInlineStatus(status, message, state === "error" ? "error" : "success");
-  setSecurityStatusRowVisible(status, message.length > 0);
-}
-
-/**
- * 设置两步验证状态栏容器显隐。
- *
- * @param {Element|null} status 状态元素。
- * @param {boolean} visible 是否显示状态栏容器。
- */
-function setSecurityStatusRowVisible(status, visible) {
-  const row = status?.closest("[data-security-settings-status-row]");
-  if (row instanceof HTMLElement) {
-    row.hidden = !visible;
-  }
+  setInlineStatus(
+    status,
+    message,
+    state === "error" ? "error" : state === "saved" ? "success" : "pending",
+    state === "saved",
+  );
 }
 
 /**
@@ -2825,7 +2832,7 @@ async function submitSensitiveAction(form) {
       return false;
     }
 
-    completeCredentialDeletion(form, payload);
+    await completeCredentialDeletion(form, payload);
     return true;
   } catch {
     return false;
@@ -2867,12 +2874,13 @@ function showSensitiveActionReauth(form) {
 }
 
 /**
- * 将已删除的凭证从页面移除并同步摘要和状态。
+ * 将已删除的凭证从页面移除，并同步两步验证设置。
  *
  * @param {HTMLFormElement} form 已完成的删除表单。
  * @param {{remainingCount?: number}} payload 服务端删除结果。
+ * @return {Promise<void>} 两步验证设置同步完成后的 Promise。
  */
-function completeCredentialDeletion(form, payload) {
+async function completeCredentialDeletion(form, payload) {
   const section = form.closest(
     "[data-totp-binding-section], [data-passkey-binding-section]",
   );
@@ -2880,6 +2888,9 @@ function completeCredentialDeletion(form, payload) {
     return;
   }
 
+  const credentialType = section.matches("[data-totp-binding-section]")
+    ? "totp"
+    : "passkey";
   const remainingCount = Number(payload.remainingCount);
   form.closest("li")?.remove();
   const list = section.querySelector(".passkey-credential-list");
@@ -2910,6 +2921,13 @@ function completeCredentialDeletion(form, payload) {
   if (panel instanceof HTMLElement) {
     removeTransientReauthSections(panel);
   }
+
+  const refreshUrl = new URL(globalThis.location.href);
+  refreshUrl.searchParams.set(credentialType, "deleted");
+  refreshUrl.hash = credentialType === "totp"
+    ? "auth-method-totp"
+    : "auth-method-passkey";
+  await refreshTwoStepSettings(refreshUrl.href).catch(() => false);
 }
 
 /**
@@ -3852,18 +3870,27 @@ function resetTurnstileWidget() {
  * @param {Element|null} element 状态元素。
  * @param {string} message 状态消息。
  * @param {string} state 状态类型。
+ * @param {boolean} [transient] 是否在成功后自动隐藏。
  */
-function setInlineStatus(element, message, state) {
+function setInlineStatus(element, message, state, transient = false) {
   if (!(element instanceof HTMLElement)) {
     return;
   }
 
+  cancelTransientStatusClear(element);
   element.textContent = message;
   element.hidden = message.length === 0;
+  const container = element.closest("[data-inline-status-container]");
+  if (container instanceof HTMLElement) {
+    container.hidden = message.length === 0;
+  }
   if (state === "error") {
     element.dataset.state = "error";
   } else {
     delete element.dataset.state;
+  }
+  if (transient && state === "success" && message.length > 0) {
+    scheduleTransientStatusClear(element);
   }
 }
 
@@ -3874,6 +3901,52 @@ function setInlineStatus(element, message, state) {
  */
 function clearInlineStatus(element) {
   setInlineStatus(element, "", "success");
+}
+
+/**
+ * 初始化服务端渲染的保存成功提示。
+ *
+ * @param {ParentNode} [scope] 查找范围。
+ */
+function initRenderedSuccessStatuses(scope = document) {
+  scope.querySelectorAll("[data-transient-success-status]").forEach(
+    (status) => scheduleTransientStatusClear(status),
+  );
+}
+
+/**
+ * 安排状态元素在成功提示展示完成后自动隐藏。
+ *
+ * @param {Element|null} element 状态元素。
+ */
+function scheduleTransientStatusClear(element) {
+  if (!(element instanceof HTMLElement) || !element.textContent?.trim()) {
+    return;
+  }
+
+  cancelTransientStatusClear(element);
+  const timer = setTimeout(() => {
+    transientStatusTimers.delete(element);
+    clearInlineStatus(element);
+  }, successStatusDurationMs);
+  transientStatusTimers.set(element, timer);
+}
+
+/**
+ * 取消状态元素尚未执行的自动隐藏任务。
+ *
+ * @param {Element|null} element 状态元素。
+ */
+function cancelTransientStatusClear(element) {
+  if (!(element instanceof HTMLElement)) {
+    return;
+  }
+
+  const timer = transientStatusTimers.get(element);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    transientStatusTimers.delete(element);
+  }
 }
 
 /**
@@ -5221,7 +5294,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(appName)}</title>
-  <link rel="icon" href="https://cdn.max-c.com/heybox/logo/app_251.png">
+  <link rel="icon" href="${escapeHtml(appOrigin)}/favicon.ico" type="image/png">
   <link rel="stylesheet" href="${escapeHtml(appOrigin)}/static/app.css">
   <style>
     .error-detail-content {
@@ -5359,11 +5432,16 @@ function setAutoSaveStatus(state, text) {
     return;
   }
 
-  status.dataset.state = state;
-  status.textContent = text ??
+  const message = text ??
     autoSaveForm
       .dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
     "";
+  setInlineStatus(
+    status,
+    message,
+    state === "error" ? "error" : state === "saved" ? "success" : "pending",
+    state === "saved",
+  );
 }
 
 /**

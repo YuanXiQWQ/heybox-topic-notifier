@@ -255,7 +255,7 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/settings.js?v=20260902-reauth-selector" defer></script>
+    <script src="/static/settings.js?v=20260903-transient-status" defer></script>
   `;
 
   return renderLayout({
@@ -452,7 +452,7 @@ function secretInputEditor(
       class="settings-row-action-button settings-icon-action-button"
       data-secret-edit-button
       aria-label="${escapedLabel}"
-      title="${escapedLabel}"
+      data-tooltip="${escapedLabel}"
     >${materialSymbolIcon("edit", "settings-row-action-icon")}</button>
   </div>`;
 }
@@ -465,6 +465,18 @@ function secretInputEditor(
  */
 function secretMaskValue(length: number): string {
   return escapeHtml("•".repeat(Math.max(0, length)));
+}
+
+/**
+ * 生成服务端成功状态自动隐藏所需的数据属性。
+ *
+ * @param {{type: string}|undefined} status 服务端返回的状态。
+ * @return {string} 成功状态的数据属性，否则返回空字符串。
+ */
+function transientSuccessStatusAttribute(
+  status: { type: string } | undefined,
+): string {
+  return status?.type === "success" ? "data-transient-success-status" : "";
 }
 
 /**
@@ -575,7 +587,7 @@ function renderAccountSection(
                     class="settings-row-action-button settings-icon-action-button"
                     data-account-mode="username"
                     aria-label="${editUsernameLabel}"
-                    title="${editUsernameLabel}"
+                    data-tooltip="${editUsernameLabel}"
                   >${
     materialSymbolIcon("edit", "settings-row-action-icon")
   }</button>
@@ -678,6 +690,7 @@ function renderAccountSection(
             class="inline-action-status"
             data-account-status
             ${statusState}
+            ${transientSuccessStatusAttribute(status)}
             ${actionStatusMessage ? "" : "hidden"}
             role="status"
           >${escapeHtml(actionStatusMessage ?? "")}</span>
@@ -862,6 +875,7 @@ function renderEmailLoginMethodRow(options: {
                   class="inline-action-status"
                   data-email-send-status
                   ${statusState}
+                  ${transientSuccessStatusAttribute(options.status)}
                   ${statusMessage ? "" : "hidden"}
                   role="status"
                 >${escapeHtml(statusMessage)}</span>
@@ -872,7 +886,7 @@ function renderEmailLoginMethodRow(options: {
                   class="auth-method-toggle-button"
                   data-email-binding-edit-button
                   aria-label="${editLabel}"
-                  title="${editLabel}"
+                  data-tooltip="${editLabel}"
                 >${
     materialSymbolIcon("edit", "auth-method-action-icon")
   }</button>
@@ -1023,7 +1037,7 @@ function renderAuthPanelToggle(
     data-auth-method-toggle="${escapeHtml(panelId)}"
     aria-expanded="${open ? "true" : "false"}"
     aria-label="${escapedLabel}"
-    title="${escapedLabel}"
+    data-tooltip="${escapedLabel}"
   >${materialSymbolIcon("edit", "auth-method-action-icon")}</button>`;
 }
 
@@ -1044,7 +1058,7 @@ function renderAccountModeTrigger(
     class="auth-method-toggle-button"
     data-account-mode-trigger="${escapeHtml(mode)}"
     aria-label="${escapedLabel}"
-    title="${escapedLabel}"
+    data-tooltip="${escapedLabel}"
   >${materialSymbolIcon("edit", "auth-method-action-icon")}</button>`;
 }
 
@@ -1179,7 +1193,7 @@ function renderGoogleUnbindForm(
       type="submit"
       class="auth-method-toggle-button"
       aria-label="${escapedLabel}"
-      title="${escapedLabel}"
+      data-tooltip="${escapedLabel}"
     >${materialSymbolIcon("edit", "auth-method-action-icon")}</button>
   </form>`;
 }
@@ -1228,6 +1242,7 @@ function renderGoogleBindingPanel(
         class="inline-action-status"
         data-google-binding-status
         ${statusState}
+        ${transientSuccessStatusAttribute(status)}
         ${statusMessage ? "" : "hidden"}
         role="status"
       >${escapeHtml(statusMessage)}</span>
@@ -1255,6 +1270,7 @@ function renderGoogleStatus(
   return `<span
     class="inline-action-status"
     ${statusState}
+    ${transientSuccessStatusAttribute(status)}
     ${statusMessage ? "" : "hidden"}
     role="status"
   >${escapeHtml(statusMessage)}</span>`;
@@ -1328,7 +1344,7 @@ function renderCredentialActionButton(options: {
     class="auth-method-toggle-button"${hiddenAttribute}
     data-auth-credential-action="${options.action}"${formAttribute}${passkeyBindAttribute}${panelToggleAttribute}${recoveryCodeGenerateAttribute}
     aria-label="${escapeHtml(options.label)}"
-    title="${escapeHtml(options.label)}"
+    data-tooltip="${escapeHtml(options.label)}"
   >${materialSymbolIcon(icon, "auth-method-action-icon")}</button>`;
 }
 
@@ -1421,6 +1437,7 @@ function renderTotpBindingSection(
           class="inline-action-status"
           data-totp-binding-status
           ${statusState}
+          ${transientSuccessStatusAttribute(status)}
           ${statusMessage ? "" : "hidden"}
           role="status"
         >${escapeHtml(statusMessage)}</span>
@@ -1492,7 +1509,7 @@ function renderTotpSetupFields(
     escapeHtml(messages.accountTotpCopyFailed)
   }"
                 aria-label="${escapeHtml(messages.accountTotpCopyKey)}"
-                title="${escapeHtml(messages.accountTotpCopyKey)}"
+                data-tooltip="${escapeHtml(messages.accountTotpCopyKey)}"
               >${copyIcon("totp-copy-icon")}</button>
               <span
                 class="totp-copy-status"
@@ -1664,6 +1681,7 @@ function renderPasskeyBindingSection(
           class="inline-action-status"
           data-passkey-binding-status
           ${statusState}
+          ${transientSuccessStatusAttribute(status)}
           ${statusMessage ? "" : "hidden"}
           role="status"
         >${escapeHtml(statusMessage)}</span>
@@ -2320,12 +2338,14 @@ function renderTwoStepVerificationSection(options: {
       <div
         class="form-actions account-form-actions security-status-actions"
         data-security-settings-status-row
+        data-inline-status-container
         ${statusMessage ? "" : "hidden"}
       >
         <span
           class="inline-action-status"
           data-security-settings-status
           ${statusState}
+          ${transientSuccessStatusAttribute(options.securityStatus)}
           ${statusMessage ? "" : "hidden"}
           role="status"
         >${escapeHtml(statusMessage)}</span>
@@ -2511,7 +2531,7 @@ function renderNewRecoveryCodes(
     escapeHtml(messages.accountRecoveryCodesSaveHint)
   }"
         aria-label="${escapeHtml(messages.accountRecoveryCodesDownload)}"
-        title="${escapeHtml(messages.accountRecoveryCodesDownload)}"
+        data-tooltip="${escapeHtml(messages.accountRecoveryCodesDownload)}"
       >${materialSymbolIcon("download", "recovery-code-download-icon")}</button>
     </div>
     <ul class="recovery-code-list" data-recovery-code-list>
@@ -2901,7 +2921,7 @@ function renderNotificationSection(settings: AppSettings): string {
                   type="button"
                   class="settings-row-action-button settings-icon-action-button"
                   aria-label="${escapeHtml(messages.testNotify)}"
-                  title="${escapeHtml(messages.testNotify)}"
+                  data-tooltip="${escapeHtml(messages.testNotify)}"
                   data-test-notify-button
                   data-test-notify-sending="${
     escapeHtml(messages.testNotifySending)
@@ -3540,7 +3560,7 @@ function renderTopicRuleHeader(
           type="button"
           class="icon-button"
           data-action="delete-topics"
-          title="${escapeHtml(messages.selectTopicToDelete)}"
+          data-tooltip="${escapeHtml(messages.selectTopicToDelete)}"
           aria-label="${escapeHtml(messages.selectTopicToDelete)}"
         >${trashIcon()}</button>
       </div>
@@ -3657,7 +3677,7 @@ function renderKeywordRuleHeader(
           type="button"
           class="icon-button"
           data-action="delete-keywords"
-          title="${escapeHtml(messages.selectKeywordToDelete)}"
+          data-tooltip="${escapeHtml(messages.selectKeywordToDelete)}"
           aria-label="${escapeHtml(messages.selectKeywordToDelete)}"
         >${trashIcon()}</button>
       </div>
@@ -3686,7 +3706,7 @@ function dragHandleButton(label: string): string {
     type="button"
     class="icon-button rule-drag-handle"
     data-rule-drag-handle
-    title="${escapedLabel}"
+    data-tooltip="${escapedLabel}"
     aria-label="${escapedLabel}"
   >${materialSymbolIcon("drag_indicator", "rule-drag-icon")}</button>`;
 }

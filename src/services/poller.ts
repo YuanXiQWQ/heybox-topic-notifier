@@ -2,13 +2,13 @@
  * @file 本文件负责轮询话题帖子、匹配关键词并触发通知。
  */
 import type { AppSettings, MatchRecord } from "../models.ts";
-import type { createKvStorage } from "../storage/kv.ts";
+import type { Storage } from "../storage/types.ts";
 import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import type { TopicSource } from "./topic_source.ts";
 
 type PollStorage = Pick<
-  ReturnType<typeof createKvStorage>,
+  Storage,
   | "getSettings"
   | "listHistory"
   | "markMatchNotified"
@@ -22,13 +22,27 @@ type PollerDependencies = {
   matcher: ReturnType<typeof createMatcher>;
   notifier: PollNotifier;
   source: TopicSource;
-  storage: ReturnType<typeof createKvStorage>;
+  storage: Storage;
 };
 
+/**
+ * 创建话题轮询器。
+ *
+ * @param {PollerDependencies} dependencies 匹配、通知、数据源和存储依赖。
+ * @return {object} 支持正式轮询和模拟记录的轮询器。
+ */
 export function createPoller(
   { matcher, notifier, source, storage }: PollerDependencies,
 ) {
   return {
+    /**
+     * 保存并通知一组外部构造的命中记录。
+     *
+     * @param {MatchRecord[]} records 命中记录。
+     * @param {PollStorage} runStorage 本次操作使用的用户存储。
+     * @param {AppSettings} runSettings 本次操作使用的应用设置。
+     * @return {Promise<void>} 记录和通知完成后的 Promise。
+     */
     async recordMatches(
       records: MatchRecord[],
       runStorage: PollStorage = storage,
@@ -38,6 +52,12 @@ export function createPoller(
       await saveAndNotifyMatches(runStorage, notifier, records, settings);
     },
 
+    /**
+     * 执行一次完整话题查询、匹配和通知。
+     *
+     * @param {PollStorage} runStorage 本次轮询使用的用户存储。
+     * @return {Promise<void>} 本次轮询完成后的 Promise。
+     */
     async runOnce(runStorage: PollStorage = storage): Promise<void> {
       const settings = await runStorage.getSettings();
       const enabledTopics = settings.topics.filter((topic) =>
@@ -96,13 +116,17 @@ export function createPoller(
         }
       }
 
-      await notifyMatchedRecords(
-        runStorage,
-        notifier,
-        matchedRecords,
-        settings,
-      );
-      await runStorage.setLastPollAt(new Date().toISOString());
+      try {
+        await notifyMatchedRecords(
+          runStorage,
+          notifier,
+          matchedRecords,
+          settings,
+        );
+      } finally {
+        // 帖子查询和记录保存已经完成时，即使通知失败也要推进轮询倒计时。
+        await runStorage.setLastPollAt(new Date().toISOString());
+      }
     },
   };
 }

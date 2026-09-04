@@ -58,8 +58,9 @@ export function renderLayout(options: {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.title)}</title>
-    <link rel="icon" href="https://cdn.max-c.com/heybox/logo/app_251.png">
+    <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css">
+    <script src="/static/tooltip.js" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
