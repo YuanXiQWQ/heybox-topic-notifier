@@ -82,7 +82,10 @@ export type Messages = {
   accountConfirmPassword: string;
   accountCurrentPassword: string;
   accountCancel: string;
+  accountDisplayName: string;
+  accountDisplayNameInvalid: string;
   accountEdit: string;
+  accountEditDisplayName: string;
   accountEditPassword: string;
   accountEditUsername: string;
   accountEmail: string;
@@ -204,6 +207,8 @@ export type Messages = {
   accountUsernameInvalid: string;
   authConfirmPassword: string;
   authCreateAccount: string;
+  authDisplayName: string;
+  authDisplayNameInvalid: string;
   authEmail: string;
   authEmailCode: string;
   authEmailCodeFailed: string;

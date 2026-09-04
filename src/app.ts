@@ -7,6 +7,11 @@ import {
   createAuthMiddleware,
   createAuthRoutes,
 } from "./auth.ts";
+import {
+  aceAttorneyAssetResponse,
+  aceAttorneyScriptResponse,
+  aceAttorneyStyleResponse,
+} from "./easter_egg_assets.ts";
 import { faviconResponse } from "./favicon.ts";
 import { createRoutes } from "./routes.ts";
 import { createSecurityHeadersMiddleware } from "./security/headers.ts";
@@ -37,6 +42,23 @@ export function createApplication() {
 
   app.use("*", createSecurityHeadersMiddleware());
   app.get("/favicon.ico", () => faviconResponse());
+  app.get(
+    "/static/easter-egg/ace-attorney/ace-attorney.js",
+    () => aceAttorneyScriptResponse(),
+  );
+  app.get(
+    "/static/easter-egg/ace-attorney/ace-attorney.css",
+    () => aceAttorneyStyleResponse(),
+  );
+  app.get(
+    "/static/easter-egg/ace-attorney/assets/*",
+    (c) =>
+      aceAttorneyAssetResponse(
+        c.req.path.slice(
+          "/static/easter-egg/ace-attorney/assets/".length,
+        ),
+      ),
+  );
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
   app.route("/", createRoutes(context));

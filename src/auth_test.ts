@@ -8,6 +8,7 @@ import {
   createAuthRoutes,
   hashPassword,
   readAuthSession,
+  validDisplayName,
   validUsername,
 } from "./auth.ts";
 import { turnstileResponseFieldName } from "./auth/turnstile.ts";
@@ -286,6 +287,7 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
   const app = createTestApp(storage);
   const form = new URLSearchParams({
     confirmPassword: "correct-password",
+    displayName: "Alice Wonderland",
     password: "correct-password",
     returnTo: "/settings",
     username: "Alice",
@@ -306,6 +308,7 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/settings");
   assertEquals(account?.username, "alice");
+  assertEquals(account?.displayName, "Alice Wonderland");
   assertEquals(account?.passwordHash === "correct-password", false);
   assertEquals(credential?.passwordHash, account?.passwordHash);
   assertEquals(session?.userId, account?.id);
@@ -315,6 +318,29 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
       storage.savedSessions[0].tokenHash,
     ),
     false,
+  );
+});
+
+Deno.test("auth routes default an empty display name to the username", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+  const response = await app.request("/register", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        confirmPassword: "correct-password",
+        displayName: "   ",
+        password: "correct-password",
+        username: "Alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(
+    (await storage.getAccountByUsername("alice"))?.displayName,
+    "alice",
   );
 });
 
@@ -331,6 +357,14 @@ Deno.test("username validation rejects empty, oversized, and control text", () =
   assertEquals(validUsername("a".repeat(81)), false);
   assertEquals(validUsername("line\nbreak"), false);
   assertEquals(validUsername("zero\u200Bwidth"), false);
+});
+
+Deno.test("display name validation preserves case and rejects unsafe text", () => {
+  assertEquals(validDisplayName("Alice Wonderland"), true);
+  assertEquals(validDisplayName("成步堂龙一"), true);
+  assertEquals(validDisplayName("   "), false);
+  assertEquals(validDisplayName("line\nbreak"), false);
+  assertEquals(validDisplayName("a".repeat(81)), false);
 });
 
 Deno.test("auth routes reject registration without Turnstile token when enabled", async () => {

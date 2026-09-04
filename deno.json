@@ -5,7 +5,7 @@
     "clear-seen": "deno run --unstable-kv src/storage/clear_seen.ts",
     "storage:migrate-kv": "deno run --allow-env --allow-net --unstable-kv src/storage/migrate_kv_to_turso.ts",
     "auth:check-legacy": "deno run --allow-env --unstable-kv src/auth/check_legacy_accounts.ts",
-    "check": "deno lint && deno check src/main.ts src/deploy.ts && deno test --allow-env --unstable-kv"
+    "check": "deno lint && deno check src/main.ts src/deploy.ts && deno test --allow-env --allow-read --unstable-kv"
   },
   "imports": {
     "@hono/hono": "jsr:@hono/hono@^4.8.3",

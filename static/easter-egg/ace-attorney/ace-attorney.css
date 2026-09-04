@@ -1,0 +1,556 @@
+/* 用户名或显示名称命中《逆转裁判》角色姓名时显示的全屏彩蛋。 */
+body.username-easter-egg-active {
+  overflow: hidden;
+}
+
+body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
+  animation: username-easter-egg-screen-shake 420ms step-end;
+}
+
+.username-easter-egg-overlay {
+  --username-easter-egg-dark-mosaic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath fill='%239ac3db' fill-opacity='.14' d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E");
+  --username-easter-egg-blue-mosaic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath fill='%23fff' fill-opacity='.1' d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E");
+  align-items: center;
+  background: rgb(5 12 24 / 0.24);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  transition: background-color 140ms ease;
+  z-index: 10000;
+}
+
+.username-easter-egg-overlay.is-choosing {
+  background: rgb(2 7 16 / 0.72);
+}
+
+.username-easter-egg-image {
+  height: auto;
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  width: auto;
+  z-index: 1;
+}
+
+.username-easter-egg-image.is-shaking {
+  animation: username-easter-egg-cue-shake 1050ms step-end;
+}
+
+.username-easter-egg-panel {
+  backdrop-filter: blur(2px) saturate(112%);
+  background-color: rgb(4 20 42 / 0.62);
+  background-image: var(--username-easter-egg-dark-mosaic);
+  background-size: 4px 4px;
+  border-block-end: 3px solid rgb(231 248 255 / 0.92);
+  border-block-start: 1px solid rgb(231 248 255 / 0.92);
+  bottom: clamp(36px, 8vh, 86px);
+  box-sizing: border-box;
+  box-shadow:
+    0 16px 32px rgb(0 0 0 / 0.34),
+    inset 0 1px rgb(255 255 255 / 0.08);
+  color: #fff;
+  height: clamp(132px, 20vh, 210px);
+  inset-inline: 0;
+  padding: clamp(34px, 5.5vh, 54px) max(8vw, 32px) 12px;
+  position: fixed;
+  width: 100%;
+  z-index: 2;
+}
+
+.username-easter-egg-panel[hidden],
+.username-easter-egg-image[hidden],
+.username-easter-egg-actions[hidden],
+.username-easter-egg-continue[hidden] {
+  display: none;
+}
+
+.username-easter-egg-speaker {
+  align-items: center;
+  background: rgb(225 248 255 / 0.96);
+  box-sizing: border-box;
+  clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%);
+  display: flex;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.42));
+  font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1.1rem, 2.2vw, 1.65rem);
+  font-weight: 600;
+  height: clamp(42px, 6vh, 60px);
+  inset-inline-start: max(8vw, 32px);
+  isolation: isolate;
+  justify-content: center;
+  letter-spacing: 0.04em;
+  max-width: min(46vw, 520px);
+  min-width: clamp(160px, 16vw, 280px);
+  overflow: hidden;
+  padding: 4px 24px;
+  position: absolute;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  top: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.username-easter-egg-speaker::before {
+  background-color: rgb(45 161 205 / 0.96);
+  background-image: var(--username-easter-egg-blue-mosaic);
+  background-size: 4px 4px;
+  clip-path: inherit;
+  content: "";
+  inset: 2px;
+  position: absolute;
+  z-index: -1;
+}
+
+.username-easter-egg-message {
+  color: #fff;
+  font-family: "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: clamp(1.55rem, 3.2vw, 2.65rem);
+  font-weight: 400;
+  line-height: 1.35;
+  margin: 0;
+  margin-inline-start: max(12vw, 40px);
+  text-align: start;
+  text-shadow: 0 2px 3px rgb(0 0 0 / 0.72);
+  white-space: pre-wrap;
+}
+
+.username-easter-egg-continue {
+  animation:
+    username-easter-egg-continue-fade 260ms ease-out both,
+    username-easter-egg-continue-float 760ms ease-in-out 260ms infinite
+    alternate;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  height: clamp(42px, 7vh, 64px);
+  inset-inline-end: clamp(30px, 7vw, 110px);
+  padding: 0;
+  position: absolute;
+  top: calc(50% - clamp(21px, 3.5vh, 32px));
+  width: clamp(54px, 5.8vw, 76px);
+}
+
+.username-easter-egg-continue::before,
+.username-easter-egg-continue::after {
+  background: linear-gradient(90deg, #ffc91f 0 58%, #fff263 100%);
+  clip-path: polygon(0 0, 44% 0, 100% 50%, 44% 100%, 0 100%, 56% 50%);
+  content: "";
+  filter:
+    drop-shadow(0 0 1px #fff7a0)
+    drop-shadow(2px 2px 1px rgb(112 61 0 / 0.9));
+  height: clamp(32px, 5.4vh, 50px);
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  width: clamp(26px, 2.8vw, 38px);
+}
+
+.username-easter-egg-continue::before {
+  transform: translate(-94%, -50%);
+}
+
+.username-easter-egg-continue::after {
+  transform: translate(-26%, -50%);
+}
+
+.username-easter-egg-continue:focus-visible {
+  filter: brightness(1.12);
+  outline: none;
+}
+
+.username-easter-egg-actions {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(34px, 5vh, 68px);
+  inset-inline-start: 50%;
+  position: fixed;
+  top: clamp(88px, 18vh, 190px);
+  transform: translateX(-50%);
+  width: clamp(280px, 30vw, 740px);
+  z-index: 3;
+}
+
+.username-easter-egg-button {
+  appearance: none;
+  background-color: rgb(49 166 207 / 0.96);
+  background-image: var(--username-easter-egg-blue-mosaic);
+  background-size: 4px 4px;
+  border: 2px solid rgb(218 248 255 / 0.92);
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 0.1),
+    0 4px 10px rgb(0 0 0 / 0.32);
+  color: #fff;
+  font-family: "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: clamp(1.1rem, 2.25vw, 1.9rem);
+  font-weight: 400;
+  min-height: clamp(44px, 6.2vh, 60px);
+  padding: 5px 22px;
+  position: relative;
+  text-shadow: 0 2px 3px rgb(0 0 0 / 0.46);
+  width: 100%;
+}
+
+.username-easter-egg-button.primary,
+.username-easter-egg-button.secondary {
+  background-color: rgb(49 166 207 / 0.96);
+  background-image: var(--username-easter-egg-blue-mosaic);
+  background-size: 4px 4px;
+  border-color: rgb(218 248 255 / 0.92);
+  color: #fff;
+}
+
+.username-easter-egg-overlay button.username-easter-egg-button:hover,
+.username-easter-egg-overlay button.username-easter-egg-button:focus-visible,
+.username-easter-egg-overlay button.username-easter-egg-button.is-selected {
+  background-color: rgb(49 166 207 / 0.96);
+  background-image: var(--username-easter-egg-blue-mosaic);
+  background-size: 4px 4px;
+  filter: brightness(1.08);
+}
+
+.username-easter-egg-overlay button.username-easter-egg-button:focus-visible,
+.username-easter-egg-overlay button.username-easter-egg-button.is-selected {
+  outline: none;
+}
+
+.username-easter-egg-overlay button.username-easter-egg-button:focus-visible::after,
+.username-easter-egg-overlay button.username-easter-egg-button.is-selected::after {
+  background:
+    linear-gradient(#ffd52a, #ffd52a) left 1.5px / 100% 1px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left bottom 1.5px / 100% 1px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left 1.5px top / 1px 100% no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right 1.5px top / 1px 100% no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left top / 24px 4px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right top / 24px 4px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left bottom / 24px 4px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right bottom / 24px 4px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left top / 4px 18px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left bottom / 4px 18px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right top / 4px 18px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right bottom / 4px 18px no-repeat;
+  content: "";
+  inset: -10px;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* 王泥喜法介与希月心音使用《逆转裁判456》风格的对话界面。 */
+.username-easter-egg-theme-aa456.is-choosing {
+  background: rgb(0 0 0 / 0.66);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-panel {
+  backdrop-filter: none;
+  background-color: rgb(0 0 0 / 0.68);
+  background-image: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-panel::before,
+.username-easter-egg-theme-aa456 .username-easter-egg-panel::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.82) 18%,
+    #fff 50%,
+    rgb(255 255 255 / 0.82) 82%,
+    transparent 100%
+  );
+  content: "";
+  height: 1px;
+  inset-inline: 0;
+  position: absolute;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-panel::before {
+  top: 0;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-panel::after {
+  bottom: 0;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-speaker {
+  background-color: transparent;
+  background-image:
+    url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIEAAABECAYAAACmhVZXAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAQaSURBVHhe7dDLrR07DARAh/SydgLOx6k8CPCqeM9o9KHEC3tRWgjDZmt+/Pr5+8evn7//W9QysrhrhFkjzHrDjG+hHT5kVAhN4M4RZo0w6w0zymuHjxgRAhO5e4RZI8zqcb68dviIt0JYMvePMu8tc94wo7R2+IC3QtgBdhhl3lvm9DhfWjt8wBsh6CC7jDLvLXN6nC+rHZbvCSEX2GmUeW+Y0eN8We2w/JMQcJHdZpjZ43yP8yW1w+KfhOHL7DfL3B7nnzhbUjss/pUwOCkrb5W5T5ztcb6cdlhaYWhBRq59Z5n7xNknzpbTDktnPeBk9ixzP3Gux/lS2mHhrOLm795h9gqz5fc9zpfSDgtnlDb/9J4ZZsvvnzhbSjuyC5svv19l/gqzV/Y4X0Y7sov6M77izCrzV5k/s8fZMtqRWdIf8YlzO7hjlfmjO5wtox1ZBf0JPc7v4p5Vs9n2KiNcbORPeMOMXdyzajbbXiWEi018/AizdnHPDXYqIVxs4MNHmbeTu06zTwnhYpGPnmXuTu46yS4lhIsFPniV+bu57wQ7lBAuJvnYXdyzm/tOsMN14WKCj9zNfbu5L5v7rwsXg3xgFvdmcGcW914XLgb4uGzuz+DOLO69Kly85KNOsksGd2Zy93HhosMH3GKvDO48wQ5HhIsHFr7Nflnce4o90oSLL1iuGvtmce9p9tkmXMAildk9i3tvsde0cPGHC78L35HJ3bfZ7zUvDP6ufFcmd1dj38ALA74r35XJ3dXYNwgX3+Rhn/iOTO6uwp5d4QIuqMzuWdx7k92mhIsvuLga+2Zx7w122iJcPLBQBXbM4t5T7JEiXHRY8hZ7ZXHvCXZIFy5esPRp9sngzmzuPypcDPAhJ9ghgzuzuPeacDHIh2Vy927uy+Le68LFBB+5m/syuDOTu68LF5N86C7uyeDObO6/Llws8LGrzN/NfSfYoYRwschHzzJ3N/edYo8SwsUGPnyGmTu56yS7lBAuNvHxI8zaxT032KmEcLGRP+ANM3Zxzw4z2fYqIVxs5A/ocX4X96yazbZXGe3ILOmP+MS5XdyzaiXf2TLakV3Un/EVZ3ZwxwqzZ3Y4W0Y7ssuaL79fZf4q82f2OFtKOyycUdr803tmmC2/f+JsKe2wcFZx83fvMHuF2fL7HudLaYeFs8qfzJ5l7ifOPXG2nHZYWmFoQUaufWeZ+8TZJ86W0w5LfyUMTsrKW2XuE2d7nC+nHZb+JAwXYMcZZvY4/8TZktph8Sch4CK7zTCzx/ke50tqh8WfhIBL7DXDzDfMeOJsWe2wfE8IOcw+o8x7y5we58tqh+XfCEGH2GOUeW+Z0+N8ae3wAW+FsGTuH2XeCLN6nC+tHT5gRAhM4t4ZZr5lTo/z5YWLf/4+4eKfv8//2hvAK6Dn0fMAAAAASUVORK5CYII="),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' viewBox='0 0 680 80'%3E%3Cpath fill='%232c2674' fill-opacity='.75' d='M0 0h632q10 0 15 10l33 70H0z'/%3E%3C/svg%3E");
+  background-position: left top, center;
+  background-repeat: no-repeat;
+  background-size: auto 100%, 100% 100%;
+  clip-path: none;
+  filter: none;
+  font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1.35rem, 2.5vw, 2.1rem);
+  font-weight: 500;
+  height: clamp(44px, 6.2vh, 62px);
+  inset-inline-start: 0;
+  letter-spacing: 0.08em;
+  max-width: none;
+  min-width: 0;
+  padding: 3px clamp(64px, 6vw, 116px) 3px clamp(88px, 9vw, 172px);
+  text-shadow: 0 2px 2px rgb(0 0 0 / 0.42);
+  top: 0;
+  transform: translateY(-100%);
+  width: clamp(360px, 33.5vw, 680px);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-speaker::before {
+  content: none;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-message {
+  font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1.65rem, 3.25vw, 2.8rem);
+  font-weight: 500;
+  line-height: 1.45;
+  margin-inline-start: clamp(72px, 23vw, 450px);
+  text-shadow: 0 2px 3px rgb(0 0 0 / 0.78);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-continue {
+  height: clamp(38px, 6vh, 56px);
+  inset-inline-end: clamp(24px, 6vw, 116px);
+  top: calc(50% - clamp(19px, 3vh, 28px));
+  width: clamp(24px, 2.5vw, 40px);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-continue::before {
+  background: rgb(255 255 255 / 0.82);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  filter: drop-shadow(1px 1px 1px rgb(0 0 0 / 0.5));
+  height: 100%;
+  left: 0;
+  top: 0;
+  transform: none;
+  width: 100%;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-continue::after {
+  content: none;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-actions {
+  gap: clamp(56px, 9vh, 96px);
+  top: clamp(84px, 16vh, 170px);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-button,
+.username-easter-egg-theme-aa456 .username-easter-egg-button.primary,
+.username-easter-egg-theme-aa456 .username-easter-egg-button.secondary {
+  background-color: rgb(255 255 255 / 0.54);
+  background-image: none;
+  border: 2px solid rgb(77 66 54 / 0.48);
+  border-radius: 7px;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.32),
+    0 3px 8px rgb(0 0 0 / 0.28);
+  color: #3a2118;
+  font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1.1rem, 1.8vw, 1.9rem);
+  font-weight: 700;
+  min-height: clamp(44px, 2.4vw, 60px);
+  text-shadow: none;
+}
+
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:hover,
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:focus-visible,
+.username-easter-egg-theme-aa456 button.username-easter-egg-button.is-selected {
+  background-color: rgb(255 255 255 / 0.82);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  filter: none;
+}
+
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:focus-visible::after,
+.username-easter-egg-theme-aa456 button.username-easter-egg-button.is-selected::after {
+  background: none;
+  border: clamp(5px, 0.42vw, 8px) solid #e9b900;
+  border-radius: 12px;
+  content: "";
+  inset: calc(-1 * clamp(5px, 0.42vw, 8px));
+}
+
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:active {
+  background-color: rgb(255 218 82 / 0.88);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:active::after {
+  background: none;
+  border: clamp(5px, 0.42vw, 8px) solid #dca900;
+  border-radius: 12px;
+  content: "";
+  inset: calc(-1 * clamp(5px, 0.42vw, 8px));
+  pointer-events: none;
+  position: absolute;
+}
+
+@media (max-width: 600px) {
+  .username-easter-egg-panel {
+    bottom: 28px;
+    height: clamp(142px, 24vh, 188px);
+    padding: 38px 24px 12px;
+  }
+
+  .username-easter-egg-speaker {
+    inset-inline-start: 24px;
+    min-width: 170px;
+  }
+
+  .username-easter-egg-message {
+    margin-inline-start: 0;
+  }
+
+  .username-easter-egg-actions {
+    gap: 34px;
+    top: 14vh;
+    width: min(74vw, 280px);
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-panel {
+    padding: 30px 24px 12px;
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-speaker {
+    font-size: 1.2rem;
+    height: 52px;
+    inset-inline-start: 0;
+    padding: 4px 64px;
+    width: min(88vw, 430px);
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-message {
+    font-size: clamp(1.4rem, 7vw, 1.8rem);
+    margin-inline-start: 6vw;
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-continue {
+    inset-inline-end: 24px;
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-actions {
+    gap: 48px;
+    top: 12vh;
+  }
+}
+
+@keyframes username-easter-egg-screen-shake {
+  0% {
+    transform: translate3d(-18px, 13px, 0);
+  }
+
+  14% {
+    transform: translate3d(17px, -14px, 0);
+  }
+
+  28% {
+    transform: translate3d(-15px, -11px, 0);
+  }
+
+  42% {
+    transform: translate3d(14px, 12px, 0);
+  }
+
+  56% {
+    transform: translate3d(-11px, 8px, 0);
+  }
+
+  70% {
+    transform: translate3d(9px, -7px, 0);
+  }
+
+  84% {
+    transform: translate3d(-6px, 5px, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes username-easter-egg-cue-shake {
+  0% {
+    transform: translate3d(-20px, 14px, 0);
+  }
+
+  8% {
+    transform: translate3d(19px, -16px, 0);
+  }
+
+  16% {
+    transform: translate3d(-17px, -12px, 0);
+  }
+
+  24% {
+    transform: translate3d(16px, 13px, 0);
+  }
+
+  32% {
+    transform: translate3d(-14px, 10px, 0);
+  }
+
+  40% {
+    transform: translate3d(13px, -11px, 0);
+  }
+
+  49% {
+    transform: translate3d(-11px, -8px, 0);
+  }
+
+  58% {
+    transform: translate3d(10px, 8px, 0);
+  }
+
+  68% {
+    transform: translate3d(-8px, 6px, 0);
+  }
+
+  79% {
+    transform: translate3d(7px, -5px, 0);
+  }
+
+  90% {
+    transform: translate3d(-5px, 4px, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes username-easter-egg-continue-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes username-easter-egg-continue-float {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.username-easter-egg-impact > :not(.username-easter-egg-overlay),
+  .username-easter-egg-image.is-shaking,
+  .username-easter-egg-continue {
+    animation: none;
+  }
+}
