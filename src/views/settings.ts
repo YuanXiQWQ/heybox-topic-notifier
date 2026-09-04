@@ -255,7 +255,7 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/settings.js?v=20260902-reauth-selector" defer></script>
+    <script src="/static/settings.js?v=20260903-transient-status" defer></script>
   `;
 
   return renderLayout({
@@ -465,6 +465,18 @@ function secretInputEditor(
  */
 function secretMaskValue(length: number): string {
   return escapeHtml("•".repeat(Math.max(0, length)));
+}
+
+/**
+ * 生成服务端成功状态自动隐藏所需的数据属性。
+ *
+ * @param {{type: string}|undefined} status 服务端返回的状态。
+ * @return {string} 成功状态的数据属性，否则返回空字符串。
+ */
+function transientSuccessStatusAttribute(
+  status: { type: string } | undefined,
+): string {
+  return status?.type === "success" ? "data-transient-success-status" : "";
 }
 
 /**
@@ -678,6 +690,7 @@ function renderAccountSection(
             class="inline-action-status"
             data-account-status
             ${statusState}
+            ${transientSuccessStatusAttribute(status)}
             ${actionStatusMessage ? "" : "hidden"}
             role="status"
           >${escapeHtml(actionStatusMessage ?? "")}</span>
@@ -862,6 +875,7 @@ function renderEmailLoginMethodRow(options: {
                   class="inline-action-status"
                   data-email-send-status
                   ${statusState}
+                  ${transientSuccessStatusAttribute(options.status)}
                   ${statusMessage ? "" : "hidden"}
                   role="status"
                 >${escapeHtml(statusMessage)}</span>
@@ -1228,6 +1242,7 @@ function renderGoogleBindingPanel(
         class="inline-action-status"
         data-google-binding-status
         ${statusState}
+        ${transientSuccessStatusAttribute(status)}
         ${statusMessage ? "" : "hidden"}
         role="status"
       >${escapeHtml(statusMessage)}</span>
@@ -1255,6 +1270,7 @@ function renderGoogleStatus(
   return `<span
     class="inline-action-status"
     ${statusState}
+    ${transientSuccessStatusAttribute(status)}
     ${statusMessage ? "" : "hidden"}
     role="status"
   >${escapeHtml(statusMessage)}</span>`;
@@ -1421,6 +1437,7 @@ function renderTotpBindingSection(
           class="inline-action-status"
           data-totp-binding-status
           ${statusState}
+          ${transientSuccessStatusAttribute(status)}
           ${statusMessage ? "" : "hidden"}
           role="status"
         >${escapeHtml(statusMessage)}</span>
@@ -1664,6 +1681,7 @@ function renderPasskeyBindingSection(
           class="inline-action-status"
           data-passkey-binding-status
           ${statusState}
+          ${transientSuccessStatusAttribute(status)}
           ${statusMessage ? "" : "hidden"}
           role="status"
         >${escapeHtml(statusMessage)}</span>
@@ -2320,12 +2338,14 @@ function renderTwoStepVerificationSection(options: {
       <div
         class="form-actions account-form-actions security-status-actions"
         data-security-settings-status-row
+        data-inline-status-container
         ${statusMessage ? "" : "hidden"}
       >
         <span
           class="inline-action-status"
           data-security-settings-status
           ${statusState}
+          ${transientSuccessStatusAttribute(options.securityStatus)}
           ${statusMessage ? "" : "hidden"}
           role="status"
         >${escapeHtml(statusMessage)}</span>
