@@ -5255,7 +5255,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(appName)}</title>
-  <link rel="icon" href="https://cdn.max-c.com/heybox/logo/app_251.png">
+  <link rel="icon" href="${escapeHtml(appOrigin)}/favicon.ico" type="image/png">
   <link rel="stylesheet" href="${escapeHtml(appOrigin)}/static/app.css">
   <style>
     .error-detail-content {

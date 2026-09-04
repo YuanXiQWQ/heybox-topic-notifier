@@ -3741,6 +3741,7 @@ function renderAuthPage(options: {
     <title>${escapeHtml(options.heading)} - ${
     escapeHtml(options.messages.appName)
   }</title>
+    <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css">
     <script src="/static/tooltip.js" defer></script>
     ${

@@ -69,3 +69,31 @@ Deno.test("application omits HSTS for non-HTTPS requests", async () => {
   assertEquals(response.headers.get("strict-transport-security"), null);
   assertEquals(response.headers.get("content-security-policy") !== null, true);
 });
+
+Deno.test("application serves the favicon without authentication", async () => {
+  const { app } = createApplication();
+
+  const response = await app.request("/favicon.ico");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get("content-type"), "image/png");
+  assertEquals(response.headers.get("location"), null);
+  assertEquals(
+    Array.from(bytes.slice(0, 8)),
+    [137, 80, 78, 71, 13, 10, 26, 10],
+  );
+});
+
+Deno.test("application login page declares the public favicon", async () => {
+  const { app } = createApplication();
+
+  const response = await app.request("/login");
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    html.includes('<link rel="icon" href="/favicon.ico" type="image/png">'),
+    true,
+  );
+});
