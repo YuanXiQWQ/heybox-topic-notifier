@@ -7,6 +7,7 @@ import {
   createAuthMiddleware,
   createAuthRoutes,
 } from "./auth.ts";
+import { faviconResponse } from "./favicon.ts";
 import { createRoutes } from "./routes.ts";
 import { createSecurityHeadersMiddleware } from "./security/headers.ts";
 import { createAppContext } from "./services/app_context.ts";
@@ -35,6 +36,7 @@ export function createApplication() {
   };
 
   app.use("*", createSecurityHeadersMiddleware());
+  app.get("/favicon.ico", () => faviconResponse());
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
   app.route("/", createRoutes(context));

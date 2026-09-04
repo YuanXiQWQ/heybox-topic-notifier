@@ -271,7 +271,7 @@ Deno.test("settings and history pages keep the app tab title", () => {
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 
-Deno.test("settings page loads the stable new-password focus flow", () => {
+Deno.test("settings page loads the latest settings interactions", () => {
   const html = renderSettings({
     csrfToken: testCsrfToken,
     settings: settings(),
@@ -279,7 +279,7 @@ Deno.test("settings page loads the stable new-password focus flow", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260902-reauth-selector`,
+    `/static/settings.js?v=20260903-transient-status`,
   );
 });
 
@@ -805,6 +805,7 @@ Deno.test("renderSettings renders Passkey binding controls", () => {
   assertIncludes(localizedCreatedAt, "年");
   assertNotIncludes(html, "2026-08-01T00:00:00.000Z");
   assertIncludes(html, `Passkey 已绑定。`);
+  assertIncludes(html, `data-transient-success-status`);
   assertIncludes(html, `data-account-passkey-available="true"`);
   assertIncludes(html, `data-account-password-available="true"`);
   assertIncludes(html, `data-account-recently-verified="false"`);
@@ -883,6 +884,8 @@ Deno.test("renderSettings renders account security controls", () => {
   assertIncludes(html, `开启两步验证`);
   assertIncludes(html, `邮箱验证码`);
   assertIncludes(html, `双重验证设置已保存。`);
+  assertIncludes(html, `data-transient-success-status`);
+  assertIncludes(html, `data-inline-status-container`);
   assertNotIncludes(html, `保存安全设置`);
   const securityPanel = html.slice(
     html.indexOf(`data-auth-method-panel="two-factor"`),
