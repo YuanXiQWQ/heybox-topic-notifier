@@ -351,6 +351,30 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
   assertNotIncludes(html, `>验证当前密码</button>`);
 });
 
+Deno.test("renderSettings escapes an injection-like username", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: false,
+      primaryEmail: undefined,
+      username: `\"><script>alert(1)</script>`,
+    },
+    csrfToken: testCsrfToken,
+    secondFactorMethods: [],
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+  });
+
+  assertIncludes(
+    html,
+    `value="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"`,
+  );
+  assertNotIncludes(html, `<script>alert(1)</script>`);
+});
+
 Deno.test("renderSettings keeps account password mode behind current password verification", () => {
   const html = renderSettings({
     account: {

@@ -8,6 +8,7 @@ import {
   createAuthRoutes,
   hashPassword,
   readAuthSession,
+  validUsername,
 } from "./auth.ts";
 import { turnstileResponseFieldName } from "./auth/turnstile.ts";
 import {
@@ -315,6 +316,21 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
     ),
     false,
   );
+});
+
+Deno.test("username validation accepts Unicode and injection-like visible text", () => {
+  assertEquals(validUsername("蔚蓝社区"), true);
+  assertEquals(validUsername("O'Connor"), true);
+  assertEquals(validUsername('<script>alert("x")</script>'), true);
+  assertEquals(validUsername("😀".repeat(80)), true);
+});
+
+Deno.test("username validation rejects empty, oversized, and control text", () => {
+  assertEquals(validUsername(""), false);
+  assertEquals(validUsername("   "), false);
+  assertEquals(validUsername("a".repeat(81)), false);
+  assertEquals(validUsername("line\nbreak"), false);
+  assertEquals(validUsername("zero\u200Bwidth"), false);
 });
 
 Deno.test("auth routes reject registration without Turnstile token when enabled", async () => {

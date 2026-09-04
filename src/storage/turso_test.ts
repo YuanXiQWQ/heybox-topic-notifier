@@ -118,6 +118,34 @@ Deno.test("Turso account constraints preserve atomic username behavior", async (
   });
 });
 
+Deno.test("Turso account CRUD parameterizes injection-like usernames", async () => {
+  await withStorage(async (storage) => {
+    const createdUsername = "x'); DROP TABLE user_accounts; --";
+    const updatedUsername = '" OR 1=1 --';
+    const created = account("injection-id", createdUsername);
+
+    assertEquals(await storage.createAccount(created), true);
+    assertEquals(
+      (await storage.getAccountByUsername(createdUsername))?.id,
+      created.id,
+    );
+    assertEquals(
+      await storage.updateAccount({ ...created, username: updatedUsername }),
+      true,
+    );
+    assertEquals(
+      await storage.getAccountByUsername(createdUsername),
+      undefined,
+    );
+    assertEquals(
+      (await storage.getAccountByUsername(updatedUsername))?.id,
+      created.id,
+    );
+    assertEquals(await storage.createAccount(account("safe-id", "safe")), true);
+    assertEquals((await storage.listAccounts()).length, 2);
+  });
+});
+
 Deno.test("Turso authentication events can only be consumed once", async () => {
   await withStorage(async (storage) => {
     const event: AuthenticationEvent = {

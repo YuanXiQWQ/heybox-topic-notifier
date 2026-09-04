@@ -6034,13 +6034,15 @@ function validateRegistration(
 }
 
 /**
- * 判断用户名是否符合账号规则。
+ * 判断用户名是否为长度受控且不包含控制字符的 Unicode 文本。
  *
- * @param username 用户名。
- * @return 用户名有效时返回 true。
+ * @param {string} username 用户名。
+ * @return {boolean} 用户名有效时返回 true。
  */
 export function validUsername(username: string): boolean {
-  return /^[a-z0-9_-]{3,40}$/.test(username);
+  const length = [...username].length;
+  return length >= 1 && length <= 80 && /\S/u.test(username) &&
+    !/\p{C}/u.test(username);
 }
 
 /**
