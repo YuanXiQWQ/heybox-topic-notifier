@@ -58,6 +58,7 @@ export type PollIntervalUnit =
  */
 export type PollingSettings = {
   enabled: boolean;
+  intervalStartedAt?: string;
   intervalUnit: PollIntervalUnit;
   intervalValue: number;
   postLimit: number;

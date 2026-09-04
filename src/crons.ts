@@ -31,7 +31,9 @@ type CronRegistrationOptions = {
  * @param context 调度器依赖的轮询器和存储。
  * @return 轮询调度器。
  */
-export function createPollScheduler(context: Pick<AppContext, "poller" | "storage">) {
+export function createPollScheduler(
+  context: Pick<AppContext, "poller" | "storage">,
+) {
   /**
    * 当前正在轮询的用户 ID 集合。
    */
@@ -116,7 +118,9 @@ export function createPollScheduler(context: Pick<AppContext, "poller" | "storag
  * @param storage 应用存储。
  * @return 可轮询用户 ID 列表。
  */
-async function pollableUserIds(storage: AppContext["storage"]): Promise<string[]> {
+async function pollableUserIds(
+  storage: AppContext["storage"],
+): Promise<string[]> {
   if ("listAccounts" in storage) {
     return (await storage.listAccounts()).map((account) => account.id);
   }
@@ -141,7 +145,10 @@ function storageForUser(storage: AppContext["storage"], userId: string) {
  * @param context 应用运行时上下文。
  * @param options 定时任务注册选项。
  */
-export function registerCrons(context: AppContext, options: CronRegistrationOptions = {}): void {
+export function registerCrons(
+  context: AppContext,
+  options: CronRegistrationOptions = {},
+): void {
   const isDeploy = options.isDenoDeploy ?? isDenoDeploy;
   if (isDeploy()) {
     return;
@@ -185,7 +192,10 @@ export function readDenoTimeline(): string | undefined {
  */
 function isDenoDeploy(): boolean {
   try {
-    if (Deno.env.get("DENO_DEPLOYMENT_ID") || Deno.env.get("DENO_DEPLOY") === "true") {
+    if (
+      Deno.env.get("DENO_DEPLOYMENT_ID") ||
+      Deno.env.get("DENO_DEPLOY") === "true"
+    ) {
       return true;
     }
   } catch {
@@ -207,18 +217,20 @@ function isDenoDeploy(): boolean {
 export function shouldPollFromLastStart(
   lastPollStartedAt: number | undefined,
   lastPollAt: string | undefined,
-  polling: Pick<PollingSettings, "intervalUnit" | "intervalValue">,
+  polling: Pick<
+    PollingSettings,
+    "intervalStartedAt" | "intervalUnit" | "intervalValue"
+  >,
   now: Date = new Date(),
 ): boolean {
-  if (lastPollStartedAt === undefined) {
-    return shouldPoll(lastPollAt, polling, now);
-  }
+  const latestPollBaseline = latestValidTimestamp(
+    lastPollStartedAt,
+    Date.parse(lastPollAt ?? ""),
+    Date.parse(polling.intervalStartedAt ?? ""),
+  );
 
-  const lastPollTime = new Date(lastPollAt ?? "").getTime();
-  const lastPollBaseline = Number.isFinite(lastPollTime) ? lastPollTime : lastPollStartedAt;
-  const latestPollBaseline = Math.max(lastPollStartedAt, lastPollBaseline);
-
-  return now.getTime() - latestPollBaseline >= pollingIntervalMs(polling);
+  return latestPollBaseline === undefined ||
+    now.getTime() - latestPollBaseline >= pollingIntervalMs(polling);
 }
 
 /**
@@ -231,20 +243,35 @@ export function shouldPollFromLastStart(
  */
 export function shouldPoll(
   lastPollAt: string | undefined,
-  polling: Pick<PollingSettings, "intervalUnit" | "intervalValue">,
+  polling: Pick<
+    PollingSettings,
+    "intervalStartedAt" | "intervalUnit" | "intervalValue"
+  >,
   now: Date = new Date(),
 ): boolean {
-  if (!lastPollAt) {
-    return true;
-  }
-
-  const lastPollTime = new Date(lastPollAt).getTime();
-  if (!Number.isFinite(lastPollTime)) {
-    return true;
-  }
+  const latestPollBaseline = latestValidTimestamp(
+    Date.parse(lastPollAt ?? ""),
+    Date.parse(polling.intervalStartedAt ?? ""),
+  );
 
   const intervalMs = pollingIntervalMs(polling);
-  return now.getTime() - lastPollTime >= intervalMs;
+  return latestPollBaseline === undefined ||
+    now.getTime() - latestPollBaseline >= intervalMs;
+}
+
+/**
+ * 从候选时间戳中获取最新的合法值。
+ *
+ * @param values 候选毫秒时间戳。
+ * @return 最新合法时间戳，不存在时返回 undefined。
+ */
+function latestValidTimestamp(
+  ...values: Array<number | undefined>
+): number | undefined {
+  const timestamps = values.filter((value): value is number =>
+    typeof value === "number" && Number.isFinite(value)
+  );
+  return timestamps.length > 0 ? Math.max(...timestamps) : undefined;
 }
 
 /**

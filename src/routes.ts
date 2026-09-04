@@ -262,6 +262,7 @@ export function createRoutes(context: AppContext): Hono {
         pendingSignature: matchTableSignature(pendingTable),
         polling: {
           enabled: settings.polling.enabled,
+          intervalStartedAt: settings.polling.intervalStartedAt ?? null,
           intervalUnit: settings.polling.intervalUnit,
           intervalValue: settings.polling.intervalValue,
         },
@@ -3270,11 +3271,13 @@ async function formDataOrEmpty(request: Request): Promise<FormData> {
  *
  * @param form 表单数据。
  * @param currentSettings 当前应用设置。
+ * @param now 当前时间。
  * @return 新的应用设置。
  */
 export function settingsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
   currentSettings: AppSettings,
+  now: Date = new Date(),
 ): AppSettings {
   const activeKeywordTarget =
     String(form.activeKeywordTarget ?? "common").trim() || "common";
@@ -3289,6 +3292,24 @@ export function settingsFromForm(
     activeKeywordTarget,
     keywordRules,
   );
+  const pollingEnabled = form.pollEnabled === "on";
+  const pollIntervalUnit = normalizePollIntervalUnit(
+    form.pollIntervalUnit,
+    currentSettings.polling.intervalUnit,
+  );
+  const pollIntervalValue = normalizePollIntervalValue(
+    form.pollIntervalValue,
+    pollIntervalUnit,
+    currentSettings.polling.intervalValue,
+  );
+  const pollingIntervalChanged =
+    pollIntervalUnit !== currentSettings.polling.intervalUnit ||
+    pollIntervalValue !== currentSettings.polling.intervalValue;
+  const pollingWasEnabled = currentSettings.polling.enabled;
+  const intervalStartedAt = pollingIntervalChanged ||
+      (pollingEnabled && !pollingWasEnabled)
+    ? now.toISOString()
+    : currentSettings.polling.intervalStartedAt;
 
   return {
     ...currentSettings,
@@ -3346,19 +3367,10 @@ export function settingsFromForm(
       true,
     ),
     polling: {
-      enabled: form.pollEnabled === "on",
-      intervalUnit: normalizePollIntervalUnit(
-        form.pollIntervalUnit,
-        currentSettings.polling.intervalUnit,
-      ),
-      intervalValue: normalizePollIntervalValue(
-        form.pollIntervalValue,
-        normalizePollIntervalUnit(
-          form.pollIntervalUnit,
-          currentSettings.polling.intervalUnit,
-        ),
-        currentSettings.polling.intervalValue,
-      ),
+      enabled: pollingEnabled,
+      intervalStartedAt,
+      intervalUnit: pollIntervalUnit,
+      intervalValue: pollIntervalValue,
       postLimit: normalizePositiveInteger(
         form.pollPostLimit,
         currentSettings.polling.postLimit,

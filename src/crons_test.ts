@@ -20,7 +20,10 @@ const fiveMinutes = { intervalUnit: "minute" as const, intervalValue: 5 };
 const threeSeconds = { intervalUnit: "second" as const, intervalValue: 3 };
 
 Deno.test("shouldPoll runs when no previous poll exists", () => {
-  assertEquals(shouldPoll(undefined, fiveMinutes, new Date("2026-06-30T12:00:00.000Z")), true);
+  assertEquals(
+    shouldPoll(undefined, fiveMinutes, new Date("2026-06-30T12:00:00.000Z")),
+    true,
+  );
 });
 
 Deno.test("shouldPoll waits until the configured interval elapses", () => {
@@ -30,19 +33,68 @@ Deno.test("shouldPoll waits until the configured interval elapses", () => {
   assertEquals(shouldPoll("2026-06-30T12:00:00.000Z", fiveMinutes, now), true);
 });
 
+Deno.test("shouldPoll starts a fresh interval after polling settings change", () => {
+  const polling = {
+    ...fiveMinutes,
+    intervalStartedAt: "2026-06-30T12:04:00.000Z",
+  };
+
+  assertEquals(
+    shouldPoll(
+      "2026-06-30T11:00:00.000Z",
+      polling,
+      new Date("2026-06-30T12:08:59.999Z"),
+    ),
+    false,
+  );
+  assertEquals(
+    shouldPoll(
+      "2026-06-30T11:00:00.000Z",
+      polling,
+      new Date("2026-06-30T12:09:00.000Z"),
+    ),
+    true,
+  );
+});
+
+Deno.test("shouldPoll waits from a new interval even without a previous poll", () => {
+  const polling = {
+    ...fiveMinutes,
+    intervalStartedAt: "2026-06-30T12:04:00.000Z",
+  };
+
+  assertEquals(
+    shouldPoll(
+      undefined,
+      polling,
+      new Date("2026-06-30T12:08:00.000Z"),
+    ),
+    false,
+  );
+});
+
 Deno.test("shouldPoll supports second intervals", () => {
   const now = new Date("2026-06-30T12:00:03.000Z");
 
-  assertEquals(shouldPoll("2026-06-30T12:00:01.000Z", threeSeconds, now), false);
+  assertEquals(
+    shouldPoll("2026-06-30T12:00:01.000Z", threeSeconds, now),
+    false,
+  );
   assertEquals(shouldPoll("2026-06-30T12:00:00.000Z", threeSeconds, now), true);
 });
 
 Deno.test("pollingIntervalMs clamps second intervals to at least three seconds", () => {
-  assertEquals(pollingIntervalMs({ intervalUnit: "second", intervalValue: 1 }), 3000);
+  assertEquals(
+    pollingIntervalMs({ intervalUnit: "second", intervalValue: 1 }),
+    3000,
+  );
 });
 
 Deno.test("shouldPoll runs when previous poll time is invalid", () => {
-  assertEquals(shouldPoll("not-a-date", fiveMinutes, new Date("2026-06-30T12:00:00.000Z")), true);
+  assertEquals(
+    shouldPoll("not-a-date", fiveMinutes, new Date("2026-06-30T12:00:00.000Z")),
+    true,
+  );
 });
 
 Deno.test("shouldPollFromLastStart waits from a newer manual poll completion", () => {
@@ -88,7 +140,11 @@ Deno.test("poll scheduler runs one due poll and updates its in-memory start guar
         getLastPollAt: () => Promise.resolve(lastPollAt),
         getSettings: () =>
           Promise.resolve({
-            polling: { enabled: true, intervalUnit: "minute", intervalValue: 5 },
+            polling: {
+              enabled: true,
+              intervalUnit: "minute",
+              intervalValue: 5,
+            },
           }),
       },
     } as unknown as Parameters<typeof createPollScheduler>[0],
@@ -112,7 +168,11 @@ Deno.test("poll scheduler swallows scheduled poll failures", async () => {
         getLastPollAt: () => Promise.resolve(undefined),
         getSettings: () =>
           Promise.resolve({
-            polling: { enabled: true, intervalUnit: "minute", intervalValue: 5 },
+            polling: {
+              enabled: true,
+              intervalUnit: "minute",
+              intervalValue: 5,
+            },
           }),
       },
     } as unknown as Parameters<typeof createPollScheduler>[0],
