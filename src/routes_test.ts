@@ -264,58 +264,62 @@ Deno.test("root page does not tick scheduler", async () => {
 });
 
 Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => {
-  const settings = settingsFromForm({
-    activeKeywordTarget: "12099",
-    commonKeywordRulesJson: JSON.stringify([{
-      caseSensitive: true,
-      keyword: "new-common",
-      locations: ["body"],
-      useRegex: true,
-    }]),
-    darkMode: "on",
-    keyword_0: "new-topic",
-    keyword_0_caseSensitive: "on",
-    keyword_0_location_replies: "on",
-    keyword_0_useRegex: "",
-    locale: "zh-CN",
-    notificationEmailAddress: "new@example.com",
-    notificationEmailApiToken: "new-api-token",
-    notificationEmailApiUrl: "https://example.com/new-email-api",
-    notificationEmailFrom: "new-from@example.com",
-    notificationEmailService: "api",
-    notificationProvider: "email",
-    notificationPushPlusSecret: "pushplus-new",
-    notificationServerChanSendKey: "SCT-new",
-    notificationSmtpHost: "smtp.new.example.com",
-    notificationSmtpPassword: "smtp-new-password",
-    notificationSmtpPort: "587",
-    notificationSmtpSecure: "on",
-    notificationSmtpUsername: "smtp-new-user",
-    notificationWebhookService: "serverChan",
-    notificationWebhookUrl: "https://example.com/new-webhook",
-    notificationWxPusherSpt: "SPT-new",
-    pollEnabled: "on",
-    pollIntervalUnit: "second",
-    pollIntervalValue: "3",
-    pollPostLimit: "50",
-    pollSort: "replyTime",
-    themeColor: "#123abc",
-    topic_0_enabled: "on",
-    topic_0_id: "12099",
-    topic_0_keywordRulesJson: JSON.stringify([{
-      keyword: "stale-topic",
-      locations: ["title"],
-    }]),
-    topic_0_note: "蔚蓝",
-    topic_1_enabled: "on",
-    topic_1_id: "999",
-    topic_1_keywordRulesJson: JSON.stringify([{
-      keyword: "new-other",
-      locations: ["comments"],
-      useRegex: true,
-    }]),
-    topic_1_note: "其它",
-  }, currentSettings);
+  const settings = settingsFromForm(
+    {
+      activeKeywordTarget: "12099",
+      commonKeywordRulesJson: JSON.stringify([{
+        caseSensitive: true,
+        keyword: "new-common",
+        locations: ["body"],
+        useRegex: true,
+      }]),
+      darkMode: "on",
+      keyword_0: "new-topic",
+      keyword_0_caseSensitive: "on",
+      keyword_0_location_replies: "on",
+      keyword_0_useRegex: "",
+      locale: "zh-CN",
+      notificationEmailAddress: "new@example.com",
+      notificationEmailApiToken: "new-api-token",
+      notificationEmailApiUrl: "https://example.com/new-email-api",
+      notificationEmailFrom: "new-from@example.com",
+      notificationEmailService: "api",
+      notificationProvider: "email",
+      notificationPushPlusSecret: "pushplus-new",
+      notificationServerChanSendKey: "SCT-new",
+      notificationSmtpHost: "smtp.new.example.com",
+      notificationSmtpPassword: "smtp-new-password",
+      notificationSmtpPort: "587",
+      notificationSmtpSecure: "on",
+      notificationSmtpUsername: "smtp-new-user",
+      notificationWebhookService: "serverChan",
+      notificationWebhookUrl: "https://example.com/new-webhook",
+      notificationWxPusherSpt: "SPT-new",
+      pollEnabled: "on",
+      pollIntervalUnit: "second",
+      pollIntervalValue: "3",
+      pollPostLimit: "50",
+      pollSort: "replyTime",
+      themeColor: "#123abc",
+      topic_0_enabled: "on",
+      topic_0_id: "12099",
+      topic_0_keywordRulesJson: JSON.stringify([{
+        keyword: "stale-topic",
+        locations: ["title"],
+      }]),
+      topic_0_note: "蔚蓝",
+      topic_1_enabled: "on",
+      topic_1_id: "999",
+      topic_1_keywordRulesJson: JSON.stringify([{
+        keyword: "new-other",
+        locations: ["comments"],
+        useRegex: true,
+      }]),
+      topic_1_note: "其它",
+    },
+    currentSettings,
+    new Date("2026-09-04T08:00:00.000Z"),
+  );
 
   assertEquals(settings.commonKeywordRules, [{
     caseSensitive: true,
@@ -364,6 +368,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   assertEquals(settings.notificationWxPusherSpt, "SPT-new");
   assertEquals(settings.polling, {
     enabled: true,
+    intervalStartedAt: "2026-09-04T08:00:00.000Z",
     intervalUnit: "second",
     intervalValue: 3,
     postLimit: 50,
@@ -373,21 +378,56 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
 });
 
 Deno.test("settingsFromForm disables polling when switch is off", () => {
-  const settings = settingsFromForm({
-    activeKeywordTarget: "common",
-    pollIntervalUnit: "second",
-    pollIntervalValue: "1",
-    pollPostLimit: "100",
-    pollSort: "smart",
-  }, currentSettings);
+  const settings = settingsFromForm(
+    {
+      activeKeywordTarget: "common",
+      pollIntervalUnit: "second",
+      pollIntervalValue: "1",
+      pollPostLimit: "100",
+      pollSort: "smart",
+    },
+    currentSettings,
+    new Date("2026-09-04T08:00:00.000Z"),
+  );
 
   assertEquals(settings.polling, {
     enabled: false,
+    intervalStartedAt: "2026-09-04T08:00:00.000Z",
     intervalUnit: "second",
     intervalValue: 3,
     postLimit: 100,
     sort: "smart",
   });
+});
+
+Deno.test("settingsFromForm preserves the interval start when schedule is unchanged", () => {
+  const intervalStartedAt = "2026-09-04T07:00:00.000Z";
+  const settings = settingsFromForm({
+    pollEnabled: "on",
+    pollIntervalUnit: "minute",
+    pollIntervalValue: "1",
+  }, {
+    ...currentSettings,
+    polling: { ...currentSettings.polling, intervalStartedAt },
+  }, new Date("2026-09-04T08:00:00.000Z"));
+
+  assertEquals(settings.polling.intervalStartedAt, intervalStartedAt);
+});
+
+Deno.test("settingsFromForm starts a new interval when polling is enabled", () => {
+  const settings = settingsFromForm({
+    pollEnabled: "on",
+    pollIntervalUnit: "minute",
+    pollIntervalValue: "1",
+  }, {
+    ...currentSettings,
+    polling: { ...currentSettings.polling, enabled: false },
+  }, new Date("2026-09-04T08:00:00.000Z"));
+
+  assertEquals(
+    settings.polling.intervalStartedAt,
+    "2026-09-04T08:00:00.000Z",
+  );
 });
 
 Deno.test("settingsFromForm preserves existing notification secrets when submitted blank", () => {

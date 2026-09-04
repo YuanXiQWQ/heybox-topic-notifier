@@ -92,6 +92,9 @@ export function renderDashboard(options: {
       class="next-poll-panel"
       data-next-poll-panel
       data-poll-enabled="${options.settings.polling.enabled ? "true" : "false"}"
+      data-poll-interval-started-at="${
+    escapeHtml(options.settings.polling.intervalStartedAt ?? "")
+  }"
       data-poll-interval-unit="${
     escapeHtml(options.settings.polling.intervalUnit)
   }"
@@ -232,6 +235,10 @@ function renderLastPollScript(
       const totalMatches = document.querySelector("[data-total-matches]");
       let resetAnimationTimers = [];
       let timestamp = parseTimestamp(lastPoll.dataset.lastPollAt);
+      let scheduleTimestamp = latestTimestamp(
+        timestamp,
+        parseTimestamp(nextPollPanel?.dataset.pollIntervalStartedAt),
+      );
       let hasSyncedDashboardState = false;
       let isAnimatingNextPollReset = false;
       let isDashboardStateRefreshInFlight = false;
@@ -286,6 +293,7 @@ function renderLastPollScript(
           const nextTimestamp = parseTimestamp(state.lastPollAt);
           if (Number.isFinite(nextTimestamp) && nextTimestamp !== timestamp) {
             timestamp = nextTimestamp;
+            scheduleTimestamp = latestTimestamp(scheduleTimestamp, nextTimestamp);
             lastPoll.dataset.lastPollAt = state.lastPollAt;
             updateLastPoll();
             if (hasSyncedDashboardState) {
@@ -353,8 +361,13 @@ function renderLastPollScript(
       function updatePollingSettings(polling) {
         if (!nextPollPanel || !polling) return;
         nextPollPanel.dataset.pollEnabled = polling.enabled ? "true" : "false";
+        nextPollPanel.dataset.pollIntervalStartedAt = polling.intervalStartedAt || "";
         nextPollPanel.dataset.pollIntervalUnit = polling.intervalUnit || "";
         nextPollPanel.dataset.pollIntervalValue = String(polling.intervalValue || "");
+        scheduleTimestamp = latestTimestamp(
+          timestamp,
+          parseTimestamp(polling.intervalStartedAt),
+        );
         updateNextPoll({ instant: !hasSyncedDashboardState && !isAnimatingNextPollReset });
       }
 
@@ -380,11 +393,14 @@ function renderLastPollScript(
         const value = Number(nextPollPanel.dataset.pollIntervalValue || "0");
         const intervalMs = pollingIntervalMs(unit, value);
 
-        if (!enabled || !Number.isFinite(timestamp) || intervalMs <= 0) {
+        if (!enabled || !Number.isFinite(scheduleTimestamp) || intervalMs <= 0) {
           return { intervalMs: 0, remaining: "-", remainingMs: Infinity, width: "0%" };
         }
 
-        const elapsedMs = Math.max(0, Date.now() + (options.offsetMs || 0) - timestamp);
+        const elapsedMs = Math.max(
+          0,
+          Date.now() + (options.offsetMs || 0) - scheduleTimestamp,
+        );
         const remainingMs = Math.max(0, intervalMs - elapsedMs);
         const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
         return {
@@ -398,7 +414,9 @@ function renderLastPollScript(
       function refreshDashboardWhenPollDue(nextState) {
         if (document.visibilityState !== "visible" || nextState.remainingMs > 0) return;
         if (isDashboardStateRefreshInFlight) return;
-        const baseline = lastPoll.dataset.lastPollAt || "";
+        const baseline = Number.isFinite(scheduleTimestamp)
+          ? String(scheduleTimestamp)
+          : "";
         if (!baseline) return;
         const now = Date.now();
         const retryMs = Math.max(3000, Math.min(nextState.intervalMs, dashboardStateRefreshMs));
@@ -610,6 +628,17 @@ function renderLastPollScript(
         return Number.isFinite(parsed) ? parsed : NaN;
       }
 
+      /**
+       * 从候选时间戳中获取最新的合法值。
+       *
+       * @param {...number} values 候选毫秒时间戳。
+       * @return {number} 最新合法时间戳，不存在时返回 NaN。
+       */
+      function latestTimestamp(...values) {
+        const timestamps = values.filter(Number.isFinite);
+        return timestamps.length > 0 ? Math.max(...timestamps) : NaN;
+      }
+
       function formatRelativeTime(value, locale) {
         const date = new Date(value);
         const diffSeconds = Math.max(0, Math.floor((Date.now() - value) / 1000));
@@ -684,18 +713,28 @@ function nextPollProgressPercent(
   lastPollAt: string | undefined,
 ): string {
   const timestamp = Date.parse(lastPollAt ?? "");
+  const intervalStartedAt = Date.parse(
+    settings.polling.intervalStartedAt ?? "",
+  );
+  const scheduleTimestamp = Math.max(
+    Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY,
+    Number.isFinite(intervalStartedAt)
+      ? intervalStartedAt
+      : Number.NEGATIVE_INFINITY,
+  );
   const intervalMs = dashboardPollingIntervalMs(
     settings.polling.intervalUnit,
     settings.polling.intervalValue,
   );
 
   if (
-    !settings.polling.enabled || !Number.isFinite(timestamp) || intervalMs <= 0
+    !settings.polling.enabled || !Number.isFinite(scheduleTimestamp) ||
+    intervalMs <= 0
   ) {
     return "0";
   }
 
-  const elapsedMs = Math.max(0, Date.now() - timestamp);
+  const elapsedMs = Math.max(0, Date.now() - scheduleTimestamp);
   const remainingMs = Math.max(0, intervalMs - elapsedMs);
   const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
   return (progress * 100).toFixed(2);
