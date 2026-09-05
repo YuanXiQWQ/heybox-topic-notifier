@@ -11,6 +11,9 @@ import {
   aceAttorneyAssetResponse,
   aceAttorneyScriptResponse,
   aceAttorneyStyleResponse,
+  lobotomyCorpAssetResponse,
+  lobotomyCorpScriptResponse,
+  lobotomyCorpStyleResponse,
 } from "./easter_egg_assets.ts";
 import { faviconResponse } from "./favicon.ts";
 import { createRoutes } from "./routes.ts";
@@ -57,6 +60,25 @@ export function createApplication() {
         c.req.path.slice(
           "/static/easter-egg/ace-attorney/assets/".length,
         ),
+        c.req.header("range"),
+      ),
+  );
+  app.get(
+    "/static/easter-egg/lobotomy-corp/lobotomy-corp.js",
+    () => lobotomyCorpScriptResponse(),
+  );
+  app.get(
+    "/static/easter-egg/lobotomy-corp/lobotomy-corp.css",
+    () => lobotomyCorpStyleResponse(),
+  );
+  app.get(
+    "/static/easter-egg/lobotomy-corp/assets/*",
+    (c) =>
+      lobotomyCorpAssetResponse(
+        c.req.path.slice(
+          "/static/easter-egg/lobotomy-corp/assets/".length,
+        ),
+        c.req.header("range"),
       ),
   );
   app.route("/", createAuthRoutes(context.storage, authOptions));

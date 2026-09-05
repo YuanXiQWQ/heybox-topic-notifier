@@ -559,6 +559,7 @@ function renderAccountSection(
       data-account-password-verified="${
     escapeHtml(messages.accountPasswordVerified)
   }"
+      data-account-updated="${escapeHtml(messages.accountUpdated)}"
       data-account-passkey-failed="${escapeHtml(messages.accountReauthFailed)}"
       data-account-passkey-pending="${
     escapeHtml(messages.accountReauthPasskeyVerifying)
