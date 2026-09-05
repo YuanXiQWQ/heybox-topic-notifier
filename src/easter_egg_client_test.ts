@@ -9,7 +9,9 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     usernameEasterEgg?: {
       imageLocale: () => string;
       matches: (username: string) => boolean;
-      theme: (username: string) => "trilogy" | "aa456" | undefined;
+      theme: (
+        username: string,
+      ) => "trilogy" | "aa456" | "investigations" | undefined;
       voiceLocale: () => string;
     };
   };
@@ -47,7 +49,9 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     assertEquals(api.matches("Phoenix"), false);
     assertEquals(api.matches("普通用户"), false);
     assertEquals(api.theme("成步堂龙一"), "trilogy");
-    assertEquals(api.theme("御剑怜侍"), "trilogy");
+    assertEquals(api.theme("御剑怜侍"), "investigations");
+    assertEquals(api.theme("Miles Edgeworth"), "investigations");
+    assertEquals(api.theme("怜侍御剣"), "investigations");
     assertEquals(api.theme("王泥喜法介"), "aa456");
     assertEquals(api.theme("希月心音"), "aa456");
     assertEquals(api.theme("普通用户"), undefined);

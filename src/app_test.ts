@@ -267,13 +267,13 @@ Deno.test("application register page enables name Easter eggs", async () => {
 
   assertEquals(
     registerHtml.includes(
-      "/static/easter-egg/ace-attorney/ace-attorney.js?v=20260904-aa456-ui-precise",
+      "/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-investigations-ui",
     ),
     true,
   );
   assertEquals(
     registerHtml.includes(
-      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260904-aa456-nameplate-ratio",
+      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-ui-2",
     ),
     true,
   );

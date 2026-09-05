@@ -36,7 +36,7 @@ const usernameEasterEggCharacters = [
   },
   {
     key: "milesEdgeworth",
-    theme: "trilogy",
+    theme: "investigations",
     type: "type4",
     names: [
       ["Miles", "Edgeworth"],
@@ -152,7 +152,7 @@ function normalizeEasterEggUsername(value) {
  * 查找用户名对应的彩蛋角色，允许姓和名颠倒。
  *
  * @param {string} username 用户输入的用户名。
- * @return {{key: string, theme: "trilogy"|"aa456", type: string}|undefined} 匹配的角色信息。
+ * @return {{key: string, theme: "trilogy"|"aa456"|"investigations", type: string}|undefined} 匹配的角色信息。
  */
 function matchingUsernameEasterEggCharacter(username) {
   const candidate = normalizeEasterEggUsername(username);
@@ -183,7 +183,7 @@ function matchesUsernameEasterEgg(username) {
  * 获取姓名对应的彩蛋界面主题。
  *
  * @param {string} username 用户输入的用户名或显示名称。
- * @return {"trilogy"|"aa456"|undefined} 匹配角色使用的界面主题。
+ * @return {"trilogy"|"aa456"|"investigations"|undefined} 匹配角色使用的界面主题。
  */
 function usernameEasterEggTheme(username) {
   return matchingUsernameEasterEggCharacter(username)?.theme;

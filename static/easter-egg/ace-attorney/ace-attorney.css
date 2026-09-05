@@ -394,6 +394,129 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   position: absolute;
 }
 
+/* 御剑怜侍的《逆转检事》主题；尺寸、字体和推进动画继承通用界面。 */
+.username-easter-egg-theme-investigations.is-dialogue {
+  background: transparent;
+}
+
+.username-easter-egg-theme-investigations.is-choosing {
+  background: rgb(2 7 16 / 0.72);
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-panel {
+  backdrop-filter: none;
+  background: rgb(0 0 0 / 0.76);
+  border-block: 2px solid #938048;
+  box-shadow: none;
+}
+
+/* 内衬线与角花分层，衬线和外框之间留出黑色间隙。 */
+.username-easter-egg-theme-investigations .username-easter-egg-panel::before {
+  border-block: 1px solid rgb(184 159 105 / 0.32);
+  content: "";
+  inset: 4px 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-panel::after {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23b89f69' fill-opacity='.16' d='M0 0H20L0 20Z'/%3E%3C/svg%3E")
+    left top,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23b89f69' fill-opacity='.16' d='M0 0H20V20Z'/%3E%3C/svg%3E")
+    right top,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23b89f69' fill-opacity='.16' d='M0 0V20H20Z'/%3E%3C/svg%3E")
+    left bottom,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23b89f69' fill-opacity='.16' d='M20 0V20H0Z'/%3E%3C/svg%3E")
+    right bottom;
+  background-repeat: no-repeat;
+  background-size: clamp(10px, 1vw, 20px) clamp(10px, 1vw, 20px);
+  content: "";
+  inset: 8px 3px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-speaker {
+  background: transparent;
+  clip-path: none;
+  filter: none;
+  inset-inline-start: 0;
+  max-width: none;
+  min-width: 0;
+  overflow: hidden;
+  transform: translateY(-100%);
+  width: clamp(280px, 31vw, 640px);
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-speaker::before {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 64' preserveAspectRatio='none'%3E%3Cpath fill='%239b0030' fill-opacity='.78' d='M0 0H608L640 64H0Z'/%3E%3Cpath fill='none' stroke='%23938048' stroke-width='2' d='M0 1H607L639 64'/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+  clip-path: none;
+  inset: 0;
+}
+
+/* 棋盘独立于梯形缩放，横纵同尺寸保持正方格，只覆盖左侧 65%。 */
+.username-easter-egg-theme-investigations .username-easter-egg-speaker::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2 2'%3E%3Cpath fill='%23fff' fill-opacity='.045' d='M0 0H1V1H0ZM1 1H2V2H1Z'/%3E%3C/svg%3E");
+  background-size: clamp(48px, 5vw, 96px) clamp(48px, 5vw, 96px);
+  content: "";
+  inset: 2px auto 0 0;
+  pointer-events: none;
+  position: absolute;
+  width: 65%;
+  z-index: -1;
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-continue {
+  inset-inline-end: clamp(20px, 3.6vw, 74px);
+  top: calc(68% - clamp(21px, 3.5vh, 32px));
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-continue::before {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 48'%3E%3Cpath fill='%23c4c6c4' d='M10 0L36 24L10 48V37L24 24L10 11ZM10 15L19 24L10 33L1 24Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  clip-path: none;
+  filter: none;
+  height: clamp(28px, 4.2vh, 44px);
+  transform: translate(-50%, -50%);
+  width: clamp(21px, 3.15vh, 33px);
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-continue::after {
+  content: none;
+}
+
+.username-easter-egg-theme-investigations button.username-easter-egg-button,
+.username-easter-egg-theme-investigations button.username-easter-egg-button:hover,
+.username-easter-egg-theme-investigations button.username-easter-egg-button:focus-visible {
+  background: rgb(255 255 255 / 0.89);
+  border: 2px solid #9d9999;
+  border-radius: 0;
+  box-shadow: none;
+  color: #632238;
+  filter: none;
+  text-shadow: none;
+  transition: none;
+}
+
+/* 选中项由现有鼠标与键盘逻辑管理，避免旧焦点同时点亮第二个选项。 */
+.username-easter-egg-theme-investigations button.username-easter-egg-button.is-selected {
+  background: #fff;
+  border-color: #a20b48;
+}
+
+.username-easter-egg-theme-investigations button.username-easter-egg-button:focus-visible::after,
+.username-easter-egg-theme-investigations button.username-easter-egg-button.is-selected::after {
+  content: none;
+}
+
+.username-easter-egg-theme-investigations button.username-easter-egg-button:active {
+  background: rgb(166 168 165 / 0.9);
+  border-color: #620323;
+  color: #572132;
+}
+
 @media (max-width: 600px) {
   .username-easter-egg-panel {
     bottom: 28px;

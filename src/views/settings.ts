@@ -259,7 +259,7 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260904-aa456-ui-precise" defer></script>
+    <script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-investigations-ui" defer></script>
     <script src="/static/settings.js?v=20260904-display-name" defer></script>
   `;
 
@@ -269,7 +269,7 @@ export function renderSettings(options: {
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
     stylesheets: [
-      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260904-aa456-nameplate-ratio",
+      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-ui-2",
     ],
     themeColor: options.settings.themeColor,
     title: messages.appName,

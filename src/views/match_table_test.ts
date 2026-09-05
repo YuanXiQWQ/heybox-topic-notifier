@@ -283,11 +283,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/easter-egg/ace-attorney/ace-attorney.js?v=20260904-aa456-ui-precise`,
+    `/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-investigations-ui`,
   );
   assertIncludes(
     html,
-    `/static/easter-egg/ace-attorney/ace-attorney.css?v=20260904-aa456-nameplate-ratio`,
+    `/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-ui-2`,
   );
   assertIncludes(html, `data-username-easter-egg-settings`);
 });
