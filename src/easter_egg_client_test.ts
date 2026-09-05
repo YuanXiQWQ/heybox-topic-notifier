@@ -37,14 +37,20 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
       "wright phoenix",
       "成步堂龙一",
       "龍一成歩堂",
+      "なるほどう りゅういち",
+      "りゅういちなるほどう",
       "Apollo Justice",
       "法介王泥喜",
+      "おどろきほうすけ",
       "Athena Cykes",
       "心音 希月",
+      "きづき ここね",
       "Miles Edgeworth",
       "怜侍御剑",
+      "みつるぎれいじ",
       "Mia Fey",
       "千尋綾里",
+      "あやさと ちひろ",
     ].forEach((username) => assertEquals(api.matches(username), true));
     assertEquals(api.matches("Phoenix"), false);
     assertEquals(api.matches("普通用户"), false);
