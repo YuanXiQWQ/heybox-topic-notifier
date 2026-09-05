@@ -416,7 +416,7 @@ function activateUsernameEasterEgg(username, target = "username") {
     /**
      * 生成通用彩蛋音效资源地址。
      *
-     * @param {"sfx-blipmale"|"sfx-pichoop"|"sfx-selectblip2"} effect 音效名。
+     * @param {"sfx-blipmale"|"sfx-gavel"|"sfx-pichoop"|"sfx-selectblip2"|"sfx-whoops"} effect 音效名。
      * @return {string} 通用音效资源地址。
      */
     function soundEffectSource(effect) {
@@ -664,20 +664,58 @@ function activateUsernameEasterEgg(username, target = "username") {
      * 关闭彩蛋、恢复页面交互并返回最终结果。
      *
      * @param {boolean} approved 是否继续提交用户名。
+     * @param {"sfx-gavel"|"sfx-whoops"|undefined} [finalSoundEffect] 结束时播放的音效。
      */
-    function finish(approved) {
+    function finish(approved, finalSoundEffect) {
       stageSequence += 1;
       skipTypewriter?.();
       document.removeEventListener("keydown", handleKeydown);
       overlay.removeEventListener("click", handleOverlayClick);
       stopAllUsernameEasterEggAudio();
-      overlay.remove();
-      document.body.classList.remove(
-        "username-easter-egg-active",
-        "username-easter-egg-impact",
+
+      let finalized = false;
+
+      /**
+       * 移除彩蛋界面并返回用户选择。
+       */
+      function finalizeEasterEgg() {
+        if (finalized) {
+          return;
+        }
+        finalized = true;
+        overlay.remove();
+        document.body.classList.remove(
+          "username-easter-egg-active",
+          "username-easter-egg-impact",
+        );
+        activeUsernameEasterEgg = undefined;
+        resolve(approved);
+      }
+
+      if (!finalSoundEffect) {
+        finalizeEasterEgg();
+        return;
+      }
+
+      const finalAudio = playUsernameEasterEggAudio(
+        soundEffectSource(finalSoundEffect),
       );
-      activeUsernameEasterEgg = undefined;
-      resolve(approved);
+      const fallbackTimer = globalThis.setTimeout(finalizeEasterEgg, 1_500);
+
+      /**
+       * 在结束音效播放完毕后继续提交或取消改名。
+       */
+      function finalizeAfterFinalSound() {
+        globalThis.clearTimeout(fallbackTimer);
+        finalizeEasterEgg();
+      }
+
+      finalAudio.addEventListener("ended", finalizeAfterFinalSound, {
+        once: true,
+      });
+      finalAudio.addEventListener("error", finalizeAfterFinalSound, {
+        once: true,
+      });
     }
 
     /**
@@ -689,7 +727,7 @@ function activateUsernameEasterEgg(username, target = "username") {
         messages.finish,
         [],
         "msc-pressingPursuit",
-        () => finish(true),
+        () => finish(true, "sfx-gavel"),
       );
     }
 
@@ -772,7 +810,7 @@ function activateUsernameEasterEgg(username, target = "username") {
           label: messages.yes,
         },
         {
-          action: () => finish(false),
+          action: () => finish(false, "sfx-whoops"),
           kind: "secondary",
           label: messages.no,
         },
