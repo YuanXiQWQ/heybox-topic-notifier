@@ -289,6 +289,14 @@ Deno.test("settings page loads the latest settings interactions", () => {
     html,
     `/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners`,
   );
+  assertIncludes(
+    html,
+    `/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-trumpet-alerts`,
+  );
+  assertIncludes(
+    html,
+    `/static/easter-egg/lobotomy-corp/lobotomy-corp.css?v=20260905-trumpet-alerts`,
+  );
   assertIncludes(html, `data-username-easter-egg-settings`);
 });
 
