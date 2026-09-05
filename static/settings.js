@@ -1389,9 +1389,7 @@ function initAccountSettings() {
       return;
     }
 
-    const easterEggInput = mode === "username"
-      ? usernameInput
-      : mode === "displayName"
+    const easterEggInput = mode === "displayName"
       ? displayNameInput
       : undefined;
     const easterEgg = [

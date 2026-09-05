@@ -1,5 +1,5 @@
 /**
- * @file 本文件提供修改用户名或显示名称时触发的《脑叶公司》Trumpet 警报彩蛋。
+ * @file 本文件提供修改显示名称时触发的《脑叶公司》Trumpet 警报彩蛋。
  */
 
 /**
@@ -26,14 +26,14 @@ const lobotomyCorpAlerts = Object.freeze({
 const lobotomyCorpAlertSessionKey = "warmnest.lobotomy-corp-alert";
 
 /**
- * 已完成警报、允许继续提交的注册表单。
- */
-const lobotomyCorpApprovedRegistrationForms = new WeakSet();
-
-/**
- * 当前正在播放的脑叶公司警报，避免重复打开。
+ * 当前正在播放的脑叶公司警报及其结束操作。
  */
 let activeLobotomyCorpAlert;
+
+/**
+ * 当前脑叶公司彩蛋的危急值，始终为 0 到 100 的整数。
+ */
+let lobotomyCorpDangerScore = 0;
 
 /**
  * 规范化警报口令，忽略大小写、空格和连字符。
@@ -156,7 +156,8 @@ function persistedLobotomyCorpAlert() {
       ? lobotomyCorpAlertByAssetDirectory(saved.assetDirectory)
       : undefined;
     return alert && typeof saved.startedAt === "number" &&
-        Number.isFinite(saved.startedAt) && typeof saved.position === "number" &&
+        Number.isFinite(saved.startedAt) &&
+        typeof saved.position === "number" &&
         Number.isFinite(saved.position)
       ? { alert, position: saved.position, startedAt: saved.startedAt }
       : undefined;
@@ -191,6 +192,81 @@ function activateLobotomyCorpAlert(value) {
 }
 
 /**
+ * 根据危急值查找应播放的脑叶公司警报。
+ *
+ * @param {number} dangerScore 当前危急值。
+ * @return {{assetDirectory: string, soundFile: string}|undefined} 对应的警报配置；无警报区间时返回 undefined。
+ */
+function lobotomyCorpAlertForDangerScore(dangerScore) {
+  if (dangerScore < 10) {
+    return undefined;
+  }
+  if (dangerScore < 50) {
+    return lobotomyCorpAlerts.firsttrumpet;
+  }
+  if (dangerScore < 80) {
+    return lobotomyCorpAlerts.secondtrumpet;
+  }
+  return lobotomyCorpAlerts.thirdtrumpet;
+}
+
+/**
+ * 读取当前脑叶公司彩蛋危急值。
+ *
+ * @return {number} 当前 0 到 100 的整数危急值。
+ */
+function getLobotomyCorpDangerScore() {
+  return lobotomyCorpDangerScore;
+}
+
+/**
+ * 结束当前脑叶公司警报。
+ *
+ * @return {Promise<boolean>} 当前警报结束后返回 true；没有活跃警报时立即返回 true。
+ */
+function stopLobotomyCorpAlert() {
+  if (!activeLobotomyCorpAlert) {
+    return Promise.resolve(true);
+  }
+  const completion = activeLobotomyCorpAlert.promise;
+  activeLobotomyCorpAlert.finish();
+  return completion;
+}
+
+/**
+ * 设置脑叶公司彩蛋危急值，并激活其所在区间对应的警报。
+ *
+ * @param {number} dangerScore 新的 0 到 100 整数危急值。
+ * @return {Promise<boolean>} 对应警报结束或无警报状态生效后返回 true。
+ */
+function setLobotomyCorpDangerScore(dangerScore) {
+  if (!Number.isInteger(dangerScore) || dangerScore < 0 || dangerScore > 100) {
+    return Promise.reject(
+      new RangeError("Danger Score 必须是 0 到 100 的整数。"),
+    );
+  }
+
+  lobotomyCorpDangerScore = dangerScore;
+  const alert = lobotomyCorpAlertForDangerScore(dangerScore);
+  return alert
+    ? startLobotomyCorpAlert(alert, Date.now(), 0)
+    : stopLobotomyCorpAlert();
+}
+
+/**
+ * 判断新警报是否应取代当前警报。
+ *
+ * @param {{assetDirectory: string}} nextAlert 请求播放的警报配置。
+ * @return {boolean} 新警报与当前警报不同且应切换时返回 true。
+ */
+function shouldReplaceActiveLobotomyCorpAlert(nextAlert) {
+  return Boolean(
+    activeLobotomyCorpAlert &&
+      nextAlert.assetDirectory !== activeLobotomyCorpAlert.alert.assetDirectory,
+  );
+}
+
+/**
  * 创建或恢复脑叶公司警报，并使音频从对应的播放进度继续。
  *
  * @param {{assetDirectory: string, soundFile: string}} alert 警报配置。
@@ -200,12 +276,16 @@ function activateLobotomyCorpAlert(value) {
  */
 function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
   if (activeLobotomyCorpAlert) {
-    return activeLobotomyCorpAlert;
+    if (!shouldReplaceActiveLobotomyCorpAlert(alert)) {
+      return activeLobotomyCorpAlert.promise;
+    }
+    activeLobotomyCorpAlert.finish();
   }
 
   persistLobotomyCorpAlert(alert, startedAt, resumeAt);
 
-  activeLobotomyCorpAlert = new Promise((resolve) => {
+  const alertContext = { alert };
+  const completion = new Promise((resolve) => {
     const assetRoot = "/static/easter-egg/lobotomy-corp/assets";
     const overlay = document.createElement("div");
     const closeButton = document.createElement("button");
@@ -262,9 +342,12 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
       }
       overlay.remove();
       clearPersistedLobotomyCorpAlert();
-      activeLobotomyCorpAlert = undefined;
+      if (activeLobotomyCorpAlert === alertContext) {
+        activeLobotomyCorpAlert = undefined;
+      }
       resolve(true);
     }
+    alertContext.finish = finishAlert;
 
     /**
      * 从警报的原始开始时间恢复音频进度，并在曲目已结束时清理警报。
@@ -341,77 +424,19 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
     }
   });
 
-  return activeLobotomyCorpAlert;
-}
-
-/**
- * 判断表单提交控件能否传给 requestSubmit。
- *
- * @param {EventTarget|null} submitter 表单提交事件的触发控件。
- * @return {submitter is HTMLButtonElement|HTMLInputElement} 控件可用于提交时返回 true。
- */
-function isLobotomyCorpAlertSubmitter(submitter) {
-  return submitter instanceof HTMLButtonElement ||
-    submitter instanceof HTMLInputElement &&
-      ["submit", "image"].includes(submitter.type);
-}
-
-/**
- * 拦截注册表单提交并在命中警报口令时播放脑叶公司警报。
- *
- * @param {SubmitEvent} event 注册表单提交事件。
- */
-function handleLobotomyCorpAlertRegistration(event) {
-  const form = event.currentTarget;
-  if (!(form instanceof HTMLFormElement)) {
-    return;
-  }
-  if (lobotomyCorpApprovedRegistrationForms.has(form)) {
-    lobotomyCorpApprovedRegistrationForms.delete(form);
-    return;
-  }
-
-  const usernameInput = form.elements.namedItem("username");
-  const displayNameInput = form.elements.namedItem("displayName");
-  const matchingInput = [displayNameInput, usernameInput].find((input) =>
-    input instanceof HTMLInputElement && matchesLobotomyCorpAlert(input.value)
-  );
-  if (!(matchingInput instanceof HTMLInputElement)) {
-    return;
-  }
-
-  event.preventDefault();
-  const submitter = event.submitter;
-  void activateLobotomyCorpAlert(matchingInput.value).then(() => {
-    lobotomyCorpApprovedRegistrationForms.add(form);
-    if (isLobotomyCorpAlertSubmitter(submitter)) {
-      form.requestSubmit(submitter);
-    } else {
-      form.requestSubmit();
-    }
-  });
-}
-
-/**
- * 为页面中的注册表单绑定脑叶公司警报。
- */
-function initLobotomyCorpAlertRegistration() {
-  document.querySelectorAll("[data-username-easter-egg-register]").forEach(
-    (form) => {
-      if (form instanceof HTMLFormElement) {
-        form.addEventListener("submit", handleLobotomyCorpAlertRegistration);
-      }
-    },
-  );
+  alertContext.promise = completion;
+  activeLobotomyCorpAlert = alertContext;
+  return completion;
 }
 
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
+  getDangerScore: getLobotomyCorpDangerScore,
   matches: matchesLobotomyCorpAlert,
+  setDangerScore: setLobotomyCorpDangerScore,
   submitsWhileActive: true,
 });
 
-initLobotomyCorpAlertRegistration();
 if (isLobotomyCorpAlertPageReload()) {
   clearPersistedLobotomyCorpAlert();
 } else {

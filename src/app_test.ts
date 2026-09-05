@@ -359,7 +359,7 @@ Deno.test({
   },
 });
 
-Deno.test("application register page enables name Easter eggs", async () => {
+Deno.test("application auth pages do not load name Easter eggs", async () => {
   const { app } = createApplication();
 
   const registerResponse = await app.request("/register");
@@ -367,41 +367,21 @@ Deno.test("application register page enables name Easter eggs", async () => {
   const registerHtml = await registerResponse.text();
   const loginHtml = await loginResponse.text();
 
-  assertEquals(
-    registerHtml.includes(
-      "/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path",
-    ),
-    true,
-  );
-  assertEquals(
-    registerHtml.includes(
-      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",
-    ),
-    true,
-  );
-  assertEquals(
-    registerHtml.includes(
-      "/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-danger-score",
-    ),
-    true,
-  );
-  assertEquals(
-    registerHtml.includes(
-      "/static/easter-egg/lobotomy-corp/lobotomy-corp.css?v=20260905-danger-score",
-    ),
-    true,
-  );
+  assertEquals(registerHtml.includes('name="displayName"'), false);
+  assertEquals(registerHtml.includes("显示名称"), false);
   assertEquals(
     registerHtml.includes("data-username-easter-egg-register"),
-    true,
-  );
-  assertEquals(registerHtml.includes('name="displayName"'), true);
-  assertEquals(
-    registerHtml.includes('name="displayName" autocomplete="name" required'),
     false,
   );
-  assertEquals(registerHtml.includes("显示名称"), true);
   assertEquals(loginHtml.includes("data-username-easter-egg-register"), false);
   assertEquals(loginHtml.includes("/static/easter-egg/ace-attorney/"), false);
-  assertEquals(loginHtml.includes("/static/easter-egg/lobotomy-corp/"), true);
+  assertEquals(loginHtml.includes("/static/easter-egg/lobotomy-corp/"), false);
+  assertEquals(
+    registerHtml.includes("/static/easter-egg/ace-attorney/"),
+    false,
+  );
+  assertEquals(
+    registerHtml.includes("/static/easter-egg/lobotomy-corp/"),
+    false,
+  );
 });

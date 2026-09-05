@@ -581,14 +581,12 @@ export function createAuthRoutes(
     }
 
     const username = normalizeUsername(String(form.username ?? ""));
-    const displayName = normalizeDisplayName(String(form.displayName ?? "")) ||
-      username;
+    const displayName = username;
     const password = String(form.password ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
     const validationError = validateRegistration(
       username,
-      displayName,
       password,
       confirmPassword,
     );
@@ -3747,19 +3745,7 @@ function renderAuthPage(options: {
   }</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
-    ${
-    options.mode === "register"
-      ? '<link rel="stylesheet" href="/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners">'
-      : ""
-  }
-    <link rel="stylesheet" href="/static/easter-egg/lobotomy-corp/lobotomy-corp.css?v=20260905-danger-score">
     <script src="/static/tooltip.js" defer></script>
-    ${
-    options.mode === "register"
-      ? '<script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path" defer></script>'
-      : ""
-  }
-    <script src="/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-danger-score" defer></script>
     ${
     turnstileScriptHtml(
       options.turnstileSiteKey ?? options.emailTurnstileSiteKey,
@@ -4048,9 +4034,6 @@ function renderAuthPage(options: {
           method="post"
           action="${escapeHtml(options.action)}"
           data-auth-password-login-form
-          ${
-    options.mode === "register" ? "data-username-easter-egg-register" : ""
-  }
           ${emailLoginInitiallyVisible ? "hidden" : ""}
         >
           ${csrfHiddenInput(options.csrfToken)}
@@ -4070,14 +4053,6 @@ function renderAuthPage(options: {
     options.mode === "login" ? "username webauthn" : "username"
   }" required ${emailLoginInitiallyVisible ? "" : "autofocus"}>
             </label>
-            ${
-    options.mode === "register"
-      ? `<label>
-              ${escapeHtml(options.messages.authDisplayName)}
-              <input name="displayName" autocomplete="name">
-            </label>`
-      : ""
-  }
             <label>
               ${escapeHtml(options.messages.authPassword)}
               <input name="password" type="password" dir="ltr" autocomplete="${
@@ -6038,23 +6013,17 @@ function registerErrorMessage(
  * 校验注册输入。
  *
  * @param username 用户名。
- * @param displayName 显示名称。
  * @param password 密码。
  * @param confirmPassword 确认密码。
  * @return 错误代码，校验通过时返回 undefined。
  */
 function validateRegistration(
   username: string,
-  displayName: string,
   password: string,
   confirmPassword: string,
 ): string | undefined {
   if (!validUsername(username)) {
     return "username";
-  }
-
-  if (!validDisplayName(displayName)) {
-    return "displayName";
   }
 
   if (password.length < 8) {

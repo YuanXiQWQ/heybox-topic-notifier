@@ -1,5 +1,5 @@
 /**
- * @file 本文件提供注册与修改用户名或显示名称时触发的《逆转裁判》主题彩蛋。
+ * @file 本文件提供修改显示名称时触发的《逆转裁判》主题彩蛋。
  */
 
 /**
@@ -118,11 +118,6 @@ const usernameEasterEggMessages = {
  * 当前正在播放的彩蛋音频。
  */
 const usernameEasterEggAudios = new Set();
-
-/**
- * 已经完成彩蛋、允许继续提交的注册表单。
- */
-const usernameEasterEggApprovedRegistrationForms = new WeakSet();
 
 /**
  * 角色台词图片在收起前的停留时间。
@@ -553,12 +548,14 @@ function activateUsernameEasterEgg(username, target = "username") {
         imageLocale,
         cue,
       );
-      image.style.backgroundImage = `url("${usernameEasterEggImageSource(
-        assetRoot,
-        character,
-        imageLocale,
-        cue,
-      )}")`;
+      image.style.backgroundImage = `url("${
+        usernameEasterEggImageSource(
+          assetRoot,
+          character,
+          imageLocale,
+          cue,
+        )
+      }")`;
       image.classList.toggle(
         "is-aa456-chinese-interjection",
         isAa456ChineseInterjection,
@@ -947,77 +944,6 @@ function activateUsernameEasterEgg(username, target = "username") {
   return activeUsernameEasterEgg;
 }
 
-/**
- * 判断表单提交控件能否传给 requestSubmit。
- *
- * @param {EventTarget|null} submitter 表单提交事件的触发控件。
- * @return {submitter is HTMLButtonElement|HTMLInputElement} 控件可用于提交时返回 true。
- */
-function isUsernameEasterEggSubmitter(submitter) {
-  return submitter instanceof HTMLButtonElement ||
-    submitter instanceof HTMLInputElement &&
-      ["submit", "image"].includes(submitter.type);
-}
-
-/**
- * 拦截注册表单提交并在命中角色姓名时播放彩蛋。
- *
- * @param {SubmitEvent} event 注册表单提交事件。
- */
-function handleUsernameEasterEggRegistration(event) {
-  const form = event.currentTarget;
-  if (!(form instanceof HTMLFormElement)) {
-    return;
-  }
-  if (usernameEasterEggApprovedRegistrationForms.has(form)) {
-    usernameEasterEggApprovedRegistrationForms.delete(form);
-    return;
-  }
-
-  const usernameInput = form.elements.namedItem("username");
-  const displayNameInput = form.elements.namedItem("displayName");
-  const matchingInput = [displayNameInput, usernameInput].find((input) =>
-    input instanceof HTMLInputElement &&
-    matchesUsernameEasterEgg(input.value)
-  );
-  if (!(matchingInput instanceof HTMLInputElement)) {
-    return;
-  }
-
-  event.preventDefault();
-  const submitter = event.submitter;
-  void activateUsernameEasterEgg(
-    matchingInput.value,
-    matchingInput === displayNameInput ? "displayName" : "username",
-  ).then((approved) => {
-    if (!approved) {
-      matchingInput.value = "";
-      matchingInput.focus();
-      return;
-    }
-
-    usernameEasterEggApprovedRegistrationForms.add(form);
-    if (isUsernameEasterEggSubmitter(submitter)) {
-      form.requestSubmit(submitter);
-    } else {
-      form.requestSubmit();
-    }
-  });
-}
-
-/**
- * 为页面中的注册表单绑定用户名彩蛋。
- */
-function initUsernameEasterEggRegistration() {
-  document.querySelectorAll("[data-username-easter-egg-register]").forEach(
-    (form) => {
-      if (form instanceof HTMLFormElement) {
-        form.addEventListener("submit", handleUsernameEasterEggRegistration);
-      }
-    },
-  );
-}
-
 globalThis.usernameEasterEgg = Object.freeze({
   activate: activateUsernameEasterEgg,
   imageLocale: usernameEasterEggImageLocale,
@@ -1030,5 +956,3 @@ globalThis.usernameEasterEgg = Object.freeze({
         : matchingUsernameEasterEggCharacter(username),
     ),
 });
-
-initUsernameEasterEggRegistration();
