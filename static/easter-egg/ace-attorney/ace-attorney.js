@@ -13,8 +13,10 @@ const usernameEasterEggCharacters = [
     names: [
       ["Phoenix", "Wright"],
       ["成歩堂", "龍一"],
+      ["成步堂", "龍一"],
       ["成步堂", "龙一"],
       ["なるほどう", "りゅういち"],
+      ["나루호도", "류이치"],
     ],
   },
   {
@@ -25,6 +27,7 @@ const usernameEasterEggCharacters = [
       ["Apollo", "Justice"],
       ["王泥喜", "法介"],
       ["おどろき", "ほうすけ"],
+      ["오도로키", "호스케"],
     ],
   },
   {
@@ -35,6 +38,7 @@ const usernameEasterEggCharacters = [
       ["Athena", "Cykes"],
       ["希月", "心音"],
       ["きづき", "ここね"],
+      ["키즈키", "코코네"],
     ],
   },
   {
@@ -43,9 +47,12 @@ const usernameEasterEggCharacters = [
     type: "type4",
     names: [
       ["Miles", "Edgeworth"],
+      ["Benjamin", "Hunter"],
       ["御剣", "怜侍"],
+      ["御劍", "怜侍"],
       ["御剑", "怜侍"],
       ["みつるぎ", "れいじ"],
+      ["미츠루기", "레이지"],
     ],
   },
   {
@@ -54,9 +61,11 @@ const usernameEasterEggCharacters = [
     type: "type5",
     names: [
       ["Mia", "Fey"],
+      ["Mía", "Fey"],
       ["綾里", "千尋"],
       ["绫里", "千寻"],
       ["あやさと", "ちひろ"],
+      ["아야사토", "치히로"],
     ],
   },
 ];
