@@ -1164,6 +1164,12 @@ function initAccountSettings() {
   const actionInput = form.querySelector("[data-account-action-input]");
   const usernameInput = form.querySelector("[data-account-username-input]");
   const usernameStatus = form.querySelector("[data-account-username-status]");
+  const displayNameInput = form.querySelector(
+    "[data-account-display-name-input]",
+  );
+  const displayNameStatus = form.querySelector(
+    "[data-account-display-name-status]",
+  );
   const currentPasswordRow = form.querySelector(
     "[data-account-current-password-row]",
   );
@@ -1216,6 +1222,7 @@ function initAccountSettings() {
   if (
     !(actionInput instanceof HTMLInputElement) ||
     !(usernameInput instanceof HTMLInputElement) ||
+    !(displayNameInput instanceof HTMLInputElement) ||
     !(currentPasswordRow instanceof HTMLElement) ||
     !(currentPasswordInput instanceof HTMLInputElement) ||
     !(passkeyReauthRow instanceof HTMLElement) ||
@@ -1230,7 +1237,7 @@ function initAccountSettings() {
   actionInput.value = mode;
   lockAccountTargets();
   setCurrentPasswordInputEnabled(!currentPasswordRow.hidden);
-  if (mode && reauthVerified) {
+  if (mode === "displayName" || mode && reauthVerified) {
     setCurrentPasswordInputEnabled(false);
     hideAccountElement(currentPasswordRow, false, ++transitionToken);
     unlockSelectedTarget();
@@ -1294,7 +1301,7 @@ function initAccountSettings() {
 
     setTimeout(() => {
       if (
-        mode &&
+        accountModeRequiresReauth(mode) &&
         currentPasswordInput.value.length === 0 &&
         !pendingAccountModePointerMode &&
         document.activeElement !== currentPasswordInput
@@ -1320,7 +1327,7 @@ function initAccountSettings() {
       : "";
 
     if (
-      !mode ||
+      !accountModeRequiresReauth(mode) ||
       currentPasswordInput.value.length > 0 ||
       reauthVerified
     ) {
@@ -1347,6 +1354,10 @@ function initAccountSettings() {
     clearInlineStatus(usernameStatus);
   });
 
+  displayNameInput.addEventListener("input", () => {
+    clearInlineStatus(displayNameStatus);
+  });
+
   unlockedFields.forEach((field) => {
     field.addEventListener("input", () => {
       if (!(field instanceof HTMLInputElement)) {
@@ -1368,14 +1379,44 @@ function initAccountSettings() {
       return;
     }
 
-    if (!reauthVerified) {
+    if (accountModeRequiresReauth(mode) && !reauthVerified) {
       event.preventDefault();
       if (!currentPasswordRow.hidden && passwordAvailable) {
         void verifyCurrentPassword(true);
       } else if (passkeyAvailable) {
         void startAccountPasskeyReauth();
       }
+      return;
     }
+
+    const easterEggInput = mode === "username"
+      ? usernameInput
+      : mode === "displayName"
+      ? displayNameInput
+      : undefined;
+    if (
+      easterEggInput &&
+      form.dataset.usernameEasterEggApproved !== "true" &&
+      globalThis.usernameEasterEgg?.matches(easterEggInput.value)
+    ) {
+      event.preventDefault();
+      void globalThis.usernameEasterEgg.activate(easterEggInput.value, mode)
+        .then(
+          (approved) => {
+            if (!approved) {
+              easterEggInput.value = "";
+              easterEggInput.focus();
+              return;
+            }
+
+            form.dataset.usernameEasterEggApproved = "true";
+            form.requestSubmit(saveButton);
+          },
+        );
+      return;
+    }
+
+    delete form.dataset.usernameEasterEggApproved;
   });
 
   /**
@@ -1385,7 +1426,10 @@ function initAccountSettings() {
    * @param {{ scrollIntoView?: boolean }} options 模式切换选项。
    */
   function selectAccountMode(nextMode, options = {}) {
-    if (nextMode !== "username" && nextMode !== "password") {
+    if (
+      nextMode !== "displayName" && nextMode !== "username" &&
+      nextMode !== "password"
+    ) {
       return;
     }
 
@@ -1400,6 +1444,9 @@ function initAccountSettings() {
     actionInput.value = nextMode;
     usernameInput.value = usernameInput.dataset.accountUsernameOriginal ||
       usernameInput.value;
+    displayNameInput.value =
+      displayNameInput.dataset.accountDisplayNameOriginal ||
+      displayNameInput.value;
     cancelCurrentPasswordVerification();
     setCurrentPasswordInputEnabled(false);
     cancelAccountPasskeyReauth();
@@ -1412,6 +1459,12 @@ function initAccountSettings() {
 
     if (mode !== "password") {
       clearUnlockedPasswordFields();
+    }
+
+    if (mode === "displayName") {
+      clearAccountTargetStatuses();
+      unlockSelectedTarget({ preventScroll: shouldScroll });
+      return;
     }
 
     if (keepReauthVerification) {
@@ -1458,6 +1511,10 @@ function initAccountSettings() {
     actionInput.value = "";
     usernameInput.value = usernameInput.dataset.accountUsernameOriginal ||
       usernameInput.value;
+    displayNameInput.value =
+      displayNameInput.dataset.accountDisplayNameOriginal ||
+      displayNameInput.value;
+    delete form.dataset.usernameEasterEggApproved;
     setCurrentPasswordInputEnabled(false);
     clearUnlockedPasswordFields();
     clearAllAccountStatuses();
@@ -1474,6 +1531,7 @@ function initAccountSettings() {
 
   function lockAccountTargets() {
     usernameInput.readOnly = true;
+    displayNameInput.readOnly = true;
     saveButton.disabled = true;
     unlockedFields.forEach((field) => {
       if (field instanceof HTMLInputElement) {
@@ -1506,6 +1564,11 @@ function initAccountSettings() {
       focusAccountControl(usernameInput, preventScroll);
     }
 
+    if (mode === "displayName") {
+      displayNameInput.readOnly = false;
+      focusAccountControl(displayNameInput, preventScroll);
+    }
+
     if (mode === "password") {
       setNewPasswordRowsVisible(true, false);
       unlockedFields.forEach((field) => {
@@ -1520,6 +1583,16 @@ function initAccountSettings() {
     }
 
     saveButton.disabled = false;
+  }
+
+  /**
+   * 判断账户编辑模式是否需要先完成强再认证。
+   *
+   * @param {string} selectedMode 当前账户编辑模式。
+   * @return {boolean} 修改用户名或密码时返回 true。
+   */
+  function accountModeRequiresReauth(selectedMode) {
+    return selectedMode === "username" || selectedMode === "password";
   }
 
   /**

@@ -1,0 +1,778 @@
+/* 用户名或显示名称命中《逆转裁判》角色姓名时显示的全屏彩蛋。 */
+body.username-easter-egg-active {
+  overflow: hidden;
+}
+
+body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
+  animation: username-easter-egg-screen-shake 420ms step-end;
+}
+
+.username-easter-egg-overlay {
+  --username-easter-egg-dark-mosaic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath fill='%239ac3db' fill-opacity='.14' d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E");
+  --username-easter-egg-blue-mosaic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath fill='%23fff' fill-opacity='.1' d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E");
+  align-items: center;
+  background: rgb(5 12 24 / 0.24);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  transition: background-color 140ms ease;
+  z-index: 10000;
+}
+
+.username-easter-egg-overlay.is-choosing {
+  background: rgb(2 7 16 / 0.72);
+}
+
+.username-easter-egg-image {
+  aspect-ratio: 1558 / 1080;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  height: auto;
+  max-height: 100%;
+  max-width: 100%;
+  width: min(100%, calc((100vh - 48px) * 1558 / 1080));
+  z-index: 1;
+}
+
+/* 《逆转裁判456》中文图集：igiari 在左上，kurae 在左下。 */
+.username-easter-egg-image.is-aa456-chinese-interjection {
+  aspect-ratio: 1480 / 1080;
+  background-position: left top;
+  background-size: 200% auto;
+  width: min(100%, calc((100vh - 48px) * 1480 / 1080));
+}
+
+.username-easter-egg-image.is-aa456-kurae-interjection {
+  background-position: left 79.7357%;
+}
+
+.username-easter-egg-image.is-shaking {
+  animation: username-easter-egg-cue-shake 1050ms step-end;
+}
+
+.username-easter-egg-panel {
+  backdrop-filter: blur(2px) saturate(112%);
+  background-color: rgb(4 20 42 / 0.62);
+  background-image: var(--username-easter-egg-dark-mosaic);
+  background-size: 4px 4px;
+  border-block-end: 3px solid rgb(231 248 255 / 0.92);
+  border-block-start: 1px solid rgb(231 248 255 / 0.92);
+  bottom: clamp(36px, 8vh, 86px);
+  box-sizing: border-box;
+  box-shadow:
+    0 16px 32px rgb(0 0 0 / 0.34),
+    inset 0 1px rgb(255 255 255 / 0.08);
+  color: #fff;
+  height: clamp(132px, 20vh, 210px);
+  inset-inline: 0;
+  left: 0;
+  padding: clamp(34px, 5.5vh, 54px) max(8vw, 32px) 12px;
+  position: absolute;
+  right: 0;
+  width: auto;
+  z-index: 2;
+}
+
+.username-easter-egg-panel[hidden],
+.username-easter-egg-image[hidden],
+.username-easter-egg-actions[hidden],
+.username-easter-egg-continue[hidden] {
+  display: none;
+}
+
+.username-easter-egg-speaker {
+  align-items: center;
+  background: rgb(225 248 255 / 0.96);
+  box-sizing: border-box;
+  clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%);
+  display: flex;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.42));
+  font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1.1rem, 2.2vw, 1.65rem);
+  font-weight: 600;
+  height: clamp(42px, 6vh, 60px);
+  inset-inline-start: max(8vw, 32px);
+  isolation: isolate;
+  justify-content: center;
+  letter-spacing: 0.04em;
+  max-width: min(46vw, 520px);
+  min-width: clamp(160px, 16vw, 280px);
+  overflow: hidden;
+  padding: 4px 24px;
+  position: absolute;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  top: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.username-easter-egg-speaker::before {
+  background-color: rgb(45 161 205 / 0.96);
+  background-image: var(--username-easter-egg-blue-mosaic);
+  background-size: 4px 4px;
+  clip-path: inherit;
+  content: "";
+  inset: 2px;
+  position: absolute;
+  z-index: -1;
+}
+
+.username-easter-egg-message {
+  color: #fff;
+  font-family: "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: clamp(1.55rem, 3.2vw, 2.65rem);
+  font-weight: 400;
+  line-height: 1.35;
+  margin: 0;
+  margin-inline-start: max(12vw, 40px);
+  text-align: start;
+  text-shadow: 0 2px 3px rgb(0 0 0 / 0.72);
+  white-space: pre-wrap;
+}
+
+.username-easter-egg-continue {
+  animation:
+    username-easter-egg-continue-fade 260ms ease-out both,
+    username-easter-egg-continue-float 760ms ease-in-out 260ms infinite
+    alternate;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  height: clamp(42px, 7vh, 64px);
+  inset-inline-end: clamp(30px, 7vw, 110px);
+  padding: 0;
+  position: absolute;
+  top: calc(50% - clamp(21px, 3.5vh, 32px));
+  width: clamp(54px, 5.8vw, 76px);
+}
+
+.username-easter-egg-continue::before,
+.username-easter-egg-continue::after {
+  background: linear-gradient(90deg, #ffc91f 0 58%, #fff263 100%);
+  clip-path: polygon(0 0, 44% 0, 100% 50%, 44% 100%, 0 100%, 56% 50%);
+  content: "";
+  filter:
+    drop-shadow(0 0 1px #fff7a0)
+    drop-shadow(2px 2px 1px rgb(112 61 0 / 0.9));
+  height: clamp(32px, 5.4vh, 50px);
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  width: clamp(26px, 2.8vw, 38px);
+}
+
+.username-easter-egg-continue::before {
+  transform: translate(-94%, -50%);
+}
+
+.username-easter-egg-continue::after {
+  transform: translate(-26%, -50%);
+}
+
+.username-easter-egg-continue:focus-visible {
+  filter: brightness(1.12);
+  outline: none;
+}
+
+.username-easter-egg-actions {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(34px, 5vh, 68px);
+  left: 50%;
+  position: fixed;
+  top: clamp(88px, 18vh, 190px);
+  transform: translateX(-50%);
+  width: clamp(280px, 30vw, 740px);
+  z-index: 3;
+}
+
+.username-easter-egg-button {
+  appearance: none;
+  background-color: rgb(49 166 207 / 0.96);
+  background-image: var(--username-easter-egg-blue-mosaic);
+  background-size: 4px 4px;
+  border: 2px solid rgb(218 248 255 / 0.92);
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 0.1),
+    0 4px 10px rgb(0 0 0 / 0.32);
+  color: #fff;
+  font-family: "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: clamp(1.1rem, 2.25vw, 1.9rem);
+  font-weight: 400;
+  min-height: clamp(44px, 6.2vh, 60px);
+  padding: 5px 22px;
+  position: relative;
+  text-shadow: 0 2px 3px rgb(0 0 0 / 0.46);
+  width: 100%;
+}
+
+.username-easter-egg-button.primary,
+.username-easter-egg-button.secondary {
+  background-color: rgb(49 166 207 / 0.96);
+  background-image: var(--username-easter-egg-blue-mosaic);
+  background-size: 4px 4px;
+  border-color: rgb(218 248 255 / 0.92);
+  color: #fff;
+}
+
+.username-easter-egg-overlay button.username-easter-egg-button:hover,
+.username-easter-egg-overlay button.username-easter-egg-button:focus-visible,
+.username-easter-egg-overlay button.username-easter-egg-button.is-selected {
+  background-color: rgb(49 166 207 / 0.96);
+  background-image: var(--username-easter-egg-blue-mosaic);
+  background-size: 4px 4px;
+  filter: brightness(1.08);
+}
+
+.username-easter-egg-overlay button.username-easter-egg-button:focus-visible,
+.username-easter-egg-overlay button.username-easter-egg-button.is-selected {
+  outline: none;
+}
+
+.username-easter-egg-overlay button.username-easter-egg-button:focus-visible::after,
+.username-easter-egg-overlay button.username-easter-egg-button.is-selected::after {
+  background:
+    linear-gradient(#ffd52a, #ffd52a) left 1.5px / 100% 1px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left bottom 1.5px / 100% 1px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left 1.5px top / 1px 100% no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right 1.5px top / 1px 100% no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left top / 24px 4px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right top / 24px 4px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left bottom / 24px 4px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right bottom / 24px 4px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left top / 4px 18px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) left bottom / 4px 18px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right top / 4px 18px no-repeat,
+    linear-gradient(#ffd52a, #ffd52a) right bottom / 4px 18px no-repeat;
+  content: "";
+  inset: -10px;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* 成步堂龙一系列使用游戏拆包的对话框、名称框和推进箭头。 */
+.username-easter-egg-theme-trilogy .username-easter-egg-panel {
+  backdrop-filter: none;
+  background: rgb(4 20 42 / 0.12);
+  border: 0;
+  box-shadow: none;
+  isolation: isolate;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-panel::before {
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png")
+    left calc(0px - clamp(3px, 0.43vh, 4.5px)) / auto 100% repeat-x;
+  content: "";
+  inset: 0;
+  opacity: 0.58;
+  pointer-events: none;
+  position: absolute;
+  z-index: -2;
+}
+
+/* menu_bg 上半部是游戏按键提示，此处只裁取最底部白条。 */
+.username-easter-egg-theme-trilogy .username-easter-egg-panel::after {
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/menu_bg.png")
+    left bottom / auto clamp(40px, 5.56vh, 80px) repeat-x;
+  bottom: 0;
+  content: "";
+  height: clamp(3px, 0.45vh, 5px);
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-speaker {
+  background: transparent;
+  border: solid transparent;
+  border-image-repeat: repeat stretch;
+  border-image-slice: 0 28 fill;
+  border-image-source: url("/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/name_bg.png");
+  border-image-width: 0 clamp(18px, 2vh, 28px);
+  clip-path: none;
+  filter: none;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-speaker::before {
+  content: none;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-continue {
+  height: clamp(28px, 4.5vh, 44px);
+  top: calc(50% - clamp(14px, 2.25vh, 22px));
+  width: clamp(30px, 3.8vw, 48px);
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-continue::before {
+  aspect-ratio: 16 / 15;
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/select_arrow.png")
+    center bottom / 100% 200% no-repeat;
+  clip-path: none;
+  filter: none;
+  height: 100%;
+  transform: translate(-50%, -50%) scaleX(-1);
+  width: auto;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-continue::after {
+  content: none;
+}
+
+/* 王泥喜法介与希月心音使用《逆转裁判456》风格的对话界面。 */
+.username-easter-egg-theme-aa456.is-choosing {
+  background: rgb(0 0 0 / 0.66);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-panel {
+  backdrop-filter: none;
+  background-color: rgb(0 0 0 / 0.68);
+  background-image: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-panel::before,
+.username-easter-egg-theme-aa456 .username-easter-egg-panel::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.82) 18%,
+    #fff 50%,
+    rgb(255 255 255 / 0.82) 82%,
+    transparent 100%
+  );
+  content: "";
+  height: 1px;
+  inset-inline: 0;
+  position: absolute;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-panel::before {
+  top: 0;
+  z-index: 3;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-panel::after {
+  bottom: 0;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-speaker {
+  background: transparent;
+  clip-path: none;
+  filter: none;
+  font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1.35rem, 2.5vw, 2.1rem);
+  font-weight: 500;
+  height: clamp(44px, 6.2vh, 62px);
+  inset-inline-start: 0;
+  letter-spacing: 0.08em;
+  max-width: none;
+  min-width: 0;
+  padding-block: 3px;
+  padding-inline-end: clamp(64px, 6vw, 116px);
+  padding-inline-start: clamp(88px, 9vw, 172px);
+  text-shadow: 0 2px 2px rgb(0 0 0 / 0.42);
+  top: 1px;
+  transform: translateY(-100%);
+  width: clamp(360px, 33.5vw, 680px);
+}
+
+/* 保留左侧花纹与右侧圆角斜边，仅横向重复两者之间的原图矩形切片。 */
+.username-easter-egg-theme-aa456 .username-easter-egg-speaker::before {
+  background: transparent;
+  border: solid transparent;
+  border-image-repeat: repeat stretch;
+  border-image-slice: 0 40 0 122 fill;
+  border-image-source: url("/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png");
+  border-image-width: 0 clamp(25px, 3.54vh, 35px) 0
+    clamp(77px, 10.81vh, 108px);
+  content: "";
+  inset: 0;
+  opacity: 0.86;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-message {
+  font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1.65rem, 3.25vw, 2.8rem);
+  font-weight: 500;
+  line-height: 1.45;
+  margin-inline-start: clamp(72px, 23vw, 450px);
+  text-shadow: 0 2px 3px rgb(0 0 0 / 0.78);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-continue {
+  height: clamp(38px, 6vh, 56px);
+  inset-inline-end: clamp(24px, 6vw, 116px);
+  top: calc(50% - clamp(19px, 3vh, 28px));
+  width: clamp(24px, 2.5vw, 40px);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-continue::before {
+  aspect-ratio: 46 / 25;
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png")
+    35.24% 96.97% / 556.52% 1024% no-repeat;
+  clip-path: none;
+  filter: none;
+  height: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  width: clamp(38px, 4vw, 56px);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-continue::after {
+  content: none;
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-actions {
+  gap: clamp(56px, 9vh, 96px);
+  top: clamp(84px, 16vh, 170px);
+}
+
+.username-easter-egg-theme-aa456 .username-easter-egg-button,
+.username-easter-egg-theme-aa456 .username-easter-egg-button.primary,
+.username-easter-egg-theme-aa456 .username-easter-egg-button.secondary {
+  background-color: rgb(255 255 255 / 0.54);
+  background-image: none;
+  border: 2px solid rgb(77 66 54 / 0.48);
+  border-radius: 7px;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.32),
+    0 3px 8px rgb(0 0 0 / 0.28);
+  color: #3a2118;
+  font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1.1rem, 1.8vw, 1.9rem);
+  font-weight: 700;
+  min-height: clamp(44px, 2.4vw, 60px);
+  text-shadow: none;
+}
+
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:hover,
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:focus-visible,
+.username-easter-egg-theme-aa456 button.username-easter-egg-button.is-selected {
+  background-color: rgb(255 255 255 / 0.82);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  filter: none;
+}
+
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:focus-visible::after,
+.username-easter-egg-theme-aa456 button.username-easter-egg-button.is-selected::after {
+  background: none;
+  border: clamp(5px, 0.42vw, 8px) solid #e9b900;
+  border-radius: 12px;
+  content: "";
+  inset: calc(-1 * clamp(5px, 0.42vw, 8px));
+}
+
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:active {
+  background-color: rgb(255 218 82 / 0.88);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.username-easter-egg-theme-aa456 button.username-easter-egg-button:active::after {
+  background: none;
+  border: clamp(5px, 0.42vw, 8px) solid #dca900;
+  border-radius: 12px;
+  content: "";
+  inset: calc(-1 * clamp(5px, 0.42vw, 8px));
+  pointer-events: none;
+  position: absolute;
+}
+
+/* 御剑怜侍的《逆转检事》主题；尺寸、字体和推进动画继承通用界面。 */
+.username-easter-egg-theme-investigations.is-dialogue {
+  background: transparent;
+}
+
+.username-easter-egg-theme-investigations.is-choosing {
+  background: rgb(2 7 16 / 0.72);
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-panel {
+  backdrop-filter: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  isolation: isolate;
+}
+
+/* 满宽保留背景与边线；派生素材仅将四角三角移至距左右边线 4px 的位置。 */
+.username-easter-egg-theme-investigations .username-easter-egg-panel::before {
+  border: solid transparent;
+  border-image-repeat: repeat stretch;
+  border-image-slice: 50 48 fill;
+  border-image-source: url("/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png");
+  border-image-width: 50px 48px;
+  box-sizing: border-box;
+  content: "";
+  inset: 0;
+  opacity: 0.78;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-panel::after {
+  content: none;
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-speaker {
+  background: transparent;
+  clip-path: none;
+  filter: none;
+  inset-inline-start: 0;
+  max-width: none;
+  min-width: 0;
+  overflow: hidden;
+  transform: translateY(-100%);
+  height: clamp(32px, 4.45vh, 62px);
+  width: min(94vw, clamp(300px, 52.2vh, 727px));
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-speaker::before {
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_NameBase_R.png")
+    left top / auto 100% no-repeat;
+  content: "";
+  inset: 0;
+  position: absolute;
+  transform-origin: center;
+  z-index: -1;
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-speaker::after {
+  content: none;
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-continue {
+  inset-inline-end: clamp(20px, 3.6vw, 74px);
+  top: calc(68% - clamp(21px, 3.5vh, 32px));
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-continue::before {
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/sactx-0-1024x64-BC7-Message-a8bee319.png")
+    73.9% top / 2381.4% 100% no-repeat;
+  clip-path: none;
+  filter: none;
+  height: clamp(44px, 7vh, 60px);
+  transform: translate(-50%, -50%);
+  width: clamp(30px, 4.7vh, 40px);
+}
+
+.username-easter-egg-theme-investigations .username-easter-egg-continue::after {
+  content: none;
+}
+
+.username-easter-egg-theme-investigations button.username-easter-egg-button,
+.username-easter-egg-theme-investigations button.username-easter-egg-button:hover,
+.username-easter-egg-theme-investigations button.username-easter-egg-button:focus-visible {
+  background: rgb(255 255 255 / 0.89);
+  border: 2px solid #9d9999;
+  border-radius: 0;
+  box-shadow: none;
+  color: #632238;
+  filter: none;
+  text-shadow: none;
+  transition: none;
+}
+
+/* 选中项由现有鼠标与键盘逻辑管理，避免旧焦点同时点亮第二个选项。 */
+.username-easter-egg-theme-investigations button.username-easter-egg-button.is-selected {
+  background: #fff;
+  border-color: #a20b48;
+}
+
+.username-easter-egg-theme-investigations button.username-easter-egg-button:focus-visible::after,
+.username-easter-egg-theme-investigations button.username-easter-egg-button.is-selected::after {
+  content: none;
+}
+
+.username-easter-egg-theme-investigations button.username-easter-egg-button:active {
+  background: rgb(166 168 165 / 0.9);
+  border-color: #620323;
+  color: #572132;
+}
+
+/* RTL 页面中将带左右装饰的名称框翻转，保留角色名称的正常文字方向。 */
+:root[dir="rtl"] .username-easter-egg-theme-aa456 .username-easter-egg-speaker::before,
+:root[dir="rtl"] .username-easter-egg-theme-investigations .username-easter-egg-speaker::before {
+  transform: scaleX(-1);
+}
+
+@media (max-width: 600px) {
+  .username-easter-egg-panel {
+    bottom: 28px;
+    height: clamp(142px, 24vh, 188px);
+    padding: 38px 24px 12px;
+  }
+
+  .username-easter-egg-speaker {
+    inset-inline-start: 24px;
+    min-width: 170px;
+  }
+
+  .username-easter-egg-message {
+    margin-inline-start: 0;
+  }
+
+  .username-easter-egg-actions {
+    gap: 34px;
+    top: 14vh;
+    width: min(74vw, 280px);
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-panel {
+    padding: 30px 24px 12px;
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-speaker {
+    font-size: 1.2rem;
+    height: 52px;
+    inset-inline-start: 0;
+    padding: 4px 64px;
+    width: min(88vw, 430px);
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-message {
+    font-size: clamp(1.4rem, 7vw, 1.8rem);
+    margin-inline-start: 6vw;
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-continue {
+    inset-inline-end: 24px;
+  }
+
+  .username-easter-egg-theme-aa456 .username-easter-egg-actions {
+    gap: 48px;
+    top: 12vh;
+  }
+
+  .username-easter-egg-theme-investigations .username-easter-egg-speaker {
+    height: 31.25px;
+    width: 94vw;
+  }
+}
+
+@keyframes username-easter-egg-screen-shake {
+  0% {
+    transform: translate3d(-18px, 13px, 0);
+  }
+
+  14% {
+    transform: translate3d(17px, -14px, 0);
+  }
+
+  28% {
+    transform: translate3d(-15px, -11px, 0);
+  }
+
+  42% {
+    transform: translate3d(14px, 12px, 0);
+  }
+
+  56% {
+    transform: translate3d(-11px, 8px, 0);
+  }
+
+  70% {
+    transform: translate3d(9px, -7px, 0);
+  }
+
+  84% {
+    transform: translate3d(-6px, 5px, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes username-easter-egg-cue-shake {
+  0% {
+    transform: translate3d(-20px, 14px, 0);
+  }
+
+  8% {
+    transform: translate3d(19px, -16px, 0);
+  }
+
+  16% {
+    transform: translate3d(-17px, -12px, 0);
+  }
+
+  24% {
+    transform: translate3d(16px, 13px, 0);
+  }
+
+  32% {
+    transform: translate3d(-14px, 10px, 0);
+  }
+
+  40% {
+    transform: translate3d(13px, -11px, 0);
+  }
+
+  49% {
+    transform: translate3d(-11px, -8px, 0);
+  }
+
+  58% {
+    transform: translate3d(10px, 8px, 0);
+  }
+
+  68% {
+    transform: translate3d(-8px, 6px, 0);
+  }
+
+  79% {
+    transform: translate3d(7px, -5px, 0);
+  }
+
+  90% {
+    transform: translate3d(-5px, 4px, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes username-easter-egg-continue-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes username-easter-egg-continue-float {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.username-easter-egg-impact > :not(.username-easter-egg-overlay),
+  .username-easter-egg-image.is-shaking,
+  .username-easter-egg-continue {
+    animation: none;
+  }
+}

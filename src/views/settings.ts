@@ -92,10 +92,11 @@ export type AccountStatus = {
     | "samePassword"
     | "confirmPassword"
     | "currentPassword"
+    | "displayName"
     | "updated"
     | "username"
     | "exists";
-  mode?: "password" | "username";
+  mode?: "displayName" | "password" | "username";
   type: "error" | "success";
 };
 
@@ -149,7 +150,10 @@ export type TotpSetupView = {
  * @return 完整设置页面 HTML。
  */
 export function renderSettings(options: {
-  account?: Pick<UserAccount, "emailVerified" | "primaryEmail" | "username">;
+  account?: Pick<
+    UserAccount,
+    "displayName" | "emailVerified" | "primaryEmail" | "username"
+  >;
   accountStatus?: AccountStatus;
   csrfToken: string;
   emailBindingStatus?: EmailBindingStatus;
@@ -255,7 +259,8 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/settings.js?v=20260903-transient-status" defer></script>
+    <script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path" defer></script>
+    <script src="/static/settings.js?v=20260904-display-name" defer></script>
   `;
 
   return renderLayout({
@@ -263,6 +268,9 @@ export function renderSettings(options: {
     csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
+    stylesheets: [
+      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",
+    ],
     themeColor: options.settings.themeColor,
     title: messages.appName,
   });
@@ -493,7 +501,7 @@ function transientSuccessStatusAttribute(
  */
 function renderAccountSection(
   settings: AppSettings,
-  account: Pick<UserAccount, "username"> | undefined,
+  account: Pick<UserAccount, "displayName" | "username"> | undefined,
   status: AccountStatus | undefined,
   csrfToken: string,
   passkeyAvailable: boolean,
@@ -509,9 +517,13 @@ function renderAccountSection(
       ? 'data-state="error"'
       : "";
   const escapedUsername = escapeHtml(account?.username ?? "");
+  const escapedDisplayName = escapeHtml(
+    account?.displayName ?? account?.username ?? "",
+  );
   const initialMode = accountInitialMode(status);
   const accountActionsHidden = initialMode ? "" : "hidden";
-  const currentPasswordVisible = Boolean(initialMode) && !recentlyVerified;
+  const currentPasswordVisible = Boolean(initialMode) &&
+    initialMode !== "displayName" && !recentlyVerified;
   const currentPasswordHidden = currentPasswordVisible ? "" : "hidden";
   const currentPasswordDisabled = currentPasswordVisible ? "" : "disabled";
   const currentPasswordCollapsed = currentPasswordVisible ? "" : "is-collapsed";
@@ -520,12 +532,14 @@ function renderAccountSection(
     ? ""
     : "is-collapsed";
   const editUsernameLabel = escapeHtml(messages.accountEditUsername);
+  const editDisplayNameLabel = escapeHtml(messages.accountEditDisplayName);
 
   return `
     <form
       method="post"
       action="${localizedAccountPath("/account", settings.locale)}"
       data-account-form
+      data-username-easter-egg-settings
       data-account-initial-mode="${initialMode ?? ""}"
       data-account-passkey-available="${passkeyAvailable}"
       data-account-password-available="${passwordAvailable}"
@@ -572,7 +586,6 @@ function renderAccountSection(
               <div class="account-username-row">
                 <input
                   name="username"
-                  dir="ltr"
                   value="${escapedUsername}"
                   autocomplete="username"
                   data-account-username-input
@@ -588,6 +601,34 @@ function renderAccountSection(
                     data-account-mode="username"
                     aria-label="${editUsernameLabel}"
                     data-tooltip="${editUsernameLabel}"
+                  >${
+    materialSymbolIcon("edit", "settings-row-action-icon")
+  }</button>
+                </div>
+              </div>
+            </dd>
+          </div>
+          <div>
+            ${authSettingLabel("username", messages.accountDisplayName)}
+            <dd>
+              <div class="account-username-row">
+                <input
+                  name="displayName"
+                  value="${escapedDisplayName}"
+                  autocomplete="name"
+                  data-account-display-name-input
+                  data-account-display-name-original="${escapedDisplayName}"
+                  readonly
+                  required
+                >
+                ${accountFieldStatusHtml("displayName", status, messages)}
+                <div class="account-mode-buttons">
+                  <button
+                    type="button"
+                    class="settings-row-action-button settings-icon-action-button"
+                    data-account-mode="displayName"
+                    aria-label="${editDisplayNameLabel}"
+                    data-tooltip="${editDisplayNameLabel}"
                   >${
     materialSymbolIcon("edit", "settings-row-action-icon")
   }</button>
@@ -2787,6 +2828,7 @@ type AccountStatusField =
   | "action"
   | "confirmPassword"
   | "currentPassword"
+  | "displayName"
   | "newPassword"
   | "username";
 
@@ -2805,6 +2847,8 @@ function accountFieldStatusHtml(
     ? "data-account-new-password-status"
     : field === "confirmPassword"
     ? "data-account-confirm-password-status"
+    : field === "displayName"
+    ? "data-account-display-name-status"
     : field === "username"
     ? "data-account-username-status"
     : "";
@@ -2828,6 +2872,8 @@ function accountStatusField(status: AccountStatus): AccountStatusField {
       return "confirmPassword";
     case "currentPassword":
       return "currentPassword";
+    case "displayName":
+      return "displayName";
     case "exists":
     case "username":
       return "username";
@@ -2842,7 +2888,7 @@ function accountStatusField(status: AccountStatus): AccountStatusField {
 
 function accountInitialMode(
   status: AccountStatus | undefined,
-): "password" | "username" | undefined {
+): "displayName" | "password" | "username" | undefined {
   if (!status || status.type !== "error") {
     return undefined;
   }
@@ -2852,6 +2898,9 @@ function accountInitialMode(
   }
 
   const field = accountStatusField(status);
+  if (field === "displayName") {
+    return "displayName";
+  }
   if (field === "username") {
     return "username";
   }
@@ -2868,6 +2917,8 @@ function accountStatusMessage(
   switch (status.code) {
     case "currentPassword":
       return messages.accountPasswordCurrentInvalid;
+    case "displayName":
+      return messages.accountDisplayNameInvalid;
     case "exists":
       return messages.accountUsernameExists;
     case "confirmPassword":
@@ -3213,7 +3264,6 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="number"
                 name="notificationSmtpPort"
-                dir="ltr"
                 min="1"
                 step="1"
                 value="${settings.notificationSmtpPort}"
@@ -3319,7 +3369,6 @@ function renderPollingSection(settings: AppSettings): string {
                   <input
                     type="number"
                     name="pollIntervalValue"
-                    dir="ltr"
                     min="1"
                     step="1"
                     value="${settings.polling.intervalValue}"

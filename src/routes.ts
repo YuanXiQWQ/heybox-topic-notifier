@@ -6,9 +6,11 @@ import { type Context, Hono } from "@hono/hono";
 import QRCode from "qrcode";
 import {
   hashPassword,
+  normalizeDisplayName,
   normalizeUsername,
   readAuthSession,
   saveAccountPasswordCredential,
+  validDisplayName,
   validUsername,
   verifyAccountPassword,
 } from "./auth.ts";
@@ -461,6 +463,7 @@ export function createRoutes(context: AppContext): Hono {
     const form = await c.req.parseBody();
     const accountAction = String(form.accountAction ?? "");
     const username = normalizeUsername(String(form.username ?? ""));
+    const displayName = normalizeDisplayName(String(form.displayName ?? ""));
     const currentPassword = String(form.currentPassword ?? "");
     const newPassword = String(form.newPassword ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
@@ -478,8 +481,28 @@ export function createRoutes(context: AppContext): Hono {
       return rateLimitResponse;
     }
 
-    if (accountAction !== "username" && accountAction !== "password") {
+    if (
+      accountAction !== "displayName" && accountAction !== "username" &&
+      accountAction !== "password"
+    ) {
       return c.redirect("/settings", 303);
+    }
+
+    if (accountAction === "displayName") {
+      if (!validDisplayName(displayName)) {
+        return c.redirect(
+          accountSettingsRedirect("displayName", "displayName"),
+          303,
+        );
+      }
+
+      const updated = await context.storage.updateAccount({
+        ...account,
+        displayName,
+      });
+      return updated
+        ? c.redirect("/settings?account=updated", 303)
+        : c.redirect(accountSettingsRedirect("notFound"), 303);
     }
 
     const recentlyReauthenticated = await hasRecentStrongReauth(
@@ -2264,6 +2287,7 @@ function requiresReauthForSecuritySettingsChange(
 type AccountErrorCode =
   | "confirmPassword"
   | "currentPassword"
+  | "displayName"
   | "exists"
   | "notFound"
   | "password"
@@ -2272,7 +2296,7 @@ type AccountErrorCode =
 
 function accountSettingsRedirect(
   error: AccountErrorCode,
-  mode?: "password" | "username",
+  mode?: "displayName" | "password" | "username",
 ): string {
   return `/settings?accountError=${error}${mode ? `&accountMode=${mode}` : ""}`;
 }
@@ -2291,13 +2315,17 @@ function accountStatusFromSearch(searchParams: URLSearchParams) {
 
 function accountModeFromSearch(
   value: string | null,
-): "password" | "username" | undefined {
-  return value === "password" || value === "username" ? value : undefined;
+): "displayName" | "password" | "username" | undefined {
+  return value === "displayName" || value === "password" ||
+      value === "username"
+    ? value
+    : undefined;
 }
 
 function isAccountErrorCode(value: string | null): value is AccountErrorCode {
   return value === "confirmPassword" ||
     value === "currentPassword" ||
+    value === "displayName" ||
     value === "exists" ||
     value === "notFound" ||
     value === "password" ||

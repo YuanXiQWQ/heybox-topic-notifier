@@ -590,6 +590,52 @@ Deno.test("account route updates username for the signed-in user after password 
   assertEquals(loginResponse.headers.get("location"), "/");
 });
 
+Deno.test("account route updates non-unique display names without reauthentication", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const aliceResponse = await register(app, "alice", "correct-password");
+  await register(app, "bob", "correct-password");
+
+  const response = await app.request("/account", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        accountAction: "displayName",
+        displayName: "成步堂龙一",
+      }),
+    ),
+    headers: testCsrfHeaders({
+      cookie: aliceResponse.headers.get("set-cookie") ?? "",
+    }),
+    method: "POST",
+  });
+  const bobResponse = await login(app, "bob", "correct-password");
+  const bobCookie = bobResponse.headers.get("set-cookie") ?? "";
+  const duplicateResponse = await app.request("/account", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        accountAction: "displayName",
+        displayName: "成步堂龙一",
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie: bobCookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.headers.get("location"), "/settings?account=updated");
+  assertEquals(
+    duplicateResponse.headers.get("location"),
+    "/settings?account=updated",
+  );
+  assertEquals(
+    (await storage.getAccountByUsername("alice"))?.displayName,
+    "成步堂龙一",
+  );
+  assertEquals(
+    (await storage.getAccountByUsername("bob"))?.displayName,
+    "成步堂龙一",
+  );
+});
+
 Deno.test("account route updates password for the signed-in user after password confirmation", async () => {
   const storage = createAccountRouteStorage();
   const app = createAccountRouteApp(storage);

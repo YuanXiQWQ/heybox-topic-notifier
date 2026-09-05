@@ -279,8 +279,17 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260903-transient-status`,
+    `/static/settings.js?v=20260904-display-name`,
   );
+  assertIncludes(
+    html,
+    `/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path`,
+  );
+  assertIncludes(
+    html,
+    `/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners`,
+  );
+  assertIncludes(html, `data-username-easter-egg-settings`);
 });
 
 Deno.test("renderSettings marks navigation and locale controls with icons", () => {
@@ -312,6 +321,7 @@ Deno.test("renderSettings marks navigation and locale controls with icons", () =
 Deno.test("renderSettings keeps settings row actions compact", () => {
   const html = renderSettings({
     account: {
+      displayName: "Alice Wonderland",
       emailVerified: false,
       primaryEmail: undefined,
       username: "alice",
@@ -327,10 +337,13 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
   });
 
   assertIncludes(html, `data-account-mode="username"`);
+  assertIncludes(html, `data-account-mode="displayName"`);
   assertIncludes(html, `data-account-mode-trigger="password"`);
   assertIncludes(html, `aria-label="修改用户名"`);
+  assertIncludes(html, `aria-label="修改显示名称"`);
   assertIncludes(html, `aria-label="修改密码"`);
   assertIncludes(html, `data-tooltip="修改用户名"`);
+  assertIncludes(html, `data-tooltip="修改显示名称"`);
   assertIncludes(html, `data-tooltip="修改密码"`);
   assertIncludes(html, `class="settings-row-switch-cell"`);
   assertIncludes(html, `data-test-notify-status`);
@@ -349,6 +362,41 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
   assertNotIncludes(html, `>修改用户名</button>`);
   assertNotIncludes(html, `>修改密码</button>`);
   assertNotIncludes(html, `>验证当前密码</button>`);
+  assertIncludes(html, `value="Alice Wonderland"`);
+  assertEquals(
+    html.indexOf("data-account-username-input") <
+      html.indexOf("data-account-display-name-input"),
+    true,
+  );
+  assertEquals(
+    html.indexOf("data-account-display-name-input") <
+      html.indexOf("data-account-current-password-row"),
+    true,
+  );
+});
+
+Deno.test("renderSettings escapes an injection-like username", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: false,
+      primaryEmail: undefined,
+      username: `\"><script>alert(1)</script>`,
+    },
+    csrfToken: testCsrfToken,
+    secondFactorMethods: [],
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+  });
+
+  assertIncludes(
+    html,
+    `value="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"`,
+  );
+  assertNotIncludes(html, `<script>alert(1)</script>`);
 });
 
 Deno.test("renderSettings keeps account password mode behind current password verification", () => {
@@ -413,6 +461,18 @@ Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => 
     `name="notificationSmtpHost"\n                dir="ltr"`,
   );
   assertIncludes(html, `name="topic_0_id" dir="ltr" value="12345"`);
+  assertNotIncludes(
+    html,
+    `name="username"\n                  dir="ltr"`,
+  );
+  assertNotIncludes(
+    html,
+    `name="notificationSmtpPort"\n                dir="ltr"`,
+  );
+  assertNotIncludes(
+    html,
+    `name="pollIntervalValue"\n                    dir="ltr"`,
+  );
 });
 
 Deno.test("renderSettings does not expose notification secrets", () => {

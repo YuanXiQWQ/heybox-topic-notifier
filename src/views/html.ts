@@ -41,11 +41,15 @@ export function renderLayout(options: {
   csrfToken: string;
   darkMode: boolean;
   locale: Locale;
+  stylesheets?: string[];
   themeColor: string;
   title: string;
 }): string {
   const messages = getMessages(options.locale);
   const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
+  const stylesheetHtml = (options.stylesheets ?? []).map((href) =>
+    `<link rel="stylesheet" href="${escapeHtml(href)}">`
+  ).join("\n    ");
 
   return `<!doctype html>
 <html
@@ -59,7 +63,8 @@ export function renderLayout(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>

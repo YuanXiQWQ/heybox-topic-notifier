@@ -581,11 +581,14 @@ export function createAuthRoutes(
     }
 
     const username = normalizeUsername(String(form.username ?? ""));
+    const displayName = normalizeDisplayName(String(form.displayName ?? "")) ||
+      username;
     const password = String(form.password ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
     const validationError = validateRegistration(
       username,
+      displayName,
       password,
       confirmPassword,
     );
@@ -604,6 +607,7 @@ export function createAuthRoutes(
 
     const account: UserAccount = {
       createdAt: new Date().toISOString(),
+      displayName,
       id: crypto.randomUUID(),
       username,
       ...(await hashPassword(password)),
@@ -3742,8 +3746,18 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.appName)
   }</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    ${
+    options.mode === "register"
+      ? '<link rel="stylesheet" href="/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners">'
+      : ""
+  }
     <script src="/static/tooltip.js" defer></script>
+    ${
+    options.mode === "register"
+      ? '<script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path" defer></script>'
+      : ""
+  }
     ${
     turnstileScriptHtml(
       options.turnstileSiteKey ?? options.emailTurnstileSiteKey,
@@ -4032,6 +4046,9 @@ function renderAuthPage(options: {
           method="post"
           action="${escapeHtml(options.action)}"
           data-auth-password-login-form
+          ${
+    options.mode === "register" ? "data-username-easter-egg-register" : ""
+  }
           ${emailLoginInitiallyVisible ? "hidden" : ""}
         >
           ${csrfHiddenInput(options.csrfToken)}
@@ -4051,6 +4068,14 @@ function renderAuthPage(options: {
     options.mode === "login" ? "username webauthn" : "username"
   }" required ${emailLoginInitiallyVisible ? "" : "autofocus"}>
             </label>
+            ${
+    options.mode === "register"
+      ? `<label>
+              ${escapeHtml(options.messages.authDisplayName)}
+              <input name="displayName" autocomplete="name">
+            </label>`
+      : ""
+  }
             <label>
               ${escapeHtml(options.messages.authPassword)}
               <input name="password" type="password" dir="ltr" autocomplete="${
@@ -5996,6 +6021,8 @@ function registerErrorMessage(
       return messages.authPasswordMinLength;
     case "confirmPassword":
       return messages.authPasswordConfirmationMismatch;
+    case "displayName":
+      return messages.authDisplayNameInvalid;
     case "username":
       return messages.authUsernameInvalid;
     case "humanVerification":
@@ -6009,17 +6036,23 @@ function registerErrorMessage(
  * 校验注册输入。
  *
  * @param username 用户名。
+ * @param displayName 显示名称。
  * @param password 密码。
  * @param confirmPassword 确认密码。
  * @return 错误代码，校验通过时返回 undefined。
  */
 function validateRegistration(
   username: string,
+  displayName: string,
   password: string,
   confirmPassword: string,
 ): string | undefined {
   if (!validUsername(username)) {
     return "username";
+  }
+
+  if (!validDisplayName(displayName)) {
+    return "displayName";
   }
 
   if (password.length < 8) {
@@ -6034,13 +6067,27 @@ function validateRegistration(
 }
 
 /**
- * 判断用户名是否符合账号规则。
+ * 判断用户名是否为长度受控且不包含控制字符的 Unicode 文本。
  *
- * @param username 用户名。
- * @return 用户名有效时返回 true。
+ * @param {string} username 用户名。
+ * @return {boolean} 用户名有效时返回 true。
  */
 export function validUsername(username: string): boolean {
-  return /^[a-z0-9_-]{3,40}$/.test(username);
+  const length = [...username].length;
+  return length >= 1 && length <= 80 && /\S/u.test(username) &&
+    !/\p{C}/u.test(username);
+}
+
+/**
+ * 判断显示名称是否为长度受控且不包含控制字符的 Unicode 文本。
+ *
+ * @param {string} displayName 显示名称。
+ * @return {boolean} 显示名称有效时返回 true。
+ */
+export function validDisplayName(displayName: string): boolean {
+  const length = [...displayName].length;
+  return length >= 1 && length <= 80 && /\S/u.test(displayName) &&
+    !/\p{C}/u.test(displayName);
 }
 
 /**
@@ -6088,6 +6135,16 @@ function pathWithSearch(url: URL): string {
  */
 export function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
+}
+
+/**
+ * 规范化显示名称，同时保留用户输入的大小写。
+ *
+ * @param {string} value 原始显示名称。
+ * @return {string} 去除首尾空白后的显示名称。
+ */
+export function normalizeDisplayName(value: string): string {
+  return value.trim();
 }
 
 /**
