@@ -586,7 +586,6 @@ function renderAccountSection(
               <div class="account-username-row">
                 <input
                   name="username"
-                  dir="ltr"
                   value="${escapedUsername}"
                   autocomplete="username"
                   data-account-username-input
@@ -3265,7 +3264,6 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="number"
                 name="notificationSmtpPort"
-                dir="ltr"
                 min="1"
                 step="1"
                 value="${settings.notificationSmtpPort}"
@@ -3371,7 +3369,6 @@ function renderPollingSection(settings: AppSettings): string {
                   <input
                     type="number"
                     name="pollIntervalValue"
-                    dir="ltr"
                     min="1"
                     step="1"
                     value="${settings.polling.intervalValue}"

@@ -461,6 +461,18 @@ Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => 
     `name="notificationSmtpHost"\n                dir="ltr"`,
   );
   assertIncludes(html, `name="topic_0_id" dir="ltr" value="12345"`);
+  assertNotIncludes(
+    html,
+    `name="username"\n                  dir="ltr"`,
+  );
+  assertNotIncludes(
+    html,
+    `name="notificationSmtpPort"\n                dir="ltr"`,
+  );
+  assertNotIncludes(
+    html,
+    `name="pollIntervalValue"\n                    dir="ltr"`,
+  );
 });
 
 Deno.test("renderSettings does not expose notification secrets", () => {

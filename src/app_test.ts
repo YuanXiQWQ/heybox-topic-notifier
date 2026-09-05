@@ -177,6 +177,7 @@ Deno.test({
       stylesheet.includes("clamp(280px, 30vw, 740px)"),
       true,
     );
+    assertEquals(stylesheet.includes("left: 50%;"), true);
     assertEquals(
       stylesheet.includes("width='4' height='4'"),
       true,
@@ -245,6 +246,10 @@ Deno.test({
       stylesheet.includes(
         "padding: 3px clamp(64px, 6vw, 116px) 3px clamp(88px, 9vw, 172px)",
       ),
+      false,
+    );
+    assertEquals(
+      stylesheet.includes("padding-inline-start: clamp(88px, 9vw, 172px)"),
       true,
     );
     assertEquals(
@@ -267,6 +272,13 @@ Deno.test({
       true,
     );
     assertEquals(stylesheet.includes("height: 1px;"), true);
+    assertEquals(
+      stylesheet.includes(
+        ':root[dir="rtl"] .username-easter-egg-theme-aa456 .username-easter-egg-speaker::before',
+      ),
+      true,
+    );
+    assertEquals(stylesheet.includes("transform: scaleX(-1);"), true);
     assertEquals(
       stylesheet.includes("clamp(26px, 2.8vw, 38px)"),
       true,

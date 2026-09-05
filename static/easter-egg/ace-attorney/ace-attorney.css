@@ -183,7 +183,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   display: flex;
   flex-direction: column;
   gap: clamp(34px, 5vh, 68px);
-  inset-inline-start: 50%;
+  left: 50%;
   position: fixed;
   top: clamp(88px, 18vh, 190px);
   transform: translateX(-50%);
@@ -375,7 +375,9 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   letter-spacing: 0.08em;
   max-width: none;
   min-width: 0;
-  padding: 3px clamp(64px, 6vw, 116px) 3px clamp(88px, 9vw, 172px);
+  padding-block: 3px;
+  padding-inline-end: clamp(64px, 6vw, 116px);
+  padding-inline-start: clamp(88px, 9vw, 172px);
   text-shadow: 0 2px 2px rgb(0 0 0 / 0.42);
   top: 1px;
   transform: translateY(-100%);
@@ -528,8 +530,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-speaker {
-  background: url("/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_NameBase_R.png")
-    left top / auto 100% no-repeat;
+  background: transparent;
   clip-path: none;
   filter: none;
   inset-inline-start: 0;
@@ -542,7 +543,13 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-speaker::before {
-  content: none;
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_NameBase_R.png")
+    left top / auto 100% no-repeat;
+  content: "";
+  inset: 0;
+  position: absolute;
+  transform-origin: center;
+  z-index: -1;
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-speaker::after {
@@ -596,6 +603,12 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   background: rgb(166 168 165 / 0.9);
   border-color: #620323;
   color: #572132;
+}
+
+/* RTL 页面中将带左右装饰的名称框翻转，保留角色名称的正常文字方向。 */
+:root[dir="rtl"] .username-easter-egg-theme-aa456 .username-easter-egg-speaker::before,
+:root[dir="rtl"] .username-easter-egg-theme-investigations .username-easter-egg-speaker::before {
+  transform: scaleX(-1);
 }
 
 @media (max-width: 600px) {
