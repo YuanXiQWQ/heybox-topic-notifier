@@ -204,19 +204,75 @@ function usernameEasterEggTheme(username) {
 }
 
 /**
- * 根据页面语言选择彩蛋语音资源语言。
+ * 根据页面语言及角色资源集选择彩蛋语音资源语言。
  *
- * @return {"en"|"jp"|"zh"} 彩蛋资源语言目录。
+ * 中文和英文语言系列分别回退至简体中文与美式英语；其余语言仅在角色所属
+ * 资源集中存在完全匹配的目录时才使用该目录，否则回退至美式英语。
+ *
+ * @param {{theme: "trilogy"|"aa456"|"investigations"}} [character] 当前角色信息。
+ * @return {"de-DE"|"en-US"|"es-ES"|"fr-FR"|"ja-JP"|"ko-KR"|"pt-BR"|"zh-CN"} 彩蛋语音语言目录。
  */
-function usernameEasterEggVoiceLocale() {
+function usernameEasterEggVoiceLocale(character) {
   const locale = document.documentElement.lang.toLocaleLowerCase("en-US");
+  const voiceCollection = character?.theme === "aa456" ? "aa456" : "aa123";
+  const supportedLocales = {
+    aa123: [
+      "de-DE",
+      "en-US",
+      "es-ES",
+      "fr-FR",
+      "ja-JP",
+      "ko-KR",
+      "pt-BR",
+      "zh-CN",
+    ],
+    aa456: ["de-DE", "en-US", "fr-FR", "ja-JP", "ko-KR", "zh-CN"],
+  };
   if (locale.startsWith("zh")) {
-    return "zh";
+    return "zh-CN";
   }
-  if (locale.startsWith("ja")) {
-    return "jp";
+  if (locale.startsWith("en")) {
+    return "en-US";
   }
-  return "en";
+  return supportedLocales[voiceCollection].find((supportedLocale) =>
+    supportedLocale.toLocaleLowerCase("en-US") === locale
+  ) ?? "en-US";
+}
+
+/**
+ * 获取角色语音所在的资源集目录。
+ *
+ * @param {{theme: "trilogy"|"aa456"|"investigations"}} character 当前角色信息。
+ * @return {"aa123"|"aa456"} 角色语音资源集目录。
+ */
+function usernameEasterEggVoiceCollection(character) {
+  return character.theme === "aa456" ? "aa456" : "aa123";
+}
+
+/**
+ * 将角色键名转换为音频目录使用的短横线命名。
+ *
+ * @param {string} characterKey 角色键名。
+ * @return {string} 音频目录中的角色名。
+ */
+function usernameEasterEggAudioCharacterName(characterKey) {
+  return characterKey.replace(
+    /[A-Z]/gu,
+    (letter) => `-${letter.toLowerCase()}`,
+  );
+}
+
+/**
+ * 判断当前页面是否使用英语系列语言。
+ *
+ * 该判断独立于语音资源回退：只有英语系列语言会触发成步堂龙一的特殊 BGM。
+ *
+ * @return {boolean} 当前页面使用英语系列语言时返回 true。
+ */
+function usesEnglishUsernameEasterEggLocale() {
+  return document.documentElement.lang.toLocaleLowerCase("en-US").startsWith(
+    "en",
+  );
 }
 
 /**
@@ -248,6 +304,39 @@ function usernameEasterEggImageLocale() {
     return "zh-CN";
   }
   return "en-US";
+}
+
+/**
+ * 判断角色当前台词是否应使用《逆转裁判456》中文感叹词图集。
+ *
+ * @param {{theme: "trilogy"|"aa456"|"investigations"}} character 当前角色信息。
+ * @param {"de-DE"|"en-US"|"es-ES"|"fr-FR"|"ja-JP"|"ko-KR"|"pt-BR"|"zh-CN"|"zh-TW"} imageLocale 图片语言目录。
+ * @param {"igiari"|"matta"|"kurae"} cue 台词资源名。
+ * @return {boolean} 需要从图集截取感叹词时返回 true。
+ */
+function usesAa456ChineseInterjection(character, imageLocale, cue) {
+  return character.theme === "aa456" &&
+    ["zh-CN", "zh-TW"].includes(imageLocale) &&
+    ["igiari", "kurae"].includes(cue);
+}
+
+/**
+ * 获取角色当前台词应使用的图片资源地址。
+ *
+ * 《逆转裁判456》的王泥喜法介与希月心音在中文中直接引用“反对”和“看这个”
+ * 所在的图集，其他角色及台词继续使用通用资源。
+ *
+ * @param {string} assetRoot 彩蛋资源根目录。
+ * @param {{theme: "trilogy"|"aa456"|"investigations"}} character 当前角色信息。
+ * @param {"de-DE"|"en-US"|"es-ES"|"fr-FR"|"ja-JP"|"ko-KR"|"pt-BR"|"zh-CN"|"zh-TW"} imageLocale 图片语言目录。
+ * @param {"igiari"|"matta"|"kurae"} cue 台词资源名。
+ * @return {string} 图片资源地址。
+ */
+function usernameEasterEggImageSource(assetRoot, character, imageLocale, cue) {
+  if (usesAa456ChineseInterjection(character, imageLocale, cue)) {
+    return `${assetRoot}/images/general/interjections/${imageLocale}.png`;
+  }
+  return `${assetRoot}/images/general/${imageLocale}/${cue}.png`;
 }
 
 /**
@@ -357,7 +446,7 @@ function activateUsernameEasterEgg(username, target = "username") {
   }
 
   activeUsernameEasterEgg = new Promise((resolve) => {
-    const voiceLocale = usernameEasterEggVoiceLocale();
+    const voiceLocale = usernameEasterEggVoiceLocale(character);
     const imageLocale = usernameEasterEggImageLocale();
     const messages = currentUsernameEasterEggMessages();
     const assetRoot = "/static/easter-egg/ace-attorney/assets";
@@ -365,7 +454,7 @@ function activateUsernameEasterEgg(username, target = "username") {
       "(prefers-reduced-motion: reduce)",
     ).matches ?? false;
     const overlay = document.createElement("div");
-    const image = document.createElement("img");
+    const image = document.createElement("div");
     const panel = document.createElement("section");
     const speaker = document.createElement("span");
     const message = document.createElement("p");
@@ -385,7 +474,8 @@ function activateUsernameEasterEgg(username, target = "username") {
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute("aria-label", messages.alt);
     image.className = "username-easter-egg-image";
-    image.alt = messages.alt;
+    image.setAttribute("role", "img");
+    image.setAttribute("aria-label", messages.alt);
     panel.className = "username-easter-egg-panel";
     panel.hidden = true;
     speaker.className = "username-easter-egg-speaker";
@@ -410,7 +500,9 @@ function activateUsernameEasterEgg(username, target = "username") {
      * @return {string} 语音资源地址。
      */
     function voiceSource(cue) {
-      return `${assetRoot}/sounds/${character.type}/${character.key}/${voiceLocale}/${cue}.mp3`;
+      const voiceCollection = usernameEasterEggVoiceCollection(character);
+      const characterName = usernameEasterEggAudioCharacterName(character.key);
+      return `${assetRoot}/sounds/${voiceCollection}/${voiceLocale}/${characterName}/${cue}.wav`;
     }
 
     /**
@@ -420,11 +512,12 @@ function activateUsernameEasterEgg(username, target = "username") {
      * @return {string} 背景音乐资源地址。
      */
     function musicSource(track) {
-      const englishPhoenixDirectory = voiceLocale === "en" &&
-          character.type === "type1"
-        ? "/en"
+      const englishPhoenixDirectory = character.key === "phoenixWright" &&
+          usesEnglishUsernameEasterEggLocale()
+        ? "/en-UK"
         : "";
-      return `${assetRoot}/sounds/${character.type}${englishPhoenixDirectory}/${track}.mp3`;
+      const characterName = usernameEasterEggAudioCharacterName(character.key);
+      return `${assetRoot}/sounds/general/bgm-${characterName}${englishPhoenixDirectory}/${track}.mp3`;
     }
 
     /**
@@ -455,7 +548,25 @@ function activateUsernameEasterEgg(username, target = "username") {
      * @param {"igiari"|"matta"|"kurae"} cue 台词资源名。
      */
     function showCue(cue) {
-      image.src = `${assetRoot}/images/general/${imageLocale}/${cue}.png`;
+      const isAa456ChineseInterjection = usesAa456ChineseInterjection(
+        character,
+        imageLocale,
+        cue,
+      );
+      image.style.backgroundImage = `url("${usernameEasterEggImageSource(
+        assetRoot,
+        character,
+        imageLocale,
+        cue,
+      )}")`;
+      image.classList.toggle(
+        "is-aa456-chinese-interjection",
+        isAa456ChineseInterjection,
+      );
+      image.classList.toggle(
+        "is-aa456-kurae-interjection",
+        isAa456ChineseInterjection && cue === "kurae",
+      );
       image.hidden = false;
       document.body.classList.remove("username-easter-egg-impact");
       void overlay.offsetWidth;
@@ -912,7 +1023,12 @@ globalThis.usernameEasterEgg = Object.freeze({
   imageLocale: usernameEasterEggImageLocale,
   matches: matchesUsernameEasterEgg,
   theme: usernameEasterEggTheme,
-  voiceLocale: usernameEasterEggVoiceLocale,
+  voiceLocale: (username) =>
+    usernameEasterEggVoiceLocale(
+      username === undefined
+        ? undefined
+        : matchingUsernameEasterEggCharacter(username),
+    ),
 });
 
 initUsernameEasterEggRegistration();

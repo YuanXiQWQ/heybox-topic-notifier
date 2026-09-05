@@ -118,10 +118,12 @@ Deno.test({
       "/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png",
       "/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png",
       "/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png",
+      "/static/easter-egg/ace-attorney/assets/images/general/interjections/zh-CN.png",
+      "/static/easter-egg/ace-attorney/assets/images/general/interjections/zh-TW.png",
       "/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
     ].map((assetPath) => app.request(assetPath)));
     const audioResponse = await app.request(
-      "/static/easter-egg/ace-attorney/assets/sounds/type1/phoenixWright/zh/igiari.mp3",
+      "/static/easter-egg/ace-attorney/assets/sounds/aa123/zh-CN/phoenix-wright/igiari.wav",
     );
     const soundEffectResponse = await app.request(
       "/static/easter-egg/ace-attorney/assets/sounds/general/sfx-blipmale.wav",
@@ -147,6 +149,10 @@ Deno.test({
     );
     assertEquals(
       script.includes("username-easter-egg-theme-${character.theme}"),
+      true,
+    );
+    assertEquals(
+      script.includes("images/general/interjections/${imageLocale}.png"),
       true,
     );
     assertEquals(
@@ -181,6 +187,14 @@ Deno.test({
     );
     assertEquals(
       stylesheet.includes(".username-easter-egg-theme-aa456"),
+      true,
+    );
+    assertEquals(
+      stylesheet.includes(".is-aa456-chinese-interjection"),
+      true,
+    );
+    assertEquals(
+      stylesheet.includes("background-position: left 79.7357%"),
       true,
     );
     assertEquals(
@@ -275,7 +289,7 @@ Deno.test({
       assertEquals(response.headers.get("content-type"), "image/png");
     });
     assertEquals(audioResponse.status, 200);
-    assertEquals(audioResponse.headers.get("content-type"), "audio/mpeg");
+    assertEquals(audioResponse.headers.get("content-type"), "audio/wav");
     assertEquals(audioResponse.headers.get("location"), null);
     assertEquals(soundEffectResponse.status, 200);
     assertEquals(soundEffectResponse.headers.get("content-type"), "audio/wav");

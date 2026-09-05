@@ -26,12 +26,27 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-image {
+  aspect-ratio: 1558 / 1080;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
   height: auto;
   max-height: 100%;
   max-width: 100%;
-  object-fit: contain;
-  width: auto;
+  width: min(100%, calc((100vh - 48px) * 1558 / 1080));
   z-index: 1;
+}
+
+/* 《逆转裁判456》中文图集：igiari 在左上，kurae 在左下。 */
+.username-easter-egg-image.is-aa456-chinese-interjection {
+  aspect-ratio: 1480 / 1080;
+  background-position: left top;
+  background-size: 200% auto;
+  width: min(100%, calc((100vh - 48px) * 1480 / 1080));
+}
+
+.username-easter-egg-image.is-aa456-kurae-interjection {
+  background-position: left 79.7357%;
 }
 
 .username-easter-egg-image.is-shaking {

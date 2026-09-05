@@ -104,7 +104,7 @@
 
   document.addEventListener("click", (event) => {
     const target = findTooltipTarget(event.target);
-    if (target === activeTarget) showTooltip(target);
+    if (target && target === activeTarget) showTooltip(target);
   });
 
   document.addEventListener("keydown", (event) => {

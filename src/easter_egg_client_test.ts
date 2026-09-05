@@ -12,7 +12,7 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
       theme: (
         username: string,
       ) => "trilogy" | "aa456" | "investigations" | undefined;
-      voiceLocale: () => string;
+      voiceLocale: (username?: string) => string;
     };
   };
   const originalDocument = browserGlobal.document;
@@ -88,14 +88,19 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     });
 
     [
-      ["zh-HK", "zh"],
-      ["ja-JP", "jp"],
-      ["en-GB", "en"],
-      ["de-DE", "en"],
+      ["zh-HK", "zh-CN"],
+      ["ja-JP", "ja-JP"],
+      ["en-GB", "en-US"],
+      ["de-DE", "de-DE"],
+      ["pt-BR", "pt-BR"],
+      ["es-ES", "es-ES"],
+      ["it-IT", "en-US"],
     ].forEach(([locale, expected]) => {
       documentMock.documentElement.lang = locale;
       assertEquals(api.voiceLocale(), expected);
     });
+    documentMock.documentElement.lang = "es-ES";
+    assertEquals(api.voiceLocale("Apollo Justice"), "en-US");
   } finally {
     Object.defineProperty(browserGlobal, "document", {
       configurable: true,
