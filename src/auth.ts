@@ -3749,13 +3749,13 @@ function renderAuthPage(options: {
     <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
     ${
     options.mode === "register"
-      ? '<link rel="stylesheet" href="/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-ui-2">'
+      ? '<link rel="stylesheet" href="/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners">'
       : ""
   }
     <script src="/static/tooltip.js" defer></script>
     ${
     options.mode === "register"
-      ? '<script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-investigations-ui" defer></script>'
+      ? '<script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path" defer></script>'
       : ""
   }
     ${

@@ -455,7 +455,7 @@ function activateUsernameEasterEgg(username, target = "username") {
      * @param {"igiari"|"matta"|"kurae"} cue 台词资源名。
      */
     function showCue(cue) {
-      image.src = `${assetRoot}/images/${imageLocale}/${cue}.png`;
+      image.src = `${assetRoot}/images/general/${imageLocale}/${cue}.png`;
       image.hidden = false;
       document.body.classList.remove("username-easter-egg-impact");
       void overlay.offsetWidth;

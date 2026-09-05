@@ -53,9 +53,11 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   color: #fff;
   height: clamp(132px, 20vh, 210px);
   inset-inline: 0;
+  left: 0;
   padding: clamp(34px, 5.5vh, 54px) max(8vw, 32px) 12px;
-  position: fixed;
-  width: 100%;
+  position: absolute;
+  right: 0;
+  width: auto;
   z-index: 2;
 }
 
@@ -239,6 +241,75 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   position: absolute;
 }
 
+/* 成步堂龙一系列使用游戏拆包的对话框、名称框和推进箭头。 */
+.username-easter-egg-theme-trilogy .username-easter-egg-panel {
+  backdrop-filter: none;
+  background: rgb(4 20 42 / 0.12);
+  border: 0;
+  box-shadow: none;
+  isolation: isolate;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-panel::before {
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png")
+    left calc(0px - clamp(3px, 0.43vh, 4.5px)) / auto 100% repeat-x;
+  content: "";
+  inset: 0;
+  opacity: 0.58;
+  pointer-events: none;
+  position: absolute;
+  z-index: -2;
+}
+
+/* menu_bg 上半部是游戏按键提示，此处只裁取最底部白条。 */
+.username-easter-egg-theme-trilogy .username-easter-egg-panel::after {
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/menu_bg.png")
+    left bottom / auto clamp(40px, 5.56vh, 80px) repeat-x;
+  bottom: 0;
+  content: "";
+  height: clamp(3px, 0.45vh, 5px);
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-speaker {
+  background: transparent;
+  border: solid transparent;
+  border-image-repeat: repeat stretch;
+  border-image-slice: 0 28 fill;
+  border-image-source: url("/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/name_bg.png");
+  border-image-width: 0 clamp(18px, 2vh, 28px);
+  clip-path: none;
+  filter: none;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-speaker::before {
+  content: none;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-continue {
+  height: clamp(28px, 4.5vh, 44px);
+  top: calc(50% - clamp(14px, 2.25vh, 22px));
+  width: clamp(30px, 3.8vw, 48px);
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-continue::before {
+  aspect-ratio: 16 / 15;
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/select_arrow.png")
+    center bottom / 100% 200% no-repeat;
+  clip-path: none;
+  filter: none;
+  height: 100%;
+  transform: translate(-50%, -50%) scaleX(-1);
+  width: auto;
+}
+
+.username-easter-egg-theme-trilogy .username-easter-egg-continue::after {
+  content: none;
+}
+
 /* 王泥喜法介与希月心音使用《逆转裁判456》风格的对话界面。 */
 .username-easter-egg-theme-aa456.is-choosing {
   background: rgb(0 0 0 / 0.66);
@@ -270,6 +341,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 
 .username-easter-egg-theme-aa456 .username-easter-egg-panel::before {
   top: 0;
+  z-index: 3;
 }
 
 .username-easter-egg-theme-aa456 .username-easter-egg-panel::after {
@@ -277,13 +349,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-aa456 .username-easter-egg-speaker {
-  background-color: transparent;
-  background-image:
-    url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIEAAABECAYAAACmhVZXAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAQaSURBVHhe7dDLrR07DARAh/SydgLOx6k8CPCqeM9o9KHEC3tRWgjDZmt+/Pr5+8evn7//W9QysrhrhFkjzHrDjG+hHT5kVAhN4M4RZo0w6w0zymuHjxgRAhO5e4RZI8zqcb68dviIt0JYMvePMu8tc94wo7R2+IC3QtgBdhhl3lvm9DhfWjt8wBsh6CC7jDLvLXN6nC+rHZbvCSEX2GmUeW+Y0eN8We2w/JMQcJHdZpjZ43yP8yW1w+KfhOHL7DfL3B7nnzhbUjss/pUwOCkrb5W5T5ztcb6cdlhaYWhBRq59Z5n7xNknzpbTDktnPeBk9ixzP3Gux/lS2mHhrOLm795h9gqz5fc9zpfSDgtnlDb/9J4ZZsvvnzhbSjuyC5svv19l/gqzV/Y4X0Y7sov6M77izCrzV5k/s8fZMtqRWdIf8YlzO7hjlfmjO5wtox1ZBf0JPc7v4p5Vs9n2KiNcbORPeMOMXdyzajbbXiWEi018/AizdnHPDXYqIVxs4MNHmbeTu06zTwnhYpGPnmXuTu46yS4lhIsFPniV+bu57wQ7lBAuJvnYXdyzm/tOsMN14WKCj9zNfbu5L5v7rwsXg3xgFvdmcGcW914XLgb4uGzuz+DOLO69Kly85KNOsksGd2Zy93HhosMH3GKvDO48wQ5HhIsHFr7Nflnce4o90oSLL1iuGvtmce9p9tkmXMAildk9i3tvsde0cPGHC78L35HJ3bfZ7zUvDP6ufFcmd1dj38ALA74r35XJ3dXYNwgX3+Rhn/iOTO6uwp5d4QIuqMzuWdx7k92mhIsvuLga+2Zx7w122iJcPLBQBXbM4t5T7JEiXHRY8hZ7ZXHvCXZIFy5esPRp9sngzmzuPypcDPAhJ9ghgzuzuPeacDHIh2Vy927uy+Le68LFBB+5m/syuDOTu68LF5N86C7uyeDObO6/Llws8LGrzN/NfSfYoYRwschHzzJ3N/edYo8SwsUGPnyGmTu56yS7lBAuNvHxI8zaxT032KmEcLGRP+ANM3Zxzw4z2fYqIVxs5A/ocX4X96yazbZXGe3ILOmP+MS5XdyzaiXf2TLakV3Un/EVZ3ZwxwqzZ3Y4W0Y7ssuaL79fZf4q82f2OFtKOyycUdr803tmmC2/f+JsKe2wcFZx83fvMHuF2fL7HudLaYeFs8qfzJ5l7ifOPXG2nHZYWmFoQUaufWeZ+8TZJ86W0w5LfyUMTsrKW2XuE2d7nC+nHZb+JAwXYMcZZvY4/8TZktph8Sch4CK7zTCzx/ke50tqh8WfhIBL7DXDzDfMeOJsWe2wfE8IOcw+o8x7y5we58tqh+XfCEGH2GOUeW+Z0+N8ae3wAW+FsGTuH2XeCLN6nC+tHT5gRAhM4t4ZZr5lTo/z5YWLf/4+4eKfv8//2hvAK6Dn0fMAAAAASUVORK5CYII="),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' viewBox='0 0 680 80'%3E%3Cpath fill='%232c2674' fill-opacity='.75' d='M0 0h632q10 0 15 10l33 70H0z'/%3E%3C/svg%3E");
-  background-position: left top, center;
-  background-repeat: no-repeat;
-  background-size: auto 100%, 100% 100%;
+  background: transparent;
   clip-path: none;
   filter: none;
   font-family: "STSong", "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
@@ -296,13 +362,26 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   min-width: 0;
   padding: 3px clamp(64px, 6vw, 116px) 3px clamp(88px, 9vw, 172px);
   text-shadow: 0 2px 2px rgb(0 0 0 / 0.42);
-  top: 0;
+  top: 1px;
   transform: translateY(-100%);
   width: clamp(360px, 33.5vw, 680px);
 }
 
+/* 保留左侧花纹与右侧圆角斜边，仅横向重复两者之间的原图矩形切片。 */
 .username-easter-egg-theme-aa456 .username-easter-egg-speaker::before {
-  content: none;
+  background: transparent;
+  border: solid transparent;
+  border-image-repeat: repeat stretch;
+  border-image-slice: 0 40 0 122 fill;
+  border-image-source: url("/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png");
+  border-image-width: 0 clamp(25px, 3.54vh, 35px) 0
+    clamp(77px, 10.81vh, 108px);
+  content: "";
+  inset: 0;
+  opacity: 0.86;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
 }
 
 .username-easter-egg-theme-aa456 .username-easter-egg-message {
@@ -322,14 +401,16 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-aa456 .username-easter-egg-continue::before {
-  background: rgb(255 255 255 / 0.82);
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
-  filter: drop-shadow(1px 1px 1px rgb(0 0 0 / 0.5));
-  height: 100%;
-  left: 0;
-  top: 0;
-  transform: none;
-  width: 100%;
+  aspect-ratio: 46 / 25;
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png")
+    35.24% 96.97% / 556.52% 1024% no-repeat;
+  clip-path: none;
+  filter: none;
+  height: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  width: clamp(38px, 4vw, 56px);
 }
 
 .username-easter-egg-theme-aa456 .username-easter-egg-continue::after {
@@ -405,40 +486,35 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 
 .username-easter-egg-theme-investigations .username-easter-egg-panel {
   backdrop-filter: none;
-  background: rgb(0 0 0 / 0.76);
-  border-block: 2px solid #938048;
+  background: transparent;
+  border: 0;
   box-shadow: none;
+  isolation: isolate;
 }
 
-/* 内衬线与角花分层，衬线和外框之间留出黑色间隙。 */
+/* 满宽保留背景与边线；派生素材仅将四角三角移至距左右边线 4px 的位置。 */
 .username-easter-egg-theme-investigations .username-easter-egg-panel::before {
-  border-block: 1px solid rgb(184 159 105 / 0.32);
+  border: solid transparent;
+  border-image-repeat: repeat stretch;
+  border-image-slice: 50 48 fill;
+  border-image-source: url("/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png");
+  border-image-width: 50px 48px;
+  box-sizing: border-box;
   content: "";
-  inset: 4px 0;
+  inset: 0;
+  opacity: 0.78;
   pointer-events: none;
   position: absolute;
+  z-index: -1;
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-panel::after {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23b89f69' fill-opacity='.16' d='M0 0H20L0 20Z'/%3E%3C/svg%3E")
-    left top,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23b89f69' fill-opacity='.16' d='M0 0H20V20Z'/%3E%3C/svg%3E")
-    right top,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23b89f69' fill-opacity='.16' d='M0 0V20H20Z'/%3E%3C/svg%3E")
-    left bottom,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23b89f69' fill-opacity='.16' d='M20 0V20H0Z'/%3E%3C/svg%3E")
-    right bottom;
-  background-repeat: no-repeat;
-  background-size: clamp(10px, 1vw, 20px) clamp(10px, 1vw, 20px);
-  content: "";
-  inset: 8px 3px;
-  pointer-events: none;
-  position: absolute;
+  content: none;
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-speaker {
-  background: transparent;
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_NameBase_R.png")
+    left top / auto 100% no-repeat;
   clip-path: none;
   filter: none;
   inset-inline-start: 0;
@@ -446,26 +522,16 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   min-width: 0;
   overflow: hidden;
   transform: translateY(-100%);
-  width: clamp(280px, 31vw, 640px);
+  height: clamp(32px, 4.45vh, 62px);
+  width: min(94vw, clamp(300px, 52.2vh, 727px));
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-speaker::before {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 64' preserveAspectRatio='none'%3E%3Cpath fill='%239b0030' fill-opacity='.78' d='M0 0H608L640 64H0Z'/%3E%3Cpath fill='none' stroke='%23938048' stroke-width='2' d='M0 1H607L639 64'/%3E%3C/svg%3E")
-    center / 100% 100% no-repeat;
-  clip-path: none;
-  inset: 0;
+  content: none;
 }
 
-/* 棋盘独立于梯形缩放，横纵同尺寸保持正方格，只覆盖左侧 65%。 */
 .username-easter-egg-theme-investigations .username-easter-egg-speaker::after {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2 2'%3E%3Cpath fill='%23fff' fill-opacity='.045' d='M0 0H1V1H0ZM1 1H2V2H1Z'/%3E%3C/svg%3E");
-  background-size: clamp(48px, 5vw, 96px) clamp(48px, 5vw, 96px);
-  content: "";
-  inset: 2px auto 0 0;
-  pointer-events: none;
-  position: absolute;
-  width: 65%;
-  z-index: -1;
+  content: none;
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-continue {
@@ -474,13 +540,13 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-continue::before {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 48'%3E%3Cpath fill='%23c4c6c4' d='M10 0L36 24L10 48V37L24 24L10 11ZM10 15L19 24L10 33L1 24Z'/%3E%3C/svg%3E")
-    center / contain no-repeat;
+  background: url("/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/sactx-0-1024x64-BC7-Message-a8bee319.png")
+    73.9% top / 2381.4% 100% no-repeat;
   clip-path: none;
   filter: none;
-  height: clamp(28px, 4.2vh, 44px);
+  height: clamp(44px, 7vh, 60px);
   transform: translate(-50%, -50%);
-  width: clamp(21px, 3.15vh, 33px);
+  width: clamp(30px, 4.7vh, 40px);
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-continue::after {
@@ -563,6 +629,11 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   .username-easter-egg-theme-aa456 .username-easter-egg-actions {
     gap: 48px;
     top: 12vh;
+  }
+
+  .username-easter-egg-theme-investigations .username-easter-egg-speaker {
+    height: 31.25px;
+    width: 94vw;
   }
 }
 

@@ -112,8 +112,14 @@ Deno.test({
       "/static/easter-egg/ace-attorney/ace-attorney.css",
     );
     const imageResponse = await app.request(
-      "/static/easter-egg/ace-attorney/assets/images/zh-CN/igiari.png",
+      "/static/easter-egg/ace-attorney/assets/images/general/zh-CN/igiari.png",
     );
+    const subtitleUiResponses = await Promise.all([
+      "/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png",
+      "/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png",
+      "/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png",
+      "/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
+    ].map((assetPath) => app.request(assetPath)));
     const audioResponse = await app.request(
       "/static/easter-egg/ace-attorney/assets/sounds/type1/phoenixWright/zh/igiari.mp3",
     );
@@ -179,15 +185,40 @@ Deno.test({
     );
     assertEquals(
       stylesheet.includes(
-        "preserveAspectRatio='none' viewBox='0 0 680 80'",
+        "/assets/images/aa123/text-box-ui/talk_bg.png",
       ),
       true,
     );
     assertEquals(
-      stylesheet.includes("background-size: auto 100%, 100% 100%"),
+      stylesheet.includes(
+        "/assets/images/aa123/text-box-ui/select_arrow.png",
+      ),
       true,
     );
-    assertEquals(stylesheet.includes("fill-opacity='.75'"), true);
+    assertEquals(
+      stylesheet.includes(
+        "/assets/images/aa456/text-box-ui/text_box_ui.png",
+      ),
+      true,
+    );
+    assertEquals(
+      stylesheet.includes(
+        "/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
+      ),
+      true,
+    );
+    assertEquals(
+      stylesheet.includes(
+        "/assets/images/aa12/text-box-ui/MessageWindow_NameBase_R.png",
+      ),
+      true,
+    );
+    assertEquals(
+      stylesheet.includes(
+        "/assets/images/aa12/text-box-ui/sactx-0-1024x64-BC7-Message-a8bee319.png",
+      ),
+      true,
+    );
     assertEquals(
       stylesheet.includes("font-size: clamp(1.35rem, 2.5vw, 2.1rem)"),
       true,
@@ -199,12 +230,6 @@ Deno.test({
     assertEquals(
       stylesheet.includes(
         "padding: 3px clamp(64px, 6vw, 116px) 3px clamp(88px, 9vw, 172px)",
-      ),
-      true,
-    );
-    assertEquals(
-      stylesheet.includes(
-        "clip-path: polygon(0 0, 100% 50%, 0 100%)",
       ),
       true,
     );
@@ -245,6 +270,10 @@ Deno.test({
       Array.from(imageBytes.slice(0, 8)),
       [137, 80, 78, 71, 13, 10, 26, 10],
     );
+    subtitleUiResponses.forEach((response) => {
+      assertEquals(response.status, 200);
+      assertEquals(response.headers.get("content-type"), "image/png");
+    });
     assertEquals(audioResponse.status, 200);
     assertEquals(audioResponse.headers.get("content-type"), "audio/mpeg");
     assertEquals(audioResponse.headers.get("location"), null);
@@ -267,13 +296,13 @@ Deno.test("application register page enables name Easter eggs", async () => {
 
   assertEquals(
     registerHtml.includes(
-      "/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-investigations-ui",
+      "/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path",
     ),
     true,
   );
   assertEquals(
     registerHtml.includes(
-      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-ui-2",
+      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",
     ),
     true,
   );
