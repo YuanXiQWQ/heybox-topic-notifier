@@ -1394,13 +1394,25 @@ function initAccountSettings() {
       : mode === "displayName"
       ? displayNameInput
       : undefined;
+    const easterEgg = [
+      globalThis.usernameEasterEgg,
+      globalThis.lobotomyCorpEasterEgg,
+    ].find((candidate) => candidate?.matches(easterEggInput?.value || ""));
     if (
       easterEggInput &&
       form.dataset.usernameEasterEggApproved !== "true" &&
-      globalThis.usernameEasterEgg?.matches(easterEggInput.value)
+      easterEgg
     ) {
       event.preventDefault();
-      void globalThis.usernameEasterEgg.activate(easterEggInput.value, mode)
+      if (easterEgg.submitsWhileActive === true) {
+        void submitAccountWhileLobotomyCorpAlertIsActive(
+          easterEgg,
+          easterEggInput,
+        );
+        return;
+      }
+
+      void easterEgg.activate(easterEggInput.value, mode)
         .then(
           (approved) => {
             if (!approved) {
@@ -1418,6 +1430,67 @@ function initAccountSettings() {
 
     delete form.dataset.usernameEasterEggApproved;
   });
+
+  /**
+   * 在脑叶公司警报展示期间以后台请求保存账户设置，避免跳转页面销毁警报。
+   *
+   * @param {{activate: (value: string) => Promise<boolean>}} easterEgg 当前命中的彩蛋。
+   * @param {HTMLInputElement} easterEggInput 触发彩蛋的账户输入框。
+   * @return {Promise<void>} 保存流程结束时完成。
+   */
+  async function submitAccountWhileLobotomyCorpAlertIsActive(
+    easterEgg,
+    easterEggInput,
+  ) {
+    if (form.dataset.lobotomyCorpAlertSaving === "true") {
+      return;
+    }
+
+    form.dataset.lobotomyCorpAlertSaving = "true";
+    saveButton.disabled = true;
+    // 在点击保存的同步调用栈中启动音频，避免浏览器丢失用户手势许可。
+    void easterEgg.activate(easterEggInput.value);
+
+    try {
+      const response = await fetch(form.action, {
+        body: formDataFromForm(form),
+        headers: csrfRequestHeaders(),
+        method: form.method || "post",
+      });
+      const responseUrl = new URL(response.url, globalThis.location.href);
+      const saved = response.ok &&
+        responseUrl.pathname === "/settings" &&
+        responseUrl.searchParams.get("account") === "updated";
+      if (!saved) {
+        globalThis.location.assign(responseUrl.href);
+        return;
+      }
+
+      if (mode === "username") {
+        usernameInput.dataset.accountUsernameOriginal = usernameInput.value;
+      } else if (mode === "displayName") {
+        displayNameInput.dataset.accountDisplayNameOriginal =
+          displayNameInput.value;
+      }
+      resetAccountEditor();
+      globalThis.history.replaceState(
+        null,
+        "",
+        `${responseUrl.pathname}${responseUrl.search}`,
+      );
+      setInlineStatus(
+        actionStatus,
+        form.dataset.accountUpdated || "",
+        "success",
+        true,
+      );
+    } catch {
+      setInlineStatus(actionStatus, "", "error");
+      saveButton.disabled = false;
+    } finally {
+      delete form.dataset.lobotomyCorpAlertSaving;
+    }
+  }
 
   /**
    * 选择账户编辑模式，并按来源决定是否定位到账户区。

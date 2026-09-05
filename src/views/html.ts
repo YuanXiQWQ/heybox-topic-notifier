@@ -64,8 +64,10 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    <link rel="stylesheet" href="/static/easter-egg/lobotomy-corp/lobotomy-corp.css?v=20260905-trumpet-alerts">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
+    <script src="/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-trumpet-alerts" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>

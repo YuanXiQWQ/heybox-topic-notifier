@@ -3752,12 +3752,14 @@ function renderAuthPage(options: {
       ? '<link rel="stylesheet" href="/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners">'
       : ""
   }
+    <link rel="stylesheet" href="/static/easter-egg/lobotomy-corp/lobotomy-corp.css?v=20260905-trumpet-alerts">
     <script src="/static/tooltip.js" defer></script>
     ${
     options.mode === "register"
       ? '<script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path" defer></script>'
       : ""
   }
+    <script src="/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-trumpet-alerts" defer></script>
     ${
     turnstileScriptHtml(
       options.turnstileSiteKey ?? options.emailTurnstileSiteKey,

@@ -1,0 +1,75 @@
+/* 用户名或显示名称命中脑叶公司警报口令时显示的非阻塞角落警报。 */
+.lobotomy-corp-alert-overlay {
+  /* 警报框参考游戏画面，统一占视口短边约五分之一。 */
+  --lobotomy-corp-alert-corner-size: clamp(96px, 19vmin, 495px);
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10000;
+}
+
+.lobotomy-corp-alert-corner {
+  animation: lobotomy-corp-alert-pulse 1s ease-in-out infinite;
+  display: block;
+  pointer-events: none;
+  position: fixed;
+}
+
+.lobotomy-corp-alert-corner.top-right {
+  right: 0;
+  top: 0;
+  width: var(--lobotomy-corp-alert-corner-size);
+}
+
+.lobotomy-corp-alert-corner.bottom-right {
+  bottom: 0;
+  right: 0;
+  width: var(--lobotomy-corp-alert-corner-size);
+}
+
+.lobotomy-corp-alert-corner.bottom-left {
+  bottom: 0;
+  left: 0;
+  transform: rotate(90deg);
+  transform-origin: center;
+  width: var(--lobotomy-corp-alert-corner-size);
+}
+
+.lobotomy-corp-alert-corner.top-left {
+  left: 0;
+  top: 0;
+  transform: rotate(180deg);
+  transform-origin: center;
+  width: var(--lobotomy-corp-alert-corner-size);
+}
+
+.lobotomy-corp-alert-close {
+  background: rgb(33 27 7 / 0.94);
+  border: 1px solid #f9c500;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 0.42);
+  color: #ffe46b;
+  cursor: pointer;
+  font: 700 0.9rem/1.2 system-ui, sans-serif;
+  left: 50%;
+  padding: 0.55rem 1rem;
+  pointer-events: auto;
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+}
+
+.lobotomy-corp-alert-close:hover,
+.lobotomy-corp-alert-close:focus-visible {
+  background: #5b4509;
+}
+
+@keyframes lobotomy-corp-alert-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.48;
+  }
+}

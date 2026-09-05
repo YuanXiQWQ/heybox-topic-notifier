@@ -312,6 +312,53 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name:
+    "application exposes Lobotomy Corporation alert resources without authentication",
+  permissions: { env: true, read: true },
+  fn: async () => {
+    const { app } = createApplication();
+
+    const scriptResponse = await app.request(
+      "/static/easter-egg/lobotomy-corp/lobotomy-corp.js",
+    );
+    const stylesheetResponse = await app.request(
+      "/static/easter-egg/lobotomy-corp/lobotomy-corp.css",
+    );
+    const imageResponse = await app.request(
+      "/static/easter-egg/lobotomy-corp/assets/images/first-trumpet/tr-corner.png",
+    );
+    const audioResponse = await app.request(
+      "/static/easter-egg/lobotomy-corp/assets/sounds/first-trumpet.wav",
+    );
+    const script = await scriptResponse.text();
+    const stylesheet = await stylesheetResponse.text();
+    const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
+    const audioBytes = new Uint8Array(await audioResponse.arrayBuffer());
+
+    assertEquals(scriptResponse.status, 200);
+    assertEquals(script.includes("firsttrumpet"), true);
+    assertEquals(script.includes("/[\\s-]+/gu"), true);
+    assertEquals(script.includes("lobotomy-corp-alert-close"), true);
+    assertEquals(stylesheetResponse.status, 200);
+    assertEquals(stylesheet.includes("pointer-events: none"), true);
+    assertEquals(stylesheet.includes("1s ease-in-out infinite"), true);
+    assertEquals(
+      stylesheet.includes("clamp(96px, 19vmin, 495px)"),
+      true,
+    );
+    assertEquals(imageResponse.status, 200);
+    assertEquals(imageResponse.headers.get("content-type"), "image/png");
+    assertEquals(
+      Array.from(imageBytes.slice(0, 8)),
+      [137, 80, 78, 71, 13, 10, 26, 10],
+    );
+    assertEquals(audioResponse.status, 200);
+    assertEquals(audioResponse.headers.get("content-type"), "audio/wav");
+    assertEquals(new TextDecoder().decode(audioBytes.slice(0, 4)), "RIFF");
+  },
+});
+
 Deno.test("application register page enables name Easter eggs", async () => {
   const { app } = createApplication();
 
@@ -333,6 +380,18 @@ Deno.test("application register page enables name Easter eggs", async () => {
     true,
   );
   assertEquals(
+    registerHtml.includes(
+      "/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-trumpet-alerts",
+    ),
+    true,
+  );
+  assertEquals(
+    registerHtml.includes(
+      "/static/easter-egg/lobotomy-corp/lobotomy-corp.css?v=20260905-trumpet-alerts",
+    ),
+    true,
+  );
+  assertEquals(
     registerHtml.includes("data-username-easter-egg-register"),
     true,
   );
@@ -344,4 +403,5 @@ Deno.test("application register page enables name Easter eggs", async () => {
   assertEquals(registerHtml.includes("显示名称"), true);
   assertEquals(loginHtml.includes("data-username-easter-egg-register"), false);
   assertEquals(loginHtml.includes("/static/easter-egg/ace-attorney/"), false);
+  assertEquals(loginHtml.includes("/static/easter-egg/lobotomy-corp/"), true);
 });
