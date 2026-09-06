@@ -889,6 +889,10 @@ function initSecretEditors() {
     });
 
     input.addEventListener("keydown", (event) => {
+      if (event.key === "Tab") {
+        input.dataset.secretEditButtonSkipped = "true";
+      }
+
       if (event.key === "Enter") {
         event.preventDefault();
         input.blur();
@@ -906,6 +910,7 @@ function unlockSecretEditor(input) {
   input.readOnly = false;
   input.type = "password";
   input.value = "";
+  setSecretEditButtonTabStop(input, false);
   input.focus();
 }
 
@@ -947,11 +952,44 @@ function lockSecretEditorAfterEdit(input) {
  * @param {number} maskLength 遮罩点数量。
  */
 function lockSecretDisplay(input, maskLength) {
+  const restoreEditButtonAfterFocusMove =
+    input.dataset.secretEditButtonSkipped === "true";
+  delete input.dataset.secretEditButtonSkipped;
   const normalizedLength = normalizedSecretMaskLength(maskLength);
   input.type = "text";
   input.value = secretMask(normalizedLength);
   input.dataset.secretMaskLength = String(normalizedLength);
   input.readOnly = true;
+  if (!restoreEditButtonAfterFocusMove) {
+    setSecretEditButtonTabStop(input, true);
+    return;
+  }
+
+  // 等待浏览器完成本次 Tab 的默认焦点移动，再恢复编辑按钮。
+  setTimeout(() => setSecretEditButtonTabStop(input, true), 0);
+}
+
+/**
+ * 设置敏感令牌编辑按钮是否参与顺序焦点导航。
+ *
+ * 编辑时跳过该按钮，避免用户按 Tab 后再按 Enter 意外清空刚输入的令牌。
+ *
+ * @param {HTMLInputElement} input 敏感令牌展示输入框。
+ * @param {boolean} focusable 编辑按钮是否可通过 Tab 聚焦。
+ */
+function setSecretEditButtonTabStop(input, focusable) {
+  const button = input.closest("[data-secret-editor]")?.querySelector(
+    "[data-secret-edit-button]",
+  );
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  if (focusable) {
+    button.removeAttribute("tabindex");
+  } else {
+    button.tabIndex = -1;
+  }
 }
 
 /**
@@ -1204,6 +1242,7 @@ function initAccountSettings() {
   const actions = form.querySelector("[data-account-actions]");
   const saveButton = form.querySelector("[data-account-save-button]");
   const cancelButton = form.querySelector("[data-account-cancel-button]");
+  const modeButtons = Array.from(form.querySelectorAll("[data-account-mode]"));
   const actionStatus = form.querySelector("[data-account-status]");
   const fieldStatuses = Array.from(
     form.querySelectorAll(".account-field-status"),
@@ -1236,6 +1275,7 @@ function initAccountSettings() {
 
   actionInput.value = mode;
   lockAccountTargets();
+  syncAccountEditorTabStops();
   setCurrentPasswordInputEnabled(!currentPasswordRow.hidden);
   if (mode === "displayName" || mode && reauthVerified) {
     setCurrentPasswordInputEnabled(false);
@@ -1522,6 +1562,7 @@ function initAccountSettings() {
     setCurrentPasswordInputEnabled(false);
     cancelAccountPasskeyReauth();
     lockAccountTargets();
+    syncAccountEditorTabStops();
     showAccountElement(actions, true, ++transitionToken);
     hideAccountElement(currentPasswordRow, false, ++transitionToken);
     hideAccountElement(passkeyReauthRow, false, ++transitionToken);
@@ -1576,6 +1617,9 @@ function initAccountSettings() {
     passwordFallbackButton.hidden = true;
   }
 
+  /**
+   * 重置账户编辑器，并恢复默认顺序焦点导航。
+   */
   function resetAccountEditor() {
     mode = "";
     reauthVerified = form.dataset.accountRecentlyVerified === "true";
@@ -1590,6 +1634,7 @@ function initAccountSettings() {
     clearUnlockedPasswordFields();
     clearAllAccountStatuses();
     lockAccountTargets();
+    syncAccountEditorTabStops();
     cancelCurrentPasswordVerification();
     cancelAccountPasskeyReauth();
     hideAccountElement(actions, true, ++transitionToken);
@@ -1654,6 +1699,32 @@ function initAccountSettings() {
     }
 
     saveButton.disabled = false;
+    syncAccountEditorTabStops();
+  }
+
+  /**
+   * 同步账户编辑状态下的顺序焦点导航。
+   *
+   * 编辑时只保留当前可编辑字段、保存和取消按钮，避免 Tab 进入会重置输入的编辑按钮。
+   */
+  function syncAccountEditorTabStops() {
+    [usernameInput, displayNameInput].forEach((input) => {
+      if (mode && input.readOnly) {
+        input.tabIndex = -1;
+      } else {
+        input.removeAttribute("tabindex");
+      }
+    });
+
+    modeButtons.forEach((button) => {
+      if (button instanceof HTMLButtonElement) {
+        if (mode) {
+          button.tabIndex = -1;
+        } else {
+          button.removeAttribute("tabindex");
+        }
+      }
+    });
   }
 
   /**
@@ -2543,6 +2614,7 @@ function initEmailBinding() {
   function openEmailBindingEditor() {
     collapseOtherAuthEditors();
     emailInput.readOnly = false;
+    syncEmailBindingEditorTabStops();
     showEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
     emailInput.closest(".auth-method-row")?.classList.add("is-open");
     emailInput.focus();
@@ -2554,6 +2626,7 @@ function initEmailBinding() {
    */
   function resetEmailBindingEditor() {
     emailInput.readOnly = true;
+    syncEmailBindingEditorTabStops();
     emailInput.value = emailInput.dataset.emailBindingOriginal ||
       emailInput.value;
     codeInput.value = "";
@@ -2563,6 +2636,19 @@ function initEmailBinding() {
     clearInlineStatus(verifyStatus);
     hideEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
     emailInput.closest(".auth-method-row")?.classList.remove("is-open");
+  }
+
+  /**
+   * 同步邮箱编辑状态下的顺序焦点导航。
+   *
+   * 编辑时跳过会重置邮箱值的编辑按钮，让 Tab 直接进入验证码输入框。
+   */
+  function syncEmailBindingEditorTabStops() {
+    if (emailInput.readOnly) {
+      editButton.removeAttribute("tabindex");
+    } else {
+      editButton.tabIndex = -1;
+    }
   }
 
   /**
