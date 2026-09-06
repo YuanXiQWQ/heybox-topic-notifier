@@ -105,6 +105,9 @@ Deno.test({
   fn: async () => {
     const { app } = createApplication();
 
+    const coordinatorResponse = await app.request(
+      "/static/easter-egg/coordinator.js",
+    );
     const scriptResponse = await app.request(
       "/static/easter-egg/ace-attorney/ace-attorney.js",
     );
@@ -129,6 +132,7 @@ Deno.test({
       "/static/easter-egg/ace-attorney/assets/sounds/general/sfx-blipmale.wav",
     );
     const script = await scriptResponse.text();
+    const coordinator = await coordinatorResponse.text();
     const normalizedScript = script.replaceAll("\r\n", "\n");
     const stylesheet = await stylesheetResponse.text();
     const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
@@ -136,6 +140,8 @@ Deno.test({
       await soundEffectResponse.arrayBuffer(),
     );
 
+    assertEquals(coordinatorResponse.status, 200);
+    assertEquals(coordinator.includes("previousEasterEgg?.stop()"), true);
     assertEquals(scriptResponse.status, 200);
     assertEquals(
       script.includes("phoenixWright"),

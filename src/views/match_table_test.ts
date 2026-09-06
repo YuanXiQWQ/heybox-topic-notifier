@@ -283,7 +283,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path`,
+    `/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-cross-game-interruption`,
   );
   assertIncludes(
     html,
@@ -291,7 +291,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-danger-score`,
+    `/static/easter-egg/coordinator.js?v=20260905-cross-game-interruption`,
+  );
+  assertIncludes(
+    html,
+    `/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-cross-game-interruption`,
   );
   assertIncludes(
     html,

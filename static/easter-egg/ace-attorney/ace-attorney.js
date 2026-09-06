@@ -71,6 +71,11 @@ const usernameEasterEggCharacters = [
 ];
 
 /**
+ * 《逆转裁判》在跨游戏彩蛋协调器中的唯一标识。
+ */
+const aceAttorneyEasterEggGameId = "ace-attorney";
+
+/**
  * 彩蛋交互文案。
  */
 const usernameEasterEggMessages = {
@@ -457,6 +462,7 @@ function activateUsernameEasterEgg(username, target = "username") {
     const actions = document.createElement("div");
     let backgroundAudio;
     let choiceLocked = false;
+    let finalized = false;
     let stageSequence = 0;
     let typewriterTimer;
     let skipTypewriter;
@@ -795,8 +801,6 @@ function activateUsernameEasterEgg(username, target = "username") {
       overlay.removeEventListener("click", handleOverlayClick);
       stopAllUsernameEasterEggAudio();
 
-      let finalized = false;
-
       /**
        * 移除彩蛋界面并返回用户选择。
        */
@@ -811,6 +815,10 @@ function activateUsernameEasterEgg(username, target = "username") {
           "username-easter-egg-impact",
         );
         activeUsernameEasterEgg = undefined;
+        globalThis.easterEggCoordinator?.finish(
+          aceAttorneyEasterEggGameId,
+          stopEasterEgg,
+        );
         resolve(approved);
       }
 
@@ -913,6 +921,17 @@ function activateUsernameEasterEgg(username, target = "username") {
       }
     }
 
+    /**
+     * 由跨游戏彩蛋协调器立即关闭本次《逆转裁判》彩蛋。
+     */
+    function stopEasterEgg() {
+      finish(false);
+    }
+
+    globalThis.easterEggCoordinator?.start(
+      aceAttorneyEasterEggGameId,
+      stopEasterEgg,
+    );
     document.addEventListener("keydown", handleKeydown);
     overlay.addEventListener("click", handleOverlayClick);
     continueButton.addEventListener("click", (event) => {

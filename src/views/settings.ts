@@ -259,7 +259,7 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path" defer></script>
+    <script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-cross-game-interruption" defer></script>
     <script src="/static/settings.js?v=20260904-display-name" defer></script>
   `;
 

@@ -25,6 +25,23 @@ const lobotomyCorpAssetRoot = new URL(
 );
 
 /**
+ * 创建跨游戏彩蛋协调器的前端脚本响应。
+ *
+ * @return {Promise<Response>} JavaScript 响应。
+ */
+export async function easterEggCoordinatorScriptResponse(): Promise<Response> {
+  const script = await Deno.readTextFile(
+    new URL("../static/easter-egg/coordinator.js", import.meta.url),
+  );
+  return new Response(script, {
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "text/javascript; charset=utf-8",
+    },
+  });
+}
+
+/**
  * 创建《逆转裁判》彩蛋前端脚本响应。
  *
  * @return {Promise<Response>} JavaScript 响应。

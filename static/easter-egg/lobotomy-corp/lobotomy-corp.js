@@ -21,6 +21,11 @@ const lobotomyCorpAlerts = Object.freeze({
 });
 
 /**
+ * 《脑叶公司》在跨游戏彩蛋协调器中的唯一标识。
+ */
+const lobotomyCorpEasterEggGameId = "lobotomy-corp";
+
+/**
  * 当前浏览会话中脑叶公司警报的存储键。
  */
 const lobotomyCorpAlertSessionKey = "warmnest.lobotomy-corp-alert";
@@ -345,6 +350,10 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
       if (activeLobotomyCorpAlert === alertContext) {
         activeLobotomyCorpAlert = undefined;
       }
+      globalThis.easterEggCoordinator?.finish(
+        lobotomyCorpEasterEggGameId,
+        finishAlert,
+      );
       resolve(true);
     }
     alertContext.finish = finishAlert;
@@ -417,6 +426,10 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
       once: true,
     });
     closeButton.addEventListener("click", finishAlert);
+    globalThis.easterEggCoordinator?.start(
+      lobotomyCorpEasterEggGameId,
+      finishAlert,
+    );
     if (elapsedSeconds > 0) {
       audio.addEventListener("loadedmetadata", playAlertAudio, { once: true });
     } else {

@@ -3,6 +3,49 @@
  */
 import { assertEquals, assertRejects } from "./test_helpers.ts";
 
+Deno.test("Easter egg coordinator interrupts only a different game", async () => {
+  const browserGlobal = globalThis as unknown as {
+    easterEggCoordinator?: {
+      finish: (gameId: string, stop: () => void) => void;
+      start: (gameId: string, stop: () => void) => void;
+    };
+  };
+  const originalCoordinator = browserGlobal.easterEggCoordinator;
+  const interruptions: string[] = [];
+  const stopAceAttorney = () => interruptions.push("ace-attorney");
+  const stopDuplicateAceAttorney = () =>
+    interruptions.push("duplicate-ace-attorney");
+  const stopLobotomyCorp = () => interruptions.push("lobotomy-corp");
+
+  try {
+    await import(
+      `../static/easter-egg/coordinator.js?test=${crypto.randomUUID()}`
+    );
+    const coordinator = browserGlobal.easterEggCoordinator;
+    if (!coordinator) {
+      throw new Error("彩蛋协调器 API 未初始化。");
+    }
+
+    coordinator.start("ace-attorney", stopAceAttorney);
+    coordinator.start("ace-attorney", stopDuplicateAceAttorney);
+    assertEquals(interruptions, []);
+    coordinator.finish("ace-attorney", stopDuplicateAceAttorney);
+
+    coordinator.start("lobotomy-corp", stopLobotomyCorp);
+    assertEquals(interruptions, ["ace-attorney"]);
+    coordinator.finish("ace-attorney", stopAceAttorney);
+
+    coordinator.start("future-game", () => interruptions.push("future-game"));
+    assertEquals(interruptions, ["ace-attorney", "lobotomy-corp"]);
+  } finally {
+    if (originalCoordinator) {
+      browserGlobal.easterEggCoordinator = originalCoordinator;
+    } else {
+      delete browserGlobal.easterEggCoordinator;
+    }
+  }
+});
+
 Deno.test("username Easter egg matches names and resolves localized assets", async () => {
   const browserGlobal = globalThis as unknown as {
     document?: unknown;

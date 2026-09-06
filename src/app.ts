@@ -11,6 +11,7 @@ import {
   aceAttorneyAssetResponse,
   aceAttorneyScriptResponse,
   aceAttorneyStyleResponse,
+  easterEggCoordinatorScriptResponse,
   lobotomyCorpAssetResponse,
   lobotomyCorpScriptResponse,
   lobotomyCorpStyleResponse,
@@ -45,6 +46,10 @@ export function createApplication() {
 
   app.use("*", createSecurityHeadersMiddleware());
   app.get("/favicon.ico", () => faviconResponse());
+  app.get(
+    "/static/easter-egg/coordinator.js",
+    () => easterEggCoordinatorScriptResponse(),
+  );
   app.get(
     "/static/easter-egg/ace-attorney/ace-attorney.js",
     () => aceAttorneyScriptResponse(),
