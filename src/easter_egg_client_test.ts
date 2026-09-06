@@ -247,7 +247,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     const fourthAudio = AudioMock.items[3];
     assertEquals(AudioMock.items.length, 4);
     assertEquals(thirdAudio.pauseCount, 1);
-    assertEquals(fourthAudio.src.endsWith("third-trumpet.wav"), true);
+    assertEquals(fourthAudio.src.endsWith("fourth-trumpet.wav"), true);
     assertEquals(fourthAudio.currentTime, 0);
     assertEquals(fourthAudio.playCount, 1);
     assertEquals(panel(fourthOverlay) === panel(downOverlay), true);

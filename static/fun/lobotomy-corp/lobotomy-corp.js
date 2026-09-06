@@ -82,7 +82,7 @@ const lobotomyCorpAlerts = Object.freeze({
     level: 4,
     riskFile: "MiddleArea_4_27.png",
     riskTint: [0, 234, 219],
-    soundFile: "third-trumpet.wav",
+    soundFile: "fourth-trumpet.wav",
     trumpetLevel: "Fourth\nTrumpet",
   },
 });
