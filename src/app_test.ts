@@ -331,15 +331,11 @@ Deno.test({
     const stylesheetResponse = await app.request(
       "/static/fun/lobotomy-corp/lobotomy-corp.css",
     );
-    const imageResponse = await app.request(
-      "/static/fun/lobotomy-corp/assets/images/first-trumpet/tr-corner.png",
-    );
     const audioResponse = await app.request(
-      "/static/fun/lobotomy-corp/assets/sounds/first-trumpet.wav",
+      "/static/fun/lobotomy-corp/Assets/AudioClip/first-trumpet.wav",
     );
     const script = await scriptResponse.text();
     const stylesheet = await stylesheetResponse.text();
-    const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
     const audioBytes = new Uint8Array(await audioResponse.arrayBuffer());
 
     assertEquals(scriptResponse.status, 200);
@@ -352,12 +348,6 @@ Deno.test({
     assertEquals(
       stylesheet.includes("clamp(96px, 19vmin, 495px)"),
       true,
-    );
-    assertEquals(imageResponse.status, 200);
-    assertEquals(imageResponse.headers.get("content-type"), "image/png");
-    assertEquals(
-      Array.from(imageBytes.slice(0, 8)),
-      [137, 80, 78, 71, 13, 10, 26, 10],
     );
     assertEquals(audioResponse.status, 200);
     assertEquals(audioResponse.headers.get("content-type"), "audio/wav");

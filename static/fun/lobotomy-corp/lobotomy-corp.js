@@ -291,10 +291,10 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
 
   const alertContext = { alert };
   const completion = new Promise((resolve) => {
-    const assetRoot = "/static/fun/lobotomy-corp/assets";
+    const assetRoot = "/static/fun/lobotomy-corp/Assets";
     const overlay = document.createElement("div");
     const closeButton = document.createElement("button");
-    const audio = new Audio(`${assetRoot}/sounds/${alert.soundFile}`);
+    const audio = new Audio(`${assetRoot}/AudioClip/${alert.soundFile}`);
     const elapsedSeconds = Math.max(0, resumeAt);
     let finished = false;
     let naturalEndTimer;

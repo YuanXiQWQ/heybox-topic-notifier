@@ -77,11 +77,11 @@ export function createApplication() {
     () => lobotomyCorpStyleResponse(),
   );
   app.get(
-    "/static/fun/lobotomy-corp/assets/*",
+    "/static/fun/lobotomy-corp/Assets/*",
     (c) =>
       lobotomyCorpAssetResponse(
         c.req.path.slice(
-          "/static/fun/lobotomy-corp/assets/".length,
+          "/static/fun/lobotomy-corp/Assets/".length,
         ),
         c.req.header("range"),
       ),

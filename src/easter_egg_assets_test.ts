@@ -28,17 +28,20 @@ Deno.test({
   permissions: { read: true },
   fn: async () => {
     const response = await lobotomyCorpAssetResponse(
-      "sounds/third-trumpet.wav",
+      "AudioClip/third-trumpet.wav",
       "bytes=12-35",
     );
     const invalidResponse = await lobotomyCorpAssetResponse(
-      "sounds/third-trumpet.wav",
+      "AudioClip/third-trumpet.wav",
       "bytes=999999999-",
     );
 
     assertEquals(response.status, 206);
     assertEquals(response.headers.get("accept-ranges"), "bytes");
-    assertEquals(response.headers.get("content-range")?.startsWith("bytes 12-35/"), true);
+    assertEquals(
+      response.headers.get("content-range")?.startsWith("bytes 12-35/"),
+      true,
+    );
     assertEquals((await response.arrayBuffer()).byteLength, 24);
     assertEquals(invalidResponse.status, 416);
   },

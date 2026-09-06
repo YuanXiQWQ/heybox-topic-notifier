@@ -20,7 +20,7 @@ const aceAttorneyAssetRoot = new URL(
  * 《脑叶公司》彩蛋媒体资源根目录。
  */
 const lobotomyCorpAssetRoot = new URL(
-  "../static/fun/lobotomy-corp/assets/",
+  "../static/fun/lobotomy-corp/Assets/",
   import.meta.url,
 );
 
