@@ -208,6 +208,14 @@ export type UserAccount = {
   username: string;
 };
 
+/** 用户上传的头像二进制数据。 */
+export type UserAvatar = {
+  contentType: "image/gif" | "image/jpeg" | "image/png" | "image/webp";
+  data: Uint8Array;
+  updatedAt: string;
+  userId: string;
+};
+
 /**
  * 独立密码凭证。
  */

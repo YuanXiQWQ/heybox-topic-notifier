@@ -90,6 +90,14 @@ export type Messages = {
   accountConfirmPassword: string;
   accountCurrentPassword: string;
   accountCancel: string;
+  accountAvatar: string;
+  accountAvatarAlt: string;
+  accountAvatarChoose: string;
+  accountAvatarConfirm: string;
+  accountAvatarCrop: string;
+  accountAvatarUploadFailed: string;
+  accountAvatarUploading: string;
+  accountAvatarZoom: string;
   accountDisplayName: string;
   accountDisplayNameInvalid: string;
   accountEdit: string;
@@ -304,6 +312,7 @@ export type Messages = {
   matchTitle: string;
   matchedKeyword: string;
   navDashboard: string;
+  navAccountMenu: string;
   navHistory: string;
   navLogout: string;
   navSettings: string;

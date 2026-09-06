@@ -123,6 +123,7 @@ function initSettingsEditors() {
   initSecretEditors();
   initPollingSettings();
   initAccountSettings();
+  initAvatarUpload();
   initAuthMethodPanels();
   initEmailBinding();
   initTotpBinding();
@@ -140,6 +141,168 @@ function initSettingsEditors() {
   initKeywordRuleStorage(topicEditor, keywordEditor);
   initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
   updateKeywordSummary(keywordEditor);
+}
+
+/**
+ * 初始化头像选择、拖拽裁切和自动上传流程。
+ *
+ * @return {void}
+ */
+function initAvatarUpload() {
+  const form = document.querySelector("[data-avatar-upload-form]");
+  const dropzone = form?.querySelector("[data-avatar-dropzone]");
+  const input = form?.querySelector("[data-avatar-file-input]");
+  const dialog = form?.querySelector("[data-avatar-crop-dialog]");
+  const stage = form?.querySelector("[data-avatar-crop-stage]");
+  const canvas = form?.querySelector("[data-avatar-crop-canvas]");
+  const zoom = form?.querySelector("[data-avatar-crop-zoom]");
+  const zoomValue = form?.querySelector("[data-avatar-crop-zoom-value]");
+  const confirm = form?.querySelector("[data-avatar-crop-confirm]");
+  const cancel = form?.querySelector("[data-avatar-crop-cancel]");
+  const status = form?.querySelector("[data-avatar-upload-status]");
+  if (!(form instanceof HTMLFormElement) || !(dropzone instanceof HTMLElement) ||
+    !(input instanceof HTMLInputElement) ||
+    !(dialog instanceof HTMLDialogElement) || !(stage instanceof HTMLElement) ||
+    !(canvas instanceof HTMLCanvasElement) || !(zoom instanceof HTMLInputElement) ||
+    !(zoomValue instanceof HTMLOutputElement) ||
+    !(confirm instanceof HTMLButtonElement) || !(cancel instanceof HTMLButtonElement) ||
+    !(status instanceof HTMLElement)) return;
+
+  let image;
+  let objectUrl = "";
+  let offsetX = 0;
+  let offsetY = 0;
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  const size = 360;
+  canvas.width = size;
+  canvas.height = size;
+
+  /**
+   * 同步缩放控件旁的百分比读数。
+   */
+  function updateZoomValue() {
+    const minimum = Number(zoom.min);
+    const maximum = Number(zoom.max);
+    const progress = (Number(zoom.value) - minimum) / (maximum - minimum) * 100;
+    zoom.style.setProperty("--avatar-zoom-progress", `${progress}%`);
+    zoomValue.value = `${Math.round(Number(zoom.value) * 100)}%`;
+    zoomValue.textContent = zoomValue.value;
+  }
+
+  /**
+   * 在允许范围内调整头像缩放级别。
+   *
+   * @param {number} delta 缩放增量。
+   */
+  function changeZoom(delta) {
+    const next = Math.max(
+      Number(zoom.min),
+      Math.min(Number(zoom.max), Number(zoom.value) + delta),
+    );
+    zoom.value = next.toFixed(2);
+    updateZoomValue();
+    draw();
+  }
+
+  /** 绘制当前裁切预览。 */
+  function draw() {
+    if (!image) return;
+    const cropInset = size * 0.07;
+    const cropSize = size - cropInset * 2;
+    const scale = Math.max(cropSize / image.naturalWidth, cropSize / image.naturalHeight) * Number(zoom.value);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    const limitX = Math.max(0, (width - cropSize) / 2);
+    const limitY = Math.max(0, (height - cropSize) / 2);
+    offsetX = Math.max(-limitX, Math.min(limitX, offsetX));
+    offsetY = Math.max(-limitY, Math.min(limitY, offsetY));
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, size, size);
+    context.drawImage(image, (size - width) / 2 + offsetX, (size - height) / 2 + offsetY, width, height);
+  }
+
+  /**
+   * 打开选定文件的裁切界面。
+   *
+   * @param {File | undefined} file 用户选择或拖入的文件。
+   */
+  function selectFile(file) {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      status.dataset.state = "error";
+      status.hidden = false;
+      status.textContent = form.dataset.avatarUploadError || "Upload failed.";
+      return;
+    }
+    URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+    image = new Image();
+    image.onload = () => {
+      offsetX = 0;
+      offsetY = 0;
+      zoom.value = "1";
+      updateZoomValue();
+      draw();
+      dialog.showModal();
+    };
+    image.onerror = () => {
+      status.dataset.state = "error";
+      status.hidden = false;
+      status.textContent = form.dataset.avatarUploadError || "Upload failed.";
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = "";
+    };
+    image.src = objectUrl;
+  }
+
+  dropzone.addEventListener("click", () => { status.hidden = true; });
+  dropzone.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); input.click(); } });
+  input.addEventListener("change", () => selectFile(input.files?.[0]));
+  dropzone.addEventListener("dragover", (event) => { event.preventDefault(); dropzone.classList.add("is-dragover"); });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-dragover"));
+  dropzone.addEventListener("drop", (event) => { event.preventDefault(); dropzone.classList.remove("is-dragover"); selectFile(event.dataTransfer?.files[0]); });
+  zoom.addEventListener("input", () => { updateZoomValue(); draw(); });
+  dialog.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    changeZoom(event.deltaY < 0 ? 0.1 : -0.1);
+  }, { passive: false });
+  stage.addEventListener("pointerdown", (event) => { dragging = true; lastX = event.clientX; lastY = event.clientY; stage.setPointerCapture(event.pointerId); });
+  stage.addEventListener("pointermove", (event) => { if (!dragging) return; offsetX += event.clientX - lastX; offsetY += event.clientY - lastY; lastX = event.clientX; lastY = event.clientY; draw(); });
+  stage.addEventListener("pointerup", () => { dragging = false; });
+  cancel.addEventListener("click", () => { dialog.close(); URL.revokeObjectURL(objectUrl); });
+  confirm.addEventListener("click", () => {
+    confirm.disabled = true;
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        confirm.disabled = false;
+        return;
+      }
+      const data = new FormData(form);
+      data.set("avatar", blob, "avatar.png");
+      try {
+        const response = await fetch(form.action, {
+          body: data,
+          headers: csrfRequestHeaders(),
+          method: "POST",
+        });
+        if (response.redirected) {
+          location.assign(response.url);
+          return;
+        }
+        status.dataset.state = "error";
+        status.hidden = false;
+        status.textContent = form.dataset.avatarUploadError || "Upload failed.";
+        confirm.disabled = false;
+      } catch {
+        status.dataset.state = "error";
+        status.hidden = false;
+        status.textContent = form.dataset.avatarUploadError || "Upload failed.";
+        confirm.disabled = false;
+      }
+    }, "image/png", 0.92);
+  });
 }
 
 /**

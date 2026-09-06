@@ -23,6 +23,12 @@ Deno.test("application adds baseline security headers", async () => {
   assertEquals(contentSecurityPolicy.includes("object-src 'none'"), true);
   assertEquals(
     contentSecurityPolicy.includes(
+      "img-src 'self' https://cdn.max-c.com data: blob:",
+    ),
+    true,
+  );
+  assertEquals(
+    contentSecurityPolicy.includes(
       "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://accounts.google.com/gsi/client",
     ),
     true,

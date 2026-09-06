@@ -86,6 +86,21 @@ export function createApplication() {
         c.req.header("range"),
       ),
   );
+  app.get("/static/fun/default-avatar/:filename", async (c) => {
+    const filename = c.req.param("filename");
+    if (!/^avatar[1-5]\.png$/.test(filename)) {
+      return new Response(null, { status: 404 });
+    }
+    const data = await Deno.readFile(
+      new URL(`../static/fun/default-avatar/${filename}`, import.meta.url),
+    );
+    return new Response(data, {
+      headers: {
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-type": "image/png",
+      },
+    });
+  });
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
   app.route("/", createRoutes(context));

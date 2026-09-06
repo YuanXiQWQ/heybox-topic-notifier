@@ -196,6 +196,24 @@ Deno.test("updateAccount rejects an existing username without changing the accou
   assertEquals((await storage.getAccountByUsername("bob"))?.id, "bob-id");
 });
 
+Deno.test("user avatars persist image bytes by user id", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const avatar = {
+    contentType: "image/png" as const,
+    data: new Uint8Array([137, 80, 78, 71]),
+    updatedAt: "2026-09-06T00:00:00.000Z",
+    userId: "alice-id",
+  };
+
+  await storage.saveUserAvatar(avatar);
+
+  assertEquals(await storage.getUserAvatar("alice-id"), avatar);
+  assertEquals(await storage.getUserAvatar("bob-id"), undefined);
+});
+
 Deno.test("security settings storage reads defaults and saved settings", async () => {
   const kv = new MemoryKv();
   const storage = createKvStorage(defaultSettings, {

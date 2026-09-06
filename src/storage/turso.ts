@@ -32,6 +32,7 @@ import type {
   PendingRecoveryCodeReveal,
   TotpCredential,
   UserAccount,
+  UserAvatar,
   UserSecuritySettings,
   UserSession,
 } from "../models.ts";
@@ -577,6 +578,32 @@ export function createTursoStorage(
         }
         throw error;
       }
+    },
+
+    /** 获取用户头像。 */
+    async getUserAvatar(userId: string): Promise<UserAvatar | undefined> {
+      const result = await execute({
+        sql: "SELECT content_type, data_blob, updated_at FROM user_avatars WHERE user_id = ?",
+        args: [userId],
+      });
+      const row = result.rows[0];
+      const data = avatarBytes(row?.data_blob);
+      const contentType = stringValue(row?.content_type);
+      const updatedAt = stringValue(row?.updated_at);
+      return data && isAvatarType(contentType) && updatedAt
+        ? { contentType, data, updatedAt, userId }
+        : undefined;
+    },
+
+    /** 保存用户头像。 */
+    async saveUserAvatar(avatar: UserAvatar): Promise<void> {
+      await writeEntity("avatar", avatar.userId, {
+        sql: `INSERT INTO user_avatars (user_id, content_type, data_blob, updated_at)
+          VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET
+          content_type = excluded.content_type, data_blob = excluded.data_blob,
+          updated_at = excluded.updated_at`,
+        args: [avatar.userId, avatar.contentType, avatar.data, avatar.updatedAt],
+      });
     },
 
     /**
@@ -1772,6 +1799,19 @@ function accountArgs(account: UserAccount): InArgs {
     account.createdAt,
     JSON.stringify(account),
   ];
+}
+
+/** 将数据库二进制列复制为头像数据。 */
+function avatarBytes(value: unknown): Uint8Array | undefined {
+  if (value instanceof Uint8Array) return new Uint8Array(value);
+  if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
+  return undefined;
+}
+
+/** 判断是否为允许保存的头像 MIME 类型。 */
+function isAvatarType(value: string | undefined): value is UserAvatar["contentType"] {
+  return value === "image/gif" || value === "image/jpeg" ||
+    value === "image/png" || value === "image/webp";
 }
 
 /**

@@ -16,6 +16,7 @@ import type {
   PendingRecoveryCodeReveal,
   TotpCredential,
   UserAccount,
+  UserAvatar,
   UserSecuritySettings,
   UserSession,
 } from "../models.ts";
@@ -62,6 +63,7 @@ const kvFamilies = [
   "accounts",
   "authenticationEvents",
   "authIdentities",
+  "userAvatars",
   "emailCredentials",
   "passkeyCredentials",
   "passwordCredentials",
@@ -145,6 +147,10 @@ async function migrateKvEntry(
       first,
       () => target.saveAccount(entry.value as UserAccount),
     );
+  }
+  if (family === "userAvatars" && first && !second) {
+    return await importEntity(target, "avatar", first, () =>
+      target.saveUserAvatar(entry.value as UserAvatar));
   }
   if (family === "userData" && first && second === "settings" && !third) {
     return await importEntity(
