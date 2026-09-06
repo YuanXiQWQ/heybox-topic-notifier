@@ -295,11 +295,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-restart-panel-fixes`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-trumpet-text-anchor-middle-center`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-restart-button-layout`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-trumpet-text-anchor-middle-center`,
   );
   assertIncludes(
     html,

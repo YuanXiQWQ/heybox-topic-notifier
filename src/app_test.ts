@@ -375,6 +375,9 @@ Deno.test({
     const restartButtonPressedRule = stylesheet.match(
       /button\.lobotomy-corp-top-panel-action-button:active:not\(:disabled\)\s*\{[^}]+\}/u,
     )?.[0] ?? "";
+    const trumpetLevelContentRule = stylesheet.match(
+      /\.lobotomy-corp-alert-trumpet-level-content\s*\{[^}]+\}/u,
+    )?.[0] ?? "";
     const audioBytes = new Uint8Array(await audioResponse.arrayBuffer());
 
     assertEquals(scriptResponse.status, 200);
@@ -414,6 +417,10 @@ Deno.test({
     assertEquals(stylesheet.includes("border-radius: 0"), true);
     assertEquals(stylesheet.includes("box-shadow: none"), true);
     assertEquals(stylesheet.includes("font-weight: normal"), true);
+    assertEquals(stylesheet.includes("align-items: center"), true);
+    assertEquals(stylesheet.includes("justify-content: center"), true);
+    assertEquals(trumpetLevelContentRule.includes("line-height: normal"), true);
+    assertEquals(trumpetLevelContentRule.includes("line-height: 1"), false);
     assertEquals(stylesheet.includes("min-height: 0"), true);
     assertEquals(frameOutterRule.includes("height: 188px"), true);
     assertEquals(frameOutterRule.includes("width: 887px"), true);

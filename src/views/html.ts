@@ -69,11 +69,11 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-avatar-crop-native-colors">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-restart-button-layout">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-trumpet-text-anchor-middle-center">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
-    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-restart-panel-fixes" defer></script>
+    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-trumpet-text-anchor-middle-center" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>

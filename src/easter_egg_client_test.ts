@@ -649,6 +649,34 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
       firstCorners[2].children[0].children[1].style.transform,
       "rotate(-45deg) scaleY(-1)",
     );
+    assertEquals(
+      firstCorners[2].children[0].children[1].className,
+      "lobotomy-corp-alert-trumpet-level",
+    );
+    assertEquals(
+      firstCorners[2].children[0].children[1].style.left,
+      "95.9px",
+    );
+    assertEquals(
+      firstCorners[2].children[0].children[1].style.top,
+      "236px",
+    );
+    assertEquals(
+      firstCorners[2].children[0].children[1].style.width,
+      "430.2px",
+    );
+    assertEquals(
+      firstCorners[2].children[0].children[1].style.height,
+      "150px",
+    );
+    assertEquals(
+      firstCorners[2].children[0].children[1].children[0].className,
+      "lobotomy-corp-alert-trumpet-level-content",
+    );
+    assertEquals(
+      firstCorners[2].children[0].children[1].children[0].textContent,
+      "First\nTrumpet",
+    );
     assertEquals(firstCorners[0].children[1].textContent, "ALERT ".repeat(85));
     assertEquals(overlay.children[2].hidden, true);
     assertEquals(

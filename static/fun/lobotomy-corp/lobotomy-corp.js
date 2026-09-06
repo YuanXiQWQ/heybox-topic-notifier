@@ -662,8 +662,11 @@ function createLobotomyCorpEmergencyCorner(alert, definition) {
 
   if (definition.position === "right-up") {
     const trumpetLevel = document.createElement("p");
+    const trumpetLevelContent = document.createElement("span");
     trumpetLevel.className = "lobotomy-corp-alert-trumpet-level";
-    trumpetLevel.textContent = alert.trumpetLevel;
+    trumpetLevelContent.className =
+      "lobotomy-corp-alert-trumpet-level-content";
+    trumpetLevelContent.textContent = alert.trumpetLevel;
     setLobotomyCorpElementStyles(trumpetLevel, { color: alert.emergencyColor });
     applyLobotomyCorpRectTransform(trumpetLevel, {
       anchorX: 0.5,
@@ -677,6 +680,7 @@ function createLobotomyCorpEmergencyCorner(alert, definition) {
       scaleY: -1,
       width: 430.2,
     });
+    trumpetLevel.append(trumpetLevelContent);
     texture.append(trumpetLevel);
   } else {
     const factorial = document.createElement("div");
