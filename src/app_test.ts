@@ -334,6 +334,15 @@ Deno.test({
     const audioResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/AudioClip/first-trumpet.wav",
     );
+    const fontResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Font/norwester.otf",
+    );
+    const triangleResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Sprite/Triangle_1.png",
+    );
+    const riskResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Sprite/Risk_3.png",
+    );
     const script = await scriptResponse.text();
     const stylesheet = await stylesheetResponse.text();
     const audioBytes = new Uint8Array(await audioResponse.arrayBuffer());
@@ -344,14 +353,23 @@ Deno.test({
     assertEquals(script.includes("lobotomy-corp-alert-close"), true);
     assertEquals(stylesheetResponse.status, 200);
     assertEquals(stylesheet.includes("pointer-events: none"), true);
-    assertEquals(stylesheet.includes("1s ease-in-out infinite"), true);
     assertEquals(
-      stylesheet.includes("clamp(96px, 19vmin, 495px)"),
+      stylesheet.includes("LobotomyNorwester"),
       true,
     );
+    assertEquals(stylesheet.includes("cubic-bezier(0.333333, 0,"), true);
+    assertEquals(stylesheet.includes("opacity: 0.4"), true);
+    assertEquals(stylesheet.includes("opacity: 0.8"), true);
+    assertEquals(stylesheet.includes("clamp(96px, 19vmin, 495px)"), false);
+    assertEquals(stylesheet.includes("rotate(90deg)"), false);
+    assertEquals(stylesheet.includes("rotate(180deg)"), false);
     assertEquals(audioResponse.status, 200);
     assertEquals(audioResponse.headers.get("content-type"), "audio/wav");
     assertEquals(new TextDecoder().decode(audioBytes.slice(0, 4)), "RIFF");
+    assertEquals(fontResponse.status, 200);
+    assertEquals(fontResponse.headers.get("content-type"), "font/otf");
+    assertEquals(triangleResponse.headers.get("content-type"), "image/png");
+    assertEquals(riskResponse.headers.get("content-type"), "image/png");
   },
 });
 

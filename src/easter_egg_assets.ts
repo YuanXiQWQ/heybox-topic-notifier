@@ -6,7 +6,7 @@
  * 彩蛋媒体资源允许使用的相对路径格式。
  */
 const easterEggAssetPathPattern =
-  /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*\.(?:mp3|png|wav)$/;
+  /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*\.(?:mp3|otf|png|wav)$/;
 
 /**
  * 彩蛋媒体资源根目录。
@@ -268,6 +268,9 @@ function easterEggAssetRange(
 function easterEggAssetContentType(assetPath: string): string {
   if (assetPath.endsWith(".png")) {
     return "image/png";
+  }
+  if (assetPath.endsWith(".otf")) {
+    return "font/otf";
   }
   return assetPath.endsWith(".wav") ? "audio/wav" : "audio/mpeg";
 }

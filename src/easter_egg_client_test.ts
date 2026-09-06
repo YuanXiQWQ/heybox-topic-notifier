@@ -162,9 +162,21 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     hidden = false;
     removed = false;
     src = "";
+    style: {
+      [property: string]: string | ((property: string, value: string) => void);
+    } = {};
     textContent = "";
     type = "";
     #listeners = new Map<string, (() => void)[]>();
+
+    /**
+     * 创建可记录内联样式的模拟元素。
+     */
+    constructor() {
+      this.style.setProperty = (property: string, value: string) => {
+        this.style[property] = value;
+      };
+    }
 
     /**
      * 追加模拟的 DOM 子节点。
@@ -327,6 +339,7 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
   const browserGlobal = globalThis as unknown as {
     Audio?: unknown;
     document?: unknown;
+    innerWidth?: number;
     localStorage?: unknown;
     performance?: unknown;
     sessionStorage?: unknown;
@@ -341,6 +354,10 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
   const originalDocument = Object.getOwnPropertyDescriptor(
     browserGlobal,
     "document",
+  );
+  const originalInnerWidth = Object.getOwnPropertyDescriptor(
+    browserGlobal,
+    "innerWidth",
   );
   const originalSessionStorage = Object.getOwnPropertyDescriptor(
     browserGlobal,
@@ -361,6 +378,47 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     createElement: () => new MockElement(),
     querySelectorAll: () => [],
   };
+
+  /**
+   * 读取模拟 EmergencyController 的四个 Corner 节点。
+   *
+   * @param {MockElement} overlay 警报外层节点。
+   * @return {MockElement[]} ActiveControl 中的 Corner 节点。
+   */
+  function emergencyCorners(overlay: MockElement): MockElement[] {
+    return overlay.children[0].children[0].children;
+  }
+
+  /**
+   * 读取 Corner/Texture 下的 Triangle Sprite 节点。
+   *
+   * @param {MockElement} corner Unity 风格 Corner 节点。
+   * @return {MockElement} Triangle 图片节点。
+   */
+  function cornerTriangle(corner: MockElement): MockElement {
+    return corner.children[0].children[0];
+  }
+
+  /**
+   * 读取 Corner/Texture/Factorial 下的 Risk Sprite 节点。
+   *
+   * @param {MockElement} corner 含 Factorial 的 Corner 节点。
+   * @return {MockElement} Risk 图片节点。
+   */
+  function cornerRisk(corner: MockElement): MockElement {
+    return corner.children[0].children[1].children[0];
+  }
+
+  /**
+   * 读取未参与 HUD 闪烁的关闭按钮。
+   *
+   * @param {MockElement} overlay 警报外层节点。
+   * @return {MockElement} 关闭按钮节点。
+   */
+  function closeButtonFor(overlay: MockElement): MockElement {
+    return overlay.children[1];
+  }
+
   Object.defineProperty(browserGlobal, "Audio", {
     configurable: true,
     value: MockAudio,
@@ -368,6 +426,10 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
   Object.defineProperty(browserGlobal, "document", {
     configurable: true,
     value: documentMock,
+  });
+  Object.defineProperty(browserGlobal, "innerWidth", {
+    configurable: true,
+    value: 1920,
   });
   Object.defineProperty(browserGlobal, "sessionStorage", {
     configurable: true,
@@ -407,14 +469,71 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
       true,
     );
     const overlay = body.children[0];
-    assertEquals(overlay.children.length, 6);
+    const firstCorners = emergencyCorners(overlay);
+    assertEquals(overlay.children.length, 3);
+    assertEquals(firstCorners.length, 4);
     assertEquals(
-      overlay.children[0].src.endsWith("images/first-trumpet/tr-corner.png"),
+      overlay.children[0].style["--lobotomy-corp-unity-canvas-scale"],
+      "1",
+    );
+    Object.defineProperty(browserGlobal, "innerWidth", {
+      configurable: true,
+      value: 2560,
+    });
+    globalThis.dispatchEvent(new Event("resize"));
+    assertEquals(
+      overlay.children[0].style["--lobotomy-corp-unity-canvas-scale"],
+      String(2560 / 1920),
+    );
+    Object.defineProperty(browserGlobal, "innerWidth", {
+      configurable: true,
+      value: 1280,
+    });
+    globalThis.dispatchEvent(new Event("resize"));
+    assertEquals(
+      overlay.children[0].style["--lobotomy-corp-unity-canvas-scale"],
+      String(1280 / 1920),
+    );
+    Object.defineProperty(browserGlobal, "innerWidth", {
+      configurable: true,
+      value: 720,
+    });
+    globalThis.dispatchEvent(new Event("resize"));
+    assertEquals(
+      overlay.children[0].style["--lobotomy-corp-unity-canvas-scale"],
+      String(720 / 1920),
+    );
+    assertEquals(
+      cornerTriangle(firstCorners[0]).src.endsWith("Sprite/Triangle_1.png"),
       true,
     );
-    assertEquals(overlay.children[4].className, "lobotomy-corp-alert-close");
-    assertEquals(overlay.children[5].hidden, true);
-    overlay.children[4].dispatch("click");
+    assertEquals(
+      cornerTriangle(firstCorners[2]).src.endsWith("Sprite/Triangle_2.png"),
+      true,
+    );
+    assertEquals(
+      cornerRisk(firstCorners[0]).src.endsWith("Sprite/Risk_1.png"),
+      true,
+    );
+    assertEquals(
+      firstCorners[0].children[0].children[1].style.transform,
+      "rotate(135deg)",
+    );
+    assertEquals(
+      firstCorners[2].children[0].children[1].style.transform,
+      "rotate(-45deg) scaleY(-1)",
+    );
+    assertEquals(firstCorners[0].children[1].textContent, "ALERT ".repeat(85));
+    assertEquals(
+      closeButtonFor(overlay).className,
+      "lobotomy-corp-alert-close",
+    );
+    assertEquals(overlay.children[2].hidden, true);
+    assertEquals(
+      overlay.children[2].src.endsWith("Assets/AudioClip/first-trumpet.wav"),
+      true,
+    );
+    closeButtonFor(overlay).dispatch("click");
     assertEquals(await completed, true);
     assertEquals(overlay.removed, true);
     assertEquals(sessionStorage.getItem("warmnest.lobotomy-corp-alert"), null);
@@ -425,8 +544,8 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     const thirdOverlay = body.children[2];
     assertEquals(firstOverlay.removed, true);
     assertEquals(
-      thirdOverlay.children[0].src.endsWith(
-        "images/third-trumpet/tr-corner.png",
+      cornerRisk(emergencyCorners(thirdOverlay)[0]).src.endsWith(
+        "Sprite/Risk_3.png",
       ),
       true,
     );
@@ -442,8 +561,8 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     const secondOverlay = body.children[3];
     assertEquals(thirdOverlay.removed, true);
     assertEquals(
-      secondOverlay.children[0].src.endsWith(
-        "images/second-trumpet/tr-corner.png",
+      cornerRisk(emergencyCorners(secondOverlay)[0]).src.endsWith(
+        "Sprite/Risk_2.png",
       ),
       true,
     );
@@ -452,7 +571,7 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     api.activate("second trumpet");
     assertEquals(secondOverlay.removed, false);
     assertEquals(body.children.length, 4);
-    secondOverlay.children[4].dispatch("click");
+    closeButtonFor(secondOverlay).dispatch("click");
     assertEquals(await secondAlert, true);
     assertEquals(secondOverlay.removed, true);
 
@@ -461,8 +580,8 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     const firstDangerOverlay = body.children[4];
     assertEquals(api.getDangerScore(), 10);
     assertEquals(
-      firstDangerOverlay.children[0].src.endsWith(
-        "images/first-trumpet/tr-corner.png",
+      cornerRisk(emergencyCorners(firstDangerOverlay)[0]).src.endsWith(
+        "Sprite/Risk_1.png",
       ),
       true,
     );
@@ -475,8 +594,8 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     assertEquals(firstDangerOverlay.removed, true);
     assertEquals(api.getDangerScore(), 50);
     assertEquals(
-      secondDangerOverlay.children[0].src.endsWith(
-        "images/second-trumpet/tr-corner.png",
+      cornerRisk(emergencyCorners(secondDangerOverlay)[0]).src.endsWith(
+        "Sprite/Risk_2.png",
       ),
       true,
     );
@@ -490,8 +609,8 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     assertEquals(secondDangerOverlay.removed, true);
     assertEquals(api.getDangerScore(), 80);
     assertEquals(
-      thirdDangerOverlay.children[0].src.endsWith(
-        "images/third-trumpet/tr-corner.png",
+      cornerRisk(emergencyCorners(thirdDangerOverlay)[0]).src.endsWith(
+        "Sprite/Risk_3.png",
       ),
       true,
     );
@@ -540,6 +659,11 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
       Object.defineProperty(browserGlobal, "document", originalDocument);
     } else {
       delete browserGlobal.document;
+    }
+    if (originalInnerWidth) {
+      Object.defineProperty(browserGlobal, "innerWidth", originalInnerWidth);
+    } else {
+      delete browserGlobal.innerWidth;
     }
     if (originalSessionStorage) {
       Object.defineProperty(

@@ -1,48 +1,144 @@
-/* 用户名或显示名称命中脑叶公司警报口令时显示的非阻塞角落警报。 */
+/* 依据原版 EmergencyController 的 CanvasScaler、RectTransform 和 Animator 参数渲染。 */
+@font-face {
+  font-display: block;
+  font-family: LobotomyNorwester;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester.otf")
+    format("opentype");
+}
+
 .lobotomy-corp-alert-overlay {
-  /* 警报框参考游戏画面，统一占视口短边约五分之一。 */
-  --lobotomy-corp-alert-corner-size: clamp(96px, 19vmin, 495px);
   inset: 0;
   pointer-events: none;
   position: fixed;
   z-index: 10000;
 }
 
-.lobotomy-corp-alert-corner {
-  animation: lobotomy-corp-alert-pulse 1s ease-in-out infinite;
-  display: block;
+/* EmergencyController 的 CanvasGroup.alpha：Emergency.anim，Freq = 1。 */
+.lobotomy-corp-emergency-controller {
+  --lobotomy-corp-unity-canvas-scale: 1;
+  animation: lobotomy-corp-emergency-pulse 1s cubic-bezier(0.333333, 0,
+    0.666667, 1) infinite;
+  inset: 0;
   pointer-events: none;
   position: fixed;
 }
 
-.lobotomy-corp-alert-corner.top-right {
-  right: 0;
-  top: 0;
-  width: var(--lobotomy-corp-alert-corner-size);
+/* ActiveControl 填满游戏 UI 画布；四个 Corner 分别锚定真实 viewport 四角。 */
+.lobotomy-corp-alert-active-control {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
 }
 
-.lobotomy-corp-alert-corner.bottom-right {
-  bottom: 0;
-  right: 0;
-  width: var(--lobotomy-corp-alert-corner-size);
+.lobotomy-corp-alert-corner {
+  height: 446px;
+  overflow: visible;
+  pointer-events: none;
+  position: fixed;
+  width: 446px;
 }
 
-.lobotomy-corp-alert-corner.bottom-left {
-  bottom: 0;
-  left: 0;
-  transform: rotate(90deg);
-  transform-origin: center;
-  width: var(--lobotomy-corp-alert-corner-size);
-}
-
-.lobotomy-corp-alert-corner.top-left {
+.lobotomy-corp-alert-corner.left-up {
   left: 0;
   top: 0;
-  transform: rotate(180deg);
-  transform-origin: center;
-  width: var(--lobotomy-corp-alert-corner-size);
+  transform: scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
+  transform-origin: top left;
 }
 
+.lobotomy-corp-alert-corner.left-down {
+  bottom: 0;
+  left: 0;
+  transform: scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
+  transform-origin: bottom left;
+}
+
+.lobotomy-corp-alert-corner.right-up {
+  right: 0;
+  top: 0;
+  transform: scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
+  transform-origin: top right;
+}
+
+.lobotomy-corp-alert-corner.right-down {
+  bottom: 0;
+  right: 0;
+  transform: scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
+  transform-origin: bottom right;
+}
+
+/* Texture 继承 Unity 的 localScale，内部 Risk / TrumpetLevel 因而同步镜像。 */
+.lobotomy-corp-alert-texture {
+  inset: 0;
+  overflow: visible;
+  position: absolute;
+  transform-origin: center;
+}
+
+.lobotomy-corp-alert-corner.left-up .lobotomy-corp-alert-texture {
+  transform: scale(-1, -1);
+}
+
+.lobotomy-corp-alert-corner.left-down .lobotomy-corp-alert-texture {
+  transform: scale(-1, 1);
+}
+
+.lobotomy-corp-alert-corner.right-up .lobotomy-corp-alert-texture {
+  transform: scale(1, -1);
+}
+
+.lobotomy-corp-alert-corner.right-down .lobotomy-corp-alert-texture {
+  transform: scale(1, 1);
+}
+
+.lobotomy-corp-alert-triangle {
+  display: block;
+  height: 100%;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+/* Factorial 位于 Texture 内，保持原版 anchoredPosition (125, -125) 和 +135°。 */
+.lobotomy-corp-alert-factorial {
+  overflow: hidden;
+  position: absolute;
+  transform-origin: center;
+}
+
+.lobotomy-corp-alert-risk {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.lobotomy-corp-alert-text,
+.lobotomy-corp-alert-trumpet-level {
+  font-family: LobotomyNorwester, sans-serif;
+  font-weight: normal;
+  margin: 0;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  transform-origin: center;
+}
+
+/* AlertText 是 Corner 的直接 child，因此不继承 Texture 的镜像。 */
+.lobotomy-corp-alert-text {
+  font-size: 28px;
+  line-height: 45px;
+  white-space: pre;
+}
+
+/* RightUp/Texture 的 TrumpetLevel 保留 localScaleY(-1) 和屏幕视觉 -45°。 */
+.lobotomy-corp-alert-trumpet-level {
+  font-size: 60px;
+  line-height: 1;
+  white-space: pre-line;
+}
+
+/* 关闭按钮属于网站功能，不属于 EmergencyController CanvasGroup，不参与闪烁。 */
 .lobotomy-corp-alert-close {
   background: rgb(33 27 7 / 0.94);
   border: 1px solid #f9c500;
@@ -63,13 +159,13 @@
   background: #5b4509;
 }
 
-@keyframes lobotomy-corp-alert-pulse {
+@keyframes lobotomy-corp-emergency-pulse {
   0%,
   100% {
-    opacity: 1;
+    opacity: 0.4;
   }
 
   50% {
-    opacity: 0.48;
+    opacity: 0.8;
   }
 }
