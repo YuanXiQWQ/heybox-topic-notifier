@@ -358,6 +358,9 @@ Deno.test({
     const riskResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/Sprite/Risk_3.png",
     );
+    const fourthRiskResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Sprite/MiddleArea_4_27.png",
+    );
     const endButtonResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/Sprite/End_1.png",
     );
@@ -487,6 +490,8 @@ Deno.test({
     );
     assertEquals(triangleResponse.headers.get("content-type"), "image/png");
     assertEquals(riskResponse.headers.get("content-type"), "image/png");
+    assertEquals(fourthRiskResponse.status, 200);
+    assertEquals(fourthRiskResponse.headers.get("content-type"), "image/png");
     assertEquals(endButtonResponse.headers.get("content-type"), "image/png");
     assertEquals(valveResponse.headers.get("content-type"), "image/png");
   },

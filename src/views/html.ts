@@ -61,6 +61,9 @@ export function renderLayout(options: {
   data-lobotomy-corp-restart-day="${
     escapeHtml(messages.lobotomyCorpRestartDay)
   }"
+  data-lobotomy-corp-fired-manager="${
+    escapeHtml(messages.lobotomyCorpFiredManager)
+  }"
   style="--theme-color: ${escapeHtml(options.themeColor)}"
 >
   <head>
@@ -69,11 +72,11 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-avatar-crop-native-colors">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-trumpet-text-anchor-middle-center">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-trumpet-music-high-water">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
-    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-trumpet-text-anchor-middle-center" defer></script>
+    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-fourth-upgrade-replay-fired-manager" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
@@ -95,16 +98,28 @@ export function renderLayout(options: {
     renderNavItem(historyIcon("nav-icon"), messages.navHistory)
   }</button>
         </form>
-        ${options.account ? `<details class="nav-account-menu"><summary class="nav-avatar-button" aria-label="${escapeHtml(messages.navAccountMenu)}">${renderAvatar(options.account, messages)}</summary><div class="nav-account-dropdown"><a href="/settings">${escapeHtml(messages.accountSettings)}</a><form method="post" action="/logout?locale=${
-    encodeURIComponent(options.locale)
-  }">${csrfHiddenInput(options.csrfToken)}<button type="submit">${logoutIcon("nav-account-menu-icon")}${escapeHtml(messages.navLogout)}</button></form></div></details>` : `<form class="nav-item" method="post" action="/logout?locale=${
-    encodeURIComponent(options.locale)
-  }">
+        ${
+    options.account
+      ? `<details class="nav-account-menu"><summary class="nav-avatar-button" aria-label="${
+        escapeHtml(messages.navAccountMenu)
+      }">${
+        renderAvatar(options.account, messages)
+      }</summary><div class="nav-account-dropdown"><a href="/settings">${
+        escapeHtml(messages.accountSettings)
+      }</a><form method="post" action="/logout?locale=${
+        encodeURIComponent(options.locale)
+      }">${csrfHiddenInput(options.csrfToken)}<button type="submit">${
+        logoutIcon("nav-account-menu-icon")
+      }${escapeHtml(messages.navLogout)}</button></form></div></details>`
+      : `<form class="nav-item" method="post" action="/logout?locale=${
+        encodeURIComponent(options.locale)
+      }">
           ${csrfHiddenInput(options.csrfToken)}
           <button class="nav-link-button" type="submit">${
-    renderNavItem(logoutIcon("nav-icon"), messages.navLogout)
-  }</button>
-        </form>`}
+        renderNavItem(logoutIcon("nav-icon"), messages.navLogout)
+      }</button>
+        </form>`
+  }
       </nav>
     </header>
     <main class="shell">${options.body}</main>
@@ -132,8 +147,10 @@ function renderNavItem(icon: string, label: string): string {
  */
 export function defaultAvatarUrl(userId: string | undefined): string {
   const value = userId ?? "default";
-  const hash = Array.from(value).reduce((total, character) =>
-    (total * 31 + character.codePointAt(0)!) >>> 0, 0);
+  const hash = Array.from(value).reduce(
+    (total, character) => (total * 31 + character.codePointAt(0)!) >>> 0,
+    0,
+  );
   return `/static/fun/default-avatar/avatar${hash % 5 + 1}.png`;
 }
 
@@ -150,5 +167,9 @@ export function renderAvatar(
 ): string {
   const name = account.displayName ?? account.username;
   const alt = messages.accountAvatarAlt.replace("{name}", name);
-  return `<span class="account-avatar"><img class="account-avatar-default" src="${defaultAvatarUrl(account.id)}" alt="${escapeHtml(alt)}"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden onload="this.hidden=false"></span>`;
+  return `<span class="account-avatar"><img class="account-avatar-default" src="${
+    defaultAvatarUrl(account.id)
+  }" alt="${
+    escapeHtml(alt)
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden onload="this.hidden=false"></span>`;
 }
