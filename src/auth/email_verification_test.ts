@@ -2,7 +2,7 @@
  * @file 本文件验证邮箱验证码生成、哈希和邮件渲染能力。
  */
 import { assertEquals } from "../test_helpers.ts";
-import { getMessages } from "../locales/index.ts";
+import { getMessages, mergeMessages } from "../locales/index.ts";
 import {
   createEmailVerificationChallenge,
   emailVerificationConfigFromEnv,
@@ -130,4 +130,25 @@ Deno.test("emailVerificationEmailMessage formats expiry with the requested local
 
   assertEquals(message.text.includes("10 分後"), true);
   assertEquals(message.text.includes("分钟内有效"), false);
+});
+
+Deno.test("emailVerificationEmailMessage uses templates from localized messages", () => {
+  const message = emailVerificationEmailMessage(
+    {
+      code: "123456",
+      email: "alice@example.com",
+      expiresAt: "2099-08-01T00:10:00.000Z",
+      locale: "en-US",
+      purpose: "primary_login",
+    },
+    mergeMessages({
+      emailVerificationEmailSubjectTemplate: "{appName} | {emailCodeLabel}",
+      emailVerificationEmailTextTemplate:
+        "Use {code} for {appName}. It expires {expiresIn}.",
+    }),
+  );
+
+  assertEquals(message.subject, "小黑盒话题提醒 | 验证码");
+  assertEquals(message.text.includes("Use 123456 for 小黑盒话题提醒."), true);
+  assertEquals(message.text.includes("{expiresIn}"), false);
 });
