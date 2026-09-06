@@ -28,6 +28,23 @@ const lobotomyCorpReferenceCanvasWidth = 1920;
 const lobotomyCorpCornerSize = 446;
 
 /**
+ * First / Second / Third Trumpet 的原版 EmergencyImage RectTransform。
+ *
+ * Fourth Trumpet 为本项目扩展，不使用此原版布局时会通过 alert.riskRect 覆盖位置或尺寸。
+ */
+const lobotomyCorpOriginalRiskRect = Object.freeze({
+  anchorX: 0.5,
+  anchorY: 0.5,
+  anchoredX: 125,
+  anchoredY: -125,
+  height: 150,
+  pivotX: 0.5,
+  pivotY: 0.5,
+  rotation: 135,
+  width: 150,
+});
+
+/**
  * 顶部结束面板所需的原版 Sprite 文件名。
  */
 const lobotomyCorpTopPanelSpriteFiles = Object.freeze([
@@ -81,6 +98,13 @@ const lobotomyCorpAlerts = Object.freeze({
     emergencyTint: [0, 234, 219],
     level: 4,
     riskFile: "MiddleArea_4_27.png",
+    // Fourth 为项目自定义警报。此布局将近圆形图标移至 Triangle_1 内侧三角形的内心附近。
+    riskRect: {
+      anchoredX: 122,
+      anchoredY: -116,
+      height: 110,
+      width: 110,
+    },
     riskTint: [0, 234, 219],
     soundFile: "fourth-trumpet.wav",
     trumpetLevel: "Fourth\nTrumpet",
@@ -690,7 +714,7 @@ function updateLobotomyCorpCanvasScale(...unityRoots) {
 /**
  * 创建一个复现 Unity Corner / Texture / Risk 或 TrumpetLevel 层级的角落节点。
  *
- * @param {{assetDirectory: string, emergencyColor: string, riskFile: string, trumpetLevel: string}} alert 当前警报配置。
+ * @param {{assetDirectory: string, emergencyColor: string, riskFile: string, riskRect?: object, trumpetLevel: string}} alert 当前警报配置。
  * @param {{alertTextRect?: object, position: string, triangleFile: string}} definition Corner 配置。
  * @return {HTMLElement} 完整 Corner 节点。
  */
@@ -736,15 +760,8 @@ function createLobotomyCorpEmergencyCorner(alert, definition) {
     risk.src = lobotomyCorpRiskSource(alert);
     risk.setAttribute("aria-hidden", "true");
     applyLobotomyCorpRectTransform(factorial, {
-      anchorX: 0.5,
-      anchorY: 0.5,
-      anchoredX: 125,
-      anchoredY: -125,
-      height: 150,
-      pivotX: 0.5,
-      pivotY: 0.5,
-      rotation: 135,
-      width: 150,
+      ...lobotomyCorpOriginalRiskRect,
+      ...alert.riskRect,
     });
     factorial.append(risk);
     texture.append(factorial);

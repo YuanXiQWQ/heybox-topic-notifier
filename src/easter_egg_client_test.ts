@@ -211,6 +211,9 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
   /** @param {Element} overlay 警报外层。 @return {Element} EmergencyImage。 */ const risk =
     (overlay: Element) =>
       corners(overlay)[0].children[0].children[1].children[0];
+  /** @param {Element} overlay 警报外层。 @param {number} cornerIndex 含图标的 Corner 索引。 @return {Element} EmergencyImage 的 RectTransform 容器。 */ const riskRect =
+    (overlay: Element, cornerIndex: number) =>
+      corners(overlay)[cornerIndex].children[0].children[1];
   try {
     await import(
       `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
@@ -224,14 +227,35 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       "fourthtrumpet",
     ].forEach((name) => assertEquals(api.matches(name), true));
     const first = api.activate("first trumpet");
+    const initialFirstOverlay = body.children.at(-1)!;
+    const firstRiskRect = riskRect(initialFirstOverlay, 0);
     const firstAudio = AudioMock.items[0];
+    assertEquals(firstRiskRect.style.left, "273px");
+    assertEquals(firstRiskRect.style.top, "273px");
+    assertEquals(firstRiskRect.style.width, "150px");
+    assertEquals(firstRiskRect.style.height, "150px");
+    assertEquals(firstRiskRect.style.transform, "rotate(135deg)");
     const second = api.activate("second trumpet");
+    const secondOverlay = body.children.at(-1)!;
+    const secondRiskRect = riskRect(secondOverlay, 0);
     const secondAudio = AudioMock.items[1];
+    assertEquals(secondRiskRect.style.left, "273px");
+    assertEquals(secondRiskRect.style.top, "273px");
+    assertEquals(secondRiskRect.style.width, "150px");
+    assertEquals(secondRiskRect.style.height, "150px");
+    assertEquals(secondRiskRect.style.transform, "rotate(135deg)");
     assertEquals(firstAudio.pauseCount, 1);
     assertEquals(secondAudio.src.endsWith("second-trumpet.wav"), true);
     assertEquals(await first, true);
     const third = api.activate("third trumpet");
+    const thirdOverlay = body.children.at(-1)!;
+    const thirdRiskRect = riskRect(thirdOverlay, 0);
     const thirdAudio = AudioMock.items[2];
+    assertEquals(thirdRiskRect.style.left, "273px");
+    assertEquals(thirdRiskRect.style.top, "273px");
+    assertEquals(thirdRiskRect.style.width, "150px");
+    assertEquals(thirdRiskRect.style.height, "150px");
+    assertEquals(thirdRiskRect.style.transform, "rotate(135deg)");
     thirdAudio.currentTime = 20;
     assertEquals(await second, true);
     const down = api.activate("second trumpet");
@@ -242,8 +266,18 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     assertEquals(await third, true);
     const fourth = api.activate("fourth trumpet");
     const fourthOverlay = body.children.at(-1)!;
+    const fourthRiskRects = [0, 1, 3].map((cornerIndex) =>
+      riskRect(fourthOverlay, cornerIndex)
+    );
     assertEquals(trumpet(fourthOverlay), "Fourth\nTrumpet");
     assertEquals(risk(fourthOverlay).src.endsWith("MiddleArea_4_27.png"), true);
+    fourthRiskRects.forEach((currentRiskRect) => {
+      assertEquals(currentRiskRect.style.left, "290px");
+      assertEquals(currentRiskRect.style.top, "284px");
+      assertEquals(currentRiskRect.style.width, "110px");
+      assertEquals(currentRiskRect.style.height, "110px");
+      assertEquals(currentRiskRect.style.transform, "rotate(135deg)");
+    });
     const fourthAudio = AudioMock.items[3];
     assertEquals(AudioMock.items.length, 4);
     assertEquals(thirdAudio.pauseCount, 1);

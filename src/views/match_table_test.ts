@@ -295,11 +295,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-fourth-upgrade-replay-fired-manager`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-fourth-risk-custom-layout`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-trumpet-music-high-water`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-risk-custom-layout`,
   );
   assertIncludes(
     html,

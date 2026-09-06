@@ -120,7 +120,7 @@
   width: 100%;
 }
 
-/* Factorial 位于 Texture 内，保持原版 anchoredPosition (125, -125) 和 +135°。 */
+/* Factorial 位于 Texture 内；前三档保持原版 anchoredPosition (125, -125) 和 +135°。 */
 .lobotomy-corp-alert-factorial {
   overflow: hidden;
   position: absolute;

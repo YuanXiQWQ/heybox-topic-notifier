@@ -150,10 +150,12 @@ export type TotpSetupView = {
  * @return 完整设置页面 HTML。
  */
 export function renderSettings(options: {
-  account?: Pick<
-    UserAccount,
-    "displayName" | "emailVerified" | "primaryEmail" | "username"
-  > & { id?: string };
+  account?:
+    & Pick<
+      UserAccount,
+      "displayName" | "emailVerified" | "primaryEmail" | "username"
+    >
+    & { id?: string };
   accountStatus?: AccountStatus;
   csrfToken: string;
   emailBindingStatus?: EmailBindingStatus;
@@ -502,7 +504,9 @@ function transientSuccessStatusAttribute(
  */
 function renderAccountSection(
   settings: AppSettings,
-  account: (Pick<UserAccount, "displayName" | "username"> & { id?: string }) | undefined,
+  account:
+    | (Pick<UserAccount, "displayName" | "username"> & { id?: string })
+    | undefined,
   status: AccountStatus | undefined,
   csrfToken: string,
   passkeyAvailable: boolean,
@@ -536,25 +540,51 @@ function renderAccountSection(
   const editDisplayNameLabel = escapeHtml(messages.accountEditDisplayName);
 
   return `
-    <form class="account-avatar-upload-form" method="post" action="${localizedAccountPath("/account/avatar", settings.locale)}" enctype="multipart/form-data" data-avatar-upload-form data-avatar-upload-error="${escapeHtml(messages.accountAvatarUploadFailed)}">
+    <form class="account-avatar-upload-form" method="post" action="${
+    localizedAccountPath("/account/avatar", settings.locale)
+  }" enctype="multipart/form-data" data-avatar-upload-form data-avatar-upload-error="${
+    escapeHtml(messages.accountAvatarUploadFailed)
+  }">
       ${csrfHiddenInput(csrfToken)}
       <section class="settings-group account-settings-group" aria-labelledby="account-settings-heading">
-        <h2 id="account-settings-heading">${escapeHtml(messages.accountSettings)}</h2>
+        <h2 id="account-settings-heading">${
+    escapeHtml(messages.accountSettings)
+  }</h2>
         <dl class="settings-list"><div>
-          ${authSettingLabel("username", messages.accountAvatar)}
-          <dd><label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button" aria-label="${escapeHtml(messages.accountAvatarChoose)}">
-            <span class="account-avatar account-avatar-preview"><img src="${defaultAvatarUrl(account?.id)}" alt="${escapeHtml(messages.accountAvatar)}"><img src="/account/avatar" alt="" hidden onload="this.hidden=false"></span>
+          ${authSettingLabel("avatar", messages.accountAvatar)}
+          <dd><label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button" aria-label="${
+    escapeHtml(messages.accountAvatarChoose)
+  }">
+            <span class="account-avatar account-avatar-preview"><img src="${
+    defaultAvatarUrl(account?.id)
+  }" alt="${
+    escapeHtml(messages.accountAvatar)
+  }"><img src="/account/avatar" alt="" hidden onload="this.hidden=false"></span>
             <input class="account-avatar-file-input" type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" data-avatar-file-input tabindex="-1">
-            <span class="account-avatar-picker-text">${escapeHtml(messages.accountAvatarChoose)}</span>
+            <span class="account-avatar-picker-text">${
+    escapeHtml(messages.accountAvatarChoose)
+  }</span>
             <span class="inline-action-status" data-avatar-upload-status hidden role="status"></span>
           </label></dd>
         </div></dl>
       </section>
-      <dialog class="avatar-crop-dialog" data-avatar-crop-dialog data-avatar-uploading="${escapeHtml(messages.accountAvatarUploading)}">
-        <div class="avatar-crop-header"><h2>${escapeHtml(messages.accountAvatarCrop)}</h2><button type="button" class="icon-button" data-avatar-crop-cancel aria-label="${escapeHtml(messages.accountCancel)}">×</button></div>
+      <dialog class="avatar-crop-dialog" data-avatar-crop-dialog data-avatar-uploading="${
+    escapeHtml(messages.accountAvatarUploading)
+  }">
+        <div class="avatar-crop-header"><h2>${
+    escapeHtml(messages.accountAvatarCrop)
+  }</h2><button type="button" class="icon-button" data-avatar-crop-cancel aria-label="${
+    escapeHtml(messages.accountCancel)
+  }">×</button></div>
         <div class="avatar-crop-stage" data-avatar-crop-stage><canvas data-avatar-crop-canvas></canvas><span class="avatar-crop-mask" aria-hidden="true"></span></div>
-        <label class="avatar-crop-zoom"><span>${escapeHtml(messages.accountAvatarZoom)}</span><output data-avatar-crop-zoom-value>100%</output><input type="range" min="1" max="3" value="1" step="0.01" data-avatar-crop-zoom></label>
-        <div class="avatar-crop-actions"><button type="button" class="settings-row-action-button settings-icon-action-button" data-avatar-crop-confirm aria-label="${escapeHtml(messages.accountAvatarConfirm)}" data-tooltip="${escapeHtml(messages.accountAvatarConfirm)}">${materialSymbolIcon("check", "settings-row-action-icon")}</button></div>
+        <label class="avatar-crop-zoom"><span>${
+    escapeHtml(messages.accountAvatarZoom)
+  }</span><output data-avatar-crop-zoom-value>100%</output><input type="range" min="1" max="3" value="1" step="0.01" data-avatar-crop-zoom></label>
+        <div class="avatar-crop-actions"><button type="button" class="settings-row-action-button settings-icon-action-button" data-avatar-crop-confirm aria-label="${
+    escapeHtml(messages.accountAvatarConfirm)
+  }" data-tooltip="${escapeHtml(messages.accountAvatarConfirm)}">${
+    materialSymbolIcon("check", "settings-row-action-icon")
+  }</button></div>
       </dialog>
     </form>
     <form
@@ -597,7 +627,9 @@ function renderAccountSection(
   }"
     >
       ${csrfHiddenInput(csrfToken)}
-      <section class="settings-group account-settings-continuation" aria-label="${escapeHtml(messages.accountSettings)}">
+      <section class="settings-group account-settings-continuation" aria-label="${
+    escapeHtml(messages.accountSettings)
+  }">
         <dl class="settings-list">
           <div>
             ${authSettingLabel("username", messages.accountUsername)}

@@ -5,6 +5,7 @@ import { getMessages } from "../locales/index.ts";
 import { isRtlLocale, type Locale } from "../locales/types.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import {
+  authIcon,
   dashboardIcon,
   historyIcon,
   logoutIcon,
@@ -71,12 +72,12 @@ export function renderLayout(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20260906-avatar-crop-native-colors">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-trumpet-music-high-water">
+    <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-risk-custom-layout">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
-    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-fourth-upgrade-replay-fired-manager" defer></script>
+    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-fourth-risk-custom-layout" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
@@ -100,17 +101,12 @@ export function renderLayout(options: {
         </form>
         ${
     options.account
-      ? `<details class="nav-account-menu"><summary class="nav-avatar-button" aria-label="${
-        escapeHtml(messages.navAccountMenu)
-      }">${
-        renderAvatar(options.account, messages)
-      }</summary><div class="nav-account-dropdown"><a href="/settings">${
-        escapeHtml(messages.accountSettings)
-      }</a><form method="post" action="/logout?locale=${
-        encodeURIComponent(options.locale)
-      }">${csrfHiddenInput(options.csrfToken)}<button type="submit">${
-        logoutIcon("nav-account-menu-icon")
-      }${escapeHtml(messages.navLogout)}</button></form></div></details>`
+      ? renderAccountMenu(
+        options.account,
+        options.csrfToken,
+        options.locale,
+        messages,
+      )
       : `<form class="nav-item" method="post" action="/logout?locale=${
         encodeURIComponent(options.locale)
       }">
@@ -137,6 +133,40 @@ export function renderLayout(options: {
  */
 function renderNavItem(icon: string, label: string): string {
   return `${icon}<span class="nav-label">${escapeHtml(label)}</span>`;
+}
+
+/**
+ * 渲染导航栏中的账户下拉菜单。
+ *
+ * @param {Pick<UserAccount, "displayName" | "username"> & { id?: string }} account 当前账户。
+ * @param {string} csrfToken 当前页面的 CSRF 令牌。
+ * @param {Locale} locale 当前界面语言。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 账户菜单 HTML。
+ */
+function renderAccountMenu(
+  account: Pick<UserAccount, "displayName" | "username"> & { id?: string },
+  csrfToken: string,
+  locale: Locale,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  return `<details class="nav-account-menu"><summary class="nav-avatar-button" aria-label="${
+    escapeHtml(messages.navAccountMenu)
+  }">${
+    renderAvatar(account, messages)
+  }</summary><div class="nav-account-dropdown"><a class="nav-account-menu-action" href="/settings">${
+    authIcon("username", "nav-account-menu-icon")
+  }<span>${
+    escapeHtml(messages.accountSettings)
+  }</span></a><form method="post" action="/logout?locale=${
+    encodeURIComponent(locale)
+  }">${
+    csrfHiddenInput(csrfToken)
+  }<button class="nav-account-menu-action nav-account-logout" type="submit">${
+    logoutIcon("nav-account-menu-icon")
+  }<span>${
+    escapeHtml(messages.navLogout)
+  }</span></button></form></div></details>`;
 }
 
 /**
