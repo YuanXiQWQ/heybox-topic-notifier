@@ -1224,6 +1224,7 @@ function renderGoogleUnbindForm(
     class="auth-method-action-form"
     method="post"
     action="${localizedAccountPath("/account/google/unbind", locale)}"
+    data-google-unbind-form
   >
     ${csrfHiddenInput(csrfToken)}
     <input

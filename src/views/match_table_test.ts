@@ -993,6 +993,7 @@ Deno.test("renderSettings renders Google unbind as an icon action", () => {
   });
 
   assertIncludes(html, `action="/account/google/unbind?locale=zh-CN"`);
+  assertIncludes(html, `data-google-unbind-form`);
   assertIncludes(html, `class="auth-method-toggle-button"`);
   assertIncludes(html, `aria-label="解绑"`);
   assertIncludes(html, `data-tooltip="解绑"`);

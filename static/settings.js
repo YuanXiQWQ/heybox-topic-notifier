@@ -132,6 +132,7 @@ function initSettingsEditors() {
   initRecoveryCodeGeneration();
   initPasskeyBinding();
   initGoogleBinding();
+  initGoogleUnbindForms();
   initSensitiveActionForms();
   initReauth();
   initSecuritySettingsAutoSave();
@@ -361,6 +362,32 @@ async function refreshPasskeySettings(url) {
   initSensitiveActionForms(nextSection);
   initReauth(nextSection);
   initSecuritySettingsAutoSave();
+  return true;
+}
+
+/**
+ * 原地同步 Google 登录方式设置行并重新绑定交互。
+ *
+ * @param {string} url 最新设置页地址。
+ * @return {Promise<boolean>} Google 设置行更新成功时返回 true。
+ */
+async function refreshGoogleSettings(url) {
+  const parsed = await fetchSettingsDocument(url);
+  const currentRow = document.querySelector("#auth-method-google");
+  const nextRow = parsed.querySelector("#auth-method-google");
+  if (
+    !(currentRow instanceof HTMLElement) || !(nextRow instanceof HTMLElement)
+  ) {
+    return false;
+  }
+
+  currentRow.replaceWith(nextRow);
+  pendingSensitiveActionForm = undefined;
+  initRenderedSuccessStatuses(nextRow);
+  initAuthMethodPanels(nextRow);
+  initGoogleBinding(nextRow);
+  initGoogleUnbindForms(nextRow);
+  initReauth(nextRow);
   return true;
 }
 
@@ -2946,9 +2973,11 @@ function initPasskeyBinding(scope = document) {
 
 /**
  * 初始化 Google 绑定按钮。
+ *
+ * @param {ParentNode} [scope] 查找范围。
  */
-function initGoogleBinding() {
-  const roots = document.querySelectorAll("[data-google-binding]");
+function initGoogleBinding(scope = document) {
+  const roots = scope.querySelectorAll("[data-google-binding]");
   roots.forEach((root) => {
     if (root instanceof HTMLElement) {
       initGoogleBindingRoot(root, 0);
@@ -2990,15 +3019,7 @@ function initGoogleBindingRoot(root, attempt) {
 
   googleIdentity.initialize({
     callback: (response) => {
-      const credential = response?.credential;
-      if (typeof credential !== "string" || !credential.trim()) {
-        setInlineStatus(status, root.dataset.googleFailed || "", "error");
-        return;
-      }
-
-      credentialInput.value = credential;
-      setInlineStatus(status, root.dataset.googleBinding || "", "pending");
-      form.submit();
+      void submitGoogleBinding(root, form, credentialInput, status, response);
     },
     client_id: clientId,
   });
@@ -3009,6 +3030,115 @@ function initGoogleBindingRoot(root, attempt) {
     theme: "outline",
     type: "standard",
   });
+}
+
+/**
+ * 原地提交 Google credential 并同步 Google 设置行。
+ *
+ * @param {HTMLElement} root Google 绑定区域。
+ * @param {HTMLFormElement} form Google credential 表单。
+ * @param {HTMLInputElement} credentialInput Google credential 输入框。
+ * @param {Element|null} status 状态提示元素。
+ * @param {unknown} response Google Identity Services 响应。
+ * @return {Promise<void>} 绑定请求完成后的 Promise。
+ */
+async function submitGoogleBinding(
+  root,
+  form,
+  credentialInput,
+  status,
+  response,
+) {
+  if (root.dataset.googleBindingPending === "true") {
+    return;
+  }
+
+  const credential = response?.credential;
+  if (typeof credential !== "string" || !credential.trim()) {
+    setInlineStatus(status, root.dataset.googleFailed || "", "error");
+    return;
+  }
+
+  root.dataset.googleBindingPending = "true";
+  credentialInput.value = credential;
+  setInlineStatus(status, root.dataset.googleBinding || "", "pending");
+
+  try {
+    const bindingResponse = await fetch(form.action, {
+      body: formDataFromForm(form),
+      headers: csrfRequestHeaders(),
+      method: form.method || "post",
+    });
+    if (
+      !bindingResponse.ok || !await refreshGoogleSettings(bindingResponse.url)
+    ) {
+      throw new Error("Could not update Google binding.");
+    }
+  } catch {
+    setInlineStatus(status, root.dataset.googleFailed || "", "error");
+  } finally {
+    delete root.dataset.googleBindingPending;
+  }
+}
+
+/**
+ * 初始化 Google 解绑表单，避免提交后重载整个设置页。
+ *
+ * @param {ParentNode} [scope] 查找范围。
+ */
+function initGoogleUnbindForms(scope = document) {
+  scope.querySelectorAll("[data-google-unbind-form]").forEach((form) => {
+    if (
+      !(form instanceof HTMLFormElement) ||
+      form.dataset.googleUnbindInitialized === "true"
+    ) {
+      return;
+    }
+
+    form.dataset.googleUnbindInitialized = "true";
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submitGoogleUnbind(form);
+    });
+  });
+}
+
+/**
+ * 原地提交 Google 解绑请求并同步 Google 设置行。
+ *
+ * @param {HTMLFormElement} form Google 解绑表单。
+ * @return {Promise<void>} 解绑请求完成后的 Promise。
+ */
+async function submitGoogleUnbind(form) {
+  if (form.dataset.googleUnbindPending === "true") {
+    return;
+  }
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  form.dataset.googleUnbindPending = "true";
+  if (submitButton instanceof HTMLButtonElement) {
+    submitButton.disabled = true;
+  }
+
+  try {
+    const unbindResponse = await fetch(form.action, {
+      body: formDataFromForm(form),
+      headers: csrfRequestHeaders(),
+      method: form.method || "post",
+    });
+    if (
+      !unbindResponse.ok || !await refreshGoogleSettings(unbindResponse.url)
+    ) {
+      throw new Error("Could not update Google binding.");
+    }
+  } catch {
+    // 保留当前设置行，使用户可以重试解绑操作。
+  } finally {
+    delete form.dataset.googleUnbindPending;
+    if (submitButton instanceof HTMLButtonElement) {
+      submitButton.disabled = false;
+    }
+  }
 }
 
 /**
