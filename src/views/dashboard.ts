@@ -2,7 +2,7 @@
  * @file 本文件负责渲染仪表盘页面和轮询进度交互脚本。
  */
 import { getMessages } from "../locales/index.ts";
-import type { AppSettings, AppState, PollIntervalUnit } from "../models.ts";
+import type { AppSettings, AppState, PollIntervalUnit, UserAccount } from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
@@ -16,6 +16,7 @@ import { formatHeyboxRelativeTime } from "./time.ts";
  * @return 完整仪表盘页面 HTML。
  */
 export function renderDashboard(options: {
+  account?: Pick<UserAccount, "displayName" | "id" | "username">;
   csrfToken: string;
   initialNextPollProgress?: string;
   pendingTable: MatchTableResult;
@@ -120,6 +121,7 @@ export function renderDashboard(options: {
   `;
 
   return renderLayout({
+    account: options.account,
     body,
     csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,

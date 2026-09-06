@@ -6,7 +6,7 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 3;
+export const TURSO_SCHEMA_VERSION = 4;
 
 /**
  * 首版 Turso schema 迁移语句。
@@ -25,6 +25,12 @@ export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
     username_normalized TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL,
     value_json TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS user_avatars (
+    user_id TEXT PRIMARY KEY,
+    content_type TEXT NOT NULL,
+    data_blob BLOB NOT NULL,
+    updated_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS user_settings (
     user_id TEXT PRIMARY KEY,

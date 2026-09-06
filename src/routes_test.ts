@@ -26,6 +26,7 @@ import type {
   PendingRecoveryCodeReveal,
   TotpCredential,
   UserAccount,
+  UserAvatar,
   UserSecuritySettings,
   UserSession,
 } from "./models.ts";
@@ -178,6 +179,7 @@ type AccountRouteStorage = {
   getSession(tokenHash: string): Promise<UserSession | undefined>;
   getSettings(): Promise<AppSettings>;
   getTotpCredential(userId: string): Promise<TotpCredential | undefined>;
+  getUserAvatar(userId: string): Promise<UserAvatar | undefined>;
   listTotpCredentials(userId: string): Promise<TotpCredential[]>;
   getUserSecuritySettings(userId: string): Promise<UserSecuritySettings>;
   listAuthIdentitiesForUser(
@@ -212,6 +214,7 @@ type AccountRouteStorage = {
   saveSession(session: UserSession): Promise<void>;
   saveTotpCredential(credential: TotpCredential): Promise<void>;
   saveUserSecuritySettings(settings: UserSecuritySettings): Promise<void>;
+  saveUserAvatar(avatar: UserAvatar): Promise<void>;
   deleteTotpCredential(userId: string, credentialId?: string): Promise<void>;
   deletePendingRecoveryCodeReveal(id: string): Promise<void>;
   updateAccount(account: UserAccount): Promise<boolean>;
@@ -588,6 +591,55 @@ Deno.test("account route updates username for the signed-in user after password 
     "yuanxi",
   );
   assertEquals(loginResponse.headers.get("location"), "/");
+});
+
+Deno.test("account avatar route validates and persists uploaded image bytes", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const defaultAvatarResponse = await app.request("/account/avatar", {
+    headers: { cookie },
+  });
+  const form = new FormData();
+  form.set("csrfToken", testCsrfToken);
+  form.set(
+    "avatar",
+    new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "avatar.png", {
+      type: "image/png",
+    }),
+  );
+
+  const uploadResponse = await app.request("/account/avatar", {
+    body: form,
+    headers: testCsrfHeaders({
+      cookie,
+    }),
+    method: "POST",
+  });
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) throw new Error("测试账户创建失败。");
+  const avatarResponse = await app.request("/account/avatar", {
+    headers: {
+      cookie,
+    },
+  });
+
+  assertEquals(defaultAvatarResponse.status, 302);
+  assertEquals(
+    defaultAvatarResponse.headers.get("location")?.startsWith(
+      "/static/fun/default-avatar/avatar",
+    ),
+    true,
+  );
+  assertEquals(uploadResponse.status, 303);
+  assertEquals(uploadResponse.headers.get("location"), "/settings?avatar=updated");
+  assertEquals((await storage.getUserAvatar(account.id))?.contentType, "image/png");
+  assertEquals(avatarResponse.headers.get("content-type"), "image/png");
+  assertEquals(
+    Array.from(new Uint8Array(await avatarResponse.arrayBuffer())),
+    [137, 80, 78, 71, 13, 10, 26, 10],
+  );
 });
 
 Deno.test("account route updates non-unique display names without reauthentication", async () => {
@@ -2982,6 +3034,7 @@ function createAccountRouteStorage(): AccountRouteStorage {
   const securitySettingsByUserId = new Map<string, UserSecuritySettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
   const totpCredentialsByUserId = new Map<string, TotpCredential>();
+  const avatarsByUserId = new Map<string, UserAvatar>();
 
   return {
     ...createMemoryRateLimitRecorder(),
@@ -3131,6 +3184,12 @@ function createAccountRouteStorage(): AccountRouteStorage {
       ),
     saveUserSecuritySettings: (settings: UserSecuritySettings) => {
       securitySettingsByUserId.set(settings.userId, settings);
+      return Promise.resolve();
+    },
+    getUserAvatar: (userId: string) =>
+      Promise.resolve(avatarsByUserId.get(userId)),
+    saveUserAvatar: (avatar: UserAvatar) => {
+      avatarsByUserId.set(avatar.userId, avatar);
       return Promise.resolve();
     },
     getPendingEmailVerification: (id: string) =>

@@ -25,6 +25,7 @@ import type {
   TopicRule,
   TotpCredential,
   UserAccount,
+  UserAvatar,
   UserSecuritySettings,
   UserSession,
 } from "../models.ts";
@@ -51,6 +52,7 @@ const keys = {
   account: (id: string) => ["accounts", id] as const,
   accountUsername: (username: string) =>
     ["accountUsernames", normalizeUsername(username)] as const,
+  avatar: (userId: string) => ["userAvatars", userId] as const,
   authenticationEvent: (
     userId: string,
     purpose: AuthenticationEventPurpose,
@@ -584,6 +586,17 @@ export function createKvStorage(
       }
 
       throw new Error("Could not update the account after concurrent updates.");
+    },
+
+    /** 获取用户头像。 */
+    async getUserAvatar(userId: string): Promise<UserAvatar | undefined> {
+      const entry = await (await kv()).get<UserAvatar>(keys.avatar(userId));
+      return entry.value ?? undefined;
+    },
+
+    /** 保存用户头像。 */
+    async saveUserAvatar(avatar: UserAvatar): Promise<void> {
+      await (await kv()).set(keys.avatar(avatar.userId), avatar);
     },
 
     /**

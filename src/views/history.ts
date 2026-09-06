@@ -2,7 +2,7 @@
  * @file 本文件负责渲染命中历史页面。
  */
 import { getMessages } from "../locales/index.ts";
-import type { AppSettings } from "../models.ts";
+import type { AppSettings, UserAccount } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
@@ -14,6 +14,7 @@ import { renderMatchRecordsSection } from "./match_table_view.ts";
  * @return 完整历史页面 HTML。
  */
 export function renderHistory(options: {
+  account?: Pick<UserAccount, "displayName" | "id" | "username">;
   csrfToken: string;
   historyTable: MatchTableResult;
   settings: AppSettings;
@@ -37,6 +38,7 @@ export function renderHistory(options: {
   `;
 
   return renderLayout({
+    account: options.account,
     body,
     csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,

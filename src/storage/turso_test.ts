@@ -146,6 +146,22 @@ Deno.test("Turso account CRUD parameterizes injection-like usernames", async () 
   });
 });
 
+Deno.test("Turso stores avatar image bytes in the avatar table", async () => {
+  await withStorage(async (storage) => {
+    const avatar = {
+      contentType: "image/webp" as const,
+      data: new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80]),
+      updatedAt: "2026-09-06T00:00:00.000Z",
+      userId: "alice-id",
+    };
+
+    await storage.saveUserAvatar(avatar);
+
+    assertEquals(await storage.getUserAvatar("alice-id"), avatar);
+    assertEquals(await storage.getUserAvatar("bob-id"), undefined);
+  });
+});
+
 Deno.test("Turso authentication events can only be consumed once", async () => {
   await withStorage(async (storage) => {
     const event: AuthenticationEvent = {

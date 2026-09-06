@@ -14,7 +14,7 @@ const contentSecurityPolicyDirectives = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/",
-  "img-src 'self' https://cdn.max-c.com data:",
+  "img-src 'self' https://cdn.max-c.com data: blob:",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://accounts.google.com/gsi/client",
   "script-src-attr 'none'",

@@ -14,6 +14,7 @@ import {
   renderMatchTableRowLinkScript,
   renderMatchTableRowLinkStyle,
 } from "./match_table_row_link.ts";
+import type { UserAccount } from "../models.ts";
 
 /**
  * 转义 HTML 文本。
@@ -37,6 +38,7 @@ export function escapeHtml(value: string): string {
  * @return 完整 HTML 页面。
  */
 export function renderLayout(options: {
+  account?: Pick<UserAccount, "displayName" | "username"> & { id?: string };
   body: string;
   csrfToken: string;
   darkMode: boolean;
@@ -66,7 +68,7 @@ export function renderLayout(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    <link rel="stylesheet" href="/static/app.css?v=20260906-avatar-crop-native-colors">
     <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-restart-button-layout">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
@@ -93,14 +95,16 @@ export function renderLayout(options: {
     renderNavItem(historyIcon("nav-icon"), messages.navHistory)
   }</button>
         </form>
-        <form class="nav-item" method="post" action="/logout?locale=${
+        ${options.account ? `<details class="nav-account-menu"><summary class="nav-avatar-button" aria-label="${escapeHtml(messages.navAccountMenu)}">${renderAvatar(options.account, messages)}</summary><div class="nav-account-dropdown"><a href="/settings">${escapeHtml(messages.accountSettings)}</a><form method="post" action="/logout?locale=${
+    encodeURIComponent(options.locale)
+  }">${csrfHiddenInput(options.csrfToken)}<button type="submit">${logoutIcon("nav-account-menu-icon")}${escapeHtml(messages.navLogout)}</button></form></div></details>` : `<form class="nav-item" method="post" action="/logout?locale=${
     encodeURIComponent(options.locale)
   }">
           ${csrfHiddenInput(options.csrfToken)}
           <button class="nav-link-button" type="submit">${
     renderNavItem(logoutIcon("nav-icon"), messages.navLogout)
   }</button>
-        </form>
+        </form>`}
       </nav>
     </header>
     <main class="shell">${options.body}</main>
@@ -118,4 +122,33 @@ export function renderLayout(options: {
  */
 function renderNavItem(icon: string, label: string): string {
   return `${icon}<span class="nav-label">${escapeHtml(label)}</span>`;
+}
+
+/**
+ * 为用户稳定地分配一张默认头像。
+ *
+ * @param {string | undefined} userId 用户 ID。
+ * @return {string} 默认头像资源路径。
+ */
+export function defaultAvatarUrl(userId: string | undefined): string {
+  const value = userId ?? "default";
+  const hash = Array.from(value).reduce((total, character) =>
+    (total * 31 + character.codePointAt(0)!) >>> 0, 0);
+  return `/static/fun/default-avatar/avatar${hash % 5 + 1}.png`;
+}
+
+/**
+ * 渲染上传头像和默认头像的叠层。
+ *
+ * @param {Pick<UserAccount, "displayName" | "username"> & { id?: string }} account 当前账户。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 头像 HTML。
+ */
+export function renderAvatar(
+  account: Pick<UserAccount, "displayName" | "username"> & { id?: string },
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const name = account.displayName ?? account.username;
+  const alt = messages.accountAvatarAlt.replace("{name}", name);
+  return `<span class="account-avatar"><img class="account-avatar-default" src="${defaultAvatarUrl(account.id)}" alt="${escapeHtml(alt)}"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden onload="this.hidden=false"></span>`;
 }

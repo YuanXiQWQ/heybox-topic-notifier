@@ -143,6 +143,8 @@ const matchTableRefreshHeader = "x-match-table-refresh";
  * 新生成恢复码允许首次展示的时长（毫秒）。
  */
 const recoveryCodeRevealTtlMs = 10 * 60 * 1000;
+/** 单个头像允许写入数据库的最大字节数。 */
+const avatarMaxBytes = 2 * 1024 * 1024;
 
 /**
  * Passkey 路由可注入的测试依赖。
@@ -171,6 +173,8 @@ export function createRoutes(context: AppContext): Hono {
   app.get("/", async (c) => {
     const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
+    const session = await authSessionForRequest(c, context);
+    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
     const { pendingMatches, settings, state } = await storage
       .getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
@@ -180,6 +184,7 @@ export function createRoutes(context: AppContext): Hono {
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(renderDashboard({
+        account,
         csrfToken: csrf.token,
         initialNextPollProgress: initialNextPollProgress(url.searchParams),
         pendingTable,
@@ -447,6 +452,34 @@ export function createRoutes(context: AppContext): Hono {
       })),
       csrf,
     );
+  });
+
+  app.get("/account/avatar", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) return new Response(null, { status: 401 });
+    const avatar = await context.storage.getUserAvatar(session.userId);
+    if (!avatar) return c.redirect(defaultAvatarPath(session.userId), 302);
+    const bytes = new Uint8Array(avatar.data.byteLength);
+    bytes.set(avatar.data);
+    return new Response(new Blob([bytes]), { headers: {
+      "cache-control": "private, no-store", "content-type": avatar.contentType,
+      "x-content-type-options": "nosniff",
+    } });
+  });
+
+  app.post("/account/avatar", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) return c.redirect(settingsLoginRedirect(c, context), 303);
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
+    const file = form.avatar;
+    if (!(file instanceof File) || file.size === 0) return c.redirect("/settings?avatarError=missing", 303);
+    if (file.size > avatarMaxBytes) return c.redirect("/settings?avatarError=size", 303);
+    const data = new Uint8Array(await file.arrayBuffer());
+    const contentType = avatarContentType(data);
+    if (!contentType) return c.redirect("/settings?avatarError=type", 303);
+    await context.storage.saveUserAvatar({ contentType, data, updatedAt: new Date().toISOString(), userId: session.userId });
+    return c.redirect("/settings?avatar=updated", 303);
   });
 
   app.post("/account", async (c) => {
@@ -1935,6 +1968,8 @@ export function createRoutes(context: AppContext): Hono {
 
   app.get("/history", async (c) => {
     const storage = await storageForRequest(c, context);
+    const session = await authSessionForRequest(c, context);
+    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
     const settings = await storage.getSettings();
     const history = await storage.listHistory();
     const historyTable = applyMatchTableQuery(
@@ -1943,7 +1978,7 @@ export function createRoutes(context: AppContext): Hono {
     );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
-      c.html(renderHistory({ csrfToken: csrf.token, historyTable, settings })),
+      c.html(renderHistory({ account, csrfToken: csrf.token, historyTable, settings })),
       csrf,
     );
   });
@@ -2299,6 +2334,32 @@ function accountSettingsRedirect(
   mode?: "displayName" | "password" | "username",
 ): string {
   return `/settings?accountError=${error}${mode ? `&accountMode=${mode}` : ""}`;
+}
+
+/**
+ * 根据图片签名识别可保存的头像格式。
+ *
+ * @param {Uint8Array} data 图片二进制数据。
+ * @return {"image/gif" | "image/jpeg" | "image/png" | "image/webp" | undefined} 允许的 MIME 类型。
+ */
+function avatarContentType(data: Uint8Array): "image/gif" | "image/jpeg" | "image/png" | "image/webp" | undefined {
+  if (data.length >= 8 && data[0] === 137 && data[1] === 80 && data[2] === 78 && data[3] === 71 && data[4] === 13 && data[5] === 10 && data[6] === 26 && data[7] === 10) return "image/png";
+  if (data.length >= 3 && data[0] === 255 && data[1] === 216 && data[2] === 255) return "image/jpeg";
+  if (data.length >= 6 && String.fromCharCode(...data.slice(0, 6)).match(/^GIF8[79]a$/)) return "image/gif";
+  if (data.length >= 12 && String.fromCharCode(...data.slice(0, 4)) === "RIFF" && String.fromCharCode(...data.slice(8, 12)) === "WEBP") return "image/webp";
+  return undefined;
+}
+
+/**
+ * 为用户稳定地选择一张内置默认头像。
+ *
+ * @param {string} userId 用户 ID。
+ * @return {string} 默认头像的公开资源路径。
+ */
+function defaultAvatarPath(userId: string): string {
+  const hash = Array.from(userId).reduce((total, character) =>
+    (total * 31 + character.codePointAt(0)!) >>> 0, 0);
+  return `/static/fun/default-avatar/avatar${hash % 5 + 1}.png`;
 }
 
 function accountStatusFromSearch(searchParams: URLSearchParams) {
