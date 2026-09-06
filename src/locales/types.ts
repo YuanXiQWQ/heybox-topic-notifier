@@ -300,6 +300,7 @@ export type Messages = {
   latestMatch: string;
   locale: string;
   lobotomyCorpRestartDay: string;
+  lobotomyCorpFiredManager: string;
   matchBody: string;
   matchComments: string;
   matchDetailKeyword: string;

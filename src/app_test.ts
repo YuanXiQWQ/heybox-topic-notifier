@@ -358,6 +358,9 @@ Deno.test({
     const riskResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/Sprite/Risk_3.png",
     );
+    const fourthRiskResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Sprite/MiddleArea_4_27.png",
+    );
     const endButtonResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/Sprite/End_1.png",
     );
@@ -374,6 +377,9 @@ Deno.test({
     )?.[0] ?? "";
     const restartButtonPressedRule = stylesheet.match(
       /button\.lobotomy-corp-top-panel-action-button:active:not\(:disabled\)\s*\{[^}]+\}/u,
+    )?.[0] ?? "";
+    const trumpetLevelContentRule = stylesheet.match(
+      /\.lobotomy-corp-alert-trumpet-level-content\s*\{[^}]+\}/u,
     )?.[0] ?? "";
     const audioBytes = new Uint8Array(await audioResponse.arrayBuffer());
 
@@ -414,6 +420,10 @@ Deno.test({
     assertEquals(stylesheet.includes("border-radius: 0"), true);
     assertEquals(stylesheet.includes("box-shadow: none"), true);
     assertEquals(stylesheet.includes("font-weight: normal"), true);
+    assertEquals(stylesheet.includes("align-items: center"), true);
+    assertEquals(stylesheet.includes("justify-content: center"), true);
+    assertEquals(trumpetLevelContentRule.includes("line-height: normal"), true);
+    assertEquals(trumpetLevelContentRule.includes("line-height: 1"), false);
     assertEquals(stylesheet.includes("min-height: 0"), true);
     assertEquals(frameOutterRule.includes("height: 188px"), true);
     assertEquals(frameOutterRule.includes("width: 887px"), true);
@@ -480,6 +490,8 @@ Deno.test({
     );
     assertEquals(triangleResponse.headers.get("content-type"), "image/png");
     assertEquals(riskResponse.headers.get("content-type"), "image/png");
+    assertEquals(fourthRiskResponse.status, 200);
+    assertEquals(fourthRiskResponse.headers.get("content-type"), "image/png");
     assertEquals(endButtonResponse.headers.get("content-type"), "image/png");
     assertEquals(valveResponse.headers.get("content-type"), "image/png");
   },

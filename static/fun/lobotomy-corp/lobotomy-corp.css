@@ -120,7 +120,7 @@
   width: 100%;
 }
 
-/* Factorial 位于 Texture 内，保持原版 anchoredPosition (125, -125) 和 +135°。 */
+/* Factorial 位于 Texture 内；前三档保持原版 anchoredPosition (125, -125) 和 +135°。 */
 .lobotomy-corp-alert-factorial {
   overflow: hidden;
   position: absolute;
@@ -154,8 +154,21 @@
 
 /* RightUp/Texture 的 TrumpetLevel 保留 localScaleY(-1) 和屏幕视觉 -45°。 */
 .lobotomy-corp-alert-trumpet-level {
+  align-items: center;
+  display: flex;
   font-size: 60px;
-  line-height: 1;
+  justify-content: center;
+}
+
+/*
+ * 将 RectTransform 容器与 Unity Text 内容分开：外层只接受 anchoredPosition、
+ * pivot、旋转与 localScale，内层才实施 TextAnchor.MiddleCenter。Chromium 中
+ * norwester 60px 的 normal 行盒实测为 87.2px（字体框为 70px + 17px），故保留
+ * normal 行距以接近 Unity legacy Text 的 m_LineSpacing=1，而非压缩为 CSS 的 1。
+ */
+.lobotomy-corp-alert-trumpet-level-content {
+  line-height: normal;
+  margin: 0;
   white-space: pre-line;
 }
 

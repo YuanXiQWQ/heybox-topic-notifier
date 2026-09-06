@@ -46,3 +46,16 @@ Deno.test({
     assertEquals(invalidResponse.status, 416);
   },
 });
+
+Deno.test({
+  name: "Lobotomy Corporation Fourth Trumpet audio is available",
+  permissions: { read: true },
+  fn: async () => {
+    const response = await lobotomyCorpAssetResponse(
+      "AudioClip/fourth-trumpet.wav",
+    );
+
+    assertEquals(response.status, 200);
+    assertEquals(response.headers.get("content-type"), "audio/wav");
+  },
+});
