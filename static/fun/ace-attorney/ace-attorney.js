@@ -449,7 +449,7 @@ function activateUsernameEasterEgg(username, target = "username") {
     const voiceLocale = usernameEasterEggVoiceLocale(character);
     const imageLocale = usernameEasterEggImageLocale();
     const messages = currentUsernameEasterEggMessages();
-    const assetRoot = "/static/easter-egg/ace-attorney/assets";
+    const assetRoot = "/static/fun/ace-attorney/assets";
     const prefersReducedMotion = globalThis.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
     ).matches ?? false;

@@ -47,41 +47,41 @@ export function createApplication() {
   app.use("*", createSecurityHeadersMiddleware());
   app.get("/favicon.ico", () => faviconResponse());
   app.get(
-    "/static/easter-egg/coordinator.js",
+    "/static/fun/coordinator.js",
     () => easterEggCoordinatorScriptResponse(),
   );
   app.get(
-    "/static/easter-egg/ace-attorney/ace-attorney.js",
+    "/static/fun/ace-attorney/ace-attorney.js",
     () => aceAttorneyScriptResponse(),
   );
   app.get(
-    "/static/easter-egg/ace-attorney/ace-attorney.css",
+    "/static/fun/ace-attorney/ace-attorney.css",
     () => aceAttorneyStyleResponse(),
   );
   app.get(
-    "/static/easter-egg/ace-attorney/assets/*",
+    "/static/fun/ace-attorney/assets/*",
     (c) =>
       aceAttorneyAssetResponse(
         c.req.path.slice(
-          "/static/easter-egg/ace-attorney/assets/".length,
+          "/static/fun/ace-attorney/assets/".length,
         ),
         c.req.header("range"),
       ),
   );
   app.get(
-    "/static/easter-egg/lobotomy-corp/lobotomy-corp.js",
+    "/static/fun/lobotomy-corp/lobotomy-corp.js",
     () => lobotomyCorpScriptResponse(),
   );
   app.get(
-    "/static/easter-egg/lobotomy-corp/lobotomy-corp.css",
+    "/static/fun/lobotomy-corp/lobotomy-corp.css",
     () => lobotomyCorpStyleResponse(),
   );
   app.get(
-    "/static/easter-egg/lobotomy-corp/assets/*",
+    "/static/fun/lobotomy-corp/assets/*",
     (c) =>
       lobotomyCorpAssetResponse(
         c.req.path.slice(
-          "/static/easter-egg/lobotomy-corp/assets/".length,
+          "/static/fun/lobotomy-corp/assets/".length,
         ),
         c.req.header("range"),
       ),

@@ -283,23 +283,23 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-cross-game-interruption`,
+    `/static/fun/ace-attorney/ace-attorney.js?v=20260905-cross-game-interruption`,
   );
   assertIncludes(
     html,
-    `/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners`,
+    `/static/fun/ace-attorney/ace-attorney.css?v=20260905-investigations-corners`,
   );
   assertIncludes(
     html,
-    `/static/easter-egg/coordinator.js?v=20260905-cross-game-interruption`,
+    `/static/fun/coordinator.js?v=20260905-cross-game-interruption`,
   );
   assertIncludes(
     html,
-    `/static/easter-egg/lobotomy-corp/lobotomy-corp.js?v=20260905-cross-game-interruption`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260905-cross-game-interruption`,
   );
   assertIncludes(
     html,
-    `/static/easter-egg/lobotomy-corp/lobotomy-corp.css?v=20260905-danger-score`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260905-danger-score`,
   );
   assertIncludes(html, `data-username-easter-egg-settings`);
 });

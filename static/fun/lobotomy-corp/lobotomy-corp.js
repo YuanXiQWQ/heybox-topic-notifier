@@ -291,7 +291,7 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
 
   const alertContext = { alert };
   const completion = new Promise((resolve) => {
-    const assetRoot = "/static/easter-egg/lobotomy-corp/assets";
+    const assetRoot = "/static/fun/lobotomy-corp/assets";
     const overlay = document.createElement("div");
     const closeButton = document.createElement("button");
     const audio = new Audio(`${assetRoot}/sounds/${alert.soundFile}`);

@@ -12,7 +12,7 @@ const easterEggAssetPathPattern =
  * 彩蛋媒体资源根目录。
  */
 const aceAttorneyAssetRoot = new URL(
-  "../static/easter-egg/ace-attorney/assets/",
+  "../static/fun/ace-attorney/assets/",
   import.meta.url,
 );
 
@@ -20,7 +20,7 @@ const aceAttorneyAssetRoot = new URL(
  * 《脑叶公司》彩蛋媒体资源根目录。
  */
 const lobotomyCorpAssetRoot = new URL(
-  "../static/easter-egg/lobotomy-corp/assets/",
+  "../static/fun/lobotomy-corp/assets/",
   import.meta.url,
 );
 
@@ -31,7 +31,7 @@ const lobotomyCorpAssetRoot = new URL(
  */
 export async function easterEggCoordinatorScriptResponse(): Promise<Response> {
   const script = await Deno.readTextFile(
-    new URL("../static/easter-egg/coordinator.js", import.meta.url),
+    new URL("../static/fun/coordinator.js", import.meta.url),
   );
   return new Response(script, {
     headers: {
@@ -49,7 +49,7 @@ export async function easterEggCoordinatorScriptResponse(): Promise<Response> {
 export async function aceAttorneyScriptResponse(): Promise<Response> {
   const script = await Deno.readTextFile(
     new URL(
-      "../static/easter-egg/ace-attorney/ace-attorney.js",
+      "../static/fun/ace-attorney/ace-attorney.js",
       import.meta.url,
     ),
   );
@@ -69,7 +69,7 @@ export async function aceAttorneyScriptResponse(): Promise<Response> {
 export async function aceAttorneyStyleResponse(): Promise<Response> {
   const style = await Deno.readTextFile(
     new URL(
-      "../static/easter-egg/ace-attorney/ace-attorney.css",
+      "../static/fun/ace-attorney/ace-attorney.css",
       import.meta.url,
     ),
   );
@@ -106,7 +106,7 @@ export async function aceAttorneyAssetResponse(
 export async function lobotomyCorpScriptResponse(): Promise<Response> {
   const script = await Deno.readTextFile(
     new URL(
-      "../static/easter-egg/lobotomy-corp/lobotomy-corp.js",
+      "../static/fun/lobotomy-corp/lobotomy-corp.js",
       import.meta.url,
     ),
   );
@@ -126,7 +126,7 @@ export async function lobotomyCorpScriptResponse(): Promise<Response> {
 export async function lobotomyCorpStyleResponse(): Promise<Response> {
   const style = await Deno.readTextFile(
     new URL(
-      "../static/easter-egg/lobotomy-corp/lobotomy-corp.css",
+      "../static/fun/lobotomy-corp/lobotomy-corp.css",
       import.meta.url,
     ),
   );

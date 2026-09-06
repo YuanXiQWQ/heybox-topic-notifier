@@ -19,7 +19,7 @@ Deno.test("Easter egg coordinator interrupts only a different game", async () =>
 
   try {
     await import(
-      `../static/easter-egg/coordinator.js?test=${crypto.randomUUID()}`
+      `../static/fun/coordinator.js?test=${crypto.randomUUID()}`
     );
     const coordinator = browserGlobal.easterEggCoordinator;
     if (!coordinator) {
@@ -69,7 +69,7 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
   });
 
   try {
-    await import("../static/easter-egg/ace-attorney/ace-attorney.js");
+    await import("../static/fun/ace-attorney/ace-attorney.js");
     const api = browserGlobal.usernameEasterEgg;
     if (!api) {
       throw new Error("用户名彩蛋 API 未初始化。");
@@ -380,7 +380,7 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
 
   try {
     await import(
-      `../static/easter-egg/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     const api = browserGlobal.lobotomyCorpEasterEgg;
     if (!api) {
@@ -526,7 +526,7 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
       },
     });
     await import(
-      `../static/easter-egg/lobotomy-corp/lobotomy-corp.js?reload-test=${crypto.randomUUID()}`
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?reload-test=${crypto.randomUUID()}`
     );
     assertEquals(sessionStorage.getItem("warmnest.lobotomy-corp-alert"), null);
     assertEquals(body.children.length, alertOverlayCountBeforeReload);

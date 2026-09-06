@@ -106,30 +106,30 @@ Deno.test({
     const { app } = createApplication();
 
     const coordinatorResponse = await app.request(
-      "/static/easter-egg/coordinator.js",
+      "/static/fun/coordinator.js",
     );
     const scriptResponse = await app.request(
-      "/static/easter-egg/ace-attorney/ace-attorney.js",
+      "/static/fun/ace-attorney/ace-attorney.js",
     );
     const stylesheetResponse = await app.request(
-      "/static/easter-egg/ace-attorney/ace-attorney.css",
+      "/static/fun/ace-attorney/ace-attorney.css",
     );
     const imageResponse = await app.request(
-      "/static/easter-egg/ace-attorney/assets/images/general/zh-CN/igiari.png",
+      "/static/fun/ace-attorney/assets/images/general/zh-CN/igiari.png",
     );
     const subtitleUiResponses = await Promise.all([
-      "/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png",
-      "/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png",
-      "/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png",
-      "/static/easter-egg/ace-attorney/assets/images/general/interjections/zh-CN.png",
-      "/static/easter-egg/ace-attorney/assets/images/general/interjections/zh-TW.png",
-      "/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
+      "/static/fun/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png",
+      "/static/fun/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png",
+      "/static/fun/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png",
+      "/static/fun/ace-attorney/assets/images/general/interjections/zh-CN.png",
+      "/static/fun/ace-attorney/assets/images/general/interjections/zh-TW.png",
+      "/static/fun/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
     ].map((assetPath) => app.request(assetPath)));
     const audioResponse = await app.request(
-      "/static/easter-egg/ace-attorney/assets/sounds/aa123/zh-CN/phoenix-wright/igiari.wav",
+      "/static/fun/ace-attorney/assets/sounds/aa123/zh-CN/phoenix-wright/igiari.wav",
     );
     const soundEffectResponse = await app.request(
-      "/static/easter-egg/ace-attorney/assets/sounds/general/sfx-blipmale.wav",
+      "/static/fun/ace-attorney/assets/sounds/general/sfx-blipmale.wav",
     );
     const script = await scriptResponse.text();
     const coordinator = await coordinatorResponse.text();
@@ -326,16 +326,16 @@ Deno.test({
     const { app } = createApplication();
 
     const scriptResponse = await app.request(
-      "/static/easter-egg/lobotomy-corp/lobotomy-corp.js",
+      "/static/fun/lobotomy-corp/lobotomy-corp.js",
     );
     const stylesheetResponse = await app.request(
-      "/static/easter-egg/lobotomy-corp/lobotomy-corp.css",
+      "/static/fun/lobotomy-corp/lobotomy-corp.css",
     );
     const imageResponse = await app.request(
-      "/static/easter-egg/lobotomy-corp/assets/images/first-trumpet/tr-corner.png",
+      "/static/fun/lobotomy-corp/assets/images/first-trumpet/tr-corner.png",
     );
     const audioResponse = await app.request(
-      "/static/easter-egg/lobotomy-corp/assets/sounds/first-trumpet.wav",
+      "/static/fun/lobotomy-corp/assets/sounds/first-trumpet.wav",
     );
     const script = await scriptResponse.text();
     const stylesheet = await stylesheetResponse.text();
@@ -380,14 +380,14 @@ Deno.test("application auth pages do not load name Easter eggs", async () => {
     false,
   );
   assertEquals(loginHtml.includes("data-username-easter-egg-register"), false);
-  assertEquals(loginHtml.includes("/static/easter-egg/ace-attorney/"), false);
-  assertEquals(loginHtml.includes("/static/easter-egg/lobotomy-corp/"), false);
+  assertEquals(loginHtml.includes("/static/fun/ace-attorney/"), false);
+  assertEquals(loginHtml.includes("/static/fun/lobotomy-corp/"), false);
   assertEquals(
-    registerHtml.includes("/static/easter-egg/ace-attorney/"),
+    registerHtml.includes("/static/fun/ace-attorney/"),
     false,
   );
   assertEquals(
-    registerHtml.includes("/static/easter-egg/lobotomy-corp/"),
+    registerHtml.includes("/static/fun/lobotomy-corp/"),
     false,
   );
 });
