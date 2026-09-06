@@ -163,6 +163,7 @@
   "authMfaRequired": "Conclua a autenticação de dois fatores.",
   "authMfaTitle": "Autenticação de dois fatores",
   "authMfaUnavailable": "A autenticação de dois fatores não está disponível. Contacte um administrador ou utilize outro método de início de sessão.",
+  "authMfaUseRecoveryCode": "Não consegue usar o autenticador?",
   "authMfaVerify": "Concluir verificação",
   "authNavigation": "Navegação de autenticação",
   "authPassword": "Palavra-passe",

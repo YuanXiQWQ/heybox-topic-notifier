@@ -163,6 +163,7 @@
   "authMfaRequired": "Completa l’autenticazione a due fattori.",
   "authMfaTitle": "Autenticazione a due fattori",
   "authMfaUnavailable": "L’autenticazione a due fattori non è disponibile. Contatta un amministratore o usa un altro metodo di accesso.",
+  "authMfaUseRecoveryCode": "Non riesci a usare l'autenticatore?",
   "authMfaVerify": "Completa verifica",
   "authNavigation": "Navigazione autenticazione",
   "authPassword": "Password",

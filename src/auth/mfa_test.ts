@@ -30,26 +30,26 @@ Deno.test("availableSecondFactorMethods derives methods from bound credentials",
     totpCredential: totpCredential(),
   });
 
-  assertEquals(methods, ["email", "totp", "passkey", "recoveryCode"]);
+  assertEquals(methods, ["passkey", "totp", "email", "recoveryCode"]);
 });
 
 Deno.test("allowedSecondFactorMethods excludes the primary credential family", () => {
   const methods = ["email", "passkey", "totp", "recoveryCode"] as const;
 
   assertEquals(allowedSecondFactorMethods(methods, "email"), [
-    "totp",
     "passkey",
+    "totp",
     "recoveryCode",
   ]);
   assertEquals(allowedSecondFactorMethods(methods, "passkey"), [
-    "email",
     "totp",
+    "email",
     "recoveryCode",
   ]);
   assertEquals(allowedSecondFactorMethods(methods, "password"), [
-    "email",
-    "totp",
     "passkey",
+    "totp",
+    "email",
     "recoveryCode",
   ]);
 });
@@ -81,7 +81,7 @@ Deno.test("completePrimaryAuthentication creates a pending MFA challenge", () =>
     throw new Error("Expected MFA challenge.");
   }
   assertEquals(result.challenge, {
-    allowedMethods: ["totp", "email", "passkey"],
+    allowedMethods: ["totp", "passkey", "email"],
     attempts: 0,
     createdAt: "2026-08-01T00:00:00.000Z",
     expiresAt: "2026-08-01T00:02:00.000Z",
@@ -201,7 +201,7 @@ Deno.test("MFA normalizers preserve stable defaults", () => {
     }),
     {
       ...pendingChallenge({
-        allowedMethods: ["email", "passkey"],
+        allowedMethods: ["passkey", "email"],
         attempts: 0,
       }),
       primaryMethod: "password",

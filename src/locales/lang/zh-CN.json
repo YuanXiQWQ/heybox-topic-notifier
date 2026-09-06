@@ -163,6 +163,7 @@
   "authMfaRequired": "请完成双重验证。",
   "authMfaTitle": "双重验证",
   "authMfaUnavailable": "双重验证暂不可用，请联系管理员或改用其他登录方式。",
+  "authMfaUseRecoveryCode": "无法使用验证器？",
   "authMfaVerify": "完成验证",
   "authNavigation": "认证导航",
   "authPassword": "密码",

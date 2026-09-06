@@ -163,6 +163,7 @@
   "authMfaRequired": "İki faktörlü doğrulamayı tamamlayın.",
   "authMfaTitle": "İki faktörlü doğrulama",
   "authMfaUnavailable": "İki faktörlü doğrulama kullanılamıyor. Bir yöneticiyle iletişime geçin veya başka bir giriş yöntemi kullanın.",
+  "authMfaUseRecoveryCode": "Doğrulayıcıyı kullanamıyor musunuz?",
   "authMfaVerify": "Doğrulamayı tamamla",
   "authNavigation": "Kimlik doğrulama gezinmesi",
   "authPassword": "Parola",

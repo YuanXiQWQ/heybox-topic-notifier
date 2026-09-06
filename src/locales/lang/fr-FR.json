@@ -163,6 +163,7 @@
   "authMfaRequired": "Effectuez l’authentification à deux facteurs.",
   "authMfaTitle": "Authentification à deux facteurs",
   "authMfaUnavailable": "L’authentification à deux facteurs n’est pas disponible. Contactez un administrateur ou utilisez une autre méthode de connexion.",
+  "authMfaUseRecoveryCode": "Impossible d’utiliser votre application d’authentification ?",
   "authMfaVerify": "Terminer la vérification",
   "authNavigation": "Navigation d’authentification",
   "authPassword": "Mot de passe",

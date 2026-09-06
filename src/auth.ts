@@ -4542,32 +4542,18 @@ function renderMfaPage(options: {
   selectedMethod?: SecondFactorMethod;
 }): string {
   const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
-  const methodPanels = ([
-    {
-      html: options.challenge.allowedMethods.includes("email")
-        ? renderMfaEmailForm(options)
-        : "",
-      method: "email",
-    },
-    {
-      html: options.challenge.allowedMethods.includes("totp")
-        ? renderMfaTotpForm(options)
-        : "",
-      method: "totp",
-    },
-    {
-      html: options.challenge.allowedMethods.includes("passkey")
-        ? renderMfaPasskeyForm(options)
-        : "",
-      method: "passkey",
-    },
-    {
-      html: options.challenge.allowedMethods.includes("recoveryCode")
-        ? renderMfaRecoveryCodeForm(options)
-        : "",
-      method: "recoveryCode",
-    },
-  ] satisfies Array<{ html: string; method: SecondFactorMethod }>).filter(
+  const methodPanels = options.challenge.allowedMethods.map((method) => {
+    switch (method) {
+      case "email":
+        return { html: renderMfaEmailForm(options), method };
+      case "passkey":
+        return { html: renderMfaPasskeyForm(options), method };
+      case "recoveryCode":
+        return { html: renderMfaRecoveryCodeForm(options), method };
+      case "totp":
+        return { html: renderMfaTotpForm(options), method };
+    }
+  }).filter(
     (panel) => panel.html.length > 0,
   );
   const selectedMethod =
@@ -4575,6 +4561,9 @@ function renderMfaPage(options: {
       ? options.selectedMethod
       : methodPanels[0]?.method;
   const availableMethods = methodPanels.map((panel) => panel.method);
+  const selectableMethods = availableMethods.filter((method) =>
+    method !== "recoveryCode"
+  );
   const languageOptionsHtml = renderMfaLanguageOptions(
     options.challenge.id,
     options.locale,
@@ -4595,159 +4584,183 @@ function renderMfaPage(options: {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.messages.authMfaTitle)}</title>
+    <link rel="icon" href="/favicon.ico" type="image/png">
+    <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    <script src="/static/tooltip.js" defer></script>
     <style>
       body {
-        background: #F6F2FB;
-        color: #21182C;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
       }
 
-      .topbar {
-        align-items: center;
-        display: flex;
-        justify-content: space-between;
-        padding: 20px clamp(20px, 4vw, 48px);
+      .auth-language-icon {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 auto;
       }
 
-      .brand {
-        font-weight: 800;
+      .auth-language-menu {
+        align-self: stretch;
+        position: relative;
       }
 
       .auth-language-button {
         align-items: center;
-        background: #FFFFFF;
-        border: 1px solid #E3D7F2;
-        border-radius: 6px;
+        color: var(--theme-link);
         cursor: pointer;
         display: inline-flex;
-        gap: 6px;
-        padding: 8px 12px;
+        font-weight: 700;
+        gap: 8px;
+        height: 100%;
+        justify-content: center;
+        list-style: none;
+        min-width: 0;
+        padding: 0 16px;
+        user-select: none;
+        white-space: nowrap;
       }
 
-      .auth-language-icon {
-        height: 18px;
-        width: 18px;
+      .auth-language-button:focus {
+        outline: none;
+      }
+
+      .auth-language-button::-webkit-details-marker {
+        display: none;
+      }
+
+      .auth-language-button:hover,
+      .auth-language-button:focus-visible {
+        background: var(--theme-soft);
+        text-decoration: none;
+      }
+
+      .auth-language-button:focus-visible {
+        box-shadow: inset 0 -2px 0 var(--theme-link);
       }
 
       .auth-language-options {
-        background: #FFFFFF;
-        border: 1px solid #E3D7F2;
+        background: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 6px;
+        box-shadow: 0 10px 20px var(--shadow-strong);
         display: grid;
         gap: 2px;
-        margin-top: 6px;
+        min-width: 132px;
+        overflow: hidden;
         padding: 4px;
         position: absolute;
+        inset-inline-end: 0;
+        top: calc(100% + 6px);
         z-index: 1;
       }
 
       .auth-language-options a {
-        color: #21182C;
+        border-radius: 4px;
+        color: var(--ink);
+        display: block;
+        font-size: 0.95rem;
         font-weight: 600;
+        line-height: 1.25;
+        min-height: 0;
         padding: 8px 12px;
+        text-align: center;
         text-decoration: none;
+      }
+
+      .auth-language-options a:hover,
+      .auth-language-options a:focus-visible,
+      .auth-language-options a[aria-current="true"] {
+        background: var(--theme-soft);
       }
 
       .auth-shell {
         display: grid;
-        min-height: calc(100vh - 80px);
         place-items: center;
         padding: 24px;
       }
 
       .auth-panel {
-        background: #FFFFFF;
-        border: 1px solid #E3D7F2;
-        border-radius: 8px;
-        box-shadow: 0 20px 50px rgba(58, 35, 82, 0.12);
         display: grid;
-        gap: 18px;
-        max-width: 420px;
-        padding: 28px;
-        width: min(100%, 420px);
+        gap: 16px;
+        width: min(100%, 360px);
       }
 
       .auth-panel h1 {
-        font-size: 1.6rem;
         margin: 0;
+        font-size: 1.45rem;
       }
 
       .auth-method-title,
       .mfa-method-list {
-        color: #5F526D;
+        color: var(--muted);
         font-size: 0.95rem;
         margin: 0;
       }
 
       .mfa-method-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        border-bottom: 1px solid var(--border);
+        display: grid;
+        grid-template-columns: repeat(var(--mfa-method-count), minmax(0, 1fr));
         list-style: none;
         padding: 0;
       }
 
+      .mfa-method-list li {
+        min-width: 0;
+      }
+
       .mfa-method-link {
-        background: #F6F2FB;
-        border: 1px solid #E3D7F2;
-        border-radius: 6px;
-        color: #4B276F;
+        border-bottom: 2px solid transparent;
+        box-sizing: border-box;
+        color: var(--theme-link);
         display: block;
         font-weight: 700;
-        padding: 6px 10px;
+        margin-bottom: -1px;
+        overflow-wrap: anywhere;
+        padding: 8px 10px;
+        text-align: center;
+        text-decoration: none;
+        width: 100%;
+      }
+
+      .mfa-method-link:hover,
+      .mfa-method-link:focus-visible {
+        background: var(--theme-soft);
         text-decoration: none;
       }
 
       .mfa-method-link[aria-current="true"] {
-        background: #7C3AED;
-        border-color: #7C3AED;
-        color: #FFFFFF;
+        border-color: var(--theme-strong);
+        color: var(--theme-strong);
       }
 
       .auth-panel form {
         display: grid;
-        gap: 14px;
+        gap: 12px;
       }
 
-      label {
+      .auth-panel label {
         display: grid;
         gap: 6px;
         font-weight: 700;
       }
 
-      input,
-      select {
-        border: 1px solid #D8CCE8;
-        border-radius: 6px;
-        font: inherit;
-        padding: 10px 12px;
-      }
-
-      button {
-        background: #7C3AED;
-        border: 0;
-        border-radius: 6px;
-        color: #FFFFFF;
-        cursor: pointer;
-        font: inherit;
-        font-weight: 800;
-        padding: 11px 14px;
-      }
-
-      button.secondary {
-        background: #EFE7FA;
-        color: #4B276F;
-      }
-
       .auth-email-code-row {
-        display: flex;
+        align-items: center;
+        display: grid;
         gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
       }
 
       .auth-email-code-row input {
-        flex: 1;
         min-width: 0;
+      }
+
+      .auth-recovery-link {
+        font-size: 0.9rem;
+        font-weight: 700;
+        justify-self: start;
       }
 
       .auth-passkey-method {
@@ -4760,23 +4773,25 @@ function renderMfaPage(options: {
       }
 
       .auth-passkey-status {
-        color: #5F526D;
-        font-size: 0.92rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        min-height: 18px;
       }
 
       .auth-passkey-status[data-state="error"] {
-        color: #B42318;
+        color: #b42318;
       }
 
       .auth-email-status,
       .auth-error {
-        color: #5F526D;
-        font-size: 0.92rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        min-height: 18px;
       }
 
       .auth-email-status[data-state="error"],
       .auth-error {
-        color: #B42318;
+        color: #b42318;
       }
     </style>
   </head>
@@ -4808,10 +4823,10 @@ function renderMfaPage(options: {
         ${
     renderMfaMethodList({
       challengeId: options.challenge.id,
-      currentMethod: selectedMethod,
+      currentMethod: selectedMethod === "recoveryCode" ? "totp" : selectedMethod,
       locale: options.locale,
       messages: options.messages,
-      methods: availableMethods,
+      methods: selectableMethods,
       returnTo: options.returnTo,
     })
   }
@@ -4828,7 +4843,7 @@ function renderMfaPage(options: {
   }
       </section>
     </main>
-    ${mfaMethodSelectorScript(availableMethods.length > 1)}
+    ${mfaMethodSelectorScript(selectableMethods.length > 1)}
     ${mfaEmailScript(availableMethods.includes("email"), options.locale)}
     ${authPasskeyLoginScript(availableMethods.includes("passkey"))}
   </body>
@@ -4903,7 +4918,7 @@ function renderMfaEmailForm(options: {
                 data-mfa-email-code-input
                 required
               >
-              <button type="button" class="secondary" data-mfa-email-send-code-button>
+              <button type="button" data-mfa-email-send-code-button>
                 ${escapeHtml(options.messages.authEmailSendCode)}
               </button>
             </span>
@@ -4983,6 +4998,7 @@ function renderMfaTotpForm(options: {
   action: string;
   challenge: PendingMfaChallenge;
   csrfToken: string;
+  locale: Locale;
   messages: Messages;
   returnTo: string;
 }): string {
@@ -5011,6 +5027,19 @@ function renderMfaTotpForm(options: {
               data-mfa-totp-code-input
               required
             >
+            ${
+    options.challenge.allowedMethods.includes("recoveryCode")
+      ? `<a
+                class="auth-recovery-link"
+                href="${escapeHtml(mfaPagePath(
+          options.locale,
+          options.challenge.id,
+          options.returnTo,
+          { method: "recoveryCode" },
+        ))}"
+              >${escapeHtml(options.messages.authMfaUseRecoveryCode)}</a>`
+      : ""
+  }
           </label>
           <button type="submit">${
     escapeHtml(options.messages.authMfaVerify)
@@ -5097,6 +5126,7 @@ function renderMfaMethodList(options: {
     class="mfa-method-list"
     aria-label="${escapeHtml(options.messages.authMfaChooseMethod)}"
     data-mfa-method-selector
+    style="--mfa-method-count: ${options.methods.length}"
   >
     ${
     options.methods.map((method) =>

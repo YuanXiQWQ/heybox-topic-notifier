@@ -163,6 +163,7 @@
   "authMfaRequired": "Schließen Sie die Zwei-Faktor-Authentifizierung ab.",
   "authMfaTitle": "Zwei-Faktor-Authentifizierung",
   "authMfaUnavailable": "Die Zwei-Faktor-Authentifizierung ist nicht verfügbar. Wenden Sie sich an einen Administrator oder verwenden Sie eine andere Anmeldemethode.",
+  "authMfaUseRecoveryCode": "Authenticator nicht verfügbar?",
   "authMfaVerify": "Bestätigung abschließen",
   "authNavigation": "Authentifizierungsnavigation",
   "authPassword": "Passwort",

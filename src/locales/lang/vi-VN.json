@@ -163,6 +163,7 @@
   "authMfaRequired": "Hãy hoàn tất xác minh hai yếu tố.",
   "authMfaTitle": "Xác minh hai yếu tố",
   "authMfaUnavailable": "Xác minh hai yếu tố không khả dụng. Hãy liên hệ quản trị viên hoặc dùng phương thức đăng nhập khác.",
+  "authMfaUseRecoveryCode": "Không thể dùng trình xác thực?",
   "authMfaVerify": "Hoàn tất xác minh",
   "authNavigation": "Điều hướng xác thực",
   "authPassword": "Mật khẩu",

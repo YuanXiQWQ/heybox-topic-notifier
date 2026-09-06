@@ -163,6 +163,7 @@
   "authMfaRequired": "দ্বি-ফ্যাক্টর যাচাইকরণ সম্পন্ন করুন।",
   "authMfaTitle": "দ্বি-ফ্যাক্টর যাচাইকরণ",
   "authMfaUnavailable": "দ্বি-ফ্যাক্টর যাচাইকরণ উপলভ্য নয়। প্রশাসকের সঙ্গে যোগাযোগ করুন অথবা অন্য লগইন পদ্ধতি ব্যবহার করুন।",
+  "authMfaUseRecoveryCode": "অথেনটিকেটর ব্যবহার করতে পারছেন না?",
   "authMfaVerify": "যাচাইকরণ সম্পন্ন করুন",
   "authNavigation": "authentication navigation",
   "authPassword": "password",
