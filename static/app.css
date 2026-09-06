@@ -931,8 +931,30 @@ input[readonly]::placeholder {
   margin-inline-start: auto;
 }
 
+.auth-turnstile,
+.settings-turnstile {
+  max-height: 90px;
+  overflow: hidden;
+  transition:
+    margin-top 280ms ease,
+    max-height 280ms ease,
+    min-height 280ms ease,
+    opacity 220ms ease,
+    transform 280ms ease;
+}
+
 .settings-turnstile {
   margin-top: 12px;
+}
+
+.auth-turnstile[data-turnstile-collapsing="true"],
+.settings-turnstile[data-turnstile-collapsing="true"] {
+  margin-top: 0;
+  max-height: 0;
+  min-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
 }
 
 .account-mode-buttons {

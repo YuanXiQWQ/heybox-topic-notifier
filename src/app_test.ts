@@ -105,30 +105,34 @@ Deno.test({
   fn: async () => {
     const { app } = createApplication();
 
+    const coordinatorResponse = await app.request(
+      "/static/fun/coordinator.js",
+    );
     const scriptResponse = await app.request(
-      "/static/easter-egg/ace-attorney/ace-attorney.js",
+      "/static/fun/ace-attorney/ace-attorney.js",
     );
     const stylesheetResponse = await app.request(
-      "/static/easter-egg/ace-attorney/ace-attorney.css",
+      "/static/fun/ace-attorney/ace-attorney.css",
     );
     const imageResponse = await app.request(
-      "/static/easter-egg/ace-attorney/assets/images/general/zh-CN/igiari.png",
+      "/static/fun/ace-attorney/assets/images/general/zh-CN/igiari.png",
     );
     const subtitleUiResponses = await Promise.all([
-      "/static/easter-egg/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png",
-      "/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png",
-      "/static/easter-egg/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png",
-      "/static/easter-egg/ace-attorney/assets/images/general/interjections/zh-CN.png",
-      "/static/easter-egg/ace-attorney/assets/images/general/interjections/zh-TW.png",
-      "/static/easter-egg/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
+      "/static/fun/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png",
+      "/static/fun/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png",
+      "/static/fun/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png",
+      "/static/fun/ace-attorney/assets/images/general/interjections/zh-CN.png",
+      "/static/fun/ace-attorney/assets/images/general/interjections/zh-TW.png",
+      "/static/fun/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
     ].map((assetPath) => app.request(assetPath)));
     const audioResponse = await app.request(
-      "/static/easter-egg/ace-attorney/assets/sounds/aa123/zh-CN/phoenix-wright/igiari.wav",
+      "/static/fun/ace-attorney/assets/sounds/aa123/zh-CN/phoenix-wright/igiari.wav",
     );
     const soundEffectResponse = await app.request(
-      "/static/easter-egg/ace-attorney/assets/sounds/general/sfx-blipmale.wav",
+      "/static/fun/ace-attorney/assets/sounds/general/sfx-blipmale.wav",
     );
     const script = await scriptResponse.text();
+    const coordinator = await coordinatorResponse.text();
     const normalizedScript = script.replaceAll("\r\n", "\n");
     const stylesheet = await stylesheetResponse.text();
     const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
@@ -136,6 +140,8 @@ Deno.test({
       await soundEffectResponse.arrayBuffer(),
     );
 
+    assertEquals(coordinatorResponse.status, 200);
+    assertEquals(coordinator.includes("previousEasterEgg?.stop()"), true);
     assertEquals(scriptResponse.status, 200);
     assertEquals(
       script.includes("phoenixWright"),
@@ -312,7 +318,168 @@ Deno.test({
   },
 });
 
-Deno.test("application register page enables name Easter eggs", async () => {
+Deno.test({
+  name:
+    "application exposes Lobotomy Corporation alert resources without authentication",
+  permissions: { env: true, read: true },
+  fn: async () => {
+    const { app } = createApplication();
+
+    const scriptResponse = await app.request(
+      "/static/fun/lobotomy-corp/lobotomy-corp.js",
+    );
+    const stylesheetResponse = await app.request(
+      "/static/fun/lobotomy-corp/lobotomy-corp.css",
+    );
+    const audioResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/AudioClip/first-trumpet.wav",
+    );
+    const fontResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Font/norwester.otf",
+    );
+    const panelFontResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Font/BMDOHYEON.ttf",
+    );
+    const restartFontResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Font/norwester_new.ttf",
+    );
+    const russianRestartFontResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Font/norwester_ru.ttf",
+    );
+    const triangleResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Sprite/Triangle_1.png",
+    );
+    const riskResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Sprite/Risk_3.png",
+    );
+    const endButtonResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Sprite/End_1.png",
+    );
+    const valveResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Sprite/Valve.png",
+    );
+    const script = await scriptResponse.text();
+    const stylesheet = await stylesheetResponse.text();
+    const frameOutterRule = stylesheet.match(
+      /\.lobotomy-corp-top-panel-frame-outter\s*\{[^}]+\}/u,
+    )?.[0] ?? "";
+    const restartButtonRule = stylesheet.match(
+      /button\.lobotomy-corp-top-panel-action-button\s*\{[^}]+\}/u,
+    )?.[0] ?? "";
+    const restartButtonPressedRule = stylesheet.match(
+      /button\.lobotomy-corp-top-panel-action-button:active:not\(:disabled\)\s*\{[^}]+\}/u,
+    )?.[0] ?? "";
+    const audioBytes = new Uint8Array(await audioResponse.arrayBuffer());
+
+    assertEquals(scriptResponse.status, 200);
+    assertEquals(script.includes("firsttrumpet"), true);
+    assertEquals(script.includes("/[\\s-]+/gu"), true);
+    assertEquals(script.includes("lobotomy-corp-top-panel"), true);
+    assertEquals(script.includes("lobotomy-corp-alert-close"), false);
+    assertEquals(script.includes("lobotomyCorpRestartDay"), true);
+    assertEquals(script.includes('textContent = "结束警报"'), false);
+    assertEquals(script.includes("脑叶公司警报控制面板"), false);
+    assertEquals(script.includes("[0, 234, 219]"), true);
+    assertEquals(script.includes("[5, 174, 164]"), true);
+    assertEquals(
+      script.includes('addEventListener("click", finishAlert)'),
+      false,
+    );
+    assertEquals(
+      script.includes('addEventListener("ended", finishAlert)'),
+      false,
+    );
+    assertEquals(stylesheetResponse.status, 200);
+    assertEquals(stylesheet.includes("pointer-events: none"), true);
+    assertEquals(
+      stylesheet.includes("LobotomyNorwester"),
+      true,
+    );
+    assertEquals(stylesheet.includes("cubic-bezier(0.333333, 0,"), true);
+    assertEquals(stylesheet.includes("opacity: 0.4"), true);
+    assertEquals(stylesheet.includes("opacity: 0.8"), true);
+    assertEquals(stylesheet.includes("LobotomyRestartTitle"), true);
+    assertEquals(stylesheet.includes("LobotomyRestartTitleKorean"), true);
+    assertEquals(stylesheet.includes("LobotomyRestartTitleRussian"), true);
+    assertEquals(stylesheet.includes("Risk_Frame_Outter.png"), true);
+    assertEquals(script.includes("End_1.png"), true);
+    assertEquals(stylesheet.includes("background-blend-mode"), false);
+    assertEquals(stylesheet.includes("background: transparent"), true);
+    assertEquals(stylesheet.includes("border-radius: 0"), true);
+    assertEquals(stylesheet.includes("box-shadow: none"), true);
+    assertEquals(stylesheet.includes("font-weight: normal"), true);
+    assertEquals(stylesheet.includes("min-height: 0"), true);
+    assertEquals(frameOutterRule.includes("height: 188px"), true);
+    assertEquals(frameOutterRule.includes("width: 887px"), true);
+    assertEquals(restartButtonRule.includes("height: 109px"), true);
+    assertEquals(restartButtonRule.includes("width: 812px"), true);
+    assertEquals(restartButtonRule.includes("left: 50%"), true);
+    assertEquals(restartButtonRule.includes("top: 50%"), true);
+    assertEquals(
+      restartButtonRule.includes(
+        "--lobotomy-corp-restart-anchored-position-x: -2.5px",
+      ),
+      true,
+    );
+    assertEquals(
+      restartButtonRule.includes(
+        "--lobotomy-corp-restart-anchored-position-y: 12px",
+      ),
+      true,
+    );
+    assertEquals(
+      restartButtonRule.includes(
+        "calc(-50% + var(--lobotomy-corp-restart-anchored-position-x))",
+      ),
+      true,
+    );
+    assertEquals(
+      restartButtonRule.includes(
+        "calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))",
+      ),
+      true,
+    );
+    assertEquals(
+      restartButtonPressedRule.includes(
+        "--lobotomy-corp-restart-anchored-position-y: 5px",
+      ),
+      true,
+    );
+    assertEquals(stylesheet.includes("top: 52px"), false);
+    assertEquals(stylesheet.includes("top: 45px"), false);
+    assertEquals(stylesheet.includes("calc(50% - 408.5px)"), false);
+    assertEquals(
+      stylesheet.includes(
+        "button.lobotomy-corp-top-panel-action-button:hover:not(:disabled)",
+      ),
+      true,
+    );
+    assertEquals(stylesheet.includes("lobotomy-corp-top-panel-appear"), true);
+    assertEquals(stylesheet.includes("clamp(96px, 19vmin, 495px)"), false);
+    assertEquals(stylesheet.includes("rotate(90deg)"), false);
+    assertEquals(stylesheet.includes("rotate(180deg)"), false);
+    assertEquals(audioResponse.status, 200);
+    assertEquals(audioResponse.headers.get("content-type"), "audio/wav");
+    assertEquals(new TextDecoder().decode(audioBytes.slice(0, 4)), "RIFF");
+    assertEquals(fontResponse.status, 200);
+    assertEquals(fontResponse.headers.get("content-type"), "font/otf");
+    assertEquals(panelFontResponse.status, 200);
+    assertEquals(panelFontResponse.headers.get("content-type"), "font/ttf");
+    assertEquals(restartFontResponse.status, 200);
+    assertEquals(restartFontResponse.headers.get("content-type"), "font/ttf");
+    assertEquals(russianRestartFontResponse.status, 200);
+    assertEquals(
+      russianRestartFontResponse.headers.get("content-type"),
+      "font/ttf",
+    );
+    assertEquals(triangleResponse.headers.get("content-type"), "image/png");
+    assertEquals(riskResponse.headers.get("content-type"), "image/png");
+    assertEquals(endButtonResponse.headers.get("content-type"), "image/png");
+    assertEquals(valveResponse.headers.get("content-type"), "image/png");
+  },
+});
+
+Deno.test("application auth pages do not load name Easter eggs", async () => {
   const { app } = createApplication();
 
   const registerResponse = await app.request("/register");
@@ -320,28 +487,21 @@ Deno.test("application register page enables name Easter eggs", async () => {
   const registerHtml = await registerResponse.text();
   const loginHtml = await loginResponse.text();
 
-  assertEquals(
-    registerHtml.includes(
-      "/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path",
-    ),
-    true,
-  );
-  assertEquals(
-    registerHtml.includes(
-      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",
-    ),
-    true,
-  );
+  assertEquals(registerHtml.includes('name="displayName"'), false);
+  assertEquals(registerHtml.includes("显示名称"), false);
   assertEquals(
     registerHtml.includes("data-username-easter-egg-register"),
-    true,
-  );
-  assertEquals(registerHtml.includes('name="displayName"'), true);
-  assertEquals(
-    registerHtml.includes('name="displayName" autocomplete="name" required'),
     false,
   );
-  assertEquals(registerHtml.includes("显示名称"), true);
   assertEquals(loginHtml.includes("data-username-easter-egg-register"), false);
-  assertEquals(loginHtml.includes("/static/easter-egg/ace-attorney/"), false);
+  assertEquals(loginHtml.includes("/static/fun/ace-attorney/"), false);
+  assertEquals(loginHtml.includes("/static/fun/lobotomy-corp/"), false);
+  assertEquals(
+    registerHtml.includes("/static/fun/ace-attorney/"),
+    false,
+  );
+  assertEquals(
+    registerHtml.includes("/static/fun/lobotomy-corp/"),
+    false,
+  );
 });

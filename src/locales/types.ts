@@ -79,6 +79,14 @@ export function isRtlLocale(locale: Locale): boolean {
  */
 export type Messages = {
   appName: string;
+  /**
+   * 邮箱验证码邮件主题模板，可使用 {appName} 和 {emailCodeLabel} 占位符。
+   */
+  emailVerificationEmailSubjectTemplate?: string;
+  /**
+   * 邮箱验证码邮件正文模板，可使用 {appName}、{emailCodeLabel}、{code} 和 {expiresIn} 占位符。
+   */
+  emailVerificationEmailTextTemplate?: string;
   accountConfirmPassword: string;
   accountCurrentPassword: string;
   accountCancel: string;
@@ -282,6 +290,7 @@ export type Messages = {
   lastPoll: string;
   latestMatch: string;
   locale: string;
+  lobotomyCorpRestartDay: string;
   matchBody: string;
   matchComments: string;
   matchDetailKeyword: string;

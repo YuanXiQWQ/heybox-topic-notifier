@@ -259,7 +259,7 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path" defer></script>
+    <script src="/static/fun/ace-attorney/ace-attorney.js?v=20260905-cross-game-interruption" defer></script>
     <script src="/static/settings.js?v=20260904-display-name" defer></script>
   `;
 
@@ -269,7 +269,7 @@ export function renderSettings(options: {
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
     stylesheets: [
-      "/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",
+      "/static/fun/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",
     ],
     themeColor: options.settings.themeColor,
     title: messages.appName,
@@ -559,6 +559,7 @@ function renderAccountSection(
       data-account-password-verified="${
     escapeHtml(messages.accountPasswordVerified)
   }"
+      data-account-updated="${escapeHtml(messages.accountUpdated)}"
       data-account-passkey-failed="${escapeHtml(messages.accountReauthFailed)}"
       data-account-passkey-pending="${
     escapeHtml(messages.accountReauthPasskeyVerifying)
@@ -1223,6 +1224,7 @@ function renderGoogleUnbindForm(
     class="auth-method-action-form"
     method="post"
     action="${localizedAccountPath("/account/google/unbind", locale)}"
+    data-google-unbind-form
   >
     ${csrfHiddenInput(csrfToken)}
     <input
@@ -2766,7 +2768,56 @@ function verifiedEmailCredentials(
  */
 function turnstileScriptHtml(siteKey: string | undefined): string {
   return siteKey
-    ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+    ? `<script>
+/**
+ * 在 Turnstile 验证成功后，待成功动画展示完毕再平滑收起组件。
+ */
+globalThis.collapseTurnstileWidget = () => {
+  const turnstileSuccessDisplayMs = 1800;
+  const turnstileCollapseAnimationMs = 280;
+
+  for (const widget of document.querySelectorAll(".cf-turnstile")) {
+    const response = widget.querySelector("input[name='${turnstileResponseFieldName}']");
+    if (response instanceof HTMLInputElement && response.value.trim()) {
+      widget.dataset.turnstileComplete = "true";
+
+      /**
+       * 在成功提示停留后启动当前组件的收起动画。
+       */
+      const startCollapse = () => {
+        if (widget.dataset.turnstileComplete !== "true") return;
+
+        widget.dataset.turnstileCollapsing = "true";
+
+        /**
+         * 在收起过渡结束后从页面布局中移除当前组件。
+         */
+        const finishCollapse = () => {
+          if (widget.dataset.turnstileComplete === "true") {
+            widget.hidden = true;
+          }
+        };
+
+        window.setTimeout(finishCollapse, turnstileCollapseAnimationMs);
+      };
+
+      window.setTimeout(startCollapse, turnstileSuccessDisplayMs);
+    }
+  }
+};
+
+/**
+ * 在需要重新进行 Turnstile 验证时恢复组件显示。
+ */
+globalThis.revealTurnstileWidgets = () => {
+  for (const widget of document.querySelectorAll(".cf-turnstile")) {
+    delete widget.dataset.turnstileComplete;
+    delete widget.dataset.turnstileCollapsing;
+    widget.hidden = false;
+  }
+};
+</script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
     : "";
 }
 
@@ -2794,7 +2845,7 @@ function turnstileWidgetHtml(siteKey: string | undefined): string {
       escapeHtml(siteKey)
     }" data-response-field-name="${
       escapeHtml(turnstileResponseFieldName)
-    }"></div>`
+    }" data-callback="collapseTurnstileWidget" data-expired-callback="revealTurnstileWidgets" data-error-callback="revealTurnstileWidgets"></div>`
     : "";
 }
 

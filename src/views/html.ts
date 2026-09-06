@@ -56,6 +56,9 @@ export function renderLayout(options: {
   lang="${options.locale}"
   dir="${direction}"
   data-color-mode="${options.darkMode ? "dark" : "light"}"
+  data-lobotomy-corp-restart-day="${
+    escapeHtml(messages.lobotomyCorpRestartDay)
+  }"
   style="--theme-color: ${escapeHtml(options.themeColor)}"
 >
   <head>
@@ -64,8 +67,11 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-restart-button-layout">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
+    <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
+    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-restart-panel-fixes" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>

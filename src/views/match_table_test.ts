@@ -283,11 +283,27 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/easter-egg/ace-attorney/ace-attorney.js?v=20260905-general-image-path`,
+    `/static/fun/ace-attorney/ace-attorney.js?v=20260905-cross-game-interruption`,
   );
   assertIncludes(
     html,
-    `/static/easter-egg/ace-attorney/ace-attorney.css?v=20260905-investigations-corners`,
+    `/static/fun/ace-attorney/ace-attorney.css?v=20260905-investigations-corners`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/coordinator.js?v=20260905-cross-game-interruption`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-restart-panel-fixes`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-restart-button-layout`,
+  );
+  assertIncludes(
+    html,
+    `data-lobotomy-corp-restart-day="重新开始这一天"`,
   );
   assertIncludes(html, `data-username-easter-egg-settings`);
 });
@@ -553,6 +569,9 @@ Deno.test("renderSettings renders email binding controls and verified email stat
   assertBefore(html, `data-email-summary-row`, `data-email-code-row`);
   assertIncludes(html, `class="settings-turnstile cf-turnstile"`);
   assertIncludes(html, `data-response-field-name="cf-turnstile-response"`);
+  assertIncludes(html, `data-callback="collapseTurnstileWidget"`);
+  assertIncludes(html, `turnstileSuccessDisplayMs = 1800`);
+  assertIncludes(html, `data-expired-callback="revealTurnstileWidgets"`);
   assertIncludes(
     html,
     `https://challenges.cloudflare.com/turnstile/v0/api.js`,
@@ -978,6 +997,7 @@ Deno.test("renderSettings renders Google unbind as an icon action", () => {
   });
 
   assertIncludes(html, `action="/account/google/unbind?locale=zh-CN"`);
+  assertIncludes(html, `data-google-unbind-form`);
   assertIncludes(html, `class="auth-method-toggle-button"`);
   assertIncludes(html, `aria-label="解绑"`);
   assertIncludes(html, `data-tooltip="解绑"`);

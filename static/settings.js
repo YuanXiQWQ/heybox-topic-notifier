@@ -132,6 +132,7 @@ function initSettingsEditors() {
   initRecoveryCodeGeneration();
   initPasskeyBinding();
   initGoogleBinding();
+  initGoogleUnbindForms();
   initSensitiveActionForms();
   initReauth();
   initSecuritySettingsAutoSave();
@@ -361,6 +362,32 @@ async function refreshPasskeySettings(url) {
   initSensitiveActionForms(nextSection);
   initReauth(nextSection);
   initSecuritySettingsAutoSave();
+  return true;
+}
+
+/**
+ * 原地同步 Google 登录方式设置行并重新绑定交互。
+ *
+ * @param {string} url 最新设置页地址。
+ * @return {Promise<boolean>} Google 设置行更新成功时返回 true。
+ */
+async function refreshGoogleSettings(url) {
+  const parsed = await fetchSettingsDocument(url);
+  const currentRow = document.querySelector("#auth-method-google");
+  const nextRow = parsed.querySelector("#auth-method-google");
+  if (
+    !(currentRow instanceof HTMLElement) || !(nextRow instanceof HTMLElement)
+  ) {
+    return false;
+  }
+
+  currentRow.replaceWith(nextRow);
+  pendingSensitiveActionForm = undefined;
+  initRenderedSuccessStatuses(nextRow);
+  initAuthMethodPanels(nextRow);
+  initGoogleBinding(nextRow);
+  initGoogleUnbindForms(nextRow);
+  initReauth(nextRow);
   return true;
 }
 
@@ -889,6 +916,10 @@ function initSecretEditors() {
     });
 
     input.addEventListener("keydown", (event) => {
+      if (event.key === "Tab") {
+        input.dataset.secretEditButtonSkipped = "true";
+      }
+
       if (event.key === "Enter") {
         event.preventDefault();
         input.blur();
@@ -906,6 +937,7 @@ function unlockSecretEditor(input) {
   input.readOnly = false;
   input.type = "password";
   input.value = "";
+  setSecretEditButtonTabStop(input, false);
   input.focus();
 }
 
@@ -947,11 +979,44 @@ function lockSecretEditorAfterEdit(input) {
  * @param {number} maskLength 遮罩点数量。
  */
 function lockSecretDisplay(input, maskLength) {
+  const restoreEditButtonAfterFocusMove =
+    input.dataset.secretEditButtonSkipped === "true";
+  delete input.dataset.secretEditButtonSkipped;
   const normalizedLength = normalizedSecretMaskLength(maskLength);
   input.type = "text";
   input.value = secretMask(normalizedLength);
   input.dataset.secretMaskLength = String(normalizedLength);
   input.readOnly = true;
+  if (!restoreEditButtonAfterFocusMove) {
+    setSecretEditButtonTabStop(input, true);
+    return;
+  }
+
+  // 等待浏览器完成本次 Tab 的默认焦点移动，再恢复编辑按钮。
+  setTimeout(() => setSecretEditButtonTabStop(input, true), 0);
+}
+
+/**
+ * 设置敏感令牌编辑按钮是否参与顺序焦点导航。
+ *
+ * 编辑时跳过该按钮，避免用户按 Tab 后再按 Enter 意外清空刚输入的令牌。
+ *
+ * @param {HTMLInputElement} input 敏感令牌展示输入框。
+ * @param {boolean} focusable 编辑按钮是否可通过 Tab 聚焦。
+ */
+function setSecretEditButtonTabStop(input, focusable) {
+  const button = input.closest("[data-secret-editor]")?.querySelector(
+    "[data-secret-edit-button]",
+  );
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  if (focusable) {
+    button.removeAttribute("tabindex");
+  } else {
+    button.tabIndex = -1;
+  }
 }
 
 /**
@@ -1204,6 +1269,7 @@ function initAccountSettings() {
   const actions = form.querySelector("[data-account-actions]");
   const saveButton = form.querySelector("[data-account-save-button]");
   const cancelButton = form.querySelector("[data-account-cancel-button]");
+  const modeButtons = Array.from(form.querySelectorAll("[data-account-mode]"));
   const actionStatus = form.querySelector("[data-account-status]");
   const fieldStatuses = Array.from(
     form.querySelectorAll(".account-field-status"),
@@ -1236,6 +1302,7 @@ function initAccountSettings() {
 
   actionInput.value = mode;
   lockAccountTargets();
+  syncAccountEditorTabStops();
   setCurrentPasswordInputEnabled(!currentPasswordRow.hidden);
   if (mode === "displayName" || mode && reauthVerified) {
     setCurrentPasswordInputEnabled(false);
@@ -1389,18 +1456,28 @@ function initAccountSettings() {
       return;
     }
 
-    const easterEggInput = mode === "username"
-      ? usernameInput
-      : mode === "displayName"
+    const easterEggInput = mode === "displayName"
       ? displayNameInput
       : undefined;
+    const easterEgg = [
+      globalThis.usernameEasterEgg,
+      globalThis.lobotomyCorpEasterEgg,
+    ].find((candidate) => candidate?.matches(easterEggInput?.value || ""));
     if (
       easterEggInput &&
       form.dataset.usernameEasterEggApproved !== "true" &&
-      globalThis.usernameEasterEgg?.matches(easterEggInput.value)
+      easterEgg
     ) {
       event.preventDefault();
-      void globalThis.usernameEasterEgg.activate(easterEggInput.value, mode)
+      if (easterEgg.submitsWhileActive === true) {
+        void submitAccountWhileLobotomyCorpAlertIsActive(
+          easterEgg,
+          easterEggInput,
+        );
+        return;
+      }
+
+      void easterEgg.activate(easterEggInput.value, mode)
         .then(
           (approved) => {
             if (!approved) {
@@ -1418,6 +1495,67 @@ function initAccountSettings() {
 
     delete form.dataset.usernameEasterEggApproved;
   });
+
+  /**
+   * 在脑叶公司警报展示期间以后台请求保存账户设置，避免跳转页面销毁警报。
+   *
+   * @param {{activate: (value: string) => Promise<boolean>}} easterEgg 当前命中的彩蛋。
+   * @param {HTMLInputElement} easterEggInput 触发彩蛋的账户输入框。
+   * @return {Promise<void>} 保存流程结束时完成。
+   */
+  async function submitAccountWhileLobotomyCorpAlertIsActive(
+    easterEgg,
+    easterEggInput,
+  ) {
+    if (form.dataset.lobotomyCorpAlertSaving === "true") {
+      return;
+    }
+
+    form.dataset.lobotomyCorpAlertSaving = "true";
+    saveButton.disabled = true;
+    // 在点击保存的同步调用栈中启动音频，避免浏览器丢失用户手势许可。
+    void easterEgg.activate(easterEggInput.value);
+
+    try {
+      const response = await fetch(form.action, {
+        body: formDataFromForm(form),
+        headers: csrfRequestHeaders(),
+        method: form.method || "post",
+      });
+      const responseUrl = new URL(response.url, globalThis.location.href);
+      const saved = response.ok &&
+        responseUrl.pathname === "/settings" &&
+        responseUrl.searchParams.get("account") === "updated";
+      if (!saved) {
+        globalThis.location.assign(responseUrl.href);
+        return;
+      }
+
+      if (mode === "username") {
+        usernameInput.dataset.accountUsernameOriginal = usernameInput.value;
+      } else if (mode === "displayName") {
+        displayNameInput.dataset.accountDisplayNameOriginal =
+          displayNameInput.value;
+      }
+      resetAccountEditor();
+      globalThis.history.replaceState(
+        null,
+        "",
+        `${responseUrl.pathname}${responseUrl.search}`,
+      );
+      setInlineStatus(
+        actionStatus,
+        form.dataset.accountUpdated || "",
+        "success",
+        true,
+      );
+    } catch {
+      setInlineStatus(actionStatus, "", "error");
+      saveButton.disabled = false;
+    } finally {
+      delete form.dataset.lobotomyCorpAlertSaving;
+    }
+  }
 
   /**
    * 选择账户编辑模式，并按来源决定是否定位到账户区。
@@ -1451,6 +1589,7 @@ function initAccountSettings() {
     setCurrentPasswordInputEnabled(false);
     cancelAccountPasskeyReauth();
     lockAccountTargets();
+    syncAccountEditorTabStops();
     showAccountElement(actions, true, ++transitionToken);
     hideAccountElement(currentPasswordRow, false, ++transitionToken);
     hideAccountElement(passkeyReauthRow, false, ++transitionToken);
@@ -1505,6 +1644,9 @@ function initAccountSettings() {
     passwordFallbackButton.hidden = true;
   }
 
+  /**
+   * 重置账户编辑器，并恢复默认顺序焦点导航。
+   */
   function resetAccountEditor() {
     mode = "";
     reauthVerified = form.dataset.accountRecentlyVerified === "true";
@@ -1519,6 +1661,7 @@ function initAccountSettings() {
     clearUnlockedPasswordFields();
     clearAllAccountStatuses();
     lockAccountTargets();
+    syncAccountEditorTabStops();
     cancelCurrentPasswordVerification();
     cancelAccountPasskeyReauth();
     hideAccountElement(actions, true, ++transitionToken);
@@ -1583,6 +1726,32 @@ function initAccountSettings() {
     }
 
     saveButton.disabled = false;
+    syncAccountEditorTabStops();
+  }
+
+  /**
+   * 同步账户编辑状态下的顺序焦点导航。
+   *
+   * 编辑时只保留当前可编辑字段、保存和取消按钮，避免 Tab 进入会重置输入的编辑按钮。
+   */
+  function syncAccountEditorTabStops() {
+    [usernameInput, displayNameInput].forEach((input) => {
+      if (mode && input.readOnly) {
+        input.tabIndex = -1;
+      } else {
+        input.removeAttribute("tabindex");
+      }
+    });
+
+    modeButtons.forEach((button) => {
+      if (button instanceof HTMLButtonElement) {
+        if (mode) {
+          button.tabIndex = -1;
+        } else {
+          button.removeAttribute("tabindex");
+        }
+      }
+    });
   }
 
   /**
@@ -2472,6 +2641,7 @@ function initEmailBinding() {
   function openEmailBindingEditor() {
     collapseOtherAuthEditors();
     emailInput.readOnly = false;
+    syncEmailBindingEditorTabStops();
     showEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
     emailInput.closest(".auth-method-row")?.classList.add("is-open");
     emailInput.focus();
@@ -2483,6 +2653,7 @@ function initEmailBinding() {
    */
   function resetEmailBindingEditor() {
     emailInput.readOnly = true;
+    syncEmailBindingEditorTabStops();
     emailInput.value = emailInput.dataset.emailBindingOriginal ||
       emailInput.value;
     codeInput.value = "";
@@ -2492,6 +2663,19 @@ function initEmailBinding() {
     clearInlineStatus(verifyStatus);
     hideEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
     emailInput.closest(".auth-method-row")?.classList.remove("is-open");
+  }
+
+  /**
+   * 同步邮箱编辑状态下的顺序焦点导航。
+   *
+   * 编辑时跳过会重置邮箱值的编辑按钮，让 Tab 直接进入验证码输入框。
+   */
+  function syncEmailBindingEditorTabStops() {
+    if (emailInput.readOnly) {
+      editButton.removeAttribute("tabindex");
+    } else {
+      editButton.tabIndex = -1;
+    }
   }
 
   /**
@@ -2789,9 +2973,11 @@ function initPasskeyBinding(scope = document) {
 
 /**
  * 初始化 Google 绑定按钮。
+ *
+ * @param {ParentNode} [scope] 查找范围。
  */
-function initGoogleBinding() {
-  const roots = document.querySelectorAll("[data-google-binding]");
+function initGoogleBinding(scope = document) {
+  const roots = scope.querySelectorAll("[data-google-binding]");
   roots.forEach((root) => {
     if (root instanceof HTMLElement) {
       initGoogleBindingRoot(root, 0);
@@ -2833,15 +3019,7 @@ function initGoogleBindingRoot(root, attempt) {
 
   googleIdentity.initialize({
     callback: (response) => {
-      const credential = response?.credential;
-      if (typeof credential !== "string" || !credential.trim()) {
-        setInlineStatus(status, root.dataset.googleFailed || "", "error");
-        return;
-      }
-
-      credentialInput.value = credential;
-      setInlineStatus(status, root.dataset.googleBinding || "", "pending");
-      form.submit();
+      void submitGoogleBinding(root, form, credentialInput, status, response);
     },
     client_id: clientId,
   });
@@ -2852,6 +3030,115 @@ function initGoogleBindingRoot(root, attempt) {
     theme: "outline",
     type: "standard",
   });
+}
+
+/**
+ * 原地提交 Google credential 并同步 Google 设置行。
+ *
+ * @param {HTMLElement} root Google 绑定区域。
+ * @param {HTMLFormElement} form Google credential 表单。
+ * @param {HTMLInputElement} credentialInput Google credential 输入框。
+ * @param {Element|null} status 状态提示元素。
+ * @param {unknown} response Google Identity Services 响应。
+ * @return {Promise<void>} 绑定请求完成后的 Promise。
+ */
+async function submitGoogleBinding(
+  root,
+  form,
+  credentialInput,
+  status,
+  response,
+) {
+  if (root.dataset.googleBindingPending === "true") {
+    return;
+  }
+
+  const credential = response?.credential;
+  if (typeof credential !== "string" || !credential.trim()) {
+    setInlineStatus(status, root.dataset.googleFailed || "", "error");
+    return;
+  }
+
+  root.dataset.googleBindingPending = "true";
+  credentialInput.value = credential;
+  setInlineStatus(status, root.dataset.googleBinding || "", "pending");
+
+  try {
+    const bindingResponse = await fetch(form.action, {
+      body: formDataFromForm(form),
+      headers: csrfRequestHeaders(),
+      method: form.method || "post",
+    });
+    if (
+      !bindingResponse.ok || !await refreshGoogleSettings(bindingResponse.url)
+    ) {
+      throw new Error("Could not update Google binding.");
+    }
+  } catch {
+    setInlineStatus(status, root.dataset.googleFailed || "", "error");
+  } finally {
+    delete root.dataset.googleBindingPending;
+  }
+}
+
+/**
+ * 初始化 Google 解绑表单，避免提交后重载整个设置页。
+ *
+ * @param {ParentNode} [scope] 查找范围。
+ */
+function initGoogleUnbindForms(scope = document) {
+  scope.querySelectorAll("[data-google-unbind-form]").forEach((form) => {
+    if (
+      !(form instanceof HTMLFormElement) ||
+      form.dataset.googleUnbindInitialized === "true"
+    ) {
+      return;
+    }
+
+    form.dataset.googleUnbindInitialized = "true";
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submitGoogleUnbind(form);
+    });
+  });
+}
+
+/**
+ * 原地提交 Google 解绑请求并同步 Google 设置行。
+ *
+ * @param {HTMLFormElement} form Google 解绑表单。
+ * @return {Promise<void>} 解绑请求完成后的 Promise。
+ */
+async function submitGoogleUnbind(form) {
+  if (form.dataset.googleUnbindPending === "true") {
+    return;
+  }
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  form.dataset.googleUnbindPending = "true";
+  if (submitButton instanceof HTMLButtonElement) {
+    submitButton.disabled = true;
+  }
+
+  try {
+    const unbindResponse = await fetch(form.action, {
+      body: formDataFromForm(form),
+      headers: csrfRequestHeaders(),
+      method: form.method || "post",
+    });
+    if (
+      !unbindResponse.ok || !await refreshGoogleSettings(unbindResponse.url)
+    ) {
+      throw new Error("Could not update Google binding.");
+    }
+  } catch {
+    // 保留当前设置行，使用户可以重试解绑操作。
+  } finally {
+    delete form.dataset.googleUnbindPending;
+    if (submitButton instanceof HTMLButtonElement) {
+      submitButton.disabled = false;
+    }
+  }
 }
 
 /**
@@ -3931,6 +4218,10 @@ function emailBindingErrorMessage(form, error) {
  * 重置 Turnstile widget，便于用户再次发送验证码。
  */
 function resetTurnstileWidget() {
+  if (typeof globalThis.revealTurnstileWidgets === "function") {
+    globalThis.revealTurnstileWidgets();
+  }
+
   const turnstile = globalThis.turnstile;
   if (turnstile && typeof turnstile.reset === "function") {
     turnstile.reset();

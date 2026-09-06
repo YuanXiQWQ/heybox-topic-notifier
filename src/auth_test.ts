@@ -207,6 +207,12 @@ Deno.test("auth routes render Turnstile widget when enabled", async () => {
   );
   assertEquals(html.includes('class="auth-turnstile cf-turnstile"'), true);
   assertEquals(html.includes('data-sitekey="test-site-key"'), true);
+  assertEquals(html.includes('data-callback="collapseTurnstileWidget"'), true);
+  assertEquals(html.includes("turnstileSuccessDisplayMs = 1800"), true);
+  assertEquals(
+    html.includes('data-expired-callback="revealTurnstileWidgets"'),
+    true,
+  );
 });
 
 Deno.test("auth routes localize anonymous pages with a language-only navigation bar", async () => {
@@ -282,12 +288,12 @@ Deno.test("auth routes select anonymous page locale from browser language", asyn
   assertEquals(html.includes("Confirm password"), true);
 });
 
-Deno.test("auth routes register users with hashed passwords and a session cookie", async () => {
+Deno.test("auth routes default registered display names to usernames", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
   const form = new URLSearchParams({
     confirmPassword: "correct-password",
-    displayName: "Alice Wonderland",
+    displayName: "Ignored display name",
     password: "correct-password",
     returnTo: "/settings",
     username: "Alice",
@@ -308,7 +314,7 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/settings");
   assertEquals(account?.username, "alice");
-  assertEquals(account?.displayName, "Alice Wonderland");
+  assertEquals(account?.displayName, "alice");
   assertEquals(account?.passwordHash === "correct-password", false);
   assertEquals(credential?.passwordHash, account?.passwordHash);
   assertEquals(session?.userId, account?.id);
@@ -321,14 +327,14 @@ Deno.test("auth routes register users with hashed passwords and a session cookie
   );
 });
 
-Deno.test("auth routes default an empty display name to the username", async () => {
+Deno.test("auth routes ignore supplied display names during registration", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
   const response = await app.request("/register", {
     body: testCsrfForm(
       new URLSearchParams({
         confirmPassword: "correct-password",
-        displayName: "   ",
+        displayName: "Not Alice",
         password: "correct-password",
         username: "Alice",
       }),

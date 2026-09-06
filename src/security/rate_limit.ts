@@ -67,7 +67,7 @@ const emailLoginLimit = 10;
 /**
  * 账号敏感操作每十分钟允许的次数。
  */
-const accountOperationLimit = 10;
+const accountOperationLimit = 50;
 /**
  * 一分钟对应的毫秒数。
  */
