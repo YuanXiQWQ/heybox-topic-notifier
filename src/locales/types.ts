@@ -242,6 +242,7 @@ export type Messages = {
   authMfaRequired: string;
   authMfaTitle: string;
   authMfaUnavailable: string;
+  authMfaUseRecoveryCode: string;
   authMfaVerify: string;
   authNavigation: string;
   authPassword: string;

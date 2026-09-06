@@ -76,9 +76,9 @@ export class MfaConfigurationError extends Error {
  * 支持的二次验证方法顺序。
  */
 const secondFactorMethodOrder: readonly SecondFactorMethod[] = [
-  "email",
-  "totp",
   "passkey",
+  "totp",
+  "email",
   "recoveryCode",
 ];
 

@@ -158,6 +158,7 @@
   "authMfaRequired": "دو عاملی تصدیق مکمل کریں۔",
   "authMfaTitle": "دو عاملی تصدیق",
   "authMfaUnavailable": "دو عاملی تصدیق دستیاب نہیں۔ منتظم سے رابطہ کریں یا کوئی دوسرا طریقۂ لاگ اِن استعمال کریں۔",
+  "authMfaUseRecoveryCode": "تصدیق کار استعمال نہیں کر سکتے؟",
   "authMfaVerify": "تصدیق مکمل کریں",
   "authNavigation": "authentication navigation",
   "authPassword": "password",

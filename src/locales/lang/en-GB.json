@@ -158,6 +158,7 @@
   "authMfaRequired": "Complete two-factor verification.",
   "authMfaTitle": "Two-factor verification",
   "authMfaUnavailable": "Two-factor verification is not available. Contact an administrator or use another sign-in method.",
+  "authMfaUseRecoveryCode": "Can't use your authenticator?",
   "authMfaVerify": "Complete verification",
   "authNavigation": "Authentication navigation",
   "authPassword": "Password",

@@ -1125,7 +1125,26 @@ Deno.test("auth routes require MFA after password login when enabled", async () 
   if (!account) {
     throw new Error("测试账号创建失败。");
   }
-  await enableEmailSecondFactor(storage, account.id);
+  const totpMaterial = await createTotpSecretMaterial(testTotpConfig);
+  await storage.savePasskeyCredential(testPasskeyCredential(account.id));
+  await storage.saveTotpCredential({
+    enabledAt: new Date().toISOString(),
+    recoveryCodeHashes: ["test-recovery-code-hash"],
+    secretEncrypted: totpMaterial.secretEncrypted,
+    userId: account.id,
+  });
+  await storage.saveEmailCredential({
+    createdAt: new Date().toISOString(),
+    email: "alice@example.com",
+    lastVerifiedAt: new Date().toISOString(),
+    userId: account.id,
+    verified: true,
+  });
+  await storage.saveUserSecuritySettings({
+    preferredSecondFactor: "email",
+    twoFactorEnabled: true,
+    userId: account.id,
+  });
 
   const response = await app.request("/login", {
     body: testCsrfForm(
@@ -1157,11 +1176,40 @@ Deno.test("auth routes require MFA after password login when enabled", async () 
   assertEquals(session, undefined);
   assertEquals(challenge?.userId, account.id);
   assertEquals(challenge?.primaryMethod, "password");
-  assertEquals(challenge?.allowedMethods, ["email"]);
+  assertEquals(challenge?.allowedMethods, [
+    "email",
+    "passkey",
+    "totp",
+    "recoveryCode",
+  ]);
   assertEquals(pageResponse.status, 200);
   assertEquals(pageHtml.includes("data-mfa-email-form"), true);
+  assertEquals(pageHtml.includes("data-mfa-totp-form"), true);
+  assertEquals(pageHtml.includes("data-passkey-login"), true);
+  assertEquals(pageHtml.includes('data-mfa-method="passkey"'), true);
+  assertEquals(pageHtml.includes('data-mfa-method="totp"'), true);
   assertEquals(pageHtml.includes('data-mfa-method="email"'), true);
+  assertEquals(pageHtml.includes('data-mfa-method="recoveryCode"'), false);
+  assertEquals(pageHtml.includes("无法使用验证器？"), true);
+  assertEquals(pageHtml.includes('style="--mfa-method-count: 3"'), true);
+  assertEquals(
+    pageHtml.indexOf('data-mfa-method="email"') <
+      pageHtml.indexOf('data-mfa-method="passkey"') &&
+      pageHtml.indexOf('data-mfa-method="passkey"') <
+        pageHtml.indexOf('data-mfa-method="totp"'),
+    true,
+  );
   assertEquals(pageHtml.includes("双重验证"), true);
+  assertEquals(
+    pageHtml.includes('href="/static/app.css?v=20260904-game-polish"'),
+    true,
+  );
+  assertEquals(pageHtml.includes("box-shadow: 0 20px 50px"), false);
+  assertEquals(
+    pageHtml.includes('class="secondary" data-mfa-email-send-code-button'),
+    false,
+  );
+  assertEquals(pageHtml.includes("border-bottom: 2px solid transparent"), true);
 });
 
 Deno.test("auth routes complete email MFA and create a session", async () => {
@@ -1377,7 +1425,8 @@ Deno.test("auth routes consume a one-time recovery code for MFA", async () => {
 
   assertEquals(pageHtml.includes("data-mfa-method-selector"), true);
   assertEquals(pageHtml.includes("data-mfa-recovery-code-form"), true);
-  assertEquals(pageHtml.includes('data-mfa-method="recoveryCode"'), true);
+  assertEquals(pageHtml.includes('data-mfa-method="recoveryCode"'), false);
+  assertEquals(pageHtml.includes("无法使用验证器？"), true);
   assertEquals(
     pageHtml.includes('<div data-mfa-method-panel="totp"><form'),
     true,

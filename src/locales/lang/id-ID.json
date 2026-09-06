@@ -158,6 +158,7 @@
   "authMfaRequired": "Selesaikan verifikasi dua faktor.",
   "authMfaTitle": "Verifikasi dua faktor",
   "authMfaUnavailable": "Verifikasi dua faktor tidak tersedia. Hubungi administrator atau gunakan metode masuk lain.",
+  "authMfaUseRecoveryCode": "Tidak dapat menggunakan autentikator?",
   "authMfaVerify": "Selesaikan verifikasi",
   "authNavigation": "Navigasi autentikasi",
   "authPassword": "Kata sandi",

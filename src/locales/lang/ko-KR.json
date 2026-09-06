@@ -158,6 +158,7 @@
   "authMfaRequired": "2단계 인증을 완료하세요.",
   "authMfaTitle": "2단계 인증",
   "authMfaUnavailable": "2단계 인증을 사용할 수 없습니다. 관리자에게 문의하거나 다른 로그인 방법을 사용하세요.",
+  "authMfaUseRecoveryCode": "인증기를 사용할 수 없나요?",
   "authMfaVerify": "인증 완료",
   "authNavigation": "인증 내비게이션",
   "authPassword": "비밀번호",

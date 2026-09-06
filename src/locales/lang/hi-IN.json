@@ -158,6 +158,7 @@
   "authMfaRequired": "दो-कारक सत्यापन पूरा करें।",
   "authMfaTitle": "दो-कारक सत्यापन",
   "authMfaUnavailable": "दो-कारक सत्यापन उपलब्ध नहीं है। किसी प्रशासक से संपर्क करें या कोई अन्य लॉगिन तरीका उपयोग करें।",
+  "authMfaUseRecoveryCode": "ऑथेंटिकेटर का उपयोग नहीं कर पा रहे हैं?",
   "authMfaVerify": "सत्यापन पूरा करें",
   "authNavigation": "authentication navigation",
   "authPassword": "password",
