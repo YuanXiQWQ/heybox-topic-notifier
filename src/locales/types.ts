@@ -290,6 +290,7 @@ export type Messages = {
   lastPoll: string;
   latestMatch: string;
   locale: string;
+  lobotomyCorpRestartDay: string;
   matchBody: string;
   matchComments: string;
   matchDetailKeyword: string;
