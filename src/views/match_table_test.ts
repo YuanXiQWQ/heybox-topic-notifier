@@ -295,11 +295,15 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260905-cross-game-interruption`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-restart-panel-fixes`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260905-danger-score`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-restart-button-layout`,
+  );
+  assertIncludes(
+    html,
+    `data-lobotomy-corp-restart-day="重新开始这一天"`,
   );
   assertIncludes(html, `data-username-easter-egg-settings`);
 });

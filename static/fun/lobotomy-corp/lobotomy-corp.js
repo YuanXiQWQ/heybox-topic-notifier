@@ -28,6 +28,23 @@ const lobotomyCorpReferenceCanvasWidth = 1920;
 const lobotomyCorpCornerSize = 446;
 
 /**
+ * 顶部结束面板所需的原版 Sprite 文件名。
+ */
+const lobotomyCorpTopPanelSpriteFiles = Object.freeze([
+  "Risk_Frame_Inner.png",
+  "Risk_Frame_Outter.png",
+  "Valve.png",
+]);
+
+/**
+ * RestartButton 在 Normal 与 Pressed 状态下的 Unity Image.color。
+ */
+const lobotomyCorpRestartButtonTints = Object.freeze({
+  normal: [0, 234, 219],
+  pressed: [5, 174, 164],
+});
+
+/**
  * 警报口令、等级视觉参数与音频文件的对应关系。
  */
 const lobotomyCorpAlerts = Object.freeze({
@@ -118,7 +135,12 @@ const lobotomyCorpCornerDefinitions = Object.freeze([
 const lobotomyCorpTintedTriangleSources = new Map();
 
 /**
- * 预加载字体、Risk 和 Triangle 染色缓存的共享任务。
+ * 已按 RestartButton 状态逐像素染色的 End_1 数据 URL 缓存。
+ */
+const lobotomyCorpTintedRestartButtonSources = new Map();
+
+/**
+ * 预加载字体、Sprite 与逐像素染色缓存的共享任务。
  */
 let lobotomyCorpVisualAssetPreparation;
 
@@ -136,6 +158,11 @@ const lobotomyCorpAlertSessionKey = "warmnest.lobotomy-corp-alert";
  * 当前正在播放的脑叶公司警报及其结束操作。
  */
 let activeLobotomyCorpAlert;
+
+/**
+ * 在 Trumpet 等级切换期间转移到新 HUD 的顶部结束面板。
+ */
+let reusableLobotomyCorpTopPanel;
 
 /**
  * 当前脑叶公司彩蛋的危急值，始终为 0 到 100 的整数。
@@ -459,13 +486,43 @@ async function loadLobotomyCorpFont() {
 }
 
 /**
+ * 查找当前页面语言对应的原版 Restart TITLE 字体族。
+ *
+ * @return {string} 应由 FontFaceSet 预加载的 CSS 字体族名称。
+ */
+function lobotomyCorpRestartTitleFontFamily() {
+  const pageLanguage = globalThis.document?.documentElement?.lang;
+  if (pageLanguage === "ko-KR") {
+    return "LobotomyRestartTitleKorean";
+  }
+  if (pageLanguage === "ru-RU") {
+    return "LobotomyRestartTitleRussian";
+  }
+  return "LobotomyRestartTitle";
+}
+
+/**
+ * 预加载当前页面语言实际使用的 Restart TITLE 字体，避免掉落时文字发生跳变。
+ *
+ * @return {Promise<void>} 字体加载完成或浏览器不支持字体加载 API 后完成。
+ */
+async function loadLobotomyCorpTopPanelFont() {
+  try {
+    const fontFamily = lobotomyCorpRestartTitleFontFamily();
+    await globalThis.document?.fonts?.load?.(`70px ${fontFamily}`);
+  } catch {
+    // 字体服务不可用时仍显示面板，由 CSS 回退字体承担可读性。
+  }
+}
+
+/**
  * 使用离屏 Canvas 模拟 Unity UI Image.color 的逐像素乘色。
  *
- * @param {string} source 未染色 Triangle Sprite 地址。
- * @param {[number, number, number]} tint EmergencyColor 的 RGB 值。
+ * @param {string} source 未染色 Sprite 地址。
+ * @param {[number, number, number]} tint Image.color 的 RGB 值。
  * @return {Promise<string>} 已染色的数据 URL；无法处理时返回原始地址。
  */
-async function tintLobotomyCorpTriangle(source, tint) {
+async function tintLobotomyCorpImage(source, tint) {
   const image = await loadLobotomyCorpImage(source);
   const canvas = globalThis.document?.createElement?.("canvas");
   const width = image?.naturalWidth ?? image?.width ?? 0;
@@ -489,7 +546,7 @@ async function tintLobotomyCorpTriangle(source, tint) {
 }
 
 /**
- * 预加载 HUD 图片和字体，并一次性建立六张已染色 Triangle 的缓存。
+ * 预加载 HUD 与顶部结束面板的图片和字体，并建立 Triangle 与 End_1 染色缓存。
  *
  * @return {Promise<void>} 所有可用视觉资源已完成准备后返回。
  */
@@ -507,15 +564,19 @@ function prepareLobotomyCorpVisualAssets() {
     ];
     await Promise.all([
       loadLobotomyCorpFont(),
+      loadLobotomyCorpTopPanelFont(),
       ...alerts.map(({ riskFile }) =>
         loadLobotomyCorpImage(`${lobotomyCorpSpriteRoot}/${riskFile}`)
       ),
+      ...lobotomyCorpTopPanelSpriteFiles.map((spriteFile) =>
+        loadLobotomyCorpImage(`${lobotomyCorpSpriteRoot}/${spriteFile}`)
+      ),
     ]);
-    await Promise.all(
-      alerts.flatMap((alert) =>
+    await Promise.all([
+      ...alerts.flatMap((alert) =>
         triangleFiles.map(async (triangleFile) => {
           const source = `${lobotomyCorpSpriteRoot}/${triangleFile}`;
-          const tintedSource = await tintLobotomyCorpTriangle(
+          const tintedSource = await tintLobotomyCorpImage(
             source,
             alert.emergencyTint,
           );
@@ -525,7 +586,16 @@ function prepareLobotomyCorpVisualAssets() {
           );
         })
       ),
-    );
+      ...Object.entries(lobotomyCorpRestartButtonTints).map(
+        async ([state, tint]) => {
+          const tintedSource = await tintLobotomyCorpImage(
+            `${lobotomyCorpSpriteRoot}/End_1.png`,
+            tint,
+          );
+          lobotomyCorpTintedRestartButtonSources.set(state, tintedSource);
+        },
+      ),
+    ]);
   })();
   return lobotomyCorpVisualAssetPreparation;
 }
@@ -544,18 +614,31 @@ function lobotomyCorpTriangleSource(alert, triangleFile) {
 }
 
 /**
- * 为整个 Unity HUD 写入 CanvasScaler 的 Match Width 缩放比例。
+ * 读取指定交互状态的已染色 End_1；预加载失败时回退到原始 Sprite。
  *
- * @param {Element} emergencyController 游戏 HUD 的视觉根节点。
+ * @param {"normal"|"pressed"} state RestartButton 交互状态。
+ * @return {string} 用于按钮状态图片的地址。
  */
-function updateLobotomyCorpCanvasScale(emergencyController) {
+function lobotomyCorpRestartButtonSource(state) {
+  return lobotomyCorpTintedRestartButtonSources.get(state) ??
+    `${lobotomyCorpSpriteRoot}/End_1.png`;
+}
+
+/**
+ * 为 Unity 风格 HUD 与顶部面板写入 CanvasScaler 的 Match Width 缩放比例。
+ *
+ * @param {...Element|undefined} unityRoots 需要同步缩放的 Unity 风格视觉根节点。
+ */
+function updateLobotomyCorpCanvasScale(...unityRoots) {
   const viewportWidth = globalThis.innerWidth ||
     globalThis.document?.documentElement?.clientWidth ||
     lobotomyCorpReferenceCanvasWidth;
-  emergencyController.style?.setProperty?.(
-    "--lobotomy-corp-unity-canvas-scale",
-    String(viewportWidth / lobotomyCorpReferenceCanvasWidth),
-  );
+  unityRoots.forEach((unityRoot) => {
+    unityRoot?.style?.setProperty?.(
+      "--lobotomy-corp-unity-canvas-scale",
+      String(viewportWidth / lobotomyCorpReferenceCanvasWidth),
+    );
+  });
 }
 
 /**
@@ -632,6 +715,71 @@ function createLobotomyCorpEmergencyCorner(alert, definition) {
 }
 
 /**
+ * 创建复现原版“重新开始这一天”布局的顶部结束面板。
+ *
+ * @return {{activeController: HTMLElement, element: HTMLElement, endAlertButton: HTMLButtonElement}} 顶部面板、动画节点及其可交互结束按钮。
+ */
+function createLobotomyCorpTopPanel() {
+  const topPanel = document.createElement("section");
+  const activeController = document.createElement("div");
+  const leftValve = document.createElement("img");
+  const frameOutter = document.createElement("div");
+  const frameInner = document.createElement("img");
+  const endAlertButton = document.createElement("button");
+  const normalButtonSprite = document.createElement("img");
+  const pressedButtonSprite = document.createElement("img");
+  const endAlertButtonText = document.createElement("span");
+  const rightValve = document.createElement("img");
+  const restartDayText = globalThis.document?.documentElement?.dataset
+    ?.lobotomyCorpRestartDay ?? "";
+
+  topPanel.className = "lobotomy-corp-top-panel";
+  activeController.className = "lobotomy-corp-top-panel-active-controller";
+
+  leftValve.alt = "";
+  leftValve.className = "lobotomy-corp-top-panel-valve left";
+  leftValve.src = `${lobotomyCorpSpriteRoot}/Valve.png`;
+  leftValve.setAttribute("aria-hidden", "true");
+
+  frameOutter.className = "lobotomy-corp-top-panel-frame-outter";
+  frameInner.alt = "";
+  frameInner.className = "lobotomy-corp-top-panel-frame-inner";
+  frameInner.src = `${lobotomyCorpSpriteRoot}/Risk_Frame_Inner.png`;
+  frameInner.setAttribute("aria-hidden", "true");
+
+  endAlertButton.type = "button";
+  endAlertButton.className = "lobotomy-corp-top-panel-action-button";
+  endAlertButton.setAttribute("aria-label", restartDayText);
+  normalButtonSprite.alt = "";
+  normalButtonSprite.className =
+    "lobotomy-corp-top-panel-action-button-sprite normal";
+  normalButtonSprite.src = lobotomyCorpRestartButtonSource("normal");
+  normalButtonSprite.setAttribute("aria-hidden", "true");
+  pressedButtonSprite.alt = "";
+  pressedButtonSprite.className =
+    "lobotomy-corp-top-panel-action-button-sprite pressed";
+  pressedButtonSprite.src = lobotomyCorpRestartButtonSource("pressed");
+  pressedButtonSprite.setAttribute("aria-hidden", "true");
+  endAlertButtonText.className = "lobotomy-corp-top-panel-action-button-text";
+  endAlertButtonText.textContent = restartDayText;
+  endAlertButton.append(
+    normalButtonSprite,
+    pressedButtonSprite,
+    endAlertButtonText,
+  );
+
+  rightValve.alt = "";
+  rightValve.className = "lobotomy-corp-top-panel-valve right";
+  rightValve.src = `${lobotomyCorpSpriteRoot}/Valve.png`;
+  rightValve.setAttribute("aria-hidden", "true");
+
+  frameOutter.append(frameInner, endAlertButton);
+  activeController.append(leftValve, frameOutter, rightValve);
+  topPanel.append(activeController);
+  return { activeController, element: topPanel, endAlertButton };
+}
+
+/**
  * 创建或恢复脑叶公司警报，并使音频从对应的播放进度继续。
  *
  * @param {{assetDirectory: string, soundFile: string}} alert 警报配置。
@@ -644,54 +792,173 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
     if (!shouldReplaceActiveLobotomyCorpAlert(alert)) {
       return activeLobotomyCorpAlert.promise;
     }
-    activeLobotomyCorpAlert.finish();
+    activeLobotomyCorpAlert.finishForReplacement();
   }
 
   persistLobotomyCorpAlert(alert, startedAt, resumeAt);
 
   const elapsedSeconds = Math.max(0, resumeAt);
   let audio;
-  let closeButton;
+  let emergencyController;
+  let endAlertButton;
   let naturalEndTimer;
   let overlay;
+  let panelDisappearTimer;
+  let topPanel;
+  let topPanelActiveController;
+  let closing = false;
   let finished = false;
   let resolveCompletion;
   const alertContext = {
     alert,
     finish: () => {},
+    finishForReplacement: () => {},
     promise: new Promise((resolve) => {
       resolveCompletion = resolve;
     }),
   };
 
   /**
-   * 清理警报界面、音频和跨页面恢复状态。
+   * 在动画完成后最终移除警报 DOM 并完成本轮 Promise。
    */
-  function finishAlert() {
+  function teardownAlert() {
     if (finished) {
       return;
     }
     finished = true;
+    if (panelDisappearTimer !== undefined) {
+      clearTimeout(panelDisappearTimer);
+    }
+    topPanelActiveController?.removeEventListener(
+      "animationend",
+      finishAfterPanelAnimation,
+    );
+    overlay?.remove();
+    resolveCompletion(true);
+  }
+
+  /**
+   * 响应顶部面板反向动画结束事件并执行最终清理。
+   */
+  function finishAfterPanelAnimation() {
+    teardownAlert();
+  }
+
+  /**
+   * 结束已完成的 Appear 时间轴，并以同一 keyframes 的 reverse 状态启动 Disappear。
+   */
+  function playTopPanelDisappearAnimation() {
+    topPanelActiveController.style.animation = "none";
+    // 提交 animation:none，确保浏览器不会沿用已经结束的 Appear 播放时间。
+    void topPanelActiveController.offsetWidth;
+    topPanel.dataset.lobotomyCorpTopPanelState = "disappearing";
+    topPanelActiveController.style.animation = "";
+  }
+
+  /**
+   * 立即停止警报业务活动，并按结束类型决定收回或转移顶部面板。
+   *
+   * @param {{animateExit?: boolean, preserveTopPanel?: boolean}} options 结束方式配置。
+   */
+  function finishAlert({
+    animateExit = true,
+    preserveTopPanel = false,
+  } = {}) {
+    if (closing || finished) {
+      return;
+    }
+    closing = true;
     audio?.pause();
-    audio?.removeEventListener("ended", finishAlert);
-    audio?.removeEventListener("error", finishAlert);
+    audio?.removeEventListener("ended", finishAlertFromAudioEnd);
+    audio?.removeEventListener("error", finishAlertFromAudioError);
     audio?.removeEventListener("timeupdate", persistPlaybackPosition);
-    closeButton?.removeEventListener("click", finishAlert);
+    audio?.removeEventListener("loadedmetadata", playAlertAudio);
+    audio?.removeEventListener("loadedmetadata", scheduleNaturalAlertEnd);
+    endAlertButton?.removeEventListener("click", finishAlertFromButton);
+    if (endAlertButton) {
+      endAlertButton.disabled = true;
+    }
     globalThis.removeEventListener?.("pagehide", persistPlaybackPosition);
     globalThis.removeEventListener?.("resize", updateCanvasScale);
     if (naturalEndTimer !== undefined) {
       clearTimeout(naturalEndTimer);
     }
-    overlay?.remove();
     clearPersistedLobotomyCorpAlert();
     if (activeLobotomyCorpAlert === alertContext) {
       activeLobotomyCorpAlert = undefined;
     }
     globalThis.easterEggCoordinator?.finish(
       lobotomyCorpEasterEggGameId,
-      finishAlert,
+      finishAlertFromCoordinator,
     );
-    resolveCompletion(true);
+
+    if (
+      preserveTopPanel && topPanel && topPanelActiveController &&
+      endAlertButton
+    ) {
+      endAlertButton.disabled = false;
+      reusableLobotomyCorpTopPanel = {
+        activeController: topPanelActiveController,
+        element: topPanel,
+        endAlertButton,
+      };
+      teardownAlert();
+      return;
+    }
+
+    if (animateExit && topPanel && topPanelActiveController) {
+      topPanelActiveController.addEventListener(
+        "animationend",
+        finishAfterPanelAnimation,
+        { once: true },
+      );
+      playTopPanelDisappearAnimation();
+      panelDisappearTimer = setTimeout(teardownAlert, 550);
+      return;
+    }
+    teardownAlert();
+  }
+
+  /**
+   * 响应顶部 RestartButton 点击，不允许 DOM Event 污染结束方式参数。
+   */
+  function finishAlertFromButton() {
+    finishAlert();
+  }
+
+  /**
+   * 响应警报音频自然播放结束。
+   */
+  function finishAlertFromAudioEnd() {
+    finishAlert();
+  }
+
+  /**
+   * 响应警报音频加载或播放错误。
+   */
+  function finishAlertFromAudioError() {
+    finishAlert();
+  }
+
+  /**
+   * 响应自然结束计时器到期。
+   */
+  function finishAlertFromNaturalEnd() {
+    finishAlert();
+  }
+
+  /**
+   * 响应跨游戏协调器的停止请求，并保持回调引用稳定。
+   */
+  function finishAlertFromCoordinator() {
+    finishAlert();
+  }
+
+  /**
+   * 在切换 Trumpet 等级时结束旧 HUD，同时保留顶部结束面板实例。
+   */
+  function finishAlertForReplacement() {
+    finishAlert({ animateExit: false, preserveTopPanel: true });
   }
 
   /**
@@ -700,7 +967,8 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
   function updateCanvasScale() {
     if (overlay) {
       updateLobotomyCorpCanvasScale(
-        overlay.children[0],
+        emergencyController,
+        topPanel,
       );
     }
   }
@@ -712,7 +980,7 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
     let resumePosition;
     if (elapsedSeconds > 0 && Number.isFinite(audio.duration)) {
       if (elapsedSeconds >= audio.duration) {
-        finishAlert();
+        finishAlertFromNaturalEnd();
         return;
       }
       resumePosition = Math.min(
@@ -750,7 +1018,10 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
       0,
       (audio.duration - elapsedSeconds) * 1000,
     );
-    naturalEndTimer = setTimeout(finishAlert, remainingMilliseconds);
+    naturalEndTimer = setTimeout(
+      finishAlertFromNaturalEnd,
+      remainingMilliseconds,
+    );
   }
 
   /**
@@ -773,14 +1044,13 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
       if (shouldPrepareLobotomyCorpVisualAssets()) {
         await prepareLobotomyCorpVisualAssets();
       }
-      if (finished || activeLobotomyCorpAlert !== alertContext) {
+      if (closing || finished || activeLobotomyCorpAlert !== alertContext) {
         return;
       }
 
       overlay = document.createElement("div");
-      const emergencyController = document.createElement("div");
+      emergencyController = document.createElement("div");
       const activeControl = document.createElement("div");
-      closeButton = document.createElement("button");
       audio = new Audio(
         `${lobotomyCorpAssetRoot}/AudioClip/${alert.soundFile}`,
       );
@@ -798,24 +1068,32 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
         );
       });
       emergencyController.append(activeControl);
+      const reusableTopPanel = reusableLobotomyCorpTopPanel;
+      reusableLobotomyCorpTopPanel = undefined;
+      if (reusableTopPanel) {
+        topPanel = reusableTopPanel.element;
+        topPanelActiveController = reusableTopPanel.activeController;
+        endAlertButton = reusableTopPanel.endAlertButton;
+        topPanel.dataset.lobotomyCorpTopPanelReused = "true";
+      } else {
+        const topPanelController = createLobotomyCorpTopPanel();
+        topPanel = topPanelController.element;
+        topPanelActiveController = topPanelController.activeController;
+        endAlertButton = topPanelController.endAlertButton;
+      }
       overlay.append(emergencyController);
-
-      closeButton.type = "button";
-      closeButton.className = "lobotomy-corp-alert-close";
-      closeButton.textContent = "关闭警报";
-      closeButton.setAttribute("aria-label", "关闭脑叶公司警报");
-      overlay.append(closeButton);
+      overlay.append(topPanel);
       // 保持为隐藏 DOM 媒体节点，便于跨页恢复时核验真实播放进度。
       audio.hidden = true;
       audio.preload = "auto";
       audio.setAttribute("aria-hidden", "true");
       overlay.append(audio);
-      updateLobotomyCorpCanvasScale(emergencyController);
+      updateLobotomyCorpCanvasScale(emergencyController, topPanel);
       globalThis.addEventListener?.("resize", updateCanvasScale);
       document.body.append(overlay);
 
-      audio.addEventListener("ended", finishAlert);
-      audio.addEventListener("error", finishAlert);
+      audio.addEventListener("ended", finishAlertFromAudioEnd);
+      audio.addEventListener("error", finishAlertFromAudioError);
       audio.addEventListener("timeupdate", persistPlaybackPosition);
       audio.addEventListener("loadedmetadata", scheduleNaturalAlertEnd, {
         once: true,
@@ -823,7 +1101,7 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
       globalThis.addEventListener?.("pagehide", persistPlaybackPosition, {
         once: true,
       });
-      closeButton.addEventListener("click", finishAlert);
+      endAlertButton.addEventListener("click", finishAlertFromButton);
       if (elapsedSeconds > 0) {
         audio.addEventListener("loadedmetadata", playAlertAudio, {
           once: true,
@@ -833,15 +1111,16 @@ function startLobotomyCorpAlert(alert, startedAt, resumeAt) {
       }
     } catch {
       // 视觉资源加载或 DOM 初始化失败时，沿用既有生命周期清理警报状态。
-      finishAlert();
+      finishAlert({ animateExit: false });
     }
   }
 
-  alertContext.finish = finishAlert;
+  alertContext.finish = finishAlertFromCoordinator;
+  alertContext.finishForReplacement = finishAlertForReplacement;
   activeLobotomyCorpAlert = alertContext;
   globalThis.easterEggCoordinator?.start(
     lobotomyCorpEasterEggGameId,
-    finishAlert,
+    finishAlertFromCoordinator,
   );
   void mountLobotomyCorpAlert();
   return alertContext.promise;

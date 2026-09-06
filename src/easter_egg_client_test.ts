@@ -156,10 +156,13 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
 Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly", async () => {
   class MockElement {
     alt = "";
+    attributes: Record<string, string> = {};
     children: MockElement[] = [];
     className = "";
     dataset: Record<string, string> = {};
+    disabled = false;
     hidden = false;
+    offsetWidth = 1200;
     removed = false;
     src = "";
     style: {
@@ -167,7 +170,7 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     } = {};
     textContent = "";
     type = "";
-    #listeners = new Map<string, (() => void)[]>();
+    #listeners = new Map<string, ((event: Event) => void)[]>();
 
     /**
      * 创建可记录内联样式的模拟元素。
@@ -191,9 +194,12 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
      * 注册模拟事件监听器。
      *
      * @param {string} eventName 事件名称。
-     * @param {() => void} listener 事件处理函数。
+     * @param {(event: Event) => void} listener 事件处理函数。
      */
-    addEventListener(eventName: string, listener: () => void): void {
+    addEventListener(
+      eventName: string,
+      listener: (event: Event) => void,
+    ): void {
       const listeners = this.#listeners.get(eventName) ?? [];
       listeners.push(listener);
       this.#listeners.set(eventName, listeners);
@@ -203,9 +209,12 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
      * 移除模拟事件监听器。
      *
      * @param {string} eventName 事件名称。
-     * @param {() => void} listener 事件处理函数。
+     * @param {(event: Event) => void} listener 事件处理函数。
      */
-    removeEventListener(eventName: string, listener: () => void): void {
+    removeEventListener(
+      eventName: string,
+      listener: (event: Event) => void,
+    ): void {
       const listeners = this.#listeners.get(eventName) ?? [];
       this.#listeners.set(
         eventName,
@@ -218,11 +227,11 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     /**
      * 设置模拟属性。
      *
-     * @param {string} _name 属性名称。
-     * @param {string} _value 属性值。
+     * @param {string} name 属性名称。
+     * @param {string} value 属性值。
      */
-    setAttribute(_name: string, _value: string): void {
-      // 模拟元素不需要保留无障碍属性内容。
+    setAttribute(name: string, value: string): void {
+      this.attributes[name] = value;
     }
 
     /**
@@ -238,7 +247,8 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
      * @param {string} eventName 事件名称。
      */
     dispatch(eventName: string): void {
-      this.#listeners.get(eventName)?.forEach((listener) => listener());
+      const event = new Event(eventName);
+      this.#listeners.get(eventName)?.forEach((listener) => listener(event));
     }
   }
 
@@ -246,6 +256,7 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     hidden = false;
     preload = "";
     src: string;
+    #listeners = new Map<string, ((event: Event) => void)[]>();
 
     /**
      * 创建模拟音频。
@@ -259,21 +270,35 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     /**
      * 注册模拟音频事件监听器。
      *
-     * @param {string} _eventName 事件名称。
-     * @param {() => void} _listener 事件处理函数。
+     * @param {string} eventName 事件名称。
+     * @param {(event: Event) => void} listener 事件处理函数。
      */
-    addEventListener(_eventName: string, _listener: () => void): void {
-      // 由关闭按钮结束本轮模拟警报。
+    addEventListener(
+      eventName: string,
+      listener: (event: Event) => void,
+    ): void {
+      const listeners = this.#listeners.get(eventName) ?? [];
+      listeners.push(listener);
+      this.#listeners.set(eventName, listeners);
     }
 
     /**
      * 移除模拟音频事件监听器。
      *
-     * @param {string} _eventName 事件名称。
-     * @param {() => void} _listener 事件处理函数。
+     * @param {string} eventName 事件名称。
+     * @param {(event: Event) => void} listener 事件处理函数。
      */
-    removeEventListener(_eventName: string, _listener: () => void): void {
-      // 模拟音频未持有监听器。
+    removeEventListener(
+      eventName: string,
+      listener: (event: Event) => void,
+    ): void {
+      const listeners = this.#listeners.get(eventName) ?? [];
+      this.#listeners.set(
+        eventName,
+        listeners.filter((registeredListener) =>
+          registeredListener !== listener
+        ),
+      );
     }
 
     /**
@@ -290,6 +315,16 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
      */
     pause(): void {
       // 模拟音频无需额外清理。
+    }
+
+    /**
+     * 以真实 Event 参数触发模拟媒体事件。
+     *
+     * @param {string} eventName 事件名称。
+     */
+    dispatch(eventName: string): void {
+      const event = new Event(eventName);
+      this.#listeners.get(eventName)?.forEach((listener) => listener(event));
     }
 
     /**
@@ -376,6 +411,10 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
   const documentMock = {
     body,
     createElement: () => new MockElement(),
+    documentElement: {
+      dataset: { lobotomyCorpRestartDay: "重新开始这一天" },
+      lang: "zh-CN",
+    },
     querySelectorAll: () => [],
   };
 
@@ -410,13 +449,52 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
   }
 
   /**
-   * 读取未参与 HUD 闪烁的关闭按钮。
+   * 读取独立于 HUD 闪烁的顶部结束面板。
    *
    * @param {MockElement} overlay 警报外层节点。
-   * @return {MockElement} 关闭按钮节点。
+   * @return {MockElement} 顶部结束面板节点。
    */
-  function closeButtonFor(overlay: MockElement): MockElement {
+  function topPanelFor(overlay: MockElement): MockElement {
     return overlay.children[1];
+  }
+
+  /**
+   * 读取顶部结束面板中的业务结束按钮。
+   *
+   * @param {MockElement} overlay 警报外层节点。
+   * @return {MockElement} 结束警报按钮节点。
+   */
+  function endAlertButtonFor(overlay: MockElement): MockElement {
+    return topPanelFor(overlay).children[0].children[1].children[1];
+  }
+
+  /**
+   * 读取顶部面板的 ActiveController 动画节点。
+   *
+   * @param {MockElement} overlay 警报外层节点。
+   * @return {MockElement} 面板动画节点。
+   */
+  function topPanelActiveControllerFor(overlay: MockElement): MockElement {
+    return topPanelFor(overlay).children[0];
+  }
+
+  /**
+   * 触发顶部面板反向动画完成，以模拟浏览器 animationend。
+   *
+   * @param {MockElement} overlay 警报外层节点。
+   */
+  function finishTopPanelDisappear(overlay: MockElement): void {
+    topPanelActiveControllerFor(overlay).dispatch("animationend");
+  }
+
+  /**
+   * 读取警报外层节点中的模拟音频。
+   *
+   * @param {MockElement} overlay 警报外层节点。
+   * @return {MockAudio} 警报音频节点。
+   */
+  function alertAudioFor(overlay: MockElement): MockAudio {
+    return overlay.children[2] as unknown as MockAudio;
   }
 
   Object.defineProperty(browserGlobal, "Audio", {
@@ -470,11 +548,55 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     );
     const overlay = body.children[0];
     const firstCorners = emergencyCorners(overlay);
+    const topPanel = topPanelFor(overlay);
     assertEquals(overlay.children.length, 3);
     assertEquals(firstCorners.length, 4);
     assertEquals(
       overlay.children[0].style["--lobotomy-corp-unity-canvas-scale"],
       "1",
+    );
+    assertEquals(topPanel.className, "lobotomy-corp-top-panel");
+    assertEquals(
+      topPanel.style["--lobotomy-corp-unity-canvas-scale"],
+      "1",
+    );
+    assertEquals(
+      topPanel.children[0].className,
+      "lobotomy-corp-top-panel-active-controller",
+    );
+    assertEquals(
+      topPanel.children[0].children[0].src.endsWith("Sprite/Valve.png"),
+      true,
+    );
+    assertEquals(
+      topPanel.children[0].children[1].className,
+      "lobotomy-corp-top-panel-frame-outter",
+    );
+    assertEquals(
+      topPanel.children[0].children[1].children[0].src.endsWith(
+        "Sprite/Risk_Frame_Inner.png",
+      ),
+      true,
+    );
+    assertEquals(
+      endAlertButtonFor(overlay).className,
+      "lobotomy-corp-top-panel-action-button",
+    );
+    assertEquals(
+      endAlertButtonFor(overlay).children[2].textContent,
+      "重新开始这一天",
+    );
+    assertEquals(
+      endAlertButtonFor(overlay).attributes["aria-label"],
+      "重新开始这一天",
+    );
+    assertEquals(
+      endAlertButtonFor(overlay).children[0].className,
+      "lobotomy-corp-top-panel-action-button-sprite normal",
+    );
+    assertEquals(
+      endAlertButtonFor(overlay).children[1].className,
+      "lobotomy-corp-top-panel-action-button-sprite pressed",
     );
     Object.defineProperty(browserGlobal, "innerWidth", {
       configurable: true,
@@ -483,6 +605,10 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     globalThis.dispatchEvent(new Event("resize"));
     assertEquals(
       overlay.children[0].style["--lobotomy-corp-unity-canvas-scale"],
+      String(2560 / 1920),
+    );
+    assertEquals(
+      topPanel.style["--lobotomy-corp-unity-canvas-scale"],
       String(2560 / 1920),
     );
     Object.defineProperty(browserGlobal, "innerWidth", {
@@ -524,25 +650,39 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
       "rotate(-45deg) scaleY(-1)",
     );
     assertEquals(firstCorners[0].children[1].textContent, "ALERT ".repeat(85));
-    assertEquals(
-      closeButtonFor(overlay).className,
-      "lobotomy-corp-alert-close",
-    );
     assertEquals(overlay.children[2].hidden, true);
     assertEquals(
       overlay.children[2].src.endsWith("Assets/AudioClip/first-trumpet.wav"),
       true,
     );
-    closeButtonFor(overlay).dispatch("click");
+    endAlertButtonFor(overlay).dispatch("click");
+    assertEquals(overlay.removed, false);
+    assertEquals(endAlertButtonFor(overlay).disabled, true);
+    assertEquals(
+      topPanel.dataset.lobotomyCorpTopPanelState,
+      "disappearing",
+    );
+    assertEquals(sessionStorage.getItem("warmnest.lobotomy-corp-alert"), null);
+    finishTopPanelDisappear(overlay);
     assertEquals(await completed, true);
     assertEquals(overlay.removed, true);
-    assertEquals(sessionStorage.getItem("warmnest.lobotomy-corp-alert"), null);
 
     const firstAlert = api.activate("first trumpet");
     const firstOverlay = body.children[1];
+    const firstTopPanel = topPanelFor(firstOverlay);
+    if (firstTopPanel === topPanel) {
+      throw new Error("独立警报必须创建新面板并重新播放 Appear 动画。");
+    }
+    assertEquals(
+      firstTopPanel.dataset.lobotomyCorpTopPanelReused,
+      undefined,
+    );
     const thirdAlert = api.activate("third trumpet");
     const thirdOverlay = body.children[2];
     assertEquals(firstOverlay.removed, true);
+    if (topPanelFor(thirdOverlay) !== firstTopPanel) {
+      throw new Error("Trumpet 等级切换应复用同一个顶部结束面板。");
+    }
     assertEquals(
       cornerRisk(emergencyCorners(thirdOverlay)[0]).src.endsWith(
         "Sprite/Risk_3.png",
@@ -560,6 +700,9 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     const secondAlert = api.activate("second trumpet");
     const secondOverlay = body.children[3];
     assertEquals(thirdOverlay.removed, true);
+    if (topPanelFor(secondOverlay) !== firstTopPanel) {
+      throw new Error("连续切换 Trumpet 等级不应创建额外顶部结束面板。");
+    }
     assertEquals(
       cornerRisk(emergencyCorners(secondOverlay)[0]).src.endsWith(
         "Sprite/Risk_2.png",
@@ -571,7 +714,13 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     api.activate("second trumpet");
     assertEquals(secondOverlay.removed, false);
     assertEquals(body.children.length, 4);
-    closeButtonFor(secondOverlay).dispatch("click");
+    endAlertButtonFor(secondOverlay).dispatch("click");
+    assertEquals(secondOverlay.removed, false);
+    assertEquals(
+      topPanelFor(secondOverlay).dataset.lobotomyCorpTopPanelState,
+      "disappearing",
+    );
+    finishTopPanelDisappear(secondOverlay);
     assertEquals(await secondAlert, true);
     assertEquals(secondOverlay.removed, true);
 
@@ -618,7 +767,10 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     api.setDangerScore(100);
     assertEquals(thirdDangerOverlay.removed, false);
     assertEquals(body.children.length, 7);
-    assertEquals(await api.setDangerScore(9), true);
+    const clearDangerAlert = api.setDangerScore(9);
+    assertEquals(thirdDangerOverlay.removed, false);
+    finishTopPanelDisappear(thirdDangerOverlay);
+    assertEquals(await clearDangerAlert, true);
     assertEquals(await thirdDangerAlert, true);
     assertEquals(thirdDangerOverlay.removed, true);
     assertEquals(api.getDangerScore(), 9);
@@ -628,6 +780,39 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
       "Danger Score 必须是 0 到 100 的整数。",
     );
     assertEquals(api.getDangerScore(), 9);
+
+    const audioEndedAlert = api.activate("first trumpet");
+    const audioEndedOverlay = body.children[7];
+    const audioEndedTopPanel = topPanelFor(audioEndedOverlay);
+    alertAudioFor(audioEndedOverlay).dispatch("ended");
+    assertEquals(audioEndedOverlay.removed, false);
+    assertEquals(
+      audioEndedTopPanel.dataset.lobotomyCorpTopPanelState,
+      "disappearing",
+    );
+    finishTopPanelDisappear(audioEndedOverlay);
+    assertEquals(await audioEndedAlert, true);
+
+    const audioErrorAlert = api.activate("first trumpet");
+    const audioErrorOverlay = body.children[8];
+    if (topPanelFor(audioErrorOverlay) === audioEndedTopPanel) {
+      throw new Error("audio ended 事件不能把面板误存为可复用实例。");
+    }
+    alertAudioFor(audioErrorOverlay).dispatch("error");
+    assertEquals(audioErrorOverlay.removed, false);
+    finishTopPanelDisappear(audioErrorOverlay);
+    assertEquals(await audioErrorAlert, true);
+
+    const alertAfterAudioError = api.activate("first trumpet");
+    const overlayAfterAudioError = body.children[9];
+    if (
+      topPanelFor(overlayAfterAudioError) === topPanelFor(audioErrorOverlay)
+    ) {
+      throw new Error("audio error 事件不能把面板误存为可复用实例。");
+    }
+    endAlertButtonFor(overlayAfterAudioError).dispatch("click");
+    finishTopPanelDisappear(overlayAfterAudioError);
+    assertEquals(await alertAfterAudioError, true);
 
     sessionStorage.setItem(
       "warmnest.lobotomy-corp-alert",
@@ -649,6 +834,35 @@ Deno.test("Lobotomy Corporation alert matches Trumpet names and closes cleanly",
     );
     assertEquals(sessionStorage.getItem("warmnest.lobotomy-corp-alert"), null);
     assertEquals(body.children.length, alertOverlayCountBeforeReload);
+
+    sessionStorage.setItem(
+      "warmnest.lobotomy-corp-alert",
+      JSON.stringify({
+        assetDirectory: "third-trumpet",
+        position: 12,
+        startedAt: Date.now(),
+      }),
+    );
+    Object.defineProperty(browserGlobal, "performance", {
+      configurable: true,
+      value: {
+        getEntriesByType: () => [{ type: "navigate" }],
+      },
+    });
+    await import(
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?restore-test=${crypto.randomUUID()}`
+    );
+    const restoredOverlay = body.children[alertOverlayCountBeforeReload];
+    assertEquals(restoredOverlay.children.length, 3);
+    assertEquals(
+      topPanelFor(restoredOverlay).className,
+      "lobotomy-corp-top-panel",
+    );
+    endAlertButtonFor(restoredOverlay).dispatch("click");
+    assertEquals(restoredOverlay.removed, false);
+    finishTopPanelDisappear(restoredOverlay);
+    assertEquals(restoredOverlay.removed, true);
+    assertEquals(sessionStorage.getItem("warmnest.lobotomy-corp-alert"), null);
   } finally {
     if (originalAudio) {
       Object.defineProperty(browserGlobal, "Audio", originalAudio);

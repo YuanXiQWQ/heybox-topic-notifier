@@ -6,6 +6,27 @@
     format("opentype");
 }
 
+@font-face {
+  font-display: block;
+  font-family: LobotomyRestartTitle;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester_new.ttf")
+    format("truetype");
+}
+
+@font-face {
+  font-display: block;
+  font-family: LobotomyRestartTitleKorean;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/BMDOHYEON.ttf")
+    format("truetype");
+}
+
+@font-face {
+  font-display: block;
+  font-family: LobotomyRestartTitleRussian;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester_ru.ttf")
+    format("truetype");
+}
+
 .lobotomy-corp-alert-overlay {
   inset: 0;
   pointer-events: none;
@@ -138,25 +159,198 @@
   white-space: pre-line;
 }
 
-/* 关闭按钮属于网站功能，不属于 EmergencyController CanvasGroup，不参与闪烁。 */
-.lobotomy-corp-alert-close {
-  background: rgb(33 27 7 / 0.94);
-  border: 1px solid #f9c500;
-  box-shadow: 0 3px 12px rgb(0 0 0 / 0.42);
-  color: #ffe46b;
-  cursor: pointer;
-  font: 700 0.9rem/1.2 system-ui, sans-serif;
+/* 独立于 EmergencyController；不继承四角 HUD 的持续闪烁。 */
+.lobotomy-corp-top-panel {
+  --lobotomy-corp-unity-canvas-scale: 1;
+  height: 350px;
   left: 50%;
-  padding: 0.55rem 1rem;
-  pointer-events: auto;
+  pointer-events: none;
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  transform: translateX(-50%);
+  top: 0;
+  transform: translateX(-50%)
+    scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
+  transform-origin: top center;
+  width: 1200px;
 }
 
-.lobotomy-corp-alert-close:hover,
-.lobotomy-corp-alert-close:focus-visible {
-  background: #5b4509;
+/* 对应 ActiveController anchoredPosition.y 从 180 收至 0 的掉落动画。 */
+.lobotomy-corp-top-panel-active-controller {
+  animation: lobotomy-corp-top-panel-appear 0.5s cubic-bezier(0.18, 0.84,
+    0.32, 1) both;
+  height: 350px;
+  pointer-events: none;
+  position: relative;
+  width: 1200px;
+}
+
+/* 同一实例切换至下一档 Trumpet 时保持显示位置，不重复播放掉落动画。 */
+.lobotomy-corp-top-panel[data-lobotomy-corp-top-panel-reused="true"] .lobotomy-corp-top-panel-active-controller {
+  animation: none;
+}
+
+/* 原版 Disappear 以 speed=-1 反向播放同一段 Appear clip。 */
+.lobotomy-corp-top-panel[data-lobotomy-corp-top-panel-state="disappearing"] .lobotomy-corp-top-panel-active-controller {
+  animation-direction: reverse;
+  animation-duration: 0.5s;
+  animation-fill-mode: both;
+  animation-name: lobotomy-corp-top-panel-appear;
+  animation-timing-function: cubic-bezier(0.18, 0.84, 0.32, 1);
+}
+
+.lobotomy-corp-top-panel-valve {
+  display: block;
+  height: 192px;
+  pointer-events: none;
+  position: absolute;
+  top: 7px;
+  width: 162px;
+}
+
+.lobotomy-corp-top-panel-valve.left {
+  left: 20.2px;
+}
+
+.lobotomy-corp-top-panel-valve.right {
+  right: 19.2px;
+  transform: scaleX(-1);
+}
+
+/* FrameOutter 的 Sprite 直接作为容器背景，以保留 Unity 原始父子层级。 */
+.lobotomy-corp-top-panel-frame-outter {
+  background: url("/static/fun/lobotomy-corp/Assets/Sprite/Risk_Frame_Outter.png")
+    center / 100% 100% no-repeat;
+  height: 188px;
+  left: calc(50% - 442.3px);
+  pointer-events: none;
+  position: absolute;
+  top: 28px;
+  width: 887px;
+}
+
+.lobotomy-corp-top-panel-frame-inner {
+  display: block;
+  height: 187px;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(1.015, 1.06);
+  width: 887px;
+}
+
+/*
+ * RestartButton 的 RectTransform 使用中心锚点与中心轴心：
+ * CSS 左上角 = FrameOutter 中心 - 按钮自身中心 + (x, -y)。
+ * 保留原版 anchoredPosition=(-2.5, 12)，并隔离 app.css 的全局按钮规则。
+ */
+button.lobotomy-corp-top-panel-action-button {
+  --lobotomy-corp-restart-anchored-position-x: -2.5px;
+  --lobotomy-corp-restart-anchored-position-y: 12px;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+  font-weight: normal;
+  height: 109px;
+  left: 50%;
+  min-height: 0;
+  padding: 0;
+  pointer-events: auto;
+  position: absolute;
+  top: 50%;
+  transform: translate(
+    calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
+    calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
+  );
+  transition: none;
+  width: 812px;
+}
+
+button.lobotomy-corp-top-panel-action-button:hover:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  transform: translate(
+    calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
+    calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
+  );
+}
+
+button.lobotomy-corp-top-panel-action-button:focus-visible:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  outline: 3px solid #ffffff;
+  outline-offset: 4px;
+  transform: translate(
+    calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
+    calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
+  );
+}
+
+button.lobotomy-corp-top-panel-action-button:active:not(:disabled) {
+  --lobotomy-corp-restart-anchored-position-y: 5px;
+  background: transparent;
+  box-shadow: none;
+  transform: translate(
+    calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
+    calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
+  );
+}
+
+button.lobotomy-corp-top-panel-action-button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.lobotomy-corp-top-panel-action-button-sprite {
+  display: block;
+  height: 100%;
+  inset: 0;
+  opacity: 1;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+.lobotomy-corp-top-panel-action-button-sprite.pressed {
+  opacity: 0;
+}
+
+button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-sprite.normal {
+  opacity: 0;
+}
+
+button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-sprite.pressed {
+  opacity: 1;
+}
+
+.lobotomy-corp-top-panel-action-button-text {
+  color: #000000;
+  display: block;
+  font-family: LobotomyRestartTitle, sans-serif;
+  font-size: 70px;
+  font-weight: normal;
+  inset: 0;
+  line-height: 109px;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  transform: translateY(5px);
+  white-space: nowrap;
+}
+
+html[lang="ko-KR"] .lobotomy-corp-top-panel-action-button-text {
+  font-family: LobotomyRestartTitleKorean, sans-serif;
+}
+
+html[lang="ru-RU"] .lobotomy-corp-top-panel-action-button-text {
+  font-family: LobotomyRestartTitleRussian, sans-serif;
+}
+
+button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-text {
+  color: #3c3c3c;
 }
 
 @keyframes lobotomy-corp-emergency-pulse {
@@ -167,5 +361,15 @@
 
   50% {
     opacity: 0.8;
+  }
+}
+
+@keyframes lobotomy-corp-top-panel-appear {
+  from {
+    transform: translateY(-180px);
+  }
+
+  to {
+    transform: translateY(0);
   }
 }
