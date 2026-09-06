@@ -207,6 +207,12 @@ Deno.test("auth routes render Turnstile widget when enabled", async () => {
   );
   assertEquals(html.includes('class="auth-turnstile cf-turnstile"'), true);
   assertEquals(html.includes('data-sitekey="test-site-key"'), true);
+  assertEquals(html.includes('data-callback="collapseTurnstileWidget"'), true);
+  assertEquals(html.includes("turnstileSuccessDisplayMs = 1800"), true);
+  assertEquals(
+    html.includes('data-expired-callback="revealTurnstileWidgets"'),
+    true,
+  );
 });
 
 Deno.test("auth routes localize anonymous pages with a language-only navigation bar", async () => {

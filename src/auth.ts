@@ -5369,6 +5369,10 @@ function authEmailLoginScript(enabled: boolean, locale: Locale): string {
     return body;
   };
   const resetTurnstile = () => {
+    if (typeof globalThis.revealTurnstileWidgets === "function") {
+      globalThis.revealTurnstileWidgets();
+    }
+
     if (globalThis.turnstile && typeof globalThis.turnstile.reset === "function") {
       globalThis.turnstile.reset();
     }
@@ -5695,7 +5699,56 @@ function googleScriptHtml(clientId: string | undefined): string {
  */
 function turnstileScriptHtml(siteKey: string | undefined): string {
   return siteKey
-    ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+    ? `<script>
+/**
+ * 在 Turnstile 验证成功后，待成功动画展示完毕再平滑收起组件。
+ */
+globalThis.collapseTurnstileWidget = () => {
+  const turnstileSuccessDisplayMs = 1800;
+  const turnstileCollapseAnimationMs = 280;
+
+  for (const widget of document.querySelectorAll(".cf-turnstile")) {
+    const response = widget.querySelector("input[name='${turnstileResponseFieldName}']");
+    if (response instanceof HTMLInputElement && response.value.trim()) {
+      widget.dataset.turnstileComplete = "true";
+
+      /**
+       * 在成功提示停留后启动当前组件的收起动画。
+       */
+      const startCollapse = () => {
+        if (widget.dataset.turnstileComplete !== "true") return;
+
+        widget.dataset.turnstileCollapsing = "true";
+
+        /**
+         * 在收起过渡结束后从页面布局中移除当前组件。
+         */
+        const finishCollapse = () => {
+          if (widget.dataset.turnstileComplete === "true") {
+            widget.hidden = true;
+          }
+        };
+
+        window.setTimeout(finishCollapse, turnstileCollapseAnimationMs);
+      };
+
+      window.setTimeout(startCollapse, turnstileSuccessDisplayMs);
+    }
+  }
+};
+
+/**
+ * 在需要重新进行 Turnstile 验证时恢复组件显示。
+ */
+globalThis.revealTurnstileWidgets = () => {
+  for (const widget of document.querySelectorAll(".cf-turnstile")) {
+    delete widget.dataset.turnstileComplete;
+    delete widget.dataset.turnstileCollapsing;
+    widget.hidden = false;
+  }
+};
+</script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
     : "";
 }
 
@@ -5709,7 +5762,7 @@ function turnstileWidgetHtml(siteKey: string | undefined): string {
   return siteKey
     ? `<div class="auth-turnstile cf-turnstile" data-sitekey="${
       escapeHtml(siteKey)
-    }"></div>`
+    }" data-callback="collapseTurnstileWidget" data-expired-callback="revealTurnstileWidgets" data-error-callback="revealTurnstileWidgets"></div>`
     : "";
 }
 

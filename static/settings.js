@@ -4088,6 +4088,10 @@ function emailBindingErrorMessage(form, error) {
  * 重置 Turnstile widget，便于用户再次发送验证码。
  */
 function resetTurnstileWidget() {
+  if (typeof globalThis.revealTurnstileWidgets === "function") {
+    globalThis.revealTurnstileWidgets();
+  }
+
   const turnstile = globalThis.turnstile;
   if (turnstile && typeof turnstile.reset === "function") {
     turnstile.reset();
