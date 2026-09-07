@@ -59,11 +59,11 @@ export function createApplication() {
     () => aceAttorneyStyleResponse(),
   );
   app.get(
-    "/static/fun/ace-attorney/assets/*",
+    "/static/fun/ace-attorney/*",
     (c) =>
       aceAttorneyAssetResponse(
         c.req.path.slice(
-          "/static/fun/ace-attorney/assets/".length,
+          "/static/fun/ace-attorney/".length,
         ),
         c.req.header("range"),
       ),
@@ -77,11 +77,11 @@ export function createApplication() {
     () => lobotomyCorpStyleResponse(),
   );
   app.get(
-    "/static/fun/lobotomy-corp/Assets/*",
+    "/static/fun/lobotomy-corp/*",
     (c) =>
       lobotomyCorpAssetResponse(
         c.req.path.slice(
-          "/static/fun/lobotomy-corp/Assets/".length,
+          "/static/fun/lobotomy-corp/".length,
         ),
         c.req.header("range"),
       ),

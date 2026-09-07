@@ -261,7 +261,8 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/fun/ace-attorney/ace-attorney.js?v=20260905-cross-game-interruption" defer></script>
+    <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=20260906-easter-egg-structure" defer></script>
+    <script src="/static/fun/ace-attorney/ace-attorney.js?v=20260906-easter-egg-structure" defer></script>
     <script src="/static/settings.js?v=20260906-avatar-crop-tangent-zoom" defer></script>
   `;
 

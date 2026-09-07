@@ -7,6 +7,54 @@
  */
 const lobotomyCorpAssetRoot = "/static/fun/lobotomy-corp/Assets";
 
+/** 《脑叶公司》数据与本地化的公共访问根路径。 */
+const lobotomyCorpDataRoot = "/static/fun/lobotomy-corp";
+
+/** 当前页面已准备的《脑叶公司》专用文本。 */
+let lobotomyCorpMessages;
+
+/**
+ * 将当前网页 locale 解析为《脑叶公司》已维护的文本语言。
+ *
+ * @return {string} 本地化文件名使用的 locale。
+ */
+function lobotomyCorpLocale() {
+  const locale = globalThis.document?.documentElement?.lang ?? "en-US";
+  const aliases = { "en-CA": "en-US", "en-GB": "en-US", "zh-HK": "zh-TW", "zh-MO": "zh-TW", "zh-SG": "zh-CN" };
+  return aliases[locale] ?? (
+    ["en-US", "es-ES", "ja-JP", "ko-KR", "ru-RU", "vi-VN", "zh-CN", "zh-TW"].includes(locale)
+      ? locale
+      : "en-US"
+  );
+}
+
+/**
+ * 在脚本初始化阶段同步读取本地小型 JSON，避免首次点击与资料加载产生竞态。
+ *
+ * @param {string} path JSON 公共路径。
+ * @return {unknown|undefined} 已解析 JSON；非浏览器测试环境中返回 undefined。
+ */
+function loadLobotomyCorpJson(path) {
+  if (typeof globalThis.XMLHttpRequest !== "function") return undefined;
+  const request = new XMLHttpRequest();
+  request.open("GET", path, false);
+  request.send();
+  if (request.status !== 200) {
+    throw new Error(`无法读取《脑叶公司》彩蛋资料：${path}`);
+  }
+  return JSON.parse(request.responseText);
+}
+
+/** 初始化《脑叶公司》的静态资料和当前本地化。 */
+function initializeLobotomyCorpData() {
+  loadLobotomyCorpJson(`${lobotomyCorpDataRoot}/Data/Abnormalities.json`);
+  lobotomyCorpMessages = loadLobotomyCorpJson(
+    `${lobotomyCorpDataRoot}/Locales/${lobotomyCorpLocale()}.json`,
+  );
+}
+
+initializeLobotomyCorpData();
+
 /**
  * 《脑叶公司》最终渲染 Sprite 的公共访问目录。
  */
@@ -857,9 +905,11 @@ function createLobotomyCorpTopPanel() {
  */
 function lobotomyCorpTopPanelActionText(visualAlert) {
   const dataset = globalThis.document?.documentElement?.dataset;
-  const restartDayText = dataset?.lobotomyCorpRestartDay ?? "";
+  const restartDayText = lobotomyCorpMessages?.restartDay ??
+    dataset?.lobotomyCorpRestartDay ?? "";
   return visualAlert?.level === 4
-    ? dataset?.lobotomyCorpFiredManager ?? restartDayText
+    ? lobotomyCorpMessages?.firedManager ??
+      dataset?.lobotomyCorpFiredManager ?? restartDayText
     : restartDayText;
 }
 

@@ -26,6 +26,8 @@ Deno.test("Easter egg coordinator interrupts only a different game", async () =>
 
 Deno.test("username Easter egg matches names and resolves localized assets", async () => {
   const browser = globalThis as typeof globalThis & {
+    XMLHttpRequest?: unknown;
+    aceAttorneyCourtroomNameChange?: unknown;
     document?: unknown;
     usernameEasterEgg?: {
       imageLocale: () => string;
@@ -34,6 +36,32 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     };
   };
   const originalDocument = Object.getOwnPropertyDescriptor(browser, "document");
+  const originalXmlHttpRequest = Object.getOwnPropertyDescriptor(
+    browser,
+    "XMLHttpRequest",
+  );
+  const originalEvent = Object.getOwnPropertyDescriptor(
+    browser,
+    "aceAttorneyCourtroomNameChange",
+  );
+  class XmlHttpRequestMock {
+    responseText = "";
+    status = 0;
+    #path = "";
+    /** @param {string} _method 请求方法。 @param {string} path 请求路径。 */
+    open(_method: string, path: string): void {
+      this.#path = path;
+    }
+    /** 同步读取当前测试实际使用的 JSON 文件。 */
+    send(): void {
+      const filename = this.#path.split("/").at(-1);
+      const directory = this.#path.includes("/Data/") ? "Data" : "Locales";
+      this.responseText = Deno.readTextFileSync(
+        new URL(`../static/fun/ace-attorney/${directory}/${filename}`, import.meta.url),
+      );
+      this.status = 200;
+    }
+  }
   const documentMock = {
     documentElement: { lang: "zh-CN" },
     querySelectorAll: () => [],
@@ -42,7 +70,14 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     configurable: true,
     value: documentMock,
   });
+  Object.defineProperty(browser, "XMLHttpRequest", {
+    configurable: true,
+    value: XmlHttpRequestMock,
+  });
   try {
+    await import(
+      `../static/fun/ace-attorney/Events/CourtroomNameChange.js?test=${crypto.randomUUID()}`,
+    );
     await import(
       `../static/fun/ace-attorney/ace-attorney.js?test=${crypto.randomUUID()}`
     );
@@ -58,6 +93,12 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     if (originalDocument) {
       Object.defineProperty(browser, "document", originalDocument);
     } else delete browser.document;
+    if (originalXmlHttpRequest) {
+      Object.defineProperty(browser, "XMLHttpRequest", originalXmlHttpRequest);
+    } else delete browser.XMLHttpRequest;
+    if (originalEvent) {
+      Object.defineProperty(browser, "aceAttorneyCourtroomNameChange", originalEvent);
+    } else delete browser.aceAttorneyCourtroomNameChange;
     delete browser.usernameEasterEgg;
   }
 });

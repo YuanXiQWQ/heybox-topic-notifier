@@ -59,12 +59,6 @@ export function renderLayout(options: {
   lang="${options.locale}"
   dir="${direction}"
   data-color-mode="${options.darkMode ? "dark" : "light"}"
-  data-lobotomy-corp-restart-day="${
-    escapeHtml(messages.lobotomyCorpRestartDay)
-  }"
-  data-lobotomy-corp-fired-manager="${
-    escapeHtml(messages.lobotomyCorpFiredManager)
-  }"
   style="--theme-color: ${escapeHtml(options.themeColor)}"
 >
   <head>
@@ -77,7 +71,7 @@ export function renderLayout(options: {
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
-    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-fourth-risk-custom-layout" defer></script>
+    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-easter-egg-structure" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>

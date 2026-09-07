@@ -266,7 +266,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-trilogy .username-easter-egg-panel::before {
-  background: url("/static/fun/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png")
+  background: url("/static/fun/ace-attorney/AA123/StreamingAssets/menu/common/talk_bg.png")
     left calc(0px - clamp(3px, 0.43vh, 4.5px)) / auto 100% repeat-x;
   content: "";
   inset: 0;
@@ -278,7 +278,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 
 /* menu_bg 上半部是游戏按键提示，此处只裁取最底部白条。 */
 .username-easter-egg-theme-trilogy .username-easter-egg-panel::after {
-  background: url("/static/fun/ace-attorney/assets/images/aa123/text-box-ui/menu_bg.png")
+  background: url("/static/fun/ace-attorney/AA123/StreamingAssets/menu/common/menu_bg.png")
     left bottom / auto clamp(40px, 5.56vh, 80px) repeat-x;
   bottom: 0;
   content: "";
@@ -294,7 +294,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   border: solid transparent;
   border-image-repeat: repeat stretch;
   border-image-slice: 0 28 fill;
-  border-image-source: url("/static/fun/ace-attorney/assets/images/aa123/text-box-ui/name_bg.png");
+  border-image-source: url("/static/fun/ace-attorney/AA123/StreamingAssets/menu/common/name_bg.png");
   border-image-width: 0 clamp(18px, 2vh, 28px);
   clip-path: none;
   filter: none;
@@ -312,7 +312,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 
 .username-easter-egg-theme-trilogy .username-easter-egg-continue::before {
   aspect-ratio: 16 / 15;
-  background: url("/static/fun/ace-attorney/assets/images/aa123/text-box-ui/select_arrow.png")
+  background: url("/static/fun/ace-attorney/AA123/StreamingAssets/menu/common/select_arrow.png")
     center bottom / 100% 200% no-repeat;
   clip-path: none;
   filter: none;
@@ -390,7 +390,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   border: solid transparent;
   border-image-repeat: repeat stretch;
   border-image-slice: 0 40 0 122 fill;
-  border-image-source: url("/static/fun/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png");
+  border-image-source: url("/static/fun/ace-attorney/Common/Derived/AA456/text-box-ui/name_bg_tiled.png");
   border-image-width: 0 clamp(25px, 3.54vh, 35px) 0
     clamp(77px, 10.81vh, 108px);
   content: "";
@@ -419,7 +419,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 
 .username-easter-egg-theme-aa456 .username-easter-egg-continue::before {
   aspect-ratio: 46 / 25;
-  background: url("/static/fun/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png")
+  background: url("/static/fun/ace-attorney/Common/Derived/AA456/text-box-ui/text_box_ui.png")
     35.24% 96.97% / 556.52% 1024% no-repeat;
   clip-path: none;
   filter: none;
@@ -514,7 +514,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   border: solid transparent;
   border-image-repeat: repeat stretch;
   border-image-slice: 50 48 fill;
-  border-image-source: url("/static/fun/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png");
+  border-image-source: url("/static/fun/ace-attorney/Common/Derived/AAI12/text-box-ui/MessageWindow_TextBase_R_game.png");
   border-image-width: 50px 48px;
   box-sizing: border-box;
   content: "";
@@ -543,7 +543,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-speaker::before {
-  background: url("/static/fun/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_NameBase_R.png")
+  background: url("/static/fun/ace-attorney/Common/Derived/AAI12/text-box-ui/MessageWindow_NameBase_R.png")
     left top / auto 100% no-repeat;
   content: "";
   inset: 0;
@@ -562,7 +562,7 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-investigations .username-easter-egg-continue::before {
-  background: url("/static/fun/ace-attorney/assets/images/aa12/text-box-ui/sactx-0-1024x64-BC7-Message-a8bee319.png")
+  background: url("/static/fun/ace-attorney/Common/Derived/AAI12/text-box-ui/sactx-0-1024x64-BC7-Message-a8bee319.png")
     73.9% top / 2381.4% 100% no-repeat;
   clip-path: none;
   filter: none;

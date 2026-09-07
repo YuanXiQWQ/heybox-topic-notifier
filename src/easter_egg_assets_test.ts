@@ -14,11 +14,15 @@ Deno.test({
     const traversalResponse = await aceAttorneyAssetResponse(
       "../ace-attorney.js",
     );
+    const nestedTraversalResponse = await aceAttorneyAssetResponse(
+      "AA123/../../ace-attorney.js",
+    );
     const unknownResponse = await aceAttorneyAssetResponse(
-      "images/zh/unknown.png",
+      "Common/Derived/images/zh/unknown.png",
     );
 
     assertEquals(traversalResponse.status, 404);
+    assertEquals(nestedTraversalResponse.status, 404);
     assertEquals(unknownResponse.status, 404);
   },
 });
@@ -28,11 +32,11 @@ Deno.test({
   permissions: { read: true },
   fn: async () => {
     const response = await lobotomyCorpAssetResponse(
-      "AudioClip/third-trumpet.wav",
+      "Assets/AudioClip/third-trumpet.wav",
       "bytes=12-35",
     );
     const invalidResponse = await lobotomyCorpAssetResponse(
-      "AudioClip/third-trumpet.wav",
+      "Assets/AudioClip/third-trumpet.wav",
       "bytes=999999999-",
     );
 
@@ -52,10 +56,25 @@ Deno.test({
   permissions: { read: true },
   fn: async () => {
     const response = await lobotomyCorpAssetResponse(
-      "AudioClip/fourth-trumpet.wav",
+      "Assets/AudioClip/fourth-trumpet.wav",
     );
 
     assertEquals(response.status, 200);
     assertEquals(response.headers.get("content-type"), "audio/wav");
+  },
+});
+
+Deno.test({
+  name: "Easter egg JSON and event modules use safe MIME types",
+  permissions: { read: true },
+  fn: async () => {
+    const characters = await aceAttorneyAssetResponse("Data/Characters.json");
+    const event = await aceAttorneyAssetResponse("Events/CourtroomNameChange.js");
+    const locale = await lobotomyCorpAssetResponse("Locales/zh-CN.json");
+
+    assertEquals(characters.status, 200);
+    assertEquals(characters.headers.get("content-type"), "application/json; charset=utf-8");
+    assertEquals(event.headers.get("content-type"), "text/javascript; charset=utf-8");
+    assertEquals(locale.headers.get("content-type"), "application/json; charset=utf-8");
   },
 });
