@@ -660,8 +660,11 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   }
 
   .username-easter-egg-theme-investigations .username-easter-egg-speaker {
-    height: 31.25px;
-    width: 94vw;
+    /* 保持 727 × 62 的原始名称框比例；窄屏时连同文字一起缩小，避免裁掉右侧斜边。 */
+    aspect-ratio: 727 / 62;
+    font-size: min(1.1rem, 4.515vw);
+    height: auto;
+    width: min(94vw, 366.4314516129px);
   }
 }
 
