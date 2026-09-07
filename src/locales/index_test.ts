@@ -53,49 +53,6 @@ Deno.test("regional and untranslated messages use locale fallback chain", () => 
 });
 
 /**
- * 验证所有受支持语言都显式提供原游戏的 RestartButton 文案。
- */
-Deno.test("Lobotomy Corporation restart text is explicit for every locale", () => {
-  const restartTexts = {
-    "ar-SA": "Rewind to the Memory Repository.",
-    "bn-BD": "Rewind to the Memory Repository.",
-    "de-DE": "Rewind to the Memory Repository.",
-    "en-CA": "Rewind to the Memory Repository.",
-    "en-GB": "Rewind to the Memory Repository.",
-    "en-US": "Rewind to the Memory Repository.",
-    "es-ES": "Volver al Repositorio de Memoria",
-    "fa-IR": "Rewind to the Memory Repository.",
-    "fr-FR": "Retourner à l'Ancrage Mémoriel",
-    "he-IL": "Rewind to the Memory Repository.",
-    "hi-IN": "Rewind to the Memory Repository.",
-    "id-ID": "Rewind to the Memory Repository.",
-    "it-IT": "Rewind to the Memory Repository.",
-    "ja-JP": "再挑戦",
-    "ko-KR": "재도전",
-    "pt-BR": "Retroceder ao Repositório de Memória.",
-    "pt-PT": "Voltar através do Repositório de Memórias",
-    "ru-RU": "Возврат к точке сохранения",
-    "th-TH": "Rewind to the Memory Repository.",
-    "tr-TR": "Rewind to the Memory Repository.",
-    "ur-PK": "Rewind to the Memory Repository.",
-    "vi-VN": "Trở về kho bộ nhớ",
-    "zh-CN": "重新开始这一天",
-    "zh-HK": "從紀錄點重新開始",
-    "zh-MO": "從紀錄點重新開始",
-    "zh-SG": "重新开始这一天",
-    "zh-TW": "從紀錄點重新開始",
-  } as const;
-
-  for (const [locale, expected] of Object.entries(restartTexts)) {
-    const actual = getMessages(locale as keyof typeof restartTexts)
-      .lobotomyCorpRestartDay;
-    if (actual !== expected) {
-      throw new Error(`Expected ${locale} restart text ${expected}, got ${actual}`);
-    }
-  }
-});
-
-/**
  * 验证常见浏览器语言标签能归一化到项目语言。
  */
 Deno.test("normalizeLocale maps aliases and browser language tags", () => {

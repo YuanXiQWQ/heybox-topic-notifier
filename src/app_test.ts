@@ -117,29 +117,33 @@ Deno.test({
     const scriptResponse = await app.request(
       "/static/fun/ace-attorney/ace-attorney.js",
     );
+    const eventResponse = await app.request(
+      "/static/fun/ace-attorney/Events/CourtroomNameChange.js",
+    );
     const stylesheetResponse = await app.request(
       "/static/fun/ace-attorney/ace-attorney.css",
     );
     const imageResponse = await app.request(
-      "/static/fun/ace-attorney/assets/images/general/zh-CN/igiari.png",
+      "/static/fun/ace-attorney/Common/Derived/images/zh-CN/igiari.png",
     );
     const subtitleUiResponses = await Promise.all([
-      "/static/fun/ace-attorney/assets/images/aa123/text-box-ui/talk_bg.png",
-      "/static/fun/ace-attorney/assets/images/aa456/text-box-ui/text_box_ui.png",
-      "/static/fun/ace-attorney/assets/images/aa456/text-box-ui/name_bg_tiled.png",
-      "/static/fun/ace-attorney/assets/images/general/interjections/zh-CN.png",
-      "/static/fun/ace-attorney/assets/images/general/interjections/zh-TW.png",
-      "/static/fun/ace-attorney/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
+      "/static/fun/ace-attorney/AA123/StreamingAssets/menu/common/talk_bg.png",
+      "/static/fun/ace-attorney/Common/Derived/AA456/text-box-ui/text_box_ui.png",
+      "/static/fun/ace-attorney/Common/Derived/AA456/text-box-ui/name_bg_tiled.png",
+      "/static/fun/ace-attorney/Common/Derived/images/interjections/zh-CN.png",
+      "/static/fun/ace-attorney/Common/Derived/images/interjections/zh-TW.png",
+      "/static/fun/ace-attorney/Common/Derived/AAI12/text-box-ui/MessageWindow_TextBase_R_game.png",
     ].map((assetPath) => app.request(assetPath)));
     const audioResponse = await app.request(
-      "/static/fun/ace-attorney/assets/sounds/aa123/zh-CN/phoenix-wright/igiari.wav",
+      "/static/fun/ace-attorney/AA123/StreamingAssets/Sound/se/strm/voice/zh-CN/phoenix-wright/igiari.wav",
     );
     const soundEffectResponse = await app.request(
-      "/static/fun/ace-attorney/assets/sounds/general/sfx-blipmale.wav",
+      "/static/fun/ace-attorney/Common/Derived/sounds/sfx-blipmale.wav",
     );
     const script = await scriptResponse.text();
+    const event = await eventResponse.text();
     const coordinator = await coordinatorResponse.text();
-    const normalizedScript = script.replaceAll("\r\n", "\n");
+    const normalizedEvent = event.replaceAll("\r\n", "\n");
     const stylesheet = await stylesheetResponse.text();
     const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
     const soundEffectBytes = new Uint8Array(
@@ -150,31 +154,31 @@ Deno.test({
     assertEquals(coordinator.includes("previousEasterEgg?.stop()"), true);
     assertEquals(scriptResponse.status, 200);
     assertEquals(
-      script.includes("phoenixWright"),
+      script.includes("ace-attorney-easter-egg-data"),
       true,
     );
     assertEquals(
-      script.includes(
+      event.includes(
         'continueButton.className = "username-easter-egg-continue"',
       ),
       true,
     );
     assertEquals(
-      script.includes("username-easter-egg-theme-${character.theme}"),
+      event.includes("username-easter-egg-theme-${character.theme}"),
       true,
     );
     assertEquals(
-      script.includes("images/general/interjections/${imageLocale}.png"),
+      event.includes("Common/Derived/images/interjections/${imageLocale}.png"),
       true,
     );
     assertEquals(
-      normalizedScript.includes(
+      normalizedEvent.includes(
         'choiceLocked = true;\n        actions.hidden = true;\n        overlay.classList.remove("is-choosing");',
       ),
       true,
     );
     assertEquals(
-      script.includes('soundEffectSource("sfx-pichoop")'),
+      event.includes('soundEffectSource("sfx-pichoop")'),
       true,
     );
     assertEquals(
@@ -212,37 +216,37 @@ Deno.test({
     );
     assertEquals(
       stylesheet.includes(
-        "/assets/images/aa123/text-box-ui/talk_bg.png",
+        "/AA123/StreamingAssets/menu/common/talk_bg.png",
       ),
       true,
     );
     assertEquals(
       stylesheet.includes(
-        "/assets/images/aa123/text-box-ui/select_arrow.png",
+        "/AA123/StreamingAssets/menu/common/select_arrow.png",
       ),
       true,
     );
     assertEquals(
       stylesheet.includes(
-        "/assets/images/aa456/text-box-ui/text_box_ui.png",
+        "/Common/Derived/AA456/text-box-ui/text_box_ui.png",
       ),
       true,
     );
     assertEquals(
       stylesheet.includes(
-        "/assets/images/aa12/text-box-ui/MessageWindow_TextBase_R_game.png",
+        "/Common/Derived/AAI12/text-box-ui/MessageWindow_TextBase_R_game.png",
       ),
       true,
     );
     assertEquals(
       stylesheet.includes(
-        "/assets/images/aa12/text-box-ui/MessageWindow_NameBase_R.png",
+        "/Common/Derived/AAI12/text-box-ui/MessageWindow_NameBase_R.png",
       ),
       true,
     );
     assertEquals(
       stylesheet.includes(
-        "/assets/images/aa12/text-box-ui/sactx-0-1024x64-BC7-Message-a8bee319.png",
+        "/Common/Derived/AAI12/text-box-ui/sactx-0-1024x64-BC7-Message-a8bee319.png",
       ),
       true,
     );
@@ -388,7 +392,7 @@ Deno.test({
     assertEquals(script.includes("/[\\s-]+/gu"), true);
     assertEquals(script.includes("lobotomy-corp-top-panel"), true);
     assertEquals(script.includes("lobotomy-corp-alert-close"), false);
-    assertEquals(script.includes("lobotomyCorpRestartDay"), true);
+    assertEquals(script.includes("data-lobotomy-corp-restart-day"), false);
     assertEquals(script.includes('textContent = "结束警报"'), false);
     assertEquals(script.includes("脑叶公司警报控制面板"), false);
     assertEquals(script.includes("[0, 234, 219]"), true);

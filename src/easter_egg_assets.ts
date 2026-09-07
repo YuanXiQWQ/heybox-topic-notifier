@@ -3,24 +3,24 @@
  */
 
 /**
- * 彩蛋媒体资源允许使用的相对路径格式。
+ * 彩蛋资源允许使用的相对路径格式。
  */
 const easterEggAssetPathPattern =
-  /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*\.(?:mp3|otf|png|ttf|wav)$/;
+  /^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*\.(?:css|js|json|mp3|otf|png|ttf|wav)$/;
 
 /**
- * 彩蛋媒体资源根目录。
+ * 《逆转裁判》彩蛋资源根目录。
  */
 const aceAttorneyAssetRoot = new URL(
-  "../static/fun/ace-attorney/assets/",
+  "../static/fun/ace-attorney/",
   import.meta.url,
 );
 
 /**
- * 《脑叶公司》彩蛋媒体资源根目录。
+ * 《脑叶公司》彩蛋资源根目录。
  */
 const lobotomyCorpAssetRoot = new URL(
-  "../static/fun/lobotomy-corp/Assets/",
+  "../static/fun/lobotomy-corp/",
   import.meta.url,
 );
 
@@ -82,7 +82,7 @@ export async function aceAttorneyStyleResponse(): Promise<Response> {
 }
 
 /**
- * 创建《逆转裁判》彩蛋媒体资源响应。
+ * 创建《逆转裁判》彩蛋资源响应。
  *
  * @param {string} assetPath 请求的媒体资源相对路径。
  * @return {Promise<Response>} 媒体资源响应；路径无效或文件不存在时返回 404。
@@ -94,6 +94,7 @@ export async function aceAttorneyAssetResponse(
   return await easterEggAssetResponse(
     assetPath,
     aceAttorneyAssetRoot,
+    isAceAttorneyAssetPath,
     rangeHeader,
   );
 }
@@ -139,7 +140,7 @@ export async function lobotomyCorpStyleResponse(): Promise<Response> {
 }
 
 /**
- * 创建《脑叶公司》彩蛋媒体资源响应。
+ * 创建《脑叶公司》彩蛋资源响应。
  *
  * @param {string} assetPath 请求的媒体资源相对路径。
  * @return {Promise<Response>} 媒体资源响应；路径无效或文件不存在时返回 404。
@@ -151,6 +152,7 @@ export async function lobotomyCorpAssetResponse(
   return await easterEggAssetResponse(
     assetPath,
     lobotomyCorpAssetRoot,
+    isLobotomyCorpAssetPath,
     rangeHeader,
   );
 }
@@ -160,15 +162,21 @@ export async function lobotomyCorpAssetResponse(
  *
  * @param {string} assetPath 请求的媒体资源相对路径。
  * @param {URL} assetRoot 彩蛋资源根目录。
+ * @param {(assetPath: string) => boolean} isAllowedPath 游戏资源路径白名单。
  * @param {string|undefined} rangeHeader HTTP Range 请求头。
  * @return {Promise<Response>} 媒体资源响应；路径无效或文件不存在时返回 404。
  */
 async function easterEggAssetResponse(
   assetPath: string,
   assetRoot: URL,
+  isAllowedPath: (assetPath: string) => boolean,
   rangeHeader?: string,
 ): Promise<Response> {
-  if (!easterEggAssetPathPattern.test(assetPath)) {
+  if (
+    !easterEggAssetPathPattern.test(assetPath) ||
+    assetPath.split("/").some((segment) => segment === "." || segment === "..") ||
+    !isAllowedPath(assetPath)
+  ) {
     return easterEggAssetNotFoundResponse();
   }
 
@@ -176,7 +184,11 @@ async function easterEggAssetResponse(
     const content = await Deno.readFile(
       new URL(assetPath, assetRoot),
     );
-    const range = easterEggAssetRange(rangeHeader, content.byteLength);
+    const contentType = easterEggAssetContentType(assetPath);
+    const supportsRange = contentType.startsWith("audio/");
+    const range = supportsRange
+      ? easterEggAssetRange(rangeHeader, content.byteLength)
+      : undefined;
     if (range === "invalid") {
       return new Response(null, {
         status: 416,
@@ -191,11 +203,11 @@ async function easterEggAssetResponse(
       ? content.slice(range.start, range.end + 1)
       : content;
     const headers: Record<string, string> = {
-      "accept-ranges": "bytes",
       "cache-control": "public, max-age=86400",
       "content-length": String(partialContent.byteLength),
-      "content-type": easterEggAssetContentType(assetPath),
+      "content-type": contentType,
     };
+    if (supportsRange) headers["accept-ranges"] = "bytes";
     if (range) {
       headers["content-range"] =
         `bytes ${range.start}-${range.end}/${content.byteLength}`;
@@ -266,6 +278,15 @@ function easterEggAssetRange(
  * @return {string} 对应的 HTTP Content-Type。
  */
 function easterEggAssetContentType(assetPath: string): string {
+  if (assetPath.endsWith(".json")) {
+    return "application/json; charset=utf-8";
+  }
+  if (assetPath.endsWith(".js")) {
+    return "text/javascript; charset=utf-8";
+  }
+  if (assetPath.endsWith(".css")) {
+    return "text/css; charset=utf-8";
+  }
   if (assetPath.endsWith(".png")) {
     return "image/png";
   }
@@ -276,6 +297,33 @@ function easterEggAssetContentType(assetPath: string): string {
     return "font/ttf";
   }
   return assetPath.endsWith(".wav") ? "audio/wav" : "audio/mpeg";
+}
+
+/**
+ * 判断《逆转裁判》文件是否属于已公开的资源分层。
+ *
+ * @param {string} assetPath 请求的相对路径。
+ * @return {boolean} 路径可公开读取时返回 true。
+ */
+function isAceAttorneyAssetPath(assetPath: string): boolean {
+  return /^(?:AA123|AA456|AAI12|Common)\/.+\.(?:mp3|png|wav)$/u.test(assetPath) ||
+    /^(?:Data\/Characters|Locales\/(?:en-US|ja-JP|zh-CN))\.json$/u.test(
+      assetPath,
+    ) || assetPath === "Events/CourtroomNameChange.js";
+}
+
+/**
+ * 判断《脑叶公司》文件是否属于已公开的资源分层。
+ *
+ * @param {string} assetPath 请求的相对路径。
+ * @return {boolean} 路径可公开读取时返回 true。
+ */
+function isLobotomyCorpAssetPath(assetPath: string): boolean {
+  return /^Assets\/.+\.(?:mp3|otf|png|ttf|wav)$/u.test(assetPath) ||
+    assetPath === "Data/Abnormalities.json" ||
+    /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u.test(
+      assetPath,
+    );
 }
 
 /**

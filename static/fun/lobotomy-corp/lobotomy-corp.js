@@ -7,6 +7,22 @@
  */
 const lobotomyCorpAssetRoot = "/static/fun/lobotomy-corp/Assets";
 
+/** 当前页面已准备的《脑叶公司》专用文本。 */
+let lobotomyCorpMessages;
+
+/** 初始化服务端注入的《脑叶公司》当前本地化。 */
+function initializeLobotomyCorpData() {
+  const serialized = globalThis.document?.getElementById?.(
+    "lobotomy-corp-locale-data",
+  )?.textContent;
+  if (!serialized) {
+    throw new Error("《脑叶公司》彩蛋本地化尚未注入页面。");
+  }
+  lobotomyCorpMessages = JSON.parse(serialized);
+}
+
+initializeLobotomyCorpData();
+
 /**
  * 《脑叶公司》最终渲染 Sprite 的公共访问目录。
  */
@@ -856,10 +872,9 @@ function createLobotomyCorpTopPanel() {
  * @return {string} 本轮视觉状态对应的按钮文案。
  */
 function lobotomyCorpTopPanelActionText(visualAlert) {
-  const dataset = globalThis.document?.documentElement?.dataset;
-  const restartDayText = dataset?.lobotomyCorpRestartDay ?? "";
+  const restartDayText = lobotomyCorpMessages?.restartDay ?? "";
   return visualAlert?.level === 4
-    ? dataset?.lobotomyCorpFiredManager ?? restartDayText
+    ? lobotomyCorpMessages?.firedManager ?? restartDayText
     : restartDayText;
 }
 

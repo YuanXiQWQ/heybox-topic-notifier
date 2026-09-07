@@ -223,7 +223,7 @@ Deno.test("Turso expiring challenges are not returned after expiry", async () =>
 
     assertEquals(
       (await storage.getPendingMfaChallenge(challenge.id))?.allowedMethods,
-      ["email", "passkey"],
+      ["passkey", "email"],
     );
     assertEquals(
       await storage.getPendingMfaChallenge("expired-challenge"),

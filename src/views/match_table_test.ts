@@ -279,11 +279,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260904-display-name`,
+    `/static/settings.js?v=20260906-avatar-crop-tangent-zoom`,
   );
   assertIncludes(
     html,
-    `/static/fun/ace-attorney/ace-attorney.js?v=20260905-cross-game-interruption`,
+    `/static/fun/ace-attorney/ace-attorney.js?v=20260906-easter-egg-structure`,
   );
   assertIncludes(
     html,
@@ -295,7 +295,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-fourth-risk-custom-layout`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-easter-egg-structure`,
   );
   assertIncludes(
     html,
@@ -303,7 +303,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `data-lobotomy-corp-restart-day="重新开始这一天"`,
+    `id="lobotomy-corp-locale-data">{"restartDay":"重新开始这一天","firedManager":"你被解雇了，主管！"}</script>`,
   );
   assertIncludes(html, `data-username-easter-egg-settings`);
 });
