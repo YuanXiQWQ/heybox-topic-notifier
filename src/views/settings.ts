@@ -58,6 +58,12 @@ const settingsAutosaveFormId = "settings-autosave-form";
  * 两步验证设置表单 ID，用于避免与验证器绑定表单嵌套。
  */
 const securitySettingsFormId = "security-settings-form";
+/**
+ * 《逆转裁判》入口与事件脚本的联合版本。
+ *
+ * 两份脚本共享初始化约定，必须同时更新，避免浏览器混用旧事件脚本与新入口。
+ */
+const aceAttorneyEasterEggScriptVersion = "20260907-inline-data-v2";
 
 /**
  * 为账户认证接口追加当前页面语言。
@@ -267,8 +273,8 @@ export function renderSettings(options: {
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
-    <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=20260906-easter-egg-structure" defer></script>
-    <script src="/static/fun/ace-attorney/ace-attorney.js?v=20260906-easter-egg-structure" defer></script>
+    <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
+    <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/settings.js?v=20260906-avatar-crop-tangent-zoom" defer></script>
   `;
 
@@ -559,20 +565,26 @@ function renderAccountSection(
   }</h2>
         <dl class="settings-list"><div>
           ${authSettingLabel("avatar", messages.accountAvatar)}
-          <dd><label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button" aria-label="${
-    escapeHtml(messages.accountAvatarChoose)
+          <dd><div class="account-avatar-setting">
+            <button class="account-avatar-preview-button" type="button" data-avatar-preview aria-label="${
+    escapeHtml(messages.accountAvatar)
   }">
-            <span class="account-avatar account-avatar-preview"><img src="${
+              <span class="account-avatar account-avatar-preview"><img class="account-avatar-default" src="${
     defaultAvatarUrl(account?.id)
   }" alt="${
     escapeHtml(messages.accountAvatar)
-  }"><img src="/account/avatar" alt="" hidden onload="this.hidden=false"></span>
-            <input class="account-avatar-file-input" type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" data-avatar-file-input tabindex="-1">
-            <span class="account-avatar-picker-text">${
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span>
+            </button>
+            <label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button" aria-label="${
+    escapeHtml(messages.accountAvatarChoose)
+  }">
+              <input class="account-avatar-file-input" type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" data-avatar-file-input tabindex="-1">
+              <span class="account-avatar-picker-text">${
     escapeHtml(messages.accountAvatarChoose)
   }</span>
+            </label>
             <span class="inline-action-status" data-avatar-upload-status hidden role="status"></span>
-          </label></dd>
+          </div></dd>
         </div></dl>
       </section>
       <dialog class="avatar-crop-dialog" data-avatar-crop-dialog data-avatar-uploading="${
@@ -592,6 +604,14 @@ function renderAccountSection(
   }" data-tooltip="${escapeHtml(messages.accountAvatarConfirm)}">${
     materialSymbolIcon("check", "settings-row-action-icon")
   }</button></div>
+      </dialog>
+      <dialog class="avatar-preview-dialog" data-avatar-preview-dialog>
+        <button type="button" class="icon-button avatar-preview-close" data-avatar-preview-close aria-label="${
+    escapeHtml(messages.accountCancel)
+  }">×</button>
+        <img data-avatar-preview-image alt="${
+    escapeHtml(messages.accountAvatar)
+  }">
       </dialog>
     </form>
     <form

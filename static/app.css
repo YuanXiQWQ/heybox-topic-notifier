@@ -369,7 +369,7 @@ input[readonly]::placeholder {
 }
 
 .notification-provider-row select {
-  flex: 0 1 var(--settings-control-width);
+  flex: 1 1 160px;
   min-width: 0;
   max-width: var(--settings-control-width);
 }
@@ -443,13 +443,15 @@ input[readonly]::placeholder {
 .input-action-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   max-width: 100%;
   width: 100%;
 }
 
 .input-action-row input {
-  flex: 0 1 var(--settings-control-width);
+  flex: 1 1 220px;
+  min-inline-size: min(100%, 220px);
   min-width: 0;
   max-width: var(--settings-control-width);
 }
@@ -459,17 +461,26 @@ input[readonly]::placeholder {
 .email-binding-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   max-width: 100%;
   width: 100%;
 }
 .account-settings-group { margin-bottom: 0; }
 .account-settings-continuation { border-top: 0; border-radius: 0 0 8px 8px; margin-top: 0; }
-.account-avatar-picker { align-items: center; border: 1px dashed var(--theme-border); border-radius: 8px; display: flex; gap: 12px; max-width: 560px; padding: 12px; transition: background-color 160ms ease, border-color 160ms ease; }
+.account-avatar-setting { align-items: center; display: flex; gap: 12px; max-width: 560px; width: 100%; }
+.account-avatar-preview-button { background: transparent; border: 0; border-radius: 50%; box-shadow: none; cursor: zoom-in; flex: 0 0 auto; padding: 0; transform: none; transition: none; }
+.account-avatar-preview-button:hover, .account-avatar-preview-button:active { background: transparent !important; box-shadow: none !important; transform: none !important; }
+.account-avatar-preview-button:focus-visible { outline: 2px solid var(--theme-strong); outline-offset: 3px; }
+.account-avatar-picker { align-items: center; border: 1px dashed var(--theme-border); border-radius: 8px; display: flex; flex: 1 1 auto; justify-content: center; min-height: 72px; min-width: 0; padding: 12px; transition: background-color 160ms ease, border-color 160ms ease; }
 .account-avatar-picker.is-dragover, .account-avatar-picker:hover { background: var(--theme-soft); border-color: var(--theme-strong); }
 .account-avatar-preview { flex-basis: 72px; height: 72px; width: 72px; }
 .account-avatar-file-input { height: 1px; opacity: 0; position: absolute; width: 1px; }
 .account-avatar-picker-text { color: var(--muted); font-size: 14px; }
+.avatar-preview-dialog { background: transparent; border: 0; max-height: min(86vh, 920px); max-width: min(86vw, 920px); overflow: visible; padding: 0; }
+.avatar-preview-dialog::backdrop { backdrop-filter: blur(10px); background: color-mix(in srgb, var(--ink) 52%, transparent); }
+.avatar-preview-dialog img { display: block; max-height: min(82vh, 840px); max-width: min(82vw, 840px); object-fit: contain; }
+.avatar-preview-close { background: var(--surface); border: 1px solid var(--theme-border); border-radius: 50%; color: var(--ink); position: absolute; right: 8px; top: 8px; z-index: 1; }
 .avatar-crop-dialog { background: linear-gradient(145deg, var(--surface), var(--theme-soft)); border: 1px solid var(--theme-border); border-radius: 14px; box-shadow: 0 24px 64px var(--shadow-strong); color: var(--ink); max-width: min(92vw, 460px); padding: 0; }
 .avatar-crop-dialog::backdrop { background: color-mix(in srgb, var(--ink) 66%, transparent); }
 .avatar-crop-header { align-items: center; background: var(--theme-soft); border-bottom: 1px solid var(--theme-border); display: flex; justify-content: space-between; padding: 16px 20px; }
@@ -529,7 +540,8 @@ input[readonly]::placeholder {
 .account-single-input-row input,
 .email-binding-row input[type="email"],
 .email-binding-row input[type="text"] {
-  flex: 0 0 var(--settings-control-width);
+  flex: 1 1 260px;
+  min-inline-size: min(100%, 260px);
   min-width: 0;
   max-width: var(--settings-control-width);
 }
@@ -556,8 +568,8 @@ input[readonly]::placeholder {
 .auth-method-summary-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
-  justify-content: space-between;
   min-width: 0;
 }
 
@@ -575,16 +587,19 @@ input[readonly]::placeholder {
 }
 
 .auth-method-summary-row > .email-binding-row {
-  flex: 1 1 auto;
+  flex: 1 1 260px;
   min-width: 0;
+  width: auto;
 }
 
 .auth-method-actions {
   align-items: center;
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+  margin-inline-start: auto;
 }
 
 .auth-method-toggle-button {
@@ -607,6 +622,8 @@ input[readonly]::placeholder {
 }
 
 .auth-method-action-form {
+  display: flex;
+  flex: 0 0 auto;
   margin: 0;
 }
 
@@ -1527,8 +1544,12 @@ dt {
   background: var(--theme-soft);
   display: grid;
   gap: 12px;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: minmax(132px, 180px) minmax(0, 1fr);
   padding: 18px 22px;
+}
+
+.settings-list > div > dd {
+  min-inline-size: 0;
 }
 
 .settings-list > div:last-child {
@@ -2418,7 +2439,7 @@ tr:last-child td {
     border-inline-start: 0;
   }
 
-  .settings-list > div {
+  .settings-list > .dropdown-settings-row {
     grid-template-columns: 1fr;
   }
 
@@ -2582,69 +2603,8 @@ tr:last-child td {
     padding: 6px 4px;
   }
 
-  .input-action-row {
-    align-items: stretch;
-    flex-direction: column;
-    max-width: var(--settings-control-width);
-    width: 100%;
-  }
-
-  .account-username-row,
-  .account-single-input-row,
-  .account-passkey-reauth-row,
-  .email-binding-row {
-    align-items: stretch;
-    flex-direction: column;
-    max-width: var(--settings-control-width);
-    width: 100%;
-  }
-
-  .account-passkey-reauth-row .inline-action-status {
-    flex: 0 0 auto;
-    min-height: 0;
-    width: 100%;
-  }
-
-  .account-passkey-reauth-row button {
-    align-self: flex-end;
-    width: auto;
-  }
-
-  .auth-method-summary-row {
-    align-items: flex-start;
-    flex-direction: column;
-    justify-content: flex-start;
-  }
-
-  .auth-method-actions {
-    align-items: flex-end;
-    flex-direction: column;
-    justify-content: flex-start;
-    width: 100%;
-  }
-
-  .auth-method-actions button,
-  .auth-method-action-form,
-  .auth-method-action-form button {
-    width: 100%;
-  }
-
-  .auth-method-actions > .auth-method-text-button {
-    width: auto;
-  }
-
-  .auth-method-actions .auth-method-toggle-button,
-  .auth-method-action-form .auth-method-toggle-button {
-    flex-basis: 40px;
-    width: 40px;
-  }
-
   .auth-method-summary {
     white-space: normal;
-  }
-
-  .auth-method-summary-row > .auth-method-summary {
-    flex: 0 1 auto;
   }
 
   .auth-method-panel-fields > label,
@@ -2655,50 +2615,17 @@ tr:last-child td {
     grid-template-columns: 1fr;
   }
 
-  .account-mode-buttons {
-    flex-direction: column;
-  }
-
-  .notification-provider-row {
-    align-items: flex-start;
-    flex-direction: column;
-    max-width: var(--settings-control-width);
-  }
-
-  .notification-provider-row .inline-action-status {
-    flex: 0 0 auto;
-    min-height: 0;
-    width: 100%;
-  }
-
-  .input-action-row input,
-  .account-username-row input,
-  .account-single-input-row input,
-  .email-binding-row input[type="email"],
-  .email-binding-row input[type="text"],
   .auth-method-panel-fields input,
   .auth-method-panel-fields select,
-  .auth-method-panel-fields textarea,
-  .notification-provider-row select {
-    flex-basis: auto;
+  .auth-method-panel-fields textarea {
     width: 100%;
-  }
-
-  .notification-provider-row button {
-    align-self: flex-start;
-    max-width: 100%;
-    width: auto;
-  }
-
-  .notification-provider-row .settings-icon-action-button {
-    align-self: flex-end;
   }
 
   .settings-row-action-button,
   .account-mode-buttons,
   .secret-input-row button {
-    align-self: flex-end;
-    margin-inline-start: 0;
+    align-self: auto;
+    margin-inline-start: auto;
   }
 
   .section-title-row {
@@ -2720,6 +2647,30 @@ tr:last-child td {
   .table-filter-shell:has(.filter-toggle-input:checked) {
     grid-template-columns: minmax(0, 1fr) 28px;
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  /* 宽输入框需要完整一行，避免把可编辑区域压缩到不可用。 */
+  .settings-list > div:has(.input-action-row),
+  .settings-list > div:has(.account-username-row),
+  .settings-list > div:has(.account-single-input-row),
+  .settings-list > div:has(.email-binding-row) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 400px) {
+  /* 其余复杂控件在此宽度以下使用完整内容区；轻量开关仍保留两列。 */
+  .settings-list > div:not(.dropdown-settings-row):not(:has(.settings-row-switch-cell)):not(:has(.auth-method-summary-row .switch-control)) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 320px) {
+  /* 极窄屏无法容纳标签列与开关时，才让所有常规设置项单列。 */
+  .settings-list > div:not(.dropdown-settings-row) {
+    grid-template-columns: 1fr;
   }
 }
 

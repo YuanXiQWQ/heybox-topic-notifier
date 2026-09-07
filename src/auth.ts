@@ -5917,7 +5917,14 @@ globalThis.revealTurnstileWidgets = () => {
 };
 ${altchaFallbackScript(altchaFallbackEnabled)}
 </script>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer onerror="globalThis.useAltchaFallback?.()"></script>`
+<script id="turnstile-api-script" src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+document.getElementById("turnstile-api-script")?.addEventListener(
+  "error",
+  () => globalThis.useAltchaFallback?.(),
+  { once: true },
+);
+</script>`
     : "";
 }
 

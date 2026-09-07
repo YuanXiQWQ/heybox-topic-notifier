@@ -208,6 +208,8 @@ Deno.test("auth routes render Turnstile widget when enabled", async () => {
     html.includes("https://challenges.cloudflare.com/turnstile/v0/api.js"),
     true,
   );
+  assertEquals(html.includes("onerror="), false);
+  assertEquals(html.includes('id="turnstile-api-script"'), true);
   assertEquals(html.includes('class="auth-turnstile cf-turnstile"'), true);
   assertEquals(html.includes('data-sitekey="test-site-key"'), true);
   assertEquals(html.includes('data-callback="collapseTurnstileWidget"'), true);

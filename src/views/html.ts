@@ -77,15 +77,15 @@ function lobotomyCorpLocaleFile(locale: Locale): string {
   };
   return aliases[locale] ?? (
     [
-      "en-US",
-      "es-ES",
-      "ja-JP",
-      "ko-KR",
-      "ru-RU",
-      "vi-VN",
-      "zh-CN",
-      "zh-TW",
-    ].includes(locale)
+        "en-US",
+        "es-ES",
+        "ja-JP",
+        "ko-KR",
+        "ru-RU",
+        "vi-VN",
+        "zh-CN",
+        "zh-TW",
+      ].includes(locale)
       ? locale
       : "en-US"
   );
@@ -288,5 +288,5 @@ export function renderAvatar(
     defaultAvatarUrl(account.id)
   }" alt="${
     escapeHtml(alt)
-  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden onload="this.hidden=false"></span>`;
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span>`;
 }
