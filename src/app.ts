@@ -40,6 +40,7 @@ export function createApplication() {
     },
     google: context.config.google,
     passkey: context.config.passkey,
+    altcha: context.config.altcha,
     totp: context.config.totp,
     turnstile: context.config.turnstile,
   };

@@ -49,6 +49,7 @@ Deno Deploy App 中按需配置。仓库根目录的 `.env.example` 已按场景
 其它轮询调优、通知渠道、中转和安全白名单配置保持注释，使用哪个场景再取消对应行。
 
 - 基础默认值：`APP_LOCALE`、`HEYBOX_TOPIC_ID`、`POLL_ENABLED`、`NOTIFIER_PROVIDER`
+- 人机验证：`TURNSTILE_ENABLED`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`；如需为中国大陆网络启用自动降级，还需配置 `ALTCHA_ENABLED=true` 与至少 32 个字符的 `ALTCHA_HMAC_KEY`。ALTCHA 由本站签发并校验静默工作量证明，不调用第三方验证码服务。
 - 轮询调优：`POLL_INTERVAL_MINUTES`、`POLL_POST_LIMIT`、`POLL_SORT`
 - 小黑盒请求覆盖：`HEYBOX_SIGNATURE_MODE`、`HEYBOX_DEVICE_ID`、`HEYBOX_COOKIE`、 `HEYBOX_USER_AGENT`
 - 通知公共项：`NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
