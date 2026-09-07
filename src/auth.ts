@@ -57,6 +57,13 @@ import {
   turnstileResponseFieldName,
   verifyTurnstileToken,
 } from "./auth/turnstile.ts";
+import {
+  type AltchaConfig,
+  altchaConfigured,
+  altchaResponseFieldName,
+  createAltchaChallenge,
+  verifyAltchaPayload,
+} from "./auth/altcha.ts";
 import { normalizeEmailAddress } from "./auth/email.ts";
 import {
   createEmailVerificationChallenge,
@@ -134,6 +141,7 @@ export type AuthOptions = {
   totp?: TotpConfig;
   turnstile?: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
+  altcha?: AltchaConfig;
 };
 
 /**
@@ -158,6 +166,7 @@ type AuthConfig = {
   totp: TotpConfig;
   turnstile: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
+  altcha: AltchaConfig;
 };
 
 /**
@@ -171,6 +180,15 @@ const defaultTurnstileConfig: TurnstileConfig = {
   enabled: false,
   secretKey: "",
   siteKey: "",
+};
+/**
+ * 默认关闭的 ALTCHA 配置。
+ */
+const defaultAltchaConfig: AltchaConfig = {
+  challengeCost: 1000,
+  challengeTtlSeconds: 10 * 60,
+  enabled: false,
+  hmacKey: "",
 };
 /**
  * 默认邮箱验证码配置。
@@ -279,6 +297,10 @@ const mfaPath = "/mfa";
  * Passkey challenge 最大校验失败次数。
  */
 const passkeyChallengeMaxAttempts = 5;
+/**
+ * ALTCHA 载荷的重放保护窗口（毫秒）。
+ */
+const altchaReplayWindowMs = 10 * 60 * 1000;
 
 /**
  * 创建认证中间件。
@@ -347,6 +369,7 @@ export function createAuthRoutes(
             ? authLocaleChangedValue
             : undefined,
         }),
+        altchaFallbackEnabled: altchaFallbackEnabled(config),
         csrfToken: csrf.token,
         emailTurnstileSiteKey: turnstileSiteKey(config),
         error: loginErrorMessage(url.searchParams.get("error"), messages),
@@ -420,6 +443,7 @@ export function createAuthRoutes(
         c.req.raw,
         form,
         config,
+        storage,
       );
       if (humanVerificationErrors) {
         return c.redirect(
@@ -512,6 +536,16 @@ export function createAuthRoutes(
     });
   });
 
+  app.get("/auth/altcha/challenge", async (c) => {
+    if (!altchaFallbackEnabled(config)) {
+      return new Response(null, { status: 404 });
+    }
+
+    return c.json(await createAltchaChallenge(config.altcha), 200, {
+      "cache-control": "no-store",
+    });
+  });
+
   app.get(config.registerPath, (c) => {
     const url = new URL(c.req.url);
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
@@ -534,6 +568,7 @@ export function createAuthRoutes(
         returnTo: safeReturnTo(url.searchParams.get("returnTo")),
         submitLabel: messages.authCreateAccount,
         syncLocale,
+        altchaFallbackEnabled: altchaFallbackEnabled(config),
         turnstileSiteKey: turnstileSiteKey(config),
       })),
       csrf,
@@ -553,33 +588,6 @@ export function createAuthRoutes(
     }
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const syncLocale = shouldSyncAuthLocale(url);
-    const rateLimitResponse = await rateLimitExceededResponseFor(
-      storage,
-      publicRateLimitPolicies.registration,
-      clientRateLimitIdentifier((name) => c.req.header(name)),
-      { request: c.req.raw },
-    );
-    if (rateLimitResponse) {
-      return rateLimitResponse;
-    }
-
-    const humanVerificationErrors = await humanVerificationErrorCodes(
-      c.req.raw,
-      form,
-      config,
-    );
-    if (humanVerificationErrors) {
-      return c.redirect(
-        authPagePath(config.registerPath, locale, {
-          error: "humanVerification",
-          [authLocaleChangedParam]: syncLocale
-            ? authLocaleChangedValue
-            : undefined,
-        }),
-        303,
-      );
-    }
-
     const username = normalizeUsername(String(form.username ?? ""));
     const displayName = username;
     const password = String(form.password ?? "");
@@ -601,6 +609,34 @@ export function createAuthRoutes(
         }),
         303,
       );
+    }
+
+    const humanVerificationErrors = await humanVerificationErrorCodes(
+      c.req.raw,
+      form,
+      config,
+      storage,
+    );
+    if (humanVerificationErrors) {
+      return c.redirect(
+        authPagePath(config.registerPath, locale, {
+          error: "humanVerification",
+          [authLocaleChangedParam]: syncLocale
+            ? authLocaleChangedValue
+            : undefined,
+        }),
+        303,
+      );
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.registration,
+      clientRateLimitIdentifier((name) => c.req.header(name)),
+      { request: c.req.raw },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const account: UserAccount = {
@@ -734,6 +770,7 @@ export function createAuthRoutes(
         c.req.raw,
         form,
         config,
+        storage,
       );
       if (humanVerificationErrors) {
         return c.json({ error: "humanVerification" }, 403);
@@ -3270,6 +3307,7 @@ function authConfig(options: AuthOptions): AuthConfig {
     totp: options.totp ?? defaultTotpConfig,
     turnstile: options.turnstile ?? defaultTurnstileConfig,
     turnstileFetch: options.turnstileFetch,
+    altcha: options.altcha ?? defaultAltchaConfig,
   };
 }
 
@@ -3298,6 +3336,16 @@ function turnstileSiteKey(config: AuthConfig): string | undefined {
   return config.turnstile.enabled && config.turnstile.siteKey
     ? config.turnstile.siteKey
     : undefined;
+}
+
+/**
+ * 判断注册页是否可使用 ALTCHA 自动降级。
+ *
+ * @param {AuthConfig} config 认证配置。
+ * @return {boolean} ALTCHA 配置完整时返回 true。
+ */
+function altchaFallbackEnabled(config: AuthConfig): boolean {
+  return altchaConfigured(config.altcha);
 }
 
 /**
@@ -3334,6 +3382,7 @@ function loginTurnstileSiteKey(
  * @param request 原始请求。
  * @param form 表单数据。
  * @param config 认证配置。
+ * @param storage 应用存储。
  * @return 校验失败时返回错误码列表，成功时返回 undefined。
  */
 async function humanVerificationErrorCodes(
@@ -3342,7 +3391,38 @@ async function humanVerificationErrorCodes(
     | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>
     | FormData,
   config: AuthConfig,
+  storage: Storage,
 ): Promise<string[] | undefined> {
+  const altchaPayload = formTextValue(form, altchaResponseFieldName);
+  if (altchaPayload) {
+    const altchaResult = await verifyAltchaPayload(
+      altchaPayload,
+      config.altcha,
+    );
+    if (!altchaResult.success) {
+      return humanVerificationFailure(
+        request,
+        altchaResult.errorCodes,
+        "ALTCHA 工作量证明校验失败，已拒绝认证请求。",
+      );
+    }
+
+    const replay = await storage.recordRateLimitHit(
+      ["altcha-payload", altchaResult.payloadId],
+      1,
+      altchaReplayWindowMs,
+    );
+    if (replay.allowed) {
+      return undefined;
+    }
+
+    return humanVerificationFailure(
+      request,
+      ["replayed-payload"],
+      "ALTCHA 工作量证明已被重复使用，已拒绝认证请求。",
+    );
+  }
+
   const result = await verifyTurnstileToken(
     turnstileTokenFromForm(form),
     config.turnstile,
@@ -3355,15 +3435,35 @@ async function humanVerificationErrorCodes(
     return undefined;
   }
 
+  return humanVerificationFailure(
+    request,
+    result.errorCodes,
+    "Turnstile 验证失败，已拒绝认证请求。",
+  );
+}
+
+/**
+ * 记录人机验证失败审计日志并返回错误码。
+ *
+ * @param {Request} request 原始请求。
+ * @param {string[]} errorCodes 验证失败错误码。
+ * @param {string} message 审计日志消息。
+ * @return {string[]} 原始错误码。
+ */
+function humanVerificationFailure(
+  request: Request,
+  errorCodes: string[],
+  message: string,
+): string[] {
   logSecurityAuditEvent({
     code: "human_verification_failed",
-    details: { errors: result.errorCodes.join(",") },
+    details: { errors: errorCodes.join(",") },
     level: "warn",
-    message: "人机验证失败，已拒绝认证请求。",
+    message,
     request,
   });
 
-  return result.errorCodes;
+  return errorCodes;
 }
 
 /**
@@ -3377,9 +3477,25 @@ function turnstileTokenFromForm(
     | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>
     | FormData,
 ): string | undefined {
+  return formTextValue(form, turnstileResponseFieldName);
+}
+
+/**
+ * 从认证表单读取单个文本字段。
+ *
+ * @param {FormData | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>} form 表单数据。
+ * @param {string} fieldName 字段名称。
+ * @return {string | undefined} 文本字段值。
+ */
+function formTextValue(
+  form:
+    | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>
+    | FormData,
+  fieldName: string,
+): string | undefined {
   const value = form instanceof FormData
-    ? form.get(turnstileResponseFieldName)
-    : form[turnstileResponseFieldName];
+    ? form.get(fieldName)
+    : form[fieldName];
   const firstValue = Array.isArray(value) ? value[0] : value;
   return typeof firstValue === "string" ? firstValue : undefined;
 }
@@ -3695,6 +3811,7 @@ function arrayBufferFromBytes(value: Uint8Array): ArrayBuffer {
  */
 function renderAuthPage(options: {
   action: string;
+  altchaFallbackEnabled?: boolean;
   csrfToken: string;
   emailTurnstileSiteKey?: string;
   error?: string;
@@ -3749,6 +3866,7 @@ function renderAuthPage(options: {
     ${
     turnstileScriptHtml(
       options.turnstileSiteKey ?? options.emailTurnstileSiteKey,
+      options.altchaFallbackEnabled ?? false,
     )
   }
     ${googleScriptHtml(options.googleClientId)}
@@ -4076,7 +4194,13 @@ function renderAuthPage(options: {
       })
       : ""
   }
-          ${turnstileWidgetHtml(options.turnstileSiteKey)}
+          ${
+    turnstileWidgetHtml(
+      options.turnstileSiteKey,
+      options.altchaFallbackEnabled ?? false,
+      options.messages.authHumanVerificationRequired,
+    )
+  }
           ${
     options.mode === "login"
       ? renderAuthActionRow({
@@ -4308,6 +4432,7 @@ function renderPasskeyLoginForm(options: {
  */
 function renderEmailLoginForm(options: {
   action: string;
+  altchaFallbackEnabled?: boolean;
   csrfToken: string;
   emailTurnstileSiteKey?: string;
   initiallyVisible?: boolean;
@@ -4367,7 +4492,13 @@ function renderEmailLoginForm(options: {
               </button>
             </span>
           </label>
-          ${turnstileWidgetHtml(options.emailTurnstileSiteKey)}
+          ${
+    turnstileWidgetHtml(
+      options.emailTurnstileSiteKey,
+      options.altchaFallbackEnabled ?? false,
+      options.messages.authHumanVerificationRequired,
+    )
+  }
           <div
             class="auth-email-status"
             data-auth-email-status
@@ -4823,7 +4954,9 @@ function renderMfaPage(options: {
         ${
     renderMfaMethodList({
       challengeId: options.challenge.id,
-      currentMethod: selectedMethod === "recoveryCode" ? "totp" : selectedMethod,
+      currentMethod: selectedMethod === "recoveryCode"
+        ? "totp"
+        : selectedMethod,
       locale: options.locale,
       messages: options.messages,
       methods: selectableMethods,
@@ -5031,12 +5164,14 @@ function renderMfaTotpForm(options: {
     options.challenge.allowedMethods.includes("recoveryCode")
       ? `<a
                 class="auth-recovery-link"
-                href="${escapeHtml(mfaPagePath(
+                href="${
+        escapeHtml(mfaPagePath(
           options.locale,
           options.challenge.id,
           options.returnTo,
           { method: "recoveryCode" },
-        ))}"
+        ))
+      }"
               >${escapeHtml(options.messages.authMfaUseRecoveryCode)}</a>`
       : ""
   }
@@ -5727,7 +5862,10 @@ function googleScriptHtml(clientId: string | undefined): string {
  * @param siteKey Turnstile site key。
  * @return 启用 Turnstile 时返回脚本 HTML。
  */
-function turnstileScriptHtml(siteKey: string | undefined): string {
+function turnstileScriptHtml(
+  siteKey: string | undefined,
+  altchaFallbackEnabled: boolean,
+): string {
   return siteKey
     ? `<script>
 /**
@@ -5777,8 +5915,9 @@ globalThis.revealTurnstileWidgets = () => {
     widget.hidden = false;
   }
 };
+${altchaFallbackScript(altchaFallbackEnabled)}
 </script>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer onerror="globalThis.useAltchaFallback?.()"></script>`
     : "";
 }
 
@@ -5788,11 +5927,131 @@ globalThis.revealTurnstileWidgets = () => {
  * @param siteKey Turnstile site key。
  * @return 启用 Turnstile 时返回组件 HTML。
  */
-function turnstileWidgetHtml(siteKey: string | undefined): string {
+function turnstileWidgetHtml(
+  siteKey: string | undefined,
+  altchaFallbackEnabled = false,
+  fallbackUnavailableMessage = "",
+): string {
   return siteKey
     ? `<div class="auth-turnstile cf-turnstile" data-sitekey="${
       escapeHtml(siteKey)
-    }" data-callback="collapseTurnstileWidget" data-expired-callback="revealTurnstileWidgets" data-error-callback="revealTurnstileWidgets"></div>`
+    }" data-callback="collapseTurnstileWidget" data-expired-callback="revealTurnstileWidgets" data-error-callback="useAltchaFallback"></div>
+${altchaWidgetHtml(altchaFallbackEnabled, fallbackUnavailableMessage)}`
+    : "";
+}
+
+/**
+ * 渲染 ALTCHA 自动降级所需的客户端脚本。
+ *
+ * @param {boolean} enabled 是否启用 ALTCHA 自动降级。
+ * @return {string} 客户端脚本文本。
+ */
+function altchaFallbackScript(enabled: boolean): string {
+  if (!enabled) return "";
+
+  return `
+/**
+ * 将十六进制文本转换为字节数组。
+ *
+ * @param {string} value 十六进制文本。
+ * @return {Uint8Array} 字节数组。
+ */
+globalThis.altchaHexBytes = (value) => {
+  if (!/^[0-9a-f]+$/i.test(value) || value.length % 2 !== 0) throw new Error("Invalid ALTCHA hex value.");
+  const bytes = new Uint8Array(value.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
+  return bytes;
+};
+
+/**
+ * 将字节数组编码为十六进制文本。
+ *
+ * @param {Uint8Array} bytes 字节数组。
+ * @return {string} 小写十六进制文本。
+ */
+globalThis.altchaBytesHex = (bytes) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+
+/**
+ * 在浏览器后台求解 ALTCHA PBKDF2 工作量证明。
+ *
+ * @param {unknown} challenge 服务端签名挑战。
+ * @return {Promise<{ counter: number; derivedKey: string }>} 工作量证明解答。
+ */
+globalThis.solveAltchaChallenge = async (challenge) => {
+  const parameters = challenge?.parameters;
+  if (!parameters || challenge?.signature === undefined || parameters.algorithm !== "PBKDF2/SHA-256" || !Number.isInteger(parameters.cost) || !Number.isInteger(parameters.keyLength) || typeof parameters.keyPrefix !== "string") throw new Error("Invalid ALTCHA challenge.");
+  const nonce = globalThis.altchaHexBytes(parameters.nonce);
+  const salt = globalThis.altchaHexBytes(parameters.salt);
+  const expectedPrefix = parameters.keyPrefix.toLowerCase();
+  const password = new Uint8Array(nonce.length + 4);
+  password.set(nonce);
+  const view = new DataView(password.buffer);
+
+  for (let counter = 0; counter < 100000; counter += 1) {
+    view.setUint32(nonce.length, counter, false);
+    const key = await crypto.subtle.importKey("raw", password, "PBKDF2", false, ["deriveBits"]);
+    const derived = new Uint8Array(await crypto.subtle.deriveBits({ hash: "SHA-256", iterations: parameters.cost, name: "PBKDF2", salt }, key, parameters.keyLength * 8));
+    const derivedKey = globalThis.altchaBytesHex(derived);
+    if (derivedKey.startsWith(expectedPrefix)) return { counter, derivedKey };
+    if (counter % 10 === 0) await new Promise((resolve) => window.setTimeout(resolve, 0));
+  };
+
+  throw new Error("ALTCHA challenge timed out.");
+};
+
+/**
+ * 在 Turnstile 无法加载或运行失败时启用本域 ALTCHA 验证。
+ */
+globalThis.useAltchaFallback = async () => {
+  const fallback = document.querySelector("[data-altcha-fallback]");
+  if (!(fallback instanceof HTMLElement) || fallback.dataset.loading === "true" || fallback.dataset.ready === "true") return;
+  const payloadInput = fallback.querySelector("[data-altcha-payload]");
+  const status = fallback.querySelector("[data-altcha-status]");
+  if (!(payloadInput instanceof HTMLInputElement)) return;
+  fallback.hidden = false;
+  fallback.dataset.loading = "true";
+  fallback.setAttribute("aria-busy", "true");
+  for (const widget of document.querySelectorAll(".cf-turnstile")) widget.hidden = true;
+
+  try {
+    const response = await fetch("/auth/altcha/challenge", { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) throw new Error("Could not fetch ALTCHA challenge.");
+    const challenge = await response.json();
+    const solution = await globalThis.solveAltchaChallenge(challenge);
+    payloadInput.value = btoa(JSON.stringify({ challenge, solution }));
+    fallback.dataset.ready = "true";
+  } catch {
+    fallback.dataset.unavailable = "true";
+    if (status instanceof HTMLElement) status.textContent = fallback.dataset.fallbackUnavailableMessage || "";
+  } finally {
+    fallback.dataset.loading = "false";
+    fallback.removeAttribute("aria-busy");
+  }
+};
+
+window.setTimeout(() => {
+  if (!globalThis.turnstile) globalThis.useAltchaFallback();
+}, 9000);`;
+}
+
+/**
+ * 渲染 ALTCHA 自动降级的表单字段。
+ *
+ * @param {boolean} enabled 是否启用 ALTCHA 自动降级。
+ * @param {string} fallbackUnavailableMessage 备用验证不可用提示。
+ * @return {string} ALTCHA 表单字段。
+ */
+function altchaWidgetHtml(
+  enabled: boolean,
+  fallbackUnavailableMessage: string,
+): string {
+  return enabled
+    ? `<div class="auth-turnstile" data-altcha-fallback hidden data-fallback-unavailable-message="${
+      escapeHtml(fallbackUnavailableMessage)
+    }">
+  <input type="hidden" name="${altchaResponseFieldName}" data-altcha-payload>
+  <span role="status" data-altcha-status></span>
+</div>`
     : "";
 }
 

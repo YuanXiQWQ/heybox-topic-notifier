@@ -12,6 +12,9 @@ import {
   validUsername,
 } from "./auth.ts";
 import { turnstileResponseFieldName } from "./auth/turnstile.ts";
+import { altchaResponseFieldName } from "./auth/altcha.ts";
+import { solveChallenge } from "npm:altcha-lib@^2.4.0";
+import { deriveKey as derivePbkdf2Key } from "npm:altcha-lib@^2.4.0/algorithms/pbkdf2";
 import {
   createEmailVerificationChallenge,
   type EmailVerificationEmailMessage,
@@ -213,6 +216,26 @@ Deno.test("auth routes render Turnstile widget when enabled", async () => {
     html.includes('data-expired-callback="revealTurnstileWidgets"'),
     true,
   );
+});
+
+Deno.test("auth routes render an automatic ALTCHA fallback for registration", async () => {
+  const app = createTestApp(
+    createMemoryStorage(),
+    altchaAuthOptions(),
+  );
+
+  const response = await app.request("/register");
+  const html = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    html.includes('data-error-callback="useAltchaFallback"'),
+    true,
+  );
+  assertEquals(html.includes("data-altcha-fallback"), true);
+  assertEquals(html.includes('name="altcha"'), true);
+  assertEquals(html.includes('fetch("/auth/altcha/challenge"'), true);
+  assertEquals(html.includes("window.setTimeout(() =>"), true);
 });
 
 Deno.test("auth routes localize anonymous pages with a language-only navigation bar", async () => {
@@ -429,6 +452,70 @@ Deno.test("auth routes register users after Turnstile verification", async () =>
     "alice",
   );
   assertEquals(requestBody.includes("response=verified-token"), true);
+});
+
+Deno.test("auth routes register users after ALTCHA fallback verification", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, altchaAuthOptions());
+  const payload = await solvedAltchaPayload(app);
+  const form = new URLSearchParams({
+    confirmPassword: "correct-password",
+    password: "correct-password",
+    [altchaResponseFieldName]: payload,
+    username: "alice",
+  });
+
+  const response = await app.request("/register", {
+    body: testCsrfForm(form),
+    headers: testCsrfHeaders({ "x-forwarded-for": "203.0.113.10" }),
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(
+    (await storage.getAccountByUsername("alice"))?.username,
+    "alice",
+  );
+});
+
+Deno.test("auth routes reject a replayed ALTCHA fallback payload", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage, altchaAuthOptions());
+  const payload = await solvedAltchaPayload(app);
+
+  const firstResponse = await app.request("/register", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        [altchaResponseFieldName]: payload,
+        confirmPassword: "correct-password",
+        password: "correct-password",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+  const replayResponse = await app.request("/register", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        [altchaResponseFieldName]: payload,
+        confirmPassword: "correct-password",
+        password: "correct-password",
+        username: "bob",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
+
+  assertEquals(firstResponse.status, 303);
+  assertEquals(replayResponse.status, 303);
+  assertEquals(
+    replayResponse.headers.get("location"),
+    "/register?locale=zh-CN&error=humanVerification",
+  );
+  assertEquals(await storage.getAccountByUsername("bob"), undefined);
 });
 
 Deno.test("auth routes send email verification codes", async () => {
@@ -1040,6 +1127,50 @@ Deno.test("auth routes rate limit registration attempts by client", async () => 
   assertEquals(await storage.getAccountByUsername("too-many"), undefined);
 });
 
+Deno.test("auth routes do not consume registration quota for invalid forms", async () => {
+  const storage = createMemoryStorage();
+  const app = createTestApp(storage);
+  const headers = testCsrfHeaders({ "x-forwarded-for": "203.0.113.11" });
+
+  for (let index = 0; index < 5; index += 1) {
+    const response = await app.request("/register", {
+      body: testCsrfForm(
+        new URLSearchParams({
+          confirmPassword: "different-password",
+          password: "correct-password",
+          username: `invalid-${index}`,
+        }),
+      ),
+      headers,
+      method: "POST",
+    });
+    assertEquals(response.status, 303);
+    assertEquals(
+      response.headers.get("location"),
+      "/register?locale=zh-CN&error=confirmPassword",
+    );
+  }
+
+  const response = await app.request("/register", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        confirmPassword: "correct-password",
+        password: "correct-password",
+        username: "alice",
+      }),
+    ),
+    headers,
+    method: "POST",
+  });
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/");
+  assertEquals(
+    (await storage.getAccountByUsername("alice"))?.username,
+    "alice",
+  );
+});
+
 Deno.test("auth routes atomically create only one account for concurrent registrations", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
@@ -1200,7 +1331,7 @@ Deno.test("auth routes require MFA after password login when enabled", async () 
   assertEquals(pageHtml.includes('style="--mfa-method-count: 3"'), true);
   assertEquals(
     pageHtml.indexOf('data-mfa-method="email"') <
-      pageHtml.indexOf('data-mfa-method="passkey"') &&
+        pageHtml.indexOf('data-mfa-method="passkey"') &&
       pageHtml.indexOf('data-mfa-method="passkey"') <
         pageHtml.indexOf('data-mfa-method="totp"'),
     true,
@@ -1879,6 +2010,41 @@ function turnstileAuthOptions(options: {
     },
     turnstileFetch: options.fetcher,
   };
+}
+
+/**
+ * 创建开启 ALTCHA 自动降级的认证测试配置。
+ *
+ * @param options ALTCHA 验证码测试选项。
+ * @return 认证测试配置。
+ */
+function altchaAuthOptions(): AuthOptions {
+  return {
+    altcha: {
+      challengeCost: 100,
+      challengeTtlSeconds: 600,
+      enabled: true,
+      hmacKey: "test-altcha-hmac-key-with-at-least-thirty-two-characters",
+    },
+    ...turnstileAuthOptions(),
+  };
+}
+
+/**
+ * 从测试应用获取并求解 ALTCHA 挑战，返回可提交的 Base64 载荷。
+ *
+ * @param {Hono} app 测试认证应用。
+ * @return {Promise<string>} 已完成的 ALTCHA 载荷。
+ */
+async function solvedAltchaPayload(app: Hono): Promise<string> {
+  const response = await app.request("/auth/altcha/challenge");
+  const challenge = await response.json();
+  const solution = await solveChallenge({
+    challenge,
+    deriveKey: derivePbkdf2Key,
+  });
+  if (!solution) throw new Error("Could not solve test ALTCHA challenge.");
+  return btoa(JSON.stringify({ challenge, solution }));
 }
 
 /**
