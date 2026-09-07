@@ -154,7 +154,7 @@ Deno.test({
     assertEquals(coordinator.includes("previousEasterEgg?.stop()"), true);
     assertEquals(scriptResponse.status, 200);
     assertEquals(
-      script.includes("Data/Characters.json"),
+      script.includes("ace-attorney-easter-egg-data"),
       true,
     );
     assertEquals(

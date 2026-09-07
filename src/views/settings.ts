@@ -23,7 +23,12 @@ import {
   notificationWebhookServices,
 } from "../notification_services.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
-import { defaultAvatarUrl, escapeHtml, renderLayout } from "./html.ts";
+import {
+  defaultAvatarUrl,
+  escapeHtml,
+  renderAceAttorneyEasterEggData,
+  renderLayout,
+} from "./html.ts";
 import {
   authIcon,
   type AuthIconName,
@@ -261,6 +266,7 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
+    ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=20260906-easter-egg-structure" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=20260906-easter-egg-structure" defer></script>
     <script src="/static/settings.js?v=20260906-avatar-crop-tangent-zoom" defer></script>

@@ -554,7 +554,7 @@ Deno.test("pending MFA challenge storage preserves attempts and methods", async 
 
   assertEquals(await storage.getPendingMfaChallenge("mfa-challenge-id"), {
     ...challenge,
-    allowedMethods: ["email", "passkey"],
+    allowedMethods: ["passkey", "email"],
   });
 
   await storage.savePendingMfaChallenge({

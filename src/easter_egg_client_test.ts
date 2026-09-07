@@ -2,6 +2,71 @@
  * @file 本文件验证彩蛋前端的协调及《脑叶公司》Trumpet 警报生命周期。
  */
 import { assertEquals, assertRejects } from "./test_helpers.ts";
+import { renderLayout } from "./views/html.ts";
+
+/**
+ * 从页面内联脚本中读取《脑叶公司》当前本地化。
+ *
+ * @param {string} locale 页面 locale。
+ * @return {{restartDay: string, firedManager: string}} 注入的游戏文本。
+ */
+function renderedLobotomyCorpLocale(locale: "en-CA" | "en-GB" | "en-US" | "fr-FR" | "zh-CN" | "zh-HK" | "zh-MO" | "zh-SG" | "zh-TW") {
+  const html = renderLayout({
+    body: "",
+    csrfToken: "test",
+    darkMode: false,
+    locale,
+    themeColor: "#000000",
+    title: "test",
+  });
+  const serialized = /<script type="application\/json" id="lobotomy-corp-locale-data">([^<]+)<\/script>/u.exec(html)?.[1];
+  if (!serialized) throw new Error("Expected embedded Lobotomy Corporation locale data.");
+  return JSON.parse(serialized);
+}
+
+Deno.test("Lobotomy Corporation locale data is injected from game JSON with fallbacks", () => {
+  assertEquals(renderedLobotomyCorpLocale("zh-CN"), {
+    restartDay: "重新开始这一天",
+    firedManager: "你被解雇了，主管！",
+  });
+  assertEquals(
+    renderedLobotomyCorpLocale("zh-HK"),
+    renderedLobotomyCorpLocale("zh-MO"),
+  );
+  assertEquals(
+    renderedLobotomyCorpLocale("zh-HK"),
+    renderedLobotomyCorpLocale("zh-TW"),
+  );
+  assertEquals(
+    renderedLobotomyCorpLocale("zh-SG"),
+    renderedLobotomyCorpLocale("zh-CN"),
+  );
+  assertEquals(
+    renderedLobotomyCorpLocale("en-CA"),
+    renderedLobotomyCorpLocale("en-GB"),
+  );
+  assertEquals(
+    renderedLobotomyCorpLocale("en-CA"),
+    renderedLobotomyCorpLocale("en-US"),
+  );
+  assertEquals(
+    renderedLobotomyCorpLocale("fr-FR"),
+    renderedLobotomyCorpLocale("en-US"),
+  );
+});
+
+Deno.test("game entries use embedded data without synchronous requests", () => {
+  const aceAttorneyEntry = Deno.readTextFileSync(
+    new URL("../static/fun/ace-attorney/ace-attorney.js", import.meta.url),
+  );
+  const lobotomyCorpEntry = Deno.readTextFileSync(
+    new URL("../static/fun/lobotomy-corp/lobotomy-corp.js", import.meta.url),
+  );
+
+  assertEquals(aceAttorneyEntry.includes("XMLHttpRequest"), false);
+  assertEquals(lobotomyCorpEntry.includes("XMLHttpRequest"), false);
+  assertEquals(lobotomyCorpEntry.includes("Abnormalities.json"), false);
+});
 
 Deno.test("Easter egg coordinator interrupts only a different game", async () => {
   const browser = globalThis as typeof globalThis & {
@@ -26,7 +91,6 @@ Deno.test("Easter egg coordinator interrupts only a different game", async () =>
 
 Deno.test("username Easter egg matches names and resolves localized assets", async () => {
   const browser = globalThis as typeof globalThis & {
-    XMLHttpRequest?: unknown;
     aceAttorneyCourtroomNameChange?: unknown;
     document?: unknown;
     usernameEasterEgg?: {
@@ -36,43 +100,28 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     };
   };
   const originalDocument = Object.getOwnPropertyDescriptor(browser, "document");
-  const originalXmlHttpRequest = Object.getOwnPropertyDescriptor(
-    browser,
-    "XMLHttpRequest",
-  );
   const originalEvent = Object.getOwnPropertyDescriptor(
     browser,
     "aceAttorneyCourtroomNameChange",
   );
-  class XmlHttpRequestMock {
-    responseText = "";
-    status = 0;
-    #path = "";
-    /** @param {string} _method 请求方法。 @param {string} path 请求路径。 */
-    open(_method: string, path: string): void {
-      this.#path = path;
-    }
-    /** 同步读取当前测试实际使用的 JSON 文件。 */
-    send(): void {
-      const filename = this.#path.split("/").at(-1);
-      const directory = this.#path.includes("/Data/") ? "Data" : "Locales";
-      this.responseText = Deno.readTextFileSync(
-        new URL(`../static/fun/ace-attorney/${directory}/${filename}`, import.meta.url),
-      );
-      this.status = 200;
-    }
-  }
+  const aceAttorneyData = JSON.stringify({
+    characters: JSON.parse(Deno.readTextFileSync(
+      new URL("../static/fun/ace-attorney/Data/Characters.json", import.meta.url),
+    )),
+    messages: JSON.parse(Deno.readTextFileSync(
+      new URL("../static/fun/ace-attorney/Locales/zh-CN.json", import.meta.url),
+    )),
+  });
   const documentMock = {
     documentElement: { lang: "zh-CN" },
+    getElementById: (id: string) => id === "ace-attorney-easter-egg-data"
+      ? { textContent: aceAttorneyData }
+      : null,
     querySelectorAll: () => [],
   };
   Object.defineProperty(browser, "document", {
     configurable: true,
     value: documentMock,
-  });
-  Object.defineProperty(browser, "XMLHttpRequest", {
-    configurable: true,
-    value: XmlHttpRequestMock,
   });
   try {
     await import(
@@ -93,9 +142,6 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     if (originalDocument) {
       Object.defineProperty(browser, "document", originalDocument);
     } else delete browser.document;
-    if (originalXmlHttpRequest) {
-      Object.defineProperty(browser, "XMLHttpRequest", originalXmlHttpRequest);
-    } else delete browser.XMLHttpRequest;
     if (originalEvent) {
       Object.defineProperty(browser, "aceAttorneyCourtroomNameChange", originalEvent);
     } else delete browser.aceAttorneyCourtroomNameChange;
@@ -218,6 +264,12 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
   );
   const body = new Element();
   const storage = new StorageMock();
+  const lobotomyCorpLocaleData = Deno.readTextFileSync(
+    new URL(
+      "../static/fun/lobotomy-corp/Locales/zh-CN.json",
+      import.meta.url,
+    ),
+  );
   Object.defineProperties(browser, {
     Audio: { configurable: true, value: AudioMock },
     document: {
@@ -226,12 +278,11 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
         body,
         createElement: () => new Element(),
         documentElement: {
-          dataset: {
-            lobotomyCorpFiredManager: "你被解雇了，主管！",
-            lobotomyCorpRestartDay: "重新开始这一天",
-          },
           lang: "zh-CN",
         },
+        getElementById: (id: string) => id === "lobotomy-corp-locale-data"
+          ? { textContent: lobotomyCorpLocaleData }
+          : null,
       },
     },
     innerWidth: { configurable: true, value: 1920 },

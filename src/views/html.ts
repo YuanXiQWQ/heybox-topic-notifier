@@ -33,6 +33,98 @@ export function escapeHtml(value: string): string {
 }
 
 /**
+ * 读取游戏目录中的单一 JSON 资料来源。
+ *
+ * @param {string} relativePath 相对于 static/fun 的安全固定路径。
+ * @return {unknown} 已解析的 JSON 资料。
+ */
+function readEasterEggJson(relativePath: string): unknown {
+  return JSON.parse(Deno.readTextFileSync(
+    new URL(`../../static/fun/${relativePath}`, import.meta.url),
+  ));
+}
+
+/**
+ * 将 JSON 安全地嵌入 application/json 脚本节点，避免数据中的 HTML 结束标签参与解析。
+ *
+ * @param {string} id 节点标识。
+ * @param {unknown} data 要注入的 JSON 数据。
+ * @return {string} 安全的内联 JSON 脚本。
+ */
+function renderEasterEggJsonData(id: string, data: unknown): string {
+  const json = JSON.stringify(data)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
+  return `<script type="application/json" id="${id}">${json}</script>`;
+}
+
+/**
+ * 解析当前网页 locale 对应的《脑叶公司》本地化文件名。
+ *
+ * @param {Locale} locale 当前网页 locale。
+ * @return {string} 已维护的游戏本地化文件名。
+ */
+function lobotomyCorpLocaleFile(locale: Locale): string {
+  const aliases: Record<string, string> = {
+    "en-CA": "en-US",
+    "en-GB": "en-US",
+    "zh-HK": "zh-TW",
+    "zh-MO": "zh-TW",
+    "zh-SG": "zh-CN",
+  };
+  return aliases[locale] ?? (
+    [
+      "en-US",
+      "es-ES",
+      "ja-JP",
+      "ko-KR",
+      "ru-RU",
+      "vi-VN",
+      "zh-CN",
+      "zh-TW",
+    ].includes(locale)
+      ? locale
+      : "en-US"
+  );
+}
+
+/**
+ * 渲染当前页面所需的《脑叶公司》本地化资料。
+ *
+ * @param {Locale} locale 当前网页 locale。
+ * @return {string} 内联 JSON 脚本。
+ */
+function renderLobotomyCorpLocaleData(locale: Locale): string {
+  return renderEasterEggJsonData(
+    "lobotomy-corp-locale-data",
+    readEasterEggJson(
+      `lobotomy-corp/Locales/${lobotomyCorpLocaleFile(locale)}.json`,
+    ),
+  );
+}
+
+/**
+ * 渲染设置页所需的《逆转裁判》角色资料和当前语言文本。
+ *
+ * @param {Locale} locale 当前网页 locale。
+ * @return {string} 内联 JSON 脚本。
+ */
+export function renderAceAttorneyEasterEggData(locale: Locale): string {
+  const messageFile = locale.startsWith("zh")
+    ? "zh-CN"
+    : locale.startsWith("ja")
+    ? "ja-JP"
+    : "en-US";
+  return renderEasterEggJsonData("ace-attorney-easter-egg-data", {
+    characters: readEasterEggJson("ace-attorney/Data/Characters.json"),
+    messages: readEasterEggJson(`ace-attorney/Locales/${messageFile}.json`),
+  });
+}
+
+/**
  * 渲染应用基础页面布局。
  *
  * @param options 页面布局选项。
@@ -71,6 +163,7 @@ export function renderLayout(options: {
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
+    ${renderLobotomyCorpLocaleData(options.locale)}
     <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-easter-egg-structure" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>

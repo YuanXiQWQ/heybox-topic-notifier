@@ -5,9 +5,9 @@
 /**
  * 创建当前页面使用的法庭改名事件。
  *
- * 角色资料和本地化均由游戏入口从 JSON 文件同步准备；该事件只承担演出与交互行为。
+ * 角色资料和当前本地化均由游戏入口从内联 JSON 同步准备；该事件只承担演出与交互行为。
  *
- * @param {{characters: object[], messages: {en: object, ja: object, zh: object}, resolveMessageLocale: () => "en"|"ja"|"zh"}} configuration 已准备的静态资料。
+ * @param {{characters: object[], messages: object}} configuration 已准备的静态资料。
  * @return {{activate: (username: string, target?: string) => Promise<boolean>, imageLocale: () => string, matches: (username: string) => boolean, theme: (username: string) => string|undefined, voiceLocale: (username?: string) => string}} 彩蛋公开 API。
  */
 function createCourtroomNameChange(configuration) {
@@ -243,7 +243,7 @@ function usernameEasterEggImageSource(assetRoot, character, imageLocale, cue) {
  * @return {typeof usernameEasterEggMessages.en} 彩蛋交互文案。
  */
 function currentUsernameEasterEggMessages() {
-  return usernameEasterEggMessages[configuration.resolveMessageLocale()];
+  return usernameEasterEggMessages;
 }
 
 /**
