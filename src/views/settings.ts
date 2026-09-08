@@ -275,7 +275,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
-    <script src="/static/settings.js?v=20260906-avatar-crop-tangent-zoom" defer></script>
+    <script src="/static/settings.js?v=20260908-abnormality-day-final" defer></script>
   `;
 
   return renderLayout({
@@ -312,10 +312,14 @@ function settingLabel(icon: MaterialSymbolName, label: string): string {
  * @param label 设置项标签。
  * @return dt 标签 HTML。
  */
-function authSettingLabel(icon: AuthIconName, label: string): string {
+function authSettingLabel(
+  icon: AuthIconName,
+  label: string,
+  dataAttribute?: string,
+): string {
   return `<dt class="settings-label-with-icon">${
     authIcon(icon, "settings-label-icon auth-settings-icon")
-  }<span>${escapeHtml(label)}</span></dt>`;
+  }<span ${dataAttribute ?? ""}>${escapeHtml(label)}</span></dt>`;
 }
 
 /**
@@ -569,11 +573,11 @@ function renderAccountSection(
             <button class="account-avatar-preview-button" type="button" data-avatar-preview aria-label="${
     escapeHtml(messages.accountAvatar)
   }">
-              <span class="account-avatar account-avatar-preview"><img class="account-avatar-default" src="${
+              <span class="account-avatar-risk-wrapper"><span class="account-avatar account-avatar-preview"><img class="account-avatar-default" src="${
     defaultAvatarUrl(account?.id)
   }" alt="${
     escapeHtml(messages.accountAvatar)
-  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span>
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>
             </button>
             <label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button" aria-label="${
     escapeHtml(messages.accountAvatarChoose)
@@ -688,7 +692,13 @@ function renderAccountSection(
             </dd>
           </div>
           <div>
-            ${authSettingLabel("username", messages.accountDisplayName)}
+            ${
+    authSettingLabel(
+      "username",
+      messages.accountDisplayName,
+      "data-account-display-name-label",
+    )
+  }
             <dd>
               <div class="account-username-row">
                 <input

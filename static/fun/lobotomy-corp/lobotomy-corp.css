@@ -13,6 +13,27 @@
     format("truetype");
 }
 
+/* 风险牌挂在允许溢出的头像外框上，头像本身仍负责圆形裁切。 */
+.account-avatar-risk-wrapper {
+  display: inline-flex;
+  overflow: visible;
+  position: relative;
+}
+
+.account-avatar-risk-wrapper .lobotomy-corp-risk-badge {
+  height: auto;
+  left: -12%;
+  max-height: 38%;
+  max-width: 38%;
+  object-fit: contain;
+  pointer-events: none;
+  position: absolute;
+  top: -12%;
+  transform: rotate(-12deg);
+  width: auto;
+  z-index: 3;
+}
+
 @font-face {
   font-display: block;
   font-family: LobotomyRestartTitleKorean;

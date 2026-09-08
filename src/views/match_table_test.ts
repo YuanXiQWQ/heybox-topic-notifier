@@ -279,7 +279,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260906-avatar-crop-tangent-zoom`,
+    `/static/settings.js?v=20260908-abnormality-day-final`,
   );
   assertIncludes(
     html,
@@ -299,11 +299,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-easter-egg-structure`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260908-abnormality-day-final`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-risk-custom-layout`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-abnormality-day-final`,
   );
   assertIncludes(
     html,

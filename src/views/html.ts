@@ -107,6 +107,18 @@ function renderLobotomyCorpLocaleData(locale: Locale): string {
 }
 
 /**
+ * 渲染《脑叶公司》通用异想体资料。
+ *
+ * @return {string} 内联 JSON 脚本。
+ */
+function renderLobotomyCorpAbnormalitiesData(): string {
+  return renderEasterEggJsonData(
+    "lobotomy-corp-abnormalities-data",
+    readEasterEggJson("lobotomy-corp/Data/Abnormalities.json"),
+  );
+}
+
+/**
  * 渲染设置页所需的《逆转裁判》角色资料和当前语言文本。
  *
  * @param {Locale} locale 当前网页 locale。
@@ -159,12 +171,13 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-risk-custom-layout">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-abnormality-day-final">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
-    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-easter-egg-structure" defer></script>
+    ${renderLobotomyCorpAbnormalitiesData()}
+    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260908-abnormality-day-final" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
@@ -284,9 +297,9 @@ export function renderAvatar(
 ): string {
   const name = account.displayName ?? account.username;
   const alt = messages.accountAvatarAlt.replace("{name}", name);
-  return `<span class="account-avatar"><img class="account-avatar-default" src="${
+  return `<span class="account-avatar-risk-wrapper"><span class="account-avatar"><img class="account-avatar-default" src="${
     defaultAvatarUrl(account.id)
   }" alt="${
     escapeHtml(alt)
-  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span>`;
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>`;
 }

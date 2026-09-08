@@ -1715,21 +1715,25 @@ function initAccountSettings() {
       globalThis.usernameEasterEgg,
       globalThis.lobotomyCorpEasterEgg,
     ].find((candidate) => candidate?.matches(easterEggInput?.value || ""));
+    const currentDisplayNameAbnormality = mode === "displayName" &&
+      globalThis.lobotomyCorpEasterEgg?.matchingAbnormality?.(
+        displayNameInput.dataset.accountDisplayNameOriginal || "",
+      );
     if (
       easterEggInput &&
       form.dataset.usernameEasterEggApproved !== "true" &&
-      easterEgg
+      (easterEgg || currentDisplayNameAbnormality)
     ) {
       event.preventDefault();
-      if (easterEgg.submitsWhileActive === true) {
+      const accountEasterEgg = easterEgg ?? globalThis.lobotomyCorpEasterEgg;
+      if (accountEasterEgg?.submitsWhileActive === true) {
         void submitAccountWhileLobotomyCorpAlertIsActive(
-          easterEgg,
-          easterEggInput,
+          accountEasterEgg,
         );
         return;
       }
 
-      void easterEgg.activate(easterEggInput.value, mode)
+      void accountEasterEgg.activate(easterEggInput.value, mode)
         .then(
           (approved) => {
             if (!approved) {
@@ -1756,13 +1760,11 @@ function initAccountSettings() {
   /**
    * 在脑叶公司警报展示期间以后台请求保存账户设置，避免跳转页面销毁警报。
    *
-   * @param {{activate: (value: string) => Promise<boolean>}} easterEgg 当前命中的彩蛋。
-   * @param {HTMLInputElement} easterEggInput 触发彩蛋的账户输入框。
+   * @param {{activate: (value: string) => Promise<boolean>, commitDisplayName?: (value: string) => Promise<boolean>}} easterEgg 当前命中的彩蛋。
    * @return {Promise<void>} 保存流程结束时完成。
    */
   async function submitAccountWhileLobotomyCorpAlertIsActive(
     easterEgg,
-    easterEggInput,
   ) {
     if (form.dataset.lobotomyCorpAlertSaving === "true") {
       return;
@@ -1770,8 +1772,12 @@ function initAccountSettings() {
 
     form.dataset.lobotomyCorpAlertSaving = "true";
     saveButton.disabled = true;
-    // 在点击保存的同步调用栈中启动音频，避免浏览器丢失用户手势许可。
-    void easterEgg.activate(easterEggInput.value);
+    // 必须仍在 submit 的同步用户手势中准备媒体；业务副作用继续等服务器确认后才提交。
+    const preparedMedia = mode === "displayName"
+      ? globalThis.lobotomyCorpEasterEgg?.prepareDisplayName?.(
+        displayNameInput.value,
+      )
+      : undefined;
 
     try {
       const response = await fetch(form.action, {
@@ -1784,6 +1790,7 @@ function initAccountSettings() {
         responseUrl.pathname === "/settings" &&
         responseUrl.searchParams.get("account") === "updated";
       if (!saved) {
+        preparedMedia?.cancel?.();
         globalThis.location.assign(responseUrl.href);
         return;
       }
@@ -1793,6 +1800,10 @@ function initAccountSettings() {
       } else if (mode === "displayName") {
         displayNameInput.dataset.accountDisplayNameOriginal =
           displayNameInput.value;
+        // 只有服务器确认保存成功后，异想体才会提交并产生 Day / Danger Score 副作用。
+        void (preparedMedia?.commit?.() ??
+          easterEgg.commitDisplayName?.(displayNameInput.value) ??
+          easterEgg.activate(displayNameInput.value));
       }
       resetAccountEditor();
       globalThis.history.replaceState(
@@ -1807,6 +1818,7 @@ function initAccountSettings() {
         true,
       );
     } catch {
+      preparedMedia?.cancel?.();
       setInlineStatus(actionStatus, "", "error");
       saveButton.disabled = false;
     } finally {

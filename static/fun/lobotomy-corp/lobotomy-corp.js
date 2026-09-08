@@ -10,6 +10,12 @@ const lobotomyCorpAssetRoot = "/static/fun/lobotomy-corp/Assets";
 /** 当前页面已准备的《脑叶公司》专用文本。 */
 let lobotomyCorpMessages;
 
+/** 当前页面已准备的通用异想体资料。 */
+let lobotomyCorpAbnormalities;
+
+/** 规范化名称到 canonical 异想体编号的查找索引。 */
+let lobotomyCorpAbnormalityIndex;
+
 /** 初始化服务端注入的《脑叶公司》当前本地化。 */
 function initializeLobotomyCorpData() {
   const serialized = globalThis.document?.getElementById?.(
@@ -19,6 +25,24 @@ function initializeLobotomyCorpData() {
     throw new Error("《脑叶公司》彩蛋本地化尚未注入页面。");
   }
   lobotomyCorpMessages = JSON.parse(serialized);
+
+  const abnormalitiesSerialized = globalThis.document?.getElementById?.(
+    "lobotomy-corp-abnormalities-data",
+  )?.textContent;
+  lobotomyCorpAbnormalities = abnormalitiesSerialized
+    ? JSON.parse(abnormalitiesSerialized)
+    : {};
+  lobotomyCorpAbnormalityIndex = new Map();
+  Object.entries(lobotomyCorpAbnormalities).forEach(([canonicalId, data]) => {
+    [canonicalId, ...(Array.isArray(data?.aliases) ? data.aliases : [])]
+      .filter((name) => typeof name === "string")
+      .forEach((name) =>
+        lobotomyCorpAbnormalityIndex.set(
+          normalizeLobotomyCorpAbnormalityName(name),
+          canonicalId,
+        )
+      );
+  });
 }
 
 initializeLobotomyCorpData();
@@ -212,15 +236,111 @@ const lobotomyCorpEasterEggGameId = "lobotomy-corp";
  */
 const lobotomyCorpAlertSessionKey = "warmnest.lobotomy-corp-alert";
 
+/** 当前 Day 的最小运行时持久化键。 */
+const lobotomyCorpDaySessionKey = "warmnest.lobotomy-corp-day";
+
 /**
  * 当前正在播放的脑叶公司警报及其结束操作。
  */
 let activeLobotomyCorpAlert;
 
 /**
- * 当前脑叶公司彩蛋的危急值，始终为 0 到 100 的整数。
+ * 当前脑叶公司彩蛋的危急值，始终为 0 到 100 的有限数值。
  */
 let lobotomyCorpDangerScore = 0;
+
+/** 当前 Day 已贡献危急值的 canonical 异想体编号。 */
+let lobotomyCorpBreachedAbnormalitiesThisDay = new Set();
+
+/** 风险等级对应的默认出逃危急值。 */
+const lobotomyCorpDangerByRiskLevel = Object.freeze({
+  ALEPH: 75,
+  HE: 40,
+  TETH: 20,
+  WAW: 60,
+  ZAYIN: 5,
+});
+
+/** 构筑部开放后的满设施 Emergency Level 计算单位数。 */
+const lobotomyCorpFullDepartmentCount = 11;
+
+/** 已注册的 canonical 异想体提交观察者。 */
+const lobotomyCorpAbnormalitySubmissionListeners = new Set();
+
+/** 风险等级对应的原版 Sprite 文件名。 */
+const lobotomyCorpRiskSpriteByLevel = Object.freeze({
+  ALEPH: "Risk_Aleph.png",
+  HE: "Risk_He.png",
+  TETH: "Risk_Teth.png",
+  WAW: "Risk_Waw.png",
+  ZAYIN: "Risk_Zayin.png",
+});
+
+/**
+ * 规范化异想体编号与别名：只处理 Unicode、首尾空白和大小写。
+ *
+ * @param {string} value 待匹配的显示名称。
+ * @return {string} 用于 lookup 的键。
+ */
+function normalizeLobotomyCorpAbnormalityName(value) {
+  return String(value).normalize("NFKC").trim().toLocaleLowerCase("en-US");
+}
+
+/**
+ * 查找显示名称对应的 canonical 异想体资料。
+ *
+ * @param {string} value 待识别的显示名称。
+ * @return {{canonicalId: string, abnormality: object}|undefined} canonical 编号和资料。
+ */
+function matchingLobotomyCorpAbnormality(value) {
+  const canonicalId = lobotomyCorpAbnormalityIndex.get(
+    normalizeLobotomyCorpAbnormalityName(value),
+  );
+  const abnormality = canonicalId && lobotomyCorpAbnormalities[canonicalId];
+  return abnormality ? { canonicalId, abnormality } : undefined;
+}
+
+/**
+ * 将网页 locale 映射为异想体资料支持的 locale。
+ *
+ * @param {string|undefined} locale 页面语言。
+ * @return {string} 异想体资料的 locale。
+ */
+function lobotomyCorpAbnormalityLocale(locale) {
+  const aliases = {
+    "en-CA": "en-US",
+    "en-GB": "en-US",
+    "zh-HK": "zh-TW",
+    "zh-MO": "zh-TW",
+    "zh-SG": "zh-CN",
+  };
+  const supported = new Set([
+    "en-US",
+    "zh-CN",
+    "zh-TW",
+    "ja-JP",
+    "ko-KR",
+    "ru-RU",
+    "es-ES",
+    "bg-BG",
+    "vi-VN",
+  ]);
+  const resolved = aliases[locale] ?? locale;
+  return supported.has(resolved) ? resolved : "en-US";
+}
+
+/**
+ * 获取异想体在当前页面语言下的名称。
+ *
+ * @param {{names?: Record<string, string>}} abnormality 异想体资料。
+ * @return {string} 本地化名称或英语回退。
+ */
+function lobotomyCorpAbnormalityName(abnormality) {
+  const locale = lobotomyCorpAbnormalityLocale(
+    globalThis.document?.documentElement?.lang,
+  );
+  return abnormality.names?.[locale] || abnormality.names?.["en-US"] || "";
+}
 
 /**
  * 规范化警报口令，忽略大小写、空格和连字符。
@@ -316,6 +436,89 @@ function clearPersistedLobotomyCorpAlert() {
 }
 
 /**
+ * 持久化当前连续 Day；身份 UI 始终由已保存的显示名称派生，不写入这里。
+ */
+function persistLobotomyCorpDay() {
+  if (lobotomyCorpDangerScore <= 0) {
+    clearPersistedLobotomyCorpDay();
+    return;
+  }
+  const serialized = JSON.stringify({
+    countedAbnormalityIds: [...lobotomyCorpBreachedAbnormalitiesThisDay],
+    dangerScore: lobotomyCorpDangerScore,
+  });
+  lobotomyCorpAlertStorages().forEach((storage) =>
+    storage.setItem(lobotomyCorpDaySessionKey, serialized)
+  );
+}
+
+/**
+ * 清除已结束 Day 的运行时资料。
+ */
+function clearPersistedLobotomyCorpDay() {
+  lobotomyCorpAlertStorages().forEach((storage) =>
+    storage.removeItem(lobotomyCorpDaySessionKey)
+  );
+}
+
+/**
+ * 从内部页面导航保留下来的资料恢复 Day。
+ */
+function restorePersistedLobotomyCorpDay() {
+  const serialized = lobotomyCorpAlertStorages().map((storage) =>
+    storage.getItem(lobotomyCorpDaySessionKey)
+  ).find((value) => Boolean(value));
+  if (!serialized) {
+    return;
+  }
+  try {
+    const saved = JSON.parse(serialized);
+    const score = saved?.dangerScore;
+    const ids = saved?.countedAbnormalityIds;
+    if (
+      typeof score !== "number" || !Number.isFinite(score) || score <= 0 ||
+      score > 100 ||
+      !Array.isArray(ids) || !ids.every((id) => typeof id === "string")
+    ) {
+      throw new Error("Invalid Lobotomy Corporation Day state.");
+    }
+    lobotomyCorpDangerScore = score;
+    lobotomyCorpBreachedAbnormalitiesThisDay = new Set(ids);
+  } catch {
+    clearPersistedLobotomyCorpDay();
+  }
+}
+
+/**
+ * 清理 Day 的危急值、去重记录与持久化状态。
+ */
+function clearLobotomyCorpDay() {
+  lobotomyCorpDangerScore = 0;
+  lobotomyCorpBreachedAbnormalitiesThisDay.clear();
+  clearPersistedLobotomyCorpDay();
+}
+
+/**
+ * 让没有 HUD 的低危急值 Day 也参与跨游戏互斥。
+ */
+function ensureLobotomyCorpDayCoordinator() {
+  if (lobotomyCorpDangerScore > 0) {
+    globalThis.easterEggCoordinator?.start(
+      lobotomyCorpEasterEggGameId,
+      finishLobotomyCorpDayFromCoordinator,
+    );
+  }
+}
+
+/**
+ * 被其它游戏彩蛋中断时结束当前 Day 和可能存在的 HUD。
+ */
+function finishLobotomyCorpDayFromCoordinator() {
+  clearLobotomyCorpDay();
+  activeLobotomyCorpAlert?.finish();
+}
+
+/**
  * 判断当前文档是否由浏览器刷新产生。
  *
  * @return {boolean} 当前页面由刷新重新加载时返回 true。
@@ -387,14 +590,71 @@ function matchesLobotomyCorpAlert(value) {
  * 播放脑叶公司警报，并在音频结束或用户关闭后清理警报界面。
  *
  * @param {string} value 待匹配的用户名或显示名称。
+ * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
  * @return {Promise<boolean>} 警报结束时返回 true；未匹配警报时立即返回 true。
  */
-function activateLobotomyCorpAlert(value) {
+function activateLobotomyCorpAlert(value, preparedAudio) {
   const alert = matchingLobotomyCorpAlert(value);
   if (!alert) {
     return Promise.resolve(true);
   }
-  return startLobotomyCorpAlert(alert, Date.now(), 0);
+  return startLobotomyCorpAlert(alert, Date.now(), 0, undefined, preparedAudio);
+}
+
+/**
+ * 在同步用户手势中准备可能会在服务器确认后播放的警报媒体。
+ *
+ * 此阶段只触碰 Audio，绝不建立 Day、HUD 或持久化业务状态。
+ *
+ * @param {string} value 待保存的显示名称。
+ * @return {{cancel: () => void, commit: () => Promise<boolean>}} 可取消或提交的媒体句柄。
+ */
+function prepareLobotomyCorpDisplayName(value) {
+  const abnormalityMatch = matchingLobotomyCorpAbnormality(value);
+  const alert = matchingLobotomyCorpAlert(value) ??
+    (abnormalityMatch?.abnormality.canBreach &&
+        !lobotomyCorpBreachedAbnormalitiesThisDay.has(
+          abnormalityMatch.canonicalId,
+        )
+      ? lobotomyCorpAlertForDangerScore(
+        Math.min(
+          100,
+          lobotomyCorpDangerScore +
+            lobotomyCorpDangerContribution(abnormalityMatch.abnormality),
+        ),
+      )
+      : undefined);
+  let audio;
+  let cancelled = false;
+  if (alert && typeof globalThis.Audio === "function") {
+    audio = new Audio(
+      `${lobotomyCorpAssetRoot}/AudioClip/${alert.soundFile}`,
+    );
+    audio.hidden = true;
+    audio.preload = "auto";
+    audio.setAttribute("aria-hidden", "true");
+    // 该调用仍在 submit click 的同步栈中，保留 Chromium 的 transient activation。
+    void audio.play().then(() => {
+      if (!cancelled) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    }).catch(() => {
+      // 某些浏览器不允许预播放；提交后仍会按既有路径尝试播放。
+    });
+  }
+  return Object.freeze({
+    cancel: () => {
+      cancelled = true;
+      audio?.pause();
+      audio?.removeAttribute?.("src");
+      audio?.load?.();
+    },
+    commit: () => {
+      if (cancelled) return Promise.resolve(true);
+      return commitLobotomyCorpDisplayName(value, audio);
+    },
+  });
 }
 
 /**
@@ -419,7 +679,7 @@ function lobotomyCorpAlertForDangerScore(dangerScore) {
 /**
  * 读取当前脑叶公司彩蛋危急值。
  *
- * @return {number} 当前 0 到 100 的整数危急值。
+ * @return {number} 当前 0 到 100 的有限危急值。
  */
 function getLobotomyCorpDangerScore() {
   return lobotomyCorpDangerScore;
@@ -432,6 +692,11 @@ function getLobotomyCorpDangerScore() {
  */
 function stopLobotomyCorpAlert() {
   if (!activeLobotomyCorpAlert) {
+    clearLobotomyCorpDay();
+    globalThis.easterEggCoordinator?.finish(
+      lobotomyCorpEasterEggGameId,
+      finishLobotomyCorpDayFromCoordinator,
+    );
     return Promise.resolve(true);
   }
   const completion = activeLobotomyCorpAlert.promise;
@@ -442,20 +707,36 @@ function stopLobotomyCorpAlert() {
 /**
  * 设置脑叶公司彩蛋危急值，并激活其所在区间对应的警报。
  *
- * @param {number} dangerScore 新的 0 到 100 整数危急值。
+ * @param {number} dangerScore 新的 0 到 100 有限危急值。
+ * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
  * @return {Promise<boolean>} 对应警报结束或无警报状态生效后返回 true。
  */
-function setLobotomyCorpDangerScore(dangerScore) {
-  if (!Number.isInteger(dangerScore) || dangerScore < 0 || dangerScore > 100) {
+function setLobotomyCorpDangerScore(dangerScore, preparedAudio) {
+  if (
+    typeof dangerScore !== "number" || !Number.isFinite(dangerScore) ||
+    dangerScore < 0 || dangerScore > 100
+  ) {
     return Promise.reject(
-      new RangeError("Danger Score 必须是 0 到 100 的整数。"),
+      new RangeError("Danger Score 必须是 0 到 100 的有限数值。"),
     );
   }
 
   lobotomyCorpDangerScore = dangerScore;
+  if (dangerScore > 0) {
+    persistLobotomyCorpDay();
+    ensureLobotomyCorpDayCoordinator();
+  } else {
+    clearLobotomyCorpDay();
+  }
   const alert = lobotomyCorpAlertForDangerScore(dangerScore);
   if (alert) {
-    return startLobotomyCorpAlert(alert, Date.now(), 0);
+    return startLobotomyCorpAlert(
+      alert,
+      Date.now(),
+      0,
+      undefined,
+      preparedAudio,
+    );
   }
   if (dangerScore === 0) {
     return stopLobotomyCorpAlert();
@@ -463,6 +744,122 @@ function setLobotomyCorpDangerScore(dangerScore) {
   return activeLobotomyCorpAlert
     ? activeLobotomyCorpAlert.replaceVisual(undefined)
     : Promise.resolve(true);
+}
+
+/**
+ * 根据已保存的显示名称同步设置页的派生异想体身份 UI。
+ *
+ * @param {string} displayName 已保存的显示名称。
+ */
+function syncLobotomyCorpAbnormalityIdentity(displayName) {
+  const document = globalThis.document;
+  const label = document?.querySelector?.("[data-account-display-name-label]");
+  const avatarWrapper = document?.querySelector?.(
+    ".account-avatar-risk-wrapper",
+  );
+  const match = matchingLobotomyCorpAbnormality(displayName);
+  if (label) {
+    if (label.dataset.lobotomyCorpDefaultLabel === undefined) {
+      label.dataset.lobotomyCorpDefaultLabel = label.textContent ?? "";
+    }
+    label.textContent = match
+      ? lobotomyCorpAbnormalityName(match.abnormality)
+      : label.dataset.lobotomyCorpDefaultLabel;
+  }
+  const badge = avatarWrapper?.querySelector?.(".lobotomy-corp-risk-badge");
+  badge?.remove?.();
+  const riskFile = match && lobotomyCorpRiskSpriteByLevel[
+    match.abnormality.riskLevel
+  ];
+  if (avatarWrapper && riskFile && document?.createElement) {
+    const riskBadge = document.createElement("img");
+    riskBadge.alt = "";
+    riskBadge.className = "lobotomy-corp-risk-badge";
+    riskBadge.setAttribute("aria-hidden", "true");
+    riskBadge.src = `${lobotomyCorpSpriteRoot}/${riskFile}`;
+    avatarWrapper.append(riskBadge);
+  }
+}
+
+/**
+ * 通知所有观察者一次已确认的 canonical 异想体提交。
+ *
+ * @param {string} canonicalId 异想体 canonical 编号。
+ * @param {object} abnormality 异想体静态资料。
+ * @param {{displayName: string}} context 本次提交的上下文。
+ */
+function notifyLobotomyCorpAbnormalitySubmitted(
+  canonicalId,
+  abnormality,
+  context,
+) {
+  lobotomyCorpAbnormalitySubmissionListeners.forEach((listener) => {
+    try {
+      listener(canonicalId, abnormality, context);
+    } catch {
+      // 特殊事件观察失败不能阻断已确认的账户保存或通用出逃流程。
+    }
+  });
+}
+
+/**
+ * 计算一次普通异想体出逃对 Danger Score 的最终贡献。
+ *
+ * @param {object} abnormality 异想体静态资料。
+ * @return {number} 最终贡献；特殊覆盖值不参与部门分摊。
+ */
+function lobotomyCorpDangerContribution(abnormality) {
+  if (typeof abnormality.dangerOnBreachOverride === "number") {
+    return abnormality.dangerOnBreachOverride;
+  }
+  return (lobotomyCorpDangerByRiskLevel[abnormality.riskLevel] ?? 0) /
+    lobotomyCorpFullDepartmentCount;
+}
+
+/**
+ * 处理一次已由服务器确认成功的 canonical 异想体提交。
+ *
+ * 该入口刻意将身份识别与危急值贡献分层，后续特殊事件可订阅此处而不依赖 canBreach。
+ *
+ * @param {string} value 服务器已保存成功的显示名称。
+ * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
+ * @return {Promise<boolean>} 危急值更新后的警报生命周期 Promise。
+ */
+function handleLobotomyCorpAbnormalitySubmitted(value, preparedAudio) {
+  const match = matchingLobotomyCorpAbnormality(value);
+  if (!match) {
+    return Promise.resolve(true);
+  }
+  notifyLobotomyCorpAbnormalitySubmitted(match.canonicalId, match.abnormality, {
+    displayName: value,
+  });
+  if (!match.abnormality.canBreach) return Promise.resolve(true);
+  if (lobotomyCorpBreachedAbnormalitiesThisDay.has(match.canonicalId)) {
+    return Promise.resolve(true);
+  }
+  const contribution = lobotomyCorpDangerContribution(match.abnormality);
+  if (contribution <= 0) {
+    return Promise.resolve(true);
+  }
+  lobotomyCorpBreachedAbnormalitiesThisDay.add(match.canonicalId);
+  return setLobotomyCorpDangerScore(
+    Math.min(100, lobotomyCorpDangerScore + contribution),
+    preparedAudio,
+  );
+}
+
+/**
+ * 在账户保存成功后提交异想体或维持旧手动 Trumpet 行为。
+ *
+ * @param {string} value 服务器确认保存的显示名称。
+ * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
+ * @return {Promise<boolean>} 对应彩蛋生命周期 Promise。
+ */
+function commitLobotomyCorpDisplayName(value, preparedAudio) {
+  syncLobotomyCorpAbnormalityIdentity(value);
+  return matchingLobotomyCorpAbnormality(value)
+    ? handleLobotomyCorpAbnormalitySubmitted(value, preparedAudio)
+    : activateLobotomyCorpAlert(value, preparedAudio);
 }
 
 /**
@@ -885,6 +1282,7 @@ function lobotomyCorpTopPanelActionText(visualAlert) {
  * @param {number} startedAt 警报最初开始的时间戳。
  * @param {number} resumeAt 恢复播放的音频进度（秒）。
  * @param {{assetDirectory: string, level: number, soundFile: string}} [restoredMusicAlert] 恢复时的逻辑音乐配置。
+ * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
  * @return {Promise<boolean>} 当前视觉 activation 被替换或整个会话结束时返回 true。
  */
 function startLobotomyCorpAlert(
@@ -892,13 +1290,14 @@ function startLobotomyCorpAlert(
   startedAt,
   resumeAt,
   restoredMusicAlert,
+  preparedAudio,
 ) {
   if (activeLobotomyCorpAlert) {
-    return activeLobotomyCorpAlert.replaceVisual(alert);
+    return activeLobotomyCorpAlert.replaceVisual(alert, preparedAudio);
   }
   const musicAlert = restoredMusicAlert ?? alert;
   let fallbackPosition = Math.max(0, resumeAt);
-  let audio;
+  let audio = preparedAudio;
   let emergencyController;
   let endAlertButton;
   let endAlertButtonText;
@@ -997,12 +1396,13 @@ function startLobotomyCorpAlert(
     globalThis.removeEventListener?.("pagehide", persistPlaybackPosition);
     globalThis.removeEventListener?.("resize", updateCanvasScale);
     clearPersistedLobotomyCorpAlert();
+    clearLobotomyCorpDay();
     if (activeLobotomyCorpAlert === alertContext) {
       activeLobotomyCorpAlert = undefined;
     }
     globalThis.easterEggCoordinator?.finish(
       lobotomyCorpEasterEggGameId,
-      finishAlertFromCoordinator,
+      coordinatorStop,
     );
 
     if (animateExit && topPanel && topPanelActiveController) {
@@ -1186,6 +1586,13 @@ function startLobotomyCorpAlert(
     audio = new Audio(
       `${lobotomyCorpAssetRoot}/AudioClip/${alertContext.musicAlert.soundFile}`,
     );
+    configureAlertAudio();
+  }
+
+  /**
+   * 为新建或已准备的 Audio 绑定当前警报会话监听器。
+   */
+  function configureAlertAudio() {
     alertContext.audio = audio;
     audio.hidden = true;
     audio.preload = "auto";
@@ -1257,9 +1664,8 @@ function startLobotomyCorpAlert(
       }
       syncTopPanelActionText(visualAlert);
       overlay.append(topPanel);
-      if (!audio) {
-        createAlertAudio();
-      }
+      if (!audio) createAlertAudio();
+      else if (!alertContext.audio) configureAlertAudio();
       overlay.append(audio);
       updateLobotomyCorpCanvasScale(emergencyController, topPanel);
       globalThis.addEventListener?.("resize", updateCanvasScale);
@@ -1281,7 +1687,7 @@ function startLobotomyCorpAlert(
    * @param {object|undefined} nextAlert 新 HUD 配置；undefined 表示隐藏 HUD。
    * @return {Promise<boolean>} 新视觉 activation 的完成 Promise。
    */
-  function replaceVisual(nextAlert) {
+  function replaceVisual(nextAlert, nextPreparedAudio) {
     if (
       nextAlert?.assetDirectory === alertContext.visualAlert?.assetDirectory
     ) {
@@ -1296,7 +1702,7 @@ function startLobotomyCorpAlert(
     if (nextAlert && nextAlert.level > alertContext.musicAlert.level) {
       alertContext.musicAlert = nextAlert;
       detachAudio(true);
-      audio = undefined;
+      audio = nextPreparedAudio;
       alertContext.audio = undefined;
       alertContext.startedAt = Date.now();
       fallbackPosition = 0;
@@ -1307,12 +1713,15 @@ function startLobotomyCorpAlert(
     return activation.promise;
   }
 
+  const coordinatorStop = lobotomyCorpDangerScore > 0
+    ? finishLobotomyCorpDayFromCoordinator
+    : finishAlertFromCoordinator;
   alertContext.finish = finishAlertFromCoordinator;
   alertContext.replaceVisual = replaceVisual;
   activeLobotomyCorpAlert = alertContext;
   globalThis.easterEggCoordinator?.start(
     lobotomyCorpEasterEggGameId,
-    finishAlertFromCoordinator,
+    coordinatorStop,
   );
   persistPlaybackPosition();
   void mountLobotomyCorpAlert(alert, currentActivation);
@@ -1321,15 +1730,29 @@ function startLobotomyCorpAlert(
 
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
+  commitDisplayName: commitLobotomyCorpDisplayName,
   getDangerScore: getLobotomyCorpDangerScore,
-  matches: matchesLobotomyCorpAlert,
+  handleAbnormalitySubmitted: handleLobotomyCorpAbnormalitySubmitted,
+  matches: (value) =>
+    matchesLobotomyCorpAlert(value) ||
+    Boolean(matchingLobotomyCorpAbnormality(value)),
+  matchingAbnormality: matchingLobotomyCorpAbnormality,
+  onAbnormalitySubmitted: (listener) => {
+    lobotomyCorpAbnormalitySubmissionListeners.add(listener);
+    return () => lobotomyCorpAbnormalitySubmissionListeners.delete(listener);
+  },
+  prepareDisplayName: prepareLobotomyCorpDisplayName,
+  restartDay: stopLobotomyCorpAlert,
   setDangerScore: setLobotomyCorpDangerScore,
   submitsWhileActive: true,
 });
 
 if (isLobotomyCorpAlertPageReload()) {
   clearPersistedLobotomyCorpAlert();
+  clearPersistedLobotomyCorpDay();
 } else {
+  restorePersistedLobotomyCorpDay();
+  ensureLobotomyCorpDayCoordinator();
   const restoredLobotomyCorpAlert = persistedLobotomyCorpAlert();
   if (restoredLobotomyCorpAlert) {
     void startLobotomyCorpAlert(
@@ -1343,4 +1766,11 @@ if (isLobotomyCorpAlertPageReload()) {
       void activeLobotomyCorpAlert?.replaceVisual(undefined);
     }
   }
+}
+
+const persistedDisplayName = globalThis.document?.querySelector?.(
+  "[data-account-display-name-input]",
+)?.dataset?.accountDisplayNameOriginal;
+if (persistedDisplayName !== undefined) {
+  syncLobotomyCorpAbnormalityIdentity(persistedDisplayName);
 }
