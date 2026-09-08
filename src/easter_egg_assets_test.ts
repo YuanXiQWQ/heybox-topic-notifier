@@ -28,39 +28,57 @@ Deno.test({
 });
 
 Deno.test({
-  name: "Lobotomy Corporation audio assets support byte-range seeking",
+  name: "Lobotomy Corporation OGG assets support normal and byte-range responses",
   permissions: { read: true },
   fn: async () => {
-    const response = await lobotomyCorpAssetResponse(
-      "Assets/AudioClip/third-trumpet.wav",
+    const firstResponse = await lobotomyCorpAssetResponse(
+      "Assets/Resources/sounds/bgm/emergency01_mast.ogg",
+    );
+    const secondResponse = await lobotomyCorpAssetResponse(
+      "Assets/Resources/sounds/bgm/emergency02_mast.ogg",
+    );
+    const normalResponse = await lobotomyCorpAssetResponse(
+      "Assets/Resources/sounds/bgm/emergency03_mast.ogg",
+    );
+    const rangeResponse = await lobotomyCorpAssetResponse(
+      "Assets/Resources/sounds/bgm/emergency03_mast.ogg",
       "bytes=12-35",
     );
     const invalidResponse = await lobotomyCorpAssetResponse(
-      "Assets/AudioClip/third-trumpet.wav",
+      "Assets/Resources/sounds/bgm/emergency03_mast.ogg",
       "bytes=999999999-",
     );
 
-    assertEquals(response.status, 206);
-    assertEquals(response.headers.get("accept-ranges"), "bytes");
+    assertEquals(firstResponse.status, 200);
+    assertEquals(secondResponse.status, 200);
+    assertEquals(normalResponse.status, 200);
+    assertEquals(normalResponse.headers.get("content-type"), "audio/ogg");
+    assertEquals(rangeResponse.status, 206);
+    assertEquals(rangeResponse.headers.get("accept-ranges"), "bytes");
     assertEquals(
-      response.headers.get("content-range")?.startsWith("bytes 12-35/"),
+      rangeResponse.headers.get("content-range")?.startsWith("bytes 12-35/"),
       true,
     );
-    assertEquals((await response.arrayBuffer()).byteLength, 24);
+    assertEquals((await rangeResponse.arrayBuffer()).byteLength, 24);
     assertEquals(invalidResponse.status, 416);
   },
 });
 
 Deno.test({
-  name: "Lobotomy Corporation Fourth Trumpet audio is available",
+  name: "Lobotomy Corporation migrated original and WarmNest audio is available",
   permissions: { read: true },
   fn: async () => {
-    const response = await lobotomyCorpAssetResponse(
-      "Assets/AudioClip/fourth-trumpet.wav",
+    const whiteNightResponse = await lobotomyCorpAssetResponse(
+      "Assets/Resources/sounds/creature/whitenight/WhiteNight_Dead1.ogg",
+    );
+    const warmNestResponse = await lobotomyCorpAssetResponse(
+      "Assets/Resources/sounds/bgm/emergency04_mast.wav",
     );
 
-    assertEquals(response.status, 200);
-    assertEquals(response.headers.get("content-type"), "audio/wav");
+    assertEquals(whiteNightResponse.status, 200);
+    assertEquals(whiteNightResponse.headers.get("content-type"), "audio/ogg");
+    assertEquals(warmNestResponse.status, 200);
+    assertEquals(warmNestResponse.headers.get("content-type"), "audio/wav");
   },
 });
 

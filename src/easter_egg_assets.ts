@@ -6,7 +6,7 @@
  * 彩蛋资源允许使用的相对路径格式。
  */
 const easterEggAssetPathPattern =
-  /^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*\.(?:css|js|json|mp3|otf|png|ttf|wav)$/;
+  /^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*\.(?:css|js|json|mp3|ogg|otf|png|ttf|wav)$/;
 
 /**
  * 《逆转裁判》彩蛋资源根目录。
@@ -296,6 +296,9 @@ function easterEggAssetContentType(assetPath: string): string {
   if (assetPath.endsWith(".ttf")) {
     return "font/ttf";
   }
+  if (assetPath.endsWith(".ogg")) {
+    return "audio/ogg";
+  }
   return assetPath.endsWith(".wav") ? "audio/wav" : "audio/mpeg";
 }
 
@@ -319,7 +322,7 @@ function isAceAttorneyAssetPath(assetPath: string): boolean {
  * @return {boolean} 路径可公开读取时返回 true。
  */
 function isLobotomyCorpAssetPath(assetPath: string): boolean {
-  return /^Assets\/.+\.(?:mp3|otf|png|ttf|wav)$/u.test(assetPath) ||
+  return /^Assets\/.+\.(?:mp3|ogg|otf|png|ttf|wav)$/u.test(assetPath) ||
     assetPath === "Data/Abnormalities.json" ||
     /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u.test(
       assetPath,

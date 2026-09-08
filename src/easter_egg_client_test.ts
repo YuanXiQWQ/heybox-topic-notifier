@@ -8,7 +8,7 @@ import { renderLayout } from "./views/html.ts";
  * 从页面内联脚本中读取《脑叶公司》当前本地化。
  *
  * @param {string} locale 页面 locale。
- * @return {{restartDay: string, firedManager: string}} 注入的游戏文本。
+ * @return {Record<string, string>} 注入的游戏文本。
  */
 function renderedLobotomyCorpLocale(
   locale:
@@ -63,10 +63,13 @@ function renderedLobotomyCorpAbnormalities(): Record<string, unknown> {
 }
 
 Deno.test("Lobotomy Corporation locale data is injected from game JSON with fallbacks", () => {
-  assertEquals(renderedLobotomyCorpLocale("zh-CN"), {
-    restartDay: "重新开始这一天",
-    firedManager: "你被解雇了，主管！",
-  });
+  const simplifiedChinese = renderedLobotomyCorpLocale("zh-CN");
+  assertEquals(simplifiedChinese.restartDay, "重新开始这一天");
+  assertEquals(simplifiedChinese.firedManager, "你被解雇了，主管！");
+  assertEquals(
+    simplifiedChinese["whiteNight.blockNavigation.denyPresence"],
+    "休得否认我的存在，我就在你的眼前。",
+  );
   assertEquals(
     renderedLobotomyCorpLocale("zh-HK"),
     renderedLobotomyCorpLocale("zh-MO"),
@@ -1002,7 +1005,10 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     assertEquals(secondRiskRect.style.height, "150px");
     assertEquals(secondRiskRect.style.transform, "rotate(135deg)");
     assertEquals(firstAudio.pauseCount, 1);
-    assertEquals(secondAudio.src.endsWith("second-trumpet.wav"), true);
+    assertEquals(
+      secondAudio.src.endsWith("Resources/sounds/bgm/emergency02_mast.ogg"),
+      true,
+    );
     assertEquals(await first, true);
     const third = api.activate("third trumpet");
     const thirdOverlay = body.children.at(-1)!;
@@ -1038,7 +1044,10 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     const fourthAudio = AudioMock.items[3];
     assertEquals(AudioMock.items.length, 4);
     assertEquals(thirdAudio.pauseCount, 1);
-    assertEquals(fourthAudio.src.endsWith("fourth-trumpet.wav"), true);
+    assertEquals(
+      fourthAudio.src.endsWith("Resources/sounds/bgm/emergency04_mast.wav"),
+      true,
+    );
     assertEquals(fourthAudio.currentTime, 0);
     assertEquals(fourthAudio.playCount, 1);
     assertEquals(panel(fourthOverlay) === panel(downOverlay), true);
@@ -1146,7 +1155,12 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     AudioMock.deferredPlayResolvers.splice(0).forEach((resolve) => resolve());
     await Promise.resolve();
     await Promise.resolve();
-    assertEquals(secondPreparedAudio.src.endsWith("second-trumpet.wav"), true);
+    assertEquals(
+      secondPreparedAudio.src.endsWith(
+        "Resources/sounds/bgm/emergency02_mast.ogg",
+      ),
+      true,
+    );
     assertEquals(secondPreparedAudio.pauseCount, 0);
     assertEquals(secondPreparedAudio.currentTime, 7);
     assertEquals(secondPreparedAudio.playCount, 2);
@@ -1166,7 +1180,12 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     const lowerSecond = api.prepareDisplayName("second trumpet");
     const lowerSecondAudio = AudioMock.items.at(-1)!;
     void lowerSecond.commit();
-    assertEquals(thirdPreparedAudio.src.endsWith("third-trumpet.wav"), true);
+    assertEquals(
+      thirdPreparedAudio.src.endsWith(
+        "Resources/sounds/bgm/emergency03_mast.ogg",
+      ),
+      true,
+    );
     assertEquals(thirdPreparedAudio.pauseCount, 0);
     assertEquals(lowerSecondAudio.pauseCount, 1);
   } finally {

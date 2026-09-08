@@ -342,7 +342,7 @@ Deno.test({
       "/static/fun/lobotomy-corp/lobotomy-corp.css",
     );
     const audioResponse = await app.request(
-      "/static/fun/lobotomy-corp/Assets/AudioClip/first-trumpet.wav",
+      "/static/fun/lobotomy-corp/Assets/Resources/sounds/bgm/emergency01_mast.ogg",
     );
     const fontResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/Font/norwester.otf",
@@ -479,8 +479,8 @@ Deno.test({
     assertEquals(stylesheet.includes("rotate(90deg)"), false);
     assertEquals(stylesheet.includes("rotate(180deg)"), false);
     assertEquals(audioResponse.status, 200);
-    assertEquals(audioResponse.headers.get("content-type"), "audio/wav");
-    assertEquals(new TextDecoder().decode(audioBytes.slice(0, 4)), "RIFF");
+    assertEquals(audioResponse.headers.get("content-type"), "audio/ogg");
+    assertEquals(new TextDecoder().decode(audioBytes.slice(0, 4)), "OggS");
     assertEquals(fontResponse.status, 200);
     assertEquals(fontResponse.headers.get("content-type"), "font/otf");
     assertEquals(panelFontResponse.status, 200);

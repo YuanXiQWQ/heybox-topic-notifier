@@ -117,7 +117,7 @@ const lobotomyCorpRestartButtonTints = Object.freeze({
 });
 
 /**
- * 警报口令、等级视觉参数与音频文件的对应关系。
+ * 警报口令、等级视觉参数与音频资源路径的对应关系。
  */
 const lobotomyCorpAlerts = Object.freeze({
   firsttrumpet: {
@@ -126,7 +126,7 @@ const lobotomyCorpAlerts = Object.freeze({
     emergencyTint: [252, 201, 58],
     level: 1,
     riskFile: "Risk_1.png",
-    soundFile: "first-trumpet.wav",
+    soundPath: "Resources/sounds/bgm/emergency01_mast.ogg",
     trumpetLevel: "First\nTrumpet",
   },
   secondtrumpet: {
@@ -135,7 +135,7 @@ const lobotomyCorpAlerts = Object.freeze({
     emergencyTint: [252, 119, 58],
     level: 2,
     riskFile: "Risk_2.png",
-    soundFile: "second-trumpet.wav",
+    soundPath: "Resources/sounds/bgm/emergency02_mast.ogg",
     trumpetLevel: "Second\nTrumpet",
   },
   thirdtrumpet: {
@@ -144,7 +144,7 @@ const lobotomyCorpAlerts = Object.freeze({
     emergencyTint: [252, 58, 58],
     level: 3,
     riskFile: "Risk_3.png",
-    soundFile: "third-trumpet.wav",
+    soundPath: "Resources/sounds/bgm/emergency03_mast.ogg",
     trumpetLevel: "Third\nTrumpet",
   },
   fourthtrumpet: {
@@ -161,7 +161,7 @@ const lobotomyCorpAlerts = Object.freeze({
       width: 110,
     },
     riskTint: [0, 234, 219],
-    soundFile: "fourth-trumpet.wav",
+    soundPath: "Resources/sounds/bgm/emergency04_mast.wav",
     trumpetLevel: "Fourth\nTrumpet",
   },
 });
@@ -374,7 +374,7 @@ function normalizeLobotomyCorpAlertName(value) {
  * 查找名称对应的脑叶公司警报。
  *
  * @param {string} value 待匹配的用户名或显示名称。
- * @return {{assetDirectory: string, soundFile: string}|undefined} 匹配的警报配置。
+ * @return {{assetDirectory: string, soundPath: string}|undefined} 匹配的警报配置。
  */
 function matchingLobotomyCorpAlert(value) {
   return lobotomyCorpAlerts[normalizeLobotomyCorpAlertName(value)];
@@ -384,7 +384,7 @@ function matchingLobotomyCorpAlert(value) {
  * 查找已持久化配置对应的脑叶公司警报。
  *
  * @param {string} assetDirectory 警报资源目录。
- * @return {{assetDirectory: string, soundFile: string}|undefined} 匹配的警报配置。
+ * @return {{assetDirectory: string, soundPath: string}|undefined} 匹配的警报配置。
  */
 function lobotomyCorpAlertByAssetDirectory(assetDirectory) {
   return Object.values(lobotomyCorpAlerts).find((alert) =>
@@ -657,7 +657,7 @@ function prepareLobotomyCorpDisplayName(value) {
   let state = "prepared";
   if (alert && typeof globalThis.Audio === "function") {
     audio = new Audio(
-      `${lobotomyCorpAssetRoot}/AudioClip/${alert.soundFile}`,
+      `${lobotomyCorpAssetRoot}/${alert.soundPath}`,
     );
     audio.hidden = true;
     audio.muted = true;
@@ -677,12 +677,12 @@ function prepareLobotomyCorpDisplayName(value) {
     /**
      * 仅在已提交且音频目标匹配时，将媒体所有权转交给正式警报。
      *
-     * @param {string} soundFile 正式警报当前需要的音频文件。
+     * @param {string} soundPath 正式警报当前需要的音频资源路径。
      * @return {HTMLAudioElement|undefined} 可采用的音频。
      */
-    consume: (soundFile) => {
+    consume: (soundPath) => {
       if (
-        state !== "committed" || audio?.src?.endsWith(`/${soundFile}`) !== true
+        state !== "committed" || audio?.src?.endsWith(`/${soundPath}`) !== true
       ) {
         return undefined;
       }
@@ -710,7 +710,7 @@ function prepareLobotomyCorpDisplayName(value) {
  * 根据危急值查找应播放的脑叶公司警报。
  *
  * @param {number} dangerScore 当前危急值。
- * @return {{assetDirectory: string, soundFile: string}|undefined} 对应的警报配置；无警报区间时返回 undefined。
+ * @return {{assetDirectory: string, soundPath: string}|undefined} 对应的警报配置；无警报区间时返回 undefined。
  */
 function lobotomyCorpAlertForDangerScore(dangerScore) {
   if (dangerScore < 10) {
@@ -1431,10 +1431,10 @@ function lobotomyCorpTopPanelActionText(visualAlert) {
 /**
  * 创建或更新脑叶公司警报会话。视觉警报可以切换，音乐只按最高等级升级。
  *
- * @param {{assetDirectory: string, level: number, soundFile: string}} alert 警报配置。
+ * @param {{assetDirectory: string, level: number, soundPath: string}} alert 警报配置。
  * @param {number} startedAt 警报最初开始的时间戳。
  * @param {number} resumeAt 恢复播放的音频进度（秒）。
- * @param {{assetDirectory: string, level: number, soundFile: string}} [restoredMusicAlert] 恢复时的逻辑音乐配置。
+ * @param {{assetDirectory: string, level: number, soundPath: string}} [restoredMusicAlert] 恢复时的逻辑音乐配置。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
  * @return {Promise<boolean>} 当前视觉 activation 被替换或整个会话结束时返回 true。
  */
@@ -1450,7 +1450,7 @@ function startLobotomyCorpAlert(
   }
   const musicAlert = restoredMusicAlert ?? alert;
   let fallbackPosition = Math.max(0, resumeAt);
-  let audio = preparedMedia?.consume?.(musicAlert.soundFile);
+  let audio = preparedMedia?.consume?.(musicAlert.soundPath);
   if (!audio) preparedMedia?.dispose?.();
   let emergencyController;
   let endAlertButton;
@@ -1766,7 +1766,7 @@ function startLobotomyCorpAlert(
    */
   function createAlertAudio() {
     audio = new Audio(
-      `${lobotomyCorpAssetRoot}/AudioClip/${alertContext.musicAlert.soundFile}`,
+      `${lobotomyCorpAssetRoot}/${alertContext.musicAlert.soundPath}`,
     );
     configureAlertAudio();
   }
@@ -1901,7 +1901,7 @@ function startLobotomyCorpAlert(
     if (nextAlert && nextAlert.level > alertContext.musicAlert.level) {
       alertContext.musicAlert = nextAlert;
       detachAudio(true);
-      audio = nextPreparedMedia?.consume?.(nextAlert.soundFile);
+      audio = nextPreparedMedia?.consume?.(nextAlert.soundPath);
       if (!audio) nextPreparedMedia?.dispose?.();
       alertContext.audio = undefined;
       alertContext.startedAt = Date.now();
