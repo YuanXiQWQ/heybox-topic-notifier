@@ -1,0 +1,691 @@
+/**
+ * @file 《脑叶公司》白夜特殊事件状态机。
+ *
+ * 此模块只拥有白夜的持久化、场景、媒体和限制；Danger、Day、Alert 与账户保存
+ * 仍由 lobotomy-corp.js 提供的最小共享 API 管理。
+ */
+
+/** 白夜专用媒体路径。 */
+export const whiteNightSoundPaths = Object.freeze({
+  bell: "Resources/sounds/creature/deathangel/Lucifer_Bell0.ogg",
+  church: "Resources/sounds/creature/deathangel/Lucifer_standbg0.ogg",
+});
+
+/** Dead_23.anim 的真实 Animation Event 时间（秒）。 */
+export const whiteNightDeathSounds = Object.freeze([
+  {
+    at: 3.1667,
+    path: "Resources/sounds/creature/whitenight/WhiteNight_Dead1.ogg",
+  },
+  {
+    at: 4.2667,
+    path: "Resources/sounds/creature/whitenight/WhiteNight_Dead2.ogg",
+  },
+  {
+    at: 4.8,
+    path: "Resources/sounds/creature/whitenight/WhiteNight_Dead3.ogg",
+  },
+]);
+
+/** Confess 每 0.3 秒造成 666 P 伤害，12000 HP 白夜在第 19 次伤害后镇压。 */
+export const whiteNightConfessionSuppressionDelayMs = 5700;
+
+/** Confess ParticleSystem 的每秒发射数。 */
+const whiteNightConfessEmissionRate = 4;
+
+/** Confess ParticleSystem 单个粒子的生命周期（毫秒）。 */
+const whiteNightConfessRayLifetimeMs = 5000;
+
+/** 5.7 秒镇压阶段内按 4/s 发射的浏览器粒子数量。 */
+const whiteNightConfessRayCount = Math.ceil(
+  whiteNightConfessionSuppressionDelayMs / 1000 * whiteNightConfessEmissionRate,
+);
+
+/** Dead_23 最晚音效事件及其原始音频尾音全部播放完成所需时长。 */
+export const whiteNightDeathSequenceDurationMs = 8830;
+
+/** 白夜允许的入口以及各入口是否播放进入钟声和使徒完成演出。 */
+const whiteNightEntryBehaviors = Object.freeze({
+  "apostles-replay": Object.freeze({
+    playApostlesCompletion: true,
+    playEntryBell: true,
+  }),
+  "direct-submission": Object.freeze({
+    playApostlesCompletion: false,
+    playEntryBell: true,
+  }),
+  "plague-doctor-transformation": Object.freeze({
+    playApostlesCompletion: false,
+    playEntryBell: false,
+  }),
+});
+
+/**
+ * 创建白夜特殊事件控制器。
+ *
+ * @param {object} shared lobotomy-corp.js 提供的最小共享 API。
+ * @return {object} 白夜事件 API。
+ */
+export function createWhiteNightEvent(shared) {
+  let state;
+
+  /**
+   * 判断当前特殊事件是否为白夜。
+   *
+   * @return {boolean} 白夜正在运行时返回 true。
+   */
+  const isActive = () => state?.id === "white-night";
+
+  /**
+   * 释放一段事件媒体。
+   *
+   * @param {HTMLMediaElement|undefined} media 要释放的媒体。
+   */
+  const releaseMedia = (media) => {
+    media?.pause?.();
+    media?.removeAttribute?.("src");
+    media?.load?.();
+  };
+
+  /**
+   * 写入白夜的可恢复状态。
+   */
+  const persist = () => {
+    if (!isActive()) return;
+    const serialized = JSON.stringify({
+      id: "white-night",
+      lockLocation: state.lockLocation,
+      pendingNavigationViolation: state.pendingNavigationViolation === true,
+      pendingRecoveryBell: state.pendingRecoveryBell === true,
+      phase: state.phase,
+      source: state.source,
+    });
+    shared.storages().forEach((storage) =>
+      storage.setItem(shared.storageKey, serialized)
+    );
+  };
+
+  /** 清除白夜持久化状态。 */
+  const clearPersisted = () =>
+    shared.storages().forEach((storage) =>
+      storage.removeItem(shared.storageKey)
+    );
+
+  /**
+   * 读取可恢复的白夜状态。
+   *
+   * @return {{id: string, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, phase?: string, source?: string}|undefined} 已保存状态。
+   */
+  const persisted = () => {
+    const serialized = shared.storages().map((storage) =>
+      storage.getItem(shared.storageKey)
+    ).find(Boolean);
+    if (!serialized) return undefined;
+    try {
+      const saved = JSON.parse(serialized);
+      return saved?.id === "white-night" ? saved : undefined;
+    } catch {
+      clearPersisted();
+      return undefined;
+    }
+  };
+
+  /**
+   * 判断输入是否为赎罪。
+   *
+   * @param {string} value 待匹配输入。
+   * @return {boolean} 是赎罪入口时返回 true。
+   */
+  const matchesConfession = (value) =>
+    shared.normalize(value) === "o-03-03" ||
+    shared.confessionAliases().has(shared.normalize(value));
+
+  /**
+   * 创建或采用白夜音频并从零开始播放。
+   *
+   * @param {string} soundPath 相对于 Assets 的路径。
+   * @param {object|undefined} preparedMedia 用户手势预热的媒体。
+   * @param {boolean} loop 是否循环。
+   * @param {Function|undefined} onBlocked 自动播放被拒绝时的处理。
+   * @return {HTMLAudioElement|undefined} 已播放的音频。
+   */
+  const playAudio = (
+    soundPath,
+    preparedMedia,
+    loop = false,
+    onBlocked,
+  ) => {
+    const audio = preparedMedia?.consumeWhiteNight?.(soundPath) ??
+      (typeof globalThis.Audio === "function"
+        ? new Audio(`${shared.assetRoot}/${soundPath}`)
+        : undefined);
+    if (!audio) return undefined;
+    audio.hidden = true;
+    audio.loop = loop;
+    audio.muted = false;
+    audio.preload = "auto";
+    audio.currentTime = 0;
+    audio.setAttribute?.("aria-hidden", "true");
+    void audio.play?.().catch(() => onBlocked?.());
+    return audio;
+  };
+
+  /**
+   * 播放一次钟声并在结束后释放。
+   *
+   * @param {object|undefined} preparedMedia 用户手势预热的媒体。
+   * @param {boolean} recovery 是否在自动播放被拒绝时保留恢复钟声标记。
+   * @return {HTMLAudioElement|undefined} 已创建的钟声音频。
+   */
+  const playBell = (preparedMedia, recovery = false) => {
+    const bell = playAudio(
+      whiteNightSoundPaths.bell,
+      preparedMedia,
+      false,
+      recovery
+        ? () => {
+          if (!state) return;
+          state.pendingRecoveryBell = true;
+          persist();
+        }
+        : undefined,
+    );
+    if (!bell) {
+      if (recovery && state) {
+        state.pendingRecoveryBell = true;
+        persist();
+      }
+      return undefined;
+    }
+    state?.bellAudios.add(bell);
+    const releaseBell = () => {
+      state?.bellAudios.delete(bell);
+      releaseMedia(bell);
+    };
+    bell.addEventListener?.("ended", releaseBell, { once: true });
+    if (recovery && state) {
+      state.pendingRecoveryBell = false;
+      persist();
+    }
+    return bell;
+  };
+
+  /**
+   * 以 DeathAngelBlock.prefab 的真实 CanvasGroup 参数显示阻挡提示。
+   *
+   * @param {string} messageKey 当前 locale 文本键。
+   */
+  const showBlockMessage = (messageKey) => {
+    const document = globalThis.document;
+    if (!document?.createElement || !document.body) return;
+    document.querySelectorAll?.(".lobotomy-corp-white-night-message").forEach((
+      node,
+    ) => node.remove());
+    const overlay = document.createElement("section");
+    const filter = document.createElement("img");
+    const text = document.createElement("p");
+    overlay.className = "lobotomy-corp-white-night-message";
+    filter.className = "lobotomy-corp-white-night-block-filter";
+    filter.src =
+      `${shared.assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/GlobalShader.png`;
+    filter.alt = "";
+    filter.setAttribute("aria-hidden", "true");
+    text.textContent = shared.blockMessage?.(messageKey) ??
+      shared.messages()?.[messageKey] ?? "";
+    overlay.append(filter, text);
+    document.body.append(overlay);
+    const timer = setTimeout(() => overlay.remove(), 1500);
+    state?.timers.add(timer);
+  };
+
+  /**
+   * 同步赎罪保存按钮的显示状态。
+   *
+   * @param {boolean} active 是否显示赎罪工作。
+   */
+  const syncConfessionButton = (active) => {
+    const document = globalThis.document;
+    const button = document?.querySelector?.("[data-account-save-button]");
+    if (!button) {
+      if (!active) {
+        document?.querySelectorAll?.(".lobotomy-corp-confession-work-icon")
+          .forEach((node) => node.remove?.());
+      }
+      return;
+    }
+    const host = button.parentElement;
+    const icon = host?.querySelector?.(".lobotomy-corp-confession-work-icon");
+    if (active) {
+      button.dataset.lobotomyCorpOriginalAriaLabel ??=
+        button.getAttribute("aria-label") ?? "";
+      button.dataset.lobotomyCorpOriginalText ??= button.textContent ?? "";
+      const label = shared.messages()?.["oneSin.specialWork.confession"] ??
+        button.dataset.lobotomyCorpOriginalText;
+      button.textContent = label;
+      button.setAttribute("aria-label", label);
+      if (!icon && host && globalThis.document?.createElement) {
+        const image = globalThis.document.createElement("img");
+        image.alt = "";
+        image.className = "lobotomy-corp-confession-work-icon";
+        image.src = `${shared.assetRoot}/Sprite/Work_Confess.png`;
+        image.setAttribute("aria-hidden", "true");
+        host.insertBefore(image, button);
+      }
+    } else if (button.dataset.lobotomyCorpOriginalAriaLabel !== undefined) {
+      button.setAttribute(
+        "aria-label",
+        button.dataset.lobotomyCorpOriginalAriaLabel,
+      );
+      button.textContent = button.dataset.lobotomyCorpOriginalText ??
+        button.textContent;
+      delete button.dataset.lobotomyCorpOriginalAriaLabel;
+      delete button.dataset.lobotomyCorpOriginalText;
+      icon?.remove?.();
+      document?.querySelectorAll?.(".lobotomy-corp-confession-work-icon")
+        .forEach((node) => {
+          if (node !== icon) node.remove?.();
+        });
+    }
+  };
+
+  /**
+   * 增加可统一撤销的监听器。
+   *
+   * @param {object} target 事件目标。
+   * @param {string} type 事件类型。
+   * @param {Function} listener 监听器。
+   * @param {object|boolean} options 监听选项。
+   */
+  const addListener = (target, type, listener, options = false) => {
+    target?.addEventListener?.(type, listener, options);
+    state.listeners.push([target, type, listener, options]);
+  };
+
+  /**
+   * 启动白夜并接管 Alert 音乐。
+   *
+   * @param {{lockLocation?: string, preparedMedia?: object, restore?: boolean, resumeEnding?: boolean, source: "apostles-replay"|"direct-submission"|"plague-doctor-transformation"}} options 事件入口配置。
+   * @return {boolean} 新事件启动时返回 true。
+   */
+  const start = (options) => {
+    if (state) {
+      options?.preparedMedia?.dispose?.();
+      return false;
+    }
+    const behavior = whiteNightEntryBehaviors[options?.source];
+    if (!behavior) {
+      options?.preparedMedia?.dispose?.();
+      return false;
+    }
+    const document = globalThis.document;
+    state = {
+      bellAudios: new Set(),
+      id: "white-night",
+      listeners: [],
+      lockLocation: options.lockLocation ??
+        `${globalThis.location?.pathname ?? "/settings"}${
+          globalThis.location?.search ?? ""
+        }`,
+      phase: "active",
+      source: options.source,
+      timers: new Set(),
+    };
+    persist();
+    shared.pauseDangerDecay();
+    shared.ensureCoordinator();
+    if (!shared.getAlert()) shared.mountRestartPanel();
+    shared.holdAlertMusic();
+
+    const violate = (key, bell = true) => {
+      if (!isActive()) return;
+      if (bell) playBell();
+      showBlockMessage(key);
+    };
+    let navigationMessageIndex = 0;
+    const navigationViolation = () => {
+      const key = navigationMessageIndex++ % 2 === 0
+        ? "whiteNight.blockNavigation.denyPresence"
+        : "whiteNight.blockNavigation.unknownStory";
+      violate(key);
+    };
+    const blockNavigation = (event) => {
+      const target = event.target;
+      if (target?.closest?.(".lobotomy-corp-top-panel-action-button")) return;
+      if (target?.closest?.("a[href]")) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+        navigationViolation();
+      }
+    };
+    const blockRefresh = (event) => {
+      if (
+        event.key === "F5" ||
+        ((event.ctrlKey || event.metaKey) && event.key?.toLowerCase?.() === "r")
+      ) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+        violate("whiteNight.blockTime");
+      }
+    };
+    const pollingValues = new Map();
+    document?.querySelectorAll?.(
+      "[data-polling-interval-value], [data-polling-interval-unit]",
+    ).forEach((input) => pollingValues.set(input, input.value));
+    const blockPolling = (event) => {
+      const input = event.target?.closest?.(
+        "[data-polling-interval-value], [data-polling-interval-unit]",
+      );
+      if (!input) return;
+      if (!pollingValues.has(input)) pollingValues.set(input, input.value);
+      input.value = pollingValues.get(input);
+      event.preventDefault?.();
+      event.stopImmediatePropagation?.();
+      violate("whiteNight.blockTime");
+    };
+    const blockFormNavigation = (event) => {
+      const form = event.target;
+      if (form?.matches?.("[data-account-form]")) return;
+      event.preventDefault?.();
+      event.stopImmediatePropagation?.();
+      let isLogout = false;
+      try {
+        isLogout = new URL(
+          form?.getAttribute?.("action") ?? "",
+          globalThis.location?.href ?? "http://localhost/",
+        ).pathname === "/logout";
+      } catch {
+        isLogout = false;
+      }
+      if (isLogout) violate("whiteNight.blockExit");
+      else navigationViolation();
+    };
+    const syncConfession = (event) => {
+      const input = event.target?.closest?.(
+        "[data-account-display-name-input]",
+      );
+      if (input) syncConfessionButton(matchesConfession(input.value));
+    };
+    const resetConfession = (event) => {
+      if (event.target?.closest?.("[data-account-cancel-button]")) {
+        syncConfessionButton(false);
+      }
+    };
+    const handlePopstate = () => {
+      navigationViolation();
+      const currentLocation = `${globalThis.location?.pathname ?? ""}${
+        globalThis.location?.search ?? ""
+      }`;
+      if (state?.lockLocation && currentLocation !== state.lockLocation) {
+        state.pendingNavigationViolation = true;
+        persist();
+        globalThis.location?.replace?.(state.lockLocation);
+      }
+    };
+    addListener(document, "click", blockNavigation, true);
+    addListener(document, "submit", blockFormNavigation, true);
+    addListener(document, "keydown", blockRefresh, true);
+    addListener(document, "input", blockPolling, true);
+    addListener(document, "change", blockPolling, true);
+    addListener(document, "input", syncConfession, true);
+    addListener(document, "click", resetConfession, true);
+    addListener(globalThis, "popstate", handlePopstate);
+
+    if (document?.createElement && document.body) {
+      const entity = document.createElement("section");
+      const video = document.createElement("video");
+      entity.className = "lobotomy-corp-white-night-entity";
+      video.autoplay = true;
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.src =
+        `${shared.assetRoot}/Resources/sprites/creaturesprite/deathangel/WhiteNight_Escape_Idle.webm`;
+      video.setAttribute("aria-hidden", "true");
+      entity.append(video);
+      document.body.append(entity);
+      state.entity = entity;
+      state.idleVideo = video;
+    }
+    state.churchAudio = playAudio(
+      whiteNightSoundPaths.church,
+      options.preparedMedia,
+      true,
+      () => {
+        if (state) state.churchPlaybackPending = true;
+      },
+    );
+    state.resumeAudioOnInteraction = async () => {
+      const current = state;
+      if (!current) return;
+      try {
+        await current.churchAudio?.play?.();
+        current.churchPlaybackPending = false;
+      } catch {
+        current.churchPlaybackPending = true;
+        return;
+      }
+      if (current.pendingRecoveryBell) {
+        current.pendingRecoveryBell = false;
+        persist();
+        playBell(undefined, true);
+      }
+    };
+    addListener(document, "pointerdown", state.resumeAudioOnInteraction, true);
+    addListener(document, "keydown", state.resumeAudioOnInteraction, true);
+
+    const shouldPlayApostlesCompletion = behavior.playApostlesCompletion ||
+      (options.source === "direct-submission" &&
+        shared.hasTwelveApostles?.() === true);
+    if (!options.restore && shouldPlayApostlesCompletion) {
+      shared.playApostlesCompletion?.(options.source);
+    }
+    if (!options.restore && behavior.playEntryBell) {
+      playBell(options.preparedMedia);
+    }
+    options.preparedMedia?.dispose?.();
+    const displayNameInput = document?.querySelector?.(
+      "[data-account-display-name-input]",
+    );
+    if (displayNameInput) {
+      syncConfessionButton(matchesConfession(displayNameInput.value));
+    }
+    if (options.restore && !options.resumeEnding && shared.isReload()) {
+      showBlockMessage("whiteNight.blockTime");
+      playBell(undefined, true);
+    }
+    return true;
+  };
+
+  /**
+   * 结束白夜并清除全部资源、监听器和持久化。
+   *
+   * @param {{confessionCompleted?: boolean, restoreAlert?: boolean}} options 清理来源及是否恢复普通 Trumpet 音乐。
+   */
+  const finish = ({
+    confessionCompleted = false,
+    restoreAlert = true,
+  } = {}) => {
+    const current = state;
+    if (!current) return;
+    state = undefined;
+    clearPersisted();
+    shared.finishRestartPanel();
+    current.timers.forEach(clearTimeout);
+    current.listeners.forEach(([target, type, listener, options]) =>
+      target?.removeEventListener?.(type, listener, options)
+    );
+    current.entity?.remove?.();
+    current.confessionEntity?.remove?.();
+    current.particleLayer?.remove?.();
+    releaseMedia(current.churchAudio);
+    current.bellAudios?.forEach(releaseMedia);
+    current.deathAudios?.forEach(releaseMedia);
+    releaseMedia(current.idleVideo);
+    releaseMedia(current.confessionVideo);
+    current.preparedDeathMedia?.dispose?.();
+    globalThis.document?.querySelectorAll?.(
+      ".lobotomy-corp-white-night-message",
+    ).forEach((node) => node.remove());
+    syncConfessionButton(false);
+    shared.resumeDangerDecay();
+    if (restoreAlert && !current.alertMusicResumed) shared.resumeAlertMusic();
+    current.resolveConfession?.(confessionCompleted);
+  };
+
+  /**
+   * 启动由 Confess/SuppressAnimator 与 WhiteNight Suppressed 共同构成的死亡演出。
+   *
+   * @param {object|undefined} preparedMedia 已在用户手势中预热的死亡 SFX。
+   * @return {Promise<boolean>} 演出完成时返回 true。
+   */
+  const confess = (preparedMedia) => {
+    if (!isActive() || state.phase === "ending") {
+      preparedMedia?.dispose?.();
+      return Promise.resolve(false);
+    }
+    state.phase = "ending";
+    state.preparedDeathMedia = preparedMedia;
+    persist();
+    syncConfessionButton(false);
+    const current = state;
+    const document = globalThis.document;
+    const completion = new Promise((done) => current.resolveConfession = done);
+    const complete = () => {
+      if (state !== current) return;
+      finish({ confessionCompleted: true });
+    };
+    if (document?.createElement && document.body) {
+      const entity = document.createElement("section");
+      const video = document.createElement("video");
+      const particles = document.createElement("div");
+      entity.className = "lobotomy-corp-white-night-confession-entity";
+      video.className = "lobotomy-corp-white-night-confession-video";
+      video.autoplay = true;
+      video.hidden = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute("aria-hidden", "true");
+      particles.className = "lobotomy-corp-white-night-confess-particles";
+      // ParticleSystem 使用 CFX3_RayStraight ADD.mat；浏览器加载其真实 Texture2D：CFX3_T_RayStraight.png。
+      for (let index = 0; index < whiteNightConfessRayCount; index++) {
+        const ray = document.createElement("img");
+        ray.className = "lobotomy-corp-white-night-confess-ray";
+        ray.src = `${shared.assetRoot}/Texture2D/CFX3_T_RayStraight.png`;
+        ray.alt = "";
+        ray.setAttribute("aria-hidden", "true");
+        ray.style.setProperty?.("--lobotomy-corp-ray-index", String(index));
+        ray.style.setProperty?.(
+          "--lobotomy-corp-ray-delay",
+          `${index / whiteNightConfessEmissionRate}s`,
+        );
+        ray.style.setProperty?.(
+          "--lobotomy-corp-ray-duration",
+          `${whiteNightConfessRayLifetimeMs / 1000}s`,
+        );
+        ray.style.setProperty?.(
+          "--lobotomy-corp-ray-left",
+          `${20 + (index * 7 % 11) * 6}%`,
+        );
+        ray.style.setProperty?.(
+          "--lobotomy-corp-ray-angle",
+          `${-8 + index * 13 % 17}deg`,
+        );
+        particles.append(ray);
+      }
+      entity.append(video, particles);
+      document.body.append(entity);
+      state.confessionEntity = entity;
+      state.confessionVideo = video;
+      state.particleLayer = particles;
+    }
+    const suppressionTimer = setTimeout(() => {
+      if (state !== current) return;
+      releaseMedia(current.churchAudio);
+      current.churchAudio = undefined;
+      current.entity?.remove?.();
+      current.entity = undefined;
+      releaseMedia(current.idleVideo);
+      current.idleVideo = undefined;
+      if (current.confessionVideo) {
+        current.confessionVideo.hidden = false;
+        current.confessionVideo.src =
+          `${shared.assetRoot}/Resources/sprites/creaturesprite/deathangel/WhiteNight_Confess_Dead.webm`;
+      }
+      shared.resumeAlertMusic();
+      current.alertMusicResumed = true;
+      whiteNightDeathSounds.forEach(({ at, path }) => {
+        const timer = setTimeout(() => {
+          if (state !== current) return;
+          const audio = playAudio(path, preparedMedia);
+          if (audio) (current.deathAudios ??= []).push(audio);
+        }, Math.round(at * 1000));
+        current.timers.add(timer);
+      });
+      const fallback = setTimeout(complete, whiteNightDeathSequenceDurationMs);
+      current.timers.add(fallback);
+    }, whiteNightConfessionSuppressionDelayMs);
+    current.timers.add(suppressionTimer);
+    return completion;
+  };
+
+  /**
+   * 恢复已保存的白夜；错误页面位置会被强制带回锁定位置。
+   */
+  const restore = () => {
+    const saved = persisted();
+    if (!saved) return false;
+    const location = `${globalThis.location?.pathname ?? ""}${
+      globalThis.location?.search ?? ""
+    }`;
+    if (saved.lockLocation && location && location !== saved.lockLocation) {
+      shared.storages().forEach((storage) =>
+        storage.setItem(
+          shared.storageKey,
+          JSON.stringify({ ...saved, pendingNavigationViolation: true }),
+        )
+      );
+      globalThis.location?.replace?.(saved.lockLocation);
+      return true;
+    }
+    const source = whiteNightEntryBehaviors[saved.source]
+      ? saved.source
+      : "direct-submission";
+    const resumeEnding = saved.phase === "ending";
+    start({
+      lockLocation: saved.lockLocation,
+      restore: true,
+      resumeEnding,
+      source,
+    });
+    if (resumeEnding) {
+      void confess();
+      return true;
+    }
+    if (saved.pendingRecoveryBell && state) {
+      state.pendingRecoveryBell = true;
+      persist();
+    }
+    if (saved.pendingNavigationViolation) {
+      if (state) state.pendingNavigationViolation = false;
+      playBell(undefined, true);
+      showBlockMessage("whiteNight.blockNavigation.denyPresence");
+      persist();
+    }
+    return true;
+  };
+
+  return Object.freeze({
+    clearPersisted,
+    confess,
+    finish,
+    getId: () => state?.id,
+    getPhase: () => state?.phase,
+    getSource: () => state?.source,
+    isActive,
+    matchesConfession,
+    persisted,
+    restore,
+    soundPaths: whiteNightSoundPaths,
+    start,
+  });
+}

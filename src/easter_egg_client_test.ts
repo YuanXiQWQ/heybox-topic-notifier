@@ -3,6 +3,10 @@
  */
 import { assertEquals, assertRejects } from "./test_helpers.ts";
 import { renderLayout } from "./views/html.ts";
+import {
+  whiteNightConfessionSuppressionDelayMs,
+  whiteNightDeathSequenceDurationMs,
+} from "../static/fun/lobotomy-corp/Events/WhiteNight.js";
 
 /**
  * 从页面内联脚本中读取《脑叶公司》当前本地化。
@@ -62,6 +66,56 @@ function renderedLobotomyCorpAbnormalities(): Record<string, unknown> {
   return JSON.parse(serialized);
 }
 
+/**
+ * 读取服务器注入的全部赎罪特殊工作别名。
+ *
+ * @return {string[]} 所有维护 locale 的赎罪文本。
+ */
+function renderedLobotomyCorpConfessionAliases(): string[] {
+  const html = renderLayout({
+    body: "",
+    csrfToken: "test",
+    darkMode: false,
+    locale: "zh-CN",
+    themeColor: "#000000",
+    title: "test",
+  });
+  const serialized =
+    /<script type="application\/json" id="lobotomy-corp-confession-aliases-data">([^<]+)<\/script>/u
+      .exec(html)?.[1];
+  if (!serialized) throw new Error("Expected embedded confession aliases.");
+  return JSON.parse(serialized);
+}
+
+/**
+ * 读取白夜原作字体覆盖结论与英文显式回退数据。
+ *
+ * @param {"en-US"|"vi-VN"|"zh-CN"} locale 页面 locale。
+ * @return {{englishMessages: Record<string, string>, originalFontSupportsLocale: boolean}} 白夜文本呈现资料。
+ */
+function renderedWhiteNightPresentation(
+  locale: "en-US" | "vi-VN" | "zh-CN",
+): {
+  englishMessages: Record<string, string>;
+  originalFontSupportsLocale: boolean;
+} {
+  const html = renderLayout({
+    body: "",
+    csrfToken: "test",
+    darkMode: false,
+    locale,
+    themeColor: "#000000",
+    title: "test",
+  });
+  const serialized =
+    /<script type="application\/json" id="lobotomy-corp-white-night-presentation-data">([^<]+)<\/script>/u
+      .exec(html)?.[1];
+  if (!serialized) {
+    throw new Error("Expected embedded WhiteNight presentation data.");
+  }
+  return JSON.parse(serialized);
+}
+
 Deno.test("Lobotomy Corporation locale data is injected from game JSON with fallbacks", () => {
   const simplifiedChinese = renderedLobotomyCorpLocale("zh-CN");
   assertEquals(simplifiedChinese.restartDay, "重新开始这一天");
@@ -93,6 +147,36 @@ Deno.test("Lobotomy Corporation locale data is injected from game JSON with fall
   assertEquals(
     renderedLobotomyCorpLocale("fr-FR"),
     renderedLobotomyCorpLocale("en-US"),
+  );
+});
+
+Deno.test("Lobotomy Corporation injects every maintained Confession alias", () => {
+  const aliases = renderedLobotomyCorpConfessionAliases();
+  assertEquals(aliases.length, 8);
+  ["Confess", "Confesarse", "懺悔", "고해", "Исповедь", "Xoa dịu", "赎罪"]
+    .forEach(
+      (alias) => assertEquals(aliases.includes(alias), true),
+    );
+});
+
+Deno.test("WhiteNight injects explicit English text when its original font lacks locale glyphs", () => {
+  assertEquals(
+    renderedWhiteNightPresentation("en-US").originalFontSupportsLocale,
+    true,
+  );
+  assertEquals(
+    renderedWhiteNightPresentation("zh-CN").originalFontSupportsLocale,
+    false,
+  );
+  assertEquals(
+    renderedWhiteNightPresentation("vi-VN").originalFontSupportsLocale,
+    false,
+  );
+  assertEquals(
+    renderedWhiteNightPresentation("zh-CN").englishMessages[
+      "whiteNight.blockExit"
+    ],
+    "Do not fear, for I am with thee.\nThou shalt not leave until I permit thee.",
   );
 });
 
@@ -365,6 +449,8 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     sessionStorage?: unknown;
     lobotomyCorpEasterEgg?: {
       getDangerScore: () => number;
+      getSpecialEvent: () => string | undefined;
+      getSpecialEventPhase: () => string | undefined;
       onAbnormalitySubmitted: (listener: (id: string) => void) => () => boolean;
       prepareDisplayName: (name: string) => {
         commit: () => Promise<boolean>;
@@ -388,6 +474,8 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     ].map((name) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
   );
   const body = new Element();
+  const displayNameLabel = new Element();
+  displayNameLabel.textContent = "Original display name";
   const storage = new StorageMock();
   const localeData = Deno.readTextFileSync(
     new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
@@ -424,7 +512,11 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
             ? { textContent: abnormalitiesData }
             : null,
         querySelector: (selector: string) =>
-          selector === "[data-polling-interval-value]" ? { value: "1" } : null,
+          selector === "[data-polling-interval-value]"
+            ? { value: "1" }
+            : selector === "[data-account-display-name-label]"
+            ? displayNameLabel
+            : null,
         querySelectorAll: () => [],
       },
     },
@@ -460,6 +552,17 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     api.onAbnormalitySubmitted((id) => observedCanonicalIds.push(id));
     const form = { action: "https://warmnest.test/settings", method: "post" };
 
+    /**
+     * 判断模拟 DOM 子树中是否存在指定媒体。
+     *
+     * @param {Element} node 当前节点。
+     * @param {string} suffix 媒体路径结尾。
+     * @return {boolean} 找到媒体时返回 true。
+     */
+    const hasMedia = (node: Element, suffix: string): boolean =>
+      node.src.endsWith(suffix) ||
+      node.children.some((child) => hasMedia(child, suffix));
+
     Object.defineProperty(browser, "fetch", {
       configurable: true,
       value: () =>
@@ -479,6 +582,7 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     assertEquals(rejected.saved, false);
     assertEquals(observedCanonicalIds, []);
     assertEquals(api.getDangerScore(), 0);
+    assertEquals(api.getSpecialEvent(), undefined);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
     assertEquals(body.children.length, 0);
     assertEquals(rejectedAudio.muted, true);
@@ -494,8 +598,10 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
       () => transaction(api as never, form, "displayName", "T-03-46"),
       "network failed",
     );
-    assertEquals(AudioMock.items[1].pauseCount >= 1, true);
-    assertEquals(AudioMock.items[1].src, "");
+    assertEquals(
+      AudioMock.items.filter((audio) => audio.src === "").length >= 2,
+      true,
+    );
     assertEquals(api.getDangerScore(), 0);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
     assertEquals(body.children.length, 0);
@@ -516,7 +622,9 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     );
     await Promise.resolve();
     await Promise.resolve();
-    const confirmedAudio = AudioMock.items[2];
+    const confirmedAudio = AudioMock.items.find((audio) =>
+      audio.src.endsWith("Lucifer_standbg0.ogg")
+    )!;
     assertEquals(confirmed.saved, true);
     assertEquals(observedCanonicalIds, ["T-03-46"]);
     assertEquals(api.getDangerScore(), 75);
@@ -525,12 +633,62 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
       true,
     );
     assertEquals(body.children.length > 0, true);
+    assertEquals(api.getSpecialEvent(), "white-night");
     assertEquals(confirmedAudio.muted, false);
     assertEquals(confirmedAudio.playCount, 2);
+
+    const churchPauseCount = confirmedAudio.pauseCount;
+    Object.defineProperty(browser, "fetch", {
+      configurable: true,
+      value: () =>
+        Promise.resolve({
+          ok: false,
+          url: "https://warmnest.test/settings?account=invalid",
+        }),
+    });
+    const rejectedConfession = await transaction(
+      api as never,
+      form,
+      "displayName",
+      "  赎罪  ",
+    );
+    assertEquals(rejectedConfession.saved, false);
+    assertEquals(api.getSpecialEvent(), "white-night");
+    assertEquals(api.getSpecialEventPhase(), "active");
+    assertEquals(confirmedAudio.pauseCount, churchPauseCount);
+    assertEquals(hasMedia(body, "WhiteNight_Confess_Dead.webm"), false);
+
+    Object.defineProperty(browser, "fetch", {
+      configurable: true,
+      value: () =>
+        Promise.resolve({
+          ok: true,
+          url: "https://warmnest.test/settings?account=updated",
+        }),
+    });
+    const confirmedConfession = await transaction(
+      api as never,
+      form,
+      "displayName",
+      "O-03-03",
+    );
+    assertEquals(confirmedConfession.saved, true);
+    assertEquals(api.getSpecialEventPhase(), "ending");
+    assertEquals(confirmedAudio.pauseCount, churchPauseCount);
+    assertEquals(hasMedia(body, "WhiteNight_Confess_Dead.webm"), false);
+    const savedIdentityLabel = displayNameLabel.textContent;
 
     const restarting = api.restartDay();
     body.children.at(-1)?.children[1]?.children[0]?.dispatch("animationend");
     await restarting;
+    assertEquals(api.getDangerScore(), 0);
+    assertEquals(api.getSpecialEvent(), undefined);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-special-event"),
+      null,
+    );
+    assertEquals(displayNameLabel.textContent, savedIdentityLabel);
   } finally {
     for (const [name, descriptor] of Object.entries(original)) {
       if (descriptor) Object.defineProperty(browser, name, descriptor);
@@ -887,6 +1045,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     sessionStorage?: unknown;
     lobotomyCorpEasterEgg?: {
       activate: (name: string) => Promise<boolean>;
+      commitDisplayName: (name: string) => Promise<boolean>;
       matches: (name: string) => boolean;
       matchingAbnormality: (name: string) => {
         canonicalId: string;
@@ -894,6 +1053,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       } | undefined;
       handleAbnormalitySubmitted: (name: string) => Promise<boolean>;
       getDangerScore: () => number;
+      getSpecialEvent: () => string | undefined;
       prepareDisplayName: (name: string) => {
         commit: () => Promise<boolean>;
       };
@@ -909,10 +1069,17 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       "localStorage",
       "performance",
       "sessionStorage",
+      "setTimeout",
+      "clearTimeout",
     ].map((name) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
   );
   const body = new Element();
   const storage = new StorageMock();
+  let nextTimerId = 0;
+  const timers = new Map<
+    number,
+    { callback: () => void; delay: number; cleared: boolean }
+  >();
   const lobotomyCorpLocaleData = Deno.readTextFileSync(
     new URL(
       "../static/fun/lobotomy-corp/Locales/zh-CN.json",
@@ -949,6 +1116,21 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     performance: {
       configurable: true,
       value: { getEntriesByType: () => [{ type: "navigate" }] },
+    },
+    setTimeout: {
+      configurable: true,
+      value: (callback: () => void, delay = 0) => {
+        const id = ++nextTimerId;
+        timers.set(id, { callback, cleared: false, delay });
+        return id;
+      },
+    },
+    clearTimeout: {
+      configurable: true,
+      value: (id: number) => {
+        const timer = timers.get(id);
+        if (timer) timer.cleared = true;
+      },
     },
   });
   /** @param {Element} overlay 警报外层。 @return {Element[]} Corner。 */ const corners =
@@ -1136,9 +1318,82 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     await tethRestart;
     void api.handleAbnormalitySubmitted("T-03-46");
     assertEquals(Math.abs(api.getDangerScore() - 75 / 11) < 1e-10, true);
+    assertEquals(api.getSpecialEvent(), "white-night");
+    const whiteNightRestartOnlyOverlay = [...body.children].reverse().find(
+      (element) =>
+        !element.removed &&
+        element.className === "lobotomy-corp-alert-overlay",
+    )!;
+    assertEquals(whiteNightRestartOnlyOverlay.children.length, 1);
+    const whiteNightDay = storage.getItem("warmnest.lobotomy-corp-day") ?? "";
+    assertEquals(whiteNightDay.includes('"departmentCount":11'), true);
+    assertEquals(whiteNightDay.includes('"decayPausedRemainingMs"'), true);
+    assertEquals(whiteNightDay.includes('"decayGraceDeadline"'), false);
     const whiteNightRestart = api.restartDay();
-    body.children.at(-1)!.children[1].children[0].dispatch("animationend");
+    const whiteNightOverlay = body.children.find((candidate) =>
+      candidate.children[1]?.children[0]
+    );
+    whiteNightOverlay?.children[1].children[0].dispatch("animationend");
     await whiteNightRestart;
+    assertEquals(api.getSpecialEvent(), undefined);
+    assertEquals(api.getDangerScore(), 0);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-alert"), null);
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-special-event"),
+      null,
+    );
+    assertEquals(
+      body.children.some((element) =>
+        !element.removed &&
+        element.className.startsWith("lobotomy-corp-white-night")
+      ),
+      false,
+    );
+
+    // 已有 Trumpet 时白夜只接管音乐；事件期间仍更新 visual/music high-water，
+    // 赎罪完成后再从正确的当前高水位曲目开头恢复。
+    void api.setDangerScore(45);
+    const firstBeforeWhiteNight = AudioMock.items.at(-1)!;
+    void api.handleAbnormalitySubmitted("T-03-46");
+    assertEquals(api.getSpecialEvent(), "white-night");
+    assertEquals(firstBeforeWhiteNight.pauseCount > 0, true);
+    const audioCountBeforeHeldUpgrade = AudioMock.items.length;
+    void api.setDangerScore(85);
+    await Promise.resolve();
+    assertEquals(AudioMock.items.length, audioCountBeforeHeldUpgrade);
+    const heldThirdOverlay = [...body.children].reverse().find((element) =>
+      !element.removed &&
+      element.className === "lobotomy-corp-alert-overlay"
+    )!;
+    assertEquals(trumpet(heldThirdOverlay), "Third\nTrumpet");
+
+    const confessionCompletion = api.commitDisplayName("O-03-03");
+    const confessionEntity = [...body.children].reverse().find((element) =>
+      element.className === "lobotomy-corp-white-night-confession-entity"
+    )!;
+    assertEquals(confessionEntity.children[0].hidden, true);
+    const suppression = [...timers.values()].find((timer) =>
+      timer.delay === whiteNightConfessionSuppressionDelayMs && !timer.cleared
+    )!;
+    suppression.callback();
+    assertEquals(confessionEntity.children[0].hidden, false);
+    const deathFallback = [...timers.values()].find((timer) =>
+      timer.delay === whiteNightDeathSequenceDurationMs && !timer.cleared
+    )!;
+    deathFallback.callback();
+    assertEquals(await confessionCompletion, true);
+    assertEquals(api.getSpecialEvent(), undefined);
+    assertEquals(api.getDangerScore(), 85);
+    assertEquals(
+      AudioMock.items.some((audio) =>
+        audio.src.endsWith("Resources/sounds/bgm/emergency03_mast.ogg")
+      ),
+      true,
+    );
+    const trumpetRestart = api.restartDay();
+    heldThirdOverlay.children[1].children[0].dispatch("animationend");
+    await trumpetRestart;
 
     // 延迟预热 Promise 必须不能在 Second 已接管音频后反向暂停它。
     void api.setDangerScore(45);
@@ -1223,6 +1478,7 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
     sessionStorage?: unknown;
     lobotomyCorpEasterEgg?: {
       getDangerScore: () => number;
+      getSpecialEvent: () => string | undefined;
       handleAbnormalitySubmitted: (name: string) => Promise<boolean>;
       matchingAbnormality: (
         name: string,
@@ -1353,6 +1609,55 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
     assertEquals(api.getDangerScore(), 0);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
 
+    await api.handleAbnormalitySubmitted("T-03-46");
+    assertEquals(api.getSpecialEvent(), "white-night");
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-special-event") !== null,
+      true,
+    );
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-day")?.includes(
+        '"decayPausedRemainingMs"',
+      ),
+      true,
+    );
+    const reloadAudioStart = AudioMock.items.length;
+    navigationType = "reload";
+    await import(
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+    );
+    api = browser.lobotomyCorpEasterEgg!;
+    assertEquals(api.getSpecialEvent(), "white-night");
+    assertEquals(Math.abs(api.getDangerScore() - 75 / 11) < 1e-10, true);
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-day")?.includes(
+        '"decayPausedRemainingMs"',
+      ),
+      true,
+    );
+    assertEquals(
+      AudioMock.items.slice(reloadAudioStart).some((audio) =>
+        audio.src.endsWith("Lucifer_standbg0.ogg")
+      ),
+      true,
+    );
+    const whiteNightAudioStart = reloadAudioStart;
+    coordinatorStop?.();
+    assertEquals(api.getSpecialEvent(), undefined);
+    assertEquals(api.getDangerScore(), 0);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-special-event"),
+      null,
+    );
+    assertEquals(
+      AudioMock.items.slice(whiteNightAudioStart).every((audio) =>
+        audio.pauseCount > 0
+      ),
+      true,
+    );
+
+    navigationType = "navigate";
     await api.handleAbnormalitySubmitted("T-01-54");
     navigationType = "reload";
     await import(
@@ -1469,6 +1774,171 @@ Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", 
       ),
       true,
     );
+  } finally {
+    for (const [name, descriptor] of Object.entries(original)) {
+      if (descriptor) Object.defineProperty(browser, name, descriptor);
+      else delete (browser as Record<string, unknown>)[name];
+    }
+    delete browser.lobotomyCorpEasterEgg;
+  }
+});
+
+Deno.test("WhiteNight freezes and resumes the exact remaining Danger decay time", async () => {
+  class StorageMock {
+    values = new Map<string, string>();
+    /** @param {string} key 键。 @return {string|null} 值。 */
+    getItem(key: string): string | null {
+      return this.values.get(key) ?? null;
+    }
+    /** @param {string} key 键。 @param {string} value 值。 */
+    setItem(key: string, value: string): void {
+      this.values.set(key, value);
+    }
+    /** @param {string} key 键。 */
+    removeItem(key: string): void {
+      this.values.delete(key);
+    }
+  }
+  const browser = globalThis as typeof globalThis & {
+    document?: unknown;
+    localStorage?: unknown;
+    location?: unknown;
+    performance?: unknown;
+    sessionStorage?: unknown;
+    lobotomyCorpEasterEgg?: {
+      commitDisplayName: (value: string) => Promise<boolean>;
+      getSpecialEvent: () => string | undefined;
+      handleAbnormalitySubmitted: (value: string) => Promise<boolean>;
+      restartDay: () => Promise<boolean>;
+      startWhiteNight: (options: { source: string }) => boolean;
+    };
+  };
+  const original = Object.fromEntries(
+    [
+      "Audio",
+      "document",
+      "localStorage",
+      "location",
+      "performance",
+      "sessionStorage",
+      "setTimeout",
+      "clearTimeout",
+    ].map((name) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
+  );
+  const storage = new StorageMock();
+  const localeData = Deno.readTextFileSync(
+    new URL("../static/fun/lobotomy-corp/Locales/en-US.json", import.meta.url),
+  );
+  const abnormalitiesData = Deno.readTextFileSync(
+    new URL(
+      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      import.meta.url,
+    ),
+  );
+  let now = 1000;
+  let nextTimerId = 0;
+  const timers = new Map<
+    number,
+    { callback: () => void; delay: number; cleared: boolean }
+  >();
+  try {
+    Object.defineProperties(browser, {
+      Audio: { configurable: true, value: undefined },
+      document: {
+        configurable: true,
+        value: {
+          documentElement: { lang: "en-US" },
+          getElementById: (id: string) =>
+            id === "lobotomy-corp-locale-data"
+              ? { textContent: localeData }
+              : id === "lobotomy-corp-abnormalities-data"
+              ? { textContent: abnormalitiesData }
+              : null,
+          querySelector: (selector: string) =>
+            selector === "[data-polling-interval-value]"
+              ? { value: "1" }
+              : undefined,
+        },
+      },
+      localStorage: { configurable: true, value: storage },
+      location: {
+        configurable: true,
+        value: {
+          href: "https://warmnest.test/settings",
+          pathname: "/settings",
+          search: "",
+        },
+      },
+      performance: {
+        configurable: true,
+        value: { getEntriesByType: () => [{ type: "navigate" }] },
+      },
+      sessionStorage: { configurable: true, value: storage },
+      setTimeout: {
+        configurable: true,
+        value: (callback: () => void, delay = 0) => {
+          const id = ++nextTimerId;
+          timers.set(id, { callback, cleared: false, delay });
+          return id;
+        },
+      },
+      clearTimeout: {
+        configurable: true,
+        value: (id: number) => {
+          const timer = timers.get(id);
+          if (timer) timer.cleared = true;
+        },
+      },
+    });
+    const originalDateNow = Date.now;
+    Date.now = () => now;
+    try {
+      await import(
+        `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      );
+      const api = browser.lobotomyCorpEasterEgg!;
+      await api.handleAbnormalitySubmitted("D-01-106");
+      now = 3000;
+      assertEquals(api.startWhiteNight({ source: "apostles-replay" }), true);
+      const frozenDay = JSON.parse(
+        storage.getItem("warmnest.lobotomy-corp-day") ?? "{}",
+      );
+      assertEquals(frozenDay.decayPausedRemainingMs, 28000);
+
+      now = 183000;
+      const confession = api.commitDisplayName("O-03-03");
+      const suppression = [...timers.values()].find((timer) =>
+        timer.delay === whiteNightConfessionSuppressionDelayMs &&
+        !timer.cleared
+      );
+      if (!suppression) {
+        throw new Error("Expected WhiteNight Confess suppression timer.");
+      }
+      suppression.callback();
+      const fallback = [...timers.values()].find((timer) =>
+        timer.delay === whiteNightDeathSequenceDurationMs && !timer.cleared
+      );
+      if (!fallback) {
+        throw new Error("Expected WhiteNight death fallback timer.");
+      }
+      fallback.callback();
+      assertEquals(await confession, true);
+      assertEquals(api.getSpecialEvent(), undefined);
+      const resumedDay = JSON.parse(
+        storage.getItem("warmnest.lobotomy-corp-day") ?? "{}",
+      );
+      assertEquals(resumedDay.decayGraceDeadline, 211000);
+      assertEquals("decayPausedRemainingMs" in resumedDay, false);
+      assertEquals(
+        [...timers.values()].some((timer) =>
+          timer.delay === 28000 && !timer.cleared
+        ),
+        true,
+      );
+      await api.restartDay();
+    } finally {
+      Date.now = originalDateNow;
+    }
   } finally {
     for (const [name, descriptor] of Object.entries(original)) {
       if (descriptor) Object.defineProperty(browser, name, descriptor);

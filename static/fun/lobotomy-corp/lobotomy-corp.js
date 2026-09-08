@@ -2,6 +2,11 @@
  * @file 本文件提供修改显示名称时触发的《脑叶公司》Trumpet 警报彩蛋。
  */
 
+import {
+  createWhiteNightEvent,
+  whiteNightDeathSounds,
+} from "./Events/WhiteNight.js";
+
 /**
  * 《脑叶公司》解包资源的公共访问根路径。
  */
@@ -10,11 +15,17 @@ const lobotomyCorpAssetRoot = "/static/fun/lobotomy-corp/Assets";
 /** 当前页面已准备的《脑叶公司》专用文本。 */
 let lobotomyCorpMessages;
 
+/** 白夜原作字体与英文显式回退的服务端审计资料。 */
+let lobotomyCorpWhiteNightPresentation;
+
 /** 当前页面已准备的通用异想体资料。 */
 let lobotomyCorpAbnormalities;
 
 /** 规范化名称到 canonical 异想体编号的查找索引。 */
 let lobotomyCorpAbnormalityIndex;
+
+/** 所有维护语言提供的“赎罪”特殊工作别名。 */
+let lobotomyCorpConfessionAliases = new Set();
 
 /** 初始化服务端注入的《脑叶公司》当前本地化。 */
 function initializeLobotomyCorpData() {
@@ -25,6 +36,18 @@ function initializeLobotomyCorpData() {
     throw new Error("《脑叶公司》彩蛋本地化尚未注入页面。");
   }
   lobotomyCorpMessages = JSON.parse(serialized);
+
+  const whiteNightPresentationSerialized = globalThis.document
+    ?.getElementById?.(
+      "lobotomy-corp-white-night-presentation-data",
+    )?.textContent;
+  try {
+    lobotomyCorpWhiteNightPresentation = whiteNightPresentationSerialized
+      ? JSON.parse(whiteNightPresentationSerialized)
+      : {};
+  } catch {
+    lobotomyCorpWhiteNightPresentation = {};
+  }
 
   const abnormalitiesSerialized = globalThis.document?.getElementById?.(
     "lobotomy-corp-abnormalities-data",
@@ -43,6 +66,23 @@ function initializeLobotomyCorpData() {
         )
       );
   });
+  const confessionAliasesSerialized = globalThis.document?.getElementById?.(
+    "lobotomy-corp-confession-aliases-data",
+  )?.textContent;
+  try {
+    const aliases = confessionAliasesSerialized
+      ? JSON.parse(confessionAliasesSerialized)
+      : [];
+    lobotomyCorpConfessionAliases = new Set(
+      Array.isArray(aliases)
+        ? aliases.filter((alias) => typeof alias === "string").map(
+          normalizeLobotomyCorpAbnormalityName,
+        )
+        : [],
+    );
+  } catch {
+    lobotomyCorpConfessionAliases = new Set();
+  }
 }
 
 initializeLobotomyCorpData();
@@ -254,10 +294,20 @@ const lobotomyCorpAlertSessionKey = "warmnest.lobotomy-corp-alert";
 /** 当前 Day 的最小运行时持久化键。 */
 const lobotomyCorpDaySessionKey = "warmnest.lobotomy-corp-day";
 
+/** 当前脑叶公司特殊事件的持久化键。 */
+const lobotomyCorpSpecialEventSessionKey =
+  "warmnest.lobotomy-corp-special-event";
+
+/** 白夜特殊事件的唯一标识。 */
+const lobotomyCorpWhiteNightEventId = "white-night";
+
 /**
  * 当前正在播放的脑叶公司警报及其结束操作。
  */
 let activeLobotomyCorpAlert;
+
+/** 当前独立于四角警报显示的 Restart Day 顶部面板。 */
+let activeLobotomyCorpRestartPanel;
 
 /**
  * 当前脑叶公司彩蛋的危急值，始终为 0 到 100 的有限数值。
@@ -269,6 +319,15 @@ let lobotomyCorpBreachedAbnormalitiesThisDay = new Set();
 
 /** 当前 Day 为普通异想体贡献快照的部门数；手动警报 Day 可暂未初始化。 */
 let lobotomyCorpDayDepartmentCount;
+
+/** 正向 Danger 贡献后开始衰减前的截止时间戳。 */
+let lobotomyCorpDangerDecayGraceDeadline;
+
+/** 白夜冻结期间距离下一次 Danger 衰减尚余的毫秒数。 */
+let lobotomyCorpDangerDecayPausedRemainingMs;
+
+/** 当前 Danger 衰减所登记的唯一计时器。 */
+let lobotomyCorpDangerDecayTimer;
 
 /** 风险等级对应的默认出逃危急值。 */
 const lobotomyCorpDangerByRiskLevel = Object.freeze({
@@ -460,6 +519,12 @@ function persistLobotomyCorpDay() {
   }
   const serialized = JSON.stringify({
     countedAbnormalityIds: [...lobotomyCorpBreachedAbnormalitiesThisDay],
+    ...(lobotomyCorpDangerDecayGraceDeadline === undefined
+      ? {}
+      : { decayGraceDeadline: lobotomyCorpDangerDecayGraceDeadline }),
+    ...(lobotomyCorpDangerDecayPausedRemainingMs === undefined ? {} : {
+      decayPausedRemainingMs: lobotomyCorpDangerDecayPausedRemainingMs,
+    }),
     ...(lobotomyCorpDayDepartmentCount === undefined
       ? {}
       : { departmentCount: lobotomyCorpDayDepartmentCount }),
@@ -494,19 +559,30 @@ function restorePersistedLobotomyCorpDay() {
     const score = saved?.dangerScore;
     const ids = saved?.countedAbnormalityIds;
     const departmentCount = saved?.departmentCount;
+    const decayGraceDeadline = saved?.decayGraceDeadline;
+    const decayPausedRemainingMs = saved?.decayPausedRemainingMs;
     if (
       typeof score !== "number" || !Number.isFinite(score) || score <= 0 ||
       score > 100 ||
       !Array.isArray(ids) || !ids.every((id) => typeof id === "string") ||
       (departmentCount !== undefined &&
         (!Number.isInteger(departmentCount) || departmentCount < 1 ||
-          departmentCount > 11))
+          departmentCount > 11)) ||
+      (decayGraceDeadline !== undefined &&
+        (!Number.isFinite(decayGraceDeadline) || decayGraceDeadline < 0)) ||
+      (decayPausedRemainingMs !== undefined &&
+        (!Number.isFinite(decayPausedRemainingMs) ||
+          decayPausedRemainingMs < 0)) ||
+      (decayGraceDeadline !== undefined &&
+        decayPausedRemainingMs !== undefined)
     ) {
       throw new Error("Invalid Lobotomy Corporation Day state.");
     }
     lobotomyCorpDangerScore = score;
     lobotomyCorpBreachedAbnormalitiesThisDay = new Set(ids);
     lobotomyCorpDayDepartmentCount = departmentCount;
+    lobotomyCorpDangerDecayGraceDeadline = decayGraceDeadline;
+    lobotomyCorpDangerDecayPausedRemainingMs = decayPausedRemainingMs;
   } catch {
     clearPersistedLobotomyCorpDay();
   }
@@ -516,10 +592,110 @@ function restorePersistedLobotomyCorpDay() {
  * 清理 Day 的危急值、去重记录与持久化状态。
  */
 function clearLobotomyCorpDay() {
+  clearLobotomyCorpDangerDecay();
   lobotomyCorpDangerScore = 0;
   lobotomyCorpBreachedAbnormalitiesThisDay.clear();
   lobotomyCorpDayDepartmentCount = undefined;
   clearPersistedLobotomyCorpDay();
+}
+
+/**
+ * 清除唯一的 Danger 衰减计时器和 grace deadline。
+ */
+function clearLobotomyCorpDangerDecay() {
+  if (lobotomyCorpDangerDecayTimer !== undefined) {
+    clearTimeout(lobotomyCorpDangerDecayTimer);
+    lobotomyCorpDangerDecayTimer = undefined;
+  }
+  lobotomyCorpDangerDecayGraceDeadline = undefined;
+  lobotomyCorpDangerDecayPausedRemainingMs = undefined;
+}
+
+/**
+ * 让 Danger 以原版规则进入下一次衰减；白夜 active 时保持冻结。
+ *
+ * @param {number} delay 下一次衰减前的毫秒数。
+ */
+function scheduleLobotomyCorpDangerDecay(delay) {
+  if (lobotomyCorpDangerDecayTimer !== undefined) {
+    clearTimeout(lobotomyCorpDangerDecayTimer);
+  }
+  if (lobotomyCorpDangerScore <= 0 || lobotomyCorpWhiteNightEvent?.isActive()) {
+    lobotomyCorpDangerDecayTimer = undefined;
+    return;
+  }
+  lobotomyCorpDangerDecayGraceDeadline = Date.now() + Math.max(0, delay);
+  lobotomyCorpDangerDecayPausedRemainingMs = undefined;
+  persistLobotomyCorpDay();
+  lobotomyCorpDangerDecayTimer = setTimeout(() => {
+    lobotomyCorpDangerDecayTimer = undefined;
+    if (
+      lobotomyCorpWhiteNightEvent?.isActive() || lobotomyCorpDangerScore <= 0
+    ) return;
+    const remainingGrace = (lobotomyCorpDangerDecayGraceDeadline ?? 0) -
+      Date.now();
+    if (remainingGrace > 0) {
+      scheduleLobotomyCorpDangerDecay(remainingGrace);
+      return;
+    }
+    void setLobotomyCorpDangerScore(
+      Math.max(0, lobotomyCorpDangerScore - 1),
+      undefined,
+      { isDecay: true },
+    );
+    if (lobotomyCorpDangerScore > 0) scheduleLobotomyCorpDangerDecay(5000);
+  }, Math.max(0, delay));
+}
+
+/**
+ * 记录一次正向 Danger 贡献：原版规则要求重新等待 30 秒。
+ */
+function resetLobotomyCorpDangerDecayGrace() {
+  if (lobotomyCorpWhiteNightEvent?.isActive()) {
+    lobotomyCorpDangerDecayGraceDeadline = undefined;
+    lobotomyCorpDangerDecayPausedRemainingMs = 30000;
+    persistLobotomyCorpDay();
+    return;
+  }
+  lobotomyCorpDangerDecayGraceDeadline = Date.now() + 30000;
+  persistLobotomyCorpDay();
+  scheduleLobotomyCorpDangerDecay(30000);
+}
+
+/**
+ * 从持久化 Day 状态继续未完成的 Danger 衰减。
+ */
+function restoreLobotomyCorpDangerDecay() {
+  if (lobotomyCorpDangerScore <= 0 || lobotomyCorpWhiteNightEvent?.isActive()) {
+    return;
+  }
+  if (lobotomyCorpDangerDecayPausedRemainingMs !== undefined) {
+    const remaining = lobotomyCorpDangerDecayPausedRemainingMs;
+    lobotomyCorpDangerDecayPausedRemainingMs = undefined;
+    scheduleLobotomyCorpDangerDecay(remaining);
+    return;
+  }
+  if (lobotomyCorpDangerDecayGraceDeadline === undefined) return;
+  scheduleLobotomyCorpDangerDecay(
+    Math.max(0, lobotomyCorpDangerDecayGraceDeadline - Date.now()),
+  );
+}
+
+/** 暂停 Danger 衰减并冻结剩余时间，供 WhiteNight breach 使用。 */
+function pauseLobotomyCorpDangerDecay() {
+  if (lobotomyCorpDangerDecayPausedRemainingMs !== undefined) return;
+  if (lobotomyCorpDangerDecayGraceDeadline !== undefined) {
+    lobotomyCorpDangerDecayPausedRemainingMs = Math.max(
+      0,
+      lobotomyCorpDangerDecayGraceDeadline - Date.now(),
+    );
+    lobotomyCorpDangerDecayGraceDeadline = undefined;
+  }
+  if (lobotomyCorpDangerDecayTimer !== undefined) {
+    clearTimeout(lobotomyCorpDangerDecayTimer);
+    lobotomyCorpDangerDecayTimer = undefined;
+  }
+  persistLobotomyCorpDay();
 }
 
 /**
@@ -538,6 +714,7 @@ function ensureLobotomyCorpDayCoordinator() {
  * 被其它游戏彩蛋中断时结束当前 Day 和可能存在的 HUD。
  */
 function finishLobotomyCorpDayFromCoordinator() {
+  lobotomyCorpWhiteNightEvent?.finish({ restoreAlert: false });
   clearLobotomyCorpDay();
   activeLobotomyCorpAlert?.finish();
 }
@@ -655,6 +832,30 @@ function prepareLobotomyCorpDisplayName(value) {
       : undefined);
   let audio;
   let state = "prepared";
+  const specialAudio = new Map();
+  const adoptedAudio = new Set();
+
+  /**
+   * 在当前用户手势内预热一段白夜专用音频。
+   *
+   * @param {string} soundPath 相对于 Assets 的音频路径。
+   */
+  function prepareSpecialAudio(soundPath) {
+    if (typeof globalThis.Audio !== "function") return;
+    const prepared = new Audio(`${lobotomyCorpAssetRoot}/${soundPath}`);
+    prepared.hidden = true;
+    prepared.muted = true;
+    prepared.preload = "auto";
+    prepared.setAttribute("aria-hidden", "true");
+    specialAudio.set(soundPath, prepared);
+    void prepared.play().then(() => {
+      if (state === "prepared") {
+        prepared.pause();
+        prepared.currentTime = 0;
+      }
+    }).catch(() => {});
+  }
+
   if (alert && typeof globalThis.Audio === "function") {
     audio = new Audio(
       `${lobotomyCorpAssetRoot}/${alert.soundPath}`,
@@ -673,6 +874,15 @@ function prepareLobotomyCorpDisplayName(value) {
       // 某些浏览器不允许预播放；提交后仍会按既有路径尝试播放。
     });
   }
+  if (abnormalityMatch?.canonicalId === "T-03-46") {
+    prepareSpecialAudio(lobotomyCorpWhiteNightEvent?.soundPaths.bell);
+    prepareSpecialAudio(lobotomyCorpWhiteNightEvent?.soundPaths.church);
+  } else if (
+    lobotomyCorpWhiteNightEvent?.isActive() &&
+    lobotomyCorpWhiteNightEvent.matchesConfession(value)
+  ) {
+    whiteNightDeathSounds.forEach(({ path }) => prepareSpecialAudio(path));
+  }
   const preparedMedia = Object.freeze({
     /**
      * 仅在已提交且音频目标匹配时，将媒体所有权转交给正式警报。
@@ -686,16 +896,32 @@ function prepareLobotomyCorpDisplayName(value) {
       ) {
         return undefined;
       }
-      state = "adopted";
+      adoptedAudio.add(audio);
       audio.muted = false;
       return audio;
     },
+    /**
+     * 将已提交的白夜专用媒体转交给事件；资源不匹配时安全回退到新建音频。
+     *
+     * @param {string} soundPath 需要的白夜音频路径。
+     * @return {HTMLAudioElement|undefined} 已预热的音频。
+     */
+    consumeWhiteNight: (soundPath) => {
+      const prepared = specialAudio.get(soundPath);
+      if (state !== "committed" || !prepared) return undefined;
+      adoptedAudio.add(prepared);
+      prepared.muted = false;
+      return prepared;
+    },
     dispose: () => {
-      if (state === "adopted" || state === "disposed") return;
+      if (state === "disposed") return;
       state = "disposed";
-      audio?.pause();
-      audio?.removeAttribute?.("src");
-      audio?.load?.();
+      [audio, ...specialAudio.values()].forEach((prepared) => {
+        if (!prepared || adoptedAudio.has(prepared)) return;
+        prepared.pause();
+        prepared.removeAttribute?.("src");
+        prepared.load?.();
+      });
     },
     commit: () => {
       if (state !== "prepared") return Promise.resolve(true);
@@ -740,6 +966,7 @@ function getLobotomyCorpDangerScore() {
  * @return {Promise<boolean>} 当前警报结束后返回 true；没有活跃警报时立即返回 true。
  */
 function stopLobotomyCorpAlert() {
+  lobotomyCorpWhiteNightEvent?.finish({ restoreAlert: false });
   if (!activeLobotomyCorpAlert) {
     clearLobotomyCorpDay();
     globalThis.easterEggCoordinator?.finish(
@@ -754,13 +981,23 @@ function stopLobotomyCorpAlert() {
 }
 
 /**
+ * 以同一套 special-event-aware 业务流程重启当前 Day。
+ *
+ * @return {Promise<boolean>} 清理完成后返回 true。
+ */
+function restartLobotomyCorpDay() {
+  lobotomyCorpWhiteNightEvent?.finish({ restoreAlert: false });
+  return stopLobotomyCorpAlert();
+}
+
+/**
  * 设置脑叶公司彩蛋危急值，并激活其所在区间对应的警报。
  *
  * @param {number} dangerScore 新的 0 到 100 有限危急值。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
  * @return {Promise<boolean>} 对应警报结束或无警报状态生效后返回 true。
  */
-function setLobotomyCorpDangerScore(dangerScore, preparedMedia) {
+function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
   if (
     typeof dangerScore !== "number" || !Number.isFinite(dangerScore) ||
     dangerScore < 0 || dangerScore > 100
@@ -776,6 +1013,9 @@ function setLobotomyCorpDangerScore(dangerScore, preparedMedia) {
     ensureLobotomyCorpDayCoordinator();
   } else {
     clearLobotomyCorpDay();
+  }
+  if (!options.isDecay && options.positiveContribution === true) {
+    resetLobotomyCorpDangerDecayGrace();
   }
   const alert = lobotomyCorpAlertForDangerScore(dangerScore);
   if (alert) {
@@ -926,10 +1166,20 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     return Promise.resolve(true);
   }
   lobotomyCorpBreachedAbnormalitiesThisDay.add(match.canonicalId);
-  return setLobotomyCorpDangerScore(
+  const isWhiteNightSubmission = match.canonicalId === "T-03-46";
+  const alertLifecycle = setLobotomyCorpDangerScore(
     Math.min(100, lobotomyCorpDangerScore + contribution),
-    preparedMedia,
+    // 白夜会立即接管普通警报音乐，保留同一同步手势中预热的专用媒体。
+    isWhiteNightSubmission ? undefined : preparedMedia,
+    { positiveContribution: true },
   );
+  if (isWhiteNightSubmission) {
+    lobotomyCorpWhiteNightEvent?.start({
+      preparedMedia,
+      source: "direct-submission",
+    });
+  }
+  return alertLifecycle;
 }
 
 /**
@@ -941,6 +1191,12 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
  */
 function commitLobotomyCorpDisplayName(value, preparedMedia) {
   syncLobotomyCorpAbnormalityIdentity(value);
+  if (
+    lobotomyCorpWhiteNightEvent?.isActive() &&
+    lobotomyCorpWhiteNightEvent.matchesConfession(value)
+  ) {
+    return lobotomyCorpWhiteNightEvent.confess(preparedMedia);
+  }
   return matchingLobotomyCorpAbnormality(value)
     ? handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia)
     : activateLobotomyCorpAlert(value, preparedMedia);
@@ -1241,6 +1497,36 @@ function lobotomyCorpViewportSize() {
 }
 
 /**
+ * 在未达到普通 Trumpet 阈值时复用 Restart Day 顶部面板。
+ *
+ * @return {{finish: () => void}|undefined} 已挂载面板的清理操作。
+ */
+function mountLobotomyCorpRestartPanel() {
+  if (activeLobotomyCorpAlert || activeLobotomyCorpRestartPanel) {
+    return activeLobotomyCorpRestartPanel;
+  }
+  const document = globalThis.document;
+  if (!document?.createElement || !document.body) return undefined;
+  const overlay = document.createElement("div");
+  const topPanelController = createLobotomyCorpTopPanel();
+  overlay.className = "lobotomy-corp-alert-overlay";
+  topPanelController.endAlertButton.addEventListener("click", () => {
+    void restartLobotomyCorpDay();
+  });
+  overlay.append(topPanelController.element);
+  document.body.append(overlay);
+  const panel = {
+    finish: () => {
+      if (activeLobotomyCorpRestartPanel !== panel) return;
+      activeLobotomyCorpRestartPanel = undefined;
+      overlay.remove();
+    },
+  };
+  activeLobotomyCorpRestartPanel = panel;
+  return panel;
+}
+
+/**
  * 选择本次 HUD 应采用的稳定 viewport。
  *
  * 仅浏览器 chrome 导致的高度变化会保留上次尺寸，防止警报随地址栏伸缩；宽度
@@ -1448,6 +1734,7 @@ function startLobotomyCorpAlert(
   if (activeLobotomyCorpAlert) {
     return activeLobotomyCorpAlert.replaceVisual(alert, preparedMedia);
   }
+  activeLobotomyCorpRestartPanel?.finish();
   const musicAlert = restoredMusicAlert ?? alert;
   let fallbackPosition = Math.max(0, resumeAt);
   let audio = preparedMedia?.consume?.(musicAlert.soundPath);
@@ -1539,8 +1826,14 @@ function startLobotomyCorpAlert(
    */
   function finishAlert({
     animateExit = true,
+    force = false,
   } = {}) {
     if (closing || finished) {
+      return;
+    }
+    if (!force && lobotomyCorpWhiteNightEvent?.isActive()) {
+      // 白夜接管音乐后，普通 Trumpet 的结束不得带走 HUD 或 Day。
+      detachAudio(true);
       return;
     }
     closing = true;
@@ -1585,7 +1878,7 @@ function startLobotomyCorpAlert(
    * 响应顶部 RestartButton 点击，不允许 DOM Event 污染结束方式参数。
    */
   function finishAlertFromButton() {
-    finishAlert();
+    void restartLobotomyCorpDay();
   }
 
   /**
@@ -1613,7 +1906,7 @@ function startLobotomyCorpAlert(
    * 响应跨游戏协调器的停止请求，并保持回调引用稳定。
    */
   function finishAlertFromCoordinator() {
-    finishAlert();
+    finishAlert({ force: true });
   }
 
   /**
@@ -1817,6 +2110,10 @@ function startLobotomyCorpAlert(
       ) {
         return;
       }
+      if (!globalThis.document?.createElement || !globalThis.document.body) {
+        activation.resolve(true);
+        return;
+      }
 
       overlay = document.createElement("div");
       overlay.className = "lobotomy-corp-alert-overlay";
@@ -1855,9 +2152,13 @@ function startLobotomyCorpAlert(
       }
       syncTopPanelActionText(visualAlert);
       overlay.append(topPanel);
-      if (!audio) createAlertAudio();
-      else if (!alertContext.audio) configureAlertAudio();
-      overlay.append(audio);
+      if (!audio && !lobotomyCorpWhiteNightEvent?.isActive()) {
+        createAlertAudio();
+      } else if (audio && !alertContext.audio) {
+        configureAlertAudio();
+      }
+      // 白夜 hold 合法地没有普通 Trumpet 音频；HUD 仍必须完整挂载。
+      if (audio) overlay.append(audio);
       updateCanvasScale(true);
       globalThis.addEventListener?.(
         "resize",
@@ -1900,12 +2201,18 @@ function startLobotomyCorpAlert(
     alertContext.visualAlert = nextAlert;
     if (nextAlert && nextAlert.level > alertContext.musicAlert.level) {
       alertContext.musicAlert = nextAlert;
-      detachAudio(true);
-      audio = nextPreparedMedia?.consume?.(nextAlert.soundPath);
-      if (!audio) nextPreparedMedia?.dispose?.();
-      alertContext.audio = undefined;
-      alertContext.startedAt = Date.now();
-      fallbackPosition = 0;
+      if (!lobotomyCorpWhiteNightEvent?.isActive()) {
+        detachAudio(true);
+        audio = nextPreparedMedia?.consume?.(nextAlert.soundPath);
+        if (!audio) nextPreparedMedia?.dispose?.();
+        alertContext.audio = undefined;
+        alertContext.startedAt = Date.now();
+        fallbackPosition = 0;
+      } else {
+        // 音乐继续由白夜接管，但普通 Trumpet 的 high-water 必须记录为最新等级，
+        // 以便赎罪结束后恢复正确的 Second / Third BGM。
+        nextPreparedMedia?.dispose?.();
+      }
     } else {
       nextPreparedMedia?.dispose?.();
     }
@@ -1919,6 +2226,17 @@ function startLobotomyCorpAlert(
     ? finishLobotomyCorpDayFromCoordinator
     : finishAlertFromCoordinator;
   alertContext.finish = finishAlertFromCoordinator;
+  alertContext.holdMusicForSpecialEvent = () => {
+    detachAudio(true);
+    audio = undefined;
+    alertContext.audio = undefined;
+  };
+  alertContext.resumeMusicAfterSpecialEvent = () => {
+    if (closing || finished || audio || !alertContext.visualAlert) return;
+    alertContext.startedAt = Date.now();
+    fallbackPosition = 0;
+    createAlertAudio();
+  };
   alertContext.replaceVisual = replaceVisual;
   activeLobotomyCorpAlert = alertContext;
   globalThis.easterEggCoordinator?.start(
@@ -1930,28 +2248,63 @@ function startLobotomyCorpAlert(
   return currentActivation.promise;
 }
 
+// WhiteNight 只通过此窄接口访问通用 Day / Alert 生命周期，避免复制业务状态。
+const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
+  assetRoot: lobotomyCorpAssetRoot,
+  blockMessage: (messageKey) => {
+    const messages = lobotomyCorpWhiteNightPresentation
+        ?.originalFontSupportsLocale === false
+      ? lobotomyCorpWhiteNightPresentation?.englishMessages
+      : lobotomyCorpMessages;
+    return messages?.[messageKey] ??
+      lobotomyCorpWhiteNightPresentation?.englishMessages?.[messageKey] ?? "";
+  },
+  confessionAliases: () => lobotomyCorpConfessionAliases,
+  ensureCoordinator: ensureLobotomyCorpDayCoordinator,
+  finishRestartPanel: () => activeLobotomyCorpRestartPanel?.finish(),
+  getAlert: () => activeLobotomyCorpAlert,
+  holdAlertMusic: () => activeLobotomyCorpAlert?.holdMusicForSpecialEvent?.(),
+  isReload: isLobotomyCorpAlertPageReload,
+  messages: () => lobotomyCorpMessages,
+  mountRestartPanel: mountLobotomyCorpRestartPanel,
+  normalize: normalizeLobotomyCorpAbnormalityName,
+  pauseDangerDecay: pauseLobotomyCorpDangerDecay,
+  resumeAlertMusic: () =>
+    activeLobotomyCorpAlert?.resumeMusicAfterSpecialEvent?.(),
+  resumeDangerDecay: restoreLobotomyCorpDangerDecay,
+  storageKey: lobotomyCorpSpecialEventSessionKey,
+  storages: lobotomyCorpAlertStorages,
+});
+
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
   canvasScaleForViewport: lobotomyCorpCanvasScaleForViewport,
   canvasViewportForUpdate: lobotomyCorpCanvasViewportForUpdate,
   commitDisplayName: commitLobotomyCorpDisplayName,
   getDangerScore: getLobotomyCorpDangerScore,
+  getSpecialEvent: () => lobotomyCorpWhiteNightEvent.getId(),
+  getSpecialEventPhase: () => lobotomyCorpWhiteNightEvent.getPhase(),
   handleAbnormalitySubmitted: handleLobotomyCorpAbnormalitySubmitted,
   matches: (value) =>
     matchesLobotomyCorpAlert(value) ||
-    Boolean(matchingLobotomyCorpAbnormality(value)),
+    Boolean(matchingLobotomyCorpAbnormality(value)) ||
+    (lobotomyCorpWhiteNightEvent.isActive() &&
+      lobotomyCorpWhiteNightEvent.matchesConfession(value)),
   matchingAbnormality: matchingLobotomyCorpAbnormality,
   onAbnormalitySubmitted: (listener) => {
     lobotomyCorpAbnormalitySubmissionListeners.add(listener);
     return () => lobotomyCorpAbnormalitySubmissionListeners.delete(listener);
   },
   prepareDisplayName: prepareLobotomyCorpDisplayName,
-  restartDay: stopLobotomyCorpAlert,
+  restartDay: restartLobotomyCorpDay,
   setDangerScore: setLobotomyCorpDangerScore,
+  startWhiteNight: lobotomyCorpWhiteNightEvent.start,
   submitsWhileActive: true,
 });
 
-if (isLobotomyCorpAlertPageReload()) {
+const restoredLobotomyCorpSpecialEvent = lobotomyCorpWhiteNightEvent
+  .persisted();
+if (isLobotomyCorpAlertPageReload() && !restoredLobotomyCorpSpecialEvent) {
   clearPersistedLobotomyCorpAlert();
   clearPersistedLobotomyCorpDay();
 } else {
@@ -1970,6 +2323,11 @@ if (isLobotomyCorpAlertPageReload()) {
       void activeLobotomyCorpAlert?.replaceVisual(undefined);
     }
   }
+}
+if (restoredLobotomyCorpSpecialEvent?.id === lobotomyCorpWhiteNightEventId) {
+  lobotomyCorpWhiteNightEvent.restore();
+} else {
+  restoreLobotomyCorpDangerDecay();
 }
 
 /**

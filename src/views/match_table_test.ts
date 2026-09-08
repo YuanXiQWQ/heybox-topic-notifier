@@ -299,15 +299,15 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260908-smooth-canvas`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260909-white-night-events`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-day-snapshot`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-white-night`,
   );
   assertIncludes(
     html,
-    `id="lobotomy-corp-locale-data">{"restartDay":"重新开始这一天","firedManager":"你被解雇了，主管！"}</script>`,
+    `id="lobotomy-corp-locale-data">{"restartDay":"重新开始这一天","firedManager":"你被解雇了，主管！","whiteNight.blockNavigation.denyPresence"`,
   );
   assertIncludes(html, `data-username-easter-egg-settings`);
 });

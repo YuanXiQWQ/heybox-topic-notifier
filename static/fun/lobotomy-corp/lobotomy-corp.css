@@ -8,6 +8,155 @@
 
 @font-face {
   font-display: block;
+  font-family: LobotomyWhiteNight;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/NanumGothicBold.ttf")
+    format("truetype");
+}
+
+/* 白夜本体在普通页面之上、警报 HUD 与 Restart Day 之下，且永不截获操作。 */
+.lobotomy-corp-white-night-entity {
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+  position: fixed;
+  z-index: 9990;
+}
+
+.lobotomy-corp-white-night-entity video {
+  height: min(88vh, 980px);
+  max-height: 88vh;
+  max-width: 94vw;
+  object-fit: contain;
+  pointer-events: none;
+  width: min(88vw, 1380px);
+}
+
+/* WhiteNight 主 Animator 的 Suppressed 轨道与 Confess/SuppressAnimator 同时存在。 */
+.lobotomy-corp-white-night-confession-entity {
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 9991;
+}
+
+/* Dead_23 导出媒体已裁去原错误文件的超大透明画布。 */
+.lobotomy-corp-white-night-confession-video {
+  height: min(88vh, 980px);
+  max-height: 88vh;
+  max-width: 88vw;
+  object-fit: contain;
+  pointer-events: none;
+  position: relative;
+  width: min(88vw, 980px);
+  z-index: 1;
+}
+
+/* DeathAngelBlock.prefab：1920×1080 Image、CanvasGroup 1.5 秒 alpha curve。 */
+.lobotomy-corp-white-night-message {
+  align-items: center;
+  animation: lobotomy-corp-white-night-message 1.5s linear both;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  pointer-events: none;
+  position: fixed;
+  z-index: 9999;
+}
+
+.lobotomy-corp-white-night-block-filter {
+  height: 100%;
+  inset: 0;
+  object-fit: fill;
+  position: absolute;
+  width: 100%;
+}
+
+.lobotomy-corp-white-night-message p {
+  color: #ffffff;
+  font-family: LobotomyWhiteNight;
+  font-size: clamp(3px, 3.125vw, 60px);
+  line-height: normal;
+  margin: 0;
+  max-height: min(27.7778vh, 300px);
+  max-width: min(62.5vw, 1200px);
+  text-align: center;
+  text-shadow: 2px -2px rgb(252 58 58 / 49%);
+}
+
+/* Confess ParticleSystem：镇压期间按 4/s emission 发射、每道存活 5s 的 ADD BillBoard 射线。 */
+.lobotomy-corp-white-night-confess-particles {
+  height: min(88vh, 980px);
+  left: 50%;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(88vw, 980px);
+  z-index: 2;
+}
+
+.lobotomy-corp-white-night-confess-ray {
+  animation: lobotomy-corp-white-night-confess-ray
+    var(--lobotomy-corp-ray-duration) linear forwards;
+  animation-delay: var(--lobotomy-corp-ray-delay);
+  height: min(70vh, 760px);
+  left: var(--lobotomy-corp-ray-left);
+  mix-blend-mode: screen;
+  object-fit: fill;
+  opacity: 0;
+  position: absolute;
+  top: -24%;
+  transform: rotate(var(--lobotomy-corp-ray-angle));
+  transform-origin: center top;
+  width: min(10vw, 110px);
+}
+
+.lobotomy-corp-confession-work-icon {
+  flex: 0 0 auto;
+  height: 42px;
+  object-fit: contain;
+  pointer-events: none;
+  width: 42px;
+}
+
+@keyframes lobotomy-corp-white-night-message {
+  0% {
+    opacity: 0.1;
+  }
+  30%,
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0.1;
+  }
+}
+
+@keyframes lobotomy-corp-white-night-confess-ray {
+  0% {
+    opacity: 0.55;
+    transform: translateY(0) scaleX(1) rotate(var(--lobotomy-corp-ray-angle));
+  }
+  67% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(50%) scaleX(1.15)
+      rotate(var(--lobotomy-corp-ray-angle));
+  }
+}
+
+@font-face {
+  font-display: block;
   font-family: LobotomyRestartTitle;
   src: url("/static/fun/lobotomy-corp/Assets/Font/norwester_new.ttf")
     format("truetype");

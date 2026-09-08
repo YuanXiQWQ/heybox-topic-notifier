@@ -107,6 +107,65 @@ function renderLobotomyCorpLocaleData(locale: Locale): string {
 }
 
 /**
+ * 渲染白夜阻拦文字的原作字体覆盖结论和显式英文回退数据。
+ *
+ * 覆盖结论由 NanumGothicBold.ttf 的 cmap 对所有白夜阻拦文字逐字审计得出；
+ * 不覆盖时由客户端主动选择英文，而不是交给浏览器静默替换字体。
+ *
+ * @param {Locale} locale 当前网页 locale。
+ * @return {string} 白夜文字显示策略的内联 JSON 脚本。
+ */
+function renderLobotomyCorpWhiteNightPresentationData(locale: Locale): string {
+  const fontCompatibleLocales = new Set([
+    "en-US",
+    "es-ES",
+    "ja-JP",
+    "ko-KR",
+    "ru-RU",
+  ]);
+  return renderEasterEggJsonData(
+    "lobotomy-corp-white-night-presentation-data",
+    {
+      englishMessages: readEasterEggJson(
+        "lobotomy-corp/Locales/en-US.json",
+      ),
+      originalFontSupportsLocale: fontCompatibleLocales.has(
+        lobotomyCorpLocaleFile(locale),
+      ),
+    },
+  );
+}
+
+/**
+ * 渲染所有已维护语言的“一罪与百善”特殊工作别名。
+ *
+ * 仅将客户端判断所需的单一字段注入页面，避免为匹配赎罪而额外发起请求。
+ *
+ * @return {string} 内联 JSON 脚本。
+ */
+function renderLobotomyCorpConfessionAliasesData(): string {
+  const localeFiles = [
+    "en-US",
+    "es-ES",
+    "ja-JP",
+    "ko-KR",
+    "ru-RU",
+    "vi-VN",
+    "zh-CN",
+    "zh-TW",
+  ];
+  return renderEasterEggJsonData(
+    "lobotomy-corp-confession-aliases-data",
+    localeFiles.map((localeFile) => {
+      const messages = readEasterEggJson(
+        `lobotomy-corp/Locales/${localeFile}.json`,
+      ) as Record<string, unknown>;
+      return messages["oneSin.specialWork.confession"];
+    }).filter((value): value is string => typeof value === "string"),
+  );
+}
+
+/**
  * 渲染《脑叶公司》通用异想体资料。
  *
  * @return {string} 内联 JSON 脚本。
@@ -187,14 +246,16 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-day-snapshot">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-white-night">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
+    ${renderLobotomyCorpWhiteNightPresentationData(options.locale)}
+    ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
     ${renderLobotomyCorpAccountIdentityData(options.account)}
-    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260908-smooth-canvas" defer></script>
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260909-white-night-events"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
