@@ -279,7 +279,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260908-abnormality-day-final`,
+    `/static/settings.js?v=20260908-portrait-canvas`,
   );
   assertIncludes(
     html,
@@ -299,11 +299,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260908-abnormality-day-final`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260908-smooth-canvas`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-abnormality-day-final`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-day-snapshot`,
   );
   assertIncludes(
     html,

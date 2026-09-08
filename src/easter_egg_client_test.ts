@@ -96,13 +96,52 @@ Deno.test("Lobotomy Corporation locale data is injected from game JSON with fall
 Deno.test("Lobotomy Corporation abnormality data is safely injected from its source of truth", () => {
   const abnormalities = renderedLobotomyCorpAbnormalities();
   assertEquals(
-    (abnormalities["T-03-46"] as { dangerOnBreachOverride: number })
-      .dangerOnBreachOverride,
-    98,
+    "dangerOnBreachOverride" in (abnormalities["T-03-46"] as object),
+    false,
+  );
+  assertEquals(
+    (abnormalities["D-01-106"] as { riskLevel: string }).riskLevel,
+    "ZAYIN",
+  );
+  ["D-01-105", "F-02-70", "O-02-63", "T-06-27"].forEach((id) =>
+    assertEquals(
+      (abnormalities[id] as { canBreach: boolean }).canBreach,
+      false,
+    )
+  );
+  assertEquals(
+    (abnormalities["O-04-08"] as { canBreach: boolean }).canBreach,
+    true,
+  );
+  assertEquals(
+    (abnormalities["O-04-08"] as { riskLevel: string }).riskLevel,
+    "HE",
   );
   assertEquals(
     (abnormalities["Bald-is-awesome!"] as { aliases: string[] }).aliases
       .includes("秃头-真是-太棒啦！"),
+    true,
+  );
+});
+
+Deno.test("Lobotomy Corporation injects the saved display name for nav identity derivation", () => {
+  const html = renderLayout({
+    account: { displayName: "T-03-46", username: "manager" },
+    body: "",
+    csrfToken: "test",
+    darkMode: false,
+    locale: "zh-CN",
+    themeColor: "#000000",
+    title: "test",
+  });
+  assertEquals(
+    html.includes(
+      'id="lobotomy-corp-account-identity-data">{"displayName":"T-03-46"}',
+    ),
+    true,
+  );
+  assertEquals(
+    html.includes('data-lobotomy-corp-risk-host="nav"'),
     true,
   );
 });
@@ -120,23 +159,382 @@ Deno.test("game entries use embedded data without synchronous requests", () => {
   assertEquals(lobotomyCorpEntry.includes("Abnormalities.json"), false);
 });
 
-Deno.test("settings commits a matched abnormality only after account save confirmation", () => {
+Deno.test("Lobotomy Corporation CanvasScaler keeps portrait HUDs legible", async () => {
+  const browser = globalThis as typeof globalThis & {
+    document?: unknown;
+    lobotomyCorpEasterEgg?: {
+      canvasScaleForViewport: (width: number, height: number) => number;
+      canvasViewportForUpdate: (
+        previous: { height: number; width: number } | undefined,
+        next: { height: number; width: number },
+      ) => { height: number; width: number };
+    };
+  };
+  const original = Object.fromEntries(
+    ["document", "lobotomyCorpEasterEgg"].map((
+      name,
+    ) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
+  );
+  const localeData = Deno.readTextFileSync(
+    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+  );
+  const abnormalitiesData = Deno.readTextFileSync(
+    new URL(
+      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      import.meta.url,
+    ),
+  );
+  Object.defineProperty(browser, "document", {
+    configurable: true,
+    value: {
+      documentElement: { lang: "zh-CN" },
+      getElementById: (id: string) =>
+        id === "lobotomy-corp-locale-data"
+          ? { textContent: localeData }
+          : id === "lobotomy-corp-abnormalities-data"
+          ? { textContent: abnormalitiesData }
+          : null,
+    },
+  });
+  try {
+    await import(
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+    );
+    const scale = browser.lobotomyCorpEasterEgg!.canvasScaleForViewport;
+    assertEquals(scale(1920, 1080), 1);
+    assertEquals(scale(1280, 720), 1280 / 1920);
+    assertEquals(scale(844, 390), 844 / 1920);
+
+    const scalesNearFormerBreakpoint = [767, 768, 769, 770].map((width) =>
+      scale(width, 1024)
+    );
+    scalesNearFormerBreakpoint.slice(1).forEach((current, index) =>
+      assertEquals(
+        Math.abs(current - scalesNearFormerBreakpoint[index]) < 0.003,
+        true,
+      )
+    );
+
+    const portrait390 = scale(390, 844);
+    const portrait430 = scale(430, 932);
+    assertEquals(Number.isFinite(portrait390) && portrait390 > 0, true);
+    assertEquals(Number.isFinite(portrait430) && portrait430 > 0, true);
+    assertEquals(portrait390 > 390 / 1920, true);
+    assertEquals(portrait430 > 430 / 1920, true);
+    // CSS 保留 Unity 原版的 0.5 倍根缩放；此处锁定最终视觉量级，防止退化回约 10%。
+    assertEquals(Math.abs(portrait390 * 0.5 - 0.199) < 0.01, true);
+    assertEquals(Math.abs(portrait430 * 0.5 - 0.22) < 0.01, true);
+
+    const portraitViewport = { height: 844, width: 390 };
+    const browserChromeViewport = browser.lobotomyCorpEasterEgg!
+      .canvasViewportForUpdate(
+        portraitViewport,
+        { height: 760, width: 390 },
+      );
+    assertEquals(browserChromeViewport, portraitViewport);
+    assertEquals(
+      scale(browserChromeViewport.width, browserChromeViewport.height),
+      portrait390,
+    );
+    const landscapeViewport = browser.lobotomyCorpEasterEgg!
+      .canvasViewportForUpdate(browserChromeViewport, {
+        height: 390,
+        width: 844,
+      });
+    assertEquals(landscapeViewport, { height: 390, width: 844 });
+    assertEquals(
+      scale(landscapeViewport.width, landscapeViewport.height),
+      844 / 1920,
+    );
+  } finally {
+    for (const [name, descriptor] of Object.entries(original)) {
+      if (descriptor) Object.defineProperty(browser, name, descriptor);
+      else delete (browser as Record<string, unknown>)[name];
+    }
+    delete browser.lobotomyCorpEasterEgg;
+  }
+});
+
+Deno.test("settings transaction disposes failed prepared media and commits only confirmed abnormality saves", async () => {
+  class Element {
+    attributes: Record<string, string> = {};
+    children: Element[] = [];
+    classList = { add: () => {}, remove: () => {} };
+    dataset: Record<string, string> = {};
+    disabled = false;
+    hidden = false;
+    offsetWidth = 1;
+    src = "";
+    style: Record<string, unknown> = {};
+    textContent = "";
+    #events = new Map<string, ((event: Event) => void)[]>();
+    /** 创建可记录 HUD 生命周期的模拟节点。 */
+    constructor() {
+      this.style.setProperty = (name: string, value: string) =>
+        this.style[name] = value;
+    }
+    /** @param {...Element} nodes 要追加的节点。 */ append(
+      ...nodes: Element[]
+    ): void {
+      this.children.push(...nodes);
+    }
+    /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ addEventListener(
+      name: string,
+      listener: (event: Event) => void,
+    ): void {
+      this.#events.set(name, [...(this.#events.get(name) ?? []), listener]);
+    }
+    /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ removeEventListener(
+      name: string,
+      listener: (event: Event) => void,
+    ): void {
+      this.#events.set(
+        name,
+        (this.#events.get(name) ?? []).filter((item) => item !== listener),
+      );
+    }
+    /** @param {string} name 属性名。 @param {string} value 属性值。 */ setAttribute(
+      name: string,
+      value: string,
+    ): void {
+      this.attributes[name] = value;
+    }
+    /** @param {string} name 属性名。 */ removeAttribute(name: string): void {
+      delete this.attributes[name];
+      if (name === "src") this.src = "";
+    }
+    /** 标记节点已从当前视觉树中移除。 */ remove(): void {}
+    /** 触发指定事件。 @param {string} name 事件名。 */ dispatch(
+      name: string,
+    ): void {
+      this.#events.get(name)?.forEach((listener) => listener(new Event(name)));
+    }
+  }
+  class AudioMock extends Element {
+    static items: AudioMock[] = [];
+    currentTime = 0;
+    duration = Number.NaN;
+    muted = false;
+    pauseCount = 0;
+    playCount = 0;
+    preload = "";
+    readyState = 0;
+    /** @param {string} source 音频地址。 */ constructor(source: string) {
+      super();
+      this.src = source;
+      AudioMock.items.push(this);
+    }
+    /** @return {Promise<void>} 播放结果。 */ play(): Promise<void> {
+      this.playCount++;
+      return Promise.resolve();
+    }
+    /** 暂停预备或正式音频。 */ pause(): void {
+      this.pauseCount++;
+    }
+    /** 释放已移除音源的解码资源。 */ load(): void {}
+  }
+  class StorageMock {
+    values = new Map<string, string>();
+    /** @param {string} key 键。 @return {string|null} 值。 */ getItem(
+      key: string,
+    ): string | null {
+      return this.values.get(key) ?? null;
+    }
+    /** @param {string} key 键。 @param {string} value 值。 */ setItem(
+      key: string,
+      value: string,
+    ): void {
+      this.values.set(key, value);
+    }
+    /** @param {string} key 键。 */ removeItem(key: string): void {
+      this.values.delete(key);
+    }
+  }
+  const browser = globalThis as typeof globalThis & {
+    Audio?: unknown;
+    FormData?: unknown;
+    HTMLInputElement?: unknown;
+    document?: unknown;
+    fetch?: unknown;
+    localStorage?: unknown;
+    location?: unknown;
+    performance?: unknown;
+    sessionStorage?: unknown;
+    lobotomyCorpEasterEgg?: {
+      getDangerScore: () => number;
+      onAbnormalitySubmitted: (listener: (id: string) => void) => () => boolean;
+      prepareDisplayName: (name: string) => {
+        commit: () => Promise<boolean>;
+        dispose: () => void;
+      };
+      restartDay: () => Promise<boolean>;
+    };
+  };
+  const original = Object.fromEntries(
+    [
+      "Audio",
+      "FormData",
+      "HTMLInputElement",
+      "document",
+      "fetch",
+      "localStorage",
+      "location",
+      "performance",
+      "sessionStorage",
+      "lobotomyCorpEasterEgg",
+    ].map((name) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
+  );
+  const body = new Element();
+  const storage = new StorageMock();
+  const localeData = Deno.readTextFileSync(
+    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+  );
+  const abnormalitiesData = Deno.readTextFileSync(
+    new URL(
+      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      import.meta.url,
+    ),
+  );
+  Object.defineProperties(browser, {
+    Audio: { configurable: true, value: AudioMock },
+    FormData: {
+      configurable: true,
+      value: class FormDataMock {
+        /** @param {unknown} _form 测试表单。 */ constructor(_form: unknown) {}
+      },
+    },
+    HTMLInputElement: {
+      configurable: true,
+      value: class HTMLInputElementMock {},
+    },
+    document: {
+      configurable: true,
+      value: {
+        addEventListener: () => {},
+        body,
+        createElement: () => new Element(),
+        documentElement: { lang: "zh-CN" },
+        getElementById: (id: string) =>
+          id === "lobotomy-corp-locale-data"
+            ? { textContent: localeData }
+            : id === "lobotomy-corp-abnormalities-data"
+            ? { textContent: abnormalitiesData }
+            : null,
+        querySelector: (selector: string) =>
+          selector === "[data-polling-interval-value]" ? { value: "1" } : null,
+        querySelectorAll: () => [],
+      },
+    },
+    localStorage: { configurable: true, value: storage },
+    location: { configurable: true, value: { href: "https://warmnest.test/" } },
+    performance: {
+      configurable: true,
+      value: { getEntriesByType: () => [{ type: "navigate" }] },
+    },
+    sessionStorage: { configurable: true, value: storage },
+  });
   const settingsClient = Deno.readTextFileSync(
     new URL("../static/settings.js", import.meta.url),
   );
-  const submissionIndex = settingsClient.indexOf(
-    "async function submitAccountWhileLobotomyCorpAlertIsActive",
-  );
-  const fetchIndex = settingsClient.indexOf(
-    "const response = await fetch(form.action",
-    submissionIndex,
-  );
-  const savedGuardIndex = settingsClient.indexOf("if (!saved)", fetchIndex);
-  const commitIndex = settingsClient.indexOf("commitDisplayName", fetchIndex);
-  assertEquals(submissionIndex >= 0, true);
-  assertEquals(fetchIndex >= 0, true);
-  assertEquals(savedGuardIndex > fetchIndex, true);
-  assertEquals(commitIndex > savedGuardIndex, true);
+  type SaveTransaction = (
+    easterEgg: {
+      activate: (value: string) => Promise<boolean>;
+      commitDisplayName?: (value: string) => Promise<boolean>;
+    },
+    form: { action: string; method: string },
+    mode: "displayName" | "username",
+    displayName: string,
+  ) => Promise<{ responseUrl: URL; saved: boolean }>;
+  try {
+    await import(
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+    );
+    const transaction = new Function(
+      `${settingsClient}\nreturn submitLobotomyCorpAccountSaveTransaction;`,
+    )() as SaveTransaction;
+    const api = browser.lobotomyCorpEasterEgg!;
+    const observedCanonicalIds: string[] = [];
+    api.onAbnormalitySubmitted((id) => observedCanonicalIds.push(id));
+    const form = { action: "https://warmnest.test/settings", method: "post" };
+
+    Object.defineProperty(browser, "fetch", {
+      configurable: true,
+      value: () =>
+        Promise.resolve({
+          ok: false,
+          url: "https://warmnest.test/settings?account=invalid",
+        }),
+    });
+    const rejected = await transaction(
+      api as never,
+      form,
+      "displayName",
+      "T-03-46",
+    );
+    await Promise.resolve();
+    const rejectedAudio = AudioMock.items[0];
+    assertEquals(rejected.saved, false);
+    assertEquals(observedCanonicalIds, []);
+    assertEquals(api.getDangerScore(), 0);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(body.children.length, 0);
+    assertEquals(rejectedAudio.muted, true);
+    assertEquals(rejectedAudio.playCount, 1);
+    assertEquals(rejectedAudio.pauseCount >= 1, true);
+    assertEquals(rejectedAudio.src, "");
+
+    Object.defineProperty(browser, "fetch", {
+      configurable: true,
+      value: () => Promise.reject(new Error("network failed")),
+    });
+    await assertRejects(
+      () => transaction(api as never, form, "displayName", "T-03-46"),
+      "network failed",
+    );
+    assertEquals(AudioMock.items[1].pauseCount >= 1, true);
+    assertEquals(AudioMock.items[1].src, "");
+    assertEquals(api.getDangerScore(), 0);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(body.children.length, 0);
+
+    Object.defineProperty(browser, "fetch", {
+      configurable: true,
+      value: () =>
+        Promise.resolve({
+          ok: true,
+          url: "https://warmnest.test/settings?account=updated",
+        }),
+    });
+    const confirmed = await transaction(
+      api as never,
+      form,
+      "displayName",
+      "T-03-46",
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    const confirmedAudio = AudioMock.items[2];
+    assertEquals(confirmed.saved, true);
+    assertEquals(observedCanonicalIds, ["T-03-46"]);
+    assertEquals(api.getDangerScore(), 75);
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-day")?.includes("T-03-46"),
+      true,
+    );
+    assertEquals(body.children.length > 0, true);
+    assertEquals(confirmedAudio.muted, false);
+    assertEquals(confirmedAudio.playCount, 2);
+
+    const restarting = api.restartDay();
+    body.children.at(-1)?.children[1]?.children[0]?.dispatch("animationend");
+    await restarting;
+  } finally {
+    for (const [name, descriptor] of Object.entries(original)) {
+      if (descriptor) Object.defineProperty(browser, name, descriptor);
+      else delete (browser as Record<string, unknown>)[name];
+    }
+    delete browser.lobotomyCorpEasterEgg;
+  }
 });
 
 Deno.test("Easter egg coordinator interrupts only a different game", async () => {
@@ -228,7 +626,7 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
   }
 });
 
-Deno.test("Lobotomy Corporation derives settings identity UI without persisting it", async () => {
+Deno.test("Lobotomy Corporation derives every risk host from server-rendered identity", async () => {
   class Element {
     alt = "";
     className = "";
@@ -276,11 +674,12 @@ Deno.test("Lobotomy Corporation derives settings identity UI without persisting 
   );
   const label = new Element();
   label.textContent = "显示名称";
-  const avatarWrapper = new Element();
-  const avatar = new Element();
-  avatarWrapper.append(avatar);
-  const displayNameInput = new Element();
-  displayNameInput.dataset.accountDisplayNameOriginal = "T-03-46";
+  const navAvatarWrapper = new Element();
+  const navAvatar = new Element();
+  navAvatarWrapper.append(navAvatar);
+  const settingsAvatarWrapper = new Element();
+  const settingsAvatar = new Element();
+  settingsAvatarWrapper.append(settingsAvatar);
   const localeData = Deno.readTextFileSync(
     new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
   );
@@ -300,15 +699,15 @@ Deno.test("Lobotomy Corporation derives settings identity UI without persisting 
           ? { textContent: localeData }
           : id === "lobotomy-corp-abnormalities-data"
           ? { textContent: abnormalitiesData }
+          : id === "lobotomy-corp-account-identity-data"
+          ? { textContent: JSON.stringify({ displayName: "T-03-46" }) }
           : null,
       querySelector: (selector: string) =>
-        selector === "[data-account-display-name-label]"
-          ? label
-          : selector === ".account-avatar-risk-wrapper"
-          ? avatarWrapper
-          : selector === "[data-account-display-name-input]"
-          ? displayNameInput
-          : undefined,
+        selector === "[data-account-display-name-label]" ? label : undefined,
+      querySelectorAll: (selector: string) =>
+        selector === "[data-lobotomy-corp-risk-host]"
+          ? [navAvatarWrapper, settingsAvatarWrapper]
+          : [],
     },
   });
   try {
@@ -316,30 +715,52 @@ Deno.test("Lobotomy Corporation derives settings identity UI without persisting 
       `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     assertEquals(label.textContent, "白夜");
-    assertEquals(avatar.children.length, 0);
+    assertEquals(navAvatar.children.length, 0);
+    assertEquals(settingsAvatar.children.length, 0);
     assertEquals(
-      avatarWrapper.children[1].src.endsWith("Risk_Aleph.png"),
+      navAvatarWrapper.children[1].src.endsWith("Risk_Aleph.png"),
+      true,
+    );
+    assertEquals(
+      settingsAvatarWrapper.children[1].src.endsWith("Risk_Aleph.png"),
       true,
     );
     await browser.lobotomyCorpEasterEgg!.commitDisplayName("Bald-is-awesome!");
     assertEquals(label.textContent, "你是个秃子...");
     assertEquals(
-      avatarWrapper.querySelector(".lobotomy-corp-risk-badge")?.src.endsWith(
+      navAvatarWrapper.querySelector(".lobotomy-corp-risk-badge")?.src.endsWith(
         "Risk_Zayin.png",
       ),
+      true,
+    );
+    assertEquals(
+      settingsAvatarWrapper.querySelector(".lobotomy-corp-risk-badge")?.src
+        .endsWith(
+          "Risk_Zayin.png",
+        ),
       true,
     );
     assertEquals(browser.lobotomyCorpEasterEgg!.getDangerScore(), 0);
     await browser.lobotomyCorpEasterEgg!.commitDisplayName("O-03-03");
     assertEquals(
-      avatarWrapper.querySelector(".lobotomy-corp-risk-badge") !== undefined,
+      navAvatarWrapper.querySelector(".lobotomy-corp-risk-badge") !==
+        undefined,
+      true,
+    );
+    assertEquals(
+      settingsAvatarWrapper.querySelector(".lobotomy-corp-risk-badge") !==
+        undefined,
       true,
     );
     assertEquals(browser.lobotomyCorpEasterEgg!.getDangerScore(), 0);
     await browser.lobotomyCorpEasterEgg!.commitDisplayName("ordinary user");
     assertEquals(label.textContent, "显示名称");
     assertEquals(
-      avatarWrapper.querySelector(".lobotomy-corp-risk-badge"),
+      navAvatarWrapper.querySelector(".lobotomy-corp-risk-badge"),
+      undefined,
+    );
+    assertEquals(
+      settingsAvatarWrapper.querySelector(".lobotomy-corp-risk-badge"),
       undefined,
     );
   } finally {
@@ -407,11 +828,17 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     }
   }
   class AudioMock extends Element {
+    static deferredPlayResolvers: (() => void)[] = [];
+    static deferNextPlayCount = 0;
     static items: AudioMock[] = [];
+    static nextDuration = Number.NaN;
+    static nextReadyState = 0;
+    duration = AudioMock.nextDuration;
     currentTime = 0;
     pauseCount = 0;
     playCount = 0;
     preload = "";
+    readyState = AudioMock.nextReadyState;
     /** @param {string} source 音频地址。 */ constructor(source: string) {
       super();
       this.src = source;
@@ -419,6 +846,12 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     }
     /** @return {Promise<void>} 播放结果。 */ play(): Promise<void> {
       this.playCount++;
+      if (AudioMock.deferNextPlayCount > 0) {
+        AudioMock.deferNextPlayCount--;
+        return new Promise((resolve) =>
+          AudioMock.deferredPlayResolvers.push(resolve)
+        );
+      }
       return Promise.resolve();
     }
     /** 暂停音频。 */ pause(): void {
@@ -458,6 +891,9 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       } | undefined;
       handleAbnormalitySubmitted: (name: string) => Promise<boolean>;
       getDangerScore: () => number;
+      prepareDisplayName: (name: string) => {
+        commit: () => Promise<boolean>;
+      };
       restartDay: () => Promise<boolean>;
       setDangerScore: (score: number) => Promise<boolean>;
     };
@@ -690,7 +1126,49 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     body.children.at(-1)!.children[1].children[0].dispatch("animationend");
     await tethRestart;
     void api.handleAbnormalitySubmitted("T-03-46");
-    assertEquals(api.getDangerScore(), 98);
+    assertEquals(Math.abs(api.getDangerScore() - 75 / 11) < 1e-10, true);
+    const whiteNightRestart = api.restartDay();
+    body.children.at(-1)!.children[1].children[0].dispatch("animationend");
+    await whiteNightRestart;
+
+    // 延迟预热 Promise 必须不能在 Second 已接管音频后反向暂停它。
+    void api.setDangerScore(45);
+    AudioMock.deferNextPlayCount = 1;
+    AudioMock.nextDuration = 0.1;
+    AudioMock.nextReadyState = 1;
+    const preparedSecond = api.prepareDisplayName("O-06-20");
+    assertEquals((AudioMock.items.at(-1)! as { muted?: boolean }).muted, true);
+    AudioMock.nextDuration = Number.NaN;
+    AudioMock.nextReadyState = 0;
+    const secondPreparedAudio = AudioMock.items.at(-1)!;
+    void preparedSecond.commit();
+    secondPreparedAudio.currentTime = 7;
+    AudioMock.deferredPlayResolvers.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    assertEquals(secondPreparedAudio.src.endsWith("second-trumpet.wav"), true);
+    assertEquals(secondPreparedAudio.pauseCount, 0);
+    assertEquals(secondPreparedAudio.currentTime, 7);
+    assertEquals(secondPreparedAudio.playCount, 2);
+    assertEquals((secondPreparedAudio as { muted?: boolean }).muted, false);
+
+    // 同级提交不会替换 BGM，未消费的预备音频必须被释放。
+    const redundantSecond = api.prepareDisplayName("second trumpet");
+    const redundantSecondAudio = AudioMock.items.at(-1)!;
+    void redundantSecond.commit();
+    assertEquals(redundantSecondAudio.pauseCount, 1);
+    assertEquals(secondPreparedAudio.pauseCount, 0);
+
+    // Third 降级至 Second 时维持 Third 的音乐，并释放未消费的 Second。
+    const preparedThird = api.prepareDisplayName("third trumpet");
+    const thirdPreparedAudio = AudioMock.items.at(-1)!;
+    void preparedThird.commit();
+    const lowerSecond = api.prepareDisplayName("second trumpet");
+    const lowerSecondAudio = AudioMock.items.at(-1)!;
+    void lowerSecond.commit();
+    assertEquals(thirdPreparedAudio.src.endsWith("third-trumpet.wav"), true);
+    assertEquals(thirdPreparedAudio.pauseCount, 0);
+    assertEquals(lowerSecondAudio.pauseCount, 1);
   } finally {
     for (const [name, descriptor] of Object.entries(original)) {
       if (descriptor) Object.defineProperty(browser, name, descriptor);
@@ -731,8 +1209,8 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
         name: string,
       ) => { canonicalId: string } | undefined;
       prepareDisplayName: (name: string) => {
-        cancel: () => void;
         commit: () => Promise<boolean>;
+        dispose: () => void;
       };
       onAbnormalitySubmitted: (
         listener: (canonicalId: string) => void,
@@ -818,8 +1296,8 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
       `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     let api = browser.lobotomyCorpEasterEgg!;
-    const cancelledWhiteNight = api.prepareDisplayName("T-03-46");
-    cancelledWhiteNight.cancel();
+    const cancelledTrumpet = api.prepareDisplayName("third trumpet");
+    cancelledTrumpet.dispose();
     assertEquals(AudioMock.items.length, 1);
     assertEquals(AudioMock.items[0].pauseCount, 1);
     assertEquals(api.getDangerScore(), 0);
@@ -864,6 +1342,114 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
     assertEquals(browser.lobotomyCorpEasterEgg!.getDangerScore(), 0);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-alert"), null);
+  } finally {
+    for (const [name, descriptor] of Object.entries(original)) {
+      if (descriptor) Object.defineProperty(browser, name, descriptor);
+      else delete (browser as Record<string, unknown>)[name];
+    }
+    delete browser.lobotomyCorpEasterEgg;
+  }
+});
+
+Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", async () => {
+  class StorageMock {
+    values = new Map<string, string>();
+    /** @param {string} key 键。 @return {string|null} 值。 */ getItem(
+      key: string,
+    ): string | null {
+      return this.values.get(key) ?? null;
+    }
+    /** @param {string} key 键。 @param {string} value 值。 */ setItem(
+      key: string,
+      value: string,
+    ): void {
+      this.values.set(key, value);
+    }
+    /** @param {string} key 键。 */ removeItem(key: string): void {
+      this.values.delete(key);
+    }
+  }
+  const browser = globalThis as typeof globalThis & {
+    document?: unknown;
+    localStorage?: unknown;
+    performance?: unknown;
+    sessionStorage?: unknown;
+    lobotomyCorpEasterEgg?: {
+      getDangerScore: () => number;
+      handleAbnormalitySubmitted: (value: string) => Promise<boolean>;
+      restartDay: () => Promise<boolean>;
+    };
+  };
+  const original = Object.fromEntries(
+    ["document", "localStorage", "performance", "sessionStorage"].map((
+      name,
+    ) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
+  );
+  const storage = new StorageMock();
+  const pollingValue = { value: "5" };
+  const localeData = Deno.readTextFileSync(
+    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+  );
+  const abnormalitiesData = Deno.readTextFileSync(
+    new URL(
+      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      import.meta.url,
+    ),
+  );
+  Object.defineProperties(browser, {
+    document: {
+      configurable: true,
+      value: {
+        documentElement: { lang: "zh-CN" },
+        getElementById: (id: string) =>
+          id === "lobotomy-corp-locale-data"
+            ? { textContent: localeData }
+            : id === "lobotomy-corp-abnormalities-data"
+            ? { textContent: abnormalitiesData }
+            : null,
+        querySelector: (selector: string) =>
+          selector === "[data-polling-interval-value]"
+            ? pollingValue
+            : undefined,
+      },
+    },
+    localStorage: { configurable: true, value: storage },
+    performance: {
+      configurable: true,
+      value: { getEntriesByType: () => [{ type: "navigate" }] },
+    },
+    sessionStorage: { configurable: true, value: storage },
+  });
+  try {
+    await import(
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+    );
+    let api = browser.lobotomyCorpEasterEgg!;
+    await api.handleAbnormalitySubmitted("D-01-106");
+    await api.handleAbnormalitySubmitted("T-01-54");
+    assertEquals(api.getDangerScore(), 5);
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-day")?.includes(
+        '"departmentCount":5',
+      ),
+      true,
+    );
+    pollingValue.value = "1";
+    await import(
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+    );
+    api = browser.lobotomyCorpEasterEgg!;
+    await api.handleAbnormalitySubmitted("F-01-02");
+    assertEquals(api.getDangerScore(), 9);
+    await api.restartDay();
+    await api.handleAbnormalitySubmitted("D-01-106");
+    assertEquals(api.getDangerScore(), 5);
+    assertEquals(
+      storage.getItem("warmnest.lobotomy-corp-day")?.includes(
+        '"departmentCount":1',
+      ),
+      true,
+    );
   } finally {
     for (const [name, descriptor] of Object.entries(original)) {
       if (descriptor) Object.defineProperty(browser, name, descriptor);

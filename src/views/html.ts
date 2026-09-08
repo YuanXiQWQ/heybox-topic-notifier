@@ -119,6 +119,22 @@ function renderLobotomyCorpAbnormalitiesData(): string {
 }
 
 /**
+ * 渲染当前已登录账户的显示名称，供异想体身份装饰在任意页面重新派生。
+ *
+ * @param {Pick<UserAccount, "displayName" | "username">|undefined} account 当前账户。
+ * @return {string} 安全内联的账户身份资料；匿名页面为空。
+ */
+function renderLobotomyCorpAccountIdentityData(
+  account: Pick<UserAccount, "displayName" | "username"> | undefined,
+): string {
+  return account
+    ? renderEasterEggJsonData("lobotomy-corp-account-identity-data", {
+      displayName: account.displayName ?? account.username,
+    })
+    : "";
+}
+
+/**
  * 渲染设置页所需的《逆转裁判》角色资料和当前语言文本。
  *
  * @param {Locale} locale 当前网页 locale。
@@ -171,13 +187,14 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-abnormality-day-final">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-day-snapshot">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
     ${renderLobotomyCorpAbnormalitiesData()}
-    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260908-abnormality-day-final" defer></script>
+    ${renderLobotomyCorpAccountIdentityData(options.account)}
+    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260908-smooth-canvas" defer></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
@@ -297,7 +314,7 @@ export function renderAvatar(
 ): string {
   const name = account.displayName ?? account.username;
   const alt = messages.accountAvatarAlt.replace("{name}", name);
-  return `<span class="account-avatar-risk-wrapper"><span class="account-avatar"><img class="account-avatar-default" src="${
+  return `<span class="account-avatar-risk-wrapper" data-lobotomy-corp-risk-host="nav"><span class="account-avatar"><img class="account-avatar-default" src="${
     defaultAvatarUrl(account.id)
   }" alt="${
     escapeHtml(alt)

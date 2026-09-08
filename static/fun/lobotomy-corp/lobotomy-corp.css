@@ -22,16 +22,21 @@
 
 .account-avatar-risk-wrapper .lobotomy-corp-risk-badge {
   height: auto;
-  left: -12%;
-  max-height: 38%;
-  max-width: 38%;
+  left: -18%;
   object-fit: contain;
   pointer-events: none;
   position: absolute;
-  top: -12%;
-  transform: rotate(-12deg);
-  width: auto;
+  top: -16%;
+  transform: rotate(-8deg);
   z-index: 3;
+}
+
+[data-lobotomy-corp-risk-host="nav"] .lobotomy-corp-risk-badge {
+  width: 32px;
+}
+
+[data-lobotomy-corp-risk-host="settings"] .lobotomy-corp-risk-badge {
+  width: 62px;
 }
 
 @font-face {

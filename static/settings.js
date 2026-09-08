@@ -1470,6 +1470,53 @@ function initPollingSettings() {
 }
 
 /**
+ * 在同步用户手势中准备媒体，并仅在账户保存获服务端确认后提交脑叶公司副作用。
+ *
+ * @param {{activate: (value: string) => Promise<boolean>, commitDisplayName?: (value: string) => Promise<boolean>}} easterEgg 当前命中的彩蛋。
+ * @param {HTMLFormElement} form 账户保存表单。
+ * @param {"displayName"|"username"} mode 当前账户编辑模式。
+ * @param {string} displayName 待保存的显示名称。
+ * @return {Promise<{responseUrl: URL, saved: boolean}>} 服务端确认结果与最终响应地址。
+ */
+async function submitLobotomyCorpAccountSaveTransaction(
+  easterEgg,
+  form,
+  mode,
+  displayName,
+) {
+  // 必须仍在 submit 的同步用户手势中准备媒体；业务副作用继续等服务器确认后才提交。
+  const preparedMedia = mode === "displayName"
+    ? globalThis.lobotomyCorpEasterEgg?.prepareDisplayName?.(displayName)
+    : undefined;
+  try {
+    const response = await fetch(form.action, {
+      body: formDataFromForm(form),
+      headers: csrfRequestHeaders(),
+      method: form.method || "post",
+    });
+    const responseUrl = new URL(response.url, globalThis.location.href);
+    const saved = response.ok &&
+      responseUrl.pathname === "/settings" &&
+      responseUrl.searchParams.get("account") === "updated";
+    if (!saved) {
+      preparedMedia?.dispose?.();
+      return { responseUrl, saved: false };
+    }
+
+    if (mode === "displayName") {
+      // 只有服务器确认保存成功后，异想体才会提交并产生 Day / Danger Score 副作用。
+      void (preparedMedia?.commit?.() ??
+        easterEgg.commitDisplayName?.(displayName) ??
+        easterEgg.activate(displayName));
+    }
+    return { responseUrl, saved: true };
+  } catch (error) {
+    preparedMedia?.dispose?.();
+    throw error;
+  }
+}
+
+/**
  * 初始化账户设置编辑流程。
  */
 function initAccountSettings() {
@@ -1772,25 +1819,15 @@ function initAccountSettings() {
 
     form.dataset.lobotomyCorpAlertSaving = "true";
     saveButton.disabled = true;
-    // 必须仍在 submit 的同步用户手势中准备媒体；业务副作用继续等服务器确认后才提交。
-    const preparedMedia = mode === "displayName"
-      ? globalThis.lobotomyCorpEasterEgg?.prepareDisplayName?.(
-        displayNameInput.value,
-      )
-      : undefined;
-
     try {
-      const response = await fetch(form.action, {
-        body: formDataFromForm(form),
-        headers: csrfRequestHeaders(),
-        method: form.method || "post",
-      });
-      const responseUrl = new URL(response.url, globalThis.location.href);
-      const saved = response.ok &&
-        responseUrl.pathname === "/settings" &&
-        responseUrl.searchParams.get("account") === "updated";
+      const { responseUrl, saved } =
+        await submitLobotomyCorpAccountSaveTransaction(
+          easterEgg,
+          form,
+          mode,
+          displayNameInput.value,
+        );
       if (!saved) {
-        preparedMedia?.cancel?.();
         globalThis.location.assign(responseUrl.href);
         return;
       }
@@ -1800,10 +1837,6 @@ function initAccountSettings() {
       } else if (mode === "displayName") {
         displayNameInput.dataset.accountDisplayNameOriginal =
           displayNameInput.value;
-        // 只有服务器确认保存成功后，异想体才会提交并产生 Day / Danger Score 副作用。
-        void (preparedMedia?.commit?.() ??
-          easterEgg.commitDisplayName?.(displayNameInput.value) ??
-          easterEgg.activate(displayNameInput.value));
       }
       resetAccountEditor();
       globalThis.history.replaceState(
@@ -1818,7 +1851,6 @@ function initAccountSettings() {
         true,
       );
     } catch {
-      preparedMedia?.cancel?.();
       setInlineStatus(actionStatus, "", "error");
       saveButton.disabled = false;
     } finally {

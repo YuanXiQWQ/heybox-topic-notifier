@@ -275,7 +275,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
-    <script src="/static/settings.js?v=20260908-abnormality-day-final" defer></script>
+    <script src="/static/settings.js?v=20260908-portrait-canvas" defer></script>
   `;
 
   return renderLayout({
@@ -573,7 +573,7 @@ function renderAccountSection(
             <button class="account-avatar-preview-button" type="button" data-avatar-preview aria-label="${
     escapeHtml(messages.accountAvatar)
   }">
-              <span class="account-avatar-risk-wrapper"><span class="account-avatar account-avatar-preview"><img class="account-avatar-default" src="${
+              <span class="account-avatar-risk-wrapper" data-lobotomy-corp-risk-host="settings"><span class="account-avatar account-avatar-preview"><img class="account-avatar-default" src="${
     defaultAvatarUrl(account?.id)
   }" alt="${
     escapeHtml(messages.accountAvatar)

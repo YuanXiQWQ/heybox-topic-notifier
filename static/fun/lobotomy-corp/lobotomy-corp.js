@@ -63,6 +63,21 @@ const lobotomyCorpAlertText = "ALERT ".repeat(85);
 const lobotomyCorpReferenceCanvasWidth = 1920;
 
 /**
+ * Unity CanvasScaler 的参考画布高度。
+ */
+const lobotomyCorpReferenceCanvasHeight = 1080;
+
+/**
+ * 竖屏 CanvasScaler 开始平滑过渡回 Match Width 的 viewport 宽度。
+ */
+const lobotomyCorpPortraitCanvasBlendStart = 640;
+
+/**
+ * 竖屏 CanvasScaler 完成平滑过渡并恢复 Match Width 的 viewport 宽度。
+ */
+const lobotomyCorpPortraitCanvasBlendEnd = 960;
+
+/**
  * Unity Corner RectTransform 的未缩放尺寸。
  */
 const lobotomyCorpCornerSize = 446;
@@ -252,6 +267,9 @@ let lobotomyCorpDangerScore = 0;
 /** 当前 Day 已贡献危急值的 canonical 异想体编号。 */
 let lobotomyCorpBreachedAbnormalitiesThisDay = new Set();
 
+/** 当前 Day 为普通异想体贡献快照的部门数；手动警报 Day 可暂未初始化。 */
+let lobotomyCorpDayDepartmentCount;
+
 /** 风险等级对应的默认出逃危急值。 */
 const lobotomyCorpDangerByRiskLevel = Object.freeze({
   ALEPH: 75,
@@ -260,9 +278,6 @@ const lobotomyCorpDangerByRiskLevel = Object.freeze({
   WAW: 60,
   ZAYIN: 5,
 });
-
-/** 构筑部开放后的满设施 Emergency Level 计算单位数。 */
-const lobotomyCorpFullDepartmentCount = 11;
 
 /** 已注册的 canonical 异想体提交观察者。 */
 const lobotomyCorpAbnormalitySubmissionListeners = new Set();
@@ -445,6 +460,9 @@ function persistLobotomyCorpDay() {
   }
   const serialized = JSON.stringify({
     countedAbnormalityIds: [...lobotomyCorpBreachedAbnormalitiesThisDay],
+    ...(lobotomyCorpDayDepartmentCount === undefined
+      ? {}
+      : { departmentCount: lobotomyCorpDayDepartmentCount }),
     dangerScore: lobotomyCorpDangerScore,
   });
   lobotomyCorpAlertStorages().forEach((storage) =>
@@ -475,15 +493,20 @@ function restorePersistedLobotomyCorpDay() {
     const saved = JSON.parse(serialized);
     const score = saved?.dangerScore;
     const ids = saved?.countedAbnormalityIds;
+    const departmentCount = saved?.departmentCount;
     if (
       typeof score !== "number" || !Number.isFinite(score) || score <= 0 ||
       score > 100 ||
-      !Array.isArray(ids) || !ids.every((id) => typeof id === "string")
+      !Array.isArray(ids) || !ids.every((id) => typeof id === "string") ||
+      (departmentCount !== undefined &&
+        (!Number.isInteger(departmentCount) || departmentCount < 1 ||
+          departmentCount > 11))
     ) {
       throw new Error("Invalid Lobotomy Corporation Day state.");
     }
     lobotomyCorpDangerScore = score;
     lobotomyCorpBreachedAbnormalitiesThisDay = new Set(ids);
+    lobotomyCorpDayDepartmentCount = departmentCount;
   } catch {
     clearPersistedLobotomyCorpDay();
   }
@@ -495,6 +518,7 @@ function restorePersistedLobotomyCorpDay() {
 function clearLobotomyCorpDay() {
   lobotomyCorpDangerScore = 0;
   lobotomyCorpBreachedAbnormalitiesThisDay.clear();
+  lobotomyCorpDayDepartmentCount = undefined;
   clearPersistedLobotomyCorpDay();
 }
 
@@ -590,15 +614,16 @@ function matchesLobotomyCorpAlert(value) {
  * 播放脑叶公司警报，并在音频结束或用户关闭后清理警报界面。
  *
  * @param {string} value 待匹配的用户名或显示名称。
- * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
+ * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
  * @return {Promise<boolean>} 警报结束时返回 true；未匹配警报时立即返回 true。
  */
-function activateLobotomyCorpAlert(value, preparedAudio) {
+function activateLobotomyCorpAlert(value, preparedMedia) {
   const alert = matchingLobotomyCorpAlert(value);
   if (!alert) {
+    preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
-  return startLobotomyCorpAlert(alert, Date.now(), 0, undefined, preparedAudio);
+  return startLobotomyCorpAlert(alert, Date.now(), 0, undefined, preparedMedia);
 }
 
 /**
@@ -607,7 +632,7 @@ function activateLobotomyCorpAlert(value, preparedAudio) {
  * 此阶段只触碰 Audio，绝不建立 Day、HUD 或持久化业务状态。
  *
  * @param {string} value 待保存的显示名称。
- * @return {{cancel: () => void, commit: () => Promise<boolean>}} 可取消或提交的媒体句柄。
+ * @return {{commit: () => Promise<boolean>, dispose: () => void}} 可提交或释放的媒体句柄。
  */
 function prepareLobotomyCorpDisplayName(value) {
   const abnormalityMatch = matchingLobotomyCorpAbnormality(value);
@@ -620,22 +645,27 @@ function prepareLobotomyCorpDisplayName(value) {
         Math.min(
           100,
           lobotomyCorpDangerScore +
-            lobotomyCorpDangerContribution(abnormalityMatch.abnormality),
+            lobotomyCorpDangerContribution(
+              abnormalityMatch.abnormality,
+              lobotomyCorpDayDepartmentCount ??
+                lobotomyCorpDepartmentCountFromPolling(),
+            ),
         ),
       )
       : undefined);
   let audio;
-  let cancelled = false;
+  let state = "prepared";
   if (alert && typeof globalThis.Audio === "function") {
     audio = new Audio(
       `${lobotomyCorpAssetRoot}/AudioClip/${alert.soundFile}`,
     );
     audio.hidden = true;
+    audio.muted = true;
     audio.preload = "auto";
     audio.setAttribute("aria-hidden", "true");
     // 该调用仍在 submit click 的同步栈中，保留 Chromium 的 transient activation。
     void audio.play().then(() => {
-      if (!cancelled) {
+      if (state === "prepared") {
         audio.pause();
         audio.currentTime = 0;
       }
@@ -643,18 +673,37 @@ function prepareLobotomyCorpDisplayName(value) {
       // 某些浏览器不允许预播放；提交后仍会按既有路径尝试播放。
     });
   }
-  return Object.freeze({
-    cancel: () => {
-      cancelled = true;
+  const preparedMedia = Object.freeze({
+    /**
+     * 仅在已提交且音频目标匹配时，将媒体所有权转交给正式警报。
+     *
+     * @param {string} soundFile 正式警报当前需要的音频文件。
+     * @return {HTMLAudioElement|undefined} 可采用的音频。
+     */
+    consume: (soundFile) => {
+      if (
+        state !== "committed" || audio?.src?.endsWith(`/${soundFile}`) !== true
+      ) {
+        return undefined;
+      }
+      state = "adopted";
+      audio.muted = false;
+      return audio;
+    },
+    dispose: () => {
+      if (state === "adopted" || state === "disposed") return;
+      state = "disposed";
       audio?.pause();
       audio?.removeAttribute?.("src");
       audio?.load?.();
     },
     commit: () => {
-      if (cancelled) return Promise.resolve(true);
-      return commitLobotomyCorpDisplayName(value, audio);
+      if (state !== "prepared") return Promise.resolve(true);
+      state = "committed";
+      return commitLobotomyCorpDisplayName(value, preparedMedia);
     },
   });
+  return preparedMedia;
 }
 
 /**
@@ -708,10 +757,10 @@ function stopLobotomyCorpAlert() {
  * 设置脑叶公司彩蛋危急值，并激活其所在区间对应的警报。
  *
  * @param {number} dangerScore 新的 0 到 100 有限危急值。
- * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
+ * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
  * @return {Promise<boolean>} 对应警报结束或无警报状态生效后返回 true。
  */
-function setLobotomyCorpDangerScore(dangerScore, preparedAudio) {
+function setLobotomyCorpDangerScore(dangerScore, preparedMedia) {
   if (
     typeof dangerScore !== "number" || !Number.isFinite(dangerScore) ||
     dangerScore < 0 || dangerScore > 100
@@ -735,9 +784,10 @@ function setLobotomyCorpDangerScore(dangerScore, preparedAudio) {
       Date.now(),
       0,
       undefined,
-      preparedAudio,
+      preparedMedia,
     );
   }
+  preparedMedia?.dispose?.();
   if (dangerScore === 0) {
     return stopLobotomyCorpAlert();
   }
@@ -747,16 +797,16 @@ function setLobotomyCorpDangerScore(dangerScore, preparedAudio) {
 }
 
 /**
- * 根据已保存的显示名称同步设置页的派生异想体身份 UI。
+ * 根据已保存的显示名称同步所有头像宿主的派生异想体身份 UI。
  *
  * @param {string} displayName 已保存的显示名称。
  */
 function syncLobotomyCorpAbnormalityIdentity(displayName) {
   const document = globalThis.document;
   const label = document?.querySelector?.("[data-account-display-name-label]");
-  const avatarWrapper = document?.querySelector?.(
-    ".account-avatar-risk-wrapper",
-  );
+  const avatarWrappers = [
+    ...(document?.querySelectorAll?.("[data-lobotomy-corp-risk-host]") ?? []),
+  ];
   const match = matchingLobotomyCorpAbnormality(displayName);
   if (label) {
     if (label.dataset.lobotomyCorpDefaultLabel === undefined) {
@@ -766,19 +816,19 @@ function syncLobotomyCorpAbnormalityIdentity(displayName) {
       ? lobotomyCorpAbnormalityName(match.abnormality)
       : label.dataset.lobotomyCorpDefaultLabel;
   }
-  const badge = avatarWrapper?.querySelector?.(".lobotomy-corp-risk-badge");
-  badge?.remove?.();
   const riskFile = match && lobotomyCorpRiskSpriteByLevel[
     match.abnormality.riskLevel
   ];
-  if (avatarWrapper && riskFile && document?.createElement) {
+  avatarWrappers.forEach((avatarWrapper) => {
+    avatarWrapper.querySelector?.(".lobotomy-corp-risk-badge")?.remove?.();
+    if (!riskFile || !document?.createElement) return;
     const riskBadge = document.createElement("img");
     riskBadge.alt = "";
     riskBadge.className = "lobotomy-corp-risk-badge";
     riskBadge.setAttribute("aria-hidden", "true");
     riskBadge.src = `${lobotomyCorpSpriteRoot}/${riskFile}`;
     avatarWrapper.append(riskBadge);
-  }
+  });
 }
 
 /**
@@ -803,17 +853,42 @@ function notifyLobotomyCorpAbnormalitySubmitted(
 }
 
 /**
+ * 将轮询数值部分映射为本 Day 可用的部门数；单位与轮询开关不参与映射。
+ *
+ * @return {number} 1 到 11 的稳定整数部门数。
+ */
+function lobotomyCorpDepartmentCountFromPolling() {
+  const value = Number(
+    globalThis.document?.querySelector?.("[data-polling-interval-value]")
+      ?.value,
+  );
+  if (!Number.isFinite(value) || value <= 0) return 11;
+  return Math.min(11, Math.max(1, Math.trunc(value)));
+}
+
+/**
+ * 获取当前 Day 的普通异想体部门数；首次贡献时才固定快照。
+ *
+ * @return {number} 当前 Day 的部门数。
+ */
+function lobotomyCorpDepartmentCountForDay() {
+  if (lobotomyCorpDayDepartmentCount === undefined) {
+    lobotomyCorpDayDepartmentCount = lobotomyCorpDepartmentCountFromPolling();
+    persistLobotomyCorpDay();
+  }
+  return lobotomyCorpDayDepartmentCount;
+}
+
+/**
  * 计算一次普通异想体出逃对 Danger Score 的最终贡献。
  *
  * @param {object} abnormality 异想体静态资料。
- * @return {number} 最终贡献；特殊覆盖值不参与部门分摊。
+ * @param {number} departmentCount 当前 Day 已快照的部门数。
+ * @return {number} 最终贡献。
  */
-function lobotomyCorpDangerContribution(abnormality) {
-  if (typeof abnormality.dangerOnBreachOverride === "number") {
-    return abnormality.dangerOnBreachOverride;
-  }
+function lobotomyCorpDangerContribution(abnormality, departmentCount) {
   return (lobotomyCorpDangerByRiskLevel[abnormality.riskLevel] ?? 0) /
-    lobotomyCorpFullDepartmentCount;
+    departmentCount;
 }
 
 /**
@@ -822,29 +897,38 @@ function lobotomyCorpDangerContribution(abnormality) {
  * 该入口刻意将身份识别与危急值贡献分层，后续特殊事件可订阅此处而不依赖 canBreach。
  *
  * @param {string} value 服务器已保存成功的显示名称。
- * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
+ * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
  * @return {Promise<boolean>} 危急值更新后的警报生命周期 Promise。
  */
-function handleLobotomyCorpAbnormalitySubmitted(value, preparedAudio) {
+function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
   const match = matchingLobotomyCorpAbnormality(value);
   if (!match) {
+    preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
   notifyLobotomyCorpAbnormalitySubmitted(match.canonicalId, match.abnormality, {
     displayName: value,
   });
-  if (!match.abnormality.canBreach) return Promise.resolve(true);
-  if (lobotomyCorpBreachedAbnormalitiesThisDay.has(match.canonicalId)) {
+  if (!match.abnormality.canBreach) {
+    preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
-  const contribution = lobotomyCorpDangerContribution(match.abnormality);
+  if (lobotomyCorpBreachedAbnormalitiesThisDay.has(match.canonicalId)) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
+  const contribution = lobotomyCorpDangerContribution(
+    match.abnormality,
+    lobotomyCorpDepartmentCountForDay(),
+  );
   if (contribution <= 0) {
+    preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
   lobotomyCorpBreachedAbnormalitiesThisDay.add(match.canonicalId);
   return setLobotomyCorpDangerScore(
     Math.min(100, lobotomyCorpDangerScore + contribution),
-    preparedAudio,
+    preparedMedia,
   );
 }
 
@@ -852,14 +936,14 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedAudio) {
  * 在账户保存成功后提交异想体或维持旧手动 Trumpet 行为。
  *
  * @param {string} value 服务器确认保存的显示名称。
- * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
+ * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
  * @return {Promise<boolean>} 对应彩蛋生命周期 Promise。
  */
-function commitLobotomyCorpDisplayName(value, preparedAudio) {
+function commitLobotomyCorpDisplayName(value, preparedMedia) {
   syncLobotomyCorpAbnormalityIdentity(value);
   return matchingLobotomyCorpAbnormality(value)
-    ? handleLobotomyCorpAbnormalitySubmitted(value, preparedAudio)
-    : activateLobotomyCorpAlert(value, preparedAudio);
+    ? handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia)
+    : activateLobotomyCorpAlert(value, preparedMedia);
 }
 
 /**
@@ -1108,18 +1192,87 @@ function lobotomyCorpRestartButtonSource(state) {
 }
 
 /**
- * 为 Unity 风格 HUD 与顶部面板写入 CanvasScaler 的 Match Width 缩放比例。
+ * 计算指定 viewport 对应的 Unity CanvasScaler 缩放比例。
  *
+ * 桌面和横屏维持原版 Match Width；竖屏会在手机的宽、高混合比例与宽屏的
+ * Match Width 之间平滑过渡，避免临界宽度发生尺寸跳变。
+ *
+ * @param {number} viewportWidth 当前可见 viewport 宽度。
+ * @param {number} viewportHeight 当前可见 viewport 高度。
+ * @return {number} 有限且大于零的 Canvas 缩放比例。
+ */
+function lobotomyCorpCanvasScaleForViewport(viewportWidth, viewportHeight) {
+  const widthScale = viewportWidth / lobotomyCorpReferenceCanvasWidth;
+  const heightScale = viewportHeight / lobotomyCorpReferenceCanvasHeight;
+  const portraitScale = Math.sqrt(widthScale * heightScale);
+  const portraitBlendProgress = Math.min(
+    1,
+    Math.max(
+      0,
+      (viewportWidth - lobotomyCorpPortraitCanvasBlendStart) /
+        (lobotomyCorpPortraitCanvasBlendEnd -
+          lobotomyCorpPortraitCanvasBlendStart),
+    ),
+  );
+  const smoothProgress = portraitBlendProgress * portraitBlendProgress *
+    (3 - 2 * portraitBlendProgress);
+  const portraitCanvasScale = portraitScale +
+    (widthScale - portraitScale) * smoothProgress;
+  const canvasScale = viewportHeight > viewportWidth
+    ? portraitCanvasScale
+    : widthScale;
+  return Number.isFinite(canvasScale) && canvasScale > 0 ? canvasScale : 1;
+}
+
+/**
+ * 读取当前实际可见 viewport 的宽高，并在不支持 VisualViewport 时回退。
+ *
+ * @return {{height: number, width: number}} 可用于 CanvasScaler 的 viewport 尺寸。
+ */
+function lobotomyCorpViewportSize() {
+  const visualViewport = globalThis.visualViewport;
+  const documentElement = globalThis.document?.documentElement;
+  return {
+    height: visualViewport?.height || globalThis.innerHeight ||
+      documentElement?.clientHeight || lobotomyCorpReferenceCanvasHeight,
+    width: visualViewport?.width || globalThis.innerWidth ||
+      documentElement?.clientWidth || lobotomyCorpReferenceCanvasWidth,
+  };
+}
+
+/**
+ * 选择本次 HUD 应采用的稳定 viewport。
+ *
+ * 仅浏览器 chrome 导致的高度变化会保留上次尺寸，防止警报随地址栏伸缩；宽度
+ * 或横竖屏方向变化则立即采用新 viewport。
+ *
+ * @param {{height: number, width: number}|undefined} previousViewport 上次已应用的稳定 viewport。
+ * @param {{height: number, width: number}} nextViewport 本次读到的可见 viewport。
+ * @return {{height: number, width: number}} 应用于 CanvasScaler 的稳定 viewport。
+ */
+function lobotomyCorpCanvasViewportForUpdate(previousViewport, nextViewport) {
+  if (!previousViewport) return nextViewport;
+  const orientationChanged =
+    (previousViewport.height > previousViewport.width) !==
+      (nextViewport.height > nextViewport.width);
+  return previousViewport.width !== nextViewport.width || orientationChanged
+    ? nextViewport
+    : previousViewport;
+}
+
+/**
+ * 为 Unity 风格 HUD 与顶部面板写入 CanvasScaler 缩放比例。
+ *
+ * @param {{height: number, width: number}} viewport 用于本次缩放的稳定 viewport。
  * @param {...Element|undefined} unityRoots 需要同步缩放的 Unity 风格视觉根节点。
  */
-function updateLobotomyCorpCanvasScale(...unityRoots) {
-  const viewportWidth = globalThis.innerWidth ||
-    globalThis.document?.documentElement?.clientWidth ||
-    lobotomyCorpReferenceCanvasWidth;
+function updateLobotomyCorpCanvasScale(viewport, ...unityRoots) {
+  const { height, width } = viewport;
+  const canvasScale = lobotomyCorpCanvasScaleForViewport(width, height);
   unityRoots.forEach((unityRoot) => {
     unityRoot?.style?.setProperty?.(
       "--lobotomy-corp-unity-canvas-scale",
-      String(viewportWidth / lobotomyCorpReferenceCanvasWidth),
+      String(canvasScale),
     );
   });
 }
@@ -1282,7 +1435,7 @@ function lobotomyCorpTopPanelActionText(visualAlert) {
  * @param {number} startedAt 警报最初开始的时间戳。
  * @param {number} resumeAt 恢复播放的音频进度（秒）。
  * @param {{assetDirectory: string, level: number, soundFile: string}} [restoredMusicAlert] 恢复时的逻辑音乐配置。
- * @param {HTMLAudioElement} [preparedAudio] 在用户手势中预先准备的音频。
+ * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
  * @return {Promise<boolean>} 当前视觉 activation 被替换或整个会话结束时返回 true。
  */
 function startLobotomyCorpAlert(
@@ -1290,14 +1443,15 @@ function startLobotomyCorpAlert(
   startedAt,
   resumeAt,
   restoredMusicAlert,
-  preparedAudio,
+  preparedMedia,
 ) {
   if (activeLobotomyCorpAlert) {
-    return activeLobotomyCorpAlert.replaceVisual(alert, preparedAudio);
+    return activeLobotomyCorpAlert.replaceVisual(alert, preparedMedia);
   }
   const musicAlert = restoredMusicAlert ?? alert;
   let fallbackPosition = Math.max(0, resumeAt);
-  let audio = preparedAudio;
+  let audio = preparedMedia?.consume?.(musicAlert.soundFile);
+  if (!audio) preparedMedia?.dispose?.();
   let emergencyController;
   let endAlertButton;
   let endAlertButtonText;
@@ -1306,6 +1460,8 @@ function startLobotomyCorpAlert(
   let panelDisappearTimer;
   let topPanel;
   let topPanelActiveController;
+  let stableCanvasViewport;
+  const visualViewport = globalThis.visualViewport;
   let closing = false;
   let finished = false;
   let currentActivation;
@@ -1394,7 +1550,14 @@ function startLobotomyCorpAlert(
       endAlertButton.disabled = true;
     }
     globalThis.removeEventListener?.("pagehide", persistPlaybackPosition);
-    globalThis.removeEventListener?.("resize", updateCanvasScale);
+    globalThis.removeEventListener?.(
+      "resize",
+      updateCanvasScaleFromViewport,
+    );
+    visualViewport?.removeEventListener?.(
+      "resize",
+      updateCanvasScaleFromViewport,
+    );
     clearPersistedLobotomyCorpAlert();
     clearLobotomyCorpDay();
     if (activeLobotomyCorpAlert === alertContext) {
@@ -1454,15 +1617,34 @@ function startLobotomyCorpAlert(
   }
 
   /**
-   * 根据窗口宽度重算 Unity CanvasScaler 的 Match Width 比例。
+   * 根据稳定 viewport 重算 Unity CanvasScaler 比例。
+   *
+   * @param {boolean} [force] 新建或替换 HUD 根节点时强制写入当前稳定比例。
    */
-  function updateCanvasScale() {
+  function updateCanvasScale(force = false) {
     if (overlay) {
-      updateLobotomyCorpCanvasScale(
-        emergencyController,
-        topPanel,
+      const nextViewport = lobotomyCorpViewportSize();
+      const nextStableViewport = lobotomyCorpCanvasViewportForUpdate(
+        stableCanvasViewport,
+        nextViewport,
       );
+      const viewportChanged = nextStableViewport !== stableCanvasViewport;
+      stableCanvasViewport = nextStableViewport;
+      if (force || viewportChanged) {
+        updateLobotomyCorpCanvasScale(
+          stableCanvasViewport,
+          emergencyController,
+          topPanel,
+        );
+      }
     }
+  }
+
+  /**
+   * 响应窗口或 VisualViewport 尺寸变化，并过滤仅浏览器 chrome 导致的高度波动。
+   */
+  function updateCanvasScaleFromViewport() {
+    updateCanvasScale();
   }
 
   /**
@@ -1600,13 +1782,22 @@ function startLobotomyCorpAlert(
     audio.addEventListener("ended", finishAlertFromAudioEnd);
     audio.addEventListener("error", finishAlertFromAudioError);
     audio.addEventListener("timeupdate", persistPlaybackPosition);
-    audio.addEventListener("loadedmetadata", scheduleNaturalAlertEnd, {
-      once: true,
-    });
-    if (fallbackPosition > 0) {
-      audio.addEventListener("loadedmetadata", playAlertAudio, { once: true });
-    } else {
+    const metadataReady = audio.readyState >= 1 ||
+      Number.isFinite(audio.duration);
+    if (metadataReady) {
+      scheduleNaturalAlertEnd();
       playAlertAudio();
+    } else {
+      audio.addEventListener("loadedmetadata", scheduleNaturalAlertEnd, {
+        once: true,
+      });
+      if (fallbackPosition > 0) {
+        audio.addEventListener("loadedmetadata", playAlertAudio, {
+          once: true,
+        });
+      } else {
+        playAlertAudio();
+      }
     }
   }
 
@@ -1667,8 +1858,15 @@ function startLobotomyCorpAlert(
       if (!audio) createAlertAudio();
       else if (!alertContext.audio) configureAlertAudio();
       overlay.append(audio);
-      updateLobotomyCorpCanvasScale(emergencyController, topPanel);
-      globalThis.addEventListener?.("resize", updateCanvasScale);
+      updateCanvasScale(true);
+      globalThis.addEventListener?.(
+        "resize",
+        updateCanvasScaleFromViewport,
+      );
+      visualViewport?.addEventListener?.(
+        "resize",
+        updateCanvasScaleFromViewport,
+      );
       const previousOverlay = overlay;
       document.body.append(previousOverlay);
       globalThis.addEventListener?.("pagehide", persistPlaybackPosition, {
@@ -1687,10 +1885,11 @@ function startLobotomyCorpAlert(
    * @param {object|undefined} nextAlert 新 HUD 配置；undefined 表示隐藏 HUD。
    * @return {Promise<boolean>} 新视觉 activation 的完成 Promise。
    */
-  function replaceVisual(nextAlert, nextPreparedAudio) {
+  function replaceVisual(nextAlert, nextPreparedMedia) {
     if (
       nextAlert?.assetDirectory === alertContext.visualAlert?.assetDirectory
     ) {
+      nextPreparedMedia?.dispose?.();
       return currentActivation.promise;
     }
     currentActivation.resolve(true);
@@ -1702,10 +1901,13 @@ function startLobotomyCorpAlert(
     if (nextAlert && nextAlert.level > alertContext.musicAlert.level) {
       alertContext.musicAlert = nextAlert;
       detachAudio(true);
-      audio = nextPreparedAudio;
+      audio = nextPreparedMedia?.consume?.(nextAlert.soundFile);
+      if (!audio) nextPreparedMedia?.dispose?.();
       alertContext.audio = undefined;
       alertContext.startedAt = Date.now();
       fallbackPosition = 0;
+    } else {
+      nextPreparedMedia?.dispose?.();
     }
     previousOverlay?.remove();
     persistPlaybackPosition();
@@ -1730,6 +1932,8 @@ function startLobotomyCorpAlert(
 
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
+  canvasScaleForViewport: lobotomyCorpCanvasScaleForViewport,
+  canvasViewportForUpdate: lobotomyCorpCanvasViewportForUpdate,
   commitDisplayName: commitLobotomyCorpDisplayName,
   getDangerScore: getLobotomyCorpDangerScore,
   handleAbnormalitySubmitted: handleLobotomyCorpAbnormalitySubmitted,
@@ -1768,9 +1972,29 @@ if (isLobotomyCorpAlertPageReload()) {
   }
 }
 
-const persistedDisplayName = globalThis.document?.querySelector?.(
-  "[data-account-display-name-input]",
-)?.dataset?.accountDisplayNameOriginal;
+/**
+ * 读取服务端渲染的账户显示名称，不依赖只存在于设置页的输入框。
+ *
+ * @return {string|undefined} 当前已保存显示名称。
+ */
+function persistedLobotomyCorpDisplayName() {
+  const serialized = globalThis.document?.getElementById?.(
+    "lobotomy-corp-account-identity-data",
+  )?.textContent;
+  if (serialized) {
+    try {
+      const displayName = JSON.parse(serialized)?.displayName;
+      return typeof displayName === "string" ? displayName : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return globalThis.document?.querySelector?.(
+    "[data-account-display-name-input]",
+  )?.dataset?.accountDisplayNameOriginal;
+}
+
+const persistedDisplayName = persistedLobotomyCorpDisplayName();
 if (persistedDisplayName !== undefined) {
   syncLobotomyCorpAbnormalityIdentity(persistedDisplayName);
 }

@@ -40,7 +40,7 @@
   },
   "D-01-105": {
     "riskLevel": "WAW",
-    "canBreach": true,
+    "canBreach": false,
     "names": {
       "en-US": "Il Pianto della Luna",
       "zh-CN": "月光女神",
@@ -54,7 +54,7 @@
     }
   },
   "D-01-106": {
-    "riskLevel": "ALEPH",
+    "riskLevel": "ZAYIN",
     "canBreach": true,
     "names": {
       "en-US": "Army in Black",
@@ -280,7 +280,7 @@
   },
   "F-02-70": {
     "riskLevel": "WAW",
-    "canBreach": true,
+    "canBreach": false,
     "names": {
       "en-US": "Dream of a Black Swan",
       "zh-CN": "黑天鹅之梦",
@@ -550,7 +550,7 @@
   },
   "O-02-63": {
     "riskLevel": "ALEPH",
-    "canBreach": true,
+    "canBreach": false,
     "names": {
       "en-US": "Apocalypse Bird",
       "zh-CN": "终末鸟",
@@ -1016,7 +1016,6 @@
   "T-03-46": {
     "riskLevel": "ALEPH",
     "canBreach": true,
-    "dangerOnBreachOverride": 98,
     "names": {
       "en-US": "WhiteNight",
       "zh-CN": "白夜",
@@ -1106,7 +1105,7 @@
   },
   "T-06-27": {
     "riskLevel": "TETH",
-    "canBreach": true,
+    "canBreach": false,
     "names": {
       "en-US": "1.76 MHz",
       "zh-CN": "1.76兆赫",
