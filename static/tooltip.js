@@ -45,10 +45,14 @@
     const preferredLeft = document.documentElement.dir === "rtl"
       ? targetRect.left
       : targetRect.right - tooltipRect.width;
-    const left = Math.min(Math.max(preferredLeft, viewportPadding), maximumLeft);
+    const left = Math.min(
+      Math.max(preferredLeft, viewportPadding),
+      maximumLeft,
+    );
     const belowTop = targetRect.bottom + tooltipGap;
     const aboveTop = targetRect.top - tooltipRect.height - tooltipGap;
-    const top = belowTop + tooltipRect.height <= globalThis.innerHeight - viewportPadding ||
+    const top = belowTop + tooltipRect.height <=
+          globalThis.innerHeight - viewportPadding ||
         aboveTop < viewportPadding
       ? belowTop
       : aboveTop;
@@ -79,6 +83,31 @@
     tooltip.hidden = true;
   }
 
+  /**
+   * 在上传头像加载成功后显示它，避免使用被 CSP 禁止的内联 onload 属性。
+   *
+   * @param {HTMLImageElement} image 需要在加载成功后显示的头像。
+   */
+  function revealImageAfterLoad(image) {
+    const reveal = () => {
+      image.hidden = false;
+    };
+    if (image.complete && image.naturalWidth > 0) {
+      reveal();
+      return;
+    }
+    image.addEventListener("load", reveal, { once: true });
+  }
+
+  /**
+   * 初始化需要在资源加载后显示的头像。
+   */
+  function initializeDeferredImages() {
+    document.querySelectorAll("img[data-reveal-on-load]").forEach((image) => {
+      if (image instanceof HTMLImageElement) revealImageAfterLoad(image);
+    });
+  }
+
   document.addEventListener("pointerover", (event) => {
     const target = findTooltipTarget(event.target);
     if (!target || target.contains(event.relatedTarget)) return;
@@ -87,7 +116,9 @@
 
   document.addEventListener("pointerout", (event) => {
     const target = findTooltipTarget(event.target);
-    if (!target || target !== activeTarget || target.contains(event.relatedTarget)) {
+    if (
+      !target || target !== activeTarget || target.contains(event.relatedTarget)
+    ) {
       return;
     }
     hideTooltip();
@@ -117,4 +148,5 @@
   globalThis.addEventListener("scroll", () => {
     if (activeTarget) positionTooltip(activeTarget);
   }, true);
+  initializeDeferredImages();
 })();

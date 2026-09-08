@@ -283,7 +283,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/ace-attorney/ace-attorney.js?v=20260906-easter-egg-structure`,
+    `/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=20260907-inline-data-v2`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/ace-attorney/ace-attorney.js?v=20260907-inline-data-v2`,
   );
   assertIncludes(
     html,
@@ -456,6 +460,18 @@ Deno.test("renderSettings keeps account password mode behind current password ve
   assertNotIncludes(html, `data-password-login-actions`);
   assertNotIncludes(html, `data-password-login-save-button`);
   assertNotIncludes(html, `data-account-verify-button`);
+});
+
+Deno.test("renderSettings separates avatar preview from the upload dropzone", () => {
+  const html = renderSettings({
+    csrfToken: testCsrfToken,
+    settings: settings(),
+  });
+
+  assertIncludes(html, "data-avatar-preview");
+  assertIncludes(html, "data-avatar-preview-dialog");
+  assertIncludes(html, "data-avatar-dropzone");
+  assertNotIncludes(html, "onload=");
 });
 
 Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => {

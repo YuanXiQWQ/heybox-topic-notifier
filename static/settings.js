@@ -160,13 +160,25 @@ function initAvatarUpload() {
   const confirm = form?.querySelector("[data-avatar-crop-confirm]");
   const cancel = form?.querySelector("[data-avatar-crop-cancel]");
   const status = form?.querySelector("[data-avatar-upload-status]");
-  if (!(form instanceof HTMLFormElement) || !(dropzone instanceof HTMLElement) ||
+  const previewButton = form?.querySelector("[data-avatar-preview]");
+  const previewDialog = form?.querySelector("[data-avatar-preview-dialog]");
+  const previewClose = form?.querySelector("[data-avatar-preview-close]");
+  const previewImage = form?.querySelector("[data-avatar-preview-image]");
+  if (
+    !(form instanceof HTMLFormElement) || !(dropzone instanceof HTMLElement) ||
     !(input instanceof HTMLInputElement) ||
     !(dialog instanceof HTMLDialogElement) || !(stage instanceof HTMLElement) ||
-    !(canvas instanceof HTMLCanvasElement) || !(zoom instanceof HTMLInputElement) ||
+    !(canvas instanceof HTMLCanvasElement) ||
+    !(zoom instanceof HTMLInputElement) ||
     !(zoomValue instanceof HTMLOutputElement) ||
-    !(confirm instanceof HTMLButtonElement) || !(cancel instanceof HTMLButtonElement) ||
-    !(status instanceof HTMLElement)) return;
+    !(confirm instanceof HTMLButtonElement) ||
+    !(cancel instanceof HTMLButtonElement) ||
+    !(status instanceof HTMLElement) ||
+    !(previewButton instanceof HTMLButtonElement) ||
+    !(previewDialog instanceof HTMLDialogElement) ||
+    !(previewClose instanceof HTMLButtonElement) ||
+    !(previewImage instanceof HTMLImageElement)
+  ) return;
 
   let image;
   let objectUrl = "";
@@ -211,7 +223,9 @@ function initAvatarUpload() {
     if (!image) return;
     const cropInset = size * 0.07;
     const cropSize = size - cropInset * 2;
-    const scale = Math.max(cropSize / image.naturalWidth, cropSize / image.naturalHeight) * Number(zoom.value);
+    const scale =
+      Math.max(cropSize / image.naturalWidth, cropSize / image.naturalHeight) *
+      Number(zoom.value);
     const width = image.naturalWidth * scale;
     const height = image.naturalHeight * scale;
     const limitX = Math.max(0, (width - cropSize) / 2);
@@ -220,7 +234,13 @@ function initAvatarUpload() {
     offsetY = Math.max(-limitY, Math.min(limitY, offsetY));
     const context = canvas.getContext("2d");
     context.clearRect(0, 0, size, size);
-    context.drawImage(image, (size - width) / 2 + offsetX, (size - height) / 2 + offsetY, width, height);
+    context.drawImage(
+      image,
+      (size - width) / 2 + offsetX,
+      (size - height) / 2 + offsetY,
+      width,
+      height,
+    );
   }
 
   /**
@@ -257,51 +277,120 @@ function initAvatarUpload() {
     image.src = objectUrl;
   }
 
-  dropzone.addEventListener("click", () => { status.hidden = true; });
-  dropzone.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); input.click(); } });
+  /**
+   * 打开当前头像的原始图片预览，上传头像不可用时回退为默认头像。
+   */
+  function showAvatarPreview() {
+    const uploadedAvatar = previewButton.querySelector(
+      ".account-avatar-uploaded",
+    );
+    const defaultAvatar = previewButton.querySelector(
+      ".account-avatar-default",
+    );
+    const source = uploadedAvatar instanceof HTMLImageElement &&
+        uploadedAvatar.complete && uploadedAvatar.naturalWidth > 0
+      ? uploadedAvatar.currentSrc
+      : defaultAvatar instanceof HTMLImageElement
+      ? defaultAvatar.currentSrc
+      : "";
+    if (!source) return;
+    previewImage.src = source;
+    previewDialog.showModal();
+  }
+
+  dropzone.addEventListener("click", () => {
+    status.hidden = true;
+  });
+  previewButton.addEventListener("click", showAvatarPreview);
+  previewClose.addEventListener("click", () => previewDialog.close());
+  previewDialog.addEventListener("click", (event) => {
+    if (event.target === previewDialog) previewDialog.close();
+  });
+  dropzone.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      input.click();
+    }
+  });
   input.addEventListener("change", () => selectFile(input.files?.[0]));
-  dropzone.addEventListener("dragover", (event) => { event.preventDefault(); dropzone.classList.add("is-dragover"); });
-  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-dragover"));
-  dropzone.addEventListener("drop", (event) => { event.preventDefault(); dropzone.classList.remove("is-dragover"); selectFile(event.dataTransfer?.files[0]); });
-  zoom.addEventListener("input", () => { updateZoomValue(); draw(); });
+  dropzone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    dropzone.classList.add("is-dragover");
+  });
+  dropzone.addEventListener(
+    "dragleave",
+    () => dropzone.classList.remove("is-dragover"),
+  );
+  dropzone.addEventListener("drop", (event) => {
+    event.preventDefault();
+    dropzone.classList.remove("is-dragover");
+    selectFile(event.dataTransfer?.files[0]);
+  });
+  zoom.addEventListener("input", () => {
+    updateZoomValue();
+    draw();
+  });
   dialog.addEventListener("wheel", (event) => {
     event.preventDefault();
     changeZoom(event.deltaY < 0 ? 0.1 : -0.1);
   }, { passive: false });
-  stage.addEventListener("pointerdown", (event) => { dragging = true; lastX = event.clientX; lastY = event.clientY; stage.setPointerCapture(event.pointerId); });
-  stage.addEventListener("pointermove", (event) => { if (!dragging) return; offsetX += event.clientX - lastX; offsetY += event.clientY - lastY; lastX = event.clientX; lastY = event.clientY; draw(); });
-  stage.addEventListener("pointerup", () => { dragging = false; });
-  cancel.addEventListener("click", () => { dialog.close(); URL.revokeObjectURL(objectUrl); });
+  stage.addEventListener("pointerdown", (event) => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    stage.setPointerCapture(event.pointerId);
+  });
+  stage.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    offsetX += event.clientX - lastX;
+    offsetY += event.clientY - lastY;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    draw();
+  });
+  stage.addEventListener("pointerup", () => {
+    dragging = false;
+  });
+  cancel.addEventListener("click", () => {
+    dialog.close();
+    URL.revokeObjectURL(objectUrl);
+  });
   confirm.addEventListener("click", () => {
     confirm.disabled = true;
-    canvas.toBlob(async (blob) => {
-      if (!blob) {
-        confirm.disabled = false;
-        return;
-      }
-      const data = new FormData(form);
-      data.set("avatar", blob, "avatar.png");
-      try {
-        const response = await fetch(form.action, {
-          body: data,
-          headers: csrfRequestHeaders(),
-          method: "POST",
-        });
-        if (response.redirected) {
-          location.assign(response.url);
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) {
+          confirm.disabled = false;
           return;
         }
-        status.dataset.state = "error";
-        status.hidden = false;
-        status.textContent = form.dataset.avatarUploadError || "Upload failed.";
-        confirm.disabled = false;
-      } catch {
-        status.dataset.state = "error";
-        status.hidden = false;
-        status.textContent = form.dataset.avatarUploadError || "Upload failed.";
-        confirm.disabled = false;
-      }
-    }, "image/png", 0.92);
+        const data = new FormData(form);
+        data.set("avatar", blob, "avatar.png");
+        try {
+          const response = await fetch(form.action, {
+            body: data,
+            headers: csrfRequestHeaders(),
+            method: "POST",
+          });
+          if (response.redirected) {
+            location.assign(response.url);
+            return;
+          }
+          status.dataset.state = "error";
+          status.hidden = false;
+          status.textContent = form.dataset.avatarUploadError ||
+            "Upload failed.";
+          confirm.disabled = false;
+        } catch {
+          status.dataset.state = "error";
+          status.hidden = false;
+          status.textContent = form.dataset.avatarUploadError ||
+            "Upload failed.";
+          confirm.disabled = false;
+        }
+      },
+      "image/png",
+      0.92,
+    );
   });
 }
 
@@ -1652,7 +1741,12 @@ function initAccountSettings() {
             form.dataset.usernameEasterEggApproved = "true";
             form.requestSubmit(saveButton);
           },
-        );
+        )
+        .catch(() => {
+          // 彩蛋脚本更新期间若浏览器混用了旧缓存，不能因此阻断账户设置保存。
+          form.dataset.usernameEasterEggApproved = "true";
+          form.requestSubmit(saveButton);
+        });
       return;
     }
 
