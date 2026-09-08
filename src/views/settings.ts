@@ -1869,7 +1869,6 @@ function renderPasskeyCredentialList(
  *
  * @param credential Passkey 凭证。
  * @param messages 当前语言文案。
- * @param locale 当前页面语言。
  * @return Passkey 凭证显示名称。
  */
 function passkeyCredentialDisplayName(
@@ -1887,6 +1886,7 @@ function passkeyCredentialDisplayName(
  *
  * @param credential Passkey 凭证。
  * @param messages 当前语言文案。
+ * @param locale 当前页面语言。
  * @return Passkey 凭证元信息。
  */
 function passkeyCredentialMeta(
