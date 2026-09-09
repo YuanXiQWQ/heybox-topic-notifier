@@ -3,6 +3,7 @@ import { assertEquals } from "./test_helpers.ts";
 import {
   createWhiteNightEvent,
   whiteNightConfessionSuppressionDelayMs,
+  whiteNightConfessParticleSystem,
   whiteNightDeathSequenceDurationMs,
   whiteNightDeathSounds,
 } from "../static/fun/lobotomy-corp/Events/WhiteNight.js";
@@ -21,7 +22,12 @@ function createDocumentMock() {
     listeners = new Map<string, Array<() => void>>();
     parentElement?: NodeMock;
     src = "";
-    style = { setProperty: () => {} };
+    styleProperties = new Map<string, string>();
+    style = {
+      setProperty: (name: string, value: string) => {
+        this.styleProperties.set(name, value);
+      },
+    };
     append(...children: NodeMock[]): void {
       children.forEach((child) => {
         child.parentElement = this;
@@ -366,7 +372,14 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
     assertEquals(deathEntity.children[1].children.length, 23);
     assertEquals(
       deathEntity.children[1].children.every((ray) =>
-        ray.src.endsWith("Texture2D/CFX3_T_RayStraight.png")
+        ray.dataset.asset.endsWith("Texture2D/CFX3_T_RayStraight.png")
+      ),
+      true,
+    );
+    assertEquals(
+      deathEntity.children[1].children.every((ray) =>
+        ray.styleProperties.get("--lobotomy-corp-ray-color") ===
+          "100.000000% 96.186610% 65.441175%"
       ),
       true,
     );
@@ -421,6 +434,39 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
       else delete (browser as Record<string, unknown>)[name];
     }
   }
+});
+
+Deno.test("WhiteNight Confess transcribes the prefab ParticleSystem parameters", () => {
+  assertEquals(whiteNightConfessParticleSystem.transform, {
+    positionX: 5.8399997,
+    positionY: 17.959997,
+    rotationZ: 19.816715,
+  });
+  assertEquals(whiteNightConfessParticleSystem.shape, {
+    scaleX: 4.5,
+    scaleY: 1,
+    scaleZ: 1,
+  });
+  assertEquals(whiteNightConfessParticleSystem.emissionRate, 4);
+  assertEquals(whiteNightConfessParticleSystem.initial, {
+    lifetimeSeconds: 5,
+    speed: 1,
+    sizeX: 4.13,
+    sizeY: 1.5,
+    color: {
+      red: 0.60294116,
+      green: 0.57994866,
+      blue: 0.39457178,
+      alpha: 0.559,
+    },
+  });
+  assertEquals(whiteNightConfessParticleSystem.renderer, {
+    lengthScale: 10,
+    pivotY: 4.63,
+  });
+  assertEquals(whiteNightConfessParticleSystem.camera, {
+    orthographicSize: 8.5,
+  });
 });
 
 Deno.test("WhiteNight exports the actual Dead_23 Animation Event timings", () => {

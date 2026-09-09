@@ -90,33 +90,35 @@
   text-shadow: 2px -2px rgb(252 58 58 / 49%);
 }
 
-/* Confess ParticleSystem：镇压期间按 4/s emission 发射、每道存活 5s 的 ADD BillBoard 射线。 */
+/* Confess ParticleSystem：Box Shape、4/s emission、5s lifetime 与 Stretch Billboard 均取自 prefab。 */
 .lobotomy-corp-white-night-confess-particles {
-  height: min(88vh, 980px);
-  left: 50%;
+  inset: 0;
   overflow: visible;
   pointer-events: none;
   position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(88vw, 980px);
   z-index: 2;
 }
 
 .lobotomy-corp-white-night-confess-ray {
   animation: lobotomy-corp-white-night-confess-ray
-    var(--lobotomy-corp-ray-duration) linear forwards;
+    var(--lobotomy-corp-ray-duration) linear both;
   animation-delay: var(--lobotomy-corp-ray-delay);
-  height: min(70vh, 760px);
+  /* JS 以 startColor 最大通道归一化曝光；_MainTex 的黑底仅作为零强度遮罩。 */
+  background-color: rgb(var(--lobotomy-corp-ray-color));
+  height: var(--lobotomy-corp-ray-height);
   left: var(--lobotomy-corp-ray-left);
+  mask: var(--lobotomy-corp-ray-texture) center / 100% 100% no-repeat;
+  mask-mode: luminance;
+  /* 每枚 Stretched Billboard 直接对页面做 ADD，避免动画隔离层重新压暗。 */
   mix-blend-mode: screen;
-  object-fit: fill;
+  mix-blend-mode: plus-lighter;
   opacity: 0;
   position: absolute;
-  top: -24%;
-  transform: rotate(var(--lobotomy-corp-ray-angle));
-  transform-origin: center top;
-  width: min(10vw, 110px);
+  top: var(--lobotomy-corp-ray-top);
+  transform: translate(-50%, -50%) rotate(109.816715deg) scale(0);
+  transform-origin: center;
+  width: var(--lobotomy-corp-ray-width);
+  will-change: opacity, transform;
 }
 
 .lobotomy-corp-confession-work-icon {
@@ -142,16 +144,35 @@
 
 @keyframes lobotomy-corp-white-night-confess-ray {
   0% {
-    opacity: 0.55;
-    transform: translateY(0) scaleX(1) rotate(var(--lobotomy-corp-ray-angle));
+    opacity: 0.559;
+    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(0)
+      scale(0);
   }
-  67% {
-    opacity: 0.55;
+
+  /* SizeModule Y 在 0.25509644 lifetime 达到 1；同期 X Hermite 曲线约为 0.644。 */
+  25.509644% {
+    transform: translate(-50%, -50%) rotate(109.816715deg)
+      translateX(var(--lobotomy-corp-ray-travel-y-full)) scale(0.644, 1);
   }
+
+  /* SizeModule X 在 0.49319458 lifetime 达到 1。 */
+  49.319458% {
+    transform: translate(-50%, -50%) rotate(109.816715deg)
+      translateX(var(--lobotomy-corp-ray-travel-x-full)) scale(1);
+  }
+
+  67.353323% {
+    opacity: 0.559;
+  }
+
+  99.99% {
+    opacity: 0.116184;
+  }
+
   100% {
     opacity: 0;
-    transform: translateY(50%) scaleX(1.15)
-      rotate(var(--lobotomy-corp-ray-angle));
+    transform: translate(-50%, -50%) rotate(109.816715deg)
+      translateX(var(--lobotomy-corp-ray-travel-end)) scale(1);
   }
 }
 

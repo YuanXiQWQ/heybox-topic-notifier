@@ -6,7 +6,7 @@
  * 彩蛋资源允许使用的相对路径格式。
  */
 const easterEggAssetPathPattern =
-  /^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*\.(?:css|js|json|mp3|ogg|otf|png|ttf|wav|webm)$/;
+  /^[a-zA-Z0-9_. -]+(?:\/[a-zA-Z0-9_. -]+)*\.(?:css|js|json|mp3|ogg|otf|png|ttf|wav|webm)$/;
 
 /**
  * 《逆转裁判》彩蛋资源根目录。

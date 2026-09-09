@@ -110,7 +110,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "WhiteNight Confess uses the audited CFX3 material texture",
+  name:
+    "WhiteNight Confess serves the Material MainTex and rejects the unrelated ray",
   permissions: { read: true },
   fn: async () => {
     const actual = await lobotomyCorpAssetResponse(
@@ -123,6 +124,39 @@ Deno.test({
     assertEquals(actual.status, 200);
     assertEquals(actual.headers.get("content-type"), "image/png");
     assertEquals(unrelated.status, 404);
+  },
+});
+
+Deno.test({
+  name:
+    "WhiteNight Confess renders the prefab Stretched Billboard and ADD blend",
+  permissions: { read: true },
+  fn: async () => {
+    const css = await Deno.readTextFile(
+      new URL(
+        "../static/fun/lobotomy-corp/lobotomy-corp.css",
+        import.meta.url,
+      ),
+    );
+
+    assertEquals(css.includes("rotate(109.816715deg)"), true);
+    assertEquals(css.includes("width: var(--lobotomy-corp-ray-width)"), true);
+    assertEquals(css.includes("height: var(--lobotomy-corp-ray-height)"), true);
+    assertEquals(css.includes("mask-mode: luminance"), true);
+    assertEquals(
+      css.match(/mix-blend-mode: plus-lighter;/g)?.length ?? 0,
+      1,
+    );
+    assertEquals(css.includes("isolation: isolate"), false);
+    assertEquals(
+      css.includes(
+        "background-color: rgb(var(--lobotomy-corp-ray-color))",
+      ),
+      true,
+    );
+    assertEquals(css.includes("25.509644%"), true);
+    assertEquals(css.includes("49.319458%"), true);
+    assertEquals(css.includes("67.353323%"), true);
   },
 });
 

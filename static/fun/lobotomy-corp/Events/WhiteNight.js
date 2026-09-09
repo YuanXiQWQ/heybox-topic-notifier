@@ -30,15 +30,52 @@ export const whiteNightDeathSounds = Object.freeze([
 /** Confess 每 0.3 秒造成 666 P 伤害，12000 HP 白夜在第 19 次伤害后镇压。 */
 export const whiteNightConfessionSuppressionDelayMs = 5700;
 
-/** Confess ParticleSystem 的每秒发射数。 */
-const whiteNightConfessEmissionRate = 4;
-
-/** Confess ParticleSystem 单个粒子的生命周期（毫秒）。 */
-const whiteNightConfessRayLifetimeMs = 5000;
+/** DeathAngelAnim.prefab 中 Confess ParticleSystem 的原始序列化参数。 */
+export const whiteNightConfessParticleSystem = Object.freeze({
+  transform: Object.freeze({
+    positionX: 5.8399997,
+    positionY: 17.959997,
+    rotationZ: 19.816715,
+  }),
+  initial: Object.freeze({
+    lifetimeSeconds: 5,
+    speed: 1,
+    sizeX: 4.13,
+    sizeY: 1.5,
+    color: Object.freeze({
+      red: 0.60294116,
+      green: 0.57994866,
+      blue: 0.39457178,
+      alpha: 0.559,
+    }),
+  }),
+  shape: Object.freeze({
+    scaleX: 4.5,
+    scaleY: 1,
+    scaleZ: 1,
+  }),
+  emissionRate: 4,
+  sizeOverLifetime: Object.freeze({
+    xFullAt: 0.49319458,
+    yFullAt: 0.25509644,
+  }),
+  colorOverLifetime: Object.freeze({
+    alphaHoldUntil: 44140 / 65535,
+    finalAlpha: 0.20784314,
+  }),
+  renderer: Object.freeze({
+    lengthScale: 10,
+    pivotY: 4.63,
+  }),
+  camera: Object.freeze({
+    orthographicSize: 8.5,
+  }),
+});
 
 /** 5.7 秒镇压阶段内按 4/s 发射的浏览器粒子数量。 */
 const whiteNightConfessRayCount = Math.ceil(
-  whiteNightConfessionSuppressionDelayMs / 1000 * whiteNightConfessEmissionRate,
+  whiteNightConfessionSuppressionDelayMs / 1000 *
+    whiteNightConfessParticleSystem.emissionRate,
 );
 
 /** Dead_23 最晚音效事件及其原始音频尾音全部播放完成所需时长。 */
@@ -59,6 +96,84 @@ const whiteNightEntryBehaviors = Object.freeze({
     playEntryBell: false,
   }),
 });
+
+/**
+ * 按 Unity Box Shape 与 Transform 投影创建一枚 Confess 粒子。
+ *
+ * @param {Document} document 当前文档。
+ * @param {string} assetRoot 《脑叶公司》资源根路径。
+ * @param {number} index 粒子发射序号。
+ * @return {HTMLElement} 对应一枚 Stretched Billboard 的浏览器节点。
+ */
+function createWhiteNightConfessRay(document, assetRoot, index) {
+  const source = whiteNightConfessParticleSystem;
+  const color = source.initial.color;
+  const exposure = Math.max(color.red, color.green, color.blue);
+  const localX = (Math.random() - 0.5) * source.shape.scaleX;
+  const localZ = (Math.random() - 0.5) * source.shape.scaleZ;
+  const radians = source.transform.rotationZ * Math.PI / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  const worldViewportHeight = 100 / (source.camera.orthographicSize * 2);
+  // Transform X=90° 后 Shape 的 Y 轴进入景深；画面坐标只保留 X/Z。
+  const worldX = source.transform.positionX + cosine * localX - sine * localZ;
+  const worldY = source.transform.positionY - sine * localX - cosine * localZ;
+  const texture = `${assetRoot}/Texture2D/CFX3_T_RayStraight.png`;
+  const ray = document.createElement("span");
+  ray.className = "lobotomy-corp-white-night-confess-ray";
+  ray.dataset.asset = texture;
+  ray.setAttribute("aria-hidden", "true");
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-texture",
+    `url("${texture}")`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-color",
+    `${(color.red / exposure * 100).toFixed(6)}% ${
+      (color.green / exposure * 100).toFixed(6)
+    }% ${(color.blue / exposure * 100).toFixed(6)}%`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-delay",
+    `${index / source.emissionRate}s`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-duration",
+    `${source.initial.lifetimeSeconds}s`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-left",
+    `calc(50% + ${worldX * worldViewportHeight}vh)`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-top",
+    `calc(50% - ${worldY * worldViewportHeight}vh)`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-width",
+    `${source.initial.sizeX * source.renderer.lengthScale * worldViewportHeight}vh`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-height",
+    `${source.initial.sizeY * worldViewportHeight}vh`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-travel-y-full",
+    `${source.initial.speed * source.initial.lifetimeSeconds *
+      source.sizeOverLifetime.yFullAt * worldViewportHeight}vh`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-travel-x-full",
+    `${source.initial.speed * source.initial.lifetimeSeconds *
+      source.sizeOverLifetime.xFullAt * worldViewportHeight}vh`,
+  );
+  ray.style.setProperty(
+    "--lobotomy-corp-ray-travel-end",
+    `${source.initial.speed * source.initial.lifetimeSeconds *
+      worldViewportHeight}vh`,
+  );
+  return ray;
+}
 
 /**
  * 创建白夜特殊事件控制器。
@@ -566,31 +681,11 @@ export function createWhiteNightEvent(shared) {
       video.playsInline = true;
       video.setAttribute("aria-hidden", "true");
       particles.className = "lobotomy-corp-white-night-confess-particles";
-      // ParticleSystem 使用 CFX3_RayStraight ADD.mat；浏览器加载其真实 Texture2D：CFX3_T_RayStraight.png。
+      // ParticleSystem 使用 CFX3_RayStraight ADD.mat；浏览器直接加载其 _MainTex：CFX3_T_RayStraight.png。
       for (let index = 0; index < whiteNightConfessRayCount; index++) {
-        const ray = document.createElement("img");
-        ray.className = "lobotomy-corp-white-night-confess-ray";
-        ray.src = `${shared.assetRoot}/Texture2D/CFX3_T_RayStraight.png`;
-        ray.alt = "";
-        ray.setAttribute("aria-hidden", "true");
-        ray.style.setProperty?.("--lobotomy-corp-ray-index", String(index));
-        ray.style.setProperty?.(
-          "--lobotomy-corp-ray-delay",
-          `${index / whiteNightConfessEmissionRate}s`,
+        particles.append(
+          createWhiteNightConfessRay(document, shared.assetRoot, index),
         );
-        ray.style.setProperty?.(
-          "--lobotomy-corp-ray-duration",
-          `${whiteNightConfessRayLifetimeMs / 1000}s`,
-        );
-        ray.style.setProperty?.(
-          "--lobotomy-corp-ray-left",
-          `${20 + (index * 7 % 11) * 6}%`,
-        );
-        ray.style.setProperty?.(
-          "--lobotomy-corp-ray-angle",
-          `${-8 + index * 13 % 17}deg`,
-        );
-        particles.append(ray);
       }
       entity.append(video, particles);
       document.body.append(entity);
