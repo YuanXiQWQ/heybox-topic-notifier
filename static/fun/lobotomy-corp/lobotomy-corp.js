@@ -6,9 +6,79 @@ import {
   createWhiteNightEvent,
   whiteNightDeathSounds,
 } from "./Events/WhiteNight.js";
+import {
+  lobotomyCorpCanvasScaleForViewport,
+  lobotomyCorpCanvasViewportForUpdate,
+  lobotomyCorpViewportSize,
+} from "./Events/CanvasScaler.js";
 
-/** 白夜被镇压后，后台 Trumpet 恢复至正常音量所需时长（毫秒）。 */
-const lobotomyCorpSpecialEventMusicFadeInMs = 1000;
+/**
+ * 白夜被镇压后，后台 Trumpet 从 ducked 音量恢复到正常音量所需时长（毫秒）。
+ *
+ * 淡出时长（`lobotomyCorpSpecialEventMusicFadeOutMs`）与该值独立配置，
+ * 不对应原作 `DeathAngel.UniqueEscape()` 的 `_bgmFadeTime`。
+ */
+const lobotomyCorpSpecialEventMusicFadeInMs = 2000;
+
+/**
+ * 白夜特殊阶段把正在播放的 Trumpet 淡出到后台 ducked hold 所需时长（毫秒）。
+ *
+ * 依据：原作 WhiteNight 的 `DeathAngel.UniqueEscape()` 用 1 秒的 `_bgmFadeTime`
+ * 对特殊事件音乐做淡入 / 淡出，本值沿用该 1 秒；不使用 BgmManager 的
+ * fadeTime（那是通用战斗 BGM 的 2 秒淡入淡出，不是白夜特殊事件音乐）。
+ */
+const lobotomyCorpSpecialEventMusicFadeOutMs = 1000;
+
+/**
+ * 白夜 active 期间 Trumpet 保留的正常音量比例。
+ *
+ * WhiteNight active 时把 Trumpet 压低 75%，
+ * 用于突出白夜 church BGM（Lucifer_standbg0）。该常量是这一语义的唯一来源，
+ * 禁止在别处散落 0.25。
+ */
+const lobotomyCorpWhiteNightAlertDuckVolume = 0.25;
+
+/**
+ * 计算两个音量之间的线性插值结果。
+ *
+ * 白夜的淡出与淡入都使用同一个公式；它支持任意目标音量，
+ * 因此也能表示「淡到 duck 目标音量」这类非零终点的渐变。
+ *
+ * @param {number} startVolume 起始音量。
+ * @param {number} targetVolume 目标音量。
+ * @param {number} progress 0～1 的进度。
+ * @return {number} 插值后的音量。
+ */
+function lobotomyCorpInterpolateAlertVolume(
+  startVolume,
+  targetVolume,
+  progress,
+) {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  return startVolume + (targetVolume - startVolume) * clampedProgress;
+}
+
+/**
+ * 计算 WhiteNight 淡出中途恢复时的起始音量。
+ *
+ * 淡出固定从正常音量 1 插值到 duck 目标音量：剩余比例为 1 时输出 1.0，
+ * 剩余比例为 0 时输出 duck 目标音量。刷新恢复复用同一公式，避免插值实现分散。
+ *
+ * @param {number} remainingRatio 剩余淡出比例（1 = 刚开始，0 = 已完成）。
+ * @return {number} 该时刻的理论音量。
+ */
+function lobotomyCorpAlertMusicFadeOutStartVolume(remainingRatio) {
+  return lobotomyCorpInterpolateAlertVolume(
+    lobotomyCorpWhiteNightAlertDuckVolume,
+    1,
+    remainingRatio,
+  );
+}
+
+/**
+ * 网页项目为持续危急值警报增加的曲目重播静默间隔（毫秒），并非原作硬编码参数。
+ */
+const lobotomyCorpDangerAlertReplayGapMs = 5000;
 
 /**
  * 《脑叶公司》解包资源的公共访问根路径。
@@ -84,26 +154,6 @@ const lobotomyCorpSpriteRoot = `${lobotomyCorpAssetRoot}/Sprite`;
  * 原版警报框沿三条对角边重复显示的文本。
  */
 const lobotomyCorpAlertText = "ALERT ".repeat(85);
-
-/**
- * Unity CanvasScaler 的参考画布宽度。
- */
-const lobotomyCorpReferenceCanvasWidth = 1920;
-
-/**
- * Unity CanvasScaler 的参考画布高度。
- */
-const lobotomyCorpReferenceCanvasHeight = 1080;
-
-/**
- * 竖屏 CanvasScaler 开始平滑过渡回 Match Width 的 viewport 宽度。
- */
-const lobotomyCorpPortraitCanvasBlendStart = 640;
-
-/**
- * 竖屏 CanvasScaler 完成平滑过渡并恢复 Match Width 的 viewport 宽度。
- */
-const lobotomyCorpPortraitCanvasBlendEnd = 960;
 
 /**
  * Unity Corner RectTransform 的未缩放尺寸。
@@ -289,6 +339,12 @@ const lobotomyCorpSpecialEventSessionKey =
 /** 白夜特殊事件的唯一标识。 */
 const lobotomyCorpWhiteNightEventId = "white-night";
 
+/** 模拟 11 名普通使徒对应员工死亡：11 × 4 = 44；第 12 名背叛者不走该死亡流程。 */
+const lobotomyCorpWhiteNightPreludeDangerContribution = 44;
+
+/** 白夜 Simple Advent 逻辑结束时的固定出逃危急值。 */
+const lobotomyCorpWhiteNightActiveDangerContribution = 98;
+
 /**
  * 当前正在播放的脑叶公司警报及其结束操作。
  */
@@ -302,11 +358,25 @@ let activeLobotomyCorpRestartPanel;
  */
 let lobotomyCorpDangerScore = 0;
 
+/**
+ * 本次连续 Danger Emergency 已经达到的最高 **音乐** Trumpet 等级；0 表示当前没有进行中的 Emergency。
+ *
+ * 语义边界必须严格区分：
+ * - 该变量只代表 Danger 循环音乐（music high-water），不代表 HUD 等级；
+ * - HUD 永远使用当前 Danger Score 的实时阈值等级（见 lobotomyCorpDangerVisualAlert）；
+ * - 同一场 Emergency 的循环音乐只升不降，Danger 下降不改变下一轮曲目；
+ * - 只有 Danger 跌破一级警报阈值（低于 10）时，本次 Emergency 才结束并把它清零。
+ */
+let lobotomyCorpDangerMusicHighWaterLevel = 0;
+
 /** 当前 Day 已贡献危急值的 canonical 异想体编号。 */
 let lobotomyCorpBreachedAbnormalitiesThisDay = new Set();
 
 /** 当前 Day 为普通异想体贡献快照的部门数；手动警报 Day 可暂未初始化。 */
 let lobotomyCorpDayDepartmentCount;
+
+/** 当前 Day 的白夜危急值结算阶段，防止刷新或演出回调重复加分。 */
+let lobotomyCorpWhiteNightDangerSettlementStage;
 
 /** 正向 Danger 贡献后开始衰减前的截止时间戳。 */
 let lobotomyCorpDangerDecayGraceDeadline;
@@ -466,20 +536,35 @@ function lobotomyCorpAlertStorages() {
 /**
  * 保存正在播放的警报，使页面切换后能够继续恢复。
  *
+ * HUD 与音乐分开保存：`visualAssetDirectory` 决定恢复时的四角警报框，
+ * `musicAssetDirectory` 决定恢复时的曲目，两者允许属于不同等级。
+ *
  * @param {{assetDirectory: string}|undefined} visualAlert 当前 HUD 警报；没有 HUD 时为 undefined。
  * @param {{assetDirectory: string}} musicAlert 当前实际音乐对应的逻辑警报。
  * @param {number} startedAt 警报开始的时间戳。
  * @param {number} position 当前音频播放进度（秒）。
+ * @param {"danger"|"direct"} musicSource 当前实际音乐 owner。
+ * @param {"normal-playing"|"replay-intermission"|"special-event-held"} [playbackState] 当前特殊音频语义。
+ * @param {number|undefined} replayAt Danger 重播间隔结束的绝对时间戳。
+ * @param {boolean} [directSession] 当前会话是否由 Direct 指令建立。
  */
 function persistLobotomyCorpAlert(
   visualAlert,
   musicAlert,
   startedAt,
   position,
+  musicSource,
+  playbackState = "normal-playing",
+  replayAt,
+  directSession = false,
 ) {
   const serialized = JSON.stringify({
+    directSession,
     musicAssetDirectory: musicAlert.assetDirectory,
+    musicSource,
+    playbackState,
     position,
+    replayAt,
     startedAt,
     visualAssetDirectory: visualAlert?.assetDirectory ?? null,
   });
@@ -499,6 +584,9 @@ function clearPersistedLobotomyCorpAlert() {
 
 /**
  * 持久化当前连续 Day；身份 UI 始终由已保存的显示名称派生，不写入这里。
+ *
+ * `dangerMusicHighWaterLevel` 只保存 Danger 循环音乐的高水位；HUD 等级永远在恢复时
+ * 由当前 `dangerScore` 重新计算，不写入存储。
  */
 function persistLobotomyCorpDay() {
   if (lobotomyCorpDangerScore <= 0) {
@@ -507,6 +595,11 @@ function persistLobotomyCorpDay() {
   }
   const serialized = JSON.stringify({
     countedAbnormalityIds: [...lobotomyCorpBreachedAbnormalitiesThisDay],
+    ...(lobotomyCorpDangerMusicHighWaterLevel > 0
+      ? {
+        dangerMusicHighWaterLevel: lobotomyCorpDangerMusicHighWaterLevel,
+      }
+      : {}),
     ...(lobotomyCorpDangerDecayGraceDeadline === undefined
       ? {}
       : { decayGraceDeadline: lobotomyCorpDangerDecayGraceDeadline }),
@@ -516,6 +609,10 @@ function persistLobotomyCorpDay() {
     ...(lobotomyCorpDayDepartmentCount === undefined
       ? {}
       : { departmentCount: lobotomyCorpDayDepartmentCount }),
+    ...(lobotomyCorpWhiteNightDangerSettlementStage === undefined ? {} : {
+      whiteNightDangerSettlementStage:
+        lobotomyCorpWhiteNightDangerSettlementStage,
+    }),
     dangerScore: lobotomyCorpDangerScore,
   });
   lobotomyCorpAlertStorages().forEach((storage) =>
@@ -546,13 +643,22 @@ function restorePersistedLobotomyCorpDay() {
     const saved = JSON.parse(serialized);
     const score = saved?.dangerScore;
     const ids = saved?.countedAbnormalityIds;
+    // 旧字段 dangerEmergencyLevel 的语义与 dangerMusicHighWaterLevel 相同。
+    const dangerMusicHighWaterLevel = saved?.dangerMusicHighWaterLevel ??
+      saved?.dangerEmergencyLevel;
     const departmentCount = saved?.departmentCount;
     const decayGraceDeadline = saved?.decayGraceDeadline;
     const decayPausedRemainingMs = saved?.decayPausedRemainingMs;
+    const whiteNightDangerSettlementStage = saved
+      ?.whiteNightDangerSettlementStage;
     if (
       typeof score !== "number" || !Number.isFinite(score) || score <= 0 ||
       score > 100 ||
       !Array.isArray(ids) || !ids.every((id) => typeof id === "string") ||
+      (dangerMusicHighWaterLevel !== undefined &&
+        (!Number.isInteger(dangerMusicHighWaterLevel) ||
+          dangerMusicHighWaterLevel < 1 ||
+          dangerMusicHighWaterLevel > 3)) ||
       (departmentCount !== undefined &&
         (!Number.isInteger(departmentCount) || departmentCount < 1 ||
           departmentCount > 11)) ||
@@ -562,15 +668,23 @@ function restorePersistedLobotomyCorpDay() {
         (!Number.isFinite(decayPausedRemainingMs) ||
           decayPausedRemainingMs < 0)) ||
       (decayGraceDeadline !== undefined &&
-        decayPausedRemainingMs !== undefined)
+        decayPausedRemainingMs !== undefined) ||
+      (whiteNightDangerSettlementStage !== undefined &&
+        whiteNightDangerSettlementStage !== "prelude-settled" &&
+        whiteNightDangerSettlementStage !== "active-settled")
     ) {
       throw new Error("Invalid Lobotomy Corporation Day state.");
     }
     lobotomyCorpDangerScore = score;
+    lobotomyCorpDangerMusicHighWaterLevel = dangerMusicHighWaterLevel ?? 0;
     lobotomyCorpBreachedAbnormalitiesThisDay = new Set(ids);
     lobotomyCorpDayDepartmentCount = departmentCount;
     lobotomyCorpDangerDecayGraceDeadline = decayGraceDeadline;
     lobotomyCorpDangerDecayPausedRemainingMs = decayPausedRemainingMs;
+    lobotomyCorpWhiteNightDangerSettlementStage =
+      whiteNightDangerSettlementStage;
+    // 恢复后 music high-water 至少为当前实时阈值；但绝不因 Danger 较低而降低已保存的等级。
+    syncLobotomyCorpDangerMusicHighWater(score);
   } catch {
     clearPersistedLobotomyCorpDay();
   }
@@ -582,8 +696,10 @@ function restorePersistedLobotomyCorpDay() {
 function clearLobotomyCorpDay() {
   clearLobotomyCorpDangerDecay();
   lobotomyCorpDangerScore = 0;
+  lobotomyCorpDangerMusicHighWaterLevel = 0;
   lobotomyCorpBreachedAbnormalitiesThisDay.clear();
   lobotomyCorpDayDepartmentCount = undefined;
+  lobotomyCorpWhiteNightDangerSettlementStage = undefined;
   clearPersistedLobotomyCorpDay();
 }
 
@@ -726,7 +842,7 @@ function isLobotomyCorpAlertPageReload() {
 /**
  * 读取待恢复的警报状态。
  *
- * @return {{musicAlert: object, position: number, startedAt: number, visualAlert: object|undefined}|undefined} 待恢复状态。
+ * @return {{directSession: boolean, musicAlert: object, musicSource: "danger"|"direct", playbackState: string, position: number, replayAt: number|undefined, startedAt: number, visualAlert: object|undefined}|undefined} 待恢复状态。
  */
 function persistedLobotomyCorpAlert() {
   const serialized = lobotomyCorpAlertStorages().map((storage) =>
@@ -748,13 +864,31 @@ function persistedLobotomyCorpAlert() {
     const musicAlert = typeof musicAssetDirectory === "string"
       ? lobotomyCorpAlertByAssetDirectory(musicAssetDirectory)
       : undefined;
+    // 旧字段 source 的语义同样是音乐 owner。
+    const musicSource = saved?.musicSource ?? saved?.source;
     return musicAlert && typeof saved.startedAt === "number" &&
         Number.isFinite(saved.startedAt) &&
         typeof saved.position === "number" &&
         Number.isFinite(saved.position)
       ? {
+        directSession: typeof saved.directSession === "boolean"
+          ? saved.directSession
+          : visualAlert !== undefined,
         musicAlert,
+        musicSource: musicSource === "danger" ? "danger" : "direct",
+        // 旧值 "ingame-effect-paused" 没有对应的播放语义，一律按普通播放处理。
+        playbackState: saved.playbackState === "ingame-effect-paused"
+          ? "normal-playing"
+          : saved.playbackState === "replay-intermission"
+          ? "replay-intermission"
+          : saved.playbackState === "special-event-held"
+          ? "special-event-held"
+          : "normal-playing",
         position: saved.position,
+        replayAt: typeof saved.replayAt === "number" &&
+            Number.isFinite(saved.replayAt)
+          ? saved.replayAt
+          : undefined,
         startedAt: saved.startedAt,
         visualAlert,
       }
@@ -788,7 +922,7 @@ function activateLobotomyCorpAlert(value, preparedMedia) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
-  return startLobotomyCorpAlert(alert, Date.now(), 0, undefined, preparedMedia);
+  return activateLobotomyCorpDirectTrumpet(alert, preparedMedia);
 }
 
 /**
@@ -801,6 +935,7 @@ function activateLobotomyCorpAlert(value, preparedMedia) {
  */
 function prepareLobotomyCorpDisplayName(value) {
   const abnormalityMatch = matchingLobotomyCorpAbnormality(value);
+  const isWhiteNightSubmission = abnormalityMatch?.canonicalId === "T-03-46";
   const alert = matchingLobotomyCorpAlert(value) ??
     (abnormalityMatch?.abnormality.canBreach &&
         !lobotomyCorpBreachedAbnormalitiesThisDay.has(
@@ -810,11 +945,13 @@ function prepareLobotomyCorpDisplayName(value) {
         Math.min(
           100,
           lobotomyCorpDangerScore +
-            lobotomyCorpDangerContribution(
-              abnormalityMatch.abnormality,
-              lobotomyCorpDayDepartmentCount ??
-                lobotomyCorpDepartmentCountFromPolling(),
-            ),
+            (isWhiteNightSubmission
+              ? lobotomyCorpWhiteNightPreludeDangerContribution
+              : lobotomyCorpDangerContribution(
+                abnormalityMatch.abnormality,
+                lobotomyCorpDayDepartmentCount ??
+                  lobotomyCorpDepartmentCountFromPolling(),
+              )),
         ),
       )
       : undefined);
@@ -862,9 +999,20 @@ function prepareLobotomyCorpDisplayName(value) {
       // 某些浏览器不允许预播放；提交后仍会按既有路径尝试播放。
     });
   }
-  if (abnormalityMatch?.canonicalId === "T-03-46") {
+  if (isWhiteNightSubmission) {
     prepareSpecialAudio(lobotomyCorpWhiteNightEvent?.soundPaths.bell);
     prepareSpecialAudio(lobotomyCorpWhiteNightEvent?.soundPaths.church);
+    const activeAlert = lobotomyCorpAlertForDangerScore(
+      Math.min(
+        100,
+        lobotomyCorpDangerScore +
+          lobotomyCorpWhiteNightPreludeDangerContribution +
+          lobotomyCorpWhiteNightActiveDangerContribution,
+      ),
+    );
+    if (activeAlert && activeAlert !== alert) {
+      prepareSpecialAudio(activeAlert.soundPath);
+    }
   } else if (
     lobotomyCorpWhiteNightEvent?.isActive() &&
     lobotomyCorpWhiteNightEvent.matchesConfession(value)
@@ -879,13 +1027,16 @@ function prepareLobotomyCorpDisplayName(value) {
      * @return {HTMLAudioElement|undefined} 可采用的音频。
      */
     consume: (soundPath) => {
-      if (
-        state !== "committed" || audio?.src?.endsWith(`/${soundPath}`) !== true
-      ) {
-        return undefined;
+      if (state !== "committed") return undefined;
+      if (audio?.src?.endsWith(`/${soundPath}`) === true) {
+        adoptedAudio.add(audio);
+        return audio;
       }
-      adoptedAudio.add(audio);
-      return audio;
+      const prepared = specialAudio.get(soundPath);
+      if (!prepared) return undefined;
+      adoptedAudio.add(prepared);
+      prepared.muted = false;
+      return prepared;
     },
     /**
      * 将已提交的白夜专用媒体转交给事件；资源不匹配时安全回退到新建音频。
@@ -939,12 +1090,104 @@ function lobotomyCorpAlertForDangerScore(dangerScore) {
 }
 
 /**
+ * 根据警报等级读取配置。
+ *
+ * @param {number} level 1 到 4 的警报等级。
+ * @return {{assetDirectory: string, level: number, soundPath: string}|undefined} 对应的警报配置。
+ */
+function lobotomyCorpAlertForLevel(level) {
+  return Object.values(lobotomyCorpAlerts).find((alert) =>
+    alert.level === level
+  );
+}
+
+/**
+ * 计算当前 Danger Score 实时对应的等级；低于一级警报阈值时为 0。
+ *
+ * @param {number} dangerScore 当前危急值。
+ * @return {number} 实时阈值等级。
+ */
+function lobotomyCorpDangerThresholdLevel(dangerScore) {
+  return lobotomyCorpAlertForDangerScore(dangerScore)?.level ?? 0;
+}
+
+/**
+ * 按 high-water 语义刷新本次 Danger Emergency 的 **音乐** 等级：Danger 上升时升级，下降时保持不变。
+ *
+ * Danger 跌破一级警报阈值（低于 10）时，本次 Emergency 结束并一次性重置 music high-water。
+ * 该函数只服务 Danger 循环音乐，绝不能再用来决定 HUD。
+ *
+ * @param {number} dangerScore 当前危急值。
+ * @return {number} 更新后的 music high-water 等级；0 表示当前没有 Emergency。
+ */
+function syncLobotomyCorpDangerMusicHighWater(dangerScore) {
+  const thresholdLevel = lobotomyCorpDangerThresholdLevel(dangerScore);
+  if (thresholdLevel <= 0) {
+    lobotomyCorpDangerMusicHighWaterLevel = 0;
+    return 0;
+  }
+  if (thresholdLevel > lobotomyCorpDangerMusicHighWaterLevel) {
+    lobotomyCorpDangerMusicHighWaterLevel = thresholdLevel;
+  }
+  return lobotomyCorpDangerMusicHighWaterLevel;
+}
+
+/**
+ * 读取当前 Danger Score 实时对应的 HUD 警报。
+ *
+ * 这是 HUD 的唯一来源：Danger 上升时升级、下降时降级，低于一级警报阈值时为 undefined。
+ * 音乐等级（含 high-water）不参与这里的选择。
+ *
+ * @return {{assetDirectory: string, level: number, soundPath: string}|undefined} 实时 HUD 警报；无警报区间时返回 undefined。
+ */
+function lobotomyCorpDangerVisualAlert() {
+  return lobotomyCorpAlertForDangerScore(lobotomyCorpDangerScore);
+}
+
+/**
+ * 读取一次 Danger 结算实际对应的警报，供 WhiteNight 入场时间线选择阶段音乐。
+ *
+ * WhiteNight 的两段入场 BGM 是「阶段驱动」的演出音乐，必须以这次结算真实产生的
+ * Danger 阈值作为唯一真相，而不能读取只升不降的 Danger music high-water：
+ * 未来即便第二阶段结算结果低于第一阶段（例如 Third → Second），阶段演出也必须
+ * 能够显式切换到低等级曲目。该函数不修改任何 Danger 状态。
+ *
+ * @return {{assetDirectory: string, level: number, soundPath: string}|undefined} 本次结算对应的警报；低于一级阈值时为 undefined。
+ */
+function lobotomyCorpDangerSettlementAlert() {
+  return lobotomyCorpDangerVisualAlert();
+}
+
+/**
+ * 读取本次 Danger Emergency 循环音乐应使用的警报配置。
+ *
+ * 这是 Danger 来源音乐的唯一来源：同一场 Emergency 内只升不降，直到 Danger < 10 才清零。
+ * HUD 不读该函数，Direct 接管比较也不读该函数。
+ *
+ * @return {{assetDirectory: string, level: number, soundPath: string}|undefined} music high-water 警报；无 Emergency 时返回 undefined。
+ */
+function lobotomyCorpDangerMusicAlert() {
+  return lobotomyCorpDangerMusicHighWaterLevel > 0
+    ? lobotomyCorpAlertForLevel(lobotomyCorpDangerMusicHighWaterLevel)
+    : undefined;
+}
+
+/**
  * 读取当前脑叶公司彩蛋危急值。
  *
  * @return {number} 当前 0 到 100 的有限危急值。
  */
 function getLobotomyCorpDangerScore() {
   return lobotomyCorpDangerScore;
+}
+
+/**
+ * 读取本次连续 Danger Emergency 已经达到的最高音乐等级。
+ *
+ * @return {number} 本次 Emergency 的 music high-water 等级；0 表示当前没有 Emergency。
+ */
+function getLobotomyCorpDangerMusicHighWaterLevel() {
+  return lobotomyCorpDangerMusicHighWaterLevel;
 }
 
 /**
@@ -956,7 +1199,7 @@ function stopLobotomyCorpAlert() {
   lobotomyCorpWhiteNightEvent?.finish({ restoreAlert: false });
   if (!activeLobotomyCorpAlert) {
     clearLobotomyCorpDay();
-    globalThis.easterEggCoordinator?.finish(
+    globalThis.easterEggCoordinator?.finish?.(
       lobotomyCorpEasterEggGameId,
       finishLobotomyCorpDayFromCoordinator,
     );
@@ -978,11 +1221,106 @@ function restartLobotomyCorpDay() {
 }
 
 /**
- * 设置脑叶公司彩蛋危急值，并激活其所在区间对应的警报。
+ * 处理一次 Direct Trumpet 指令。
+ *
+ * Direct 只竞争**音乐**控制权：只有严格高于当前实际音乐等级（music owner 的等级，
+ * 不是 HUD 等级）时才接管音乐；同级或更低一律不接管，也不会改变 HUD。
+ * 所谓「接管」只发生在音乐层，HUD 永远只由实时 Danger 或 Direct 自己建立的会话决定。
+ *
+ * @param {{assetDirectory: string, level: number, soundPath: string}|undefined} candidate 指令对应的警报配置。
+ * @param {object} [preparedMedia] 用户手势中预热的媒体。
+ * @return {Promise<boolean>} 本段 Direct 音乐的 activation Promise；未接管时立即返回 true。
+ */
+function activateLobotomyCorpDirectTrumpet(candidate, preparedMedia) {
+  const current = activeLobotomyCorpAlert;
+  if (!candidate) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
+  if (!current) {
+    // 没有进行中的会话：Direct 自己建立会话，四角 HUD 与音乐都使用它自己的等级。
+    return startLobotomyCorpAlert({
+      directSession: true,
+      musicAlert: candidate,
+      musicSource: "direct",
+      preparedMedia,
+      startedAt: Date.now(),
+      visualAlert: candidate,
+    });
+  }
+  if (candidate.level <= current.musicLevel()) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
+  return current.takeOverMusic(candidate, "direct", preparedMedia);
+}
+
+/**
+ * 在 Danger Score 变化后同步当前会话：HUD 实时跟随，音乐只在突破 high-water 时接管。
+ *
+ * 规则：
+ * - HUD 始终使用当前 Danger Score 的实时阈值等级；Danger 下降同样立即降级；
+ * - 循环音乐使用本次 Emergency 的 music high-water，只有严格高于当前实际音乐等级才换曲；
+ * - Danger 跌破 10 时 music high-water 已由调用方清零，Danger 来源音乐随之停止，
+ *   正在覆盖的 Direct one-shot 不被打断，仅 HUD 消失。
+ *
+ * @param {object} [preparedMedia] 用户手势中预热的媒体。
+ * @param {{suppressMusic?: boolean}} [options] 特殊事件音乐接管选项；true 表示本次结算只更新 Danger 与
+ *   HUD，不接管普通 Danger 音乐，由 WhiteNight 阶段演出自行选择阶段曲目。
+ * @return {Promise<boolean>} 新建会话或接管音乐时的 activation Promise；其余情况立即返回 true。
+ */
+function reconcileLobotomyCorpDangerAlert(preparedMedia, options = {}) {
+  const current = activeLobotomyCorpAlert;
+  const dangerMusicAlert = lobotomyCorpDangerMusicAlert();
+  const suppressMusic = options.suppressMusic === true;
+  if (!current) {
+    if (!dangerMusicAlert) {
+      preparedMedia?.dispose?.();
+      return Promise.resolve(true);
+    }
+    return startLobotomyCorpAlert({
+      initiallyDucked: suppressMusic,
+      musicAlert: dangerMusicAlert,
+      musicSource: "danger",
+      playbackState: suppressMusic ? "special-event-held" : "normal-playing",
+      preparedMedia,
+      startedAt: Date.now(),
+      visualAlert: lobotomyCorpDangerVisualAlert(),
+    });
+  }
+  if (!dangerMusicAlert && current.musicSource() === "danger") {
+    // 本次 Danger Emergency 结束，且音乐仍属于 Danger：停止音乐并结束会话。
+    preparedMedia?.dispose?.();
+    current.finishVisible();
+    return Promise.resolve(true);
+  }
+  let completion = Promise.resolve(true);
+  if (
+    !suppressMusic && dangerMusicAlert &&
+    dangerMusicAlert.level > current.musicLevel()
+  ) {
+    // 只有真正突破 music high-water 才换曲；HUD 升级但未突破时不动音乐。
+    completion = current.takeOverMusic(
+      dangerMusicAlert,
+      "danger",
+      preparedMedia,
+    );
+  } else {
+    preparedMedia?.dispose?.();
+  }
+  current.syncVisual();
+  return completion;
+}
+
+/**
+ * 设置脑叶公司彩蛋危急值，并分别同步实时 HUD 与 music high-water 循环音乐。
+ *
+ * 先刷新 music high-water：Danger 上升可以抬高本次 Emergency 的音乐等级，自然下降只改变实时 HUD。
  *
  * @param {number} dangerScore 新的 0 到 100 有限危急值。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
- * @param {{isDecay?: boolean, positiveContribution?: boolean, suppressMusic?: boolean}} [options] 危急值来源与初始媒体输出配置。
+ * @param {{isDecay?: boolean, positiveContribution?: boolean, suppressMusic?: boolean}} [options] 危急值来源与音乐接管配置；
+ *   `suppressMusic` 用于 WhiteNight 阶段结算：只刷新 Danger 与 HUD，音乐交给特殊事件阶段时间线。
  * @return {Promise<boolean>} 对应警报结束或无警报状态生效后返回 true。
  */
 function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
@@ -996,6 +1334,7 @@ function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
   }
 
   lobotomyCorpDangerScore = dangerScore;
+  syncLobotomyCorpDangerMusicHighWater(dangerScore);
   if (dangerScore > 0) {
     persistLobotomyCorpDay();
     ensureLobotomyCorpDayCoordinator();
@@ -1005,24 +1344,9 @@ function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
   if (!options.isDecay && options.positiveContribution === true) {
     resetLobotomyCorpDangerDecayGrace();
   }
-  const alert = lobotomyCorpAlertForDangerScore(dangerScore);
-  if (alert) {
-    return startLobotomyCorpAlert(
-      alert,
-      Date.now(),
-      0,
-      undefined,
-      preparedMedia,
-      options.suppressMusic === true,
-    );
-  }
-  preparedMedia?.dispose?.();
-  if (dangerScore === 0) {
-    return stopLobotomyCorpAlert();
-  }
-  return activeLobotomyCorpAlert
-    ? activeLobotomyCorpAlert.replaceVisual(undefined)
-    : Promise.resolve(true);
+  return reconcileLobotomyCorpDangerAlert(preparedMedia, {
+    suppressMusic: options.suppressMusic === true,
+  });
 }
 
 /**
@@ -1121,6 +1445,33 @@ function lobotomyCorpDangerContribution(abnormality, departmentCount) {
 }
 
 /**
+ * 结算白夜 Simple Advent 结束后的第二笔固定危急值。
+ *
+ * @return {Promise<boolean>} Alert 已按真实危急值更新后的生命周期 Promise。
+ */
+function settleLobotomyCorpWhiteNightActiveDanger() {
+  if (lobotomyCorpWhiteNightDangerSettlementStage === "active-settled") {
+    return Promise.resolve(true);
+  }
+  lobotomyCorpWhiteNightDangerSettlementStage = "active-settled";
+  // 先持久化阶段标记，避免 4000ms 附近刷新时重复结算 +98。
+  persistLobotomyCorpDay();
+  return setLobotomyCorpDangerScore(
+    Math.min(
+      100,
+      lobotomyCorpDangerScore + lobotomyCorpWhiteNightActiveDangerContribution,
+    ),
+    undefined,
+    {
+      positiveContribution: true,
+      // 第二阶段由 WhiteNight 阶段时间线接管音乐：这里只结算 Danger 与实时 HUD，
+      // 阶段曲目随后由 shared.setSpecialEventStageAlertMusic 按真实结算结果显式开始。
+      suppressMusic: true,
+    },
+  );
+}
+
+/**
  * 处理一次已由服务器确认成功的 canonical 异想体提交。
  *
  * 该入口刻意将身份识别与危急值贡献分层，后续特殊事件可订阅此处而不依赖 canBreach。
@@ -1146,23 +1497,27 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
-  const contribution = lobotomyCorpDangerContribution(
-    match.abnormality,
-    lobotomyCorpDepartmentCountForDay(),
-  );
+  const isWhiteNightSubmission = match.canonicalId === "T-03-46";
+  const contribution = isWhiteNightSubmission
+    ? lobotomyCorpWhiteNightPreludeDangerContribution
+    : lobotomyCorpDangerContribution(
+      match.abnormality,
+      lobotomyCorpDepartmentCountForDay(),
+    );
   if (contribution <= 0) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
   lobotomyCorpBreachedAbnormalitiesThisDay.add(match.canonicalId);
-  const isWhiteNightSubmission = match.canonicalId === "T-03-46";
+  if (isWhiteNightSubmission) {
+    // direct-submission 的第一笔为 Simple Advent 开始时 11 名普通使徒的死亡抽象。
+    lobotomyCorpWhiteNightDangerSettlementStage = "prelude-settled";
+  }
   const alertLifecycle = setLobotomyCorpDangerScore(
     Math.min(100, lobotomyCorpDangerScore + contribution),
     preparedMedia,
     {
       positiveContribution: true,
-      // 让 Trumpet 从第一次正式播放起就以 0 音量后台运行，避免白夜钟声前爆音。
-      suppressMusic: isWhiteNightSubmission,
     },
   );
   if (isWhiteNightSubmission) {
@@ -1175,7 +1530,7 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
 }
 
 /**
- * 在账户保存成功后提交异想体或维持旧手动 Trumpet 行为。
+ * 在账户保存成功后提交异想体，或按名称直接触发手动 Trumpet。
  *
  * @param {string} value 服务器确认保存的显示名称。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
@@ -1440,55 +1795,6 @@ function lobotomyCorpRestartButtonSource(state) {
 }
 
 /**
- * 计算指定 viewport 对应的 Unity CanvasScaler 缩放比例。
- *
- * 桌面和横屏维持原版 Match Width；竖屏会在手机的宽、高混合比例与宽屏的
- * Match Width 之间平滑过渡，避免临界宽度发生尺寸跳变。
- *
- * @param {number} viewportWidth 当前可见 viewport 宽度。
- * @param {number} viewportHeight 当前可见 viewport 高度。
- * @return {number} 有限且大于零的 Canvas 缩放比例。
- */
-function lobotomyCorpCanvasScaleForViewport(viewportWidth, viewportHeight) {
-  const widthScale = viewportWidth / lobotomyCorpReferenceCanvasWidth;
-  const heightScale = viewportHeight / lobotomyCorpReferenceCanvasHeight;
-  const portraitScale = Math.sqrt(widthScale * heightScale);
-  const portraitBlendProgress = Math.min(
-    1,
-    Math.max(
-      0,
-      (viewportWidth - lobotomyCorpPortraitCanvasBlendStart) /
-        (lobotomyCorpPortraitCanvasBlendEnd -
-          lobotomyCorpPortraitCanvasBlendStart),
-    ),
-  );
-  const smoothProgress = portraitBlendProgress * portraitBlendProgress *
-    (3 - 2 * portraitBlendProgress);
-  const portraitCanvasScale = portraitScale +
-    (widthScale - portraitScale) * smoothProgress;
-  const canvasScale = viewportHeight > viewportWidth
-    ? portraitCanvasScale
-    : widthScale;
-  return Number.isFinite(canvasScale) && canvasScale > 0 ? canvasScale : 1;
-}
-
-/**
- * 读取当前实际可见 viewport 的宽高，并在不支持 VisualViewport 时回退。
- *
- * @return {{height: number, width: number}} 可用于 CanvasScaler 的 viewport 尺寸。
- */
-function lobotomyCorpViewportSize() {
-  const visualViewport = globalThis.visualViewport;
-  const documentElement = globalThis.document?.documentElement;
-  return {
-    height: visualViewport?.height || globalThis.innerHeight ||
-      documentElement?.clientHeight || lobotomyCorpReferenceCanvasHeight,
-    width: visualViewport?.width || globalThis.innerWidth ||
-      documentElement?.clientWidth || lobotomyCorpReferenceCanvasWidth,
-  };
-}
-
-/**
  * 在未达到普通 Trumpet 阈值时复用 Restart Day 顶部面板。
  *
  * @return {{finish: () => void}|undefined} 已挂载面板的清理操作。
@@ -1516,26 +1822,6 @@ function mountLobotomyCorpRestartPanel() {
   };
   activeLobotomyCorpRestartPanel = panel;
   return panel;
-}
-
-/**
- * 选择本次 HUD 应采用的稳定 viewport。
- *
- * 仅浏览器 chrome 导致的高度变化会保留上次尺寸，防止警报随地址栏伸缩；宽度
- * 或横竖屏方向变化则立即采用新 viewport。
- *
- * @param {{height: number, width: number}|undefined} previousViewport 上次已应用的稳定 viewport。
- * @param {{height: number, width: number}} nextViewport 本次读到的可见 viewport。
- * @return {{height: number, width: number}} 应用于 CanvasScaler 的稳定 viewport。
- */
-function lobotomyCorpCanvasViewportForUpdate(previousViewport, nextViewport) {
-  if (!previousViewport) return nextViewport;
-  const orientationChanged =
-    (previousViewport.height > previousViewport.width) !==
-      (nextViewport.height > nextViewport.width);
-  return previousViewport.width !== nextViewport.width || orientationChanged
-    ? nextViewport
-    : previousViewport;
 }
 
 /**
@@ -1697,7 +1983,7 @@ function createLobotomyCorpTopPanel() {
  * 根据当前视觉警报读取顶部 RestartButton 应显示的本地化文本。
  *
  * @param {{level: number}|undefined} visualAlert 当前 HUD 警报。
- * @return {string} 本轮视觉状态对应的按钮文案。
+ * @return {string} 当前视觉状态对应的按钮文案。
  */
 function lobotomyCorpTopPanelActionText(visualAlert) {
   const restartDayText = lobotomyCorpMessages?.restartDay ?? "";
@@ -1707,76 +1993,121 @@ function lobotomyCorpTopPanelActionText(visualAlert) {
 }
 
 /**
- * 创建或更新脑叶公司警报会话。视觉警报可以切换，音乐只按最高等级升级。
+ * 创建一个脑叶公司 Alert 会话。
  *
- * @param {{assetDirectory: string, level: number, soundPath: string}} alert 警报配置。
- * @param {number} startedAt 警报最初开始的时间戳。
- * @param {number} resumeAt 恢复播放的音频进度（秒）。
- * @param {{assetDirectory: string, level: number, soundPath: string}} [restoredMusicAlert] 恢复时的逻辑音乐配置。
- * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
- * @param {boolean} [initiallySuppressed] 是否从首次正式播放起以白夜后台音量运行。
- * @return {Promise<boolean>} 当前视觉 activation 被替换或整个会话结束时返回 true。
+ * 会话内的 HUD（visualAlert）与音乐（musicAlert / musicSource）是两个独立 owner：
+ * - HUD 由实时 Danger 等级或 Direct 自己建立的会话决定；
+ * - 音乐只在「严格高于当前实际音乐等级」时才被接管，接管只换 Audio，不重建 overlay 与顶部面板。
+ *
+ * @param {object} params 会话参数。
+ * @param {boolean} [params.directSession] 本会话是否由 Direct 指令建立；决定无 Danger Emergency 时 HUD 是否显示 Direct 视觉。
+ * @param {boolean} [params.initiallyDucked] 是否从首次正式播放起以白夜后台 ducked 音量运行。
+ * @param {{assetDirectory: string, level: number, soundPath: string}} params.musicAlert 初始音乐警报。
+ * @param {"danger"|"direct"} [params.musicSource] 初始音乐 owner。
+ * @param {"normal-playing"|"replay-intermission"|"special-event-held"} [params.playbackState] 页面恢复时的精确音频语义。
+ * @param {object} [params.preparedMedia] 在用户手势中预先准备的媒体句柄。
+ * @param {number} [params.replayAt] 页面恢复时的 Danger 重播间隔结束时间戳。
+ * @param {number} [params.resumeAt] 恢复播放的音频进度（秒）。
+ * @param {number} params.startedAt 会话最初开始的时间戳。
+ * @param {{assetDirectory: string, level: number, soundPath: string}|undefined} [params.visualAlert] 初始 HUD 警报；undefined 表示本次会话没有四角警报框。
+ * @return {Promise<boolean>} 当前音乐 owner 被接管或整个会话结束时返回 true。
  */
-function startLobotomyCorpAlert(
-  alert,
-  startedAt,
-  resumeAt,
-  restoredMusicAlert,
+function startLobotomyCorpAlert({
+  directSession = false,
+  initiallyDucked = false,
+  musicAlert: initialMusicAlert,
+  musicSource = "direct",
+  playbackState: initialPlaybackState = initiallyDucked
+    ? "special-event-held"
+    : "normal-playing",
   preparedMedia,
-  initiallySuppressed = false,
-) {
-  if (activeLobotomyCorpAlert) {
-    // WhiteNight.start() 会在本次调用之后才接管 Alert；必须在替换音轨前先压低现有会话，
-    // 才能让升级出的 Trumpet 从第一次 play 起就是静音后台媒体。
-    if (initiallySuppressed) {
-      activeLobotomyCorpAlert.holdMusicForSpecialEvent?.();
+  replayAt: initialReplayAt,
+  resumeAt = 0,
+  startedAt,
+  visualAlert: initialVisualAlert,
+}) {
+  /**
+   * 会话竞态兜底：已有 active session 时沿用「严格更高才接管音乐」的规则，绝不重建 DOM。
+   *
+   * 比较对象是本次新传入的 initialMusicAlert：它是本分支里唯一可用的音乐等级来源，
+   * 未定义的引用会直接中断会话建立。
+   *
+   * @return {Promise<boolean>|undefined} 需要接管或忽略时返回结果；可以继续建立新会话时返回 undefined。
+   */
+  function takeOverExistingSessionIfRacing() {
+    const currentSession = activeLobotomyCorpAlert;
+    if (!currentSession) return undefined;
+    if (initialMusicAlert.level > currentSession.musicLevel()) {
+      return currentSession.takeOverMusic(
+        initialMusicAlert,
+        musicSource,
+        preparedMedia,
+      );
     }
-    return activeLobotomyCorpAlert.replaceVisual(alert, preparedMedia);
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
+
+  const racingSessionResult = takeOverExistingSessionIfRacing();
+  if (racingSessionResult !== undefined) {
+    return racingSessionResult;
   }
   activeLobotomyCorpRestartPanel?.finish();
-  const musicAlert = restoredMusicAlert ?? alert;
+  let musicSourceState = musicSource;
+  let directSessionState = directSession;
+  let visualAlert = initialVisualAlert;
   let fallbackPosition = Math.max(0, resumeAt);
   let pendingResumePosition = fallbackPosition > 0
     ? fallbackPosition
     : undefined;
-  let audio = preparedMedia?.consume?.(musicAlert.soundPath);
+  let audio = preparedMedia?.consume?.(initialMusicAlert.soundPath);
   if (!audio) preparedMedia?.dispose?.();
   let emergencyController;
   let endAlertButton;
   let endAlertButtonText;
-  let naturalEndTimer;
+  let directAlertFallbackEndTimer;
+  let dangerAlertReplayTimer;
+  let replayAt = initialReplayAt;
   let overlay;
+  let mounted = false;
   let panelDisappearTimer;
   let topPanel;
   let topPanelActiveController;
   let stableCanvasViewport;
   let specialEventFadeTimer;
-  let specialEventMusicSuppressed = initiallySuppressed;
-  let specialEventMusicUnlocked = false;
+  let specialEventStageMusicTimer;
+  // 当前音乐实例是否由 WhiteNight 阶段演出建立；决定阶段切换能否相对上一条阶段曲目降级。
+  let specialEventStageMusicOwned = false;
+  // 白夜 active 期间 Trumpet 以 ducked 音量后台推进的 hold 状态。
+  let specialEventMusicDucked = initialPlaybackState === "special-event-held";
   const visualViewport = globalThis.visualViewport;
   let closing = false;
   let finished = false;
-  let currentActivation;
+  let currentActivation = createAlertActivation();
   const alertContext = {
     audio: undefined,
     finish: () => {},
-    musicAlert,
+    finishVisible: () => {},
+    musicAlert: initialMusicAlert,
+    playbackState: initialPlaybackState,
     promise: undefined,
-    replaceVisual: () => Promise.resolve(true),
     startedAt,
-    visualAlert: alert,
+    syncVisual: () => {},
+    takeOverMusic: () => Promise.resolve(true),
+    // 音乐等级永远读取当前实际音乐 owner，而不是 HUD 等级或 high-water。
+    musicLevel: () => alertContext.musicAlert.level,
+    musicSource: () => musicSourceState,
+    visualAlert,
   };
 
   /**
-   * 创建一次视觉 activation 的完成 Promise。
+   * 创建一次音乐 owner 的完成 Promise；被更高等级音乐接管或整个会话结束时兑现。
    *
-   * @param {object|undefined} visualAlert 本轮要显示的 HUD 警报。
-   * @return {{alert: object|undefined, promise: Promise<boolean>, resolve: (value: boolean) => void}} activation 状态。
+   * @return {{promise: Promise<boolean>, resolve: (value: boolean) => void}} activation 状态。
    */
-  function createVisualActivation(visualAlert) {
+  function createAlertActivation() {
     let resolveCompletion;
     return {
-      alert: visualAlert,
       promise: new Promise((resolve) => {
         resolveCompletion = resolve;
       }),
@@ -1784,7 +2115,6 @@ function startLobotomyCorpAlert(
     };
   }
 
-  currentActivation = createVisualActivation(alert);
   alertContext.promise = currentActivation.promise;
 
   /**
@@ -1827,18 +2157,23 @@ function startLobotomyCorpAlert(
   /**
    * 立即停止整场警报业务活动。
    *
-   * @param {{animateExit?: boolean}} options 结束方式配置。
+   * @param {{animateExit?: boolean, clearDay?: boolean}} options 结束方式配置。
    */
   function finishAlert({
     animateExit = true,
     force = false,
+    clearDay = false,
   } = {}) {
     if (closing || finished) {
       return;
     }
+    if (!force && specialEventStageMusicOwned) {
+      // WhiteNight 阶段时间线正在演奏当前曲目：普通收起流程不得改写阶段演出。
+      return;
+    }
     if (!force && lobotomyCorpWhiteNightEvent?.isActive()) {
-      // 白夜覆盖期间，曲目结束不能带走 Alert；保持同一实例后台循环。
-      keepAlertMusicSuppressed();
+      // 白夜覆盖期间，曲目结束不能带走 Alert；保持同一实例以 ducked 音量后台循环。
+      holdAlertMusicForSpecialEvent();
       return;
     }
     closing = true;
@@ -1857,14 +2192,16 @@ function startLobotomyCorpAlert(
       updateCanvasScaleFromViewport,
     );
     clearPersistedLobotomyCorpAlert();
-    clearLobotomyCorpDay();
+    if (clearDay) clearLobotomyCorpDay();
     if (activeLobotomyCorpAlert === alertContext) {
       activeLobotomyCorpAlert = undefined;
     }
-    globalThis.easterEggCoordinator?.finish(
-      lobotomyCorpEasterEggGameId,
-      coordinatorStop,
-    );
+    if (clearDay || lobotomyCorpDangerScore <= 0) {
+      globalThis.easterEggCoordinator?.finish?.(
+        lobotomyCorpEasterEggGameId,
+        coordinatorStop,
+      );
+    }
 
     if (animateExit && topPanel && topPanelActiveController) {
       topPanelActiveController.addEventListener(
@@ -1888,30 +2225,49 @@ function startLobotomyCorpAlert(
 
   /**
    * 响应警报音频自然播放结束。
+   *
+   * Danger 来源的曲目只进入重播间隔，保持整场 Emergency；
+   * Direct one-shot 结束后恢复底层的 Danger music high-water（若 Emergency 仍然成立）。
    */
   function finishAlertFromAudioEnd() {
-    finishAlert();
+    if (specialEventStageMusicOwned) {
+      // WhiteNight 阶段曲目由 stage timeline 独占，不参与普通 Danger replay / Direct one-shot。
+      return;
+    }
+    if (musicSourceState === "danger") {
+      enterDangerReplayIntermission();
+      return;
+    }
+    finishDirectAlertMusic();
   }
 
   /**
    * 响应警报音频加载或播放错误。
    */
   function finishAlertFromAudioError() {
-    finishAlert();
+    if (musicSourceState === "danger") {
+      // 音频失败不能清除仍成立的 Danger owner，也不做无限快速重试。
+      audio?.pause?.();
+      alertContext.playbackState = "replay-intermission";
+      replayAt = undefined;
+      persistPlaybackPosition();
+      return;
+    }
+    finishDirectAlertMusic();
   }
 
   /**
    * 响应自然结束计时器到期。
    */
-  function finishAlertFromNaturalEnd() {
-    finishAlert();
+  function finishAlertFromDirectFallbackEnd() {
+    finishAlertFromAudioEnd();
   }
 
   /**
    * 响应跨游戏协调器的停止请求，并保持回调引用稳定。
    */
   function finishAlertFromCoordinator() {
-    finishAlert({ force: true });
+    finishAlert({ force: true, clearDay: true });
   }
 
   /**
@@ -1959,16 +2315,16 @@ function startLobotomyCorpAlert(
   }
 
   /**
-   * 从当前音乐会话的原始开始时间恢复音频进度；非白夜后台会话在曲目结束时清理警报。
+   * 从当前音乐会话的原始开始时间恢复音频进度。
    */
   function playAlertAudio() {
     const pendingPosition = normalizedPendingResumePosition();
     if (pendingPosition !== undefined && Number.isFinite(audio.duration)) {
       if (
         pendingResumePosition >= audio.duration &&
-        !specialEventMusicSuppressed
+        musicSourceState === "direct" && !specialEventMusicDucked
       ) {
-        finishAlertFromNaturalEnd();
+        finishAlertFromDirectFallbackEnd();
         return;
       }
     }
@@ -1987,7 +2343,7 @@ function startLobotomyCorpAlert(
     if (!Number.isFinite(audio?.duration) || audio.duration <= 0) {
       return pendingResumePosition;
     }
-    if (specialEventMusicSuppressed) {
+    if (specialEventMusicDucked) {
       return Math.min(
         pendingResumePosition % audio.duration,
         Math.max(0, audio.duration - 0.001),
@@ -2045,10 +2401,13 @@ function startLobotomyCorpAlert(
   }
 
   /**
-   * 根据曲目的完整时长安排自然结束，兼容页面恢复后的自动播放限制。
+   * direct one-shot 的 ended 兼容回退；Danger 曲目结束只进入重播间隔。
    */
-  function scheduleNaturalAlertEnd() {
-    if (specialEventMusicSuppressed) {
+  function scheduleDirectAlertFallbackEnd() {
+    if (
+      musicSourceState !== "direct" || specialEventMusicDucked ||
+      specialEventStageMusicOwned
+    ) {
       return;
     }
     if (!Number.isFinite(audio.duration)) {
@@ -2058,14 +2417,64 @@ function startLobotomyCorpAlert(
       0,
       (audio.duration - currentAudioPosition()) * 1000,
     );
-    naturalEndTimer = setTimeout(
-      finishAlertFromNaturalEnd,
+    directAlertFallbackEndTimer = setTimeout(
+      finishAlertFromDirectFallbackEnd,
       remainingMilliseconds,
     );
   }
 
+  /** 进入 Danger 曲目两遍之间的静默间隔，HUD 与 Danger decay 均继续运行。 */
+  function enterDangerReplayIntermission() {
+    if (
+      closing || finished || musicSourceState !== "danger" ||
+      specialEventMusicDucked || specialEventStageMusicOwned
+    ) return;
+    audio?.pause?.();
+    alertContext.playbackState = "replay-intermission";
+    replayAt = Date.now() + lobotomyCorpDangerAlertReplayGapMs;
+    if (dangerAlertReplayTimer !== undefined) {
+      clearTimeout(dangerAlertReplayTimer);
+    }
+    dangerAlertReplayTimer = setTimeout(
+      replayDangerAlertAudio,
+      lobotomyCorpDangerAlertReplayGapMs,
+    );
+    persistPlaybackPosition();
+  }
+
+  /**
+   * 重播本次 Danger Emergency 的 music high-water 曲目。
+   *
+   * Danger Score 在 replay gap 中自然下降不改变下一轮曲目，HUD 则继续按实时 Danger 更新；
+   * 只有 high-water 在 gap 中上升到严格高于当前音乐等级时才立即换曲。
+   */
+  function replayDangerAlertAudio() {
+    dangerAlertReplayTimer = undefined;
+    if (
+      closing || finished || musicSourceState !== "danger" ||
+      specialEventMusicDucked || specialEventStageMusicOwned
+    ) return;
+    const dangerMusicAlert = lobotomyCorpDangerMusicAlert();
+    if (!dangerMusicAlert) return;
+    if (dangerMusicAlert.level > alertContext.musicAlert.level) {
+      // gap 期间 high-water 再升高仍需立即接管；下降或持平则继续当前 high-water 曲目。
+      void takeOverMusic(dangerMusicAlert, "danger");
+      return;
+    }
+    replayAt = undefined;
+    alertContext.playbackState = "normal-playing";
+    if (audio) audio.currentTime = 0;
+    fallbackPosition = 0;
+    pendingResumePosition = undefined;
+    playConfiguredAlertAudio();
+    persistPlaybackPosition();
+  }
+
   /**
    * 记录真实的音频播放进度，供完整页面切换后的警报续播使用。
+   *
+   * HUD 与音乐分别写入 visualAssetDirectory / musicAssetDirectory，
+   * 使恢复时能够保留「HUD First + 音乐 Third」这类合法组合。
    */
   function persistPlaybackPosition() {
     persistLobotomyCorpAlert(
@@ -2073,6 +2482,10 @@ function startLobotomyCorpAlert(
       alertContext.musicAlert,
       alertContext.startedAt,
       currentAudioPosition(),
+      musicSourceState,
+      alertContext.playbackState,
+      replayAt,
+      directSessionState,
     );
   }
 
@@ -2104,71 +2517,301 @@ function startLobotomyCorpAlert(
     audio?.removeEventListener("error", finishAlertFromAudioError);
     audio?.removeEventListener("timeupdate", persistPlaybackPosition);
     audio?.removeEventListener("loadedmetadata", playAlertAudio);
-    audio?.removeEventListener("loadedmetadata", scheduleNaturalAlertEnd);
-    if (naturalEndTimer !== undefined) {
-      clearTimeout(naturalEndTimer);
-      naturalEndTimer = undefined;
+    audio?.removeEventListener(
+      "loadedmetadata",
+      scheduleDirectAlertFallbackEnd,
+    );
+    if (directAlertFallbackEndTimer !== undefined) {
+      clearTimeout(directAlertFallbackEndTimer);
+      directAlertFallbackEndTimer = undefined;
+    }
+    if (dangerAlertReplayTimer !== undefined) {
+      clearTimeout(dangerAlertReplayTimer);
+      dangerAlertReplayTimer = undefined;
     }
     if (specialEventFadeTimer !== undefined) {
       clearTimeout(specialEventFadeTimer);
       specialEventFadeTimer = undefined;
     }
+    if (specialEventStageMusicTimer !== undefined) {
+      clearTimeout(specialEventStageMusicTimer);
+      specialEventStageMusicTimer = undefined;
+    }
   }
 
   /**
-   * 令当前 Trumpet 实例继续播放但不可听，并阻止其自然结束 Alert。
+   * 让当前 Trumpet 以正常音量继续播放，但不进入普通 Danger replay 时序。
+   *
+   * 供 WhiteNight 阶段演出采用同一条已恢复的 Audio 时维持满音量可听状态。
    */
-  function keepAlertMusicSuppressed() {
-    specialEventMusicSuppressed = true;
-    if (naturalEndTimer !== undefined) {
-      clearTimeout(naturalEndTimer);
-      naturalEndTimer = undefined;
+  function ensureAlertMusicAudible() {
+    if (!audio) return;
+    audio.loop = false;
+    audio.muted = false;
+    audio.volume = 1;
+    playConfiguredAlertAudio();
+  }
+
+  /**
+   * 让当前 Trumpet 实例进入白夜后台的 ducked hold。
+   *
+   * 同一条 Audio 保持 loop、持续推进 currentTime，并阻止其自然结束 Alert；
+   * 音量压到 duck 目标值，只有浏览器 autoplay policy 拒绝时才会暂时无声音。
+   */
+  function holdAlertMusicForSpecialEvent() {
+    specialEventMusicDucked = true;
+    specialEventStageMusicOwned = false;
+    alertContext.playbackState = "special-event-held";
+    if (directAlertFallbackEndTimer !== undefined) {
+      clearTimeout(directAlertFallbackEndTimer);
+      directAlertFallbackEndTimer = undefined;
+    }
+    if (dangerAlertReplayTimer !== undefined) {
+      clearTimeout(dangerAlertReplayTimer);
+      dangerAlertReplayTimer = undefined;
+      replayAt = undefined;
+    }
+    if (specialEventFadeTimer !== undefined) {
+      clearTimeout(specialEventFadeTimer);
+      specialEventFadeTimer = undefined;
+    }
+    if (specialEventStageMusicTimer !== undefined) {
+      clearTimeout(specialEventStageMusicTimer);
+      specialEventStageMusicTimer = undefined;
     }
     if (!audio) return;
+    audio.loop = true;
+    audio.muted = false;
+    audio.volume = lobotomyCorpWhiteNightAlertDuckVolume;
+    playConfiguredAlertAudio();
+  }
+
+  /**
+   * 以 WhiteNight 入场时间线的阶段语义切换并播放当前阶段的 Trumpet。
+   *
+   * 阶段演出与普通音乐仲裁的规则不同：
+   * - 允许相对 WhiteNight 自己的上一条阶段曲目显式降级（例如 Third → Second 的
+   *   假想结算），因此不套用普通 Danger / Direct 的「只升不降」严格升级规则；
+   * - 但不会打断更高等级的 Direct / Fourth one-shot，也不修改 Danger music
+   *   high-water 与实时 Danger HUD；那些仍属于既有普通仲裁结果；
+   * - 曲目从 0 开始（页面恢复时沿用已恢复的同一实例与进度）以正常音量播放
+   *   `audibleMs`；`thenHold` 为 true 时随后才淡出到后台 ducked hold。
+   *
+   * @param {{assetDirectory: string, level: number, soundPath: string}} stageAlert 本阶段实际结算结果对应的警报。
+   * @param {{audibleMs?: number, thenHold?: boolean}} [options] 阶段演出参数。
+   * @return {Promise<boolean>} 阶段曲目的 activation Promise；未接管时立即返回 true。
+   */
+  function setSpecialEventStageAlertMusic(stageAlert, options = {}) {
+    if (closing || finished || !stageAlert) return Promise.resolve(true);
+    const currentLevel = alertContext.musicAlert?.level ?? 0;
+    if (
+      musicSourceState === "direct" && !specialEventStageMusicOwned &&
+      stageAlert.level < currentLevel
+    ) {
+      // 阶段演出不打断更高等级的 Direct / Fourth one-shot；
+      // 更低或同级的 Direct one-shot 让位，保证 WhiteNight 阶段有预期 BGM。
+      return Promise.resolve(true);
+    }
+    const audibleMs = Math.max(
+      0,
+      Number.isFinite(options.audibleMs) ? options.audibleMs : 0,
+    );
+    // 页面恢复时沿用同一条已恢复的实例与进度，只补上剩余的可听窗口。
+    const adoptCurrentAudio = audio !== undefined &&
+      alertContext.musicAlert === stageAlert;
+    if (specialEventStageMusicTimer !== undefined) {
+      clearTimeout(specialEventStageMusicTimer);
+      specialEventStageMusicTimer = undefined;
+    }
+    if (!adoptCurrentAudio) {
+      const previousActivation = currentActivation;
+      currentActivation = createAlertActivation();
+      alertContext.promise = currentActivation.promise;
+      previousActivation.resolve(true);
+      const previousAudio = audio;
+      detachAudio(true);
+      fallbackPosition = 0;
+      pendingResumePosition = undefined;
+      replayAt = undefined;
+      specialEventStageMusicOwned = true;
+      specialEventMusicDucked = false;
+      // 阶段曲目由 Danger 结算驱动：后续 replayed / 恢复语义按 Danger 音乐处理。
+      musicSourceState = "danger";
+      alertContext.musicAlert = stageAlert;
+      alertContext.playbackState = "normal-playing";
+      audio = undefined;
+      createAlertAudio();
+      replaceAlertAudioNode(previousAudio);
+    } else {
+      specialEventStageMusicOwned = true;
+      specialEventMusicDucked = false;
+      musicSourceState = "danger";
+      alertContext.musicAlert = stageAlert;
+      alertContext.playbackState = "normal-playing";
+      ensureAlertMusicAudible();
+    }
+    if (options.thenHold === true) {
+      specialEventStageMusicTimer = setTimeout(() => {
+        specialEventStageMusicTimer = undefined;
+        fadeAlertMusicToSpecialEventHold(
+          lobotomyCorpSpecialEventMusicFadeOutMs,
+        );
+      }, audibleMs);
+    }
+    syncAlertDatasets();
+    persistPlaybackPosition();
+    return currentActivation.promise;
+  }
+
+  /**
+   * 把正在播放的 Trumpet 淡出到 WhiteNight 后台 ducked hold。
+   *
+   * 与 holdAlertMusicForSpecialEvent() 的立即压低不同，这里按插值平滑过渡：
+   * - 同一条 Audio 继续播放，currentTime 全程连续推进；
+   * - 从当前实际音量平滑降到 duck 目标音量，结束后才真正进入 special-event-held；
+   * - 不触发普通 Danger replay，也不触发 Direct one-shot 结束；
+   * - Restart Day / 会话结束会连同这个计时器一起清理。
+   *
+   * @param {number} durationMs 本次淡出剩余时长（毫秒）。
+   * @param {{startVolume?: number}} [options] 淡出起始音量；页面恢复到淡出中途时按保存进度重建。
+   */
+  function fadeAlertMusicToSpecialEventHold(durationMs, options = {}) {
+    if (closing || finished || !audio) return;
+    const fadeDuration = Math.max(
+      0,
+      Number.isFinite(durationMs) ? durationMs : 0,
+    );
+    const requestedVolume = Number.isFinite(options.startVolume)
+      ? options.startVolume
+      : audio.volume;
+    const startVolume = Math.max(0, Math.min(1, requestedVolume));
+    const targetVolume = lobotomyCorpWhiteNightAlertDuckVolume;
+    specialEventMusicDucked = true;
+    alertContext.playbackState = "special-event-held";
+    if (directAlertFallbackEndTimer !== undefined) {
+      clearTimeout(directAlertFallbackEndTimer);
+      directAlertFallbackEndTimer = undefined;
+    }
+    if (dangerAlertReplayTimer !== undefined) {
+      clearTimeout(dangerAlertReplayTimer);
+      dangerAlertReplayTimer = undefined;
+      replayAt = undefined;
+    }
     if (specialEventFadeTimer !== undefined) {
       clearTimeout(specialEventFadeTimer);
       specialEventFadeTimer = undefined;
     }
     audio.loop = true;
-    audio.muted = !specialEventMusicUnlocked;
-    audio.volume = 0;
+    // 淡出期间这首曲目仍在可听播放：保持 muted=false，只让音量平滑降到 duck 目标音量。
+    audio.muted = false;
+    audio.volume = startVolume;
+    playConfiguredAlertAudio();
+    const finishFade = () => {
+      specialEventFadeTimer = undefined;
+      specialEventStageMusicOwned = false;
+      if (audio) audio.volume = targetVolume;
+      persistPlaybackPosition();
+    };
+    if (fadeDuration <= 0) {
+      finishFade();
+      return;
+    }
+    const fadeStartedAt = Date.now();
+    /** 平滑推进淡出音量；淡出期间同一条 Audio 始终在后台继续推进。 */
+    const fadeStep = () => {
+      if (closing || finished || !audio || !specialEventMusicDucked) return;
+      const progress = Math.min(1, (Date.now() - fadeStartedAt) / fadeDuration);
+      audio.volume = lobotomyCorpInterpolateAlertVolume(
+        startVolume,
+        targetVolume,
+        progress,
+      );
+      if (progress < 1) {
+        specialEventFadeTimer = setTimeout(fadeStep, 16);
+        return;
+      }
+      finishFade();
+    };
+    fadeStep();
+    persistPlaybackPosition();
+  }
+
+  /**
+   * 在用户手势中恢复当前 Trumpet 的播放权限（autoplay unlock）。
+   *
+   * 职责边界是「恢复播放权限」而不是「设置 duck 目标音量」：specialEventMusicDucked
+   * 在淡出 / 淡入进行中同样为 true，此处写 volume 会打断正在进行的渐变。
+   * 因此只做 muted=false（白夜特殊生命周期内保持 loop 保护）与重试播放，
+   * 音量始终取当前实际值；目标音量由 fadeAlertMusicToSpecialEventHold() 与
+   * held 恢复时的初始化逻辑负责。
+   */
+  function prepareAlertMusicForSpecialEventResume() {
+    if (closing || finished || !audio) return;
+    audio.muted = false;
+    if (specialEventMusicDucked) {
+      // 白夜特殊生命周期仍需要 loop 保护，但音量保持当前实际值（可能正处于淡出或淡入中途）。
+      audio.loop = true;
+    }
     playConfiguredAlertAudio();
   }
 
   /**
-   * 在用户手势中确保静音 Trumpet 已获准播放，为稍后的镇压淡入做准备。
-   */
-  function prepareAlertMusicForSpecialEventResume() {
-    if (closing || finished || !audio) return;
-    specialEventMusicUnlocked = true;
-    keepAlertMusicSuppressed();
-  }
-
-  /**
-   * 复用正在后台播放的 Trumpet，在约一秒内恢复正常音量。
+   * 复用正在后台播放的 Trumpet，从当前 ducked 音量平滑恢复到正常音量。
+   *
+   * 恢复对象始终是 WhiteNight 阶段时间线最后 hold 住的那一条曲目：
+   * 同一条 Audio 从当前进度、当前音量（held 时即 duck 目标音量）淡入到 1.0，绝不先掉到 0；
+   * 淡入期间继续保持 special hold 的 loop 与 ownership，避免曲目恰好 ended 打断渐变。
    */
   function resumeAlertMusicAfterSpecialEvent() {
     if (closing || finished || !audio || !alertContext.visualAlert) return;
-    specialEventMusicSuppressed = false;
-    specialEventMusicUnlocked = true;
-    audio.loop = false;
+    if (specialEventStageMusicTimer !== undefined) {
+      clearTimeout(specialEventStageMusicTimer);
+      specialEventStageMusicTimer = undefined;
+    }
+    const startVolume = Math.max(
+      0,
+      Math.min(
+        1,
+        Number.isFinite(audio.volume)
+          ? audio.volume
+          : lobotomyCorpWhiteNightAlertDuckVolume,
+      ),
+    );
+    // 淡入完成前保持 ducked hold：loop 让 track ended 不会打断 2 秒渐变，
+    // specialEventMusicDucked 同时挡住普通 Danger replay 与 Direct fallback。
+    // 阶段 ownership 在此结束，普通 Danger lifecycle 仍可正常接管或收起 Alert。
+    specialEventStageMusicOwned = false;
+    specialEventMusicDucked = true;
+    alertContext.playbackState = "special-event-held";
+    audio.loop = true;
     audio.muted = false;
-    audio.volume = 0;
-    void audio.play?.().catch(() => {
-      // 若赎罪手势未能预解锁，仍保留静音会话，避免重建或归零。
-    });
-    scheduleNaturalAlertEnd();
+    audio.volume = startVolume;
+    playConfiguredAlertAudio();
+    persistPlaybackPosition();
     const fadeStartedAt = Date.now();
     /** 平滑推进当前 Trumpet 的恢复音量。 */
     const fadeStep = () => {
-      if (closing || finished || specialEventMusicSuppressed || !audio) return;
+      if (closing || finished || !specialEventMusicDucked || !audio) return;
       const progress = Math.min(
         1,
         (Date.now() - fadeStartedAt) / lobotomyCorpSpecialEventMusicFadeInMs,
       );
-      audio.volume = progress;
-      if (progress < 1) specialEventFadeTimer = setTimeout(fadeStep, 16);
-      else specialEventFadeTimer = undefined;
+      audio.volume = lobotomyCorpInterpolateAlertVolume(
+        startVolume,
+        1,
+        progress,
+      );
+      if (progress < 1) {
+        specialEventFadeTimer = setTimeout(fadeStep, 16);
+        return;
+      }
+      // 淡入完成后才退出 special hold，恢复普通 Danger music lifecycle。
+      specialEventFadeTimer = undefined;
+      specialEventMusicDucked = false;
+      alertContext.playbackState = "normal-playing";
+      audio.loop = false;
+      audio.volume = 1;
+      persistPlaybackPosition();
     };
     fadeStep();
   }
@@ -2189,21 +2832,37 @@ function startLobotomyCorpAlert(
   function configureAlertAudio() {
     alertContext.audio = audio;
     audio.hidden = true;
-    audio.loop = specialEventMusicSuppressed;
-    audio.muted = specialEventMusicSuppressed && !specialEventMusicUnlocked;
-    audio.volume = specialEventMusicSuppressed ? 0 : 1;
+    // 恢复 special-event-held 时按 ducked hold 语义重建：loop 后台推进、不静音、取 duck 目标音量。
+    audio.loop = specialEventMusicDucked;
+    audio.muted = false;
+    audio.volume = specialEventMusicDucked
+      ? lobotomyCorpWhiteNightAlertDuckVolume
+      : 1;
     audio.preload = "auto";
     audio.setAttribute("aria-hidden", "true");
     audio.addEventListener("ended", finishAlertFromAudioEnd);
     audio.addEventListener("error", finishAlertFromAudioError);
     audio.addEventListener("timeupdate", persistPlaybackPosition);
+    if (
+      musicSourceState === "danger" &&
+      alertContext.playbackState === "replay-intermission"
+    ) {
+      const remaining = Math.max(0, (replayAt ?? Date.now()) - Date.now());
+      if (remaining > 0) {
+        dangerAlertReplayTimer = setTimeout(replayDangerAlertAudio, remaining);
+        persistPlaybackPosition();
+        return;
+      }
+      alertContext.playbackState = "normal-playing";
+      replayAt = undefined;
+    }
     const metadataReady = audio.readyState >= 1 ||
       Number.isFinite(audio.duration);
     if (metadataReady) {
-      scheduleNaturalAlertEnd();
+      scheduleDirectAlertFallbackEnd();
       playAlertAudio();
     } else {
-      audio.addEventListener("loadedmetadata", scheduleNaturalAlertEnd, {
+      audio.addEventListener("loadedmetadata", scheduleDirectAlertFallbackEnd, {
         once: true,
       });
       if (pendingResumePosition !== undefined) {
@@ -2217,23 +2876,214 @@ function startLobotomyCorpAlert(
   }
 
   /**
-   * 在字体和 Sprite 准备完成后挂载指定视觉等级的 Unity 风格层级。
+   * 按当前 visual / 顶部面板 / Audio 重新装配 overlay 的子节点。
+   *
+   * 视觉等级替换只走这里：overlay 与顶部 Restart panel 都被复用，
+   * 因此不会重播面板 Appear 动画，也不会重建或触碰 Audio。
+   */
+  function renderAlertOverlayChildren() {
+    if (!overlay) return;
+    // 会话内的视觉等级替换会重新挂载子节点；标记复用可让 CSS 跳过面板 Appear 动画。
+    if (mounted && topPanel) {
+      topPanel.dataset.lobotomyCorpTopPanelReused = "true";
+    }
+    const children = [];
+    if (visualAlert) {
+      const activeControl = document.createElement("div");
+      emergencyController = document.createElement("div");
+      emergencyController.className = "lobotomy-corp-emergency-controller";
+      activeControl.className = "lobotomy-corp-alert-active-control";
+      lobotomyCorpCornerDefinitions.forEach((definition) => {
+        activeControl.append(
+          createLobotomyCorpEmergencyCorner(visualAlert, definition),
+        );
+      });
+      emergencyController.append(activeControl);
+      children.push(emergencyController);
+    } else {
+      emergencyController = undefined;
+    }
+    if (topPanel) children.push(topPanel);
+    if (audio) children.push(audio);
+    overlay.replaceChildren(...children);
+  }
+
+  /**
+   * 只更换 overlay 中承载音频的节点，不重建四角 HUD。
+   *
+   * 阶段演出换曲时使用：新的 Audio 需要进入 overlay，但视觉状态没有变化，
+   * 不应该因此重建四角节点或重播面板动画。
+   *
+   * @param {HTMLAudioElement|undefined} previousAudio 被替换的音频。
+   */
+  function replaceAlertAudioNode(previousAudio) {
+    if (!overlay) return;
+    const children = [...overlay.children].filter((child) =>
+      child !== previousAudio
+    );
+    if (audio) children.push(audio);
+    overlay.replaceChildren(...children);
+  }
+
+  /**
+   * 把当前 HUD 等级、音乐等级与两个 owner 写入 overlay 数据集，供测试与调试观察。
+   */
+  function syncAlertDatasets() {
+    if (!overlay?.dataset) return;
+    overlay.dataset.lobotomyCorpAlertSource = lobotomyCorpDangerVisualAlert()
+      ? "danger"
+      : directSessionState && musicSourceState === "direct"
+      ? "direct"
+      : musicSourceState;
+    overlay.dataset.lobotomyCorpAlertMusicSource = musicSourceState;
+    overlay.dataset.lobotomyCorpAlertVisualLevel = String(
+      visualAlert?.level ?? 0,
+    );
+    overlay.dataset.lobotomyCorpAlertMusicLevel = String(
+      alertContext.musicAlert?.level ?? 0,
+    );
+  }
+
+  /**
+   * 计算当前会话应显示的 HUD；只读状态，不触碰 DOM。
+   *
+   * @return {{assetDirectory: string, level: number, soundPath: string}|undefined} 实时 Danger 警报；没有 Danger Emergency 且会话由 Direct 建立时才回落到 Direct 警报。
+   */
+  function nextVisualAlertForSession() {
+    return lobotomyCorpDangerVisualAlert() ??
+      (directSessionState ? alertContext.musicAlert : undefined);
+  }
+
+  /**
+   * 只更新 HUD 业务状态（当前视觉警报与顶部按钮文案），不渲染 DOM。
+   *
+   * 渲染统一交给调用方，确保「一次状态更新 → 一次视觉 render」。
+   *
+   * @param {{assetDirectory: string, level: number, soundPath: string}|undefined} nextVisualAlert 新的 HUD 警报。
+   */
+  function applyVisualAlert(nextVisualAlert) {
+    visualAlert = nextVisualAlert;
+    alertContext.visualAlert = nextVisualAlert;
+    syncTopPanelActionText(nextVisualAlert);
+  }
+
+  /**
+   * 只替换 HUD 视觉：复用 overlay 与顶部 Restart panel，仅重建四角与按钮文案。
+   *
+   * 该函数绝不触碰 Audio、replay 计时器或自然结束计时，因此 HUD 升降既不会
+   * pause / restart 音乐，也不会让 replay gap 重新计时。
+   *
+   * @param {{assetDirectory: string, level: number, soundPath: string}|undefined} nextVisualAlert 新的 HUD 警报；undefined 表示收起四角警报框。
+   */
+  function replaceVisual(nextVisualAlert) {
+    applyVisualAlert(nextVisualAlert);
+    renderAlertOverlayChildren();
+    updateCanvasScale(true);
+    syncAlertDatasets();
+    persistPlaybackPosition();
+  }
+
+  /**
+   * 按「实时 Danger 优先」的规则重算 HUD。
+   *
+   * Danger Emergency 存在时 HUD 永远等于实时 Danger 等级，与音乐等级、music high-water 无关；
+   * 只有 Direct 自己建立的会话在没有 Danger Emergency 时才显示 Direct 的警报框。
+   * Danger Emergency 结束而 Direct one-shot 仍在播放时，HUD 直接消失（不显示 Direct 视觉）。
+   */
+  function syncVisual() {
+    if (closing || finished) return;
+    const nextVisualAlert = nextVisualAlertForSession();
+    if (nextVisualAlert === visualAlert) {
+      syncAlertDatasets();
+      return;
+    }
+    replaceVisual(nextVisualAlert);
+  }
+
+  /**
+   * 在当前会话内替换音乐 owner：停止旧 Audio 并按新等级从头播放。
+   *
+   * HUD / overlay / 顶部面板都不重建，因此 Direct 音乐接管不会改变四角警报框。
+   *
+   * @param {{assetDirectory: string, level: number, soundPath: string}} nextMusicAlert 新的音乐警报。
+   * @param {"danger"|"direct"} nextMusicSource 新的音乐 owner。
+   * @param {object} [nextPreparedMedia] 可采用的预热媒体。
+   * @return {Promise<boolean>} 新音乐 owner 的 activation Promise。
+   */
+  function takeOverMusic(nextMusicAlert, nextMusicSource, nextPreparedMedia) {
+    if (closing || finished) {
+      nextPreparedMedia?.dispose?.();
+      return Promise.resolve(true);
+    }
+    const previousActivation = currentActivation;
+    currentActivation = createAlertActivation();
+    alertContext.promise = currentActivation.promise;
+    previousActivation.resolve(true);
+
+    detachAudio(true);
+    fallbackPosition = 0;
+    pendingResumePosition = undefined;
+    replayAt = undefined;
+    // 普通 Danger / Direct 接管后，WhiteNight 阶段时间线释放当前曲目的所有权。
+    specialEventStageMusicOwned = false;
+    musicSourceState = nextMusicSource;
+    // Danger 接管后本会话由 Danger 驱动：Emergency 结束时 HUD 随之消失。
+    if (nextMusicSource === "danger") directSessionState = false;
+    alertContext.musicAlert = nextMusicAlert;
+    alertContext.playbackState = specialEventMusicDucked
+      ? "special-event-held"
+      : "normal-playing";
+    audio = nextPreparedMedia?.consume?.(nextMusicAlert.soundPath);
+    if (audio) {
+      configureAlertAudio();
+    } else {
+      nextPreparedMedia?.dispose?.();
+      createAlertAudio();
+    }
+    // 一次状态更新只渲染一次：先算好新的 HUD owner，再统一重建四角节点与新 Audio。
+    // 重建四角后必须重新写入 CanvasScaler，否则新节点会丢失缩放。
+    applyVisualAlert(nextVisualAlertForSession());
+    renderAlertOverlayChildren();
+    updateCanvasScale(true);
+    syncAlertDatasets();
+    persistPlaybackPosition();
+    return currentActivation.promise;
+  }
+
+  /**
+   * Direct one-shot 自然结束：恢复底层 Danger music high-water，或结束整个会话。
+   *
+   * 恢复对象永远是 music high-water，而不是当前实时 HUD 等级；Danger < 10 时不恢复任何 Danger 音乐。
+   */
+  function finishDirectAlertMusic() {
+    if (closing || finished) return;
+    const dangerMusicAlert = lobotomyCorpDangerMusicAlert();
+    if (!dangerMusicAlert) {
+      finishAlert({ animateExit: false });
+      return;
+    }
+    void takeOverMusic(dangerMusicAlert, "danger");
+    syncVisual();
+  }
+
+  /**
+   * 在字体和 Sprite 准备完成后挂载 Unity 风格层级。
+   *
+   * 资源准备是异步的，期间可能发生音乐接管或 HUD 升降；因此始终按当前会话状态挂载，
+   * 避免接管导致整个会话丢失 HUD。
    *
    * @return {Promise<void>} HUD 挂载或被提前关闭后完成。
    */
-  async function mountLobotomyCorpAlert(visualAlert, activation) {
+  async function mountLobotomyCorpAlert() {
     try {
       if (shouldPrepareLobotomyCorpVisualAssets()) {
         await prepareLobotomyCorpVisualAssets();
       }
-      if (
-        closing || finished || activeLobotomyCorpAlert !== alertContext ||
-        currentActivation !== activation
-      ) {
+      if (closing || finished || activeLobotomyCorpAlert !== alertContext) {
         return;
       }
       if (!globalThis.document?.createElement || !globalThis.document.body) {
-        activation.resolve(true);
+        currentActivation.resolve(true);
         return;
       }
 
@@ -2247,40 +3097,22 @@ function startLobotomyCorpAlert(
       overlay.dataset.lobotomyCorpAlertResumeAt = String(
         currentAudioPosition(),
       );
-      if (visualAlert) {
-        emergencyController = document.createElement("div");
-        const activeControl = document.createElement("div");
-        emergencyController.className = "lobotomy-corp-emergency-controller";
-        activeControl.className = "lobotomy-corp-alert-active-control";
-        lobotomyCorpCornerDefinitions.forEach((definition) => {
-          activeControl.append(
-            createLobotomyCorpEmergencyCorner(visualAlert, definition),
-          );
-        });
-        emergencyController.append(activeControl);
-        overlay.append(emergencyController);
-      } else {
-        emergencyController = undefined;
-      }
-      if (!topPanel) {
-        const topPanelController = createLobotomyCorpTopPanel();
-        topPanel = topPanelController.element;
-        topPanelActiveController = topPanelController.activeController;
-        endAlertButton = topPanelController.endAlertButton;
-        endAlertButtonText = topPanelController.endAlertButtonText;
-        endAlertButton.addEventListener("click", finishAlertFromButton);
-      } else {
-        topPanel.dataset.lobotomyCorpTopPanelReused = "true";
-      }
+      const topPanelController = createLobotomyCorpTopPanel();
+      topPanel = topPanelController.element;
+      topPanelActiveController = topPanelController.activeController;
+      endAlertButton = topPanelController.endAlertButton;
+      endAlertButtonText = topPanelController.endAlertButtonText;
+      endAlertButton.addEventListener("click", finishAlertFromButton);
       syncTopPanelActionText(visualAlert);
-      overlay.append(topPanel);
       if (!audio) {
         createAlertAudio();
-      } else if (audio && !alertContext.audio) {
+      } else if (!alertContext.audio) {
+        // 采用用户手势中预热的 Audio 时，补上本会话的监听器与播放流程。
         configureAlertAudio();
       }
-      // 白夜期间仍保留普通 Trumpet 实例，只将其音量压至零。
-      if (audio) overlay.append(audio);
+      // 白夜期间仍保留普通 Trumpet 实例，只是把它压到 duck 目标音量作为背景音乐。
+      renderAlertOverlayChildren();
+      syncAlertDatasets();
       updateCanvasScale(true);
       globalThis.addEventListener?.(
         "resize",
@@ -2295,6 +3127,7 @@ function startLobotomyCorpAlert(
       globalThis.addEventListener?.("pagehide", persistPlaybackPosition, {
         once: true,
       });
+      mounted = true;
       persistPlaybackPosition();
     } catch {
       // 视觉资源加载或 DOM 初始化失败时，沿用既有生命周期清理警报状态。
@@ -2302,62 +3135,31 @@ function startLobotomyCorpAlert(
     }
   }
 
-  /**
-   * 更新 HUD，并仅在新的视觉等级突破音乐高水位时升级音乐。
-   *
-   * @param {object|undefined} nextAlert 新 HUD 配置；undefined 表示隐藏 HUD。
-   * @return {Promise<boolean>} 新视觉 activation 的完成 Promise。
-   */
-  function replaceVisual(nextAlert, nextPreparedMedia) {
-    if (
-      nextAlert?.assetDirectory === alertContext.visualAlert?.assetDirectory
-    ) {
-      nextPreparedMedia?.dispose?.();
-      return currentActivation.promise;
-    }
-    currentActivation.resolve(true);
-    const previousOverlay = overlay;
-    const activation = createVisualActivation(nextAlert);
-    currentActivation = activation;
-    alertContext.promise = activation.promise;
-    alertContext.visualAlert = nextAlert;
-    if (nextAlert && nextAlert.level > alertContext.musicAlert.level) {
-      alertContext.musicAlert = nextAlert;
-      // 等级升级始终替换真实音轨；白夜仅改变新实例的听觉输出，不保留旧等级。
-      detachAudio(true);
-      audio = nextPreparedMedia?.consume?.(nextAlert.soundPath);
-      if (!audio) nextPreparedMedia?.dispose?.();
-      alertContext.audio = undefined;
-      alertContext.startedAt = Date.now();
-      fallbackPosition = 0;
-      pendingResumePosition = undefined;
-    } else {
-      nextPreparedMedia?.dispose?.();
-    }
-    previousOverlay?.remove();
-    persistPlaybackPosition();
-    void mountLobotomyCorpAlert(nextAlert, activation);
-    return activation.promise;
-  }
-
-  const coordinatorStop = lobotomyCorpDangerScore > 0
-    ? finishLobotomyCorpDayFromCoordinator
-    : finishAlertFromCoordinator;
+  const coordinatorStop = finishLobotomyCorpDayFromCoordinator;
   alertContext.finish = finishAlertFromCoordinator;
+  alertContext.finishVisible = () => finishAlert({ animateExit: false });
   alertContext.holdMusicForSpecialEvent = () => {
-    keepAlertMusicSuppressed();
+    holdAlertMusicForSpecialEvent();
   };
   alertContext.prepareMusicForSpecialEventResume =
     prepareAlertMusicForSpecialEventResume;
   alertContext.resumeMusicAfterSpecialEvent = resumeAlertMusicAfterSpecialEvent;
-  alertContext.replaceVisual = replaceVisual;
+  alertContext.setSpecialEventStageMusic = setSpecialEventStageAlertMusic;
+  alertContext.fadeMusicToSpecialEventHold = fadeAlertMusicToSpecialEventHold;
+  alertContext.syncVisual = syncVisual;
+  alertContext.takeOverMusic = takeOverMusic;
+  // 提交新会话前再次确认没有会话在本次 start 执行期间（例如采用预热媒体时）被并发建立。
+  const commitRaceResult = takeOverExistingSessionIfRacing();
+  if (commitRaceResult !== undefined) {
+    return commitRaceResult;
+  }
   activeLobotomyCorpAlert = alertContext;
   globalThis.easterEggCoordinator?.start(
     lobotomyCorpEasterEggGameId,
     coordinatorStop,
   );
   persistPlaybackPosition();
-  void mountLobotomyCorpAlert(alert, currentActivation);
+  void mountLobotomyCorpAlert();
   return currentActivation.promise;
 }
 
@@ -2379,6 +3181,15 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   prepareAlertMusicForResume: () =>
     activeLobotomyCorpAlert?.prepareMusicForSpecialEventResume?.(),
   resumeDangerDecay: restoreLobotomyCorpDangerDecay,
+  setSpecialEventStageAlertMusic: (alert, options) =>
+    activeLobotomyCorpAlert?.setSpecialEventStageMusic?.(alert, options),
+  fadeAlertMusicToSpecialEventHold: (durationMs, options) =>
+    activeLobotomyCorpAlert?.fadeMusicToSpecialEventHold?.(durationMs, options),
+  settleWhiteNightActive: settleLobotomyCorpWhiteNightActiveDanger,
+  // 白夜阶段演出复用共享层的淡化公式，刷新淡出中途时按剩余比例重建起始音量。
+  alertMusicFadeOutStartVolume: lobotomyCorpAlertMusicFadeOutStartVolume,
+  specialEventMusicFadeOutMs: lobotomyCorpSpecialEventMusicFadeOutMs,
+  stageMusicAlert: lobotomyCorpDangerSettlementAlert,
   storageKey: lobotomyCorpSpecialEventSessionKey,
   storages: lobotomyCorpAlertStorages,
 });
@@ -2388,6 +3199,7 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
   canvasScaleForViewport: lobotomyCorpCanvasScaleForViewport,
   canvasViewportForUpdate: lobotomyCorpCanvasViewportForUpdate,
   commitDisplayName: commitLobotomyCorpDisplayName,
+  getDangerMusicHighWaterLevel: getLobotomyCorpDangerMusicHighWaterLevel,
   getDangerScore: getLobotomyCorpDangerScore,
   getSpecialEvent: () => lobotomyCorpWhiteNightEvent.getId(),
   getSpecialEventPhase: () => lobotomyCorpWhiteNightEvent.getPhase(),
@@ -2418,18 +3230,39 @@ if (isLobotomyCorpAlertPageReload() && !restoredLobotomyCorpSpecialEvent) {
   restorePersistedLobotomyCorpDay();
   ensureLobotomyCorpDayCoordinator();
   const restoredLobotomyCorpAlert = persistedLobotomyCorpAlert();
-  if (restoredLobotomyCorpAlert) {
-    void startLobotomyCorpAlert(
-      restoredLobotomyCorpAlert.visualAlert ??
-        restoredLobotomyCorpAlert.musicAlert,
-      restoredLobotomyCorpAlert.startedAt,
-      restoredLobotomyCorpAlert.position,
-      restoredLobotomyCorpAlert.musicAlert,
-      undefined,
-      restoredLobotomyCorpSpecialEvent?.id === lobotomyCorpWhiteNightEventId,
-    );
-    if (!restoredLobotomyCorpAlert.visualAlert) {
-      void activeLobotomyCorpAlert?.replaceVisual(undefined);
+  // Danger 来源的会话只有在 music high-water 仍然成立（Danger ≥ 10）时才有意义；
+  // Direct one-shot 会话即使没有 Danger Emergency 也必须原样恢复。
+  if (
+    restoredLobotomyCorpAlert &&
+    !(restoredLobotomyCorpAlert.musicSource === "danger" &&
+      lobotomyCorpDangerMusicHighWaterLevel <= 0)
+  ) {
+    const restoredAlertIsHeld =
+      restoredLobotomyCorpAlert.playbackState === "special-event-held" ||
+      (restoredLobotomyCorpAlert.playbackState === "normal-playing" &&
+        restoredLobotomyCorpSpecialEvent?.id ===
+          lobotomyCorpWhiteNightEventId &&
+        restoredLobotomyCorpSpecialEvent?.phase !== "prelude");
+    void startLobotomyCorpAlert({
+      directSession: restoredLobotomyCorpAlert.directSession,
+      initiallyDucked: restoredAlertIsHeld,
+      musicAlert: restoredLobotomyCorpAlert.musicAlert,
+      musicSource: restoredLobotomyCorpAlert.musicSource,
+      playbackState: restoredAlertIsHeld
+        ? "special-event-held"
+        : restoredLobotomyCorpAlert.playbackState === "replay-intermission"
+        ? "replay-intermission"
+        : "normal-playing",
+      replayAt: restoredLobotomyCorpAlert.replayAt,
+      resumeAt: restoredLobotomyCorpAlert.position,
+      startedAt: restoredLobotomyCorpAlert.startedAt,
+      // 恢复时 HUD 永远重新按当前 Danger Score 计算；没有 Danger Emergency 时才回落到存档里的视觉。
+      visualAlert: lobotomyCorpDangerVisualAlert() ??
+        restoredLobotomyCorpAlert.visualAlert,
+    });
+    if (restoredLobotomyCorpAlert.musicSource === "danger") {
+      // Danger 来源的音乐必须与本次 Emergency 的 music high-water 对齐：只补升，不降低。
+      reconcileLobotomyCorpDangerAlert();
     }
   }
 }

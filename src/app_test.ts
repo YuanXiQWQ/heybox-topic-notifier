@@ -341,6 +341,9 @@ Deno.test({
     const stylesheetResponse = await app.request(
       "/static/fun/lobotomy-corp/lobotomy-corp.css",
     );
+    const canvasScalerResponse = await app.request(
+      "/static/fun/lobotomy-corp/Events/CanvasScaler.js",
+    );
     const audioResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/Resources/sounds/bgm/emergency01_mast.ogg",
     );
@@ -406,6 +409,17 @@ Deno.test({
       false,
     );
     assertEquals(stylesheetResponse.status, 200);
+    assertEquals(canvasScalerResponse.status, 200);
+    assertEquals(
+      canvasScalerResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assertEquals(
+      (await canvasScalerResponse.text()).includes(
+        "lobotomyCorpCanvasScaleForViewport",
+      ),
+      true,
+    );
     assertEquals(stylesheet.includes("pointer-events: none"), true);
     assertEquals(
       stylesheet.includes("LobotomyNorwester"),

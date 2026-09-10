@@ -90,9 +90,163 @@
   max-height: min(27.7778vh, 300px);
   max-width: min(62.5vw, 1200px);
   text-align: center;
-  text-shadow: 2px 2px rgb(252 58 58 / 49%),
-    2px -2px rgb(252 58 58 / 49%), -2px 2px rgb(252 58 58 / 49%),
-    -2px -2px rgb(252 58 58 / 49%);
+  /* 描边随字号缩放，避免小号 CJK 提示被固定 2px 红边吞没。 */
+  text-shadow: .035em .035em rgb(252 58 58 / 49%),
+    .035em -.035em rgb(252 58 58 / 49%), -.035em .035em rgb(252 58 58 / 49%),
+    -.035em -.035em rgb(252 58 58 / 49%);
+}
+
+/* AdventClockUI.prefab：1920×1080 UIRoot、Clock anchoredPosition=(0,-25)。 */
+@font-face {
+  font-display: block;
+  font-family: LobotomyAdventNames;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/BMDOHYEON.ttf")
+    format("truetype");
+}
+
+.lobotomy-corp-white-night-simple-advent {
+  --lobotomy-corp-advent-root-alpha: 0;
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10001;
+}
+
+.lobotomy-corp-white-night-simple-advent-canvas {
+  --lobotomy-corp-advent-canvas-scale: 1;
+  /* Unity 的 1920×1080 逻辑画布只能由 CanvasScaler transform 缩放，不能先被 Flexbox 压缩。 */
+  flex-shrink: 0;
+  height: 1080px;
+  overflow: hidden;
+  pointer-events: none;
+  position: relative;
+  transform: scale(var(--lobotomy-corp-advent-canvas-scale));
+  transform-origin: center;
+  width: 1920px;
+}
+
+.lobotomy-corp-white-night-simple-advent-ui-root {
+  height: 100%;
+  opacity: var(--lobotomy-corp-advent-root-alpha);
+  pointer-events: none;
+  position: relative;
+  width: 100%;
+}
+
+.lobotomy-corp-white-night-simple-advent-add-apostle,
+.lobotomy-corp-white-night-simple-advent-add-apostle {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Shader 脱离 CanvasScaler；它的坐标基准始终是当前可见 viewport。 */
+.lobotomy-corp-white-night-simple-advent-shader {
+  height: 100vh;
+  height: 100dvh;
+  inset: 0;
+  opacity: var(--lobotomy-corp-advent-root-alpha);
+  pointer-events: none;
+  position: fixed;
+  width: 100vw;
+}
+
+/* Clock CanvasGroup：Show_21 在 1/6 秒前为 0，1/3 秒时为 1。 */
+.lobotomy-corp-white-night-simple-advent-clock {
+  --lobotomy-corp-advent-clock-alpha: 0;
+  height: 819px;
+  left: calc(50% - 409.5px);
+  opacity: var(--lobotomy-corp-advent-clock-alpha);
+  pointer-events: none;
+  position: absolute;
+  top: 25px;
+  width: 819px;
+}
+
+.lobotomy-corp-white-night-simple-advent-frame {
+  height: 100%;
+  inset: 0;
+  /* ClockFrame Image.m_PreserveAspect = true (508×512 in an 819×819 Rect). */
+  object-fit: contain;
+  opacity: .8;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+.lobotomy-corp-white-night-simple-advent-names {
+  /* Name 的 RectTransform：anchor=(.5,.5)、anchoredPosition=(0,-8.750008)。 */
+  height: 0;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: calc(50% + 8.750008px);
+  width: 0;
+}
+
+/* Names[]：独立 RectTransform，位置与旋转全部由 prefab 序列化值驱动。 */
+.lobotomy-corp-white-night-simple-advent-name {
+  --lobotomy-corp-advent-name-alpha: 0;
+  --lobotomy-corp-advent-name-color: rgb(255 255 255);
+  align-items: center;
+  color: var(--lobotomy-corp-advent-name-color);
+  display: flex;
+  font-family: LobotomyAdventNames, "Malgun Gothic", sans-serif;
+  font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
+  font-weight: normal;
+  height: 48px;
+  justify-content: center;
+  left: var(--lobotomy-corp-advent-name-x);
+  line-height: normal;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  text-overflow: clip;
+  text-shadow: 1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
+    -1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
+    1px 1px rgb(69.375004 0.510111 0.510111 / 50%),
+    -1px 1px rgb(69.375004 0.510111 0.510111 / 50%);
+  top: calc(0px - var(--lobotomy-corp-advent-name-y));
+  transform: translate(-50%, -50%)
+    rotate(var(--lobotomy-corp-advent-name-rotation));
+  transform-origin: center;
+  /* Legacy Text: HorizontalWrapMode.Wrap + VerticalWrapMode.Truncate。 */
+  overflow-wrap: normal;
+  white-space: normal;
+  width: 114px;
+  opacity: var(--lobotomy-corp-advent-name-alpha);
+}
+
+/* Shader 是 Clock 的后续 sibling；Circle/ClockCenter、BlackShader、Point/Arrow 都被 Simple 模式关闭。 */
+.lobotomy-corp-white-night-simple-advent-global-shader,
+.lobotomy-corp-white-night-simple-advent-clock-shader {
+  pointer-events: none;
+  position: absolute;
+}
+
+.lobotomy-corp-white-night-simple-advent-global-shader,
+.lobotomy-corp-white-night-simple-advent-clock-shader {
+  height: 100vh;
+  height: 100dvh;
+  inset: 0;
+  object-fit: fill;
+  width: 100vw;
+}
+
+.lobotomy-corp-white-night-simple-advent-lower-shader {
+  height: 27.111111%;
+  left: 0;
+  /* 背景以 viewport 为坐标；本页明确允许拉伸，避免底边露出普通页面。 */
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  top: 74%;
+  width: 100%;
 }
 
 /* Confess ParticleSystem：Box Shape、4/s emission、5s lifetime 与 Stretch Billboard 均取自 prefab。 */

@@ -5,6 +5,27 @@
  * 仍由 lobotomy-corp.js 提供的最小共享 API 管理。
  */
 
+import {
+  createWhiteNightSimpleAdvent,
+  whiteNightSimpleAdventDurationMs,
+} from "./WhiteNightAdvent.js";
+
+/**
+ * WhiteNight 正式阶段开始后，新阶段 Trumpet 必须以正常音量完整播放的时长（毫秒）。
+ *
+ * 第二阶段 BGM 的 100% 可听窗口：结算后先从 0 秒起完整播放该时长，之后才淡出到
+ * 后台 ducked hold。该值与 Simple Advent 轮盘的视觉时长
+ * （`whiteNightSimpleAdventDurationMs`）相互独立，按听感单独调节（当前 3 秒）。
+ */
+export const whiteNightStageMusicAudibleMs = 2000;
+
+/** WhiteNight Trumpet 演出阶段：Prelude / 100% 可听窗口 / 后台 ducked hold。 */
+export const whiteNightTrumpetPhases = Object.freeze([
+  "prelude",
+  "audible",
+  "held",
+]);
+
 /** 白夜专用媒体路径。 */
 export const whiteNightSoundPaths = Object.freeze({
   bell: "Resources/sounds/creature/deathangel/Lucifer_Bell0.ogg",
@@ -84,12 +105,13 @@ export const whiteNightDeathSequenceDurationMs = 8830;
 /** 白夜允许的入口以及各入口是否播放进入钟声和使徒完成演出。 */
 const whiteNightEntryBehaviors = Object.freeze({
   "apostles-replay": Object.freeze({
-    playApostlesCompletion: true,
     playEntryBell: true,
+    usesSimpleAdventPrelude: true,
   }),
   "direct-submission": Object.freeze({
-    playApostlesCompletion: false,
+    usesSimpleAdventPrelude: true,
     playEntryBell: true,
+    settlesDirectDanger: true,
   }),
   "plague-doctor-transformation": Object.freeze({
     playApostlesCompletion: false,
@@ -151,7 +173,9 @@ function createWhiteNightConfessRay(document, assetRoot, index) {
   );
   ray.style.setProperty(
     "--lobotomy-corp-ray-width",
-    `${source.initial.sizeX * source.renderer.lengthScale * worldViewportHeight}vh`,
+    `${
+      source.initial.sizeX * source.renderer.lengthScale * worldViewportHeight
+    }vh`,
   );
   ray.style.setProperty(
     "--lobotomy-corp-ray-height",
@@ -159,18 +183,24 @@ function createWhiteNightConfessRay(document, assetRoot, index) {
   );
   ray.style.setProperty(
     "--lobotomy-corp-ray-travel-y-full",
-    `${source.initial.speed * source.initial.lifetimeSeconds *
-      source.sizeOverLifetime.yFullAt * worldViewportHeight}vh`,
+    `${
+      source.initial.speed * source.initial.lifetimeSeconds *
+      source.sizeOverLifetime.yFullAt * worldViewportHeight
+    }vh`,
   );
   ray.style.setProperty(
     "--lobotomy-corp-ray-travel-x-full",
-    `${source.initial.speed * source.initial.lifetimeSeconds *
-      source.sizeOverLifetime.xFullAt * worldViewportHeight}vh`,
+    `${
+      source.initial.speed * source.initial.lifetimeSeconds *
+      source.sizeOverLifetime.xFullAt * worldViewportHeight
+    }vh`,
   );
   ray.style.setProperty(
     "--lobotomy-corp-ray-travel-end",
-    `${source.initial.speed * source.initial.lifetimeSeconds *
-      worldViewportHeight}vh`,
+    `${
+      source.initial.speed * source.initial.lifetimeSeconds *
+      worldViewportHeight
+    }vh`,
   );
   return ray;
 }
@@ -189,7 +219,17 @@ export function createWhiteNightEvent(shared) {
    *
    * @return {boolean} 白夜正在运行时返回 true。
    */
-  const isActive = () => state?.id === "white-night";
+  const hasEventState = () => state?.id === "white-night";
+
+  /**
+   * 判断白夜是否已经进入会接管网站的正式阶段。
+   *
+   * Prelude 虽会持久化事件状态，但不能启用赎罪、导航阻断或无限冻结 Danger。
+   *
+   * @return {boolean} 白夜 active 或 ending 阶段时返回 true。
+   */
+  const isActive = () =>
+    hasEventState() && (state.phase === "active" || state.phase === "ending");
 
   /**
    * 释放一段事件媒体。
@@ -204,17 +244,28 @@ export function createWhiteNightEvent(shared) {
 
   /**
    * 写入白夜的可恢复状态，并保留教堂音乐的真实播放进度。
+   *
+   * Trumpet 演出的阶段状态（phase / 绝对截止时间 / 淡出时长）与 Danger settlement
+   * 分开持久化：刷新后既不会重复结算 +44 / +98，也不会重播或跳过阶段 BGM 时间线。
    */
   const persist = () => {
-    if (!isActive()) return;
+    if (!hasEventState()) return;
     const serialized = JSON.stringify({
       id: "white-night",
       lockLocation: state.lockLocation,
       pendingNavigationViolation: state.pendingNavigationViolation === true,
       pendingRecoveryBell: state.pendingRecoveryBell === true,
       phase: state.phase,
+      ...(state.preludeEndsAt === undefined
+        ? {}
+        : { preludeEndsAt: state.preludeEndsAt }),
       source: state.source,
       churchPosition: currentChurchPosition(),
+      trumpetFadeMs: state.trumpetFadeMs,
+      ...(state.trumpetDeadline === undefined
+        ? {}
+        : { trumpetDeadline: state.trumpetDeadline }),
+      trumpetPhase: state.trumpetPhase,
     });
     shared.storages().forEach((storage) =>
       storage.setItem(shared.storageKey, serialized)
@@ -230,7 +281,7 @@ export function createWhiteNightEvent(shared) {
   /**
    * 读取可恢复的白夜状态。
    *
-   * @return {{id: string, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, phase?: string, source?: string, churchPosition?: number}|undefined} 已保存状态。
+   * @return {{id: string, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, phase?: string, preludeEndsAt?: number, source?: string, churchPosition?: number, trumpetDeadline?: number, trumpetFadeMs?: number, trumpetPhase?: string}|undefined} 已保存状态。
    */
   const persisted = () => {
     const serialized = shared.storages().map((storage) =>
@@ -241,10 +292,34 @@ export function createWhiteNightEvent(shared) {
       const saved = JSON.parse(serialized);
       if (saved?.id !== "white-night") return undefined;
       if (
+        saved.preludeEndsAt !== undefined &&
+        (!Number.isFinite(saved.preludeEndsAt) || saved.preludeEndsAt < 0)
+      ) {
+        throw new Error("Invalid WhiteNight prelude deadline.");
+      }
+      if (
         saved.churchPosition !== undefined &&
         (!Number.isFinite(saved.churchPosition) || saved.churchPosition < 0)
       ) {
         throw new Error("Invalid WhiteNight church position.");
+      }
+      if (
+        saved.trumpetPhase !== undefined &&
+        !whiteNightTrumpetPhases.includes(saved.trumpetPhase)
+      ) {
+        throw new Error("Invalid WhiteNight trumpet phase.");
+      }
+      if (
+        saved.trumpetDeadline !== undefined &&
+        (!Number.isFinite(saved.trumpetDeadline) || saved.trumpetDeadline < 0)
+      ) {
+        throw new Error("Invalid WhiteNight trumpet deadline.");
+      }
+      if (
+        saved.trumpetFadeMs !== undefined &&
+        (!Number.isFinite(saved.trumpetFadeMs) || saved.trumpetFadeMs < 0)
+      ) {
+        throw new Error("Invalid WhiteNight trumpet fade duration.");
       }
       return saved;
     } catch {
@@ -321,7 +396,7 @@ export function createWhiteNightEvent(shared) {
   };
 
   /**
-   * 在媒体尝试播放前重新定位教堂音乐，避免被此前失败的 autoplay 重置。
+   * 在媒体尝试播放前重新定位教堂音乐，避免失败的 autoplay 重置播放位置。
    *
    * @return {number|undefined} 本次实际写入的恢复位置。
    */
@@ -329,7 +404,9 @@ export function createWhiteNightEvent(shared) {
     if (!state || state.pendingChurchResumePosition === undefined) {
       return undefined;
     }
-    const position = normalizedChurchPosition(state.pendingChurchResumePosition);
+    const position = normalizedChurchPosition(
+      state.pendingChurchResumePosition,
+    );
     state.churchPosition = position;
     if (state.churchAudio) state.churchAudio.currentTime = position;
     return position;
@@ -509,48 +586,145 @@ export function createWhiteNightEvent(shared) {
   };
 
   /**
-   * 启动白夜并接管 Alert 音乐。
+   * 读取本次阶段演出使用的 Trumpet 淡出时长。
    *
-   * @param {{churchPosition?: number, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, preparedMedia?: object, restore?: boolean, resumeEnding?: boolean, source: "apostles-replay"|"direct-submission"|"plague-doctor-transformation"}} options 事件入口配置。
-   * @return {boolean} 新事件启动时返回 true。
+   * 淡出时长由共享 Alert 层提供（`lobotomyCorpSpecialEventMusicFadeOutMs`），这里
+   * 只记录该数值用于刷新恢复；宿主未提供时退化为 0，阶段演出随即进入后台 hold。
+   *
+   * @return {number} 非负毫秒数。
    */
-  const start = (options) => {
-    if (state) {
-      options?.preparedMedia?.dispose?.();
-      return false;
-    }
-    const behavior = whiteNightEntryBehaviors[options?.source];
-    if (!behavior) {
-      options?.preparedMedia?.dispose?.();
-      return false;
-    }
-    const document = globalThis.document;
-    state = {
-      bellAudios: new Set(),
-      id: "white-night",
-      listeners: [],
-      lockLocation: options.lockLocation ??
-        `${globalThis.location?.pathname ?? "/settings"}${
-          globalThis.location?.search ?? ""
-        }`,
-      phase: "active",
-      churchPosition: Number.isFinite(options.churchPosition) &&
-          options.churchPosition >= 0
-        ? options.churchPosition
-        : 0,
-      pendingChurchResumePosition: options.restore === true &&
-          Number.isFinite(options.churchPosition) && options.churchPosition >= 0
-        ? options.churchPosition
-        : undefined,
-      pendingRecoveryBell: options.pendingRecoveryBell === true,
-      source: options.source,
-      timers: new Set(),
-    };
+  const specialEventMusicFadeOutMs = () => {
+    const value = shared.specialEventMusicFadeOutMs;
+    return Number.isFinite(value) && value >= 0 ? value : 0;
+  };
+
+  /**
+   * 令共享 Alert 层立即把当前 Trumpet 压入后台 ducked hold（低于正常音量）。
+   *
+   * @param {object} current 当前事件状态。
+   */
+  const holdTrumpetForSpecialEvent = (current) => {
+    current.trumpetPhase = "held";
+    current.trumpetDeadline = undefined;
     persist();
+    shared.holdAlertMusic?.();
+  };
+
+  /**
+   * 让某个阶段实际结算结果对应的 Trumpet 进入可听窗口。
+   *
+   * 曲目永远由这次结算真实产生的警报决定（`shared.stageMusicAlert()`），不硬编码
+   * First / Third；共享 Alert 层负责「阶段演出允许相对上一条阶段曲目降级、但不打断
+   * 更高等级 Direct one-shot」的仲裁。
+   *
+   * @param {object} current 当前事件状态。
+   * @param {{assetDirectory: string, level: number, soundPath: string}|undefined} stageAlert 本阶段结算对应的警报。
+   * @param {{audibleMs: number, thenHold: boolean}} options 可听窗口与是否随后淡出到后台 hold。
+   */
+  const beginStageTrumpetMusic = (current, stageAlert, options) => {
+    if (!stageAlert) {
+      holdTrumpetForSpecialEvent(current);
+      return;
+    }
+    const audibleMs = Math.max(0, options.audibleMs);
+    current.trumpetPhase = "audible";
+    current.trumpetDeadline = Date.now() + audibleMs;
+    current.trumpetFadeMs = specialEventMusicFadeOutMs();
+    persist();
+    shared.setSpecialEventStageAlertMusic?.(stageAlert, {
+      audibleMs,
+      thenHold: options.thenHold,
+    });
+  };
+
+  /**
+   * 页面恢复时按已保存的阶段时间线重建 Trumpet。
+   *
+   * 覆盖四种可恢复状态：可听窗口内（只补剩余时长，沿用已恢复的同一实例与进度）、
+   * 淡出中途（按保存进度重建 1 → duck 目标音量的起始音量）、已 hold（继续保持 ducked 后台推进）、
+   * Prelude（由 Prelude 分支恢复，不走这里）。
+   *
+   * @param {object} current 当前事件状态。
+   * @return {boolean} 已由恢复逻辑接管 Trumpet 时返回 true。
+   */
+  const restoreTrumpetTimeline = (current) => {
+    const savedPhase = current.trumpetPhase;
+    if (savedPhase === "prelude") return false;
+    const deadline = current.trumpetDeadline;
+    const fadeMs = Number.isFinite(current.trumpetFadeMs)
+      ? Math.max(0, current.trumpetFadeMs)
+      : specialEventMusicFadeOutMs();
+    const stageAlert = shared.stageMusicAlert?.();
+    if (savedPhase === "audible" && Number.isFinite(deadline) && stageAlert) {
+      const now = Date.now();
+      if (now < deadline) {
+        current.trumpetFadeMs = fadeMs;
+        persist();
+        shared.setSpecialEventStageAlertMusic?.(stageAlert, {
+          audibleMs: deadline - now,
+          thenHold: true,
+        });
+        return true;
+      }
+      const fadeRemaining = deadline + fadeMs - now;
+      if (fadeMs > 0 && fadeRemaining > 0) {
+        current.trumpetFadeMs = fadeMs;
+        persist();
+        // 淡出固定从 1 插值到 ducked 音量；起始音量复用共享层的同一公式，
+        // 不能再写成只适用于 1 → 0 的 fadeRemaining / fadeMs。
+        const startVolume = shared.alertMusicFadeOutStartVolume?.(
+          fadeRemaining / fadeMs,
+        ) ?? Math.max(0, Math.min(1, fadeRemaining / fadeMs));
+        shared.fadeAlertMusicToSpecialEventHold?.(fadeRemaining, {
+          startVolume,
+        });
+        return true;
+      }
+    }
+    holdTrumpetForSpecialEvent(current);
+    return true;
+  };
+
+  /**
+   * 按当前入口与已保存阶段应用 WhiteNight 的 Trumpet 演出策略。
+   *
+   * 关键约束：
+   * - 经过 Simple Advent Prelude 的入口在正式阶段开始时不能立即 hold：第二阶段结算
+   *   产生的 Trumpet 必须先以正常音量完整播放；
+   * - 阶段曲目来自这次结算实际产生的警报，不得硬编码 First / Third；
+   * - 不经过 Prelude 的入口（例如 plague-doctor-transformation）直接进入 hold。
+   *
+   * @param {object} options 入口配置。
+   * @param {object} behavior 当前入口的演出策略。
+   */
+  const applyTrumpetTimeline = (options, behavior) => {
+    const current = state;
+    if (!current) return;
+    if (options.restore === true && restoreTrumpetTimeline(current)) return;
+    if (behavior.usesSimpleAdventPrelude !== true) {
+      holdTrumpetForSpecialEvent(current);
+      return;
+    }
+    beginStageTrumpetMusic(current, shared.stageMusicAlert?.(), {
+      audibleMs: whiteNightStageMusicAudibleMs,
+      thenHold: true,
+    });
+  };
+
+  /**
+   * 启动已经进入 active 的白夜场景、音乐和网站限制。
+   *
+   * @param {object} options 白夜入口配置。
+   * @param {object} behavior 当前入口的演出策略。
+   * @return {boolean} 场景成功建立时返回 true。
+   */
+  const activateWhiteNight = (options, behavior) => {
+    const document = globalThis.document;
     shared.pauseDangerDecay();
     shared.ensureCoordinator();
     if (!shared.getAlert()) shared.mountRestartPanel();
-    shared.holdAlertMusic();
+    // WhiteNight active 不等于立即压低音量：经过 Prelude 的入口要先把阶段 BGM 完整播完。
+    applyTrumpetTimeline(options, behavior);
 
     const violate = (key, bell = true) => {
       if (!isActive()) return;
@@ -718,10 +892,7 @@ export function createWhiteNightEvent(shared) {
     addListener(document, "keydown", state.resumeAudioOnInteraction, true);
     state.audioRecoveryListenerAttached = true;
 
-    const shouldPlayApostlesCompletion = behavior.playApostlesCompletion ||
-      (options.source === "direct-submission" &&
-        shared.hasTwelveApostles?.() === true);
-    if (!options.restore && shouldPlayApostlesCompletion) {
+    if (!options.restore && behavior.playApostlesCompletion) {
       shared.playApostlesCompletion?.(options.source);
     }
     if (!options.restore && behavior.playEntryBell) {
@@ -745,6 +916,112 @@ export function createWhiteNightEvent(shared) {
   };
 
   /**
+   * 启动白夜；direct-submission 先进入四秒 Simple Advent Prelude。
+   *
+   * @param {{churchPosition?: number, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, preparedMedia?: object, preludeEndsAt?: number, restore?: boolean, resumeEnding?: boolean, skipPrelude?: boolean, source: "apostles-replay"|"direct-submission"|"plague-doctor-transformation"}} options 事件入口配置。
+   * @return {boolean} 新事件启动时返回 true。
+   */
+  const start = (options) => {
+    if (state) {
+      options?.preparedMedia?.dispose?.();
+      return false;
+    }
+    const behavior = whiteNightEntryBehaviors[options?.source];
+    if (!behavior) {
+      options?.preparedMedia?.dispose?.();
+      return false;
+    }
+    const isPrelude = behavior.usesSimpleAdventPrelude === true &&
+      options.skipPrelude !== true;
+    const preludeEndsAt = Number.isFinite(options.preludeEndsAt)
+      ? options.preludeEndsAt
+      : Date.now() + whiteNightSimpleAdventDurationMs;
+    state = {
+      bellAudios: new Set(),
+      id: "white-night",
+      listeners: [],
+      lockLocation: options.lockLocation ??
+        `${globalThis.location?.pathname ?? "/settings"}${
+          globalThis.location?.search ?? ""
+        }`,
+      phase: isPrelude ? "prelude" : "active",
+      ...(isPrelude ? { preludeEndsAt } : {}),
+      churchPosition: Number.isFinite(options.churchPosition) &&
+          options.churchPosition >= 0
+        ? options.churchPosition
+        : 0,
+      pendingChurchResumePosition: options.restore === true &&
+          Number.isFinite(options.churchPosition) && options.churchPosition >= 0
+        ? options.churchPosition
+        : undefined,
+      pendingRecoveryBell: options.pendingRecoveryBell === true,
+      source: options.source,
+      timers: new Set(),
+      // Trumpet 演出时间线；与 Danger settlement 分开持久化。恢复时沿用存档阶段。
+      trumpetFadeMs: Number.isFinite(options.trumpetFadeMs)
+        ? Math.max(0, options.trumpetFadeMs)
+        : specialEventMusicFadeOutMs(),
+      ...(Number.isFinite(options.trumpetDeadline)
+        ? { trumpetDeadline: options.trumpetDeadline }
+        : {}),
+      trumpetPhase: whiteNightTrumpetPhases.includes(options.trumpetPhase)
+        ? options.trumpetPhase
+        : isPrelude
+        ? "prelude"
+        : "held",
+    };
+    persist();
+    if (!isPrelude) return activateWhiteNight(options, behavior);
+
+    /** 在四秒逻辑边界结算第二笔危急值，并在 Hide_21 继续时启动白夜。 */
+    const activateFromPrelude = () => {
+      const current = state;
+      if (!current || current.phase !== "prelude") return;
+      // Simple Advent 轮盘期间 HUD pulse、BGM 与 replay 都照常运行，这里无需改动 Alert 状态；
+      // 第二阶段的 Trumpet 由下面的阶段时间线按真实结算结果开始。
+      // Day 层的 settlement marker 令刷新、边界帧和过期回调均无法重复结算 +98。
+      if (behavior.settlesDirectDanger) {
+        shared.settleWhiteNightActive?.();
+      }
+      current.phase = "active";
+      delete current.preludeEndsAt;
+      persist();
+      const activeOptions = {
+        ...options,
+        preparedMedia: current.preparedMedia,
+      };
+      current.preparedMedia = undefined;
+      activateWhiteNight(activeOptions, behavior);
+    };
+    const remainingMs = preludeEndsAt - Date.now();
+    state.preparedMedia = options.preparedMedia;
+    // Simple Advent 轮盘只负责视觉与 4 秒 settlement 边界：第一阶段 BGM 由 +44 结算
+    // 正常产生的 Danger Alert 播放，HUD pulse 与 Alert lifecycle 全程保持运行，
+    // 本模块不暂停 Alert，也不接管这一阶段的音乐。
+    if (remainingMs <= 0) {
+      activateFromPrelude();
+      return true;
+    }
+    if (globalThis.document?.body && globalThis.document?.createElement) {
+      state.advent = createWhiteNightSimpleAdvent({
+        assetRoot: shared.assetRoot,
+        initialElapsedMs: whiteNightSimpleAdventDurationMs - remainingMs,
+        names: shared.apostleNames?.() ?? [],
+        onAdventEnd: activateFromPrelude,
+        // 刷新恢复只恢复视觉剩余时间，不重复播放进入钟声。
+        playBell: options.restore
+          ? undefined
+          : () => playBell(options.preparedMedia),
+      });
+    } else {
+      // 非 DOM 宿主仍需保持业务时序（例如账户脚本的最小测试环境）。
+      state.timers.add(setTimeout(activateFromPrelude, remainingMs));
+      if (!options.restore) playBell(options.preparedMedia);
+    }
+    return true;
+  };
+
+  /**
    * 结束白夜并清除全部资源、监听器和持久化。
    *
    * @param {{confessionCompleted?: boolean, restoreAlert?: boolean}} options 清理来源及是否恢复普通 Trumpet 音乐。
@@ -759,6 +1036,8 @@ export function createWhiteNightEvent(shared) {
     clearPersisted();
     shared.finishRestartPanel();
     current.timers.forEach(clearTimeout);
+    // Restart Day / 协调器中断必须取消而非 finish Advent，避免错误触发 +98。
+    current.advent?.dispose?.();
     current.listeners.forEach(([target, type, listener, options]) =>
       target?.removeEventListener?.(type, listener, options)
     );
@@ -776,7 +1055,12 @@ export function createWhiteNightEvent(shared) {
     ).forEach((node) => node.remove());
     syncConfessionButton(false);
     shared.resumeDangerDecay();
-    if (restoreAlert && !current.alertMusicResumed) shared.resumeAlertMusic();
+    // Prelude 期间普通 Alert 全程照常运行，这里无需恢复任何播放状态。
+    if (
+      current.phase !== "prelude" && restoreAlert && !current.alertMusicResumed
+    ) {
+      shared.resumeAlertMusic();
+    }
     current.resolveConfession?.(confessionCompleted);
   };
 
@@ -794,7 +1078,7 @@ export function createWhiteNightEvent(shared) {
     state.phase = "ending";
     state.preparedDeathMedia = preparedMedia;
     persist();
-    // 赎罪提交本身是用户手势；提前把静音的 Trumpet 置于可播放状态，
+    // 赎罪提交本身是用户手势；提前把 ducked 的 Trumpet 置于可播放状态，
     // 5.7 秒后的镇压点只需平滑恢复音量。
     shared.prepareAlertMusicForResume?.();
     syncConfessionButton(false);
@@ -887,9 +1171,15 @@ export function createWhiteNightEvent(shared) {
       lockLocation: saved.lockLocation,
       pendingNavigationViolation: saved.pendingNavigationViolation,
       pendingRecoveryBell: saved.pendingRecoveryBell,
+      preludeEndsAt: saved.preludeEndsAt,
       restore: true,
       resumeEnding,
+      skipPrelude: saved.phase !== "prelude",
       source,
+      // 恢复 Trumpet 演出时间线：可听窗口剩余时间 / 淡出进度 / 后台 hold。
+      trumpetDeadline: saved.trumpetDeadline,
+      trumpetFadeMs: saved.trumpetFadeMs,
+      trumpetPhase: saved.trumpetPhase,
     });
     if (resumeEnding) {
       void confess();
@@ -911,6 +1201,7 @@ export function createWhiteNightEvent(shared) {
     getId: () => state?.id,
     getPhase: () => state?.phase,
     getSource: () => state?.source,
+    hasEventState,
     isActive,
     matchesConfession,
     persisted,

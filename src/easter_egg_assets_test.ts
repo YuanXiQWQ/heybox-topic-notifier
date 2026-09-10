@@ -48,6 +48,25 @@ Deno.test({
 
 Deno.test({
   name:
+    "CanvasScaler module is served to the browser with a JavaScript MIME type",
+  permissions: { read: true },
+  fn: async () => {
+    const response = await lobotomyCorpAssetResponse("Events/CanvasScaler.js");
+
+    assertEquals(response.status, 200);
+    assertEquals(
+      response.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assertEquals(
+      (await response.text()).includes("lobotomyCorpCanvasScaleForViewport"),
+      true,
+    );
+  },
+});
+
+Deno.test({
+  name:
     "Lobotomy Corporation OGG assets support normal and byte-range responses",
   permissions: { read: true },
   fn: async () => {

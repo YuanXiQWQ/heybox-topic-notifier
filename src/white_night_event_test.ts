@@ -6,6 +6,7 @@ import {
   whiteNightConfessParticleSystem,
   whiteNightDeathSequenceDurationMs,
   whiteNightDeathSounds,
+  whiteNightStageMusicAudibleMs,
 } from "../static/fun/lobotomy-corp/Events/WhiteNight.js";
 
 /**
@@ -339,11 +340,12 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
       storages: () => storages,
     }) as {
       confess: () => Promise<boolean>;
+      finish: () => void;
       getId: () => string | undefined;
       getPhase: () => string | undefined;
       start: (options: { source: string }) => boolean;
     };
-    event.start({ source: "direct-submission" });
+    event.start({ source: "plague-doctor-transformation" });
     assertEquals(event.getId(), "white-night");
     assertEquals(pausedDecay, 1);
     assertEquals(
@@ -436,6 +438,397 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
   }
 });
 
+Deno.test("direct WhiteNight submission stays in Prelude until Simple Advent ends", async () => {
+  const browser = globalThis as typeof globalThis & {
+    document?: unknown;
+    setTimeout?: unknown;
+    clearTimeout?: unknown;
+  };
+  const originals = Object.fromEntries(
+    ["document", "setTimeout", "clearTimeout"].map((name) => [
+      name,
+      Object.getOwnPropertyDescriptor(browser, name),
+    ]),
+  );
+  const timers: Array<{ callback: () => void; delay: number }> = [];
+  let pausedDecay = 0;
+  let settledActiveDanger = 0;
+  const stageMusicCalls: Array<{
+    alert: { assetDirectory: string };
+    audibleMs: number;
+    thenHold: boolean;
+  }> = [];
+  // 阶段警报由共享层按「本次 Danger 结算结果」提供；本模块不得硬编码 First / Third。
+  const stageAlerts = [
+    { assetDirectory: "third-trumpet", level: 3, soundPath: "third.ogg" },
+    { assetDirectory: "second-trumpet", level: 2, soundPath: "second.ogg" },
+  ];
+  let stageAlertIndex = 0;
+  try {
+    Object.defineProperties(browser, {
+      document: { configurable: true, value: undefined },
+      setTimeout: {
+        configurable: true,
+        value: (
+          callback: () => void,
+          delay = 0,
+        ) => (timers.push({ callback, delay }), timers.length),
+      },
+      clearTimeout: { configurable: true, value: () => {} },
+    });
+    const event = createWhiteNightEvent({
+      assetRoot: "/Assets",
+      confessionAliases: () => new Set(["confession"]),
+      ensureCoordinator: () => {},
+      finishRestartPanel: () => {},
+      getAlert: () => ({}),
+      holdAlertMusic: () => {},
+      isReload: () => false,
+      messages: () => ({}),
+      mountRestartPanel: () => {},
+      normalize: (value: string) => value.trim().toLowerCase(),
+      pauseDangerDecay: () => pausedDecay++,
+      resumeAlertMusic: () => {},
+      resumeDangerDecay: () => {},
+      setSpecialEventStageAlertMusic: (
+        alert: { assetDirectory: string },
+        options: { audibleMs?: number; thenHold?: boolean },
+      ) => {
+        stageMusicCalls.push({
+          alert,
+          audibleMs: Number(options.audibleMs ?? 0),
+          thenHold: options.thenHold === true,
+        });
+      },
+      settleWhiteNightActive: () => settledActiveDanger++,
+      stageMusicAlert: () =>
+        stageAlerts[stageAlertIndex++ % stageAlerts.length],
+      storageKey: "white-night",
+      storages: () => [],
+    }) as {
+      confess: () => Promise<boolean>;
+      finish: () => void;
+      getPhase: () => string | undefined;
+      isActive: () => boolean;
+      start: (options: { source: string }) => boolean;
+    };
+
+    assertEquals(event.start({ source: "direct-submission" }), true);
+    assertEquals(event.getPhase(), "prelude");
+    assertEquals(event.isActive(), false);
+    assertEquals(pausedDecay, 0);
+    assertEquals(await event.confess(), false);
+    assertEquals(timers.length, 1);
+    assertEquals(timers[0].delay > 0 && timers[0].delay <= 4000, true);
+    // Simple Advent 只负责视觉与 4 秒边界：Prelude 不暂停也不接管任何音乐，
+    // 第一阶段 BGM 完全由 +44 结算正常产生的 Danger Alert 播放。
+    assertEquals(stageMusicCalls.length, 0);
+
+    timers[0].callback();
+    assertEquals(settledActiveDanger, 1);
+    assertEquals(event.getPhase(), "active");
+    assertEquals(event.isActive(), true);
+    assertEquals(pausedDecay, 1);
+    // 第二阶段 BGM 同样由第二阶段结算结果决定，并且必须完整可听 3 秒后才淡出。
+    assertEquals(stageMusicCalls.length, 1);
+    assertEquals(stageMusicCalls[0].alert, stageAlerts[0]);
+    assertEquals(stageMusicCalls[0].audibleMs, whiteNightStageMusicAudibleMs);
+    assertEquals(stageMusicCalls[0].thenHold, true);
+    event.finish();
+
+    // Restart Day 在 Prelude 期间不需要解除任何 Pause：Simple Advent 从不冻结 Alert。
+    assertEquals(event.start({ source: "direct-submission" }), true);
+    event.finish();
+  } finally {
+    for (const [name, descriptor] of Object.entries(originals)) {
+      if (descriptor) Object.defineProperty(browser, name, descriptor);
+      else delete (browser as Record<string, unknown>)[name];
+    }
+  }
+});
+
+Deno.test("WhiteNight stage Trumpet follows each settlement result even when it drops", () => {
+  const browser = globalThis as typeof globalThis & {
+    document?: unknown;
+    setTimeout?: unknown;
+    clearTimeout?: unknown;
+  };
+  const originals = Object.fromEntries(
+    ["document", "setTimeout", "clearTimeout"].map((name) => [
+      name,
+      Object.getOwnPropertyDescriptor(browser, name),
+    ]),
+  );
+  const timers: Array<{ callback: () => void; delay: number }> = [];
+  const stageMusicCalls: Array<{
+    alert: { assetDirectory: string };
+    audibleMs: number;
+    thenHold: boolean;
+  }> = [];
+  // 假想的第二阶段结算结果：Second（可能低于普通 Danger high-water 的 Third）。
+  const stageAlerts = [
+    { assetDirectory: "second-trumpet", level: 2, soundPath: "second.ogg" },
+  ];
+  let stageAlertIndex = 0;
+  try {
+    Object.defineProperties(browser, {
+      document: { configurable: true, value: undefined },
+      setTimeout: {
+        configurable: true,
+        value: (
+          callback: () => void,
+          delay = 0,
+        ) => (timers.push({ callback, delay }), timers.length),
+      },
+      clearTimeout: { configurable: true, value: () => {} },
+    });
+    const event = createWhiteNightEvent({
+      assetRoot: "/Assets",
+      confessionAliases: () => new Set(),
+      ensureCoordinator: () => {},
+      finishRestartPanel: () => {},
+      getAlert: () => ({}),
+      holdAlertMusic: () => {},
+      isReload: () => false,
+      messages: () => ({}),
+      mountRestartPanel: () => {},
+      normalize: (value: string) => value,
+      pauseDangerDecay: () => {},
+      resumeAlertMusic: () => {},
+      resumeDangerDecay: () => {},
+      setSpecialEventStageAlertMusic: (
+        alert: { assetDirectory: string },
+        options: { audibleMs?: number; thenHold?: boolean },
+      ) => {
+        stageMusicCalls.push({
+          alert,
+          audibleMs: Number(options.audibleMs ?? 0),
+          thenHold: options.thenHold === true,
+        });
+      },
+      settleWhiteNightActive: () => {},
+      stageMusicAlert: () =>
+        stageAlerts[stageAlertIndex++ % stageAlerts.length],
+      storageKey: "white-night",
+      storages: () => [],
+    }) as {
+      finish: () => void;
+      start: (options: { source: string }) => boolean;
+    };
+
+    assertEquals(event.start({ source: "direct-submission" }), true);
+    // Prelude 不接管音乐：第一阶段 BGM 由 +44 的正常 Danger Alert 播放。
+    assertEquals(stageMusicCalls.length, 0);
+    timers[0].callback();
+    // 第二阶段：即使结算结果比 high-water 更低，也必须使用真实结算结果并完整可听 3 秒。
+    assertEquals(stageMusicCalls.length, 1);
+    assertEquals(stageMusicCalls[0].alert, stageAlerts[0]);
+    assertEquals(stageMusicCalls[0].audibleMs, whiteNightStageMusicAudibleMs);
+    assertEquals(stageMusicCalls[0].thenHold, true);
+    event.finish();
+  } finally {
+    for (const [name, descriptor] of Object.entries(originals)) {
+      if (descriptor) Object.defineProperty(browser, name, descriptor);
+      else delete (browser as Record<string, unknown>)[name];
+    }
+  }
+});
+
+Deno.test("WhiteNight never hardcodes a Trumpet level for its stage music", async () => {
+  const source = await Deno.readTextFile(
+    new URL(
+      "../static/fun/lobotomy-corp/Events/WhiteNight.js",
+      import.meta.url,
+    ),
+  );
+  assertEquals(source.includes("stageMusicAlert"), true);
+  for (
+    const forbidden of [
+      "firsttrumpet",
+      "secondtrumpet",
+      "thirdtrumpet",
+      "emergency01",
+      "emergency02",
+      "emergency03",
+      "emergency04",
+    ]
+  ) {
+    assertEquals(source.includes(forbidden), false);
+  }
+});
+
+Deno.test("WhiteNight restores the staged Trumpet timeline from the saved phase", () => {
+  const browser = globalThis as typeof globalThis & {
+    Audio?: unknown;
+    document?: unknown;
+    location?: unknown;
+  };
+  const originals = Object.fromEntries(
+    ["Audio", "document", "location"].map((name) => [
+      name,
+      Object.getOwnPropertyDescriptor(browser, name),
+    ]),
+  );
+  const originalDateNow = Date.now;
+  const savedState = new Map<string, string>();
+  const stageAlert = {
+    assetDirectory: "third-trumpet",
+    level: 3,
+    soundPath: "third.ogg",
+  };
+  /**
+   * 本 mock 使用的 WhiteNight duck 目标音量。
+   *
+   * 它只用于验证「WhiteNight 传入的剩余比例 → 共享层插值」这条链路自洽，
+   * 因此无需与 lobotomy-corp.js 的可调常量保持同步。
+   */
+  const duckVolume = 0.4;
+  const calls: {
+    fade: Array<{ durationMs: number; startVolume: number }>;
+    fadeStartRatios: number[];
+    hold: number;
+    stage: Array<{ alert: unknown; audibleMs: number; thenHold: boolean }>;
+  } = { fade: [], fadeStartRatios: [], hold: 0, stage: [] };
+  const storage = {
+    /** @param {string} key 键。 @return {string|null} 值。 */
+    getItem: (key: string) => savedState.get(key) ?? null,
+    /** @param {string} key 键。 */ removeItem: (key: string) =>
+      savedState.delete(key),
+    /** @param {string} key 键。 @param {string} value 值。 */
+    setItem: (key: string, value: string) => savedState.set(key, value),
+  };
+  /**
+   * 用一个已保存的 Trumpet 演出阶段启动恢复。
+   *
+   * @param {Record<string, unknown>} saved 白夜持久化状态。
+   * @return {object} 事件 API。
+   */
+  const restoreWith = (saved: Record<string, unknown>) => {
+    savedState.clear();
+    savedState.set("white-night", JSON.stringify(saved));
+    const event = createWhiteNightEvent({
+      assetRoot: "/Assets",
+      confessionAliases: () => new Set(),
+      ensureCoordinator: () => {},
+      // 与共享层一致：淡出固定从 1 插值到 duck 音量，剩余比例 1 → 1.0、0 → duck 音量。
+      alertMusicFadeOutStartVolume: (remainingRatio: number) => {
+        calls.fadeStartRatios.push(remainingRatio);
+        return duckVolume + (1 - duckVolume) * remainingRatio;
+      },
+      fadeAlertMusicToSpecialEventHold: (
+        durationMs: number,
+        options: { startVolume?: number },
+      ) => {
+        calls.fade.push({
+          durationMs,
+          startVolume: Number(options.startVolume ?? 1),
+        });
+      },
+      finishRestartPanel: () => {},
+      getAlert: () => ({}),
+      holdAlertMusic: () => calls.hold++,
+      isReload: () => false,
+      messages: () => ({}),
+      mountRestartPanel: () => {},
+      normalize: (value: string) => value,
+      pauseDangerDecay: () => {},
+      resumeAlertMusic: () => {},
+      resumeDangerDecay: () => {},
+      setSpecialEventStageAlertMusic: (
+        alert: unknown,
+        options: { audibleMs?: number; thenHold?: boolean },
+      ) => {
+        calls.stage.push({
+          alert,
+          audibleMs: Number(options.audibleMs ?? 0),
+          thenHold: options.thenHold === true,
+        });
+      },
+      settleWhiteNightActive: () => {},
+      specialEventMusicFadeOutMs: 1000,
+      stageMusicAlert: () => stageAlert,
+      storageKey: "white-night",
+      storages: () => [storage],
+    }) as { finish: () => void; restore: () => boolean };
+    return event;
+  };
+  try {
+    Object.defineProperties(browser, {
+      Audio: { configurable: true, value: undefined },
+      document: { configurable: true, value: undefined },
+      location: {
+        configurable: true,
+        value: {
+          href: "https://warmnest.test/settings",
+          pathname: "/settings",
+          search: "",
+        },
+      },
+    });
+    const savedBase = {
+      churchPosition: 0,
+      id: "white-night",
+      lockLocation: "/settings",
+      phase: "active",
+      source: "direct-submission",
+      trumpetFadeMs: 1000,
+    };
+
+    // A. 可听窗口内：只补剩余时长，不重播完整的三秒。
+    Date.now = () => 50000;
+    const audible = restoreWith({
+      ...savedBase,
+      trumpetDeadline: 51500,
+      trumpetPhase: "audible",
+    });
+    assertEquals(audible.restore(), true);
+    assertEquals(calls.stage.length, 1);
+    assertEquals(calls.stage[0].alert, stageAlert);
+    assertEquals(calls.stage[0].audibleMs, 1500);
+    assertEquals(calls.stage[0].thenHold, true);
+    assertEquals(calls.fade, []);
+    assertEquals(calls.hold, 0);
+    audible.finish();
+
+    // B. 淡出中途：按保存进度用 1 → duck 音量公式重建起始音量，不直接跳到静音。
+    calls.stage.length = 0;
+    Date.now = () => 50000;
+    const fading = restoreWith({
+      ...savedBase,
+      trumpetDeadline: 49600,
+      trumpetPhase: "audible",
+    });
+    assertEquals(fading.restore(), true);
+    assertEquals(calls.stage, []);
+    assertEquals(calls.fade.length, 1);
+    assertEquals(calls.fade[0].durationMs, 600);
+    // 剩余 600 / 1000 = 0.6 → 音量 0.4 + 0.6 * 0.6 = 0.76。
+    assertEquals(calls.fadeStartRatios, [0.6]);
+    assertEquals(calls.fade[0].startVolume, duckVolume + (1 - duckVolume) * 0.6);
+    assertEquals(calls.hold, 0);
+    fading.finish();
+
+    // C. 已 hold：继续维持后台 ducked 曲目，不重新播放阶段 BGM。
+    calls.fade.length = 0;
+    calls.hold = 0;
+    const held = restoreWith({
+      ...savedBase,
+      trumpetPhase: "held",
+    });
+    assertEquals(held.restore(), true);
+    assertEquals(calls.stage, []);
+    assertEquals(calls.fade, []);
+    assertEquals(calls.hold, 1);
+    held.finish();
+  } finally {
+    Date.now = originalDateNow;
+    for (const [name, descriptor] of Object.entries(originals)) {
+      if (descriptor) Object.defineProperty(browser, name, descriptor);
+      else delete (browser as Record<string, unknown>)[name];
+    }
+  }
+});
+
 Deno.test("WhiteNight Confess transcribes the prefab ParticleSystem parameters", () => {
   assertEquals(whiteNightConfessParticleSystem.transform, {
     positionX: 5.8399997,
@@ -479,7 +872,7 @@ Deno.test("WhiteNight exports the actual Dead_23 Animation Event timings", () =>
   ]);
 });
 
-Deno.test("WhiteNight keeps source-specific entry behavior instead of treating every source alike", () => {
+Deno.test("WhiteNight keeps source-specific entry behavior per entry source", () => {
   const browser = globalThis as typeof globalThis & {
     Audio?: unknown;
     document?: unknown;
@@ -555,7 +948,7 @@ Deno.test("WhiteNight keeps source-specific entry behavior instead of treating e
 
     assertEquals(event.start({ source: "direct-submission" }), true);
     assertEquals(event.getSource(), "direct-submission");
-    assertEquals(AudioMock.items.length, 2);
+    assertEquals(AudioMock.items.length, 1);
     assertEquals(apostlesCompletionCount, 0);
     event.finish();
 
@@ -564,18 +957,18 @@ Deno.test("WhiteNight keeps source-specific entry behavior instead of treating e
       true,
     );
     assertEquals(event.getSource(), "plague-doctor-transformation");
-    assertEquals(AudioMock.items.length, 3);
+    assertEquals(AudioMock.items.length, 2);
     assertEquals(apostlesCompletionCount, 0);
     event.finish();
 
     assertEquals(event.start({ source: "apostles-replay" }), true);
-    assertEquals(AudioMock.items.length, 5);
-    assertEquals(apostlesCompletionCount, 1);
+    assertEquals(AudioMock.items.length, 3);
+    assertEquals(apostlesCompletionCount, 0);
     event.finish();
 
     hasTwelveApostles = true;
     assertEquals(event.start({ source: "direct-submission" }), true);
-    assertEquals(apostlesCompletionCount, 2);
+    assertEquals(apostlesCompletionCount, 0);
     event.finish();
     assertEquals(resumeCount, 4);
     assertEquals(AudioMock.items.every((audio) => audio.pauseCount > 0), true);
@@ -682,7 +1075,7 @@ Deno.test("WhiteNight blocks escape and polling before downstream handlers while
       finish: () => void;
       start: (options: { source: string }) => boolean;
     };
-    assertEquals(event.start({ source: "direct-submission" }), true);
+    assertEquals(event.start({ source: "plague-doctor-transformation" }), true);
 
     let downstreamNavigation = 0;
     harness.document.addEventListener("click", () => downstreamNavigation++);
