@@ -8,8 +8,8 @@
 
 @font-face {
   font-display: block;
-  font-family: LobotomyWhiteNight;
-  src: url("/static/fun/lobotomy-corp/Assets/Font/NanumGothicBold.ttf")
+  font-family: LobotomyBaskerville;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/baskvl.ttf")
     format("truetype");
 }
 
@@ -80,14 +80,18 @@
 
 .lobotomy-corp-white-night-message p {
   color: #ffffff;
-  font-family: LobotomyWhiteNight;
+  /* 原作运行时以 Baskerville 为主，缺少的 CJK 字形由系统字体逐字补全。 */
+  font-family: LobotomyBaskerville, "Arial Unicode MS", "Microsoft YaHei",
+    "Microsoft JhengHei", sans-serif;
   font-size: clamp(3px, 3.125vw, 60px);
   line-height: normal;
   margin: 0;
   max-height: min(27.7778vh, 300px);
   max-width: min(62.5vw, 1200px);
   text-align: center;
-  text-shadow: 2px -2px rgb(252 58 58 / 49%);
+  text-shadow: 2px 2px rgb(252 58 58 / 49%),
+    2px -2px rgb(252 58 58 / 49%), -2px 2px rgb(252 58 58 / 49%),
+    -2px -2px rgb(252 58 58 / 49%);
 }
 
 /* Confess ParticleSystem：Box Shape、4/s emission、5s lifetime 与 Stretch Billboard 均取自 prefab。 */

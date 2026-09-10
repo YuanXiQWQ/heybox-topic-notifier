@@ -15,9 +15,6 @@ const lobotomyCorpAssetRoot = "/static/fun/lobotomy-corp/Assets";
 /** 当前页面已准备的《脑叶公司》专用文本。 */
 let lobotomyCorpMessages;
 
-/** 白夜原作字体与英文显式回退的服务端审计资料。 */
-let lobotomyCorpWhiteNightPresentation;
-
 /** 当前页面已准备的通用异想体资料。 */
 let lobotomyCorpAbnormalities;
 
@@ -36,18 +33,6 @@ function initializeLobotomyCorpData() {
     throw new Error("《脑叶公司》彩蛋本地化尚未注入页面。");
   }
   lobotomyCorpMessages = JSON.parse(serialized);
-
-  const whiteNightPresentationSerialized = globalThis.document
-    ?.getElementById?.(
-      "lobotomy-corp-white-night-presentation-data",
-    )?.textContent;
-  try {
-    lobotomyCorpWhiteNightPresentation = whiteNightPresentationSerialized
-      ? JSON.parse(whiteNightPresentationSerialized)
-      : {};
-  } catch {
-    lobotomyCorpWhiteNightPresentation = {};
-  }
 
   const abnormalitiesSerialized = globalThis.document?.getElementById?.(
     "lobotomy-corp-abnormalities-data",
@@ -2251,14 +2236,6 @@ function startLobotomyCorpAlert(
 // WhiteNight 只通过此窄接口访问通用 Day / Alert 生命周期，避免复制业务状态。
 const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   assetRoot: lobotomyCorpAssetRoot,
-  blockMessage: (messageKey) => {
-    const messages = lobotomyCorpWhiteNightPresentation
-        ?.originalFontSupportsLocale === false
-      ? lobotomyCorpWhiteNightPresentation?.englishMessages
-      : lobotomyCorpMessages;
-    return messages?.[messageKey] ??
-      lobotomyCorpWhiteNightPresentation?.englishMessages?.[messageKey] ?? "";
-  },
   confessionAliases: () => lobotomyCorpConfessionAliases,
   ensureCoordinator: ensureLobotomyCorpDayCoordinator,
   finishRestartPanel: () => activeLobotomyCorpRestartPanel?.finish(),

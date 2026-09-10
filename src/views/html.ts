@@ -107,36 +107,6 @@ function renderLobotomyCorpLocaleData(locale: Locale): string {
 }
 
 /**
- * 渲染白夜阻拦文字的原作字体覆盖结论和显式英文回退数据。
- *
- * 覆盖结论由 NanumGothicBold.ttf 的 cmap 对所有白夜阻拦文字逐字审计得出；
- * 不覆盖时由客户端主动选择英文，而不是交给浏览器静默替换字体。
- *
- * @param {Locale} locale 当前网页 locale。
- * @return {string} 白夜文字显示策略的内联 JSON 脚本。
- */
-function renderLobotomyCorpWhiteNightPresentationData(locale: Locale): string {
-  const fontCompatibleLocales = new Set([
-    "en-US",
-    "es-ES",
-    "ja-JP",
-    "ko-KR",
-    "ru-RU",
-  ]);
-  return renderEasterEggJsonData(
-    "lobotomy-corp-white-night-presentation-data",
-    {
-      englishMessages: readEasterEggJson(
-        "lobotomy-corp/Locales/en-US.json",
-      ),
-      originalFontSupportsLocale: fontCompatibleLocales.has(
-        lobotomyCorpLocaleFile(locale),
-      ),
-    },
-  );
-}
-
-/**
  * 渲染所有已维护语言的“一罪与百善”特殊工作别名。
  *
  * 仅将客户端判断所需的单一字段注入页面，避免为匹配赎罪而额外发起请求。
@@ -251,7 +221,6 @@ export function renderLayout(options: {
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
-    ${renderLobotomyCorpWhiteNightPresentationData(options.locale)}
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
     ${renderLobotomyCorpAccountIdentityData(options.account)}

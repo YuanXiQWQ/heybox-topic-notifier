@@ -87,35 +87,6 @@ function renderedLobotomyCorpConfessionAliases(): string[] {
   return JSON.parse(serialized);
 }
 
-/**
- * 读取白夜原作字体覆盖结论与英文显式回退数据。
- *
- * @param {"en-US"|"vi-VN"|"zh-CN"} locale 页面 locale。
- * @return {{englishMessages: Record<string, string>, originalFontSupportsLocale: boolean}} 白夜文本呈现资料。
- */
-function renderedWhiteNightPresentation(
-  locale: "en-US" | "vi-VN" | "zh-CN",
-): {
-  englishMessages: Record<string, string>;
-  originalFontSupportsLocale: boolean;
-} {
-  const html = renderLayout({
-    body: "",
-    csrfToken: "test",
-    darkMode: false,
-    locale,
-    themeColor: "#000000",
-    title: "test",
-  });
-  const serialized =
-    /<script type="application\/json" id="lobotomy-corp-white-night-presentation-data">([^<]+)<\/script>/u
-      .exec(html)?.[1];
-  if (!serialized) {
-    throw new Error("Expected embedded WhiteNight presentation data.");
-  }
-  return JSON.parse(serialized);
-}
-
 Deno.test("Lobotomy Corporation locale data is injected from game JSON with fallbacks", () => {
   const simplifiedChinese = renderedLobotomyCorpLocale("zh-CN");
   assertEquals(simplifiedChinese.restartDay, "重新开始这一天");
@@ -159,24 +130,22 @@ Deno.test("Lobotomy Corporation injects every maintained Confession alias", () =
     );
 });
 
-Deno.test("WhiteNight injects explicit English text when its original font lacks locale glyphs", () => {
+Deno.test("WhiteNight only injects the selected locale text", () => {
+  const html = renderLayout({
+    body: "",
+    csrfToken: "test",
+    darkMode: false,
+    locale: "zh-CN",
+    themeColor: "#000000",
+    title: "test",
+  });
   assertEquals(
-    renderedWhiteNightPresentation("en-US").originalFontSupportsLocale,
-    true,
-  );
-  assertEquals(
-    renderedWhiteNightPresentation("zh-CN").originalFontSupportsLocale,
+    html.includes("lobotomy-corp-white-night-presentation-data"),
     false,
   );
   assertEquals(
-    renderedWhiteNightPresentation("vi-VN").originalFontSupportsLocale,
-    false,
-  );
-  assertEquals(
-    renderedWhiteNightPresentation("zh-CN").englishMessages[
-      "whiteNight.blockExit"
-    ],
-    "Do not fear, for I am with thee.\nThou shalt not leave until I permit thee.",
+    renderedLobotomyCorpLocale("zh-CN")["whiteNight.blockTime"],
+    "切莫相信时间，我将为你指明道路。",
   );
 });
 
