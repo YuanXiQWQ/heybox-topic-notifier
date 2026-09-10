@@ -67,7 +67,8 @@
   justify-content: center;
   pointer-events: none;
   position: fixed;
-  z-index: 9999;
+  /* 刷新/逃逸阻挡提示是白夜最高优先级演出，必须盖过 Trumpet HUD。 */
+  z-index: 10010;
 }
 
 .lobotomy-corp-white-night-block-filter {

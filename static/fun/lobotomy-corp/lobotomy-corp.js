@@ -7,6 +7,9 @@ import {
   whiteNightDeathSounds,
 } from "./Events/WhiteNight.js";
 
+/** 白夜被镇压后，后台 Trumpet 恢复至正常音量所需时长（毫秒）。 */
+const lobotomyCorpSpecialEventMusicFadeInMs = 1000;
+
 /**
  * 《脑叶公司》解包资源的公共访问根路径。
  */
@@ -882,7 +885,6 @@ function prepareLobotomyCorpDisplayName(value) {
         return undefined;
       }
       adoptedAudio.add(audio);
-      audio.muted = false;
       return audio;
     },
     /**
@@ -980,6 +982,7 @@ function restartLobotomyCorpDay() {
  *
  * @param {number} dangerScore 新的 0 到 100 有限危急值。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
+ * @param {{isDecay?: boolean, positiveContribution?: boolean, suppressMusic?: boolean}} [options] 危急值来源与初始媒体输出配置。
  * @return {Promise<boolean>} 对应警报结束或无警报状态生效后返回 true。
  */
 function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
@@ -1010,6 +1013,7 @@ function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
       0,
       undefined,
       preparedMedia,
+      options.suppressMusic === true,
     );
   }
   preparedMedia?.dispose?.();
@@ -1154,9 +1158,12 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
   const isWhiteNightSubmission = match.canonicalId === "T-03-46";
   const alertLifecycle = setLobotomyCorpDangerScore(
     Math.min(100, lobotomyCorpDangerScore + contribution),
-    // 白夜会立即接管普通警报音乐，保留同一同步手势中预热的专用媒体。
-    isWhiteNightSubmission ? undefined : preparedMedia,
-    { positiveContribution: true },
+    preparedMedia,
+    {
+      positiveContribution: true,
+      // 让 Trumpet 从第一次正式播放起就以 0 音量后台运行，避免白夜钟声前爆音。
+      suppressMusic: isWhiteNightSubmission,
+    },
   );
   if (isWhiteNightSubmission) {
     lobotomyCorpWhiteNightEvent?.start({
@@ -1707,6 +1714,7 @@ function lobotomyCorpTopPanelActionText(visualAlert) {
  * @param {number} resumeAt 恢复播放的音频进度（秒）。
  * @param {{assetDirectory: string, level: number, soundPath: string}} [restoredMusicAlert] 恢复时的逻辑音乐配置。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
+ * @param {boolean} [initiallySuppressed] 是否从首次正式播放起以白夜后台音量运行。
  * @return {Promise<boolean>} 当前视觉 activation 被替换或整个会话结束时返回 true。
  */
 function startLobotomyCorpAlert(
@@ -1715,13 +1723,22 @@ function startLobotomyCorpAlert(
   resumeAt,
   restoredMusicAlert,
   preparedMedia,
+  initiallySuppressed = false,
 ) {
   if (activeLobotomyCorpAlert) {
+    // WhiteNight.start() 会在本次调用之后才接管 Alert；必须在替换音轨前先压低现有会话，
+    // 才能让升级出的 Trumpet 从第一次 play 起就是静音后台媒体。
+    if (initiallySuppressed) {
+      activeLobotomyCorpAlert.holdMusicForSpecialEvent?.();
+    }
     return activeLobotomyCorpAlert.replaceVisual(alert, preparedMedia);
   }
   activeLobotomyCorpRestartPanel?.finish();
   const musicAlert = restoredMusicAlert ?? alert;
   let fallbackPosition = Math.max(0, resumeAt);
+  let pendingResumePosition = fallbackPosition > 0
+    ? fallbackPosition
+    : undefined;
   let audio = preparedMedia?.consume?.(musicAlert.soundPath);
   if (!audio) preparedMedia?.dispose?.();
   let emergencyController;
@@ -1733,6 +1750,9 @@ function startLobotomyCorpAlert(
   let topPanel;
   let topPanelActiveController;
   let stableCanvasViewport;
+  let specialEventFadeTimer;
+  let specialEventMusicSuppressed = initiallySuppressed;
+  let specialEventMusicUnlocked = false;
   const visualViewport = globalThis.visualViewport;
   let closing = false;
   let finished = false;
@@ -1817,8 +1837,8 @@ function startLobotomyCorpAlert(
       return;
     }
     if (!force && lobotomyCorpWhiteNightEvent?.isActive()) {
-      // 白夜接管音乐后，普通 Trumpet 的结束不得带走 HUD 或 Day。
-      detachAudio(true);
+      // 白夜覆盖期间，曲目结束不能带走 Alert；保持同一实例后台循环。
+      keepAlertMusicSuppressed();
       return;
     }
     closing = true;
@@ -1939,50 +1959,98 @@ function startLobotomyCorpAlert(
   }
 
   /**
-   * 从当前音乐会话的原始开始时间恢复音频进度，并在曲目已结束时清理警报。
+   * 从当前音乐会话的原始开始时间恢复音频进度；非白夜后台会话在曲目结束时清理警报。
    */
   function playAlertAudio() {
-    const resumePosition = currentAudioPosition();
-    let clampedPosition;
-    if (resumePosition > 0 && Number.isFinite(audio.duration)) {
-      if (resumePosition >= audio.duration) {
+    const pendingPosition = normalizedPendingResumePosition();
+    if (pendingPosition !== undefined && Number.isFinite(audio.duration)) {
+      if (
+        pendingResumePosition >= audio.duration &&
+        !specialEventMusicSuppressed
+      ) {
         finishAlertFromNaturalEnd();
         return;
       }
-      clampedPosition = Math.min(
-        resumePosition,
+    }
+    playConfiguredAlertAudio();
+  }
+
+  /**
+   * 归一化尚未确认的完整刷新恢复位置；白夜循环媒体会折返到当前循环内。
+   *
+   * @return {number|undefined} 可安全应用的待恢复位置。
+   */
+  function normalizedPendingResumePosition() {
+    if (pendingResumePosition === undefined) {
+      return undefined;
+    }
+    if (!Number.isFinite(audio?.duration) || audio.duration <= 0) {
+      return pendingResumePosition;
+    }
+    if (specialEventMusicSuppressed) {
+      return Math.min(
+        pendingResumePosition % audio.duration,
         Math.max(0, audio.duration - 0.001),
       );
-      applyResumePosition(clampedPosition);
     }
+    return pendingResumePosition;
+  }
 
-    /**
-     * 将媒体定位到已保存进度。部分 Chromium 页面切换场景会在首次播放时重置预设进度，因此播放后需再次定位。
-     */
-    function applyResumePosition(position) {
-      if (position === undefined) {
-        return;
-      }
-      audio.currentTime = position;
+  /**
+   * 将待确认的位置写回媒体实例，并记录实际 seek 值供当前 HUD 调试使用。
+   *
+   * @return {number|undefined} 本次应用的位置。
+   */
+  function applyPendingResumePosition() {
+    const position = normalizedPendingResumePosition();
+    if (position === undefined || !audio) {
+      return undefined;
+    }
+    audio.currentTime = position;
+    if (overlay?.dataset) {
       overlay.dataset.lobotomyCorpAlertSeekedTo = String(audio.currentTime);
     }
+    return position;
+  }
 
-    audio.addEventListener(
-      "playing",
-      () => applyResumePosition(clampedPosition),
-      { once: true },
-    );
-    void audio.play().then(() => applyResumePosition(clampedPosition)).catch(
-      () => {
-        // 页面切换后的自动播放可能被浏览器限制；自然结束计时仍会按曲目时长关闭警报。
-      },
-    );
+  /**
+   * 在播放已经真正成功后再次定位，并结束对持久化位置的保护。
+   */
+  function confirmPendingResumePosition() {
+    const position = applyPendingResumePosition();
+    if (position === undefined) {
+      return;
+    }
+    pendingResumePosition = undefined;
+    fallbackPosition = position;
+  }
+
+  /**
+   * 在每次实际 play 前后保护完整刷新恢复位置，兼容 Chromium 重置 currentTime 的行为。
+   */
+  function playConfiguredAlertAudio() {
+    const pendingPosition = applyPendingResumePosition();
+    if (pendingPosition !== undefined) {
+      audio.addEventListener("playing", confirmPendingResumePosition, {
+        once: true,
+      });
+    }
+    void audio.play().then(() => {
+      if (pendingPosition !== undefined) {
+        confirmPendingResumePosition();
+      }
+    }).catch(() => {
+      // 自动播放被拒绝时保留 pendingResumePosition，等待后续真实交互再次 seek 后重试。
+    });
   }
 
   /**
    * 根据曲目的完整时长安排自然结束，兼容页面恢复后的自动播放限制。
    */
   function scheduleNaturalAlertEnd() {
+    if (specialEventMusicSuppressed) {
+      return;
+    }
     if (!Number.isFinite(audio.duration)) {
       return;
     }
@@ -2014,6 +2082,10 @@ function startLobotomyCorpAlert(
    * @return {number} 当前音乐进度（秒）。
    */
   function currentAudioPosition() {
+    const pendingPosition = normalizedPendingResumePosition();
+    if (pendingPosition !== undefined) {
+      return pendingPosition;
+    }
     return Number.isFinite(audio?.currentTime)
       ? audio.currentTime
       : fallbackPosition;
@@ -2037,6 +2109,68 @@ function startLobotomyCorpAlert(
       clearTimeout(naturalEndTimer);
       naturalEndTimer = undefined;
     }
+    if (specialEventFadeTimer !== undefined) {
+      clearTimeout(specialEventFadeTimer);
+      specialEventFadeTimer = undefined;
+    }
+  }
+
+  /**
+   * 令当前 Trumpet 实例继续播放但不可听，并阻止其自然结束 Alert。
+   */
+  function keepAlertMusicSuppressed() {
+    specialEventMusicSuppressed = true;
+    if (naturalEndTimer !== undefined) {
+      clearTimeout(naturalEndTimer);
+      naturalEndTimer = undefined;
+    }
+    if (!audio) return;
+    if (specialEventFadeTimer !== undefined) {
+      clearTimeout(specialEventFadeTimer);
+      specialEventFadeTimer = undefined;
+    }
+    audio.loop = true;
+    audio.muted = !specialEventMusicUnlocked;
+    audio.volume = 0;
+    playConfiguredAlertAudio();
+  }
+
+  /**
+   * 在用户手势中确保静音 Trumpet 已获准播放，为稍后的镇压淡入做准备。
+   */
+  function prepareAlertMusicForSpecialEventResume() {
+    if (closing || finished || !audio) return;
+    specialEventMusicUnlocked = true;
+    keepAlertMusicSuppressed();
+  }
+
+  /**
+   * 复用正在后台播放的 Trumpet，在约一秒内恢复正常音量。
+   */
+  function resumeAlertMusicAfterSpecialEvent() {
+    if (closing || finished || !audio || !alertContext.visualAlert) return;
+    specialEventMusicSuppressed = false;
+    specialEventMusicUnlocked = true;
+    audio.loop = false;
+    audio.muted = false;
+    audio.volume = 0;
+    void audio.play?.().catch(() => {
+      // 若赎罪手势未能预解锁，仍保留静音会话，避免重建或归零。
+    });
+    scheduleNaturalAlertEnd();
+    const fadeStartedAt = Date.now();
+    /** 平滑推进当前 Trumpet 的恢复音量。 */
+    const fadeStep = () => {
+      if (closing || finished || specialEventMusicSuppressed || !audio) return;
+      const progress = Math.min(
+        1,
+        (Date.now() - fadeStartedAt) / lobotomyCorpSpecialEventMusicFadeInMs,
+      );
+      audio.volume = progress;
+      if (progress < 1) specialEventFadeTimer = setTimeout(fadeStep, 16);
+      else specialEventFadeTimer = undefined;
+    };
+    fadeStep();
   }
 
   /**
@@ -2055,6 +2189,9 @@ function startLobotomyCorpAlert(
   function configureAlertAudio() {
     alertContext.audio = audio;
     audio.hidden = true;
+    audio.loop = specialEventMusicSuppressed;
+    audio.muted = specialEventMusicSuppressed && !specialEventMusicUnlocked;
+    audio.volume = specialEventMusicSuppressed ? 0 : 1;
     audio.preload = "auto";
     audio.setAttribute("aria-hidden", "true");
     audio.addEventListener("ended", finishAlertFromAudioEnd);
@@ -2069,7 +2206,7 @@ function startLobotomyCorpAlert(
       audio.addEventListener("loadedmetadata", scheduleNaturalAlertEnd, {
         once: true,
       });
-      if (fallbackPosition > 0) {
+      if (pendingResumePosition !== undefined) {
         audio.addEventListener("loadedmetadata", playAlertAudio, {
           once: true,
         });
@@ -2137,12 +2274,12 @@ function startLobotomyCorpAlert(
       }
       syncTopPanelActionText(visualAlert);
       overlay.append(topPanel);
-      if (!audio && !lobotomyCorpWhiteNightEvent?.isActive()) {
+      if (!audio) {
         createAlertAudio();
       } else if (audio && !alertContext.audio) {
         configureAlertAudio();
       }
-      // 白夜 hold 合法地没有普通 Trumpet 音频；HUD 仍必须完整挂载。
+      // 白夜期间仍保留普通 Trumpet 实例，只将其音量压至零。
       if (audio) overlay.append(audio);
       updateCanvasScale(true);
       globalThis.addEventListener?.(
@@ -2186,18 +2323,14 @@ function startLobotomyCorpAlert(
     alertContext.visualAlert = nextAlert;
     if (nextAlert && nextAlert.level > alertContext.musicAlert.level) {
       alertContext.musicAlert = nextAlert;
-      if (!lobotomyCorpWhiteNightEvent?.isActive()) {
-        detachAudio(true);
-        audio = nextPreparedMedia?.consume?.(nextAlert.soundPath);
-        if (!audio) nextPreparedMedia?.dispose?.();
-        alertContext.audio = undefined;
-        alertContext.startedAt = Date.now();
-        fallbackPosition = 0;
-      } else {
-        // 音乐继续由白夜接管，但普通 Trumpet 的 high-water 必须记录为最新等级，
-        // 以便赎罪结束后恢复正确的 Second / Third BGM。
-        nextPreparedMedia?.dispose?.();
-      }
+      // 等级升级始终替换真实音轨；白夜仅改变新实例的听觉输出，不保留旧等级。
+      detachAudio(true);
+      audio = nextPreparedMedia?.consume?.(nextAlert.soundPath);
+      if (!audio) nextPreparedMedia?.dispose?.();
+      alertContext.audio = undefined;
+      alertContext.startedAt = Date.now();
+      fallbackPosition = 0;
+      pendingResumePosition = undefined;
     } else {
       nextPreparedMedia?.dispose?.();
     }
@@ -2212,16 +2345,11 @@ function startLobotomyCorpAlert(
     : finishAlertFromCoordinator;
   alertContext.finish = finishAlertFromCoordinator;
   alertContext.holdMusicForSpecialEvent = () => {
-    detachAudio(true);
-    audio = undefined;
-    alertContext.audio = undefined;
+    keepAlertMusicSuppressed();
   };
-  alertContext.resumeMusicAfterSpecialEvent = () => {
-    if (closing || finished || audio || !alertContext.visualAlert) return;
-    alertContext.startedAt = Date.now();
-    fallbackPosition = 0;
-    createAlertAudio();
-  };
+  alertContext.prepareMusicForSpecialEventResume =
+    prepareAlertMusicForSpecialEventResume;
+  alertContext.resumeMusicAfterSpecialEvent = resumeAlertMusicAfterSpecialEvent;
   alertContext.replaceVisual = replaceVisual;
   activeLobotomyCorpAlert = alertContext;
   globalThis.easterEggCoordinator?.start(
@@ -2248,6 +2376,8 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   pauseDangerDecay: pauseLobotomyCorpDangerDecay,
   resumeAlertMusic: () =>
     activeLobotomyCorpAlert?.resumeMusicAfterSpecialEvent?.(),
+  prepareAlertMusicForResume: () =>
+    activeLobotomyCorpAlert?.prepareMusicForSpecialEventResume?.(),
   resumeDangerDecay: restoreLobotomyCorpDangerDecay,
   storageKey: lobotomyCorpSpecialEventSessionKey,
   storages: lobotomyCorpAlertStorages,
@@ -2295,6 +2425,8 @@ if (isLobotomyCorpAlertPageReload() && !restoredLobotomyCorpSpecialEvent) {
       restoredLobotomyCorpAlert.startedAt,
       restoredLobotomyCorpAlert.position,
       restoredLobotomyCorpAlert.musicAlert,
+      undefined,
+      restoredLobotomyCorpSpecialEvent?.id === lobotomyCorpWhiteNightEventId,
     );
     if (!restoredLobotomyCorpAlert.visualAlert) {
       void activeLobotomyCorpAlert?.replaceVisual(undefined);

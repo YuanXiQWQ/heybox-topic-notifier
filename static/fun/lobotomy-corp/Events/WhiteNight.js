@@ -203,7 +203,7 @@ export function createWhiteNightEvent(shared) {
   };
 
   /**
-   * 写入白夜的可恢复状态。
+   * 写入白夜的可恢复状态，并保留教堂音乐的真实播放进度。
    */
   const persist = () => {
     if (!isActive()) return;
@@ -214,6 +214,7 @@ export function createWhiteNightEvent(shared) {
       pendingRecoveryBell: state.pendingRecoveryBell === true,
       phase: state.phase,
       source: state.source,
+      churchPosition: currentChurchPosition(),
     });
     shared.storages().forEach((storage) =>
       storage.setItem(shared.storageKey, serialized)
@@ -229,7 +230,7 @@ export function createWhiteNightEvent(shared) {
   /**
    * 读取可恢复的白夜状态。
    *
-   * @return {{id: string, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, phase?: string, source?: string}|undefined} 已保存状态。
+   * @return {{id: string, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, phase?: string, source?: string, churchPosition?: number}|undefined} 已保存状态。
    */
   const persisted = () => {
     const serialized = shared.storages().map((storage) =>
@@ -238,7 +239,14 @@ export function createWhiteNightEvent(shared) {
     if (!serialized) return undefined;
     try {
       const saved = JSON.parse(serialized);
-      return saved?.id === "white-night" ? saved : undefined;
+      if (saved?.id !== "white-night") return undefined;
+      if (
+        saved.churchPosition !== undefined &&
+        (!Number.isFinite(saved.churchPosition) || saved.churchPosition < 0)
+      ) {
+        throw new Error("Invalid WhiteNight church position.");
+      }
+      return saved;
     } catch {
       clearPersisted();
       return undefined;
@@ -256,12 +264,14 @@ export function createWhiteNightEvent(shared) {
     shared.confessionAliases().has(shared.normalize(value));
 
   /**
-   * 创建或采用白夜音频并从零开始播放。
+   * 创建或采用白夜音频，并在需要时从已保存的进度继续播放。
    *
    * @param {string} soundPath 相对于 Assets 的路径。
    * @param {object|undefined} preparedMedia 用户手势预热的媒体。
    * @param {boolean} loop 是否循环。
    * @param {Function|undefined} onBlocked 自动播放被拒绝时的处理。
+   * @param {number} [resumePosition] 需要恢复的播放进度（秒）。
+   * @param {Function|undefined} onPlayed 媒体成功播放并完成首次定位后的处理。
    * @return {HTMLAudioElement|undefined} 已播放的音频。
    */
   const playAudio = (
@@ -269,6 +279,8 @@ export function createWhiteNightEvent(shared) {
     preparedMedia,
     loop = false,
     onBlocked,
+    resumePosition = 0,
+    onPlayed,
   ) => {
     const audio = preparedMedia?.consumeWhiteNight?.(soundPath) ??
       (typeof globalThis.Audio === "function"
@@ -279,10 +291,73 @@ export function createWhiteNightEvent(shared) {
     audio.loop = loop;
     audio.muted = false;
     audio.preload = "auto";
-    audio.currentTime = 0;
+    const position = Number.isFinite(resumePosition) && resumePosition >= 0
+      ? resumePosition
+      : 0;
+    audio.currentTime = position;
     audio.setAttribute?.("aria-hidden", "true");
-    void audio.play?.().catch(() => onBlocked?.());
+    void audio.play?.().then(() => {
+      // Chromium 有时会在首次 play 后覆盖预先写入的 currentTime。
+      if (position > 0) audio.currentTime = position;
+      onPlayed?.();
+    }).catch(() => onBlocked?.());
     return audio;
+  };
+
+  /**
+   * 将教堂恢复位置限制在当前可播放范围内。
+   *
+   * @param {number} position 待恢复的持久化进度（秒）。
+   * @return {number} 当前媒体可接受的进度（秒）。
+   */
+  const normalizedChurchPosition = (position) => {
+    const fallback = Number.isFinite(position) && position >= 0 ? position : 0;
+    const duration = state?.churchAudio?.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return fallback;
+    return Math.min(
+      fallback % duration,
+      Math.max(0, duration - 0.001),
+    );
+  };
+
+  /**
+   * 在媒体尝试播放前重新定位教堂音乐，避免被此前失败的 autoplay 重置。
+   *
+   * @return {number|undefined} 本次实际写入的恢复位置。
+   */
+  const seekPendingChurchResumePosition = () => {
+    if (!state || state.pendingChurchResumePosition === undefined) {
+      return undefined;
+    }
+    const position = normalizedChurchPosition(state.pendingChurchResumePosition);
+    state.churchPosition = position;
+    if (state.churchAudio) state.churchAudio.currentTime = position;
+    return position;
+  };
+
+  /**
+   * 确认教堂音乐已经从保存位置成功恢复，此后才允许真实 timeupdate 更新持久化进度。
+   */
+  const confirmChurchResumePosition = () => {
+    if (!state || state.pendingChurchResumePosition === undefined) return;
+    seekPendingChurchResumePosition();
+    state.pendingChurchResumePosition = undefined;
+    persist();
+  };
+
+  /**
+   * 读取教堂音乐当前真实播放进度；恢复尚未完成时始终以保存位置为准。
+   *
+   * @return {number} 有效的播放进度（秒）。
+   */
+  const currentChurchPosition = () => {
+    if (state?.pendingChurchResumePosition !== undefined) {
+      return normalizedChurchPosition(state.pendingChurchResumePosition);
+    }
+    const position = state?.churchAudio?.currentTime;
+    return Number.isFinite(position) && position >= 0
+      ? position
+      : state?.churchPosition ?? 0;
   };
 
   /**
@@ -302,6 +377,23 @@ export function createWhiteNightEvent(shared) {
           if (!state) return;
           state.pendingRecoveryBell = true;
           persist();
+          // 若交互中的 Bell 仍被策略拒绝，重新挂回解锁监听，直到这声 Bell 成功播放。
+          if (
+            state.resumeAudioOnInteraction &&
+            !state.audioRecoveryListenerAttached
+          ) {
+            globalThis.document?.addEventListener?.(
+              "pointerdown",
+              state.resumeAudioOnInteraction,
+              true,
+            );
+            globalThis.document?.addEventListener?.(
+              "keydown",
+              state.resumeAudioOnInteraction,
+              true,
+            );
+            state.audioRecoveryListenerAttached = true;
+          }
         }
         : undefined,
     );
@@ -419,7 +511,7 @@ export function createWhiteNightEvent(shared) {
   /**
    * 启动白夜并接管 Alert 音乐。
    *
-   * @param {{lockLocation?: string, preparedMedia?: object, restore?: boolean, resumeEnding?: boolean, source: "apostles-replay"|"direct-submission"|"plague-doctor-transformation"}} options 事件入口配置。
+   * @param {{churchPosition?: number, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, preparedMedia?: object, restore?: boolean, resumeEnding?: boolean, source: "apostles-replay"|"direct-submission"|"plague-doctor-transformation"}} options 事件入口配置。
    * @return {boolean} 新事件启动时返回 true。
    */
   const start = (options) => {
@@ -442,6 +534,15 @@ export function createWhiteNightEvent(shared) {
           globalThis.location?.search ?? ""
         }`,
       phase: "active",
+      churchPosition: Number.isFinite(options.churchPosition) &&
+          options.churchPosition >= 0
+        ? options.churchPosition
+        : 0,
+      pendingChurchResumePosition: options.restore === true &&
+          Number.isFinite(options.churchPosition) && options.churchPosition >= 0
+        ? options.churchPosition
+        : undefined,
+      pendingRecoveryBell: options.pendingRecoveryBell === true,
       source: options.source,
       timers: new Set(),
     };
@@ -568,17 +669,45 @@ export function createWhiteNightEvent(shared) {
       () => {
         if (state) state.churchPlaybackPending = true;
       },
+      state.churchPosition,
+      confirmChurchResumePosition,
     );
+    addListener(state.churchAudio, "timeupdate", persist);
+    addListener(
+      state.churchAudio,
+      "loadedmetadata",
+      seekPendingChurchResumePosition,
+    );
+    addListener(
+      state.churchAudio,
+      "playing",
+      confirmChurchResumePosition,
+    );
+    addListener(globalThis, "pagehide", persist);
     state.resumeAudioOnInteraction = async () => {
       const current = state;
       if (!current) return;
       try {
+        shared.prepareAlertMusicForResume?.();
+        seekPendingChurchResumePosition();
         await current.churchAudio?.play?.();
+        confirmChurchResumePosition();
         current.churchPlaybackPending = false;
       } catch {
         current.churchPlaybackPending = true;
         return;
       }
+      document?.removeEventListener?.(
+        "pointerdown",
+        current.resumeAudioOnInteraction,
+        true,
+      );
+      document?.removeEventListener?.(
+        "keydown",
+        current.resumeAudioOnInteraction,
+        true,
+      );
+      current.audioRecoveryListenerAttached = false;
       if (current.pendingRecoveryBell) {
         current.pendingRecoveryBell = false;
         persist();
@@ -587,6 +716,7 @@ export function createWhiteNightEvent(shared) {
     };
     addListener(document, "pointerdown", state.resumeAudioOnInteraction, true);
     addListener(document, "keydown", state.resumeAudioOnInteraction, true);
+    state.audioRecoveryListenerAttached = true;
 
     const shouldPlayApostlesCompletion = behavior.playApostlesCompletion ||
       (options.source === "direct-submission" &&
@@ -604,7 +734,10 @@ export function createWhiteNightEvent(shared) {
     if (displayNameInput) {
       syncConfessionButton(matchesConfession(displayNameInput.value));
     }
-    if (options.restore && !options.resumeEnding && shared.isReload()) {
+    if (
+      options.restore && !options.resumeEnding && shared.isReload() &&
+      !options.pendingNavigationViolation
+    ) {
       showBlockMessage("whiteNight.blockTime");
       playBell(undefined, true);
     }
@@ -661,6 +794,9 @@ export function createWhiteNightEvent(shared) {
     state.phase = "ending";
     state.preparedDeathMedia = preparedMedia;
     persist();
+    // 赎罪提交本身是用户手势；提前把静音的 Trumpet 置于可播放状态，
+    // 5.7 秒后的镇压点只需平滑恢复音量。
+    shared.prepareAlertMusicForResume?.();
     syncConfessionButton(false);
     const current = state;
     const document = globalThis.document;
@@ -747,7 +883,10 @@ export function createWhiteNightEvent(shared) {
       : "direct-submission";
     const resumeEnding = saved.phase === "ending";
     start({
+      churchPosition: saved.churchPosition,
       lockLocation: saved.lockLocation,
+      pendingNavigationViolation: saved.pendingNavigationViolation,
+      pendingRecoveryBell: saved.pendingRecoveryBell,
       restore: true,
       resumeEnding,
       source,
@@ -755,10 +894,6 @@ export function createWhiteNightEvent(shared) {
     if (resumeEnding) {
       void confess();
       return true;
-    }
-    if (saved.pendingRecoveryBell && state) {
-      state.pendingRecoveryBell = true;
-      persist();
     }
     if (saved.pendingNavigationViolation) {
       if (state) state.pendingNavigationViolation = false;

@@ -963,12 +963,26 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     static items: AudioMock[] = [];
     static nextDuration = Number.NaN;
     static nextReadyState = 0;
+    static playSnapshots: {
+      audio: AudioMock;
+      loop: boolean;
+      muted: boolean;
+      src: string;
+      volume: number;
+    }[] = [];
+    static rejectNextTrumpetPlayCount = 0;
+    static rejectUnmutedAutoplay = false;
+    static resetTrumpetPositionOnPlay = false;
+    autoplayRejected = false;
     duration = AudioMock.nextDuration;
     currentTime = 0;
+    loop = false;
+    muted = false;
     pauseCount = 0;
     playCount = 0;
     preload = "";
     readyState = AudioMock.nextReadyState;
+    volume = 1;
     /** @param {string} source 音频地址。 */ constructor(source: string) {
       super();
       this.src = source;
@@ -976,6 +990,30 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     }
     /** @return {Promise<void>} 播放结果。 */ play(): Promise<void> {
       this.playCount++;
+      AudioMock.playSnapshots.push({
+        audio: this,
+        loop: this.loop,
+        muted: this.muted,
+        src: this.src,
+        volume: this.volume,
+      });
+      if (
+        AudioMock.resetTrumpetPositionOnPlay &&
+        this.src.includes("Resources/sounds/bgm/emergency")
+      ) {
+        this.currentTime = 0;
+      }
+      if (
+        this.src.includes("Resources/sounds/bgm/emergency") &&
+        AudioMock.rejectNextTrumpetPlayCount > 0
+      ) {
+        AudioMock.rejectNextTrumpetPlayCount--;
+        return Promise.reject(new Error("trumpet autoplay blocked"));
+      }
+      if (AudioMock.rejectUnmutedAutoplay && this.muted !== true) {
+        this.autoplayRejected = true;
+        return Promise.reject(new Error("unmuted autoplay blocked"));
+      }
       if (AudioMock.deferNextPlayCount > 0) {
         AudioMock.deferNextPlayCount--;
         return new Promise((resolve) =>
@@ -1040,10 +1078,14 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       "sessionStorage",
       "setTimeout",
       "clearTimeout",
+      "Date",
     ].map((name) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
   );
   const body = new Element();
   const storage = new StorageMock();
+  const documentListeners = new Map<string, ((event: Event) => void)[]>();
+  let navigationType = "navigate";
+  let now = 0;
   let nextTimerId = 0;
   const timers = new Map<
     number,
@@ -1067,6 +1109,11 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       configurable: true,
       value: {
         body,
+        addEventListener: (name: string, listener: (event: Event) => void) =>
+          documentListeners.set(name, [
+            ...(documentListeners.get(name) ?? []),
+            listener,
+          ]),
         createElement: () => new Element(),
         documentElement: {
           lang: "zh-CN",
@@ -1077,6 +1124,13 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
             : id === "lobotomy-corp-abnormalities-data"
             ? { textContent: lobotomyCorpAbnormalitiesData }
             : null,
+        removeEventListener: (name: string, listener: (event: Event) => void) =>
+          documentListeners.set(
+            name,
+            (documentListeners.get(name) ?? []).filter((item) =>
+              item !== listener
+            ),
+          ),
       },
     },
     innerWidth: { configurable: true, value: 1920 },
@@ -1084,7 +1138,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     sessionStorage: { configurable: true, value: storage },
     performance: {
       configurable: true,
-      value: { getEntriesByType: () => [{ type: "navigate" }] },
+      value: { getEntriesByType: () => [{ type: navigationType }] },
     },
     setTimeout: {
       configurable: true,
@@ -1099,6 +1153,15 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       value: (id: number) => {
         const timer = timers.get(id);
         if (timer) timer.cleared = true;
+      },
+    },
+    Date: {
+      configurable: true,
+      value: class DateMock extends Date {
+        /** @return {number} 可控的测试时钟。 */
+        static override now(): number {
+          return now;
+        }
       },
     },
   });
@@ -1320,33 +1383,71 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       false,
     );
 
-    // 已有 Trumpet 时白夜只接管音乐；事件期间仍更新 visual/music high-water，
-    // 赎罪完成后再从正确的当前高水位曲目开头恢复。
+    // 白夜覆盖时原 Trumpet 不暂停：它以 0 音量循环，仍由同一实例持续推进。
     void api.setDangerScore(45);
-    const firstBeforeWhiteNight = AudioMock.items.at(-1)!;
+    await Promise.resolve();
     void api.handleAbnormalitySubmitted("T-03-46");
     assertEquals(api.getSpecialEvent(), "white-night");
-    assertEquals(firstBeforeWhiteNight.pauseCount > 0, true);
+    const backgroundTrumpet = AudioMock.items.findLast((audio) =>
+      audio.src.includes("Resources/sounds/bgm/emergency")
+    )!;
+    assertEquals(backgroundTrumpet.pauseCount, 0);
+    assertEquals((backgroundTrumpet as { loop?: boolean }).loop, true);
+    assertEquals((backgroundTrumpet as { muted?: boolean }).muted, true);
+    assertEquals((backgroundTrumpet as { volume?: number }).volume, 0);
+    const backgroundTrumpetFirstPlay = AudioMock.playSnapshots.find(
+      (snapshot) => snapshot.audio === backgroundTrumpet,
+    )!;
+    assertEquals(backgroundTrumpetFirstPlay.loop, true);
+    assertEquals(backgroundTrumpetFirstPlay.muted, true);
+    assertEquals(backgroundTrumpetFirstPlay.volume, 0);
     const audioCountBeforeHeldUpgrade = AudioMock.items.length;
     void api.setDangerScore(85);
     await Promise.resolve();
-    assertEquals(AudioMock.items.length, audioCountBeforeHeldUpgrade);
+    assertEquals(AudioMock.items.length, audioCountBeforeHeldUpgrade + 1);
+    const heldThirdAudio = AudioMock.items.at(-1)!;
+    assertEquals(
+      heldThirdAudio.src.endsWith("Resources/sounds/bgm/emergency03_mast.ogg"),
+      true,
+    );
+    assertEquals(heldThirdAudio.currentTime, 0);
+    assertEquals((heldThirdAudio as { loop?: boolean }).loop, true);
+    assertEquals((heldThirdAudio as { muted?: boolean }).muted, true);
+    assertEquals((heldThirdAudio as { volume?: number }).volume, 0);
+    assertEquals(heldThirdAudio.playCount, 1);
+    const heldThirdFirstPlay = AudioMock.playSnapshots.find((snapshot) =>
+      snapshot.audio === heldThirdAudio
+    )!;
+    assertEquals(heldThirdFirstPlay.loop, true);
+    assertEquals(heldThirdFirstPlay.muted, true);
+    assertEquals(heldThirdFirstPlay.volume, 0);
+    assertEquals(backgroundTrumpet.pauseCount, 1);
     const heldThirdOverlay = [...body.children].reverse().find((element) =>
       !element.removed &&
       element.className === "lobotomy-corp-alert-overlay"
     )!;
     assertEquals(trumpet(heldThirdOverlay), "Third\nTrumpet");
 
+    heldThirdAudio.currentTime = 37;
     const confessionCompletion = api.commitDisplayName("O-03-03");
     const confessionEntity = [...body.children].reverse().find((element) =>
       element.className === "lobotomy-corp-white-night-confession-entity"
     )!;
     assertEquals(confessionEntity.children[0].hidden, true);
+    assertEquals((heldThirdAudio as { muted?: boolean }).muted, false);
+    assertEquals((heldThirdAudio as { volume?: number }).volume, 0);
     const suppression = [...timers.values()].find((timer) =>
       timer.delay === whiteNightConfessionSuppressionDelayMs && !timer.cleared
     )!;
     suppression.callback();
     assertEquals(confessionEntity.children[0].hidden, false);
+    assertEquals(heldThirdAudio.currentTime, 37);
+    assertEquals((heldThirdAudio as { loop?: boolean }).loop, false);
+    assertEquals((heldThirdAudio as { volume?: number }).volume, 0);
+    now = 1000;
+    [...timers.values()].find((timer) => timer.delay === 16 && !timer.cleared)
+      ?.callback();
+    assertEquals((heldThirdAudio as { volume?: number }).volume, 1);
     const deathFallback = [...timers.values()].find((timer) =>
       timer.delay === whiteNightDeathSequenceDurationMs && !timer.cleared
     )!;
@@ -1412,6 +1513,121 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     );
     assertEquals(thirdPreparedAudio.pauseCount, 0);
     assertEquals(lowerSecondAudio.pauseCount, 1);
+
+    // Restart Day 终止整场 Day：白夜的静音 Trumpet 必须停止，不能触发淡入。
+    const resetBeforeRestartCheck = api.restartDay();
+    [...body.children].reverse().find((element) =>
+      !element.removed && element.className === "lobotomy-corp-alert-overlay"
+    )?.children[1]?.children[0].dispatch("animationend");
+    await resetBeforeRestartCheck;
+    void api.setDangerScore(45);
+    await Promise.resolve();
+    void api.handleAbnormalitySubmitted("T-03-46");
+    const restartSuppressedTrumpet = AudioMock.items.findLast((audio) =>
+      audio.src.includes("Resources/sounds/bgm/emergency")
+    )!;
+    const restartSuppressedPauseCount = restartSuppressedTrumpet.pauseCount;
+    restartSuppressedTrumpet.currentTime = 22;
+    const restartDuringWhiteNight = api.restartDay();
+    [...body.children].reverse().find((element) =>
+      !element.removed && element.className === "lobotomy-corp-alert-overlay"
+    )?.children[1]?.children[0].dispatch("animationend");
+    await restartDuringWhiteNight;
+    assertEquals(api.getSpecialEvent(), undefined);
+    assertEquals(
+      restartSuppressedTrumpet.pauseCount,
+      restartSuppressedPauseCount + 1,
+    );
+    assertEquals((restartSuppressedTrumpet as { volume?: number }).volume, 0);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-alert"), null);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(storage.getItem("warmnest.lobotomy-corp-special-event"), null);
+
+    // 完整刷新已知仍在白夜时，Trumpet 必须从首次 play 起就是 muted autoplay，
+    // 首次交互只切换听觉状态而不重建或暂停该媒体会话。
+    storage.setItem(
+      "warmnest.lobotomy-corp-alert",
+      JSON.stringify({
+        musicAssetDirectory: "third-trumpet",
+        position: 112,
+        startedAt: 0,
+        visualAssetDirectory: "third-trumpet",
+      }),
+    );
+    storage.setItem(
+      "warmnest.lobotomy-corp-day",
+      JSON.stringify({
+        countedAbnormalityIds: ["T-03-46"],
+        dangerScore: 85,
+      }),
+    );
+    storage.setItem(
+      "warmnest.lobotomy-corp-special-event",
+      JSON.stringify({
+        churchPosition: 26.5,
+        id: "white-night",
+        lockLocation: "/settings",
+        phase: "active",
+        source: "direct-submission",
+      }),
+    );
+    navigationType = "reload";
+    AudioMock.nextDuration = 50;
+    AudioMock.nextReadyState = 1;
+    // Alert 初始化与 WhiteNight.restore() 都可能在真实交互前尝试播放；两次均拒绝，
+    // 以验证 pending 位置不会被临时 0 污染，随后由首次交互完成第三次重试。
+    AudioMock.rejectNextTrumpetPlayCount = 2;
+    AudioMock.rejectUnmutedAutoplay = true;
+    AudioMock.resetTrumpetPositionOnPlay = true;
+    const reloadAudioStart = AudioMock.items.length;
+    await import(
+      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+    );
+    const reloadedApi = browser.lobotomyCorpEasterEgg!;
+    const reloadedTrumpet = AudioMock.items.slice(reloadAudioStart).find(
+      (audio) =>
+        audio.src.endsWith("Resources/sounds/bgm/emergency03_mast.ogg"),
+    )!;
+    assertEquals(reloadedTrumpet.loop, true);
+    assertEquals(reloadedTrumpet.muted, true);
+    assertEquals(reloadedTrumpet.volume, 0);
+    assertEquals(reloadedTrumpet.autoplayRejected, false);
+    assertEquals(reloadedTrumpet.playCount, 2);
+    // 首次被拒绝且 Chromium 把 seek 重置为 0 时，持久化仍必须保留循环内的 12 秒位置。
+    assertEquals(reloadedTrumpet.currentTime, 0);
+    assertEquals(
+      JSON.parse(storage.getItem("warmnest.lobotomy-corp-alert") ?? "{}")
+        .position,
+      12,
+    );
+    AudioMock.rejectUnmutedAutoplay = false;
+    const reloadedTrumpetPlayCountBeforeInteraction = reloadedTrumpet.playCount;
+    documentListeners.get("pointerdown")?.forEach((listener) =>
+      listener(new Event("pointerdown"))
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    assertEquals(AudioMock.items.includes(reloadedTrumpet), true);
+    assertEquals(reloadedTrumpet.currentTime, 12);
+    assertEquals(reloadedTrumpet.pauseCount, 0);
+    assertEquals(reloadedTrumpet.muted, false);
+    assertEquals(reloadedTrumpet.volume, 0);
+    assertEquals(
+      reloadedTrumpet.playCount,
+      reloadedTrumpetPlayCountBeforeInteraction + 1,
+    );
+    reloadedTrumpet.currentTime = 37;
+    reloadedTrumpet.dispatch("timeupdate");
+    assertEquals(
+      JSON.parse(storage.getItem("warmnest.lobotomy-corp-alert") ?? "{}")
+        .position,
+      37,
+    );
+    const reloadedRestart = reloadedApi.restartDay();
+    [...body.children].reverse().find((element) =>
+      !element.removed && element.className === "lobotomy-corp-alert-overlay"
+    )?.children[1]?.children[0].dispatch("animationend");
+    await reloadedRestart;
   } finally {
     for (const [name, descriptor] of Object.entries(original)) {
       if (descriptor) Object.defineProperty(browser, name, descriptor);

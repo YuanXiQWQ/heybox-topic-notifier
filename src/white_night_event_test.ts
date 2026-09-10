@@ -828,7 +828,8 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
   );
   class AudioMock {
     static items: AudioMock[] = [];
-    static blockedPlays = 2;
+    static bellAttempts = 0;
+    static churchAttempts = 0;
     currentTime = 0;
     muted = false;
     pauseCount = 0;
@@ -842,8 +843,19 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
     /** @return {Promise<void>} 播放或自动播放拒绝结果。 */
     play(): Promise<void> {
       this.playCount++;
-      if (AudioMock.blockedPlays > 0) {
-        AudioMock.blockedPlays--;
+      if (this.src.endsWith("Lucifer_standbg0.ogg")) {
+        AudioMock.churchAttempts++;
+        // 模拟 Chromium 在被 autoplay 拒绝或刚开始播放时丢失预设 seek。
+        this.currentTime = 0;
+        if (AudioMock.churchAttempts === 1) {
+          return Promise.reject(new Error("autoplay blocked"));
+        }
+        return Promise.resolve();
+      }
+      if (
+        this.src.endsWith("Lucifer_Bell0.ogg") &&
+        AudioMock.bellAttempts++ === 0
+      ) {
         return Promise.reject(new Error("autoplay blocked"));
       }
       return Promise.resolve();
@@ -868,6 +880,7 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
     "white-night",
     JSON.stringify({
       id: "white-night",
+      churchPosition: 26.5,
       lockLocation: "/settings",
       phase: "active",
       source: "direct-submission",
@@ -936,11 +949,17 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
       audio.src.endsWith("Lucifer_standbg0.ogg")
     )!;
     assertEquals(church.playCount, 1);
+    assertEquals(church.currentTime, 0);
+    assertEquals(
+      JSON.parse(values.get("white-night") ?? "{}").churchPosition,
+      26.5,
+    );
 
     harness.dispatch("pointerdown", new InteractiveNode());
     await Promise.resolve();
     await Promise.resolve();
     assertEquals(church.playCount, 2);
+    assertEquals(church.currentTime, 26.5);
     assertEquals(
       AudioMock.items.filter((audio) => audio.src.endsWith("Lucifer_Bell0.ogg"))
         .length,
@@ -957,4 +976,15 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
       else delete (browser as Record<string, unknown>)[name];
     }
   }
+});
+
+Deno.test("WhiteNight refresh message is deliberately layered above the Trumpet HUD", async () => {
+  const css = await Deno.readTextFile(
+    new URL("../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
+  );
+  const messageRule =
+    css.match(/\.lobotomy-corp-white-night-message\s*\{[^}]*\}/s)
+      ?.[0] ?? "";
+  assertEquals(/z-index:\s*10010;/.test(messageRule), true);
+  assertEquals(/pointer-events:\s*none;/.test(messageRule), true);
 });
