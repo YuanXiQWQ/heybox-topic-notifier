@@ -6,7 +6,7 @@
  * 彩蛋资源允许使用的相对路径格式。
  */
 const easterEggAssetPathPattern =
-  /^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*\.(?:css|js|json|mp3|otf|png|ttf|wav)$/;
+  /^[a-zA-Z0-9_. -]+(?:\/[a-zA-Z0-9_. -]+)*\.(?:css|js|json|mp3|ogg|otf|png|ttf|wav|webm)$/;
 
 /**
  * 《逆转裁判》彩蛋资源根目录。
@@ -120,6 +120,26 @@ export async function lobotomyCorpScriptResponse(): Promise<Response> {
 }
 
 /**
+ * 创建《脑叶公司》白夜事件模块响应。
+ *
+ * @return {Promise<Response>} JavaScript 模块响应。
+ */
+export async function lobotomyCorpWhiteNightEventResponse(): Promise<Response> {
+  const script = await Deno.readTextFile(
+    new URL(
+      "../static/fun/lobotomy-corp/Events/WhiteNight.js",
+      import.meta.url,
+    ),
+  );
+  return new Response(script, {
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "text/javascript; charset=utf-8",
+    },
+  });
+}
+
+/**
  * 创建《脑叶公司》彩蛋样式表响应。
  *
  * @return {Promise<Response>} CSS 响应。
@@ -174,7 +194,9 @@ async function easterEggAssetResponse(
 ): Promise<Response> {
   if (
     !easterEggAssetPathPattern.test(assetPath) ||
-    assetPath.split("/").some((segment) => segment === "." || segment === "..") ||
+    assetPath.split("/").some((segment) =>
+      segment === "." || segment === ".."
+    ) ||
     !isAllowedPath(assetPath)
   ) {
     return easterEggAssetNotFoundResponse();
@@ -185,7 +207,8 @@ async function easterEggAssetResponse(
       new URL(assetPath, assetRoot),
     );
     const contentType = easterEggAssetContentType(assetPath);
-    const supportsRange = contentType.startsWith("audio/");
+    const supportsRange = contentType.startsWith("audio/") ||
+      contentType.startsWith("video/");
     const range = supportsRange
       ? easterEggAssetRange(rangeHeader, content.byteLength)
       : undefined;
@@ -296,7 +319,11 @@ function easterEggAssetContentType(assetPath: string): string {
   if (assetPath.endsWith(".ttf")) {
     return "font/ttf";
   }
-  return assetPath.endsWith(".wav") ? "audio/wav" : "audio/mpeg";
+  if (assetPath.endsWith(".ogg")) {
+    return "audio/ogg";
+  }
+  if (assetPath.endsWith(".wav")) return "audio/wav";
+  return assetPath.endsWith(".webm") ? "video/webm" : "audio/mpeg";
 }
 
 /**
@@ -306,7 +333,9 @@ function easterEggAssetContentType(assetPath: string): string {
  * @return {boolean} 路径可公开读取时返回 true。
  */
 function isAceAttorneyAssetPath(assetPath: string): boolean {
-  return /^(?:AA123|AA456|AAI12|Common)\/.+\.(?:mp3|png|wav)$/u.test(assetPath) ||
+  return /^(?:AA123|AA456|AAI12|Common)\/.+\.(?:mp3|png|wav)$/u.test(
+    assetPath,
+  ) ||
     /^(?:Data\/Characters|Locales\/(?:en-US|ja-JP|zh-CN))\.json$/u.test(
       assetPath,
     ) || assetPath === "Events/CourtroomNameChange.js";
@@ -319,11 +348,15 @@ function isAceAttorneyAssetPath(assetPath: string): boolean {
  * @return {boolean} 路径可公开读取时返回 true。
  */
 function isLobotomyCorpAssetPath(assetPath: string): boolean {
-  return /^Assets\/.+\.(?:mp3|otf|png|ttf|wav)$/u.test(assetPath) ||
+  return /^Assets\/.+\.(?:mp3|ogg|otf|png|ttf|wav|webm)$/u.test(assetPath) ||
     assetPath === "Data/Abnormalities.json" ||
-    /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u.test(
+    /^(?:Events\/(?:CanvasScaler|WhiteNight|WhiteNightAdvent))\.js$/u.test(
       assetPath,
-    );
+    ) ||
+    /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u
+      .test(
+        assetPath,
+      );
 }
 
 /**

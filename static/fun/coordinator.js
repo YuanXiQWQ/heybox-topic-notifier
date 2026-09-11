@@ -1,14 +1,17 @@
 /**
  * @file 本文件协调不同游戏的彩蛋，确保同一时间只有一个游戏的彩蛋处于活动状态。
  */
+// @ts-check
 
 /**
  * 当前活动彩蛋所属游戏及其停止操作。
+ *
+ * @type {{gameId: string, stop: () => void}|undefined}
  */
 let activeEasterEgg;
 
 /**
- * 将指定游戏标记为活动彩蛋，并停止此前其它游戏的彩蛋。
+ * 将指定游戏标记为活动彩蛋，并停止其它游戏的彩蛋。
  *
  * 同一游戏内的重复启动不会触发停止操作，其内部切换由该游戏自行管理。
  *
@@ -21,7 +24,7 @@ function startEasterEgg(gameId, stop) {
   }
 
   const previousEasterEgg = activeEasterEgg;
-  activeEasterEgg = { gameId, stop };
+  activeEasterEgg = {gameId, stop};
   previousEasterEgg?.stop();
 }
 
@@ -35,7 +38,7 @@ function startEasterEgg(gameId, stop) {
  */
 function finishEasterEgg(gameId, stop) {
   if (
-    activeEasterEgg?.gameId === gameId && activeEasterEgg.stop === stop
+      activeEasterEgg?.gameId === gameId && activeEasterEgg.stop === stop
   ) {
     activeEasterEgg = undefined;
   }

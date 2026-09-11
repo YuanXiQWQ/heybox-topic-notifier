@@ -32,7 +32,7 @@ let securityAutoSaveController;
 /**
  * 最近一次成功保存的安全设置表单签名。
  */
-let lastSavedSecuritySignature = "";
+let lastSavedSecuritySignature = '';
 /**
  * 测试通知错误详情页临时地址。
  */
@@ -44,7 +44,7 @@ let testNotifyStatusTimer;
 /**
  * 最近一次成功保存的表单签名。
  */
-let lastSavedSignature = "";
+let lastSavedSignature = '';
 /**
  * 保存成功后是否需要刷新页面。
  */
@@ -84,19 +84,19 @@ let pendingSensitiveActionForm;
 /**
  * 设置页下拉面板状态在本地存储中的键前缀。
  */
-const dropdownStoragePrefix = "heybox-notifier.settings.dropdown.";
+const dropdownStoragePrefix = 'heybox-notifier.settings.dropdown.';
 /**
  * CSRF 表单字段名称。
  */
-const csrfFieldName = "csrfToken";
+const csrfFieldName = 'csrfToken';
 /**
  * CSRF 请求头名称。
  */
-const csrfHeaderName = "x-csrf-token";
+const csrfHeaderName = 'x-csrf-token';
 /**
  * 关键词规则可匹配的位置列表。
  */
-const keywordMatchLocations = ["title", "body", "comments", "replies"];
+const keywordMatchLocations = ['title', 'body', 'comments', 'replies'];
 /**
  * 当前正在拖拽的规则行状态。
  */
@@ -106,15 +106,15 @@ let activeRuleDrag;
  * 初始化设置页所有编辑器。
  */
 function initSettingsEditors() {
-  const topicEditor = document.querySelector("[data-topic-editor]");
-  const keywordEditor = document.querySelector("[data-keyword-editor]");
+  const topicEditor = document.querySelector('[data-topic-editor]');
+  const keywordEditor = document.querySelector('[data-keyword-editor]');
 
   if (!topicEditor || !keywordEditor) {
     return;
   }
 
-  initDropdown(topicEditor, "topics");
-  initDropdown(keywordEditor, "keywords");
+  initDropdown(topicEditor, 'topics');
+  initDropdown(keywordEditor, 'keywords');
   initRenderedSuccessStatuses();
   initTopicEditor(topicEditor, keywordEditor);
   initKeywordEditor(keywordEditor);
@@ -139,7 +139,7 @@ function initSettingsEditors() {
   initSecuritySettingsAutoSave();
   initThemePicker();
   initKeywordRuleStorage(topicEditor, keywordEditor);
-  initAutoSave(topicEditor.closest("form"), topicEditor, keywordEditor);
+  initAutoSave(topicEditor.closest('form'), topicEditor, keywordEditor);
   updateKeywordSummary(keywordEditor);
 }
 
@@ -149,39 +149,39 @@ function initSettingsEditors() {
  * @return {void}
  */
 function initAvatarUpload() {
-  const form = document.querySelector("[data-avatar-upload-form]");
-  const dropzone = form?.querySelector("[data-avatar-dropzone]");
-  const input = form?.querySelector("[data-avatar-file-input]");
-  const dialog = form?.querySelector("[data-avatar-crop-dialog]");
-  const stage = form?.querySelector("[data-avatar-crop-stage]");
-  const canvas = form?.querySelector("[data-avatar-crop-canvas]");
-  const zoom = form?.querySelector("[data-avatar-crop-zoom]");
-  const zoomValue = form?.querySelector("[data-avatar-crop-zoom-value]");
-  const confirm = form?.querySelector("[data-avatar-crop-confirm]");
-  const cancel = form?.querySelector("[data-avatar-crop-cancel]");
-  const status = form?.querySelector("[data-avatar-upload-status]");
-  const previewButton = form?.querySelector("[data-avatar-preview]");
-  const previewDialog = form?.querySelector("[data-avatar-preview-dialog]");
-  const previewClose = form?.querySelector("[data-avatar-preview-close]");
-  const previewImage = form?.querySelector("[data-avatar-preview-image]");
+  const form = document.querySelector('[data-avatar-upload-form]');
+  const dropzone = form?.querySelector('[data-avatar-dropzone]');
+  const input = form?.querySelector('[data-avatar-file-input]');
+  const dialog = form?.querySelector('[data-avatar-crop-dialog]');
+  const stage = form?.querySelector('[data-avatar-crop-stage]');
+  const canvas = form?.querySelector('[data-avatar-crop-canvas]');
+  const zoom = form?.querySelector('[data-avatar-crop-zoom]');
+  const zoomValue = form?.querySelector('[data-avatar-crop-zoom-value]');
+  const confirm = form?.querySelector('[data-avatar-crop-confirm]');
+  const cancel = form?.querySelector('[data-avatar-crop-cancel]');
+  const status = form?.querySelector('[data-avatar-upload-status]');
+  const previewButton = form?.querySelector('[data-avatar-preview]');
+  const previewDialog = form?.querySelector('[data-avatar-preview-dialog]');
+  const previewClose = form?.querySelector('[data-avatar-preview-close]');
+  const previewImage = form?.querySelector('[data-avatar-preview-image]');
   if (
-    !(form instanceof HTMLFormElement) || !(dropzone instanceof HTMLElement) ||
-    !(input instanceof HTMLInputElement) ||
-    !(dialog instanceof HTMLDialogElement) || !(stage instanceof HTMLElement) ||
-    !(canvas instanceof HTMLCanvasElement) ||
-    !(zoom instanceof HTMLInputElement) ||
-    !(zoomValue instanceof HTMLOutputElement) ||
-    !(confirm instanceof HTMLButtonElement) ||
-    !(cancel instanceof HTMLButtonElement) ||
-    !(status instanceof HTMLElement) ||
-    !(previewButton instanceof HTMLButtonElement) ||
-    !(previewDialog instanceof HTMLDialogElement) ||
-    !(previewClose instanceof HTMLButtonElement) ||
-    !(previewImage instanceof HTMLImageElement)
+      !(form instanceof HTMLFormElement) || !(dropzone instanceof HTMLElement) ||
+      !(input instanceof HTMLInputElement) ||
+      !(dialog instanceof HTMLDialogElement) || !(stage instanceof HTMLElement) ||
+      !(canvas instanceof HTMLCanvasElement) ||
+      !(zoom instanceof HTMLInputElement) ||
+      !(zoomValue instanceof HTMLOutputElement) ||
+      !(confirm instanceof HTMLButtonElement) ||
+      !(cancel instanceof HTMLButtonElement) ||
+      !(status instanceof HTMLElement) ||
+      !(previewButton instanceof HTMLButtonElement) ||
+      !(previewDialog instanceof HTMLDialogElement) ||
+      !(previewClose instanceof HTMLButtonElement) ||
+      !(previewImage instanceof HTMLImageElement)
   ) return;
 
   let image;
-  let objectUrl = "";
+  let objectUrl = '';
   let offsetX = 0;
   let offsetY = 0;
   let dragging = false;
@@ -198,7 +198,7 @@ function initAvatarUpload() {
     const minimum = Number(zoom.min);
     const maximum = Number(zoom.max);
     const progress = (Number(zoom.value) - minimum) / (maximum - minimum) * 100;
-    zoom.style.setProperty("--avatar-zoom-progress", `${progress}%`);
+    zoom.style.setProperty('--avatar-zoom-progress', `${progress}%`);
     zoomValue.value = `${Math.round(Number(zoom.value) * 100)}%`;
     zoomValue.textContent = zoomValue.value;
   }
@@ -210,8 +210,8 @@ function initAvatarUpload() {
    */
   function changeZoom(delta) {
     const next = Math.max(
-      Number(zoom.min),
-      Math.min(Number(zoom.max), Number(zoom.value) + delta),
+        Number(zoom.min),
+        Math.min(Number(zoom.max), Number(zoom.value) + delta),
     );
     zoom.value = next.toFixed(2);
     updateZoomValue();
@@ -224,22 +224,22 @@ function initAvatarUpload() {
     const cropInset = size * 0.07;
     const cropSize = size - cropInset * 2;
     const scale =
-      Math.max(cropSize / image.naturalWidth, cropSize / image.naturalHeight) *
-      Number(zoom.value);
+        Math.max(cropSize / image.naturalWidth, cropSize / image.naturalHeight) *
+        Number(zoom.value);
     const width = image.naturalWidth * scale;
     const height = image.naturalHeight * scale;
     const limitX = Math.max(0, (width - cropSize) / 2);
     const limitY = Math.max(0, (height - cropSize) / 2);
     offsetX = Math.max(-limitX, Math.min(limitX, offsetX));
     offsetY = Math.max(-limitY, Math.min(limitY, offsetY));
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext('2d');
     context.clearRect(0, 0, size, size);
     context.drawImage(
-      image,
-      (size - width) / 2 + offsetX,
-      (size - height) / 2 + offsetY,
-      width,
-      height,
+        image,
+        (size - width) / 2 + offsetX,
+        (size - height) / 2 + offsetY,
+        width,
+        height,
     );
   }
 
@@ -251,9 +251,9 @@ function initAvatarUpload() {
   function selectFile(file) {
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      status.dataset.state = "error";
+      status.dataset.state = 'error';
       status.hidden = false;
-      status.textContent = form.dataset.avatarUploadError || "Upload failed.";
+      status.textContent = form.dataset.avatarUploadError || 'Upload failed.';
       return;
     }
     URL.revokeObjectURL(objectUrl);
@@ -262,17 +262,17 @@ function initAvatarUpload() {
     image.onload = () => {
       offsetX = 0;
       offsetY = 0;
-      zoom.value = "1";
+      zoom.value = '1';
       updateZoomValue();
       draw();
       dialog.showModal();
     };
     image.onerror = () => {
-      status.dataset.state = "error";
+      status.dataset.state = 'error';
       status.hidden = false;
-      status.textContent = form.dataset.avatarUploadError || "Upload failed.";
+      status.textContent = form.dataset.avatarUploadError || 'Upload failed.';
       URL.revokeObjectURL(objectUrl);
-      objectUrl = "";
+      objectUrl = '';
     };
     image.src = objectUrl;
   }
@@ -282,65 +282,65 @@ function initAvatarUpload() {
    */
   function showAvatarPreview() {
     const uploadedAvatar = previewButton.querySelector(
-      ".account-avatar-uploaded",
+        '.account-avatar-uploaded',
     );
     const defaultAvatar = previewButton.querySelector(
-      ".account-avatar-default",
+        '.account-avatar-default',
     );
     const source = uploadedAvatar instanceof HTMLImageElement &&
-        uploadedAvatar.complete && uploadedAvatar.naturalWidth > 0
-      ? uploadedAvatar.currentSrc
-      : defaultAvatar instanceof HTMLImageElement
-      ? defaultAvatar.currentSrc
-      : "";
+    uploadedAvatar.complete && uploadedAvatar.naturalWidth > 0
+        ? uploadedAvatar.currentSrc
+        : defaultAvatar instanceof HTMLImageElement
+            ? defaultAvatar.currentSrc
+            : '';
     if (!source) return;
     previewImage.src = source;
     previewDialog.showModal();
   }
 
-  dropzone.addEventListener("click", () => {
+  dropzone.addEventListener('click', () => {
     status.hidden = true;
   });
-  previewButton.addEventListener("click", showAvatarPreview);
-  previewClose.addEventListener("click", () => previewDialog.close());
-  previewDialog.addEventListener("click", (event) => {
+  previewButton.addEventListener('click', showAvatarPreview);
+  previewClose.addEventListener('click', () => previewDialog.close());
+  previewDialog.addEventListener('click', (event) => {
     if (event.target === previewDialog) previewDialog.close();
   });
-  dropzone.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
+  dropzone.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       input.click();
     }
   });
-  input.addEventListener("change", () => selectFile(input.files?.[0]));
-  dropzone.addEventListener("dragover", (event) => {
+  input.addEventListener('change', () => selectFile(input.files?.[0]));
+  dropzone.addEventListener('dragover', (event) => {
     event.preventDefault();
-    dropzone.classList.add("is-dragover");
+    dropzone.classList.add('is-dragover');
   });
   dropzone.addEventListener(
-    "dragleave",
-    () => dropzone.classList.remove("is-dragover"),
+      'dragleave',
+      () => dropzone.classList.remove('is-dragover'),
   );
-  dropzone.addEventListener("drop", (event) => {
+  dropzone.addEventListener('drop', (event) => {
     event.preventDefault();
-    dropzone.classList.remove("is-dragover");
+    dropzone.classList.remove('is-dragover');
     selectFile(event.dataTransfer?.files[0]);
   });
-  zoom.addEventListener("input", () => {
+  zoom.addEventListener('input', () => {
     updateZoomValue();
     draw();
   });
-  dialog.addEventListener("wheel", (event) => {
+  dialog.addEventListener('wheel', (event) => {
     event.preventDefault();
     changeZoom(event.deltaY < 0 ? 0.1 : -0.1);
-  }, { passive: false });
-  stage.addEventListener("pointerdown", (event) => {
+  }, {passive: false});
+  stage.addEventListener('pointerdown', (event) => {
     dragging = true;
     lastX = event.clientX;
     lastY = event.clientY;
     stage.setPointerCapture(event.pointerId);
   });
-  stage.addEventListener("pointermove", (event) => {
+  stage.addEventListener('pointermove', (event) => {
     if (!dragging) return;
     offsetX += event.clientX - lastX;
     offsetY += event.clientY - lastY;
@@ -348,48 +348,48 @@ function initAvatarUpload() {
     lastY = event.clientY;
     draw();
   });
-  stage.addEventListener("pointerup", () => {
+  stage.addEventListener('pointerup', () => {
     dragging = false;
   });
-  cancel.addEventListener("click", () => {
+  cancel.addEventListener('click', () => {
     dialog.close();
     URL.revokeObjectURL(objectUrl);
   });
-  confirm.addEventListener("click", () => {
+  confirm.addEventListener('click', () => {
     confirm.disabled = true;
     canvas.toBlob(
-      async (blob) => {
-        if (!blob) {
-          confirm.disabled = false;
-          return;
-        }
-        const data = new FormData(form);
-        data.set("avatar", blob, "avatar.png");
-        try {
-          const response = await fetch(form.action, {
-            body: data,
-            headers: csrfRequestHeaders(),
-            method: "POST",
-          });
-          if (response.redirected) {
-            location.assign(response.url);
+        async (blob) => {
+          if (!blob) {
+            confirm.disabled = false;
             return;
           }
-          status.dataset.state = "error";
-          status.hidden = false;
-          status.textContent = form.dataset.avatarUploadError ||
-            "Upload failed.";
-          confirm.disabled = false;
-        } catch {
-          status.dataset.state = "error";
-          status.hidden = false;
-          status.textContent = form.dataset.avatarUploadError ||
-            "Upload failed.";
-          confirm.disabled = false;
-        }
-      },
-      "image/png",
-      0.92,
+          const data = new FormData(form);
+          data.set('avatar', blob, 'avatar.png');
+          try {
+            const response = await fetch(form.action, {
+              body: data,
+              headers: csrfRequestHeaders(),
+              method: 'POST',
+            });
+            if (response.redirected) {
+              location.assign(response.url);
+              return;
+            }
+            status.dataset.state = 'error';
+            status.hidden = false;
+            status.textContent = form.dataset.avatarUploadError ||
+                'Upload failed.';
+            confirm.disabled = false;
+          } catch {
+            status.dataset.state = 'error';
+            status.hidden = false;
+            status.textContent = form.dataset.avatarUploadError ||
+                'Upload failed.';
+            confirm.disabled = false;
+          }
+        },
+        'image/png',
+        0.92,
     );
   });
 }
@@ -400,18 +400,18 @@ function initAvatarUpload() {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initTotpBinding(scope = document) {
-  const section = scope.querySelector("[data-totp-binding-section]");
-  const form = section?.querySelector("[data-totp-binding-form]");
+  const section = scope.querySelector('[data-totp-binding-section]');
+  const form = section?.querySelector('[data-totp-binding-form]');
   if (
-    !(section instanceof HTMLElement) ||
-    !(form instanceof HTMLFormElement) ||
-    form.dataset.totpBindingInitialized === "true"
+      !(section instanceof HTMLElement) ||
+      !(form instanceof HTMLFormElement) ||
+      form.dataset.totpBindingInitialized === 'true'
   ) {
     return;
   }
 
-  form.dataset.totpBindingInitialized = "true";
-  form.addEventListener("submit", (event) => {
+  form.dataset.totpBindingInitialized = 'true';
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     void submitTotpBinding(section, form);
   });
@@ -425,7 +425,7 @@ function initTotpBinding(scope = document) {
  * @return {Promise<boolean>} 页面状态更新成功时返回 true。
  */
 async function submitTotpBinding(section, form) {
-  if (form.dataset.totpBindingPending === "true") {
+  if (form.dataset.totpBindingPending === 'true') {
     return false;
   }
   if (!form.checkValidity()) {
@@ -434,19 +434,19 @@ async function submitTotpBinding(section, form) {
   }
 
   const submitButton = document.querySelector(
-    `[form="${form.id}"][type="submit"]`,
+      `[form="${form.id}"][type="submit"]`,
   );
-  const status = section.querySelector("[data-totp-binding-status]");
-  form.dataset.totpBindingPending = "true";
+  const status = section.querySelector('[data-totp-binding-status]');
+  form.dataset.totpBindingPending = 'true';
   if (submitButton instanceof HTMLButtonElement) {
     submitButton.disabled = true;
   }
 
   try {
-    if (form.method.toLowerCase() === "get") {
+    if (form.method.toLowerCase() === 'get') {
       const url = new URL(form.action);
       for (const [name, value] of formDataFromForm(form)) {
-        if (typeof value === "string") {
+        if (typeof value === 'string') {
           url.searchParams.append(name, value);
         }
       }
@@ -455,27 +455,27 @@ async function submitTotpBinding(section, form) {
 
     const response = await fetch(form.action, {
       body: formDataFromForm(form),
-      headers: csrfRequestHeaders({ "x-totp-binding": "1" }),
-      method: form.method || "post",
+      headers: csrfRequestHeaders({'x-totp-binding': '1'}),
+      method: form.method || 'post',
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.ok !== true) {
       setInlineStatus(
-        status,
-        totpBindingErrorMessage(section, payload.error),
-        "error",
+          status,
+          totpBindingErrorMessage(section, payload.error),
+          'error',
       );
       return false;
     }
-    if (typeof payload.redirectTo !== "string") {
+    if (typeof payload.redirectTo !== 'string') {
       return false;
     }
     return await refreshTwoStepSettings(payload.redirectTo);
   } catch {
     setInlineStatus(
-      status,
-      section.dataset.totpCodeError || "",
-      "error",
+        status,
+        section.dataset.totpCodeError || '',
+        'error',
     );
     return false;
   } finally {
@@ -495,12 +495,12 @@ async function submitTotpBinding(section, form) {
  */
 function totpBindingErrorMessage(section, error) {
   switch (error) {
-    case "config":
-      return section.dataset.totpConfigError || "";
-    case "notFound":
-      return section.dataset.totpNotFoundError || "";
+    case 'config':
+      return section.dataset.totpConfigError || '';
+    case 'notFound':
+      return section.dataset.totpNotFoundError || '';
     default:
-      return section.dataset.totpCodeError || "";
+      return section.dataset.totpCodeError || '';
   }
 }
 
@@ -513,14 +513,14 @@ function totpBindingErrorMessage(section, error) {
 async function fetchSettingsDocument(url) {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error("Could not refresh settings.");
+    throw new Error('Could not refresh settings.');
   }
   const parsed = new DOMParser().parseFromString(
-    await response.text(),
-    "text/html",
+      await response.text(),
+      'text/html',
   );
   if (!(parsed instanceof Document)) {
-    throw new Error("Could not parse settings.");
+    throw new Error('Could not parse settings.');
   }
   return parsed;
 }
@@ -533,19 +533,19 @@ async function fetchSettingsDocument(url) {
  */
 async function refreshTwoStepSettings(url) {
   const parsed = await fetchSettingsDocument(url);
-  const currentForm = document.querySelector("[data-security-settings-form]");
-  const nextForm = parsed.querySelector("[data-security-settings-form]");
+  const currentForm = document.querySelector('[data-security-settings-form]');
+  const nextForm = parsed.querySelector('[data-security-settings-form]');
   const currentSection = document.querySelector(
-    'section[aria-labelledby="account-two-step-heading"]',
+      'section[aria-labelledby="account-two-step-heading"]',
   );
   const nextSection = parsed.querySelector(
-    'section[aria-labelledby="account-two-step-heading"]',
+      'section[aria-labelledby="account-two-step-heading"]',
   );
   if (
-    !(currentForm instanceof HTMLFormElement) ||
-    !(nextForm instanceof HTMLFormElement) ||
-    !(currentSection instanceof HTMLElement) ||
-    !(nextSection instanceof HTMLElement)
+      !(currentForm instanceof HTMLFormElement) ||
+      !(nextForm instanceof HTMLFormElement) ||
+      !(currentSection instanceof HTMLElement) ||
+      !(nextSection instanceof HTMLElement)
   ) {
     return false;
   }
@@ -574,23 +574,23 @@ async function refreshTwoStepSettings(url) {
  */
 async function refreshPasskeySettings(url) {
   const parsed = await fetchSettingsDocument(url);
-  const currentRow = document.querySelector("#auth-method-passkey");
-  const nextRow = parsed.querySelector("#auth-method-passkey");
-  const currentForm = document.querySelector("[data-security-settings-form]");
-  const nextForm = parsed.querySelector("[data-security-settings-form]");
+  const currentRow = document.querySelector('#auth-method-passkey');
+  const nextRow = parsed.querySelector('#auth-method-passkey');
+  const currentForm = document.querySelector('[data-security-settings-form]');
+  const nextForm = parsed.querySelector('[data-security-settings-form]');
   const currentSection = document.querySelector(
-    'section[aria-labelledby="account-two-step-heading"]',
+      'section[aria-labelledby="account-two-step-heading"]',
   );
   const nextSection = parsed.querySelector(
-    'section[aria-labelledby="account-two-step-heading"]',
+      'section[aria-labelledby="account-two-step-heading"]',
   );
   if (
-    !(currentRow instanceof HTMLElement) ||
-    !(nextRow instanceof HTMLElement) ||
-    !(currentForm instanceof HTMLFormElement) ||
-    !(nextForm instanceof HTMLFormElement) ||
-    !(currentSection instanceof HTMLElement) ||
-    !(nextSection instanceof HTMLElement)
+      !(currentRow instanceof HTMLElement) ||
+      !(nextRow instanceof HTMLElement) ||
+      !(currentForm instanceof HTMLFormElement) ||
+      !(nextForm instanceof HTMLFormElement) ||
+      !(currentSection instanceof HTMLElement) ||
+      !(nextSection instanceof HTMLElement)
   ) {
     return false;
   }
@@ -625,10 +625,10 @@ async function refreshPasskeySettings(url) {
  */
 async function refreshGoogleSettings(url) {
   const parsed = await fetchSettingsDocument(url);
-  const currentRow = document.querySelector("#auth-method-google");
-  const nextRow = parsed.querySelector("#auth-method-google");
+  const currentRow = document.querySelector('#auth-method-google');
+  const nextRow = parsed.querySelector('#auth-method-google');
   if (
-    !(currentRow instanceof HTMLElement) || !(nextRow instanceof HTMLElement)
+      !(currentRow instanceof HTMLElement) || !(nextRow instanceof HTMLElement)
   ) {
     return false;
   }
@@ -649,39 +649,39 @@ async function refreshGoogleSettings(url) {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initTotpManualKeyCopy(scope = document) {
-  const key = scope.querySelector("[data-totp-manual-key]");
-  const button = scope.querySelector("[data-totp-copy-button]");
-  const status = scope.querySelector("[data-totp-copy-status]");
+  const key = scope.querySelector('[data-totp-manual-key]');
+  const button = scope.querySelector('[data-totp-copy-button]');
+  const status = scope.querySelector('[data-totp-copy-status]');
 
   if (
-    !(key instanceof HTMLElement) ||
-    !(button instanceof HTMLButtonElement) ||
-    !(status instanceof HTMLElement)
+      !(key instanceof HTMLElement) ||
+      !(button instanceof HTMLButtonElement) ||
+      !(status instanceof HTMLElement)
   ) {
     return;
   }
 
-  const copyLabel = button.dataset.totpCopyLabel || "";
+  const copyLabel = button.dataset.totpCopyLabel || '';
   let resetTimer;
 
-  button.addEventListener("click", async () => {
+  button.addEventListener('click', async () => {
     button.disabled = true;
-    const copied = await copyTextToClipboard(key.textContent?.trim() || "");
+    const copied = await copyTextToClipboard(key.textContent?.trim() || '');
     const feedback = copied
-      ? button.dataset.totpCopySuccess || copyLabel
-      : button.dataset.totpCopyFailed || copyLabel;
+        ? button.dataset.totpCopySuccess || copyLabel
+        : button.dataset.totpCopyFailed || copyLabel;
 
     button.disabled = false;
-    button.dataset.state = copied ? "copied" : "failed";
-    button.setAttribute("aria-label", feedback);
+    button.dataset.state = copied ? 'copied' : 'failed';
+    button.setAttribute('aria-label', feedback);
     button.dataset.tooltip = feedback;
     status.textContent = feedback;
     clearTimeout(resetTimer);
     resetTimer = setTimeout(() => {
       delete button.dataset.state;
-      button.setAttribute("aria-label", copyLabel);
+      button.setAttribute('aria-label', copyLabel);
       button.dataset.tooltip = copyLabel;
-      status.textContent = "";
+      status.textContent = '';
     }, 1800);
   });
 }
@@ -690,46 +690,46 @@ function initTotpManualKeyCopy(scope = document) {
  * 初始化首次展示恢复码的纯文本下载按钮。
  */
 function initRecoveryCodeDownload() {
-  const list = document.querySelector("[data-recovery-code-list]");
-  const button = document.querySelector("[data-recovery-codes-download]");
-  const status = document.querySelector("[data-recovery-download-status]");
+  const list = document.querySelector('[data-recovery-code-list]');
+  const button = document.querySelector('[data-recovery-codes-download]');
+  const status = document.querySelector('[data-recovery-download-status]');
   if (
-    !(list instanceof HTMLElement) ||
-    !(button instanceof HTMLButtonElement) ||
-    !(status instanceof HTMLElement)
+      !(list instanceof HTMLElement) ||
+      !(button instanceof HTMLButtonElement) ||
+      !(status instanceof HTMLElement)
   ) {
     return;
   }
 
-  const downloadLabel = button.dataset.recoveryDownloadLabel || "";
-  button.addEventListener("click", () => {
-    const codes = Array.from(list.querySelectorAll("code"))
-      .map((code) => code.textContent?.trim() || "")
-      .filter(Boolean);
-    const appName = button.dataset.recoveryDownloadAppName?.trim() || "";
-    const fileLabel = button.dataset.recoveryDownloadFileLabel?.trim() || "";
+  const downloadLabel = button.dataset.recoveryDownloadLabel || '';
+  button.addEventListener('click', () => {
+    const codes = Array.from(list.querySelectorAll('code'))
+        .map((code) => code.textContent?.trim() || '')
+        .filter(Boolean);
+    const appName = button.dataset.recoveryDownloadAppName?.trim() || '';
+    const fileLabel = button.dataset.recoveryDownloadFileLabel?.trim() || '';
     if (!appName || !fileLabel) {
-      button.dataset.state = "failed";
+      button.dataset.state = 'failed';
       status.textContent = button.dataset.recoveryDownloadFailed ||
-        downloadLabel;
+          downloadLabel;
       return;
     }
     const date = localDateString(
-      new Date(),
-      document.documentElement.lang || navigator.language,
+        new Date(),
+        document.documentElement.lang || navigator.language,
     );
     const filename = `${safeDownloadFilenamePart(appName)}-${
-      safeDownloadFilenamePart(fileLabel)
+        safeDownloadFilenamePart(fileLabel)
     }-${safeDownloadFilenamePart(date)}.txt`;
     const content = `${appName} - ${fileLabel}\n${date}\n\n${
-      codes.join("\n")
-    }\n\n${button.dataset.recoveryDownloadHint || ""}\n`;
+        codes.join('\n')
+    }\n\n${button.dataset.recoveryDownloadHint || ''}\n`;
 
     try {
       const blobUrl = URL.createObjectURL(
-        new Blob([`\uFEFF${content}`], { type: "text/plain;charset=utf-8" }),
+          new Blob([`\uFEFF${content}`], {type: 'text/plain;charset=utf-8'}),
       );
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       link.href = blobUrl;
       link.download = filename;
       document.body.append(link);
@@ -739,7 +739,7 @@ function initRecoveryCodeDownload() {
       status.textContent = downloadLabel;
     } catch {
       const feedback = button.dataset.recoveryDownloadFailed || downloadLabel;
-      button.dataset.state = "failed";
+      button.dataset.state = 'failed';
       status.textContent = feedback;
     }
   });
@@ -753,7 +753,7 @@ function initRecoveryCodeDownload() {
  * @return {string} 按当前语言格式化的本地日期。
  */
 function localDateString(date, locale) {
-  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(date);
+  return new Intl.DateTimeFormat(locale, {dateStyle: 'medium'}).format(date);
 }
 
 /**
@@ -764,38 +764,38 @@ function localDateString(date, locale) {
  */
 function safeDownloadFilenamePart(value) {
   const filenamePart = Array.from(
-    value,
-    (character) =>
-      character.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(character)
-        ? "_"
-        : character,
-  ).join("").trim().replace(/[. ]+$/, "");
-  return filenamePart || "_";
+      value,
+      (character) =>
+          character.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(character)
+              ? '_'
+              : character,
+  ).join('').trim().replace(/[. ]+$/, '');
+  return filenamePart || '_';
 }
 
 /**
  * 初始化恢复码保存确认按钮，确认后立即从页面清除明文。
  */
 function initRecoveryCodeConfirmation() {
-  const reveal = document.querySelector("[data-recovery-code-reveal]");
-  const button = document.querySelector("[data-recovery-codes-confirm]");
+  const reveal = document.querySelector('[data-recovery-code-reveal]');
+  const button = document.querySelector('[data-recovery-codes-confirm]');
   if (
-    !(reveal instanceof HTMLElement) ||
-    !(button instanceof HTMLButtonElement)
+      !(reveal instanceof HTMLElement) ||
+      !(button instanceof HTMLButtonElement)
   ) {
     return;
   }
 
-  button.addEventListener("click", () => {
-    reveal.querySelectorAll("code").forEach((code) => {
-      code.textContent = "";
+  button.addEventListener('click', () => {
+    reveal.querySelectorAll('code').forEach((code) => {
+      code.textContent = '';
     });
-    const panel = reveal.closest("[data-auth-method-panel]");
+    const panel = reveal.closest('[data-auth-method-panel]');
     const generateButton = document.querySelector(
-      "[data-recovery-codes-generate]",
+        '[data-recovery-codes-generate]',
     );
     const generationRoot = panel?.querySelector(
-      "[data-recovery-code-generation]",
+        '[data-recovery-code-generation]',
     );
     reveal.remove();
     if (generateButton instanceof HTMLButtonElement) {
@@ -805,8 +805,8 @@ function initRecoveryCodeConfirmation() {
       generationRoot.hidden = false;
     }
     if (
-      panel instanceof HTMLElement &&
-      generateButton instanceof HTMLButtonElement
+        panel instanceof HTMLElement &&
+        generateButton instanceof HTMLButtonElement
     ) {
       setAuthMethodPanelVisible(panel, generateButton, false);
     }
@@ -817,33 +817,33 @@ function initRecoveryCodeConfirmation() {
  * 初始化恢复码原地确认和生成流程。
  */
 function initRecoveryCodeGeneration() {
-  const root = document.querySelector("[data-recovery-code-generation]");
-  const button = document.querySelector("[data-recovery-codes-generate]");
+  const root = document.querySelector('[data-recovery-code-generation]');
+  const button = document.querySelector('[data-recovery-codes-generate]');
   if (
-    !(root instanceof HTMLElement) ||
-    !(button instanceof HTMLButtonElement)
+      !(root instanceof HTMLElement) ||
+      !(button instanceof HTMLButtonElement)
   ) {
     return;
   }
 
-  const status = root.querySelector("[data-recovery-generation-status]");
+  const status = root.querySelector('[data-recovery-generation-status]');
   let generating = false;
 
-  root.addEventListener("reauth-success", () => {
+  root.addEventListener('reauth-success', () => {
     void generateRecoveryCodes();
   });
-  root.addEventListener("reauth-cancel", (event) => {
+  root.addEventListener('reauth-cancel', (event) => {
     if (
-      !(event.target instanceof HTMLElement) ||
-      !event.target.matches(
-        '[data-reauth-section][data-reauth-purpose="recovery_codes"]',
-      )
+        !(event.target instanceof HTMLElement) ||
+        !event.target.matches(
+            '[data-reauth-section][data-reauth-purpose="recovery_codes"]',
+        )
     ) {
       return;
     }
 
     event.preventDefault();
-    const panel = root.closest("[data-auth-method-panel]");
+    const panel = root.closest('[data-auth-method-panel]');
     if (panel instanceof HTMLElement) {
       setAuthMethodPanelVisible(panel, button, false);
     }
@@ -862,34 +862,34 @@ function initRecoveryCodeGeneration() {
     generating = true;
     button.disabled = true;
     setInlineStatus(
-      status,
-      root.dataset.recoveryGenerating || "",
-      "pending",
+        status,
+        root.dataset.recoveryGenerating || '',
+        'pending',
     );
     try {
       const body = new URLSearchParams();
       body.set(csrfFieldName, currentCsrfToken());
       const response = await fetch(
-        root.dataset.recoveryGenerateUrl ||
-          "/account/recovery-codes/generate",
-        {
-          body,
-          headers: csrfRequestHeaders({
-            "content-type": "application/x-www-form-urlencoded",
-            "x-recovery-code-generate": "1",
-          }),
-          method: "POST",
-        },
+          root.dataset.recoveryGenerateUrl ||
+          '/account/recovery-codes/generate',
+          {
+            body,
+            headers: csrfRequestHeaders({
+              'content-type': 'application/x-www-form-urlencoded',
+              'x-recovery-code-generate': '1',
+            }),
+            method: 'POST',
+          },
       );
       const payload = await response.json().catch(() => ({}));
       if (
-        !response.ok ||
-        typeof payload.redirectTo !== "string"
+          !response.ok ||
+          typeof payload.redirectTo !== 'string'
       ) {
         setInlineStatus(
-          status,
-          root.dataset.recoveryGenerateFailed || "",
-          "error",
+            status,
+            root.dataset.recoveryGenerateFailed || '',
+            'error',
         );
         return;
       }
@@ -897,9 +897,9 @@ function initRecoveryCodeGeneration() {
       globalThis.location.assign(payload.redirectTo);
     } catch {
       setInlineStatus(
-        status,
-        root.dataset.recoveryGenerateFailed || "",
-        "error",
+          status,
+          root.dataset.recoveryGenerateFailed || '',
+          'error',
       );
     } finally {
       generating = false;
@@ -925,14 +925,14 @@ async function copyTextToClipboard(value) {
       return true;
     }
 
-    const textarea = document.createElement("textarea");
+    const textarea = document.createElement('textarea');
     textarea.value = value;
-    textarea.setAttribute("readonly", "");
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
     document.body.append(textarea);
     textarea.select();
-    const copied = document.execCommand("copy");
+    const copied = document.execCommand('copy');
     textarea.remove();
     return copied;
   } catch {
@@ -945,17 +945,17 @@ async function copyTextToClipboard(value) {
  */
 function initNotificationSettings() {
   const providerSelect = document.querySelector(
-    "[data-notification-provider-select]",
+      '[data-notification-provider-select]',
   );
   const emailServiceSelect = document.querySelector(
-    "[data-notification-email-service-select]",
+      '[data-notification-email-service-select]',
   );
   const serviceSelect = document.querySelector(
-    "[data-notification-webhook-service-select]",
+      '[data-notification-webhook-service-select]',
   );
-  const testNotifyButton = document.querySelector("[data-test-notify-button]");
+  const testNotifyButton = document.querySelector('[data-test-notify-button]');
   const rows = Array.from(
-    document.querySelectorAll("[data-notification-field]"),
+      document.querySelectorAll('[data-notification-field]'),
   );
 
   if (!(providerSelect instanceof HTMLSelectElement)) {
@@ -971,35 +971,35 @@ function initNotificationSettings() {
    * @return {Set<string>} 需要显示的通知字段名称集合。
    */
   function desiredNotificationFields() {
-    if (providerSelect.value === "email") {
+    if (providerSelect.value === 'email') {
       const fields = [
-        "email-service",
-        "email-address",
-        "email-from",
+        'email-service',
+        'email-address',
+        'email-from',
       ];
 
-      if (emailServiceSelect?.value === "api") {
-        fields.push("email-api-url", "email-api-token");
+      if (emailServiceSelect?.value === 'api') {
+        fields.push('email-api-url', 'email-api-token');
       } else {
         fields.push(
-          "smtp-host",
-          "smtp-port",
-          "smtp-secure",
-          "smtp-username",
-          "smtp-password",
+            'smtp-host',
+            'smtp-port',
+            'smtp-secure',
+            'smtp-username',
+            'smtp-password',
         );
       }
 
       return new Set(fields);
     }
 
-    if (providerSelect.value !== "webhook") {
+    if (providerSelect.value !== 'webhook') {
       return new Set();
     }
 
     return new Set([
-      "webhook-service",
-      serviceSelect?.value || "custom",
+      'webhook-service',
+      serviceSelect?.value || 'custom',
     ]);
   }
 
@@ -1018,20 +1018,20 @@ function initNotificationSettings() {
    *
    * @param {HTMLElement} row 通知设置行元素。
    * @param {boolean} animate 是否播放展开动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function showRow(row, animate, token) {
     row.hidden = false;
     row.dataset.notificationTransitionToken = String(token);
 
     if (!animate) {
-      row.classList.remove("is-collapsed");
+      row.classList.remove('is-collapsed');
       return;
     }
 
-    row.classList.add("is-collapsed");
+    row.classList.add('is-collapsed');
     row.getBoundingClientRect();
-    row.classList.remove("is-collapsed");
+    row.classList.remove('is-collapsed');
   }
 
   /**
@@ -1039,11 +1039,11 @@ function initNotificationSettings() {
    *
    * @param {HTMLElement} row 通知设置行元素。
    * @param {boolean} animate 是否播放收起动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function hideRow(row, animate, token) {
     row.dataset.notificationTransitionToken = String(token);
-    row.classList.add("is-collapsed");
+    row.classList.add('is-collapsed');
 
     if (!animate) {
       row.hidden = true;
@@ -1052,8 +1052,8 @@ function initNotificationSettings() {
 
     setTimeout(() => {
       if (
-        row.dataset.notificationTransitionToken === String(token) &&
-        row.classList.contains("is-collapsed")
+          row.dataset.notificationTransitionToken === String(token) &&
+          row.classList.contains('is-collapsed')
       ) {
         row.hidden = true;
       }
@@ -1065,7 +1065,7 @@ function initNotificationSettings() {
    *
    * @param {Set<string>} fields 需要显示的字段集合。
    * @param {boolean} animate 是否播放过渡动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function applyNotificationFields(fields, animate, token) {
     for (const row of rows) {
@@ -1077,9 +1077,9 @@ function initNotificationSettings() {
     }
 
     if (testNotifyButton instanceof HTMLButtonElement) {
-      testNotifyButton.hidden = providerSelect.value === "disabled";
+      testNotifyButton.hidden = providerSelect.value === 'disabled';
       if (testNotifyButton.hidden) {
-        setTestNotifyStatus("");
+        setTestNotifyStatus('');
       }
     }
   }
@@ -1098,22 +1098,22 @@ function initNotificationSettings() {
     visibleFields = targetFields;
   }
 
-  providerSelect.addEventListener("change", () => {
+  providerSelect.addEventListener('change', () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  emailServiceSelect?.addEventListener("change", () => {
+  emailServiceSelect?.addEventListener('change', () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  serviceSelect?.addEventListener("change", () => {
+  serviceSelect?.addEventListener('change', () => {
     syncNotificationFields(true);
     scheduleAutoSave();
   });
 
-  testNotifyButton?.addEventListener("click", async (event) => {
+  testNotifyButton?.addEventListener('click', async (event) => {
     event.preventDefault();
     if (!(testNotifyButton instanceof HTMLButtonElement)) {
       return;
@@ -1121,11 +1121,11 @@ function initNotificationSettings() {
 
     testNotifyButton.disabled = true;
     setTestNotifyStatus(
-      testNotifyButton.dataset.testNotifySending ?? "",
-      "pending",
-      {
-        persistMs: 0,
-      },
+        testNotifyButton.dataset.testNotifySending ?? '',
+        'pending',
+        {
+          persistMs: 0,
+        },
     );
     try {
       const saved = await saveSettingsNow();
@@ -1133,8 +1133,8 @@ function initNotificationSettings() {
         await sendTestNotification(testNotifyButton);
       } else {
         setTestNotifyStatus(
-          testNotifyButton.dataset.testNotifyFailed ?? "",
-          "error",
+            testNotifyButton.dataset.testNotifyFailed ?? '',
+            'error',
         );
       }
     } finally {
@@ -1149,30 +1149,30 @@ function initNotificationSettings() {
  * 初始化敏感令牌输入框的解锁和自动锁定交互。
  */
 function initSecretEditors() {
-  document.querySelectorAll("[data-secret-editor]").forEach((editor) => {
-    const input = editor.querySelector("[data-secret-display-input]");
-    const button = editor.querySelector("[data-secret-edit-button]");
+  document.querySelectorAll('[data-secret-editor]').forEach((editor) => {
+    const input = editor.querySelector('[data-secret-display-input]');
+    const button = editor.querySelector('[data-secret-edit-button]');
     if (
-      !(input instanceof HTMLInputElement) ||
-      !(button instanceof HTMLButtonElement)
+        !(input instanceof HTMLInputElement) ||
+        !(button instanceof HTMLButtonElement)
     ) {
       return;
     }
 
-    button.addEventListener("click", () => {
+    button.addEventListener('click', () => {
       unlockSecretEditor(input);
     });
 
-    input.addEventListener("blur", () => {
+    input.addEventListener('blur', () => {
       lockSecretEditorAfterEdit(input);
     });
 
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Tab") {
-        input.dataset.secretEditButtonSkipped = "true";
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab') {
+        input.dataset.secretEditButtonSkipped = 'true';
       }
 
-      if (event.key === "Enter") {
+      if (event.key === 'Enter') {
         event.preventDefault();
         input.blur();
       }
@@ -1187,8 +1187,8 @@ function initSecretEditors() {
  */
 function unlockSecretEditor(input) {
   input.readOnly = false;
-  input.type = "password";
-  input.value = "";
+  input.type = 'password';
+  input.value = '';
   setSecretEditButtonTabStop(input, false);
   input.focus();
 }
@@ -1199,8 +1199,8 @@ function unlockSecretEditor(input) {
  * @param {HTMLInputElement} input 敏感令牌展示输入框。
  */
 function lockSecretEditorAfterEdit(input) {
-  const editor = input.closest("[data-secret-editor]");
-  const hiddenInput = editor?.querySelector("[data-secret-hidden-input]");
+  const editor = input.closest('[data-secret-editor]');
+  const hiddenInput = editor?.querySelector('[data-secret-hidden-input]');
   if (!(hiddenInput instanceof HTMLInputElement)) {
     lockSecretDisplay(input, input.value.length);
     return;
@@ -1209,18 +1209,18 @@ function lockSecretEditorAfterEdit(input) {
   const submittedValue = input.value;
   if (submittedValue.length > 0) {
     hiddenInput.value = submittedValue;
-    input.dataset.secretConfigured = "true";
+    input.dataset.secretConfigured = 'true';
     lockSecretDisplay(input, submittedValue.length);
     scheduleAutoSave();
     return;
   }
 
-  hiddenInput.value = "";
+  hiddenInput.value = '';
   lockSecretDisplay(
-    input,
-    input.dataset.secretConfigured === "true"
-      ? Number(input.dataset.secretMaskLength)
-      : 0,
+      input,
+      input.dataset.secretConfigured === 'true'
+          ? Number(input.dataset.secretMaskLength)
+          : 0,
   );
 }
 
@@ -1232,10 +1232,10 @@ function lockSecretEditorAfterEdit(input) {
  */
 function lockSecretDisplay(input, maskLength) {
   const restoreEditButtonAfterFocusMove =
-    input.dataset.secretEditButtonSkipped === "true";
+      input.dataset.secretEditButtonSkipped === 'true';
   delete input.dataset.secretEditButtonSkipped;
   const normalizedLength = normalizedSecretMaskLength(maskLength);
-  input.type = "text";
+  input.type = 'text';
   input.value = secretMask(normalizedLength);
   input.dataset.secretMaskLength = String(normalizedLength);
   input.readOnly = true;
@@ -1257,15 +1257,15 @@ function lockSecretDisplay(input, maskLength) {
  * @param {boolean} focusable 编辑按钮是否可通过 Tab 聚焦。
  */
 function setSecretEditButtonTabStop(input, focusable) {
-  const button = input.closest("[data-secret-editor]")?.querySelector(
-    "[data-secret-edit-button]",
+  const button = input.closest('[data-secret-editor]')?.querySelector(
+      '[data-secret-edit-button]',
   );
   if (!(button instanceof HTMLButtonElement)) {
     return;
   }
 
   if (focusable) {
-    button.removeAttribute("tabindex");
+    button.removeAttribute('tabindex');
   } else {
     button.tabIndex = -1;
   }
@@ -1278,7 +1278,7 @@ function setSecretEditButtonTabStop(input, focusable) {
  * @return {string} 遮罩文本。
  */
 function secretMask(length) {
-  return "•".repeat(normalizedSecretMaskLength(length));
+  return '•'.repeat(normalizedSecretMaskLength(length));
 }
 
 /**
@@ -1295,9 +1295,9 @@ function normalizedSecretMaskLength(length) {
  * 清除已成功提交的令牌明文。
  */
 function clearSecretSubmissionValues() {
-  document.querySelectorAll("[data-secret-hidden-input]").forEach((input) => {
+  document.querySelectorAll('[data-secret-hidden-input]').forEach((input) => {
     if (input instanceof HTMLInputElement) {
-      input.value = "";
+      input.value = '';
     }
   });
 }
@@ -1306,18 +1306,18 @@ function clearSecretSubmissionValues() {
  * 初始化轮询设置联动。
  */
 function initPollingSettings() {
-  const enabledToggle = document.querySelector("[data-polling-enabled-toggle]");
+  const enabledToggle = document.querySelector('[data-polling-enabled-toggle]');
   const intervalValueInput = document.querySelector(
-    "[data-polling-interval-value]",
+      '[data-polling-interval-value]',
   );
   const intervalUnitSelect = document.querySelector(
-    "[data-polling-interval-unit]",
+      '[data-polling-interval-unit]',
   );
   const subMinuteHint = document.querySelector(
-    "[data-polling-sub-minute-hint]",
+      '[data-polling-sub-minute-hint]',
   );
-  const section = document.querySelector("[data-polling-section]");
-  const rows = Array.from(document.querySelectorAll("[data-polling-field]"));
+  const section = document.querySelector('[data-polling-section]');
+  const rows = Array.from(document.querySelectorAll('[data-polling-field]'));
 
   if (!(enabledToggle instanceof HTMLInputElement)) {
     return;
@@ -1330,20 +1330,20 @@ function initPollingSettings() {
    *
    * @param {HTMLElement} row 轮询设置行元素。
    * @param {boolean} animate 是否播放展开动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function showRow(row, animate, token) {
     row.hidden = false;
     row.dataset.pollingTransitionToken = String(token);
 
     if (!animate) {
-      row.classList.remove("is-collapsed");
+      row.classList.remove('is-collapsed');
       return;
     }
 
-    row.classList.add("is-collapsed");
+    row.classList.add('is-collapsed');
     row.getBoundingClientRect();
-    row.classList.remove("is-collapsed");
+    row.classList.remove('is-collapsed');
   }
 
   /**
@@ -1351,11 +1351,11 @@ function initPollingSettings() {
    *
    * @param {HTMLElement} row 轮询设置行元素。
    * @param {boolean} animate 是否播放收起动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function hideRow(row, animate, token) {
     row.dataset.pollingTransitionToken = String(token);
-    row.classList.add("is-collapsed");
+    row.classList.add('is-collapsed');
 
     if (!animate) {
       row.hidden = true;
@@ -1364,8 +1364,8 @@ function initPollingSettings() {
 
     setTimeout(() => {
       if (
-        row.dataset.pollingTransitionToken === String(token) &&
-        row.classList.contains("is-collapsed")
+          row.dataset.pollingTransitionToken === String(token) &&
+          row.classList.contains('is-collapsed')
       ) {
         row.hidden = true;
       }
@@ -1379,21 +1379,21 @@ function initPollingSettings() {
    */
   function validateMinimumInterval() {
     if (
-      !(intervalValueInput instanceof HTMLInputElement) ||
-      !(intervalUnitSelect instanceof HTMLSelectElement)
+        !(intervalValueInput instanceof HTMLInputElement) ||
+        !(intervalUnitSelect instanceof HTMLSelectElement)
     ) {
       return true;
     }
 
-    intervalValueInput.min = intervalUnitSelect.value === "second" ? "3" : "1";
+    intervalValueInput.min = intervalUnitSelect.value === 'second' ? '3' : '1';
 
     const intervalValue = Number(intervalValueInput.value);
     if (
-      intervalUnitSelect.value === "second" &&
-      Number.isFinite(intervalValue) &&
-      intervalValue < 3
+        intervalUnitSelect.value === 'second' &&
+        Number.isFinite(intervalValue) &&
+        intervalValue < 3
     ) {
-      intervalValueInput.value = "3";
+      intervalValueInput.value = '3';
       if (section instanceof HTMLElement) {
         showToast(section, section.dataset.pollingIntervalTooShort);
       }
@@ -1408,18 +1408,18 @@ function initPollingSettings() {
    */
   function syncSubMinuteHint() {
     if (
-      !(subMinuteHint instanceof HTMLElement) ||
-      !(intervalValueInput instanceof HTMLInputElement) ||
-      !(intervalUnitSelect instanceof HTMLSelectElement)
+        !(subMinuteHint instanceof HTMLElement) ||
+        !(intervalValueInput instanceof HTMLInputElement) ||
+        !(intervalUnitSelect instanceof HTMLSelectElement)
     ) {
       return;
     }
 
     const intervalValue = Number(intervalValueInput.value);
     subMinuteHint.hidden = !(
-      intervalUnitSelect.value === "second" &&
-      Number.isFinite(intervalValue) &&
-      intervalValue < 60
+        intervalUnitSelect.value === 'second' &&
+        Number.isFinite(intervalValue) &&
+        intervalValue < 60
     );
   }
 
@@ -1440,26 +1440,26 @@ function initPollingSettings() {
     }
   }
 
-  enabledToggle.addEventListener("change", () => {
+  enabledToggle.addEventListener('change', () => {
     syncPollingFields(true);
     scheduleAutoSave();
   });
 
-  intervalValueInput?.addEventListener("change", () => {
+  intervalValueInput?.addEventListener('change', () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
 
-  intervalValueInput?.addEventListener("blur", () => {
+  intervalValueInput?.addEventListener('blur', () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
 
-  intervalValueInput?.addEventListener("input", () => {
+  intervalValueInput?.addEventListener('input', () => {
     syncSubMinuteHint();
   });
 
-  intervalUnitSelect?.addEventListener("change", () => {
+  intervalUnitSelect?.addEventListener('change', () => {
     validateMinimumInterval();
     syncSubMinuteHint();
   });
@@ -1470,84 +1470,131 @@ function initPollingSettings() {
 }
 
 /**
+ * 在同步用户手势中准备媒体，并仅在账户保存获服务端确认后提交脑叶公司副作用。
+ *
+ * @param {{activate: (value: string) => Promise<boolean>, commitDisplayName?: (value: string) => Promise<boolean>}} easterEgg 当前命中的彩蛋。
+ * @param {HTMLFormElement} form 账户保存表单。
+ * @param {'displayName'|'username'} mode 当前账户编辑模式。
+ * @param {string} displayName 待保存的显示名称。
+ * @return {Promise<{responseUrl: URL, saved: boolean}>} 服务端确认结果与最终响应地址。
+ */
+async function submitLobotomyCorpAccountSaveTransaction(
+    easterEgg,
+    form,
+    mode,
+    displayName,
+) {
+  // 媒体准备在 submit 的同步用户手势中完成；业务副作用等服务器确认后才提交。
+  const preparedMedia = mode === 'displayName'
+      ? globalThis.lobotomyCorpEasterEgg?.prepareDisplayName?.(displayName)
+      : undefined;
+  try {
+    const response = await fetch(form.action, {
+      body: formDataFromForm(form),
+      headers: csrfRequestHeaders(),
+      method: form.method || 'post',
+    });
+    const responseUrl = new URL(response.url, globalThis.location.href);
+    const saved = response.ok &&
+        responseUrl.pathname === '/settings' &&
+        responseUrl.searchParams.get('account') === 'updated';
+    if (!saved) {
+      preparedMedia?.dispose?.();
+      return {responseUrl, saved: false};
+    }
+
+    if (mode === 'displayName') {
+      // 只有服务器确认保存成功后，异想体才会提交并产生 Day / Danger Score 副作用。
+      void (preparedMedia?.commit?.() ??
+          easterEgg.commitDisplayName?.(displayName) ??
+          easterEgg.activate(displayName));
+    }
+    return {responseUrl, saved: true};
+  } catch (error) {
+    preparedMedia?.dispose?.();
+    throw error;
+  }
+}
+
+/**
  * 初始化账户设置编辑流程。
  */
 function initAccountSettings() {
-  const form = document.querySelector("[data-account-form]");
+  const form = document.querySelector('[data-account-form]');
   if (!(form instanceof HTMLFormElement)) {
     return;
   }
 
-  const actionInput = form.querySelector("[data-account-action-input]");
-  const usernameInput = form.querySelector("[data-account-username-input]");
-  const usernameStatus = form.querySelector("[data-account-username-status]");
+  const actionInput = form.querySelector('[data-account-action-input]');
+  const usernameInput = form.querySelector('[data-account-username-input]');
+  const usernameStatus = form.querySelector('[data-account-username-status]');
   const displayNameInput = form.querySelector(
-    "[data-account-display-name-input]",
+      '[data-account-display-name-input]',
   );
   const displayNameStatus = form.querySelector(
-    "[data-account-display-name-status]",
+      '[data-account-display-name-status]',
   );
   const currentPasswordRow = form.querySelector(
-    "[data-account-current-password-row]",
+      '[data-account-current-password-row]',
   );
   const currentPasswordInput = form.querySelector(
-    "[data-account-current-password-input]",
+      '[data-account-current-password-input]',
   );
   const currentPasswordStatus = form.querySelector(
-    "[data-account-current-password-status]",
+      '[data-account-current-password-status]',
   );
   const passkeyReauthRow = form.querySelector(
-    "[data-account-passkey-reauth-row]",
+      '[data-account-passkey-reauth-row]',
   );
-  const passkeyStatus = form.querySelector("[data-account-passkey-status]");
+  const passkeyStatus = form.querySelector('[data-account-passkey-status]');
   const passkeyRetryButton = form.querySelector(
-    "[data-account-passkey-retry-button]",
+      '[data-account-passkey-retry-button]',
   );
   const passwordFallbackButton = form.querySelector(
-    "[data-account-password-fallback-button]",
+      '[data-account-password-fallback-button]',
   );
   const newPasswordStatus = form.querySelector(
-    "[data-account-new-password-status]",
+      '[data-account-new-password-status]',
   );
   const confirmPasswordStatus = form.querySelector(
-    "[data-account-confirm-password-status]",
+      '[data-account-confirm-password-status]',
   );
   const newPasswordRows = Array.from(
-    form.querySelectorAll("[data-account-new-password-row]"),
+      form.querySelectorAll('[data-account-new-password-row]'),
   );
   const unlockedFields = Array.from(
-    form.querySelectorAll("[data-account-unlocked-field]"),
+      form.querySelectorAll('[data-account-unlocked-field]'),
   );
-  const actions = form.querySelector("[data-account-actions]");
-  const saveButton = form.querySelector("[data-account-save-button]");
-  const cancelButton = form.querySelector("[data-account-cancel-button]");
-  const modeButtons = Array.from(form.querySelectorAll("[data-account-mode]"));
-  const actionStatus = form.querySelector("[data-account-status]");
+  const actions = form.querySelector('[data-account-actions]');
+  const saveButton = form.querySelector('[data-account-save-button]');
+  const cancelButton = form.querySelector('[data-account-cancel-button]');
+  const modeButtons = Array.from(form.querySelectorAll('[data-account-mode]'));
+  const actionStatus = form.querySelector('[data-account-status]');
   const fieldStatuses = Array.from(
-    form.querySelectorAll(".account-field-status"),
+      form.querySelectorAll('.account-field-status'),
   );
-  const passkeyAvailable = form.dataset.accountPasskeyAvailable === "true";
-  const passwordAvailable = form.dataset.accountPasswordAvailable === "true";
-  let mode = form.dataset.accountInitialMode || "";
-  let reauthVerified = form.dataset.accountRecentlyVerified === "true";
+  const passkeyAvailable = form.dataset.accountPasskeyAvailable === 'true';
+  const passwordAvailable = form.dataset.accountPasswordAvailable === 'true';
+  let mode = form.dataset.accountInitialMode || '';
+  let reauthVerified = form.dataset.accountRecentlyVerified === 'true';
   let transitionToken = 0;
-  let pendingAccountModePointerMode = "";
+  let pendingAccountModePointerMode = '';
   let passkeyReauthToken = 0;
   let currentPasswordVerifyTimer;
   let currentPasswordVerifyController;
   let currentPasswordVerifyToken = 0;
 
   if (
-    !(actionInput instanceof HTMLInputElement) ||
-    !(usernameInput instanceof HTMLInputElement) ||
-    !(displayNameInput instanceof HTMLInputElement) ||
-    !(currentPasswordRow instanceof HTMLElement) ||
-    !(currentPasswordInput instanceof HTMLInputElement) ||
-    !(passkeyReauthRow instanceof HTMLElement) ||
-    !(passkeyRetryButton instanceof HTMLButtonElement) ||
-    !(passwordFallbackButton instanceof HTMLButtonElement) ||
-    !(actions instanceof HTMLElement) ||
-    !(saveButton instanceof HTMLButtonElement)
+      !(actionInput instanceof HTMLInputElement) ||
+      !(usernameInput instanceof HTMLInputElement) ||
+      !(displayNameInput instanceof HTMLInputElement) ||
+      !(currentPasswordRow instanceof HTMLElement) ||
+      !(currentPasswordInput instanceof HTMLInputElement) ||
+      !(passkeyReauthRow instanceof HTMLElement) ||
+      !(passkeyRetryButton instanceof HTMLButtonElement) ||
+      !(passwordFallbackButton instanceof HTMLButtonElement) ||
+      !(actions instanceof HTMLElement) ||
+      !(saveButton instanceof HTMLButtonElement)
   ) {
     return;
   }
@@ -1556,51 +1603,51 @@ function initAccountSettings() {
   lockAccountTargets();
   syncAccountEditorTabStops();
   setCurrentPasswordInputEnabled(!currentPasswordRow.hidden);
-  if (mode === "displayName" || mode && reauthVerified) {
+  if (mode === 'displayName' || mode && reauthVerified) {
     setCurrentPasswordInputEnabled(false);
     hideAccountElement(currentPasswordRow, false, ++transitionToken);
     unlockSelectedTarget();
   }
 
   document
-    .querySelectorAll("[data-account-mode], [data-account-mode-trigger]")
-    .forEach((button) => {
-      button.addEventListener("click", () => {
-        if (button instanceof HTMLButtonElement) {
-          const nextMode = button.dataset.accountMode ||
-            button.dataset.accountModeTrigger || "";
-          collapseOtherAuthEditors();
-          selectAccountMode(
-            nextMode,
-            {
-              scrollIntoView: button.hasAttribute("data-account-mode-trigger"),
-            },
-          );
-          setTimeout(() => {
-            if (pendingAccountModePointerMode === nextMode) {
-              pendingAccountModePointerMode = "";
-            }
-          }, 0);
-        }
+      .querySelectorAll('[data-account-mode], [data-account-mode-trigger]')
+      .forEach((button) => {
+        button.addEventListener('click', () => {
+          if (button instanceof HTMLButtonElement) {
+            const nextMode = button.dataset.accountMode ||
+                button.dataset.accountModeTrigger || '';
+            collapseOtherAuthEditors();
+            selectAccountMode(
+                nextMode,
+                {
+                  scrollIntoView: button.hasAttribute('data-account-mode-trigger'),
+                },
+            );
+            setTimeout(() => {
+              if (pendingAccountModePointerMode === nextMode) {
+                pendingAccountModePointerMode = '';
+              }
+            }, 0);
+          }
+        });
       });
-    });
 
-  cancelButton?.addEventListener("click", () => {
+  cancelButton?.addEventListener('click', () => {
     resetAccountEditor();
   });
-  form.addEventListener("account-editor-reset", () => {
+  form.addEventListener('account-editor-reset', () => {
     resetAccountEditor();
   });
 
-  passkeyRetryButton.addEventListener("click", () => {
+  passkeyRetryButton.addEventListener('click', () => {
     void startAccountPasskeyReauth();
   });
 
-  passwordFallbackButton.addEventListener("click", () => {
+  passwordFallbackButton.addEventListener('click', () => {
     showCurrentPasswordFallback();
   });
 
-  currentPasswordInput.addEventListener("input", () => {
+  currentPasswordInput.addEventListener('input', () => {
     if (currentPasswordInput.disabled || currentPasswordRow.hidden) {
       return;
     }
@@ -1611,7 +1658,7 @@ function initAccountSettings() {
     scheduleCurrentPasswordVerification();
   });
 
-  currentPasswordInput.addEventListener("blur", (event) => {
+  currentPasswordInput.addEventListener('blur', (event) => {
     // 浏览器密码管理器属于页面外界面，失焦时不会提供 relatedTarget。
     // 此时保持编辑器展开，等待密码管理器回填或用户返回页面。
     if (!(event.relatedTarget instanceof Element)) {
@@ -1620,44 +1667,44 @@ function initAccountSettings() {
 
     setTimeout(() => {
       if (
-        accountModeRequiresReauth(mode) &&
-        currentPasswordInput.value.length === 0 &&
-        !pendingAccountModePointerMode &&
-        document.activeElement !== currentPasswordInput
+          accountModeRequiresReauth(mode) &&
+          currentPasswordInput.value.length === 0 &&
+          !pendingAccountModePointerMode &&
+          document.activeElement !== currentPasswordInput
       ) {
         resetAccountEditor();
       }
     }, 0);
   });
 
-  document.addEventListener("pointerdown", (event) => {
+  document.addEventListener('pointerdown', (event) => {
     const target = event.target;
     const modeButton = target instanceof Element
-      ? target.closest("[data-account-mode], [data-account-mode-trigger]")
-      : null;
+        ? target.closest('[data-account-mode], [data-account-mode-trigger]')
+        : null;
     const editorControl = target instanceof Element
-      ? target.closest(
-        "[data-account-password-fallback-button], [data-account-passkey-retry-button], [data-account-cancel-button], [data-account-save-button]",
-      )
-      : null;
+        ? target.closest(
+            '[data-account-password-fallback-button], [data-account-passkey-retry-button], [data-account-cancel-button], [data-account-save-button]',
+        )
+        : null;
     pendingAccountModePointerMode = modeButton instanceof HTMLElement
-      ? modeButton.dataset.accountMode ||
-        modeButton.dataset.accountModeTrigger || ""
-      : "";
+        ? modeButton.dataset.accountMode ||
+        modeButton.dataset.accountModeTrigger || ''
+        : '';
 
     if (
-      !accountModeRequiresReauth(mode) ||
-      currentPasswordInput.value.length > 0 ||
-      reauthVerified
+        !accountModeRequiresReauth(mode) ||
+        currentPasswordInput.value.length > 0 ||
+        reauthVerified
     ) {
       return;
     }
 
     if (
-      !(target instanceof Element) ||
-      target === currentPasswordInput ||
-      modeButton ||
-      editorControl
+        !(target instanceof Element) ||
+        target === currentPasswordInput ||
+        modeButton ||
+        editorControl
     ) {
       return;
     }
@@ -1669,30 +1716,30 @@ function initAccountSettings() {
     }, 0);
   }, true);
 
-  usernameInput.addEventListener("input", () => {
+  usernameInput.addEventListener('input', () => {
     clearInlineStatus(usernameStatus);
   });
 
-  displayNameInput.addEventListener("input", () => {
+  displayNameInput.addEventListener('input', () => {
     clearInlineStatus(displayNameStatus);
   });
 
   unlockedFields.forEach((field) => {
-    field.addEventListener("input", () => {
+    field.addEventListener('input', () => {
       if (!(field instanceof HTMLInputElement)) {
         return;
       }
 
-      if (field.name === "newPassword") {
+      if (field.name === 'newPassword') {
         clearInlineStatus(newPasswordStatus);
       }
-      if (field.name === "confirmPassword") {
+      if (field.name === 'confirmPassword') {
         clearInlineStatus(confirmPasswordStatus);
       }
     });
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener('submit', (event) => {
     if (!mode) {
       event.preventDefault();
       return;
@@ -1708,45 +1755,49 @@ function initAccountSettings() {
       return;
     }
 
-    const easterEggInput = mode === "displayName"
-      ? displayNameInput
-      : undefined;
+    const easterEggInput = mode === 'displayName'
+        ? displayNameInput
+        : undefined;
     const easterEgg = [
       globalThis.usernameEasterEgg,
       globalThis.lobotomyCorpEasterEgg,
-    ].find((candidate) => candidate?.matches(easterEggInput?.value || ""));
+    ].find((candidate) => candidate?.matches(easterEggInput?.value || ''));
+    const currentDisplayNameAbnormality = mode === 'displayName' &&
+        globalThis.lobotomyCorpEasterEgg?.matchingAbnormality?.(
+            displayNameInput.dataset.accountDisplayNameOriginal || '',
+        );
     if (
-      easterEggInput &&
-      form.dataset.usernameEasterEggApproved !== "true" &&
-      easterEgg
+        easterEggInput &&
+        form.dataset.usernameEasterEggApproved !== 'true' &&
+        (easterEgg || currentDisplayNameAbnormality)
     ) {
       event.preventDefault();
-      if (easterEgg.submitsWhileActive === true) {
+      const accountEasterEgg = easterEgg ?? globalThis.lobotomyCorpEasterEgg;
+      if (accountEasterEgg?.submitsWhileActive === true) {
         void submitAccountWhileLobotomyCorpAlertIsActive(
-          easterEgg,
-          easterEggInput,
+            accountEasterEgg,
         );
         return;
       }
 
-      void easterEgg.activate(easterEggInput.value, mode)
-        .then(
-          (approved) => {
-            if (!approved) {
-              easterEggInput.value = "";
-              easterEggInput.focus();
-              return;
-            }
+      void accountEasterEgg.activate(easterEggInput.value, mode)
+          .then(
+              (approved) => {
+                if (!approved) {
+                  easterEggInput.value = '';
+                  easterEggInput.focus();
+                  return;
+                }
 
-            form.dataset.usernameEasterEggApproved = "true";
+                form.dataset.usernameEasterEggApproved = 'true';
+                form.requestSubmit(saveButton);
+              },
+          )
+          .catch(() => {
+            // 彩蛋脚本更新期间若浏览器混用了旧缓存，账户设置保存仍照常进行。
+            form.dataset.usernameEasterEggApproved = 'true';
             form.requestSubmit(saveButton);
-          },
-        )
-        .catch(() => {
-          // 彩蛋脚本更新期间若浏览器混用了旧缓存，不能因此阻断账户设置保存。
-          form.dataset.usernameEasterEggApproved = "true";
-          form.requestSubmit(saveButton);
-        });
+          });
       return;
     }
 
@@ -1756,58 +1807,51 @@ function initAccountSettings() {
   /**
    * 在脑叶公司警报展示期间以后台请求保存账户设置，避免跳转页面销毁警报。
    *
-   * @param {{activate: (value: string) => Promise<boolean>}} easterEgg 当前命中的彩蛋。
-   * @param {HTMLInputElement} easterEggInput 触发彩蛋的账户输入框。
+   * @param {{activate: (value: string) => Promise<boolean>, commitDisplayName?: (value: string) => Promise<boolean>}} easterEgg 当前命中的彩蛋。
    * @return {Promise<void>} 保存流程结束时完成。
    */
   async function submitAccountWhileLobotomyCorpAlertIsActive(
-    easterEgg,
-    easterEggInput,
+      easterEgg,
   ) {
-    if (form.dataset.lobotomyCorpAlertSaving === "true") {
+    if (form.dataset.lobotomyCorpAlertSaving === 'true') {
       return;
     }
 
-    form.dataset.lobotomyCorpAlertSaving = "true";
+    form.dataset.lobotomyCorpAlertSaving = 'true';
     saveButton.disabled = true;
-    // 在点击保存的同步调用栈中启动音频，避免浏览器丢失用户手势许可。
-    void easterEgg.activate(easterEggInput.value);
-
     try {
-      const response = await fetch(form.action, {
-        body: formDataFromForm(form),
-        headers: csrfRequestHeaders(),
-        method: form.method || "post",
-      });
-      const responseUrl = new URL(response.url, globalThis.location.href);
-      const saved = response.ok &&
-        responseUrl.pathname === "/settings" &&
-        responseUrl.searchParams.get("account") === "updated";
+      const {responseUrl, saved} =
+          await submitLobotomyCorpAccountSaveTransaction(
+              easterEgg,
+              form,
+              mode,
+              displayNameInput.value,
+          );
       if (!saved) {
         globalThis.location.assign(responseUrl.href);
         return;
       }
 
-      if (mode === "username") {
+      if (mode === 'username') {
         usernameInput.dataset.accountUsernameOriginal = usernameInput.value;
-      } else if (mode === "displayName") {
+      } else if (mode === 'displayName') {
         displayNameInput.dataset.accountDisplayNameOriginal =
-          displayNameInput.value;
+            displayNameInput.value;
       }
       resetAccountEditor();
       globalThis.history.replaceState(
-        null,
-        "",
-        `${responseUrl.pathname}${responseUrl.search}`,
+          null,
+          '',
+          `${responseUrl.pathname}${responseUrl.search}`,
       );
       setInlineStatus(
-        actionStatus,
-        form.dataset.accountUpdated || "",
-        "success",
-        true,
+          actionStatus,
+          form.dataset.accountUpdated || '',
+          'success',
+          true,
       );
     } catch {
-      setInlineStatus(actionStatus, "", "error");
+      setInlineStatus(actionStatus, '', 'error');
       saveButton.disabled = false;
     } finally {
       delete form.dataset.lobotomyCorpAlertSaving;
@@ -1822,8 +1866,8 @@ function initAccountSettings() {
    */
   function selectAccountMode(nextMode, options = {}) {
     if (
-      nextMode !== "displayName" && nextMode !== "username" &&
-      nextMode !== "password"
+        nextMode !== 'displayName' && nextMode !== 'username' &&
+        nextMode !== 'password'
     ) {
       return;
     }
@@ -1838,10 +1882,10 @@ function initAccountSettings() {
     mode = nextMode;
     actionInput.value = nextMode;
     usernameInput.value = usernameInput.dataset.accountUsernameOriginal ||
-      usernameInput.value;
+        usernameInput.value;
     displayNameInput.value =
-      displayNameInput.dataset.accountDisplayNameOriginal ||
-      displayNameInput.value;
+        displayNameInput.dataset.accountDisplayNameOriginal ||
+        displayNameInput.value;
     cancelCurrentPasswordVerification();
     setCurrentPasswordInputEnabled(false);
     cancelAccountPasskeyReauth();
@@ -1853,19 +1897,19 @@ function initAccountSettings() {
     setNewPasswordRowsVisible(false, false);
     scrollAccountEditorIntoView(shouldScroll);
 
-    if (mode !== "password") {
+    if (mode !== 'password') {
       clearUnlockedPasswordFields();
     }
 
-    if (mode === "displayName") {
+    if (mode === 'displayName') {
       clearAccountTargetStatuses();
-      unlockSelectedTarget({ preventScroll: shouldScroll });
+      unlockSelectedTarget({preventScroll: shouldScroll});
       return;
     }
 
     if (keepReauthVerification) {
       clearAccountTargetStatuses();
-      unlockSelectedTarget({ preventScroll: shouldScroll });
+      unlockSelectedTarget({preventScroll: shouldScroll});
       return;
     }
 
@@ -1882,8 +1926,8 @@ function initAccountSettings() {
     if (passwordAvailable) {
       showCurrentPasswordFallback({
         message: passkeyAvailable
-          ? form.dataset.accountPasskeyUnsupported || ""
-          : "",
+            ? form.dataset.accountPasskeyUnsupported || ''
+            : '',
         preventScroll: shouldScroll,
       });
       return;
@@ -1891,11 +1935,11 @@ function initAccountSettings() {
 
     showAccountElement(passkeyReauthRow, false, ++transitionToken);
     setInlineStatus(
-      passkeyStatus,
-      passkeyAvailable
-        ? form.dataset.accountPasskeyUnsupported || ""
-        : form.dataset.accountReauthUnavailable || "",
-      "error",
+        passkeyStatus,
+        passkeyAvailable
+            ? form.dataset.accountPasskeyUnsupported || ''
+            : form.dataset.accountReauthUnavailable || '',
+        'error',
     );
     passkeyRetryButton.hidden = true;
     passwordFallbackButton.hidden = true;
@@ -1905,14 +1949,14 @@ function initAccountSettings() {
    * 重置账户编辑器，并恢复默认顺序焦点导航。
    */
   function resetAccountEditor() {
-    mode = "";
-    reauthVerified = form.dataset.accountRecentlyVerified === "true";
-    actionInput.value = "";
+    mode = '';
+    reauthVerified = form.dataset.accountRecentlyVerified === 'true';
+    actionInput.value = '';
     usernameInput.value = usernameInput.dataset.accountUsernameOriginal ||
-      usernameInput.value;
+        usernameInput.value;
     displayNameInput.value =
-      displayNameInput.dataset.accountDisplayNameOriginal ||
-      displayNameInput.value;
+        displayNameInput.dataset.accountDisplayNameOriginal ||
+        displayNameInput.value;
     delete form.dataset.usernameEasterEggApproved;
     setCurrentPasswordInputEnabled(false);
     clearUnlockedPasswordFields();
@@ -1925,7 +1969,7 @@ function initAccountSettings() {
     hideAccountElement(currentPasswordRow, true, ++transitionToken);
     hideAccountElement(passkeyReauthRow, true, ++transitionToken);
     newPasswordRows.forEach((row) =>
-      hideAccountElement(row, true, ++transitionToken)
+        hideAccountElement(row, true, ++transitionToken)
     );
   }
 
@@ -1948,7 +1992,7 @@ function initAccountSettings() {
   function setCurrentPasswordInputEnabled(enabled) {
     currentPasswordInput.disabled = !enabled;
     if (!enabled) {
-      currentPasswordInput.value = "";
+      currentPasswordInput.value = '';
     }
   }
 
@@ -1959,17 +2003,17 @@ function initAccountSettings() {
    */
   function unlockSelectedTarget(options = {}) {
     const preventScroll = options.preventScroll === true;
-    if (mode === "username") {
+    if (mode === 'username') {
       usernameInput.readOnly = false;
       focusAccountControl(usernameInput, preventScroll);
     }
 
-    if (mode === "displayName") {
+    if (mode === 'displayName') {
       displayNameInput.readOnly = false;
       focusAccountControl(displayNameInput, preventScroll);
     }
 
-    if (mode === "password") {
+    if (mode === 'password') {
       setNewPasswordRowsVisible(true, false);
       unlockedFields.forEach((field) => {
         if (field instanceof HTMLInputElement) {
@@ -1977,7 +2021,7 @@ function initAccountSettings() {
         }
       });
       const firstPasswordField = unlockedFields.find((field) =>
-        field instanceof HTMLInputElement
+          field instanceof HTMLInputElement
       );
       focusAccountControl(firstPasswordField, preventScroll);
     }
@@ -1996,7 +2040,7 @@ function initAccountSettings() {
       if (mode && input.readOnly) {
         input.tabIndex = -1;
       } else {
-        input.removeAttribute("tabindex");
+        input.removeAttribute('tabindex');
       }
     });
 
@@ -2005,7 +2049,7 @@ function initAccountSettings() {
         if (mode) {
           button.tabIndex = -1;
         } else {
-          button.removeAttribute("tabindex");
+          button.removeAttribute('tabindex');
         }
       }
     });
@@ -2018,7 +2062,7 @@ function initAccountSettings() {
    * @return {boolean} 修改用户名或密码时返回 true。
    */
   function accountModeRequiresReauth(selectedMode) {
-    return selectedMode === "username" || selectedMode === "password";
+    return selectedMode === 'username' || selectedMode === 'password';
   }
 
   /**
@@ -2032,8 +2076,8 @@ function initAccountSettings() {
     }
 
     form.scrollIntoView({
-      behavior: "auto",
-      block: "center",
+      behavior: 'auto',
+      block: 'center',
     });
   }
 
@@ -2045,7 +2089,7 @@ function initAccountSettings() {
    */
   function focusAccountControl(control, preventScroll) {
     if (control instanceof HTMLElement) {
-      control.focus({ preventScroll });
+      control.focus({preventScroll});
     }
   }
 
@@ -2076,7 +2120,7 @@ function initAccountSettings() {
   function clearUnlockedPasswordFields() {
     unlockedFields.forEach((field) => {
       if (field instanceof HTMLInputElement) {
-        field.value = "";
+        field.value = '';
       }
     });
   }
@@ -2123,7 +2167,7 @@ function initAccountSettings() {
     if (!mode || !passkeyAvailable || !supportsPasskeyReauth()) {
       if (passwordAvailable) {
         showCurrentPasswordFallback({
-          message: form.dataset.accountPasskeyUnsupported || "",
+          message: form.dataset.accountPasskeyUnsupported || '',
         });
       }
       return false;
@@ -2138,9 +2182,9 @@ function initAccountSettings() {
     passkeyRetryButton.hidden = true;
     passwordFallbackButton.hidden = !passwordAvailable;
     setInlineStatus(
-      passkeyStatus,
-      form.dataset.accountPasskeyPending || "",
-      "pending",
+        passkeyStatus,
+        form.dataset.accountPasskeyPending || '',
+        'pending',
     );
     clearInlineStatus(actionStatus);
 
@@ -2151,15 +2195,15 @@ function initAccountSettings() {
       }
 
       reauthVerified = true;
-      form.dataset.accountRecentlyVerified = "true";
+      form.dataset.accountRecentlyVerified = 'true';
       setInlineStatus(
-        passkeyStatus,
-        form.dataset.accountPasskeyVerified || "",
-        "success",
+          passkeyStatus,
+          form.dataset.accountPasskeyVerified || '',
+          'success',
       );
       hideAccountElement(passkeyReauthRow, false, ++transitionToken);
       passwordFallbackButton.hidden = true;
-      unlockSelectedTarget({ preventScroll: true });
+      unlockSelectedTarget({preventScroll: true});
       return true;
     } catch {
       if (token !== passkeyReauthToken || !mode) {
@@ -2173,17 +2217,17 @@ function initAccountSettings() {
         setCurrentPasswordInputEnabled(false);
         hideAccountElement(currentPasswordRow, false, ++transitionToken);
         setInlineStatus(
-          passkeyStatus,
-          form.dataset.accountPasskeyFailed || "",
-          "error",
+            passkeyStatus,
+            form.dataset.accountPasskeyFailed || '',
+            'error',
         );
         passkeyRetryButton.hidden = false;
         passwordFallbackButton.hidden = false;
       } else {
         setInlineStatus(
-          passkeyStatus,
-          form.dataset.accountPasskeyFailed || "",
-          "error",
+            passkeyStatus,
+            form.dataset.accountPasskeyFailed || '',
+            'error',
         );
         passkeyRetryButton.hidden = false;
         passwordFallbackButton.hidden = true;
@@ -2208,13 +2252,13 @@ function initAccountSettings() {
     setCurrentPasswordInputEnabled(true);
     showAccountElement(currentPasswordRow, false, ++transitionToken);
     if (options.message) {
-      setInlineStatus(actionStatus, options.message, "error");
+      setInlineStatus(actionStatus, options.message, 'error');
     } else {
       clearInlineStatus(actionStatus);
     }
     focusAccountControl(
-      currentPasswordInput,
-      options.preventScroll === true,
+        currentPasswordInput,
+        options.preventScroll === true,
     );
   }
 
@@ -2228,9 +2272,9 @@ function initAccountSettings() {
     if (!currentPasswordInput.value) {
       if (showRequired) {
         setInlineStatus(
-          currentPasswordStatus,
-          form.dataset.accountPasswordRequired || "",
-          "error",
+            currentPasswordStatus,
+            form.dataset.accountPasswordRequired || '',
+            'error',
         );
         currentPasswordInput.focus();
       }
@@ -2243,55 +2287,55 @@ function initAccountSettings() {
     currentPasswordVerifyController = new AbortController();
     try {
       const body = new URLSearchParams();
-      body.set("currentPassword", submittedPassword);
-      const response = await fetch("/account/verify-password", {
+      body.set('currentPassword', submittedPassword);
+      const response = await fetch('/account/verify-password', {
         body,
         headers: csrfRequestHeaders({
-          "content-type": "application/x-www-form-urlencoded",
+          'content-type': 'application/x-www-form-urlencoded',
         }),
-        method: "POST",
+        method: 'POST',
         signal: currentPasswordVerifyController.signal,
       });
       if (
-        token !== currentPasswordVerifyToken ||
-        currentPasswordInput.value !== submittedPassword
+          token !== currentPasswordVerifyToken ||
+          currentPasswordInput.value !== submittedPassword
       ) {
         return false;
       }
 
       if (response.ok) {
         reauthVerified = true;
-        form.dataset.accountRecentlyVerified = "true";
+        form.dataset.accountRecentlyVerified = 'true';
         setInlineStatus(
-          currentPasswordStatus,
-          form.dataset.accountPasswordVerified || "",
-          "success",
+            currentPasswordStatus,
+            form.dataset.accountPasswordVerified || '',
+            'success',
         );
         setCurrentPasswordInputEnabled(false);
         hideAccountElement(currentPasswordRow, false, ++transitionToken);
-        unlockSelectedTarget({ preventScroll: true });
+        unlockSelectedTarget({preventScroll: true});
         return true;
       } else {
         reauthVerified = false;
         lockAccountTargets();
         setInlineStatus(
-          currentPasswordStatus,
-          form.dataset.accountPasswordInvalid || "",
-          "error",
+            currentPasswordStatus,
+            form.dataset.accountPasswordInvalid || '',
+            'error',
         );
         return false;
       }
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (error instanceof DOMException && error.name === 'AbortError') {
         return false;
       }
 
       reauthVerified = false;
       lockAccountTargets();
       setInlineStatus(
-        currentPasswordStatus,
-        form.dataset.accountPasswordInvalid || "",
-        "error",
+          currentPasswordStatus,
+          form.dataset.accountPasswordInvalid || '',
+          'error',
       );
       return false;
     }
@@ -2302,18 +2346,18 @@ function initAccountSettings() {
     element.dataset.accountTransitionToken = String(token);
 
     if (!animate) {
-      element.classList.remove("is-collapsed");
+      element.classList.remove('is-collapsed');
       return;
     }
 
-    element.classList.add("is-collapsed");
+    element.classList.add('is-collapsed');
     element.getBoundingClientRect();
-    element.classList.remove("is-collapsed");
+    element.classList.remove('is-collapsed');
   }
 
   function hideAccountElement(element, animate, token) {
     element.dataset.accountTransitionToken = String(token);
-    element.classList.add("is-collapsed");
+    element.classList.add('is-collapsed');
 
     if (!animate) {
       element.hidden = true;
@@ -2322,8 +2366,8 @@ function initAccountSettings() {
 
     setTimeout(() => {
       if (
-        element.dataset.accountTransitionToken === String(token) &&
-        element.classList.contains("is-collapsed")
+          element.dataset.accountTransitionToken === String(token) &&
+          element.classList.contains('is-collapsed')
       ) {
         element.hidden = true;
       }
@@ -2354,29 +2398,29 @@ function initAccountSettings() {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initAuthMethodPanels(scope = document) {
-  const buttons = scope.querySelectorAll("[data-auth-method-toggle]");
+  const buttons = scope.querySelectorAll('[data-auth-method-toggle]');
   buttons.forEach((button) => {
     if (!(button instanceof HTMLButtonElement)) {
       return;
     }
 
-    const panelId = button.dataset.authMethodToggle || "";
+    const panelId = button.dataset.authMethodToggle || '';
     const panel = authMethodPanelFor(button, panelId);
     if (!(panel instanceof HTMLElement)) {
       return;
     }
 
-    button.addEventListener("click", () => {
+    button.addEventListener('click', () => {
       const shouldShow = panel.hidden || panel.classList.contains(
-        "is-collapsed",
+          'is-collapsed',
       );
       if (shouldShow) {
         collapseOtherAuthEditors(panel, button);
       }
       setAuthMethodPanelVisible(
-        panel,
-        button,
-        shouldShow,
+          panel,
+          button,
+          shouldShow,
       );
     });
   });
@@ -2390,9 +2434,9 @@ function initAuthMethodPanels(scope = document) {
  * @return {HTMLElement|undefined} 对应面板。
  */
 function authMethodPanelFor(button, panelId) {
-  const scope = button.closest(".settings-group") || document;
-  return Array.from(scope.querySelectorAll("[data-auth-method-panel]"))
-    .find((panel) => panel.dataset.authMethodPanel === panelId);
+  const scope = button.closest('.settings-group') || document;
+  return Array.from(scope.querySelectorAll('[data-auth-method-panel]'))
+      .find((panel) => panel.dataset.authMethodPanel === panelId);
 }
 
 /**
@@ -2403,29 +2447,29 @@ function authMethodPanelFor(button, panelId) {
  */
 function collapseOtherAuthEditors(activePanel, activeButton) {
   closeSiblingEmailBindingPanels();
-  document.querySelector("[data-account-form]")?.dispatchEvent(
-    new CustomEvent("account-editor-reset"),
+  document.querySelector('[data-account-form]')?.dispatchEvent(
+      new CustomEvent('account-editor-reset'),
   );
   removeTransientReauthSections(document, activePanel);
-  document.querySelectorAll("[data-auth-method-panel]").forEach((panel) => {
+  document.querySelectorAll('[data-auth-method-panel]').forEach((panel) => {
     if (!(panel instanceof HTMLElement) || panel === activePanel) {
       return;
     }
 
     const button = Array.from(
-      panel.closest(".auth-method-row")?.querySelectorAll(
-        "[data-auth-method-toggle]",
-      ) ?? [],
+        panel.closest('.auth-method-row')?.querySelectorAll(
+            '[data-auth-method-toggle]',
+        ) ?? [],
     ).find((candidate) =>
-      candidate instanceof HTMLButtonElement &&
-      candidate.dataset.authMethodToggle === panel.dataset.authMethodPanel
+        candidate instanceof HTMLButtonElement &&
+        candidate.dataset.authMethodToggle === panel.dataset.authMethodPanel
     );
     setAuthMethodPanelVisible(
-      panel,
-      button instanceof HTMLButtonElement && button !== activeButton
-        ? button
-        : undefined,
-      false,
+        panel,
+        button instanceof HTMLButtonElement && button !== activeButton
+            ? button
+            : undefined,
+        false,
     );
   });
 }
@@ -2436,8 +2480,8 @@ function collapseOtherAuthEditors(activePanel, activeButton) {
  * @param {ParentNode} [scope] 查找范围。
  */
 function closeSiblingEmailBindingPanels(scope = document) {
-  scope.querySelectorAll("[data-email-binding-form]").forEach((form) => {
-    form.dispatchEvent(new CustomEvent("email-binding-reset"));
+  scope.querySelectorAll('[data-email-binding-form]').forEach((form) => {
+    form.dispatchEvent(new CustomEvent('email-binding-reset'));
   });
 }
 
@@ -2449,18 +2493,18 @@ function closeSiblingEmailBindingPanels(scope = document) {
  * @param {boolean} visible 是否显示。
  */
 function setAuthMethodPanelVisible(panel, button, visible) {
-  const row = panel.closest(".auth-method-row");
+  const row = panel.closest('.auth-method-row');
   const transitionToken = String(++authMethodPanelTransitionId);
   panel.dataset.authMethodTransitionToken = transitionToken;
-  button?.setAttribute("aria-expanded", visible ? "true" : "false");
+  button?.setAttribute('aria-expanded', visible ? 'true' : 'false');
 
   if (visible) {
     panel.hidden = false;
-    row?.classList.add("is-open");
-    panel.classList.add("is-collapsed");
+    row?.classList.add('is-open');
+    panel.classList.add('is-collapsed');
     requestAnimationFrame(() => {
       if (panel.dataset.authMethodTransitionToken === transitionToken) {
-        panel.classList.remove("is-collapsed");
+        panel.classList.remove('is-collapsed');
       }
     });
     return;
@@ -2468,12 +2512,12 @@ function setAuthMethodPanelVisible(panel, button, visible) {
 
   removeTransientReauthSections(panel);
   clearCredentialBindingStatuses(panel);
-  panel.classList.add("is-collapsed");
-  row?.classList.remove("is-open");
+  panel.classList.add('is-collapsed');
+  row?.classList.remove('is-open');
   setTimeout(() => {
     if (
-      panel.dataset.authMethodTransitionToken === transitionToken &&
-      panel.classList.contains("is-collapsed")
+        panel.dataset.authMethodTransitionToken === transitionToken &&
+        panel.classList.contains('is-collapsed')
     ) {
       panel.hidden = true;
     }
@@ -2487,7 +2531,7 @@ function setAuthMethodPanelVisible(panel, button, visible) {
  */
 function clearCredentialBindingStatuses(panel) {
   panel.querySelectorAll(
-    "[data-totp-binding-status], [data-passkey-binding-status]",
+      '[data-totp-binding-status], [data-passkey-binding-status]',
   ).forEach((status) => clearInlineStatus(status));
 }
 
@@ -2500,13 +2544,13 @@ function clearCredentialBindingStatuses(panel) {
 function removeTransientReauthSections(scope, retainedPanel) {
   let removed = false;
   scope.querySelectorAll(
-    '[data-reauth-section][data-reauth-purpose="reauth"]',
+      '[data-reauth-section][data-reauth-purpose="reauth"]',
   ).forEach((section) => {
     if (retainedPanel?.contains(section)) {
       return;
     }
 
-    section.dispatchEvent(new CustomEvent("reauth-dispose"));
+    section.dispatchEvent(new CustomEvent('reauth-dispose'));
     section.remove();
     removed = true;
   });
@@ -2518,21 +2562,21 @@ function removeTransientReauthSections(scope, retainedPanel) {
   pendingSensitiveActionForm = undefined;
   const url = new URL(globalThis.location.href);
   for (
-    const parameter of [
-      "googleError",
-      "passkeyError",
-      "securityError",
-      "totpError",
-    ]
-  ) {
-    if (url.searchParams.get(parameter) === "reauth") {
+      const parameter of [
+    'googleError',
+    'passkeyError',
+    'securityError',
+    'totpError',
+  ]
+      ) {
+    if (url.searchParams.get(parameter) === 'reauth') {
       url.searchParams.delete(parameter);
     }
   }
   globalThis.history.replaceState(
-    globalThis.history.state,
-    "",
-    `${url.pathname}${url.search}${url.hash}`,
+      globalThis.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
   );
 }
 
@@ -2540,25 +2584,25 @@ function removeTransientReauthSections(scope, retainedPanel) {
  * 初始化两步验证设置自动保存。
  */
 function initSecuritySettingsAutoSave() {
-  const form = document.querySelector("[data-security-settings-form]");
-  const status = document.querySelector("[data-security-settings-status]");
+  const form = document.querySelector('[data-security-settings-form]');
+  const status = document.querySelector('[data-security-settings-status]');
   if (
-    !(form instanceof HTMLFormElement) ||
-    form.dataset.securityAutoSaveInitialized === "true"
+      !(form instanceof HTMLFormElement) ||
+      form.dataset.securityAutoSaveInitialized === 'true'
   ) {
     return;
   }
 
-  form.dataset.securityAutoSaveInitialized = "true";
+  form.dataset.securityAutoSaveInitialized = 'true';
   lastSavedSecuritySignature = formSignature(form);
   const controls = externalAutoSaveControls(form);
   const toggle = securitySettingsToggle(form);
   controls.forEach((control) => {
-    control.addEventListener("change", () => {
+    control.addEventListener('change', () => {
       if (
-        control === toggle &&
-        !toggle.checked &&
-        form.dataset.securityRecentlyVerified !== "true"
+          control === toggle &&
+          !toggle.checked &&
+          form.dataset.securityRecentlyVerified !== 'true'
       ) {
         requireSecuritySettingsReauth(form);
         return;
@@ -2567,30 +2611,30 @@ function initSecuritySettingsAutoSave() {
       scheduleSecurityAutoSave(form, status);
     });
   });
-  form.addEventListener("submit", (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     void saveSecuritySettingsNow(form, status);
   });
 
   const reauthHost = document.querySelector(
-    "[data-security-settings-reauth]",
+      '[data-security-settings-reauth]',
   );
-  reauthHost?.addEventListener("reauth-success", (event) => {
+  reauthHost?.addEventListener('reauth-success', (event) => {
     if (
-      event.target instanceof HTMLElement &&
-      event.target.matches(
-        '[data-reauth-section][data-reauth-purpose="reauth"]',
-      )
+        event.target instanceof HTMLElement &&
+        event.target.matches(
+            '[data-reauth-section][data-reauth-purpose="reauth"]',
+        )
     ) {
       void completeSecuritySettingsDisable(form, status, reauthHost);
     }
   });
-  reauthHost?.addEventListener("reauth-cancel", (event) => {
+  reauthHost?.addEventListener('reauth-cancel', (event) => {
     if (
-      event.target instanceof HTMLElement &&
-      event.target.matches(
-        '[data-reauth-section][data-reauth-purpose="reauth"]',
-      )
+        event.target instanceof HTMLElement &&
+        event.target.matches(
+            '[data-reauth-section][data-reauth-purpose="reauth"]',
+        )
     ) {
       event.preventDefault();
       pendingSensitiveActionForm = undefined;
@@ -2607,7 +2651,7 @@ function initSecuritySettingsAutoSave() {
  */
 function securitySettingsToggle(form) {
   const toggle = Array.from(externalAutoSaveControls(form)).find((control) =>
-    control instanceof HTMLInputElement && control.name === "twoFactorEnabled"
+      control instanceof HTMLInputElement && control.name === 'twoFactorEnabled'
   );
   return toggle instanceof HTMLInputElement ? toggle : undefined;
 }
@@ -2623,7 +2667,7 @@ function requireSecuritySettingsReauth(form) {
     toggle.checked = true;
   }
   pendingSensitiveActionForm = undefined;
-  form.dataset.securityRecentlyVerified = "false";
+  form.dataset.securityRecentlyVerified = 'false';
   syncSecuritySettingsSummary(form);
   showSecuritySettingsReauth();
 }
@@ -2632,24 +2676,24 @@ function requireSecuritySettingsReauth(form) {
  * 从惰性模板原地展开关闭两步验证所需的身份验证方法。
  */
 function showSecuritySettingsReauth() {
-  const host = document.querySelector("[data-security-settings-reauth]");
-  const template = host?.querySelector("[data-security-reauth-template]");
+  const host = document.querySelector('[data-security-settings-reauth]');
+  const template = host?.querySelector('[data-security-reauth-template]');
   if (
-    !(host instanceof HTMLElement) ||
-    !(template instanceof HTMLTemplateElement)
+      !(host instanceof HTMLElement) ||
+      !(template instanceof HTMLTemplateElement)
   ) {
     return;
   }
 
   collapseOtherAuthEditors(host);
   let section = host.querySelector(
-    '[data-reauth-section][data-reauth-purpose="reauth"]',
+      '[data-reauth-section][data-reauth-purpose="reauth"]',
   );
   let created = false;
   if (!(section instanceof HTMLElement)) {
     host.insertBefore(template.content.cloneNode(true), template);
     section = host.querySelector(
-      '[data-reauth-section][data-reauth-purpose="reauth"]',
+        '[data-reauth-section][data-reauth-purpose="reauth"]',
     );
     created = true;
   }
@@ -2670,7 +2714,7 @@ function showSecuritySettingsReauth() {
  * @return {Promise<void>} 自动保存完成后的 Promise。
  */
 async function completeSecuritySettingsDisable(form, status, reauthHost) {
-  form.dataset.securityRecentlyVerified = "true";
+  form.dataset.securityRecentlyVerified = 'true';
   if (reauthHost instanceof HTMLElement) {
     setAuthMethodPanelVisible(reauthHost, undefined, false);
   }
@@ -2683,7 +2727,7 @@ async function completeSecuritySettingsDisable(form, status, reauthHost) {
   toggle.checked = false;
   syncSecuritySettingsSummary(form);
   const saved = await saveSecuritySettingsNow(form, status);
-  if (!saved && form.dataset.securityRecentlyVerified === "true") {
+  if (!saved && form.dataset.securityRecentlyVerified === 'true') {
     toggle.checked = true;
     syncSecuritySettingsSummary(form);
   }
@@ -2718,23 +2762,23 @@ async function saveSecuritySettingsNow(form, status) {
 
   securityAutoSaveController?.abort();
   securityAutoSaveController = new AbortController();
-  setSecuritySettingsStatus(form, status, "saving");
+  setSecuritySettingsStatus(form, status, 'saving');
 
   try {
     const response = await fetch(form.action, {
       body: formDataFromForm(form),
-      headers: csrfRequestHeaders({ "x-autosave": "1" }),
-      method: form.method || "post",
+      headers: csrfRequestHeaders({'x-autosave': '1'}),
+      method: form.method || 'post',
       signal: securityAutoSaveController.signal,
     });
 
     if (!response.ok) {
       const errorCode = await setSecuritySettingsError(
-        form,
-        status,
-        response,
+          form,
+          status,
+          response,
       );
-      if (errorCode === "reauth") {
+      if (errorCode === 'reauth') {
         requireSecuritySettingsReauth(form);
       }
       return false;
@@ -2742,14 +2786,14 @@ async function saveSecuritySettingsNow(form, status) {
 
     lastSavedSecuritySignature = formSignature(form);
     syncSecuritySettingsSummary(form);
-    setSecuritySettingsStatus(form, status, "saved");
+    setSecuritySettingsStatus(form, status, 'saved');
     return true;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
+    if (error instanceof DOMException && error.name === 'AbortError') {
       return false;
     }
 
-    setSecuritySettingsStatus(form, status, "error");
+    setSecuritySettingsStatus(form, status, 'error');
     return false;
   }
 }
@@ -2764,11 +2808,11 @@ async function saveSecuritySettingsNow(form, status) {
  */
 async function setSecuritySettingsError(form, status, response) {
   const payload = await response.json().catch(() => ({}));
-  const code = typeof payload.error === "string" ? payload.error : "error";
+  const code = typeof payload.error === 'string' ? payload.error : 'error';
   const message = form.dataset[`security${capitalize(code)}`] ||
-    form.dataset.securityError ||
-    "";
-  setInlineStatus(status, message, "error");
+      form.dataset.securityError ||
+      '';
+  setInlineStatus(status, message, 'error');
   return code;
 }
 
@@ -2777,15 +2821,15 @@ async function setSecuritySettingsError(form, status, response) {
  *
  * @param {HTMLFormElement} form 安全设置表单。
  * @param {Element|null} status 状态元素。
- * @param {"saving"|"saved"|"error"} state 保存状态。
+ * @param {'saving'|'saved'|'error'} state 保存状态。
  */
 function setSecuritySettingsStatus(form, status, state) {
-  const message = form.dataset[`security${capitalize(state)}`] || "";
+  const message = form.dataset[`security${capitalize(state)}`] || '';
   setInlineStatus(
-    status,
-    message,
-    state === "error" ? "error" : state === "saved" ? "success" : "pending",
-    state === "saved",
+      status,
+      message,
+      state === 'error' ? 'error' : state === 'saved' ? 'success' : 'pending',
+      state === 'saved',
   );
 }
 
@@ -2795,7 +2839,7 @@ function setSecuritySettingsStatus(form, status, state) {
  * @param {HTMLFormElement} form 安全设置表单。
  */
 function syncSecuritySettingsSummary(form) {
-  const summary = document.querySelector("[data-security-two-factor-summary]");
+  const summary = document.querySelector('[data-security-two-factor-summary]');
   if (!(summary instanceof HTMLElement)) {
     return;
   }
@@ -2806,8 +2850,8 @@ function syncSecuritySettingsSummary(form) {
   }
 
   summary.textContent = toggle.checked
-    ? form.dataset.securityEnabled ?? ""
-    : form.dataset.securityDisabled ?? "";
+      ? form.dataset.securityEnabled ?? ''
+      : form.dataset.securityDisabled ?? '';
 }
 
 /**
@@ -2817,46 +2861,46 @@ function syncSecuritySettingsSummary(form) {
  * @return {string} 首字母大写后的单词。
  */
 function capitalize(value) {
-  return value ? `${value[0].toUpperCase()}${value.slice(1)}` : "";
+  return value ? `${value[0].toUpperCase()}${value.slice(1)}` : '';
 }
 
 /**
  * 初始化邮箱绑定验证码发送流程。
  */
 function initEmailBinding() {
-  const form = document.querySelector("[data-email-binding-form]");
+  const form = document.querySelector('[data-email-binding-form]');
   if (!(form instanceof HTMLFormElement)) {
     return;
   }
 
-  const scope = form.closest(".settings-group") || document;
-  const emailInput = scope.querySelector("[data-email-binding-input]");
-  const codeInput = scope.querySelector("[data-email-code-input]");
-  const codeRow = scope.querySelector("[data-email-code-row]");
-  const editButton = scope.querySelector("[data-email-binding-edit-button]");
+  const scope = form.closest('.settings-group') || document;
+  const emailInput = scope.querySelector('[data-email-binding-input]');
+  const codeInput = scope.querySelector('[data-email-code-input]');
+  const codeRow = scope.querySelector('[data-email-code-row]');
+  const editButton = scope.querySelector('[data-email-binding-edit-button]');
   const verificationIdInput = form.querySelector(
-    "[data-email-verification-id]",
+      '[data-email-verification-id]',
   );
-  const sendButton = scope.querySelector("[data-email-send-code-button]");
-  const sendStatus = scope.querySelector("[data-email-send-status]");
-  const verifyStatus = scope.querySelector("[data-email-verify-status]");
+  const sendButton = scope.querySelector('[data-email-send-code-button]');
+  const sendStatus = scope.querySelector('[data-email-send-status]');
+  const verifyStatus = scope.querySelector('[data-email-verify-status]');
   let emailBindingVerifyTimer;
   let emailBindingVerifyController;
   let emailBindingVerifyToken = 0;
   let emailBindingTransitionToken = 0;
 
   if (
-    !(emailInput instanceof HTMLInputElement) ||
-    !(codeInput instanceof HTMLInputElement) ||
-    !(codeRow instanceof HTMLElement) ||
-    !(editButton instanceof HTMLButtonElement) ||
-    !(verificationIdInput instanceof HTMLInputElement) ||
-    !(sendButton instanceof HTMLButtonElement)
+      !(emailInput instanceof HTMLInputElement) ||
+      !(codeInput instanceof HTMLInputElement) ||
+      !(codeRow instanceof HTMLElement) ||
+      !(editButton instanceof HTMLButtonElement) ||
+      !(verificationIdInput instanceof HTMLInputElement) ||
+      !(sendButton instanceof HTMLButtonElement)
   ) {
     return;
   }
 
-  editButton.addEventListener("click", () => {
+  editButton.addEventListener('click', () => {
     if (!emailInput.readOnly) {
       resetEmailBindingEditor();
       return;
@@ -2865,29 +2909,29 @@ function initEmailBinding() {
     openEmailBindingEditor();
   });
 
-  form.addEventListener("email-binding-reset", () => {
+  form.addEventListener('email-binding-reset', () => {
     resetEmailBindingEditor();
   });
 
-  sendButton.addEventListener("click", async (event) => {
+  sendButton.addEventListener('click', async (event) => {
     event.preventDefault();
     await sendEmailBindingCode();
   });
 
-  emailInput.addEventListener("input", () => {
-    verificationIdInput.value = "";
-    codeInput.value = "";
+  emailInput.addEventListener('input', () => {
+    verificationIdInput.value = '';
+    codeInput.value = '';
     cancelEmailBindingVerification();
     clearInlineStatus(sendStatus);
     clearInlineStatus(verifyStatus);
   });
 
-  codeInput.addEventListener("input", () => {
+  codeInput.addEventListener('input', () => {
     clearInlineStatus(verifyStatus);
     scheduleEmailBindingVerification();
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     void verifyEmailBindingCode(true);
   });
@@ -2900,7 +2944,7 @@ function initEmailBinding() {
     emailInput.readOnly = false;
     syncEmailBindingEditorTabStops();
     showEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
-    emailInput.closest(".auth-method-row")?.classList.add("is-open");
+    emailInput.closest('.auth-method-row')?.classList.add('is-open');
     emailInput.focus();
     emailInput.select();
   }
@@ -2912,14 +2956,14 @@ function initEmailBinding() {
     emailInput.readOnly = true;
     syncEmailBindingEditorTabStops();
     emailInput.value = emailInput.dataset.emailBindingOriginal ||
-      emailInput.value;
-    codeInput.value = "";
-    verificationIdInput.value = "";
+        emailInput.value;
+    codeInput.value = '';
+    verificationIdInput.value = '';
     cancelEmailBindingVerification();
     clearInlineStatus(sendStatus);
     clearInlineStatus(verifyStatus);
     hideEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
-    emailInput.closest(".auth-method-row")?.classList.remove("is-open");
+    emailInput.closest('.auth-method-row')?.classList.remove('is-open');
   }
 
   /**
@@ -2929,7 +2973,7 @@ function initEmailBinding() {
    */
   function syncEmailBindingEditorTabStops() {
     if (emailInput.readOnly) {
-      editButton.removeAttribute("tabindex");
+      editButton.removeAttribute('tabindex');
     } else {
       editButton.tabIndex = -1;
     }
@@ -2940,46 +2984,46 @@ function initEmailBinding() {
    */
   async function sendEmailBindingCode() {
     if (!emailInput.checkValidity()) {
-      setInlineStatus(sendStatus, form.dataset.emailInvalid || "", "error");
+      setInlineStatus(sendStatus, form.dataset.emailInvalid || '', 'error');
       emailInput.reportValidity();
       return;
     }
 
     sendButton.disabled = true;
-    setInlineStatus(sendStatus, form.dataset.emailSending || "", "pending");
+    setInlineStatus(sendStatus, form.dataset.emailSending || '', 'pending');
     clearInlineStatus(verifyStatus);
 
     try {
       const response = await fetch(
-        form.dataset.emailSendUrl || "/auth/email-verifications",
-        {
-          body: emailVerificationRequestBody(form),
-          headers: csrfRequestHeaders({
-            "content-type": "application/x-www-form-urlencoded",
-          }),
-          method: "POST",
-        },
+          form.dataset.emailSendUrl || '/auth/email-verifications',
+          {
+            body: emailVerificationRequestBody(form),
+            headers: csrfRequestHeaders({
+              'content-type': 'application/x-www-form-urlencoded',
+            }),
+            method: 'POST',
+          },
       );
       const payload = await response.json().catch(() => ({}));
 
-      if (!response.ok || typeof payload.id !== "string") {
-        verificationIdInput.value = "";
+      if (!response.ok || typeof payload.id !== 'string') {
+        verificationIdInput.value = '';
         setInlineStatus(
-          sendStatus,
-          form.dataset.emailSendFailed || "",
-          "error",
+            sendStatus,
+            form.dataset.emailSendFailed || '',
+            'error',
         );
         return;
       }
 
       verificationIdInput.value = payload.id;
-      codeInput.value = "";
+      codeInput.value = '';
       showEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
-      setInlineStatus(sendStatus, form.dataset.emailSent || "", "success");
+      setInlineStatus(sendStatus, form.dataset.emailSent || '', 'success');
       codeInput.focus();
     } catch {
-      verificationIdInput.value = "";
-      setInlineStatus(sendStatus, form.dataset.emailSendFailed || "", "error");
+      verificationIdInput.value = '';
+      setInlineStatus(sendStatus, form.dataset.emailSendFailed || '', 'error');
     } finally {
       sendButton.disabled = false;
       resetTurnstileWidget();
@@ -3017,7 +3061,7 @@ function initEmailBinding() {
    */
   async function verifyEmailBindingCode(showRequired = false) {
     if (!emailInput.checkValidity()) {
-      setInlineStatus(sendStatus, form.dataset.emailInvalid || "", "error");
+      setInlineStatus(sendStatus, form.dataset.emailInvalid || '', 'error');
       if (showRequired) {
         emailInput.reportValidity();
       }
@@ -3027,9 +3071,9 @@ function initEmailBinding() {
     if (!verificationIdInput.value.trim()) {
       if (showRequired || codeInput.value.trim()) {
         setInlineStatus(
-          verifyStatus,
-          form.dataset.emailCodeRequired || "",
-          "error",
+            verifyStatus,
+            form.dataset.emailCodeRequired || '',
+            'error',
         );
       }
       return false;
@@ -3038,9 +3082,9 @@ function initEmailBinding() {
     if (!codeInput.checkValidity()) {
       if (showRequired || codeInput.value.trim()) {
         setInlineStatus(
-          verifyStatus,
-          form.dataset.emailCodeInvalid || "",
-          "error",
+            verifyStatus,
+            form.dataset.emailCodeInvalid || '',
+            'error',
         );
       }
       return false;
@@ -3056,48 +3100,48 @@ function initEmailBinding() {
     try {
       const response = await fetch(form.action, {
         body: formDataFromForm(form),
-        headers: csrfRequestHeaders({ "x-email-binding-verify": "1" }),
-        method: form.method || "post",
+        headers: csrfRequestHeaders({'x-email-binding-verify': '1'}),
+        method: form.method || 'post',
         signal: emailBindingVerifyController.signal,
       });
       const payload = await response.json().catch(() => ({}));
       if (
-        token !== emailBindingVerifyToken ||
-        emailInput.value !== submittedEmail ||
-        codeInput.value !== submittedCode ||
-        verificationIdInput.value !== submittedVerificationId
+          token !== emailBindingVerifyToken ||
+          emailInput.value !== submittedEmail ||
+          codeInput.value !== submittedCode ||
+          verificationIdInput.value !== submittedVerificationId
       ) {
         return false;
       }
 
       if (!response.ok) {
         setInlineStatus(
-          verifyStatus,
-          emailBindingErrorMessage(form, payload.error),
-          "error",
+            verifyStatus,
+            emailBindingErrorMessage(form, payload.error),
+            'error',
         );
         return false;
       }
 
       setInlineStatus(
-        verifyStatus,
-        form.dataset.emailUpdated || "",
-        "success",
+          verifyStatus,
+          form.dataset.emailUpdated || '',
+          'success',
       );
-      const redirectTo = typeof payload.redirectTo === "string"
-        ? payload.redirectTo
-        : "/settings?email=updated";
+      const redirectTo = typeof payload.redirectTo === 'string'
+          ? payload.redirectTo
+          : '/settings?email=updated';
       globalThis.location.assign(redirectTo);
       return true;
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (error instanceof DOMException && error.name === 'AbortError') {
         return false;
       }
 
       setInlineStatus(
-        verifyStatus,
-        form.dataset.emailCodeInvalid || "",
-        "error",
+          verifyStatus,
+          form.dataset.emailCodeInvalid || '',
+          'error',
       );
       return false;
     }
@@ -3115,13 +3159,13 @@ function initEmailBinding() {
     element.dataset.emailBindingTransitionToken = String(token);
 
     if (!animate) {
-      element.classList.remove("is-collapsed");
+      element.classList.remove('is-collapsed');
       return;
     }
 
-    element.classList.add("is-collapsed");
+    element.classList.add('is-collapsed');
     element.getBoundingClientRect();
-    element.classList.remove("is-collapsed");
+    element.classList.remove('is-collapsed');
   }
 
   /**
@@ -3133,7 +3177,7 @@ function initEmailBinding() {
    */
   function hideEmailBindingElement(element, animate, token) {
     element.dataset.emailBindingTransitionToken = String(token);
-    element.classList.add("is-collapsed");
+    element.classList.add('is-collapsed');
 
     if (!animate) {
       element.hidden = true;
@@ -3142,8 +3186,8 @@ function initEmailBinding() {
 
     setTimeout(() => {
       if (
-        element.dataset.emailBindingTransitionToken === String(token) &&
-        element.classList.contains("is-collapsed")
+          element.dataset.emailBindingTransitionToken === String(token) &&
+          element.classList.contains('is-collapsed')
       ) {
         element.hidden = true;
       }
@@ -3157,34 +3201,34 @@ function initEmailBinding() {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initPasskeyBinding(scope = document) {
-  const section = scope.querySelector("[data-passkey-binding-section]");
+  const section = scope.querySelector('[data-passkey-binding-section]');
   if (!(section instanceof HTMLElement)) {
     return;
   }
 
-  const bindButton = section.querySelector("[data-passkey-bind-button]");
-  const labelInput = section.querySelector("[data-passkey-label-input]");
-  const status = section.querySelector("[data-passkey-binding-status]");
+  const bindButton = section.querySelector('[data-passkey-bind-button]');
+  const labelInput = section.querySelector('[data-passkey-label-input]');
+  const status = section.querySelector('[data-passkey-binding-status]');
 
   if (!(bindButton instanceof HTMLButtonElement)) {
     return;
   }
 
   if (
-    !("PublicKeyCredential" in globalThis) ||
-    !navigator.credentials ||
-    typeof navigator.credentials.create !== "function"
+      !('PublicKeyCredential' in globalThis) ||
+      !navigator.credentials ||
+      typeof navigator.credentials.create !== 'function'
   ) {
     bindButton.disabled = true;
     setInlineStatus(
-      status,
-      section.dataset.passkeyUnsupported || "",
-      "error",
+        status,
+        section.dataset.passkeyUnsupported || '',
+        'error',
     );
     return;
   }
 
-  bindButton.addEventListener("click", async (event) => {
+  bindButton.addEventListener('click', async (event) => {
     event.preventDefault();
     await bindPasskey();
   });
@@ -3197,9 +3241,9 @@ function initPasskeyBinding(scope = document) {
   async function bindPasskey() {
     bindButton.disabled = true;
     setInlineStatus(
-      status,
-      section.dataset.passkeyBinding || "",
-      "pending",
+        status,
+        section.dataset.passkeyBinding || '',
+        'pending',
     );
 
     try {
@@ -3208,20 +3252,20 @@ function initPasskeyBinding(scope = document) {
         publicKey: creationOptionsFromJson(optionsPayload.optionsJSON),
       });
       if (!(credential instanceof globalThis.PublicKeyCredential)) {
-        throw new Error("Browser did not return a Passkey credential.");
+        throw new Error('Browser did not return a Passkey credential.');
       }
 
       const verified = await verifyPasskeyRegistration(section, {
         challengeId: optionsPayload.challengeId,
         credential: registrationCredentialToJson(credential),
-        label: labelInput instanceof HTMLInputElement ? labelInput.value : "",
+        label: labelInput instanceof HTMLInputElement ? labelInput.value : '',
       });
-      setInlineStatus(status, section.dataset.passkeyBound || "", "success");
-      if (typeof verified.redirectTo === "string") {
+      setInlineStatus(status, section.dataset.passkeyBound || '', 'success');
+      if (typeof verified.redirectTo === 'string') {
         await refreshPasskeySettings(verified.redirectTo).catch(() => false);
       }
     } catch {
-      setInlineStatus(status, section.dataset.passkeyFailed || "", "error");
+      setInlineStatus(status, section.dataset.passkeyFailed || '', 'error');
     } finally {
       bindButton.disabled = false;
     }
@@ -3234,7 +3278,7 @@ function initPasskeyBinding(scope = document) {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initGoogleBinding(scope = document) {
-  const roots = scope.querySelectorAll("[data-google-binding]");
+  const roots = scope.querySelectorAll('[data-google-binding]');
   roots.forEach((root) => {
     if (root instanceof HTMLElement) {
       initGoogleBindingRoot(root, 0);
@@ -3249,18 +3293,18 @@ function initGoogleBinding(scope = document) {
  * @param {number} attempt 当前等待 Google 脚本加载的次数。
  */
 function initGoogleBindingRoot(root, attempt) {
-  const button = root.querySelector("[data-google-bind-button]");
-  const form = root.querySelector("[data-google-bind-form]");
-  const credentialInput = root.querySelector("[data-google-bind-credential]");
-  const status = root.querySelector("[data-google-binding-status]");
-  const clientId = root.dataset.googleClientId || "";
+  const button = root.querySelector('[data-google-bind-button]');
+  const form = root.querySelector('[data-google-bind-form]');
+  const credentialInput = root.querySelector('[data-google-bind-credential]');
+  const status = root.querySelector('[data-google-binding-status]');
+  const clientId = root.dataset.googleClientId || '';
   const googleIdentity = globalThis.google?.accounts?.id;
 
   if (
-    !(button instanceof HTMLElement) ||
-    !(form instanceof HTMLFormElement) ||
-    !(credentialInput instanceof HTMLInputElement) ||
-    !clientId
+      !(button instanceof HTMLElement) ||
+      !(form instanceof HTMLFormElement) ||
+      !(credentialInput instanceof HTMLInputElement) ||
+      !clientId
   ) {
     return;
   }
@@ -3269,7 +3313,7 @@ function initGoogleBindingRoot(root, attempt) {
     if (attempt < 40) {
       setTimeout(() => initGoogleBindingRoot(root, attempt + 1), 100);
     } else {
-      setInlineStatus(status, root.dataset.googleFailed || "", "error");
+      setInlineStatus(status, root.dataset.googleFailed || '', 'error');
     }
     return;
   }
@@ -3281,11 +3325,11 @@ function initGoogleBindingRoot(root, attempt) {
     client_id: clientId,
   });
   googleIdentity.renderButton(button, {
-    shape: "rectangular",
-    size: "large",
-    text: "continue_with",
-    theme: "outline",
-    type: "standard",
+    shape: 'rectangular',
+    size: 'large',
+    text: 'continue_with',
+    theme: 'outline',
+    type: 'standard',
   });
 }
 
@@ -3300,39 +3344,39 @@ function initGoogleBindingRoot(root, attempt) {
  * @return {Promise<void>} 绑定请求完成后的 Promise。
  */
 async function submitGoogleBinding(
-  root,
-  form,
-  credentialInput,
-  status,
-  response,
+    root,
+    form,
+    credentialInput,
+    status,
+    response,
 ) {
-  if (root.dataset.googleBindingPending === "true") {
+  if (root.dataset.googleBindingPending === 'true') {
     return;
   }
 
   const credential = response?.credential;
-  if (typeof credential !== "string" || !credential.trim()) {
-    setInlineStatus(status, root.dataset.googleFailed || "", "error");
+  if (typeof credential !== 'string' || !credential.trim()) {
+    setInlineStatus(status, root.dataset.googleFailed || '', 'error');
     return;
   }
 
-  root.dataset.googleBindingPending = "true";
+  root.dataset.googleBindingPending = 'true';
   credentialInput.value = credential;
-  setInlineStatus(status, root.dataset.googleBinding || "", "pending");
+  setInlineStatus(status, root.dataset.googleBinding || '', 'pending');
 
   try {
     const bindingResponse = await fetch(form.action, {
       body: formDataFromForm(form),
       headers: csrfRequestHeaders(),
-      method: form.method || "post",
+      method: form.method || 'post',
     });
     if (
-      !bindingResponse.ok || !await refreshGoogleSettings(bindingResponse.url)
+        !bindingResponse.ok || !await refreshGoogleSettings(bindingResponse.url)
     ) {
-      throw new Error("Could not update Google binding.");
+      throw new Error('Could not update Google binding.');
     }
   } catch {
-    setInlineStatus(status, root.dataset.googleFailed || "", "error");
+    setInlineStatus(status, root.dataset.googleFailed || '', 'error');
   } finally {
     delete root.dataset.googleBindingPending;
   }
@@ -3344,16 +3388,16 @@ async function submitGoogleBinding(
  * @param {ParentNode} [scope] 查找范围。
  */
 function initGoogleUnbindForms(scope = document) {
-  scope.querySelectorAll("[data-google-unbind-form]").forEach((form) => {
+  scope.querySelectorAll('[data-google-unbind-form]').forEach((form) => {
     if (
-      !(form instanceof HTMLFormElement) ||
-      form.dataset.googleUnbindInitialized === "true"
+        !(form instanceof HTMLFormElement) ||
+        form.dataset.googleUnbindInitialized === 'true'
     ) {
       return;
     }
 
-    form.dataset.googleUnbindInitialized = "true";
-    form.addEventListener("submit", (event) => {
+    form.dataset.googleUnbindInitialized = 'true';
+    form.addEventListener('submit', (event) => {
       event.preventDefault();
       void submitGoogleUnbind(form);
     });
@@ -3367,12 +3411,12 @@ function initGoogleUnbindForms(scope = document) {
  * @return {Promise<void>} 解绑请求完成后的 Promise。
  */
 async function submitGoogleUnbind(form) {
-  if (form.dataset.googleUnbindPending === "true") {
+  if (form.dataset.googleUnbindPending === 'true') {
     return;
   }
 
   const submitButton = form.querySelector('button[type="submit"]');
-  form.dataset.googleUnbindPending = "true";
+  form.dataset.googleUnbindPending = 'true';
   if (submitButton instanceof HTMLButtonElement) {
     submitButton.disabled = true;
   }
@@ -3381,12 +3425,12 @@ async function submitGoogleUnbind(form) {
     const unbindResponse = await fetch(form.action, {
       body: formDataFromForm(form),
       headers: csrfRequestHeaders(),
-      method: form.method || "post",
+      method: form.method || 'post',
     });
     if (
-      !unbindResponse.ok || !await refreshGoogleSettings(unbindResponse.url)
+        !unbindResponse.ok || !await refreshGoogleSettings(unbindResponse.url)
     ) {
-      throw new Error("Could not update Google binding.");
+      throw new Error('Could not update Google binding.');
     }
   } catch {
     // 保留当前设置行，使用户可以重试解绑操作。
@@ -3404,12 +3448,12 @@ async function submitGoogleUnbind(form) {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initSensitiveActionForms(scope = document) {
-  scope.querySelectorAll("[data-sensitive-action-form]").forEach((form) => {
+  scope.querySelectorAll('[data-sensitive-action-form]').forEach((form) => {
     if (!(form instanceof HTMLFormElement)) {
       return;
     }
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener('submit', (event) => {
       event.preventDefault();
       void submitSensitiveAction(form);
     });
@@ -3423,12 +3467,12 @@ function initSensitiveActionForms(scope = document) {
  * @return {Promise<boolean>} 操作完成时返回 true。
  */
 async function submitSensitiveAction(form) {
-  if (form.dataset.sensitiveActionPending === "true") {
+  if (form.dataset.sensitiveActionPending === 'true') {
     return false;
   }
 
   const submitButton = form.querySelector('button[type="submit"]');
-  form.dataset.sensitiveActionPending = "true";
+  form.dataset.sensitiveActionPending = 'true';
   if (submitButton instanceof HTMLButtonElement) {
     submitButton.disabled = true;
   }
@@ -3436,11 +3480,11 @@ async function submitSensitiveAction(form) {
   try {
     const response = await fetch(form.action, {
       body: formDataFromForm(form),
-      headers: csrfRequestHeaders({ "x-sensitive-action": "1" }),
-      method: form.method || "post",
+      headers: csrfRequestHeaders({'x-sensitive-action': '1'}),
+      method: form.method || 'post',
     });
     const payload = await response.json().catch(() => ({}));
-    if (response.status === 409 && payload.error === "reauth") {
+    if (response.status === 409 && payload.error === 'reauth') {
       pendingSensitiveActionForm = form;
       showSensitiveActionReauth(form);
       return false;
@@ -3467,26 +3511,26 @@ async function submitSensitiveAction(form) {
  * @param {HTMLFormElement} form 触发敏感操作的表单。
  */
 function showSensitiveActionReauth(form) {
-  const panel = form.closest("[data-auth-method-panel]");
-  const template = panel?.querySelector("[data-sensitive-reauth-template]");
+  const panel = form.closest('[data-auth-method-panel]');
+  const template = panel?.querySelector('[data-sensitive-reauth-template]');
   if (
-    !(panel instanceof HTMLElement) ||
-    !(template instanceof HTMLTemplateElement) ||
-    panel.querySelector(
-      '[data-reauth-section][data-reauth-purpose="reauth"]',
-    )
+      !(panel instanceof HTMLElement) ||
+      !(template instanceof HTMLTemplateElement) ||
+      panel.querySelector(
+          '[data-reauth-section][data-reauth-purpose="reauth"]',
+      )
   ) {
     return;
   }
 
   panel.append(template.content.cloneNode(true));
   const section = panel.querySelector(
-    '[data-reauth-section][data-reauth-purpose="reauth"]',
+      '[data-reauth-section][data-reauth-purpose="reauth"]',
   );
   if (section instanceof HTMLElement) {
-    section.classList.add("is-collapsed");
+    section.classList.add('is-collapsed');
     initReauthSection(section);
-    requestAnimationFrame(() => section.classList.remove("is-collapsed"));
+    requestAnimationFrame(() => section.classList.remove('is-collapsed'));
   }
 }
 
@@ -3499,51 +3543,51 @@ function showSensitiveActionReauth(form) {
  */
 async function completeCredentialDeletion(form, payload) {
   const section = form.closest(
-    "[data-totp-binding-section], [data-passkey-binding-section]",
+      '[data-totp-binding-section], [data-passkey-binding-section]',
   );
   if (!(section instanceof HTMLElement)) {
     return;
   }
 
-  const credentialType = section.matches("[data-totp-binding-section]")
-    ? "totp"
-    : "passkey";
+  const credentialType = section.matches('[data-totp-binding-section]')
+      ? 'totp'
+      : 'passkey';
   const remainingCount = Number(payload.remainingCount);
-  form.closest("li")?.remove();
-  const list = section.querySelector(".passkey-credential-list");
+  form.closest('li')?.remove();
+  const list = section.querySelector('.passkey-credential-list');
   if (remainingCount === 0 && list instanceof HTMLElement) {
-    const empty = document.createElement("span");
-    empty.className = "field-hint";
-    empty.textContent = section.dataset.credentialEmpty || "";
+    const empty = document.createElement('span');
+    empty.className = 'field-hint';
+    empty.textContent = section.dataset.credentialEmpty || '';
     list.replaceWith(empty);
   }
 
-  const row = section.closest(".auth-method-row");
-  const summary = row?.querySelector(".auth-method-summary");
+  const row = section.closest('.auth-method-row');
+  const summary = row?.querySelector('.auth-method-summary');
   if (summary instanceof HTMLElement) {
     summary.textContent = remainingCount > 0
-      ? (section.dataset.credentialCountTemplate || "").replace(
-        "{count}",
-        String(remainingCount),
-      )
-      : section.dataset.credentialEmpty || "";
+        ? (section.dataset.credentialCountTemplate || '').replace(
+            '{count}',
+            String(remainingCount),
+        )
+        : section.dataset.credentialEmpty || '';
   }
 
   const status = section.querySelector(
-    "[data-totp-binding-status], [data-passkey-binding-status]",
+      '[data-totp-binding-status], [data-passkey-binding-status]',
   );
-  setInlineStatus(status, section.dataset.credentialDeleted || "", "success");
+  setInlineStatus(status, section.dataset.credentialDeleted || '', 'success');
   pendingSensitiveActionForm = undefined;
-  const panel = section.closest("[data-auth-method-panel]");
+  const panel = section.closest('[data-auth-method-panel]');
   if (panel instanceof HTMLElement) {
     removeTransientReauthSections(panel);
   }
 
   const refreshUrl = new URL(globalThis.location.href);
-  refreshUrl.searchParams.set(credentialType, "deleted");
-  refreshUrl.hash = credentialType === "totp"
-    ? "auth-method-totp"
-    : "auth-method-passkey";
+  refreshUrl.searchParams.set(credentialType, 'deleted');
+  refreshUrl.hash = credentialType === 'totp'
+      ? 'auth-method-totp'
+      : 'auth-method-passkey';
   await refreshTwoStepSettings(refreshUrl.href).catch(() => false);
 }
 
@@ -3553,7 +3597,7 @@ async function completeCredentialDeletion(form, payload) {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initReauth(scope = document) {
-  scope.querySelectorAll("[data-reauth-section]").forEach((section) => {
+  scope.querySelectorAll('[data-reauth-section]').forEach((section) => {
     if (section instanceof HTMLElement) {
       initReauthSection(section);
     }
@@ -3567,47 +3611,47 @@ function initReauth(scope = document) {
  */
 function initReauthSection(section) {
   if (
-    !(section instanceof HTMLElement) ||
-    section.dataset.reauthInitialized === "true"
+      !(section instanceof HTMLElement) ||
+      section.dataset.reauthInitialized === 'true'
   ) {
     return;
   }
-  section.dataset.reauthInitialized = "true";
+  section.dataset.reauthInitialized = 'true';
 
-  const globalStatus = section.querySelector("[data-reauth-status]");
-  const passwordForm = section.querySelector("[data-reauth-password-form]");
-  const totpForm = section.querySelector("[data-reauth-totp-form]");
+  const globalStatus = section.querySelector('[data-reauth-status]');
+  const passwordForm = section.querySelector('[data-reauth-password-form]');
+  const totpForm = section.querySelector('[data-reauth-totp-form]');
   const recoveryCodeForm = section.querySelector(
-    "[data-reauth-recovery-code-form]",
+      '[data-reauth-recovery-code-form]',
   );
-  const emailForm = section.querySelector("[data-reauth-email-form]");
-  const passkeyButton = section.querySelector("[data-reauth-passkey-button]");
-  const cancelButton = section.querySelector("[data-reauth-cancel-button]");
+  const emailForm = section.querySelector('[data-reauth-email-form]');
+  const passkeyButton = section.querySelector('[data-reauth-passkey-button]');
+  const cancelButton = section.querySelector('[data-reauth-cancel-button]');
 
   initReauthMethodSelector(section);
 
   if (passwordForm instanceof HTMLFormElement) {
     bindReauthForm(
-      passwordForm,
-      section.dataset.reauthPasswordUrl || "/account/reauth/password",
-      passwordForm.querySelector("[data-reauth-password-status]"),
+        passwordForm,
+        section.dataset.reauthPasswordUrl || '/account/reauth/password',
+        passwordForm.querySelector('[data-reauth-password-status]'),
     );
   }
 
   if (totpForm instanceof HTMLFormElement) {
     bindReauthForm(
-      totpForm,
-      section.dataset.reauthTotpUrl || "/account/reauth/totp",
-      totpForm.querySelector("[data-reauth-totp-status]"),
+        totpForm,
+        section.dataset.reauthTotpUrl || '/account/reauth/totp',
+        totpForm.querySelector('[data-reauth-totp-status]'),
     );
   }
 
   if (recoveryCodeForm instanceof HTMLFormElement) {
     bindReauthForm(
-      recoveryCodeForm,
-      section.dataset.reauthRecoveryCodeUrl ||
-        "/account/reauth/recovery-code",
-      recoveryCodeForm.querySelector("[data-reauth-recovery-code-status]"),
+        recoveryCodeForm,
+        section.dataset.reauthRecoveryCodeUrl ||
+        '/account/reauth/recovery-code',
+        recoveryCodeForm.querySelector('[data-reauth-recovery-code-status]'),
     );
   }
 
@@ -3620,7 +3664,7 @@ function initReauthSection(section) {
   }
 
   if (cancelButton instanceof HTMLButtonElement) {
-    cancelButton.addEventListener("click", () => cancelReauth(section));
+    cancelButton.addEventListener('click', () => cancelReauth(section));
   }
 
   /**
@@ -3631,7 +3675,7 @@ function initReauthSection(section) {
    * @param {Element|null} status 方法状态元素。
    */
   function bindReauthForm(form, url, status) {
-    form.addEventListener("submit", async (event) => {
+    form.addEventListener('submit', async (event) => {
       event.preventDefault();
       await submitReauthForm(section, form, url, status, globalStatus);
     });
@@ -3645,33 +3689,33 @@ function initReauthSection(section) {
  */
 function initReauthMethodSelector(section) {
   const buttons = Array.from(
-    section.querySelectorAll("[data-reauth-method-button]"),
+      section.querySelectorAll('[data-reauth-method-button]'),
   ).filter((button) => button instanceof HTMLButtonElement);
   const panels = Array.from(
-    section.querySelectorAll("[data-reauth-method-panel]"),
+      section.querySelectorAll('[data-reauth-method-panel]'),
   ).filter((panel) => panel instanceof HTMLElement);
 
   buttons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const selectedMethod = button.dataset.reauthMethodButton || "";
+    button.addEventListener('click', () => {
+      const selectedMethod = button.dataset.reauthMethodButton || '';
       buttons.forEach((candidate) => {
         candidate.setAttribute(
-          "aria-pressed",
-          candidate === button ? "true" : "false",
+            'aria-pressed',
+            candidate === button ? 'true' : 'false',
         );
       });
       panels.forEach((panel) => {
         setReauthMethodPanelVisible(
-          panel,
-          panel.dataset.reauthMethodPanel === selectedMethod,
+            panel,
+            panel.dataset.reauthMethodPanel === selectedMethod,
         );
       });
 
       const selectedPanel = panels.find((panel) =>
-        panel.dataset.reauthMethodPanel === selectedMethod
+          panel.dataset.reauthMethodPanel === selectedMethod
       );
       const input = selectedPanel?.querySelector(
-        'input:not([type="hidden"])',
+          'input:not([type="hidden"])',
       );
       if (input instanceof HTMLInputElement) {
         input.focus();
@@ -3691,20 +3735,20 @@ function setReauthMethodPanelVisible(panel, visible) {
   panel.dataset.reauthMethodTransitionToken = transitionToken;
   if (visible) {
     panel.hidden = false;
-    panel.classList.add("is-collapsed");
+    panel.classList.add('is-collapsed');
     requestAnimationFrame(() => {
       if (panel.dataset.reauthMethodTransitionToken === transitionToken) {
-        panel.classList.remove("is-collapsed");
+        panel.classList.remove('is-collapsed');
       }
     });
     return;
   }
 
-  panel.classList.add("is-collapsed");
+  panel.classList.add('is-collapsed');
   setTimeout(() => {
     if (
-      panel.dataset.reauthMethodTransitionToken === transitionToken &&
-      panel.classList.contains("is-collapsed")
+        panel.dataset.reauthMethodTransitionToken === transitionToken &&
+        panel.classList.contains('is-collapsed')
     ) {
       panel.hidden = true;
     }
@@ -3718,10 +3762,10 @@ function setReauthMethodPanelVisible(panel, visible) {
  */
 function cancelReauth(section) {
   invalidateReauthAttempt(section);
-  section.dispatchEvent(new CustomEvent("reauth-dispose"));
+  section.dispatchEvent(new CustomEvent('reauth-dispose'));
   resetReauthSection(section);
   pendingSensitiveActionForm = undefined;
-  const cancelEvent = new CustomEvent("reauth-cancel", {
+  const cancelEvent = new CustomEvent('reauth-cancel', {
     bubbles: true,
     cancelable: true,
   });
@@ -3730,9 +3774,9 @@ function cancelReauth(section) {
     return;
   }
 
-  section.classList.add("is-collapsed");
+  section.classList.add('is-collapsed');
   setTimeout(() => {
-    if (section.classList.contains("is-collapsed")) {
+    if (section.classList.contains('is-collapsed')) {
       section.remove();
     }
   }, notificationTransitionMs);
@@ -3744,44 +3788,44 @@ function cancelReauth(section) {
  * @param {HTMLElement} section 再认证区域。
  */
 function resetReauthSection(section) {
-  section.querySelectorAll("form").forEach((form) => form.reset());
-  section.querySelectorAll("[data-reauth-method-button]").forEach((button) => {
-    button.setAttribute("aria-pressed", "false");
+  section.querySelectorAll('form').forEach((form) => form.reset());
+  section.querySelectorAll('[data-reauth-method-button]').forEach((button) => {
+    button.setAttribute('aria-pressed', 'false');
   });
-  section.querySelectorAll("[data-reauth-method-panel]").forEach((panel) => {
+  section.querySelectorAll('[data-reauth-method-panel]').forEach((panel) => {
     if (panel instanceof HTMLElement) {
       setReauthMethodPanelVisible(panel, false);
     }
   });
   section.querySelectorAll(
-    "[data-reauth-password-status], [data-reauth-totp-status], " +
-      "[data-reauth-recovery-code-status], [data-reauth-email-status]",
+      '[data-reauth-password-status], [data-reauth-totp-status], ' +
+      '[data-reauth-recovery-code-status], [data-reauth-email-status]',
   ).forEach((status) => clearInlineStatus(status));
 
-  const delivery = section.querySelector("[data-reauth-email-delivery]");
+  const delivery = section.querySelector('[data-reauth-email-delivery]');
   if (delivery instanceof HTMLElement) {
     delivery.hidden = true;
   }
-  const countdown = section.querySelector("[data-reauth-email-countdown]");
+  const countdown = section.querySelector('[data-reauth-email-countdown]');
   if (countdown instanceof HTMLElement) {
     countdown.textContent = String(reauthEmailResendDelaySeconds);
   }
   const resendButton = section.querySelector(
-    "[data-reauth-email-resend-button]",
+      '[data-reauth-email-resend-button]',
   );
   if (resendButton instanceof HTMLButtonElement) {
     resendButton.disabled = true;
   }
   const emailMethodButton = section.querySelector(
-    '[data-reauth-method-button="email"]',
+      '[data-reauth-method-button="email"]',
   );
   if (emailMethodButton instanceof HTMLButtonElement) {
     emailMethodButton.disabled = false;
   }
   setInlineStatus(
-    section.querySelector("[data-reauth-status]"),
-    section.dataset.reauthInitialStatus || "",
-    "success",
+      section.querySelector('[data-reauth-status]'),
+      section.dataset.reauthInitialStatus || '',
+      'success',
   );
 }
 
@@ -3792,7 +3836,7 @@ function resetReauthSection(section) {
  * @return {string} 新请求序号。
  */
 function nextReauthAttempt(section) {
-  const attempt = Number(section.dataset.reauthAttempt || "0") + 1;
+  const attempt = Number(section.dataset.reauthAttempt || '0') + 1;
   section.dataset.reauthAttempt = String(attempt);
   return section.dataset.reauthAttempt;
 }
@@ -3814,29 +3858,29 @@ function invalidateReauthAttempt(section) {
  * @param {Element|null} globalStatus 全局状态元素。
  */
 function initEmailReauthForm(section, form, globalStatus) {
-  const emailInput = form.querySelector("[data-reauth-email-input]");
+  const emailInput = form.querySelector('[data-reauth-email-input]');
   const verificationIdInput = form.querySelector(
-    "[data-reauth-email-verification-id]",
+      '[data-reauth-email-verification-id]',
   );
-  const codeInput = form.querySelector("[data-reauth-email-code-input]");
+  const codeInput = form.querySelector('[data-reauth-email-code-input]');
   const methodButton = section.querySelector(
-    '[data-reauth-method-button="email"]',
+      '[data-reauth-method-button="email"]',
   );
-  const delivery = form.querySelector("[data-reauth-email-delivery]");
-  const countdown = form.querySelector("[data-reauth-email-countdown]");
+  const delivery = form.querySelector('[data-reauth-email-delivery]');
+  const countdown = form.querySelector('[data-reauth-email-countdown]');
   const resendButton = form.querySelector(
-    "[data-reauth-email-resend-button]",
+      '[data-reauth-email-resend-button]',
   );
-  const status = form.querySelector("[data-reauth-email-status]");
+  const status = form.querySelector('[data-reauth-email-status]');
 
   if (
-    !(emailInput instanceof HTMLInputElement) ||
-    !(verificationIdInput instanceof HTMLInputElement) ||
-    !(codeInput instanceof HTMLInputElement) ||
-    !(methodButton instanceof HTMLButtonElement) ||
-    !(delivery instanceof HTMLElement) ||
-    !(countdown instanceof HTMLElement) ||
-    !(resendButton instanceof HTMLButtonElement)
+      !(emailInput instanceof HTMLInputElement) ||
+      !(verificationIdInput instanceof HTMLInputElement) ||
+      !(codeInput instanceof HTMLInputElement) ||
+      !(methodButton instanceof HTMLButtonElement) ||
+      !(delivery instanceof HTMLElement) ||
+      !(countdown instanceof HTMLElement) ||
+      !(resendButton instanceof HTMLButtonElement)
   ) {
     return;
   }
@@ -3845,46 +3889,46 @@ function initEmailReauthForm(section, form, globalStatus) {
   let requestId = 0;
   let sending = false;
 
-  methodButton.addEventListener("click", async (event) => {
+  methodButton.addEventListener('click', async (event) => {
     event.preventDefault();
     if (!verificationIdInput.value.trim()) {
       await sendReauthEmailCode();
     }
   });
 
-  resendButton.addEventListener("click", async (event) => {
+  resendButton.addEventListener('click', async (event) => {
     event.preventDefault();
     if (!resendButton.disabled) {
       await sendReauthEmailCode();
     }
   });
 
-  codeInput.addEventListener("input", () => {
+  codeInput.addEventListener('input', () => {
     clearInlineStatus(status);
   });
 
-  form.addEventListener("submit", async (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!verificationIdInput.value.trim()) {
       setInlineStatus(
-        status,
-        section.dataset.reauthEmailCodeRequired || "",
-        "error",
+          status,
+          section.dataset.reauthEmailCodeRequired || '',
+          'error',
       );
       codeInput.focus();
       return;
     }
 
     await submitReauthForm(
-      section,
-      form,
-      section.dataset.reauthEmailVerifyUrl || "/account/reauth/email",
-      status,
-      globalStatus,
+        section,
+        form,
+        section.dataset.reauthEmailVerifyUrl || '/account/reauth/email',
+        status,
+        globalStatus,
     );
   });
 
-  section.addEventListener("reauth-dispose", () => {
+  section.addEventListener('reauth-dispose', () => {
     requestId += 1;
     sending = false;
     clearInterval(resendTimer);
@@ -3906,41 +3950,41 @@ function initEmailReauthForm(section, form, globalStatus) {
     resendButton.disabled = true;
     clearInterval(resendTimer);
     setInlineStatus(
-      status,
-      section.dataset.reauthEmailSending || "",
-      "pending",
+        status,
+        section.dataset.reauthEmailSending || '',
+        'pending',
     );
 
     try {
       const body = reauthFormBody(form, section);
-      body.set("purpose", "reauth");
+      body.set('purpose', 'reauth');
       const response = await fetch(
-        section.dataset.reauthEmailSendUrl || "/auth/email-verifications",
-        {
-          body,
-          headers: csrfRequestHeaders({
-            "content-type": "application/x-www-form-urlencoded",
-          }),
-          method: "POST",
-        },
+          section.dataset.reauthEmailSendUrl || '/auth/email-verifications',
+          {
+            body,
+            headers: csrfRequestHeaders({
+              'content-type': 'application/x-www-form-urlencoded',
+            }),
+            method: 'POST',
+          },
       );
       const payload = await response.json().catch(() => ({}));
       if (currentRequestId !== requestId) {
         return;
       }
-      if (!response.ok || typeof payload.id !== "string") {
-        verificationIdInput.value = "";
+      if (!response.ok || typeof payload.id !== 'string') {
+        verificationIdInput.value = '';
         delivery.hidden = true;
         setInlineStatus(
-          status,
-          section.dataset.reauthEmailSendFailed || "",
-          "error",
+            status,
+            section.dataset.reauthEmailSendFailed || '',
+            'error',
         );
         return;
       }
 
       verificationIdInput.value = payload.id;
-      codeInput.value = "";
+      codeInput.value = '';
       clearInlineStatus(status);
       delivery.hidden = false;
       startEmailResendCountdown();
@@ -3949,12 +3993,12 @@ function initEmailReauthForm(section, form, globalStatus) {
       if (currentRequestId !== requestId) {
         return;
       }
-      verificationIdInput.value = "";
+      verificationIdInput.value = '';
       delivery.hidden = true;
       setInlineStatus(
-        status,
-        section.dataset.reauthEmailSendFailed || "",
-        "error",
+          status,
+          section.dataset.reauthEmailSendFailed || '',
+          'error',
       );
     } finally {
       if (currentRequestId === requestId) {
@@ -3991,26 +4035,26 @@ function initEmailReauthForm(section, form, globalStatus) {
  * @param {Element|null} globalStatus 全局状态元素。
  */
 function initPasskeyReauth(section, button, globalStatus) {
-  const status = section.querySelector("[data-reauth-passkey-status]") ||
-    globalStatus;
+  const status = section.querySelector('[data-reauth-passkey-status]') ||
+      globalStatus;
   if (!supportsPasskeyReauth()) {
     button.disabled = true;
     setInlineStatus(
-      status,
-      section.dataset.reauthFailed || "",
-      "error",
+        status,
+        section.dataset.reauthFailed || '',
+        'error',
     );
     return;
   }
 
-  button.addEventListener("click", async (event) => {
+  button.addEventListener('click', async (event) => {
     event.preventDefault();
     const attempt = nextReauthAttempt(section);
     button.disabled = true;
     setInlineStatus(
-      status,
-      section.dataset.reauthPasskeyPending || "",
-      "pending",
+        status,
+        section.dataset.reauthPasskeyPending || '',
+        'pending',
     );
 
     try {
@@ -4035,9 +4079,9 @@ function initPasskeyReauth(section, button, globalStatus) {
  * @return {boolean} 浏览器具备 WebAuthn 凭据获取能力时返回 true。
  */
 function supportsPasskeyReauth() {
-  return "PublicKeyCredential" in globalThis &&
-    Boolean(navigator.credentials) &&
-    typeof navigator.credentials.get === "function";
+  return 'PublicKeyCredential' in globalThis &&
+      Boolean(navigator.credentials) &&
+      typeof navigator.credentials.get === 'function';
 }
 
 /**
@@ -4052,13 +4096,13 @@ async function performPasskeyReauth(section) {
     publicKey: authenticationOptionsFromJson(optionsPayload.optionsJSON),
   });
   if (!(credential instanceof globalThis.PublicKeyCredential)) {
-    throw new Error("Browser did not return a Passkey credential.");
+    throw new Error('Browser did not return a Passkey credential.');
   }
 
   return await verifyPasskeyReauth(section, {
     challengeId: optionsPayload.challengeId,
     credential: authenticationCredentialToJson(credential),
-    reauthPurpose: section.dataset.reauthPurpose || "reauth",
+    reauthPurpose: section.dataset.reauthPurpose || 'reauth',
   });
 }
 
@@ -4078,9 +4122,9 @@ async function submitReauthForm(section, form, url, status, globalStatus) {
     const response = await fetch(url, {
       body: reauthFormBody(form, section),
       headers: csrfRequestHeaders({
-        "content-type": "application/x-www-form-urlencoded",
+        'content-type': 'application/x-www-form-urlencoded',
       }),
-      method: "POST",
+      method: 'POST',
     });
     if (section.dataset.reauthAttempt !== attempt) {
       return;
@@ -4109,12 +4153,12 @@ async function submitReauthForm(section, form, url, status, globalStatus) {
 function reauthFormBody(form, section) {
   const body = new URLSearchParams();
   for (const [key, value] of new FormData(form)) {
-    if (typeof value === "string") {
+    if (typeof value === 'string') {
       body.set(key, value);
     }
   }
   body.set(csrfFieldName, currentCsrfToken());
-  body.set("reauthPurpose", section.dataset.reauthPurpose || "reauth");
+  body.set('reauthPurpose', section.dataset.reauthPurpose || 'reauth');
   return body;
 }
 
@@ -4126,24 +4170,24 @@ function reauthFormBody(form, section) {
  */
 async function fetchPasskeyReauthOptions(section) {
   const response = await fetch(
-    section.dataset.reauthPasskeyOptionsUrl ||
-      "/account/passkeys/reauth-options",
-    {
-      body: "{}",
-      headers: csrfRequestHeaders({
-        "content-type": "application/json",
-      }),
-      method: "POST",
-    },
+      section.dataset.reauthPasskeyOptionsUrl ||
+      '/account/passkeys/reauth-options',
+      {
+        body: '{}',
+        headers: csrfRequestHeaders({
+          'content-type': 'application/json',
+        }),
+        method: 'POST',
+      },
   );
   const payload = await response.json().catch(() => ({}));
   if (
-    !response.ok ||
-    typeof payload.challengeId !== "string" ||
-    typeof payload.optionsJSON !== "object" ||
-    payload.optionsJSON === null
+      !response.ok ||
+      typeof payload.challengeId !== 'string' ||
+      typeof payload.optionsJSON !== 'object' ||
+      payload.optionsJSON === null
   ) {
-    throw new Error("Could not create Passkey authentication options.");
+    throw new Error('Could not create Passkey authentication options.');
   }
   return payload;
 }
@@ -4157,18 +4201,18 @@ async function fetchPasskeyReauthOptions(section) {
  */
 async function verifyPasskeyReauth(section, payload) {
   const response = await fetch(
-    section.dataset.reauthPasskeyVerifyUrl || "/account/passkeys/reauth",
-    {
-      body: JSON.stringify(payload),
-      headers: csrfRequestHeaders({
-        "content-type": "application/json",
-      }),
-      method: "POST",
-    },
+      section.dataset.reauthPasskeyVerifyUrl || '/account/passkeys/reauth',
+      {
+        body: JSON.stringify(payload),
+        headers: csrfRequestHeaders({
+          'content-type': 'application/json',
+        }),
+        method: 'POST',
+      },
   );
   const responsePayload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error("Could not verify Passkey authentication.");
+    throw new Error('Could not verify Passkey authentication.');
   }
   return responsePayload;
 }
@@ -4183,7 +4227,7 @@ function authenticationOptionsFromJson(optionsJSON) {
   return {
     ...optionsJSON,
     allowCredentials: (optionsJSON.allowCredentials || []).map(
-      credentialDescriptorFromJson,
+        credentialDescriptorFromJson,
     ),
     challenge: base64UrlToArrayBuffer(optionsJSON.challenge),
   };
@@ -4220,20 +4264,20 @@ function authenticationCredentialToJson(credential) {
  * @param {Element|null} globalStatus 全局状态元素。
  */
 function setReauthSuccess(section, status, globalStatus) {
-  section.dispatchEvent(new CustomEvent("reauth-dispose"));
-  if (section.dataset.reauthPurpose === "reauth") {
+  section.dispatchEvent(new CustomEvent('reauth-dispose'));
+  if (section.dataset.reauthPurpose === 'reauth') {
     const securityForm = document.querySelector(
-      "[data-security-settings-form]",
+        '[data-security-settings-form]',
     );
     if (securityForm instanceof HTMLFormElement) {
-      securityForm.dataset.securityRecentlyVerified = "true";
+      securityForm.dataset.securityRecentlyVerified = 'true';
     }
   }
 
   if (
-    section.dataset.reauthPurpose === "reauth" &&
-    pendingSensitiveActionForm instanceof HTMLFormElement &&
-    pendingSensitiveActionForm.isConnected
+      section.dataset.reauthPurpose === 'reauth' &&
+      pendingSensitiveActionForm instanceof HTMLFormElement &&
+      pendingSensitiveActionForm.isConnected
   ) {
     const form = pendingSensitiveActionForm;
     pendingSensitiveActionForm = undefined;
@@ -4241,13 +4285,13 @@ function setReauthSuccess(section, status, globalStatus) {
     return;
   }
 
-  setInlineStatus(status, section.dataset.reauthSuccess || "", "success");
+  setInlineStatus(status, section.dataset.reauthSuccess || '', 'success');
   setInlineStatus(
-    globalStatus,
-    section.dataset.reauthSuccess || "",
-    "success",
+      globalStatus,
+      section.dataset.reauthSuccess || '',
+      'success',
   );
-  section.dispatchEvent(new CustomEvent("reauth-success", { bubbles: true }));
+  section.dispatchEvent(new CustomEvent('reauth-success', {bubbles: true}));
 }
 
 /**
@@ -4257,7 +4301,7 @@ function setReauthSuccess(section, status, globalStatus) {
  * @param {Element|null} status 方法状态元素。
  */
 function setReauthFailure(section, status) {
-  setInlineStatus(status, section.dataset.reauthFailed || "", "error");
+  setInlineStatus(status, section.dataset.reauthFailed || '', 'error');
 }
 
 /**
@@ -4268,24 +4312,24 @@ function setReauthFailure(section, status) {
  */
 async function fetchPasskeyRegistrationOptions(section) {
   const response = await fetch(
-    section.dataset.passkeyOptionsUrl ||
-      "/account/passkeys/register-options",
-    {
-      body: "{}",
-      headers: csrfRequestHeaders({
-        "content-type": "application/json",
-      }),
-      method: "POST",
-    },
+      section.dataset.passkeyOptionsUrl ||
+      '/account/passkeys/register-options',
+      {
+        body: '{}',
+        headers: csrfRequestHeaders({
+          'content-type': 'application/json',
+        }),
+        method: 'POST',
+      },
   );
   const payload = await response.json().catch(() => ({}));
   if (
-    !response.ok ||
-    typeof payload.challengeId !== "string" ||
-    typeof payload.optionsJSON !== "object" ||
-    payload.optionsJSON === null
+      !response.ok ||
+      typeof payload.challengeId !== 'string' ||
+      typeof payload.optionsJSON !== 'object' ||
+      payload.optionsJSON === null
   ) {
-    throw new Error("Could not create Passkey registration options.");
+    throw new Error('Could not create Passkey registration options.');
   }
   return payload;
 }
@@ -4299,18 +4343,18 @@ async function fetchPasskeyRegistrationOptions(section) {
  */
 async function verifyPasskeyRegistration(section, payload) {
   const response = await fetch(
-    section.dataset.passkeyRegisterUrl || "/account/passkeys/register",
-    {
-      body: JSON.stringify(payload),
-      headers: csrfRequestHeaders({
-        "content-type": "application/json",
-      }),
-      method: "POST",
-    },
+      section.dataset.passkeyRegisterUrl || '/account/passkeys/register',
+      {
+        body: JSON.stringify(payload),
+        headers: csrfRequestHeaders({
+          'content-type': 'application/json',
+        }),
+        method: 'POST',
+      },
   );
   const responsePayload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error("Could not verify Passkey registration.");
+    throw new Error('Could not verify Passkey registration.');
   }
   return responsePayload;
 }
@@ -4326,7 +4370,7 @@ function creationOptionsFromJson(optionsJSON) {
     ...optionsJSON,
     challenge: base64UrlToArrayBuffer(optionsJSON.challenge),
     excludeCredentials: (optionsJSON.excludeCredentials || []).map(
-      credentialDescriptorFromJson,
+        credentialDescriptorFromJson,
     ),
     user: {
       ...optionsJSON.user,
@@ -4363,19 +4407,19 @@ function registrationCredentialToJson(credential) {
     rawId: arrayBufferToBase64Url(credential.rawId),
     response: {
       attestationObject: arrayBufferToBase64Url(response.attestationObject),
-      authenticatorData: typeof response.getAuthenticatorData === "function"
-        ? arrayBufferToBase64Url(response.getAuthenticatorData())
-        : undefined,
+      authenticatorData: typeof response.getAuthenticatorData === 'function'
+          ? arrayBufferToBase64Url(response.getAuthenticatorData())
+          : undefined,
       clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
-      publicKey: typeof response.getPublicKey === "function"
-        ? optionalArrayBufferToBase64Url(response.getPublicKey())
-        : undefined,
-      publicKeyAlgorithm: typeof response.getPublicKeyAlgorithm === "function"
-        ? response.getPublicKeyAlgorithm()
-        : undefined,
-      transports: typeof response.getTransports === "function"
-        ? response.getTransports()
-        : undefined,
+      publicKey: typeof response.getPublicKey === 'function'
+          ? optionalArrayBufferToBase64Url(response.getPublicKey())
+          : undefined,
+      publicKeyAlgorithm: typeof response.getPublicKeyAlgorithm === 'function'
+          ? response.getPublicKeyAlgorithm()
+          : undefined,
+      transports: typeof response.getTransports === 'function'
+          ? response.getTransports()
+          : undefined,
     },
     type: credential.type,
   };
@@ -4388,10 +4432,10 @@ function registrationCredentialToJson(credential) {
  * @return {ArrayBuffer} 解码后的 ArrayBuffer。
  */
 function base64UrlToArrayBuffer(value) {
-  const normalized = String(value).replaceAll("-", "+").replaceAll("_", "/");
+  const normalized = String(value).replaceAll('-', '+').replaceAll('_', '/');
   const padded = normalized.padEnd(
-    normalized.length + (4 - normalized.length % 4) % 4,
-    "=",
+      normalized.length + (4 - normalized.length % 4) % 4,
+      '=',
   );
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
@@ -4420,14 +4464,14 @@ function optionalArrayBufferToBase64Url(value) {
 function arrayBufferToBase64Url(value) {
   const bytes = new Uint8Array(value);
   const chunkSize = 0x8000;
-  let binary = "";
+  let binary = '';
   for (let index = 0; index < bytes.length; index += chunkSize) {
     binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
   }
   return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
+      .replaceAll('+', '-')
+      .replaceAll('/', '_')
+      .replaceAll('=', '');
 }
 
 /**
@@ -4439,13 +4483,13 @@ function arrayBufferToBase64Url(value) {
 function emailVerificationRequestBody(form) {
   const body = new URLSearchParams();
   for (const [key, value] of new FormData(form)) {
-    if (typeof value === "string") {
+    if (typeof value === 'string') {
       body.set(key, value);
     }
   }
 
   body.set(csrfFieldName, currentCsrfToken());
-  body.set("purpose", "email_binding");
+  body.set('purpose', 'email_binding');
   return body;
 }
 
@@ -4458,16 +4502,16 @@ function emailVerificationRequestBody(form) {
  */
 function emailBindingErrorMessage(form, error) {
   switch (error) {
-    case "expired":
-      return form.dataset.emailVerificationExpired || "";
-    case "invalid":
-      return form.dataset.emailInvalid || "";
-    case "notFound":
-      return form.dataset.emailVerificationMissing || "";
-    case "attempts":
-    case "code":
+    case 'expired':
+      return form.dataset.emailVerificationExpired || '';
+    case 'invalid':
+      return form.dataset.emailInvalid || '';
+    case 'notFound':
+      return form.dataset.emailVerificationMissing || '';
+    case 'attempts':
+    case 'code':
     default:
-      return form.dataset.emailCodeInvalid || "";
+      return form.dataset.emailCodeInvalid || '';
   }
 }
 
@@ -4475,12 +4519,12 @@ function emailBindingErrorMessage(form, error) {
  * 重置 Turnstile widget，便于用户再次发送验证码。
  */
 function resetTurnstileWidget() {
-  if (typeof globalThis.revealTurnstileWidgets === "function") {
+  if (typeof globalThis.revealTurnstileWidgets === 'function') {
     globalThis.revealTurnstileWidgets();
   }
 
   const turnstile = globalThis.turnstile;
-  if (turnstile && typeof turnstile.reset === "function") {
+  if (turnstile && typeof turnstile.reset === 'function') {
     turnstile.reset();
   }
 }
@@ -4501,16 +4545,16 @@ function setInlineStatus(element, message, state, transient = false) {
   cancelTransientStatusClear(element);
   element.textContent = message;
   element.hidden = message.length === 0;
-  const container = element.closest("[data-inline-status-container]");
+  const container = element.closest('[data-inline-status-container]');
   if (container instanceof HTMLElement) {
     container.hidden = message.length === 0;
   }
-  if (state === "error") {
-    element.dataset.state = "error";
+  if (state === 'error') {
+    element.dataset.state = 'error';
   } else {
     delete element.dataset.state;
   }
-  if (transient && state === "success" && message.length > 0) {
+  if (transient && state === 'success' && message.length > 0) {
     scheduleTransientStatusClear(element);
   }
 }
@@ -4521,7 +4565,7 @@ function setInlineStatus(element, message, state, transient = false) {
  * @param {Element|null} element 状态元素。
  */
 function clearInlineStatus(element) {
-  setInlineStatus(element, "", "success");
+  setInlineStatus(element, '', 'success');
 }
 
 /**
@@ -4530,8 +4574,8 @@ function clearInlineStatus(element) {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initRenderedSuccessStatuses(scope = document) {
-  scope.querySelectorAll("[data-transient-success-status]").forEach(
-    (status) => scheduleTransientStatusClear(status),
+  scope.querySelectorAll('[data-transient-success-status]').forEach(
+      (status) => scheduleTransientStatusClear(status),
   );
 }
 
@@ -4580,12 +4624,12 @@ function initDropdown(editor, name) {
   const panel = dropdownPanel(editor, name);
   const toggle = dropdownToggle(editor, name);
   panel.hidden = false;
-  setDropdownOpen(editor, name, storedDropdownOpen(name), { persist: false });
+  setDropdownOpen(editor, name, storedDropdownOpen(name), {persist: false});
 
-  toggle.addEventListener("click", () => {
+  toggle.addEventListener('click', () => {
     const className = `is-${name.slice(0, -1)}-open`;
     const isOpen = !editor.classList.contains(className);
-    setDropdownOpen(editor, name, isOpen, { persist: true });
+    setDropdownOpen(editor, name, isOpen, {persist: true});
   });
 }
 
@@ -4603,10 +4647,10 @@ function setDropdownOpen(editor, name, isOpen, options = {}) {
   const className = `is-${name.slice(0, -1)}-open`;
 
   editor.classList.toggle(className, isOpen);
-  panel.setAttribute("aria-hidden", String(!isOpen));
+  panel.setAttribute('aria-hidden', String(!isOpen));
   panel.inert = !isOpen;
-  toggle.setAttribute("aria-expanded", String(isOpen));
-  toggle.classList.toggle("is-open", isOpen);
+  toggle.setAttribute('aria-expanded', String(isOpen));
+  toggle.classList.toggle('is-open', isOpen);
 
   if (options.persist) {
     storeDropdownOpen(name, isOpen);
@@ -4643,7 +4687,7 @@ function dropdownToggle(editor, name) {
  */
 function storedDropdownOpen(name) {
   try {
-    return localStorage.getItem(dropdownStorageKey(name)) === "open";
+    return localStorage.getItem(dropdownStorageKey(name)) === 'open';
   } catch {
     return false;
   }
@@ -4657,7 +4701,7 @@ function storedDropdownOpen(name) {
  */
 function storeDropdownOpen(name, isOpen) {
   try {
-    localStorage.setItem(dropdownStorageKey(name), isOpen ? "open" : "closed");
+    localStorage.setItem(dropdownStorageKey(name), isOpen ? 'open' : 'closed');
   } catch {
     // Keep the dropdown usable when browser storage is unavailable.
   }
@@ -4680,31 +4724,31 @@ function dropdownStorageKey(name) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function initTopicEditor(topicEditor, keywordEditor) {
-  topicEditor.addEventListener("click", (event) => {
+  topicEditor.addEventListener('click', (event) => {
     const button = actionButtonFromEvent(event);
     if (!button) {
       return;
     }
 
-    if (button.dataset.action === "insert-topic") {
+    if (button.dataset.action === 'insert-topic') {
       insertTopicRow(topicEditor, button);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === "delete-topics") {
+    if (button.dataset.action === 'delete-topics') {
       deleteTopicRows(topicEditor, keywordEditor, button);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === "edit-topic-keywords") {
+    if (button.dataset.action === 'edit-topic-keywords') {
       switchKeywordTarget(topicEditor, keywordEditor, button);
       scheduleAutoSave();
     }
   });
 
-  topicEditor.addEventListener("change", (event) => {
+  topicEditor.addEventListener('change', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) {
       return;
@@ -4712,46 +4756,46 @@ function initTopicEditor(topicEditor, keywordEditor) {
 
     let shouldSave = false;
 
-    if (target.matches("[data-role='select-all-topics']")) {
-      topicEditor.querySelectorAll("[data-role='select-topic-row']").forEach(
-        (checkbox) => {
-          checkbox.checked = target.checked;
-        },
+    if (target.matches('[data-role=\'select-all-topics\']')) {
+      topicEditor.querySelectorAll('[data-role=\'select-topic-row\']').forEach(
+          (checkbox) => {
+            checkbox.checked = target.checked;
+          },
       );
       syncHeaderCheckbox(
-        topicEditor,
-        "[data-role='select-all-topics']",
-        "[data-role='select-topic-row']",
+          topicEditor,
+          '[data-role=\'select-all-topics\']',
+          '[data-role=\'select-topic-row\']',
       );
     }
 
-    if (target.matches("[data-role='select-topic-row']")) {
+    if (target.matches('[data-role=\'select-topic-row\']')) {
       syncHeaderCheckbox(
-        topicEditor,
-        "[data-role='select-all-topics']",
-        "[data-role='select-topic-row']",
+          topicEditor,
+          '[data-role=\'select-all-topics\']',
+          '[data-role=\'select-topic-row\']',
       );
     }
 
-    if (target.matches("[data-role='enable-all-topics']")) {
-      topicEditor.querySelectorAll("[data-role='topic-enabled']").forEach(
-        (checkbox) => {
-          checkbox.checked = target.checked;
-        },
+    if (target.matches('[data-role=\'enable-all-topics\']')) {
+      topicEditor.querySelectorAll('[data-role=\'topic-enabled\']').forEach(
+          (checkbox) => {
+            checkbox.checked = target.checked;
+          },
       );
       syncHeaderCheckbox(
-        topicEditor,
-        "[data-role='enable-all-topics']",
-        "[data-role='topic-enabled']",
+          topicEditor,
+          '[data-role=\'enable-all-topics\']',
+          '[data-role=\'topic-enabled\']',
       );
       shouldSave = true;
     }
 
-    if (target.matches("[data-role='topic-enabled']")) {
+    if (target.matches('[data-role=\'topic-enabled\']')) {
       syncHeaderCheckbox(
-        topicEditor,
-        "[data-role='enable-all-topics']",
-        "[data-role='topic-enabled']",
+          topicEditor,
+          '[data-role=\'enable-all-topics\']',
+          '[data-role=\'topic-enabled\']',
       );
       shouldSave = true;
     }
@@ -4761,32 +4805,32 @@ function initTopicEditor(topicEditor, keywordEditor) {
     }
   });
 
-  topicEditor.addEventListener("input", () => {
+  topicEditor.addEventListener('input', () => {
     updateActiveTopicSummary(topicEditor);
     scheduleAutoSave();
   });
 
-  topicEditor.addEventListener("focusout", (event) => {
+  topicEditor.addEventListener('focusout', (event) => {
     if (
-      pruneIncompleteDraftTopicRows(
-        topicEditor,
-        keywordEditor,
-        event.relatedTarget,
-      )
+        pruneIncompleteDraftTopicRows(
+            topicEditor,
+            keywordEditor,
+            event.relatedTarget,
+        )
     ) {
       scheduleAutoSave();
     }
   });
 
   syncHeaderCheckbox(
-    topicEditor,
-    "[data-role='select-all-topics']",
-    "[data-role='select-topic-row']",
+      topicEditor,
+      '[data-role=\'select-all-topics\']',
+      '[data-role=\'select-topic-row\']',
   );
   syncHeaderCheckbox(
-    topicEditor,
-    "[data-role='enable-all-topics']",
-    "[data-role='topic-enabled']",
+      topicEditor,
+      '[data-role=\'enable-all-topics\']',
+      '[data-role=\'topic-enabled\']',
   );
 }
 
@@ -4796,33 +4840,33 @@ function initTopicEditor(topicEditor, keywordEditor) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function initKeywordEditor(keywordEditor) {
-  keywordEditor.addEventListener("click", (event) => {
+  keywordEditor.addEventListener('click', (event) => {
     const button = actionButtonFromEvent(event);
     if (!button) {
       return;
     }
 
-    if (button.dataset.action === "insert-keyword") {
+    if (button.dataset.action === 'insert-keyword') {
       insertKeywordRow(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === "delete-keywords") {
+    if (button.dataset.action === 'delete-keywords') {
       deleteKeywordRows(keywordEditor, button);
       updateKeywordSummary(keywordEditor);
       scheduleAutoSave();
       return;
     }
 
-    if (button.dataset.action === "toggle-keyword-option") {
+    if (button.dataset.action === 'toggle-keyword-option') {
       toggleKeywordOption(button);
       scheduleAutoSave();
     }
   });
 
-  keywordEditor.addEventListener("change", (event) => {
+  keywordEditor.addEventListener('change', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) {
       return;
@@ -4830,38 +4874,38 @@ function initKeywordEditor(keywordEditor) {
 
     let shouldSave = false;
 
-    if (target.matches("[data-role='select-all-keywords']")) {
-      keywordEditor.querySelectorAll("[data-role='select-keyword-row']")
-        .forEach((checkbox) => {
-          checkbox.checked = target.checked;
-        });
+    if (target.matches('[data-role=\'select-all-keywords\']')) {
+      keywordEditor.querySelectorAll('[data-role=\'select-keyword-row\']')
+          .forEach((checkbox) => {
+            checkbox.checked = target.checked;
+          });
       syncHeaderCheckbox(
-        keywordEditor,
-        "[data-role='select-all-keywords']",
-        "[data-role='select-keyword-row']",
+          keywordEditor,
+          '[data-role=\'select-all-keywords\']',
+          '[data-role=\'select-keyword-row\']',
       );
     }
 
-    if (target.matches("[data-role='select-keyword-row']")) {
+    if (target.matches('[data-role=\'select-keyword-row\']')) {
       syncHeaderCheckbox(
-        keywordEditor,
-        "[data-role='select-all-keywords']",
-        "[data-role='select-keyword-row']",
+          keywordEditor,
+          '[data-role=\'select-all-keywords\']',
+          '[data-role=\'select-keyword-row\']',
       );
     }
 
-    if (target.matches("[data-role='select-keyword-location']")) {
+    if (target.matches('[data-role=\'select-keyword-location\']')) {
       const location = target.dataset.location;
       keywordEditor
-        .querySelectorAll(`[name$="_location_${location}"]`)
-        .forEach((checkbox) => {
-          checkbox.checked = target.checked;
-        });
+          .querySelectorAll(`[name$="_location_${location}"]`)
+          .forEach((checkbox) => {
+            checkbox.checked = target.checked;
+          });
       syncKeywordLocationHeader(keywordEditor, location);
       shouldSave = true;
     }
 
-    if (target.name.includes("_location_")) {
+    if (target.name.includes('_location_')) {
       syncKeywordLocationHeaders(keywordEditor);
       shouldSave = true;
     }
@@ -4872,7 +4916,7 @@ function initKeywordEditor(keywordEditor) {
     }
   });
 
-  keywordEditor.addEventListener("input", (event) => {
+  keywordEditor.addEventListener('input', (event) => {
     const target = event.target;
     if (target instanceof HTMLInputElement && isKeywordTextInput(target)) {
       syncKeywordOptionsFromInput(target);
@@ -4882,16 +4926,16 @@ function initKeywordEditor(keywordEditor) {
     scheduleAutoSave();
   });
 
-  keywordEditor.addEventListener("focusout", (event) => {
+  keywordEditor.addEventListener('focusout', (event) => {
     if (pruneIncompleteDraftKeywordRows(keywordEditor, event.relatedTarget)) {
       scheduleAutoSave();
     }
   });
 
   syncHeaderCheckbox(
-    keywordEditor,
-    "[data-role='select-all-keywords']",
-    "[data-role='select-keyword-row']",
+      keywordEditor,
+      '[data-role=\'select-all-keywords\']',
+      '[data-role=\'select-keyword-row\']',
   );
   syncKeywordLocationHeaders(keywordEditor);
 }
@@ -4910,7 +4954,7 @@ function syncHeaderCheckbox(container, headerSelector, itemSelector) {
   }
 
   const items = Array.from(container.querySelectorAll(itemSelector))
-    .filter((item) => item instanceof HTMLInputElement);
+      .filter((item) => item instanceof HTMLInputElement);
   syncCheckboxState(header, items);
 }
 
@@ -4932,12 +4976,12 @@ function syncCheckboxState(header, items) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function syncKeywordLocationHeaders(keywordEditor) {
-  keywordEditor.querySelectorAll("[data-role='select-keyword-location']")
-    .forEach((checkbox) => {
-      if (checkbox instanceof HTMLInputElement) {
-        syncKeywordLocationHeader(keywordEditor, checkbox.dataset.location);
-      }
-    });
+  keywordEditor.querySelectorAll('[data-role=\'select-keyword-location\']')
+      .forEach((checkbox) => {
+        if (checkbox instanceof HTMLInputElement) {
+          syncKeywordLocationHeader(keywordEditor, checkbox.dataset.location);
+        }
+      });
 }
 
 /**
@@ -4952,23 +4996,23 @@ function syncKeywordLocationHeader(keywordEditor, location) {
   }
 
   const header = Array.from(
-    keywordEditor.querySelectorAll("[data-role='select-keyword-location']"),
-  )
-    .find((checkbox) =>
-      checkbox instanceof HTMLInputElement &&
-      checkbox.dataset.location === location
-    );
+          keywordEditor.querySelectorAll('[data-role=\'select-keyword-location\']'),
+      )
+      .find((checkbox) =>
+          checkbox instanceof HTMLInputElement &&
+          checkbox.dataset.location === location
+      );
   if (!(header instanceof HTMLInputElement)) {
     return;
   }
 
   const items = Array.from(
-    keywordEditor.querySelectorAll("[name*='_location_']"),
-  )
-    .filter((item) =>
-      item instanceof HTMLInputElement &&
-      item.name.endsWith(`_location_${location}`)
-    );
+          keywordEditor.querySelectorAll('[name*=\'_location_\']'),
+      )
+      .filter((item) =>
+          item instanceof HTMLInputElement &&
+          item.name.endsWith(`_location_${location}`)
+      );
   syncCheckboxState(header, items);
 }
 
@@ -4981,8 +5025,8 @@ function syncKeywordLocationHeader(keywordEditor, location) {
  */
 function pruneIncompleteDraftRows(topicEditor, keywordEditor) {
   const prunedTopics = pruneIncompleteDraftTopicRows(
-    topicEditor,
-    keywordEditor,
+      topicEditor,
+      keywordEditor,
   );
   const prunedKeywords = pruneIncompleteDraftKeywordRows(keywordEditor);
   return prunedTopics || prunedKeywords;
@@ -4997,27 +5041,27 @@ function pruneIncompleteDraftRows(topicEditor, keywordEditor) {
  * @return {boolean} 实际删除行时返回 true。
  */
 function pruneIncompleteDraftTopicRows(
-  topicEditor,
-  keywordEditor,
-  focusTarget = document.activeElement,
+    topicEditor,
+    keywordEditor,
+    focusTarget = document.activeElement,
 ) {
   let removed = false;
-  topicEditor.querySelectorAll("[data-topic-row][data-draft-row='true']")
-    .forEach((row) => {
-      if (rowContainsFocusTarget(row, focusTarget)) {
-        return;
-      }
+  topicEditor.querySelectorAll('[data-topic-row][data-draft-row=\'true\']')
+      .forEach((row) => {
+        if (rowContainsFocusTarget(row, focusTarget)) {
+          return;
+        }
 
-      const topicId =
-        row.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
-      if (topicId.length > 0) {
-        delete row.dataset.draftRow;
-        return;
-      }
+        const topicId =
+            row.querySelector('[data-topic-id-input]')?.value.trim() ?? '';
+        if (topicId.length > 0) {
+          delete row.dataset.draftRow;
+          return;
+        }
 
-      row.remove();
-      removed = true;
-    });
+        row.remove();
+        removed = true;
+      });
 
   if (!removed) {
     return false;
@@ -5028,12 +5072,12 @@ function pruneIncompleteDraftTopicRows(
 
   const activeTarget = activeKeywordTargetInput().value;
   if (
-    activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)
+      activeTarget !== 'common' && !findTopicRowById(topicEditor, activeTarget)
   ) {
     switchKeywordTarget(
-      topicEditor,
-      keywordEditor,
-      commonKeywordButton(topicEditor),
+        topicEditor,
+        keywordEditor,
+        commonKeywordButton(topicEditor),
     );
   }
 
@@ -5049,26 +5093,26 @@ function pruneIncompleteDraftTopicRows(
  * @return {boolean} 实际删除行时返回 true。
  */
 function pruneIncompleteDraftKeywordRows(
-  keywordEditor,
-  focusTarget = document.activeElement,
+    keywordEditor,
+    focusTarget = document.activeElement,
 ) {
   let removed = false;
-  keywordEditor.querySelectorAll("[data-keyword-row][data-draft-row='true']")
-    .forEach((row) => {
-      if (rowContainsFocusTarget(row, focusTarget)) {
-        return;
-      }
+  keywordEditor.querySelectorAll('[data-keyword-row][data-draft-row=\'true\']')
+      .forEach((row) => {
+        if (rowContainsFocusTarget(row, focusTarget)) {
+          return;
+        }
 
-      const keyword =
-        row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
-      if (keyword.length > 0) {
-        delete row.dataset.draftRow;
-        return;
-      }
+        const keyword =
+            row.querySelector('input[name^=\'keyword_\']')?.value.trim() ?? '';
+        if (keyword.length > 0) {
+          delete row.dataset.draftRow;
+          return;
+        }
 
-      row.remove();
-      removed = true;
-    });
+        row.remove();
+        removed = true;
+      });
 
   if (!removed) {
     return false;
@@ -5098,12 +5142,12 @@ function rowContainsFocusTarget(row, focusTarget) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function initRuleDragging(topicEditor, keywordEditor) {
-  topicEditor.addEventListener("pointerdown", (event) => {
-    beginRuleDrag(event, "topic", topicEditor, keywordEditor);
+  topicEditor.addEventListener('pointerdown', (event) => {
+    beginRuleDrag(event, 'topic', topicEditor, keywordEditor);
   });
 
-  keywordEditor.addEventListener("pointerdown", (event) => {
-    beginRuleDrag(event, "keyword", topicEditor, keywordEditor);
+  keywordEditor.addEventListener('pointerdown', (event) => {
+    beginRuleDrag(event, 'keyword', topicEditor, keywordEditor);
   });
 }
 
@@ -5111,7 +5155,7 @@ function initRuleDragging(topicEditor, keywordEditor) {
  * 开始跟踪规则行拖拽。
  *
  * @param {PointerEvent} event 指针按下事件。
- * @param {"topic"|"keyword"} kind 拖拽行类型。
+ * @param {'topic'|'keyword'} kind 拖拽行类型。
  * @param {HTMLElement} topicEditor 话题编辑器元素。
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
@@ -5122,7 +5166,7 @@ function beginRuleDrag(event, kind, topicEditor, keywordEditor) {
   }
 
   const row = handle.closest(
-    kind === "topic" ? "[data-topic-row]" : "[data-keyword-row]",
+      kind === 'topic' ? '[data-topic-row]' : '[data-keyword-row]',
   );
   if (!(row instanceof HTMLElement)) {
     return;
@@ -5144,9 +5188,9 @@ function beginRuleDrag(event, kind, topicEditor, keywordEditor) {
     topicEditor,
   };
 
-  document.addEventListener("pointermove", updateActiveRuleDrag);
-  document.addEventListener("pointerup", finishActiveRuleDrag);
-  document.addEventListener("pointercancel", finishActiveRuleDrag);
+  document.addEventListener('pointermove', updateActiveRuleDrag);
+  document.addEventListener('pointerup', finishActiveRuleDrag);
+  document.addEventListener('pointercancel', finishActiveRuleDrag);
   handle.setPointerCapture?.(event.pointerId);
 }
 
@@ -5162,7 +5206,7 @@ function ruleDragHandleFromEvent(event) {
     return undefined;
   }
 
-  const handle = target.closest("[data-rule-drag-handle]");
+  const handle = target.closest('[data-rule-drag-handle]');
   return handle instanceof HTMLButtonElement ? handle : undefined;
 }
 
@@ -5179,8 +5223,8 @@ function updateActiveRuleDrag(event) {
 
   event.preventDefault();
   if (
-    !state.started &&
-    Math.hypot(event.clientX - state.startX, event.clientY - state.startY) < 4
+      !state.started &&
+      Math.hypot(event.clientX - state.startX, event.clientY - state.startY) < 4
   ) {
     return;
   }
@@ -5218,10 +5262,10 @@ function finishActiveRuleDrag(event) {
  */
 function startRuleDragPreview(state) {
   state.started = true;
-  state.row.classList.add("is-rule-dragging");
+  state.row.classList.add('is-rule-dragging');
 
-  const ghost = document.createElement("div");
-  ghost.className = "rule-drag-ghost";
+  const ghost = document.createElement('div');
+  ghost.className = 'rule-drag-ghost';
   ghost.textContent = ruleDragPreviewText(state);
   document.body.append(ghost);
   state.ghost = ghost;
@@ -5234,16 +5278,16 @@ function startRuleDragPreview(state) {
  * @return {string} 拖拽预览文本。
  */
 function ruleDragPreviewText(state) {
-  if (state.kind === "topic") {
-    const id = state.row.querySelector("[data-topic-id-input]")?.value.trim() ??
-      "";
+  if (state.kind === 'topic') {
+    const id = state.row.querySelector('[data-topic-id-input]')?.value.trim() ??
+        '';
     const note =
-      state.row.querySelector("[data-topic-note-input]")?.value.trim() ?? "";
-    return [note, id].filter(Boolean).join(" ") || state.handle.title;
+        state.row.querySelector('[data-topic-note-input]')?.value.trim() ?? '';
+    return [note, id].filter(Boolean).join(' ') || state.handle.title;
   }
 
   const keyword =
-    state.row.querySelector("input[name^='keyword_']")?.value.trim() ?? "";
+      state.row.querySelector('input[name^=\'keyword_\']')?.value.trim() ?? '';
   return keyword || state.handle.title;
 }
 
@@ -5277,7 +5321,7 @@ function updateRuleDragTarget(state, event) {
     return;
   }
 
-  if (state.kind === "topic") {
+  if (state.kind === 'topic') {
     updateTopicDragTarget(state, target, event.clientY);
     return;
   }
@@ -5293,11 +5337,11 @@ function updateRuleDragTarget(state, event) {
  * @param {number} clientY 指针垂直位置。
  */
 function updateTopicDragTarget(state, target, clientY) {
-  const targetRow = target.closest("[data-topic-row]");
+  const targetRow = target.closest('[data-topic-row]');
   if (
-    !(targetRow instanceof HTMLElement) ||
-    targetRow === state.row ||
-    !state.topicEditor.contains(targetRow)
+      !(targetRow instanceof HTMLElement) ||
+      targetRow === state.row ||
+      !state.topicEditor.contains(targetRow)
   ) {
     return;
   }
@@ -5313,24 +5357,24 @@ function updateTopicDragTarget(state, target, clientY) {
  * @param {number} clientY 指针垂直位置。
  */
 function updateKeywordDragTarget(state, target, clientY) {
-  const keywordRow = target.closest("[data-keyword-row]");
+  const keywordRow = target.closest('[data-keyword-row]');
   if (
-    keywordRow instanceof HTMLElement &&
-    keywordRow !== state.row &&
-    state.keywordEditor.contains(keywordRow)
+      keywordRow instanceof HTMLElement &&
+      keywordRow !== state.row &&
+      state.keywordEditor.contains(keywordRow)
   ) {
     state.dropTargetTopicRow = undefined;
     moveDraggedRowBesideTarget(state, keywordRow, clientY);
     return;
   }
 
-  const topicRow = target.closest("[data-topic-row]");
+  const topicRow = target.closest('[data-topic-row]');
   if (
-    topicRow instanceof HTMLElement &&
-    state.topicEditor.contains(topicRow) &&
-    topicRowCanReceiveKeyword(state.topicEditor, topicRow)
+      topicRow instanceof HTMLElement &&
+      state.topicEditor.contains(topicRow) &&
+      topicRowCanReceiveKeyword(state.topicEditor, topicRow)
   ) {
-    topicRow.classList.add("is-keyword-drop-target");
+    topicRow.classList.add('is-keyword-drop-target');
     state.dropTargetTopicRow = topicRow;
     return;
   }
@@ -5349,7 +5393,7 @@ function moveDraggedRowBesideTarget(state, targetRow, clientY) {
   const rect = targetRow.getBoundingClientRect();
   const insertBefore = clientY < rect.top + rect.height / 2;
   targetRow.classList.add(
-    insertBefore ? "is-rule-drag-over-before" : "is-rule-drag-over-after",
+      insertBefore ? 'is-rule-drag-over-before' : 'is-rule-drag-over-after',
   );
 
   if (insertBefore) {
@@ -5366,7 +5410,7 @@ function moveDraggedRowBesideTarget(state, targetRow, clientY) {
  * @param {Object} state 拖拽状态。
  */
 function completeRuleDrag(state) {
-  if (state.kind === "topic") {
+  if (state.kind === 'topic') {
     if (state.moved) {
       reindexTopicRows(state.topicEditor);
       updateActiveTopicSummary(state.topicEditor);
@@ -5376,13 +5420,13 @@ function completeRuleDrag(state) {
   }
 
   if (
-    state.dropTargetTopicRow instanceof HTMLElement &&
-    moveKeywordRowToTopic(
-      state.topicEditor,
-      state.keywordEditor,
-      state.row,
-      state.dropTargetTopicRow,
-    )
+      state.dropTargetTopicRow instanceof HTMLElement &&
+      moveKeywordRowToTopic(
+          state.topicEditor,
+          state.keywordEditor,
+          state.row,
+          state.dropTargetTopicRow,
+      )
   ) {
     scheduleAutoSave();
     return;
@@ -5401,11 +5445,11 @@ function completeRuleDrag(state) {
  * @param {Object} state 拖拽状态。
  */
 function cleanupRuleDrag(state) {
-  document.removeEventListener("pointermove", updateActiveRuleDrag);
-  document.removeEventListener("pointerup", finishActiveRuleDrag);
-  document.removeEventListener("pointercancel", finishActiveRuleDrag);
+  document.removeEventListener('pointermove', updateActiveRuleDrag);
+  document.removeEventListener('pointerup', finishActiveRuleDrag);
+  document.removeEventListener('pointercancel', finishActiveRuleDrag);
   state.handle.releasePointerCapture?.(state.pointerId);
-  state.row.classList.remove("is-rule-dragging");
+  state.row.classList.remove('is-rule-dragging');
   state.ghost?.remove();
   clearRuleDragIndicators();
 }
@@ -5415,16 +5459,16 @@ function cleanupRuleDrag(state) {
  */
 function clearRuleDragIndicators() {
   document
-    .querySelectorAll(
-      ".is-rule-drag-over-before, .is-rule-drag-over-after, .is-keyword-drop-target",
-    )
-    .forEach((row) => {
-      row.classList.remove(
-        "is-rule-drag-over-before",
-        "is-rule-drag-over-after",
-        "is-keyword-drop-target",
-      );
-    });
+      .querySelectorAll(
+          '.is-rule-drag-over-before, .is-rule-drag-over-after, .is-keyword-drop-target',
+      )
+      .forEach((row) => {
+        row.classList.remove(
+            'is-rule-drag-over-before',
+            'is-rule-drag-over-after',
+            'is-keyword-drop-target',
+        );
+      });
 }
 
 /**
@@ -5436,14 +5480,14 @@ function clearRuleDragIndicators() {
  */
 function topicRowCanReceiveKeyword(topicEditor, topicRow) {
   const topicId =
-    topicRow.querySelector("[data-topic-id-input]")?.value.trim() ?? "";
+      topicRow.querySelector('[data-topic-id-input]')?.value.trim() ?? '';
   if (!topicId) {
     return false;
   }
 
-  const activeTarget = activeKeywordTargetInput().value || "common";
-  return activeTarget === "common" ||
-    findActiveTopicRow(topicEditor, activeTarget) !== topicRow;
+  const activeTarget = activeKeywordTargetInput().value || 'common';
+  return activeTarget === 'common' ||
+      findActiveTopicRow(topicEditor, activeTarget) !== topicRow;
 }
 
 /**
@@ -5456,10 +5500,10 @@ function topicRowCanReceiveKeyword(topicEditor, topicRow) {
  * @return {boolean} 实际移动成功时返回 true。
  */
 function moveKeywordRowToTopic(
-  topicEditor,
-  keywordEditor,
-  keywordRow,
-  topicRow,
+    topicEditor,
+    keywordEditor,
+    keywordRow,
+    topicRow,
 ) {
   const rule = keywordRuleFromRow(keywordRow);
   if (!keywordRuleIsPersistable(rule)) {
@@ -5486,18 +5530,18 @@ function moveKeywordRowToTopic(
  * @return {{caseSensitive: boolean, keyword: string, locations: string[], useRegex: boolean}} 关键词规则。
  */
 function keywordRuleFromRow(row) {
-  const keyword = row.querySelector("input[name^='keyword_']")?.value.trim() ??
-    "";
-  const locations = Array.from(row.querySelectorAll("[name*='_location_']"))
-    .filter((input) => input.checked)
-    .map((input) => input.name.match(/_location_(.+)$/)?.[1])
-    .filter(Boolean);
+  const keyword = row.querySelector('input[name^=\'keyword_\']')?.value.trim() ??
+      '';
+  const locations = Array.from(row.querySelectorAll('[name*=\'_location_\']'))
+      .filter((input) => input.checked)
+      .map((input) => input.name.match(/_location_(.+)$/)?.[1])
+      .filter(Boolean);
 
   return {
-    caseSensitive: keywordOptionEnabled(row, "caseSensitive"),
+    caseSensitive: keywordOptionEnabled(row, 'caseSensitive'),
     keyword,
     locations,
-    useRegex: keywordOptionEnabled(row, "useRegex"),
+    useRegex: keywordOptionEnabled(row, 'useRegex'),
   };
 }
 
@@ -5523,7 +5567,7 @@ function actionButtonFromEvent(event) {
     return undefined;
   }
 
-  const button = target.closest("[data-action]");
+  const button = target.closest('[data-action]');
   return button instanceof HTMLButtonElement ? button : undefined;
 }
 
@@ -5534,10 +5578,10 @@ function actionButtonFromEvent(event) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function initKeywordRuleStorage(topicEditor, keywordEditor) {
-  const activeTarget = activeKeywordTargetInput().value || "common";
+  const activeTarget = activeKeywordTargetInput().value || 'common';
   const commonInput = commonKeywordRulesInput();
 
-  if (activeTarget === "common") {
+  if (activeTarget === 'common') {
     commonInput.value = serializeKeywordRows(keywordEditor);
   } else {
     const activeRow = findActiveTopicRow(topicEditor, activeTarget);
@@ -5546,8 +5590,8 @@ function initKeywordRuleStorage(topicEditor, keywordEditor) {
     }
   }
 
-  topicEditor.dataset.commonKeywords = commonInput.value || "[]";
-  topicEditor.closest("form")?.addEventListener("submit", () => {
+  topicEditor.dataset.commonKeywords = commonInput.value || '[]';
+  topicEditor.closest('form')?.addEventListener('submit', () => {
     persistCurrentKeywordRows(topicEditor, keywordEditor);
   });
 }
@@ -5558,7 +5602,7 @@ function initKeywordRuleStorage(topicEditor, keywordEditor) {
  * @return {HTMLInputElement} 通用关键词规则输入框。
  */
 function commonKeywordRulesInput() {
-  return document.querySelector("[data-common-keyword-rules]");
+  return document.querySelector('[data-common-keyword-rules]');
 }
 
 /**
@@ -5570,33 +5614,33 @@ function commonKeywordRulesInput() {
  */
 function findActiveTopicRow(topicEditor, activeTarget) {
   return topicEditor.querySelector(
-    '[data-topic-row][data-active-keyword-target="true"]',
-  ) ??
-    findTopicRowById(topicEditor, activeTarget);
+          '[data-topic-row][data-active-keyword-target="true"]',
+      ) ??
+      findTopicRowById(topicEditor, activeTarget);
 }
 
 /**
  * 初始化主题色和暗色模式控件。
  */
 function initThemePicker() {
-  const colorInput = document.querySelector("[data-theme-color-input]");
-  const darkModeInput = document.querySelector("[data-dark-mode-input]");
+  const colorInput = document.querySelector('[data-theme-color-input]');
+  const darkModeInput = document.querySelector('[data-dark-mode-input]');
 
   if (colorInput instanceof HTMLInputElement) {
-    colorInput.addEventListener("input", () => {
+    colorInput.addEventListener('input', () => {
       document.documentElement.style.setProperty(
-        "--theme-color",
-        colorInput.value,
+          '--theme-color',
+          colorInput.value,
       );
       scheduleAutoSave();
     });
   }
 
   if (darkModeInput instanceof HTMLInputElement) {
-    darkModeInput.addEventListener("change", () => {
+    darkModeInput.addEventListener('change', () => {
       document.documentElement.dataset.colorMode = darkModeInput.checked
-        ? "dark"
-        : "light";
+          ? 'dark'
+          : 'light';
       scheduleAutoSave();
     });
   }
@@ -5619,7 +5663,7 @@ function initAutoSave(form, topicEditor, keywordEditor) {
   autoSaveKeywordEditor = keywordEditor;
   lastSavedSignature = settingsSignature();
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     void saveSettingsNow();
   });
@@ -5638,18 +5682,18 @@ function initAutoSave(form, topicEditor, keywordEditor) {
     }
 
     const target = event.target;
-    if (target instanceof HTMLSelectElement && target.name === "locale") {
+    if (target instanceof HTMLSelectElement && target.name === 'locale') {
       reloadAfterSave = true;
     }
 
     scheduleAutoSave();
   };
 
-  form.addEventListener("input", handleInput);
-  form.addEventListener("change", handleChange);
+  form.addEventListener('input', handleInput);
+  form.addEventListener('change', handleChange);
   externalAutoSaveControls(form).forEach((control) => {
-    control.addEventListener("input", handleInput);
-    control.addEventListener("change", handleChange);
+    control.addEventListener('input', handleInput);
+    control.addEventListener('change', handleChange);
   });
 }
 
@@ -5665,7 +5709,7 @@ function externalAutoSaveControls(form) {
   }
 
   return Array.from(document.querySelectorAll(`[form="${form.id}"]`))
-    .filter((control) => !form.contains(control));
+      .filter((control) => !form.contains(control));
 }
 
 /**
@@ -5677,7 +5721,7 @@ function externalAutoSaveControls(form) {
 function isEditorEvent(event) {
   const target = event.target;
   return target instanceof Element &&
-    Boolean(target.closest("[data-topic-editor], [data-keyword-editor]"));
+      Boolean(target.closest('[data-topic-editor], [data-keyword-editor]'));
 }
 
 /**
@@ -5715,34 +5759,34 @@ async function saveSettingsNow() {
 
   autoSaveController?.abort();
   autoSaveController = new AbortController();
-  setAutoSaveStatus("saving");
+  setAutoSaveStatus('saving');
 
   try {
     const response = await fetch(autoSaveForm.action, {
       body: formDataFromForm(autoSaveForm),
-      headers: csrfRequestHeaders({ "x-autosave": "1" }),
-      method: autoSaveForm.method || "post",
+      headers: csrfRequestHeaders({'x-autosave': '1'}),
+      method: autoSaveForm.method || 'post',
       signal: autoSaveController.signal,
     });
 
     if (!response.ok) {
-      setAutoSaveStatus("error");
+      setAutoSaveStatus('error');
       return false;
     }
 
     clearSecretSubmissionValues();
     lastSavedSignature = settingsSignature();
-    setAutoSaveStatus("saved");
+    setAutoSaveStatus('saved');
     if (reloadAfterSave) {
       location.reload();
     }
     return true;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
+    if (error instanceof DOMException && error.name === 'AbortError') {
       return false;
     }
 
-    setAutoSaveStatus("error");
+    setAutoSaveStatus('error');
     return false;
   }
 }
@@ -5753,27 +5797,27 @@ async function saveSettingsNow() {
  * @param {HTMLButtonElement} testNotifyButton 测试通知按钮。
  */
 async function sendTestNotification(testNotifyButton) {
-  const fallbackError = testNotifyButton?.dataset?.testNotifyFailed ?? "";
+  const fallbackError = testNotifyButton?.dataset?.testNotifyFailed ?? '';
 
   try {
-    const response = await fetch("/test-notify", {
-      headers: csrfRequestHeaders({ "x-test-notify": "1" }),
-      method: "POST",
+    const response = await fetch('/test-notify', {
+      headers: csrfRequestHeaders({'x-test-notify': '1'}),
+      method: 'POST',
     });
     const text = await response.text();
     if (response.ok) {
-      setTestNotifyStatus(text, "success");
+      setTestNotifyStatus(text, 'success');
     } else {
       const statusLine = `HTTP ${response.status}${
-        response.statusText ? ` ${response.statusText}` : ""
+          response.statusText ? ` ${response.statusText}` : ''
       }`;
-      setTestNotifyStatus(fallbackError, "error", {
-        errorDetails: [statusLine, text || fallbackError].join("\n\n"),
+      setTestNotifyStatus(fallbackError, 'error', {
+        errorDetails: [statusLine, text || fallbackError].join('\n\n'),
       });
     }
   } catch (error) {
     const errorDetails = error instanceof Error ? error.message : fallbackError;
-    setTestNotifyStatus(fallbackError, "error", { errorDetails });
+    setTestNotifyStatus(fallbackError, 'error', {errorDetails});
   }
 }
 
@@ -5785,7 +5829,7 @@ async function sendTestNotification(testNotifyButton) {
  */
 function csrfRequestHeaders(headers = {}) {
   const token = currentCsrfToken();
-  return token ? { ...headers, [csrfHeaderName]: token } : headers;
+  return token ? {...headers, [csrfHeaderName]: token} : headers;
 }
 
 /**
@@ -5795,7 +5839,7 @@ function csrfRequestHeaders(headers = {}) {
  */
 function currentCsrfToken() {
   const input = document.querySelector(`input[name="${csrfFieldName}"]`);
-  return input instanceof HTMLInputElement ? input.value : "";
+  return input instanceof HTMLInputElement ? input.value : '';
 }
 
 /**
@@ -5805,22 +5849,22 @@ function currentCsrfToken() {
  * @param {string} state 状态类型。
  * @param {Object} [options] 状态展示选项。
  */
-function setTestNotifyStatus(text, state = "", options = {}) {
-  const status = document.querySelector("[data-test-notify-status]");
+function setTestNotifyStatus(text, state = '', options = {}) {
+  const status = document.querySelector('[data-test-notify-status]');
   if (!(status instanceof HTMLElement)) {
     return;
   }
 
   clearTimeout(testNotifyStatusTimer);
-  const statusText = status.querySelector("[data-test-notify-status-text]");
+  const statusText = status.querySelector('[data-test-notify-status-text]');
   if (statusText) {
     statusText.textContent = text;
   } else {
     status.textContent = text;
   }
   updateTestNotifyErrorLink(
-    status,
-    state === "error" ? options.errorDetails : undefined,
+      status,
+      state === 'error' ? options.errorDetails : undefined,
   );
   status.hidden = text.length === 0 && !options.errorDetails;
 
@@ -5830,13 +5874,13 @@ function setTestNotifyStatus(text, state = "", options = {}) {
     delete status.dataset.state;
   }
 
-  const persistMs = options.persistMs ?? (state === "error" ? 0 : 2200);
+  const persistMs = options.persistMs ?? (state === 'error' ? 0 : 2200);
   if (text && persistMs > 0) {
     testNotifyStatusTimer = setTimeout(() => {
       const currentStatusText =
-        status.querySelector("[data-test-notify-status-text]") ?? status;
+          status.querySelector('[data-test-notify-status-text]') ?? status;
       if (currentStatusText.textContent === text) {
-        currentStatusText.textContent = "";
+        currentStatusText.textContent = '';
         updateTestNotifyErrorLink(status);
         status.hidden = true;
         delete status.dataset.state;
@@ -5852,7 +5896,7 @@ function setTestNotifyStatus(text, state = "", options = {}) {
  * @param {string|undefined} [errorDetails] 错误详情文本。
  */
 function updateTestNotifyErrorLink(status, errorDetails) {
-  const errorLink = status.querySelector("[data-test-notify-error-link]");
+  const errorLink = status.querySelector('[data-test-notify-error-link]');
   if (!(errorLink instanceof HTMLAnchorElement)) {
     return;
   }
@@ -5864,15 +5908,15 @@ function updateTestNotifyErrorLink(status, errorDetails) {
 
   if (!errorDetails) {
     errorLink.hidden = true;
-    errorLink.removeAttribute("href");
+    errorLink.removeAttribute('href');
     return;
   }
 
   testNotifyErrorDetailsUrl = URL.createObjectURL(
-    new Blob(
-      [renderTestNotifyErrorPage(errorLink, errorDetails)],
-      { type: "text/html;charset=utf-8" },
-    ),
+      new Blob(
+          [renderTestNotifyErrorPage(errorLink, errorDetails)],
+          {type: 'text/html;charset=utf-8'},
+      ),
   );
   errorLink.href = testNotifyErrorDetailsUrl;
   errorLink.hidden = false;
@@ -5887,22 +5931,22 @@ function updateTestNotifyErrorLink(status, errorDetails) {
  */
 function renderTestNotifyErrorPage(errorLink, errorDetails) {
   const appName = errorLink.dataset.errorAppName || document.title ||
-    "Heybox Topic Notifier";
-  const appOrigin = globalThis.location?.origin || "";
-  const colorMode = errorLink.dataset.errorDarkMode === "true"
-    ? "dark"
-    : "light";
-  const direction = errorLink.dataset.errorDirection === "rtl" ? "rtl" : "ltr";
-  const errorTitle = errorLink.dataset.errorTitle || "Error message";
+      'Heybox Topic Notifier';
+  const appOrigin = globalThis.location?.origin || '';
+  const colorMode = errorLink.dataset.errorDarkMode === 'true'
+      ? 'dark'
+      : 'light';
+  const direction = errorLink.dataset.errorDirection === 'rtl' ? 'rtl' : 'ltr';
+  const errorTitle = errorLink.dataset.errorTitle || 'Error message';
   const locale = errorLink.dataset.errorLocale ||
-    document.documentElement.lang || "zh-CN";
+      document.documentElement.lang || 'zh-CN';
   const generatedAt = new Date().toLocaleString(locale);
-  const navDashboard = errorLink.dataset.errorNavDashboard || "Dashboard";
-  const navHistory = errorLink.dataset.errorNavHistory || "History";
-  const navSettings = errorLink.dataset.errorNavSettings || "Settings";
+  const navDashboard = errorLink.dataset.errorNavDashboard || 'Dashboard';
+  const navHistory = errorLink.dataset.errorNavHistory || 'History';
+  const navSettings = errorLink.dataset.errorNavSettings || 'Settings';
   const returnLabel = errorLink.dataset.errorReturnLabel || navSettings;
   const summary = errorLink.dataset.errorSummary || errorTitle;
-  const themeColor = errorLink.dataset.errorThemeColor || "#BD7FFF";
+  const themeColor = errorLink.dataset.errorThemeColor || '#BD7FFF';
 
   return `<!doctype html>
 <html
@@ -5969,13 +6013,13 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
       <dl class="settings-list">
         <div class="error-detail-row">
           <dd><pre class="error-detail-content" dir="ltr">${
-    escapeHtml(errorDetails)
+      escapeHtml(errorDetails)
   }</pre></dd>
         </div>
       </dl>
       <div class="error-detail-actions">
         <a class="button-link" href="${escapeHtml(appOrigin)}/settings">${
-    escapeHtml(returnLabel)
+      escapeHtml(returnLabel)
   }</a>
       </div>
     </section>
@@ -5992,13 +6036,13 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
  */
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) =>
-    ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    })[char]);
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        '\'': '&#39;',
+      })[char]);
 }
 
 /**
@@ -6008,7 +6052,7 @@ function escapeHtml(value) {
  */
 function settingsSignature() {
   if (!autoSaveForm) {
-    return "";
+    return '';
   }
 
   return formSignature(autoSaveForm);
@@ -6048,20 +6092,20 @@ function formDataFromForm(form) {
  * @param {string|undefined} [text] 自定义状态文案。
  */
 function setAutoSaveStatus(state, text) {
-  const status = document.querySelector("[data-autosave-status]");
+  const status = document.querySelector('[data-autosave-status]');
   if (!status || !autoSaveForm) {
     return;
   }
 
   const message = text ??
-    autoSaveForm
-      .dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
-    "";
+      autoSaveForm
+          .dataset[`autosave${state[0].toUpperCase()}${state.slice(1)}`] ??
+      '';
   setInlineStatus(
-    status,
-    message,
-    state === "error" ? "error" : state === "saved" ? "success" : "pending",
-    state === "saved",
+      status,
+      message,
+      state === 'error' ? 'error' : state === 'saved' ? 'success' : 'pending',
+      state === 'saved',
   );
 }
 
@@ -6072,17 +6116,17 @@ function setAutoSaveStatus(state, text) {
  * @param {HTMLButtonElement} actionButton 触发插入的操作按钮。
  */
 function insertTopicRow(editor, actionButton) {
-  const template = editor.querySelector("[data-topic-row-template]");
-  const grid = editor.querySelector(".topic-rule-grid");
-  const row = actionButton.closest("[data-topic-row]");
+  const template = editor.querySelector('[data-topic-row-template]');
+  const grid = editor.querySelector('.topic-rule-grid');
+  const row = actionButton.closest('[data-topic-row]');
   const fragment = template.content.cloneNode(true);
-  const newRow = fragment.querySelector("[data-topic-row]");
-  newRow.dataset.draftRow = "true";
+  const newRow = fragment.querySelector('[data-topic-row]');
+  newRow.dataset.draftRow = 'true';
 
   if (row) {
     row.after(newRow);
   } else {
-    const firstRow = grid.querySelector("[data-topic-row]");
+    const firstRow = grid.querySelector('[data-topic-row]');
     if (firstRow) {
       firstRow.before(newRow);
     } else {
@@ -6091,7 +6135,7 @@ function insertTopicRow(editor, actionButton) {
   }
 
   reindexTopicRows(editor);
-  newRow.querySelector("[data-topic-id-input]").focus();
+  newRow.querySelector('[data-topic-id-input]').focus();
 }
 
 /**
@@ -6103,16 +6147,16 @@ function insertTopicRow(editor, actionButton) {
  */
 function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
   const selectedRows = Array.from(
-    topicEditor.querySelectorAll("[data-topic-row]"),
-  )
-    .filter((row) =>
-      row.querySelector("[data-role='select-topic-row']")?.checked
-    );
+          topicEditor.querySelectorAll('[data-topic-row]'),
+      )
+      .filter((row) =>
+          row.querySelector('[data-role=\'select-topic-row\']')?.checked
+      );
 
   if (selectedRows.length > 0) {
     selectedRows.forEach((row) => row.remove());
   } else {
-    const row = actionButton.closest("[data-topic-row]");
+    const row = actionButton.closest('[data-topic-row]');
     if (!row) {
       showToast(topicEditor, topicEditor.dataset.deleteMessage);
       return;
@@ -6126,12 +6170,12 @@ function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
 
   const activeTarget = activeKeywordTargetInput().value;
   if (
-    activeTarget !== "common" && !findTopicRowById(topicEditor, activeTarget)
+      activeTarget !== 'common' && !findTopicRowById(topicEditor, activeTarget)
   ) {
     switchKeywordTarget(
-      topicEditor,
-      keywordEditor,
-      commonKeywordButton(topicEditor),
+        topicEditor,
+        keywordEditor,
+        commonKeywordButton(topicEditor),
     );
   }
 
@@ -6144,12 +6188,12 @@ function deleteTopicRows(topicEditor, keywordEditor, actionButton) {
  * @param {HTMLElement} editor 话题编辑器元素。
  */
 function ensureAtLeastOneTopicRow(editor) {
-  if (editor.querySelector("[data-topic-row]")) {
+  if (editor.querySelector('[data-topic-row]')) {
     return;
   }
 
-  const template = editor.querySelector("[data-topic-row-template]");
-  const grid = editor.querySelector(".topic-rule-grid");
+  const template = editor.querySelector('[data-topic-row-template]');
+  const grid = editor.querySelector('.topic-rule-grid');
   grid.append(template.content.cloneNode(true));
 }
 
@@ -6159,28 +6203,28 @@ function ensureAtLeastOneTopicRow(editor) {
  * @param {HTMLElement} editor 话题编辑器元素。
  */
 function reindexTopicRows(editor) {
-  editor.querySelectorAll("[data-topic-row]").forEach((row, index) => {
-    row.querySelectorAll("input").forEach((input) => {
+  editor.querySelectorAll('[data-topic-row]').forEach((row, index) => {
+    row.querySelectorAll('input').forEach((input) => {
       if (!input.name) {
         return;
       }
 
       input.name = input.name.replace(
-        /topic_(?:__index__|\d+)_/,
-        `topic_${index}_`,
+          /topic_(?:__index__|\d+)_/,
+          `topic_${index}_`,
       );
     });
   });
 
   syncHeaderCheckbox(
-    editor,
-    "[data-role='select-all-topics']",
-    "[data-role='select-topic-row']",
+      editor,
+      '[data-role=\'select-all-topics\']',
+      '[data-role=\'select-topic-row\']',
   );
   syncHeaderCheckbox(
-    editor,
-    "[data-role='enable-all-topics']",
-    "[data-role='topic-enabled']",
+      editor,
+      '[data-role=\'enable-all-topics\']',
+      '[data-role=\'topic-enabled\']',
   );
 }
 
@@ -6194,20 +6238,20 @@ function reindexTopicRows(editor) {
 function switchKeywordTarget(topicEditor, keywordEditor, button) {
   persistCurrentKeywordRows(topicEditor, keywordEditor);
 
-  const row = button.closest("[data-topic-row]");
+  const row = button.closest('[data-topic-row]');
   const target = row
-    ? row.querySelector("[data-topic-id-input]").value.trim()
-    : "common";
-  topicEditor.querySelectorAll("[data-topic-row]").forEach((topicRow) => {
-    topicRow.dataset.activeKeywordTarget = "false";
+      ? row.querySelector('[data-topic-id-input]').value.trim()
+      : 'common';
+  topicEditor.querySelectorAll('[data-topic-row]').forEach((topicRow) => {
+    topicRow.dataset.activeKeywordTarget = 'false';
   });
   if (row) {
-    row.dataset.activeKeywordTarget = "true";
+    row.dataset.activeKeywordTarget = 'true';
   }
-  activeKeywordTargetInput().value = target || "common";
+  activeKeywordTargetInput().value = target || 'common';
 
   const rules = row ? parseRules(topicKeywordRulesValue(row)) : parseRules(
-    commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords,
+      commonKeywordRulesInput().value || topicEditor.dataset.commonKeywords,
   );
 
   replaceKeywordRows(keywordEditor, rules);
@@ -6223,10 +6267,10 @@ function switchKeywordTarget(topicEditor, keywordEditor, button) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function persistCurrentKeywordRows(topicEditor, keywordEditor) {
-  const activeTarget = activeKeywordTargetInput().value || "common";
+  const activeTarget = activeKeywordTargetInput().value || 'common';
   const serialized = serializeKeywordRows(keywordEditor);
 
-  if (activeTarget === "common") {
+  if (activeTarget === 'common') {
     topicEditor.dataset.commonKeywords = serialized;
     commonKeywordRulesInput().value = serialized;
     return;
@@ -6245,10 +6289,10 @@ function persistCurrentKeywordRows(topicEditor, keywordEditor) {
  * @return {string} 序列化后的关键词规则。
  */
 function topicKeywordRulesValue(row) {
-  return row.querySelector("[data-topic-keyword-rules]")?.value ??
-    row.querySelector("[data-action='edit-topic-keywords']")?.dataset
-      .topicKeywords ??
-    "[]";
+  return row.querySelector('[data-topic-keyword-rules]')?.value ??
+      row.querySelector('[data-action=\'edit-topic-keywords\']')?.dataset
+          .topicKeywords ??
+      '[]';
 }
 
 /**
@@ -6258,8 +6302,8 @@ function topicKeywordRulesValue(row) {
  * @param {string} serialized 序列化后的关键词规则。
  */
 function setTopicKeywordRules(row, serialized) {
-  const input = row.querySelector("[data-topic-keyword-rules]");
-  const button = row.querySelector("[data-action='edit-topic-keywords']");
+  const input = row.querySelector('[data-topic-keyword-rules]');
+  const button = row.querySelector('[data-action=\'edit-topic-keywords\']');
   if (input) {
     input.value = serialized;
   }
@@ -6275,9 +6319,9 @@ function setTopicKeywordRules(row, serialized) {
  * @param {Array<Object>} rules 关键词规则数组。
  */
 function replaceKeywordRows(keywordEditor, rules) {
-  const grid = keywordEditor.querySelector(".keyword-rule-grid");
-  keywordEditor.querySelectorAll("[data-keyword-row]").forEach((row) =>
-    row.remove()
+  const grid = keywordEditor.querySelector('.keyword-rule-grid');
+  keywordEditor.querySelectorAll('[data-keyword-row]').forEach((row) =>
+      row.remove()
   );
 
   const normalizedRules = rules.length > 0 ? rules : [newKeywordRule()];
@@ -6296,16 +6340,16 @@ function replaceKeywordRows(keywordEditor, rules) {
  * @return {HTMLElement} 新创建的关键词行元素。
  */
 function keywordRowFromRule(keywordEditor, rule) {
-  const template = keywordEditor.querySelector("[data-keyword-row-template]");
+  const template = keywordEditor.querySelector('[data-keyword-row-template]');
   const fragment = template.content.cloneNode(true);
-  const row = fragment.querySelector("[data-keyword-row]");
-  row.querySelector("input[name^='keyword_']").value = rule.keyword ?? "";
-  setKeywordOption(row, "caseSensitive", rule.caseSensitive === true);
-  setKeywordOption(row, "useRegex", rule.useRegex === true);
-  row.querySelectorAll("[name*='_location_']").forEach((input) => {
+  const row = fragment.querySelector('[data-keyword-row]');
+  row.querySelector('input[name^=\'keyword_\']').value = rule.keyword ?? '';
+  setKeywordOption(row, 'caseSensitive', rule.caseSensitive === true);
+  setKeywordOption(row, 'useRegex', rule.useRegex === true);
+  row.querySelectorAll('[name*=\'_location_\']').forEach((input) => {
     const location = input.name.match(/_location_(.+)$/)?.[1];
     input.checked = Array.isArray(rule.locations) &&
-      rule.locations.includes(location);
+        rule.locations.includes(location);
   });
   return row;
 }
@@ -6316,7 +6360,7 @@ function keywordRowFromRule(keywordEditor, rule) {
  * @return {{keyword: string, locations: string[]}} 默认关键词规则。
  */
 function newKeywordRule() {
-  return { keyword: "", locations: keywordMatchLocations };
+  return {keyword: '', locations: keywordMatchLocations};
 }
 
 /**
@@ -6346,22 +6390,22 @@ function parseRules(value) {
  */
 function serializeKeywordRows(keywordEditor) {
   return JSON.stringify(
-    Array.from(keywordEditor.querySelectorAll("[data-keyword-row]"))
-      .map((row) => {
-        const keyword = row.querySelector("input[name^='keyword_']").value
-          .trim();
-        const locations = Array.from(
-          row.querySelectorAll("[name*='_location_']"),
-        )
-          .filter((input) => input.checked)
-          .map((input) => input.name.match(/_location_(.+)$/)?.[1])
-          .filter(Boolean);
-        const caseSensitive = keywordOptionEnabled(row, "caseSensitive");
-        const useRegex = keywordOptionEnabled(row, "useRegex");
+      Array.from(keywordEditor.querySelectorAll('[data-keyword-row]'))
+          .map((row) => {
+            const keyword = row.querySelector('input[name^=\'keyword_\']').value
+                .trim();
+            const locations = Array.from(
+                    row.querySelectorAll('[name*=\'_location_\']'),
+                )
+                .filter((input) => input.checked)
+                .map((input) => input.name.match(/_location_(.+)$/)?.[1])
+                .filter(Boolean);
+            const caseSensitive = keywordOptionEnabled(row, 'caseSensitive');
+            const useRegex = keywordOptionEnabled(row, 'useRegex');
 
-        return { caseSensitive, keyword, locations, useRegex };
-      })
-      .filter((rule) => rule.keyword && rule.locations.length > 0),
+            return {caseSensitive, keyword, locations, useRegex};
+          })
+          .filter((rule) => rule.keyword && rule.locations.length > 0),
   );
 }
 
@@ -6371,13 +6415,13 @@ function serializeKeywordRows(keywordEditor) {
  * @param {HTMLButtonElement} button 选项按钮。
  */
 function toggleKeywordOption(button) {
-  const row = button.closest("[data-keyword-row]");
+  const row = button.closest('[data-keyword-row]');
   if (!row) {
     return;
   }
 
   const option = button.dataset.option;
-  const isEnabled = button.getAttribute("aria-pressed") === "true";
+  const isEnabled = button.getAttribute('aria-pressed') === 'true';
   setKeywordOption(row, option, !isEnabled);
   markKeywordOptionManual(row, option);
 }
@@ -6388,20 +6432,20 @@ function toggleKeywordOption(button) {
  * @param {HTMLInputElement} input 关键词输入框。
  */
 function syncKeywordOptionsFromInput(input) {
-  const row = input.closest("[data-keyword-row]");
+  const row = input.closest('[data-keyword-row]');
   if (!(row instanceof HTMLElement)) {
     return;
   }
 
   const keyword = input.value.trim();
   if (!keyword) {
-    clearKeywordOptionDetectionState(row, "caseSensitive");
-    clearKeywordOptionDetectionState(row, "useRegex");
+    clearKeywordOptionDetectionState(row, 'caseSensitive');
+    clearKeywordOptionDetectionState(row, 'useRegex');
     return;
   }
 
-  syncDetectedKeywordOption(row, "caseSensitive", hasMixedAsciiCase(keyword));
-  syncDetectedKeywordOption(row, "useRegex", looksLikeRegexPattern(keyword));
+  syncDetectedKeywordOption(row, 'caseSensitive', hasMixedAsciiCase(keyword));
+  syncDetectedKeywordOption(row, 'useRegex', looksLikeRegexPattern(keyword));
 }
 
 /**
@@ -6412,19 +6456,19 @@ function syncKeywordOptionsFromInput(input) {
  * @param {boolean} detected 是否识别到需要启用该选项。
  */
 function syncDetectedKeywordOption(row, option, detected) {
-  const manualKey = keywordOptionStateDatasetKey("manual", option);
-  const autoKey = keywordOptionStateDatasetKey("auto", option);
-  if (!manualKey || !autoKey || row.dataset[manualKey] === "true") {
+  const manualKey = keywordOptionStateDatasetKey('manual', option);
+  const autoKey = keywordOptionStateDatasetKey('auto', option);
+  if (!manualKey || !autoKey || row.dataset[manualKey] === 'true') {
     return;
   }
 
   if (detected) {
     setKeywordOption(row, option, true);
-    row.dataset[autoKey] = "true";
+    row.dataset[autoKey] = 'true';
     return;
   }
 
-  if (row.dataset[autoKey] === "true") {
+  if (row.dataset[autoKey] === 'true') {
     setKeywordOption(row, option, false);
     delete row.dataset[autoKey];
   }
@@ -6437,13 +6481,13 @@ function syncDetectedKeywordOption(row, option, detected) {
  * @param {string|undefined} option 选项名称。
  */
 function markKeywordOptionManual(row, option) {
-  const manualKey = keywordOptionStateDatasetKey("manual", option);
-  const autoKey = keywordOptionStateDatasetKey("auto", option);
+  const manualKey = keywordOptionStateDatasetKey('manual', option);
+  const autoKey = keywordOptionStateDatasetKey('auto', option);
   if (!manualKey || !autoKey) {
     return;
   }
 
-  row.dataset[manualKey] = "true";
+  row.dataset[manualKey] = 'true';
   delete row.dataset[autoKey];
 }
 
@@ -6454,13 +6498,13 @@ function markKeywordOptionManual(row, option) {
  * @param {string} option 选项名称。
  */
 function clearKeywordOptionDetectionState(row, option) {
-  const manualKey = keywordOptionStateDatasetKey("manual", option);
-  const autoKey = keywordOptionStateDatasetKey("auto", option);
+  const manualKey = keywordOptionStateDatasetKey('manual', option);
+  const autoKey = keywordOptionStateDatasetKey('auto', option);
   if (!manualKey || !autoKey) {
     return;
   }
 
-  if (row.dataset[autoKey] === "true") {
+  if (row.dataset[autoKey] === 'true') {
     setKeywordOption(row, option, false);
   }
   delete row.dataset[manualKey];
@@ -6470,24 +6514,24 @@ function clearKeywordOptionDetectionState(row, option) {
 /**
  * 生成关键词选项检测状态的数据集键。
  *
- * @param {"manual"|"auto"} state 状态类型。
+ * @param {'manual'|'auto'} state 状态类型。
  * @param {string|undefined} option 选项名称。
  * @return {string} 数据集键，未知选项返回空字符串。
  */
 function keywordOptionStateDatasetKey(state, option) {
-  if (option === "caseSensitive") {
-    return state === "manual"
-      ? "keywordOptionManualCaseSensitive"
-      : "keywordOptionAutoCaseSensitive";
+  if (option === 'caseSensitive') {
+    return state === 'manual'
+        ? 'keywordOptionManualCaseSensitive'
+        : 'keywordOptionAutoCaseSensitive';
   }
 
-  if (option === "useRegex") {
-    return state === "manual"
-      ? "keywordOptionManualUseRegex"
-      : "keywordOptionAutoUseRegex";
+  if (option === 'useRegex') {
+    return state === 'manual'
+        ? 'keywordOptionManualUseRegex'
+        : 'keywordOptionAutoUseRegex';
   }
 
-  return "";
+  return '';
 }
 
 /**
@@ -6497,9 +6541,9 @@ function keywordOptionStateDatasetKey(state, option) {
  * @return {boolean} 是关键词文本字段时返回 true。
  */
 function isKeywordTextInput(input) {
-  return input.name.startsWith("keyword_") &&
-    !input.name.includes("_location_") &&
-    !input.dataset.keywordOption;
+  return input.name.startsWith('keyword_') &&
+      !input.name.includes('_location_') &&
+      !input.dataset.keywordOption;
 }
 
 /**
@@ -6520,13 +6564,13 @@ function hasMixedAsciiCase(value) {
  */
 function looksLikeRegexPattern(value) {
   return /(^|[^\\])(\.\*|\.\+|\.\?)/.test(value) ||
-    /\\[dDsSwWbB]/.test(value) ||
-    /\[[^\]]+\]/.test(value) ||
-    /\(\?/.test(value) ||
-    /\([^)]*\|[^)]*\)/.test(value) ||
-    /\{\d+,?\d*\}/.test(value) ||
-    /\{\d*,\d+\}/.test(value) ||
-    /(^|[^\\])[\^$|]/.test(value);
+      /\\[dDsSwWbB]/.test(value) ||
+      /\[[^\]]+]/.test(value) ||
+      /\(\?/.test(value) ||
+      /\([^)]*\|[^)]*\)/.test(value) ||
+      /\{\d+,?\d*}/.test(value) ||
+      /\{\d*,\d+}/.test(value) ||
+      /(^|[^\\])[\^$|]/.test(value);
 }
 
 /**
@@ -6539,15 +6583,15 @@ function looksLikeRegexPattern(value) {
 function setKeywordOption(row, option, isEnabled) {
   const input = row.querySelector(`[data-keyword-option="${option}"]`);
   const button = row.querySelector(
-    `[data-action="toggle-keyword-option"][data-option="${option}"]`,
+      `[data-action="toggle-keyword-option"][data-option="${option}"]`,
   );
 
   if (input instanceof HTMLInputElement) {
-    input.value = isEnabled ? "on" : "";
+    input.value = isEnabled ? 'on' : '';
   }
 
   if (button instanceof HTMLButtonElement) {
-    button.setAttribute("aria-pressed", String(isEnabled));
+    button.setAttribute('aria-pressed', String(isEnabled));
   }
 }
 
@@ -6560,7 +6604,7 @@ function setKeywordOption(row, option, isEnabled) {
  */
 function keywordOptionEnabled(row, option) {
   const input = row.querySelector(`[data-keyword-option="${option}"]`);
-  return input instanceof HTMLInputElement && input.value === "on";
+  return input instanceof HTMLInputElement && input.value === 'on';
 }
 
 /**
@@ -6570,15 +6614,15 @@ function keywordOptionEnabled(row, option) {
  * @param {HTMLButtonElement} actionButton 触发插入的操作按钮。
  */
 function insertKeywordRow(editor, actionButton) {
-  const grid = editor.querySelector(".keyword-rule-grid");
-  const row = actionButton.closest("[data-keyword-row]");
+  const grid = editor.querySelector('.keyword-rule-grid');
+  const row = actionButton.closest('[data-keyword-row]');
   const newRow = keywordRowFromRule(editor, newKeywordRule());
-  newRow.dataset.draftRow = "true";
+  newRow.dataset.draftRow = 'true';
 
   if (row) {
     row.after(newRow);
   } else {
-    const firstRow = grid.querySelector("[data-keyword-row]");
+    const firstRow = grid.querySelector('[data-keyword-row]');
     if (firstRow) {
       firstRow.before(newRow);
     } else {
@@ -6587,7 +6631,7 @@ function insertKeywordRow(editor, actionButton) {
   }
 
   reindexKeywordRows(editor);
-  newRow.querySelector("input[name^='keyword_']").focus();
+  newRow.querySelector('input[name^=\'keyword_\']').focus();
 }
 
 /**
@@ -6597,15 +6641,15 @@ function insertKeywordRow(editor, actionButton) {
  * @param {HTMLButtonElement} actionButton 触发删除的操作按钮。
  */
 function deleteKeywordRows(editor, actionButton) {
-  const selectedRows = Array.from(editor.querySelectorAll("[data-keyword-row]"))
-    .filter((row) =>
-      row.querySelector("[data-role='select-keyword-row']")?.checked
-    );
+  const selectedRows = Array.from(editor.querySelectorAll('[data-keyword-row]'))
+      .filter((row) =>
+          row.querySelector('[data-role=\'select-keyword-row\']')?.checked
+      );
 
   if (selectedRows.length > 0) {
     selectedRows.forEach((row) => row.remove());
   } else {
-    const row = actionButton.closest("[data-keyword-row]");
+    const row = actionButton.closest('[data-keyword-row]');
     if (!row) {
       showToast(editor, editor.dataset.deleteMessage);
       return;
@@ -6624,11 +6668,11 @@ function deleteKeywordRows(editor, actionButton) {
  * @param {HTMLElement} editor 关键词编辑器元素。
  */
 function ensureAtLeastOneKeywordRow(editor) {
-  if (editor.querySelector("[data-keyword-row]")) {
+  if (editor.querySelector('[data-keyword-row]')) {
     return;
   }
 
-  const grid = editor.querySelector(".keyword-rule-grid");
+  const grid = editor.querySelector('.keyword-rule-grid');
   grid.append(keywordRowFromRule(editor, newKeywordRule()));
 }
 
@@ -6638,23 +6682,23 @@ function ensureAtLeastOneKeywordRow(editor) {
  * @param {HTMLElement} editor 关键词编辑器元素。
  */
 function reindexKeywordRows(editor) {
-  editor.querySelectorAll("[data-keyword-row]").forEach((row, index) => {
-    row.querySelectorAll("input").forEach((input) => {
+  editor.querySelectorAll('[data-keyword-row]').forEach((row, index) => {
+    row.querySelectorAll('input').forEach((input) => {
       if (!input.name) {
         return;
       }
 
       input.name = input.name.replace(
-        /keyword_(?:__index__|\d+)/,
-        `keyword_${index}`,
+          /keyword_(?:__index__|\d+)/,
+          `keyword_${index}`,
       );
     });
   });
 
   syncHeaderCheckbox(
-    editor,
-    "[data-role='select-all-keywords']",
-    "[data-role='select-keyword-row']",
+      editor,
+      '[data-role=\'select-all-keywords\']',
+      '[data-role=\'select-keyword-row\']',
   );
   syncKeywordLocationHeaders(editor);
 }
@@ -6665,19 +6709,19 @@ function reindexKeywordRows(editor) {
  * @param {HTMLElement} topicEditor 话题编辑器元素。
  */
 function updateActiveTopicSummary(topicEditor) {
-  const activeTarget = activeKeywordTargetInput().value || "common";
-  const summary = topicEditor.querySelector("[data-topic-summary]");
+  const activeTarget = activeKeywordTargetInput().value || 'common';
+  const summary = topicEditor.querySelector('[data-topic-summary]');
 
-  if (activeTarget === "common") {
-    topicEditor.querySelectorAll("[data-topic-row]").forEach((row) => {
-      row.dataset.activeKeywordTarget = "false";
+  if (activeTarget === 'common') {
+    topicEditor.querySelectorAll('[data-topic-row]').forEach((row) => {
+      row.dataset.activeKeywordTarget = 'false';
     });
     summary.textContent = summary.dataset.commonLabel;
     return;
   }
 
   const activeRow = topicEditor.querySelector(
-    '[data-topic-row][data-active-keyword-target="true"]',
+      '[data-topic-row][data-active-keyword-target="true"]',
   );
   const row = activeRow ?? findTopicRowById(topicEditor, activeTarget);
   if (!row) {
@@ -6685,12 +6729,12 @@ function updateActiveTopicSummary(topicEditor) {
     return;
   }
 
-  const id = row.querySelector("[data-topic-id-input]").value.trim();
-  const note = row.querySelector("[data-topic-note-input]").value.trim();
-  activeKeywordTargetInput().value = id || "common";
+  const id = row.querySelector('[data-topic-id-input]').value.trim();
+  const note = row.querySelector('[data-topic-note-input]').value.trim();
+  activeKeywordTargetInput().value = id || 'common';
   summary.textContent = note && id
-    ? `${note}（${id}）`
-    : note || id || summary.dataset.commonLabel;
+      ? `${note}（${id}）`
+      : note || id || summary.dataset.commonLabel;
 }
 
 /**
@@ -6699,32 +6743,32 @@ function updateActiveTopicSummary(topicEditor) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function updateKeywordSummary(keywordEditor) {
-  const summary = keywordEditor.querySelector("[data-keyword-summary]");
+  const summary = keywordEditor.querySelector('[data-keyword-summary]');
   const keywords = Array.from(
-    keywordEditor.querySelectorAll(
-      "input[name^='keyword_']:not([name*='_location_']):not([data-keyword-option])",
-    ),
-  )
-    .map((input) => input.value.trim())
-    .filter(Boolean);
+          keywordEditor.querySelectorAll(
+              'input[name^=\'keyword_\']:not([name*=\'_location_\']):not([data-keyword-option])',
+          ),
+      )
+      .map((input) => input.value.trim())
+      .filter(Boolean);
 
-  summary.textContent = "";
+  summary.textContent = '';
   keywords.slice(0, 5).forEach((keyword, index) => {
     if (index > 0) {
-      const separator = document.createElement("span");
-      separator.className = "summary-separator";
-      separator.textContent = "|";
+      const separator = document.createElement('span');
+      separator.className = 'summary-separator';
+      separator.textContent = '|';
       summary.append(separator);
     }
 
-    const item = document.createElement("span");
-    item.dataset.keywordSummaryItem = "true";
+    const item = document.createElement('span');
+    item.dataset.keywordSummaryItem = 'true';
     item.textContent = keyword;
     summary.append(item);
   });
 
   if (keywords.length > 5) {
-    summary.append("...");
+    summary.append('...');
   }
 
   fitKeywordSummary(summary);
@@ -6737,7 +6781,7 @@ function updateKeywordSummary(keywordEditor) {
  */
 function fitKeywordSummary(summary) {
   const items = Array.from(
-    summary.querySelectorAll("[data-keyword-summary-item]"),
+      summary.querySelectorAll('[data-keyword-summary-item]'),
   );
   for (const item of items.toReversed()) {
     if (summary.scrollWidth <= summary.clientWidth) {
@@ -6746,10 +6790,10 @@ function fitKeywordSummary(summary) {
 
     const previous = item.previousElementSibling;
     item.remove();
-    if (previous?.classList.contains("summary-separator")) {
+    if (previous?.classList.contains('summary-separator')) {
       previous.remove();
     }
-    summary.append("...");
+    summary.append('...');
   }
 }
 
@@ -6759,7 +6803,7 @@ function fitKeywordSummary(summary) {
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
 function openKeywordPanel(keywordEditor) {
-  setDropdownOpen(keywordEditor, "keywords", true, { persist: true });
+  setDropdownOpen(keywordEditor, 'keywords', true, {persist: true});
 }
 
 /**
@@ -6770,12 +6814,12 @@ function openKeywordPanel(keywordEditor) {
  * @return {HTMLElement|undefined} 匹配的话题规则行。
  */
 function findTopicRowById(topicEditor, id) {
-  for (const row of topicEditor.querySelectorAll("[data-topic-row]")) {
+  for (const row of topicEditor.querySelectorAll('[data-topic-row]')) {
     if (!(row instanceof HTMLElement)) {
       continue;
     }
 
-    const idInput = row.querySelector("[data-topic-id-input]");
+    const idInput = row.querySelector('[data-topic-id-input]');
     if (idInput instanceof HTMLInputElement && idInput.value.trim() === id) {
       return row;
     }
@@ -6792,7 +6836,7 @@ function findTopicRowById(topicEditor, id) {
  */
 function commonKeywordButton(topicEditor) {
   return topicEditor.querySelector(
-    '[data-action="edit-topic-keywords"][data-keyword-target="common"]',
+      '[data-action="edit-topic-keywords"][data-keyword-target="common"]',
   );
 }
 
@@ -6802,7 +6846,7 @@ function commonKeywordButton(topicEditor) {
  * @return {HTMLInputElement} 当前活动关键词目标输入框。
  */
 function activeKeywordTargetInput() {
-  return document.querySelector("[data-active-keyword-target]");
+  return document.querySelector('[data-active-keyword-target]');
 }
 
 /**
@@ -6812,20 +6856,20 @@ function activeKeywordTargetInput() {
  * @param {string|undefined} message 提示消息。
  */
 function showToast(editor, message) {
-  const existing = editor.querySelector("[data-keyword-toast]");
+  const existing = editor.querySelector('[data-keyword-toast]');
   if (existing) {
     existing.remove();
   }
 
-  const toast = document.createElement("div");
-  toast.className = "keyword-toast";
-  toast.dataset.keywordToast = "true";
-  toast.setAttribute("role", "status");
+  const toast = document.createElement('div');
+  toast.className = 'keyword-toast';
+  toast.dataset.keywordToast = 'true';
+  toast.setAttribute('role', 'status');
   toast.textContent = message;
   editor.append(toast);
 
   setTimeout(() => {
-    toast.classList.add("is-hiding");
+    toast.classList.add('is-hiding');
   }, 1800);
 
   setTimeout(() => {
@@ -6833,4 +6877,4 @@ function showToast(editor, message) {
   }, 2200);
 }
 
-document.addEventListener("DOMContentLoaded", initSettingsEditors);
+document.addEventListener('DOMContentLoaded', initSettingsEditors);

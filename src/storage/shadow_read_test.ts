@@ -7,6 +7,7 @@ import {
   type ShadowReadComparison,
 } from "./shadow_read.ts";
 import type { Storage, UserStorage } from "./types.ts";
+import { assertEquals } from "../test_helpers.ts";
 
 Deno.test("shadow reads return authoritative data and report differences", async () => {
   const comparisons: ShadowReadComparison[] = [];
@@ -97,18 +98,6 @@ function testSession(): UserSession {
     userId: "alice-id",
     username: "alice",
   };
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param {unknown} actual 实际值。
- * @param {unknown} expected 期望值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error("Values are not equal.");
-  }
 }
 
 /**

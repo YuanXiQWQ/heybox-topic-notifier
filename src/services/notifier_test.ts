@@ -2,7 +2,12 @@
  * @file 本文件验证通知器在 Webhook、邮件、测试通知和错误场景下的行为。
  */
 import type { AppSettings, MatchRecord } from "../models.ts";
-import { assertEquals, assertRejects } from "../test_helpers.ts";
+import {
+  assert,
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+} from "../test_helpers.ts";
 import { createNotifier as createRealNotifier } from "./notifier.ts";
 import type { DeliveryLogEntry } from "./notifier.ts";
 import type { DnsRecordType } from "./outbound_security.ts";
@@ -169,14 +174,14 @@ Deno.test("delivery logs omit tokens, query strings, and request bodies", async 
   assertEquals(logs.length, 2);
   assertEquals(logs[0].hostname, "example.com");
   assertEquals(logs[0].method, "POST");
-  assertEquals(logs[0].responseHeadersReceived, true);
+  assertStrictEquals(logs[0].responseHeadersReceived, true);
   assertEquals(logs[0].service, "Custom");
   assertEquals(logs[0].status, 204);
   assertEquals(logs[1].hostname, "www.pushplus.plus");
   assertEquals(logs[1].service, "PushPlus");
-  assertEquals(serializedLogs.includes("query-secret"), false);
-  assertEquals(serializedLogs.includes("pushplus-secret-token"), false);
-  assertEquals(serializedLogs.includes("Need help"), false);
+  assert(!(serializedLogs.includes("query-secret")));
+  assert(!(serializedLogs.includes("pushplus-secret-token")));
+  assert(!(serializedLogs.includes("Need help")));
 });
 
 Deno.test("sendMatches posts one localized markdown summary", async () => {
@@ -202,17 +207,17 @@ Deno.test("sendMatches posts one localized markdown summary", async () => {
   const body = await requests[0].json();
   assertEquals(body.type, "matches");
   assertEquals(body.title, "小黑盒话题提醒：轮询命中");
-  assertEquals(body.text.includes("[Need help](https://example.com/p1)"), true);
-  assertEquals(body.text.includes("标题："), false);
-  assertEquals(body.text.includes("内容："), false);
-  assertEquals(body.text.includes("发帖时间："), true);
-  assertEquals(body.text.includes("命中时间："), false);
-  assertEquals(body.text.includes("命中关键词：help"), true);
-  assertEquals(body.text.includes("匹配位置：标题"), true);
-  assertEquals(body.text.includes("\n\n---\n\n"), true);
-  assertEquals(body.text.includes("[访问帖子]"), false);
-  assertEquals(body.text.includes("This body is intentionally long"), true);
-  assertEquals(body.text.includes("pending table preview."), false);
+  assert(body.text.includes("[Need help](https://example.com/p1)"));
+  assert(!(body.text.includes("标题：")));
+  assert(!(body.text.includes("内容：")));
+  assert(body.text.includes("发帖时间："));
+  assert(!(body.text.includes("命中时间：")));
+  assert(body.text.includes("命中关键词：help"));
+  assert(body.text.includes("匹配位置：标题"));
+  assert(body.text.includes("\n\n---\n\n"));
+  assert(!(body.text.includes("[访问帖子]")));
+  assert(body.text.includes("This body is intentionally long"));
+  assert(!(body.text.includes("pending table preview.")));
 });
 
 Deno.test("sendMatches summarizes omitted records when the markdown would be too long", async () => {
@@ -241,8 +246,8 @@ Deno.test("sendMatches summarizes omitted records when the markdown would be too
   });
 
   const body = await requests[0].json();
-  assertEquals(body.text.includes("及另外 "), true);
-  assertEquals(body.text.length <= 3700, true);
+  assert(body.text.includes("及另外 "));
+  assert(body.text.length <= 3700);
 });
 
 Deno.test("email provider sends matching plain text and HTML content", async () => {
@@ -289,13 +294,13 @@ Deno.test("email provider sends matching plain text and HTML content", async () 
     messages[0].text.includes("[Need help](https://example.com/p1)"),
     true,
   );
-  assertEquals(messages[0].text.includes("发帖时间："), true);
+  assert(messages[0].text.includes("发帖时间："));
   assertEquals(
     messages[0].html.includes('<a href="https://example.com/p1">Need help</a>'),
     true,
   );
-  assertEquals(messages[0].html.includes("<hr>"), true);
-  assertEquals(messages[0].html.includes("命中时间"), false);
+  assert(messages[0].html.includes("<hr>"));
+  assert(!(messages[0].html.includes("命中时间")));
 });
 
 Deno.test("sendEmailMessage sends to the provided recipient", async () => {
@@ -359,7 +364,7 @@ Deno.test("email API provider posts the email payload to the configured API", as
   assertEquals(body.from, "from@example.com");
   assertEquals(body.to, "test@example.com");
   assertEquals(body.subject, "小黑盒话题提醒：轮询命中");
-  assertEquals(body.text.includes("[Need help](https://example.com/p1)"), true);
+  assert(body.text.includes("[Need help](https://example.com/p1)"));
   assertEquals(
     body.html.includes('<a href="https://example.com/p1">Need help</a>'),
     true,
@@ -381,7 +386,7 @@ Deno.test("email API provider omits upstream response bodies from delivery error
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    assertEquals(message.includes(apiSecret), false);
+    assert(!(message.includes(apiSecret)));
     assertEquals(message, "Email API notification failed with HTTP 500.");
     return;
   }
@@ -460,9 +465,9 @@ Deno.test("server chan webhook receives title and desp fields", async () => {
 
   const body = await requests[0].json();
   assertEquals(body.title, "小黑盒命中：help");
-  assertEquals(body.desp.includes("Need help"), true);
-  assertEquals(body.desp.includes("https://example.com/p1"), true);
-  assertEquals("type" in body, false);
+  assert(body.desp.includes("Need help"));
+  assert(body.desp.includes("https://example.com/p1"));
+  assertStrictEquals("type" in body, false);
 });
 
 Deno.test("server chan service builds the webhook URL from SendKey", async () => {
@@ -525,8 +530,8 @@ Deno.test("server chan service supports a configured relay URL with authorizatio
   assertEquals(requests[0].headers.get("x-serverchan-send-key"), "SCT123");
   const body = await requests[0].json();
   assertEquals(body.title, "小黑盒命中：help");
-  assertEquals(body.desp.includes("Need help"), true);
-  assertEquals("sendkey" in body, false);
+  assert(body.desp.includes("Need help"));
+  assertStrictEquals("sendkey" in body, false);
 });
 
 Deno.test("server chan relay URL requires a relay token before sending", async () => {
@@ -594,11 +599,11 @@ Deno.test("server chan relay redacts send key and relay token from errors and lo
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const serializedLogs = JSON.stringify(logs);
-      assertEquals(message.includes(relayToken), false);
-      assertEquals(message.includes(sendKey), false);
-      assertEquals(serializedLogs.includes(relayToken), false);
-      assertEquals(serializedLogs.includes(sendKey), false);
-      assertEquals(serializedLogs.includes("[已隐藏]"), true);
+      assert(!(message.includes(relayToken)));
+      assert(!(message.includes(sendKey)));
+      assert(!(serializedLogs.includes(relayToken)));
+      assert(!(serializedLogs.includes(sendKey)));
+      assert(serializedLogs.includes("[已隐藏]"));
       return;
     }
 
@@ -636,8 +641,8 @@ Deno.test("server chan relay omits send key and relay token from HTTP response e
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      assertEquals(message.includes(relayToken), false);
-      assertEquals(message.includes(sendKey), false);
+      assert(!(message.includes(relayToken)));
+      assert(!(message.includes(sendKey)));
       assertEquals(message, "Webhook notification failed with HTTP 502.");
       return;
     }
@@ -673,18 +678,18 @@ Deno.test("server chan 3 webhook receives title and desp fields", async () => {
   );
   const body = await requests[0].json();
   assertEquals(body.title, "小黑盒话题提醒：测试通知");
-  assertEquals(body.desp.includes("帖子 "), true);
+  assert(body.desp.includes("帖子 "));
   assertEquals(
     body.desp.includes(
       "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/",
     ),
     true,
   );
-  assertEquals(body.desp.includes("发帖时间："), true);
-  assertEquals(body.desp.includes("命中关键词："), true);
-  assertEquals(body.desp.includes("匹配位置："), true);
-  assertEquals(body.desp.includes("命中时间："), false);
-  assertEquals(body.desp.includes("及另外 "), true);
+  assert(body.desp.includes("发帖时间："));
+  assert(body.desp.includes("命中关键词："));
+  assert(body.desp.includes("匹配位置："));
+  assert(!(body.desp.includes("命中时间：")));
+  assert(body.desp.includes("及另外 "));
 });
 
 Deno.test("wxpusher service posts to the simple push API", async () => {
@@ -713,8 +718,8 @@ Deno.test("wxpusher service posts to the simple push API", async () => {
   assertEquals(body.spt, "SPT123");
   assertEquals(body.contentType, 1);
   assertEquals(body.summary, "小黑盒命中：help");
-  assertEquals(body.content.includes("Need help"), true);
-  assertEquals(body.content.includes("https://example.com/p1"), true);
+  assert(body.content.includes("Need help"));
+  assert(body.content.includes("https://example.com/p1"));
 });
 
 Deno.test("pushplus service posts to the send API", async () => {
@@ -740,8 +745,8 @@ Deno.test("pushplus service posts to the send API", async () => {
   assertEquals(body.token, "pushplus-token");
   assertEquals(body.template, "markdown");
   assertEquals(body.title, "小黑盒命中：help");
-  assertEquals(body.content.includes("Need help"), true);
-  assertEquals(body.content.includes("https://example.com/p1"), true);
+  assert(body.content.includes("Need help"));
+  assert(body.content.includes("https://example.com/p1"));
 });
 
 Deno.test("relay token is not sent to official pushplus and wxpusher APIs", async () => {
@@ -985,10 +990,10 @@ Deno.test("relay token is redacted from delivery errors", async () => {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const serializedLogs = JSON.stringify(logs);
-      assertEquals(message.includes(relayToken), false);
-      assertEquals(message.includes("[已隐藏]"), true);
-      assertEquals(serializedLogs.includes(relayToken), false);
-      assertEquals(serializedLogs.includes("[已隐藏]"), true);
+      assert(!(message.includes(relayToken)));
+      assert(message.includes("[已隐藏]"));
+      assert(!(serializedLogs.includes(relayToken)));
+      assert(serializedLogs.includes("[已隐藏]"));
       return;
     }
 
@@ -1025,7 +1030,7 @@ Deno.test("relay token is omitted from HTTP response errors", async () => {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      assertEquals(message.includes(relayToken), false);
+      assert(!(message.includes(relayToken)));
       assertEquals(message, "Webhook notification failed with HTTP 401.");
       return;
     }

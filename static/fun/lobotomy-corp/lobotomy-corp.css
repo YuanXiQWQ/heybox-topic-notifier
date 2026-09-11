@@ -1,33 +1,411 @@
 /* 依据原版 EmergencyController 的 CanvasScaler、RectTransform 和 Animator 参数渲染。 */
-@font-face {
+@font-face{
   font-display: block;
   font-family: LobotomyNorwester;
-  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester.otf")
-    format("opentype");
+  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester.otf") format("opentype");
 }
 
-@font-face {
+@font-face{
+  font-display: block;
+  font-family: LobotomyBaskerville;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/baskvl.ttf") format("truetype");
+}
+
+/* 白夜本体在普通页面之上、警报 HUD 与 Restart Day 之下，且永不截获操作。 */
+.lobotomy-corp-white-night-entity{
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+  position: fixed;
+  z-index: 9990;
+}
+
+.lobotomy-corp-white-night-entity video{
+  height: min(88vh, 980px);
+  max-height: 88vh;
+  max-width: 94vw;
+  object-fit: contain;
+  pointer-events: none;
+  width: min(88vw, 1380px);
+}
+
+/* WhiteNight 主 Animator 的 Suppressed 轨道与 Confess/SuppressAnimator 同时存在。 */
+.lobotomy-corp-white-night-confession-entity{
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 9991;
+}
+
+/* Dead 视频作为 Canvas 的逐帧来源，不直接参与网页排版。 */
+.lobotomy-corp-white-night-confession-video{
+  display: none;
+}
+
+/* Canvas 保持本体尺寸，只把被导出画布截断的外围光效延展到 viewport。 */
+.lobotomy-corp-white-night-confession-canvas{
+  height: 100%;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+  z-index: 1;
+}
+
+/* Canvas 2D 不可用时保留原视频作为降级。 */
+.lobotomy-corp-white-night-confession-video-fallback{
+  display: block;
+  height: min(88vh, 980px);
+  max-height: 88vh;
+  max-width: 88vw;
+  object-fit: contain;
+  pointer-events: none;
+  position: relative;
+  width: min(88vw, 980px);
+  z-index: 1;
+}
+
+/* DeathAngelBlock.prefab：1920×1080 Image、CanvasGroup 1.5 秒 alpha curve。 */
+.lobotomy-corp-white-night-message{
+  align-items: center;
+  animation: lobotomy-corp-white-night-message 1.5s linear both;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  pointer-events: none;
+  position: fixed;
+  /* 刷新/逃逸阻挡提示是白夜最高优先级演出，层级高于 Trumpet HUD。 */
+  z-index: 10010;
+}
+
+.lobotomy-corp-white-night-block-filter{
+  height: 100%;
+  inset: 0;
+  object-fit: fill;
+  position: absolute;
+  width: 100%;
+}
+
+.lobotomy-corp-white-night-message p{
+  color: #FFF;
+  /* 原作运行时以 Baskerville 为主，缺少的 CJK 字形由系统字体逐字补全。 */
+  font-family: LobotomyBaskerville, "Arial Unicode MS", "Microsoft YaHei",
+  "Microsoft JhengHei", sans-serif;
+  font-size: clamp(3px, 3.125vw, 60px);
+  line-height: normal;
+  margin: 0;
+  max-height: min(27.7778vh, 300px);
+  max-width: min(62.5vw, 1200px);
+  text-align: center;
+  /* 描边随字号缩放，避免小号 CJK 提示被固定 2px 红边吞没。 */
+  text-shadow: .035em .035em rgb(252 58 58 / 49%),
+  .035em -.035em rgb(252 58 58 / 49%), -.035em .035em rgb(252 58 58 / 49%),
+  -.035em -.035em rgb(252 58 58 / 49%);
+}
+
+/* AdventClockUI.prefab：1920×1080 UIRoot、Clock anchoredPosition=(0,-25)。 */
+@font-face{
+  font-display: block;
+  font-family: LobotomyAdventNames;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/BMDOHYEON.ttf") format("truetype");
+}
+
+.lobotomy-corp-white-night-simple-advent{
+  --lobotomy-corp-advent-root-alpha: 0;
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10001;
+}
+
+.lobotomy-corp-white-night-simple-advent-canvas{
+  --lobotomy-corp-advent-canvas-scale: 1;
+  /* Unity 的 1920×1080 逻辑画布由 CanvasScaler transform 缩放，Flexbox 不压缩它。 */
+  flex-shrink: 0;
+  height: 1080px;
+  overflow: hidden;
+  pointer-events: none;
+  position: relative;
+  transform: scale(var(--lobotomy-corp-advent-canvas-scale));
+  transform-origin: center;
+  width: 1920px;
+}
+
+.lobotomy-corp-white-night-simple-advent-ui-root{
+  height: 100%;
+  opacity: var(--lobotomy-corp-advent-root-alpha);
+  pointer-events: none;
+  position: relative;
+  width: 100%;
+}
+
+.lobotomy-corp-white-night-simple-advent-add-apostle,
+.lobotomy-corp-white-night-simple-advent-add-apostle{
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Shader 脱离 CanvasScaler；它的坐标基准始终是当前可见 viewport。 */
+.lobotomy-corp-white-night-simple-advent-shader{
+  height: 100vh;
+  inset: 0;
+  opacity: var(--lobotomy-corp-advent-root-alpha);
+  pointer-events: none;
+  position: fixed;
+  width: 100vw;
+}
+
+/* dvh 跟随移动端动态视口；不支持的浏览器沿用上面的 vh 回退值。 */
+@supports (height: 100dvh){
+  .lobotomy-corp-white-night-simple-advent-shader{
+    height: 100dvh;
+  }
+}
+
+/* Clock CanvasGroup：Show_21 在 1/6 秒前为 0，1/3 秒时为 1。 */
+.lobotomy-corp-white-night-simple-advent-clock{
+  --lobotomy-corp-advent-clock-alpha: 0;
+  height: 819px;
+  left: calc(50% - 409.5px);
+  opacity: var(--lobotomy-corp-advent-clock-alpha);
+  pointer-events: none;
+  position: absolute;
+  top: 25px;
+  width: 819px;
+}
+
+.lobotomy-corp-white-night-simple-advent-frame{
+  height: 100%;
+  inset: 0;
+  /* ClockFrame Image.m_PreserveAspect = true (508×512 in an 819×819 Rect). */
+  object-fit: contain;
+  opacity: .8;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+.lobotomy-corp-white-night-simple-advent-names{
+  /* Name 的 RectTransform：anchor=(.5,.5)、anchoredPosition=(0,-8.750008)。 */
+  height: 0;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: calc(50% + 8.750008px);
+  width: 0;
+}
+
+/* Names[]：独立 RectTransform，位置与旋转全部由 prefab 序列化值驱动。 */
+.lobotomy-corp-white-night-simple-advent-name{
+  --lobotomy-corp-advent-name-alpha: 0;
+  --lobotomy-corp-advent-name-color: rgb(255 255 255);
+  align-items: center;
+  color: var(--lobotomy-corp-advent-name-color);
+  display: flex;
+  font-family: LobotomyAdventNames, "Malgun Gothic", sans-serif;
+  font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
+  font-weight: normal;
+  height: 48px;
+  justify-content: center;
+  left: var(--lobotomy-corp-advent-name-x);
+  line-height: normal;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  text-overflow: clip;
+  text-shadow: 1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
+  -1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
+  1px 1px rgb(69.375004 0.510111 0.510111 / 50%),
+  -1px 1px rgb(69.375004 0.510111 0.510111 / 50%);
+  top: calc(0px - var(--lobotomy-corp-advent-name-y));
+  transform: translate(-50%, -50%) rotate(var(--lobotomy-corp-advent-name-rotation));
+  transform-origin: center;
+  /* Legacy Text: HorizontalWrapMode.Wrap + VerticalWrapMode.Truncate。 */
+  overflow-wrap: normal;
+  white-space: normal;
+  width: 114px;
+  opacity: var(--lobotomy-corp-advent-name-alpha);
+}
+
+/* Shader 是 Clock 的后续 sibling；Circle/ClockCenter、BlackShader、Point/Arrow 都被 Simple 模式关闭。 */
+.lobotomy-corp-white-night-simple-advent-global-shader,
+.lobotomy-corp-white-night-simple-advent-clock-shader{
+  pointer-events: none;
+  position: absolute;
+}
+
+.lobotomy-corp-white-night-simple-advent-global-shader,
+.lobotomy-corp-white-night-simple-advent-clock-shader{
+  height: 100vh;
+  inset: 0;
+  object-fit: fill;
+  width: 100vw;
+}
+
+/* dvh 跟随移动端动态视口；不支持的浏览器沿用上面的 vh 回退值。 */
+@supports (height: 100dvh){
+  .lobotomy-corp-white-night-simple-advent-global-shader,
+  .lobotomy-corp-white-night-simple-advent-clock-shader{
+    height: 100dvh;
+  }
+}
+
+.lobotomy-corp-white-night-simple-advent-lower-shader{
+  height: 27.111111%;
+  left: 0;
+  /* 背景以 viewport 为坐标；本页明确允许拉伸，避免底边露出普通页面。 */
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  top: 74%;
+  width: 100%;
+}
+
+/* Confess ParticleSystem：Box Shape、4/s emission、5s lifetime 与 Stretch Billboard 均取自 prefab。 */
+.lobotomy-corp-white-night-confess-particles{
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.lobotomy-corp-white-night-confess-ray{
+  animation: lobotomy-corp-white-night-confess-ray var(--lobotomy-corp-ray-duration) linear both;
+  animation-delay: var(--lobotomy-corp-ray-delay);
+  /* JS 以 startColor 最大通道归一化曝光；_MainTex 的黑底仅作为零强度遮罩。 */
+  background-color: rgb(var(--lobotomy-corp-ray-color));
+  height: var(--lobotomy-corp-ray-height);
+  left: var(--lobotomy-corp-ray-left);
+  mask: var(--lobotomy-corp-ray-texture) center / 100% 100% no-repeat;
+  mask-mode: luminance;
+  /* 每枚 Stretched Billboard 直接对页面做 ADD，避免动画隔离层重新压暗。 */
+  mix-blend-mode: screen;
+  opacity: 0;
+  position: absolute;
+  top: var(--lobotomy-corp-ray-top);
+  transform: translate(-50%, -50%) rotate(109.816715deg) scale(0);
+  transform-origin: center;
+  width: var(--lobotomy-corp-ray-width);
+  will-change: opacity, transform;
+}
+
+/* plus-lighter 才是精确的 ADD 混合；不支持的浏览器沿用上面的 screen。 */
+@supports (mix-blend-mode: plus-lighter){
+  .lobotomy-corp-white-night-confess-ray{
+    mix-blend-mode: plus-lighter;
+  }
+}
+
+.lobotomy-corp-confession-work-icon{
+  flex: 0 0 auto;
+  height: 42px;
+  object-fit: contain;
+  pointer-events: none;
+  width: 42px;
+}
+
+@keyframes lobotomy-corp-white-night-message{
+  0%{
+    opacity: 0.1;
+  }
+  30%,
+  70%{
+    opacity: 0.85;
+  }
+  100%{
+    opacity: 0.1;
+  }
+}
+
+@keyframes lobotomy-corp-white-night-confess-ray{
+  0%{
+    opacity: 0.559;
+    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(0) scale(0);
+  }
+
+  /* SizeModule Y 在 0.25509644 lifetime 达到 1；同期 X Hermite 曲线约为 0.644。 */
+  25.509644%{
+    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(var(--lobotomy-corp-ray-travel-y-full)) scale(0.644, 1);
+  }
+
+  /* SizeModule X 在 0.49319458 lifetime 达到 1。 */
+  49.319458%{
+    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(var(--lobotomy-corp-ray-travel-x-full)) scale(1);
+  }
+
+  67.353323%{
+    opacity: 0.559;
+  }
+
+  99.99%{
+    opacity: 0.116184;
+  }
+
+  100%{
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(var(--lobotomy-corp-ray-travel-end)) scale(1);
+  }
+}
+
+@font-face{
   font-display: block;
   font-family: LobotomyRestartTitle;
-  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester_new.ttf")
-    format("truetype");
+  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester_new.ttf") format("truetype");
 }
 
-@font-face {
+/* 风险牌挂在允许溢出的头像外框上，头像本身仍负责圆形裁切。 */
+.account-avatar-risk-wrapper{
+  display: inline-flex;
+  overflow: visible;
+  position: relative;
+}
+
+.account-avatar-risk-wrapper .lobotomy-corp-risk-badge{
+  height: auto;
+  left: -18%;
+  object-fit: contain;
+  pointer-events: none;
+  position: absolute;
+  top: -16%;
+  transform: rotate(-8deg);
+  z-index: 3;
+}
+
+[data-lobotomy-corp-risk-host="nav"] .lobotomy-corp-risk-badge{
+  width: 32px;
+}
+
+[data-lobotomy-corp-risk-host="settings"] .lobotomy-corp-risk-badge{
+  width: 62px;
+}
+
+@font-face{
   font-display: block;
   font-family: LobotomyRestartTitleKorean;
-  src: url("/static/fun/lobotomy-corp/Assets/Font/BMDOHYEON.ttf")
-    format("truetype");
+  src: url("/static/fun/lobotomy-corp/Assets/Font/BMDOHYEON.ttf") format("truetype");
 }
 
-@font-face {
+@font-face{
   font-display: block;
   font-family: LobotomyRestartTitleRussian;
-  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester_ru.ttf")
-    format("truetype");
+  src: url("/static/fun/lobotomy-corp/Assets/Font/norwester_ru.ttf") format("truetype");
 }
 
-.lobotomy-corp-alert-overlay {
+.lobotomy-corp-alert-overlay{
   inset: 0;
   pointer-events: none;
   position: fixed;
@@ -35,23 +413,23 @@
 }
 
 /* EmergencyController 的 CanvasGroup.alpha：Emergency.anim，Freq = 1。 */
-.lobotomy-corp-emergency-controller {
+.lobotomy-corp-emergency-controller{
   --lobotomy-corp-unity-canvas-scale: 1;
   animation: lobotomy-corp-emergency-pulse 1s cubic-bezier(0.333333, 0,
-    0.666667, 1) infinite;
+  0.666667, 1) infinite;
   inset: 0;
   pointer-events: none;
   position: fixed;
 }
 
 /* ActiveControl 填满游戏 UI 画布；四个 Corner 分别锚定真实 viewport 四角。 */
-.lobotomy-corp-alert-active-control {
+.lobotomy-corp-alert-active-control{
   inset: 0;
   pointer-events: none;
   position: fixed;
 }
 
-.lobotomy-corp-alert-corner {
+.lobotomy-corp-alert-corner{
   height: 446px;
   overflow: visible;
   pointer-events: none;
@@ -59,28 +437,28 @@
   width: 446px;
 }
 
-.lobotomy-corp-alert-corner.left-up {
+.lobotomy-corp-alert-corner.left-up{
   left: 0;
   top: 0;
   transform: scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
   transform-origin: top left;
 }
 
-.lobotomy-corp-alert-corner.left-down {
+.lobotomy-corp-alert-corner.left-down{
   bottom: 0;
   left: 0;
   transform: scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
   transform-origin: bottom left;
 }
 
-.lobotomy-corp-alert-corner.right-up {
+.lobotomy-corp-alert-corner.right-up{
   right: 0;
   top: 0;
   transform: scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
   transform-origin: top right;
 }
 
-.lobotomy-corp-alert-corner.right-down {
+.lobotomy-corp-alert-corner.right-down{
   bottom: 0;
   right: 0;
   transform: scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
@@ -88,30 +466,30 @@
 }
 
 /* Texture 继承 Unity 的 localScale，内部 Risk / TrumpetLevel 因而同步镜像。 */
-.lobotomy-corp-alert-texture {
+.lobotomy-corp-alert-texture{
   inset: 0;
   overflow: visible;
   position: absolute;
   transform-origin: center;
 }
 
-.lobotomy-corp-alert-corner.left-up .lobotomy-corp-alert-texture {
+.lobotomy-corp-alert-corner.left-up .lobotomy-corp-alert-texture{
   transform: scale(-1, -1);
 }
 
-.lobotomy-corp-alert-corner.left-down .lobotomy-corp-alert-texture {
+.lobotomy-corp-alert-corner.left-down .lobotomy-corp-alert-texture{
   transform: scale(-1, 1);
 }
 
-.lobotomy-corp-alert-corner.right-up .lobotomy-corp-alert-texture {
+.lobotomy-corp-alert-corner.right-up .lobotomy-corp-alert-texture{
   transform: scale(1, -1);
 }
 
-.lobotomy-corp-alert-corner.right-down .lobotomy-corp-alert-texture {
+.lobotomy-corp-alert-corner.right-down .lobotomy-corp-alert-texture{
   transform: scale(1, 1);
 }
 
-.lobotomy-corp-alert-triangle {
+.lobotomy-corp-alert-triangle{
   display: block;
   height: 100%;
   inset: 0;
@@ -121,13 +499,13 @@
 }
 
 /* Factorial 位于 Texture 内；前三档保持原版 anchoredPosition (125, -125) 和 +135°。 */
-.lobotomy-corp-alert-factorial {
+.lobotomy-corp-alert-factorial{
   overflow: hidden;
   position: absolute;
   transform-origin: center;
 }
 
-.lobotomy-corp-alert-risk {
+.lobotomy-corp-alert-risk{
   display: block;
   height: 100%;
   object-fit: contain;
@@ -135,7 +513,7 @@
 }
 
 .lobotomy-corp-alert-text,
-.lobotomy-corp-alert-trumpet-level {
+.lobotomy-corp-alert-trumpet-level{
   font-family: LobotomyNorwester, sans-serif;
   font-weight: normal;
   margin: 0;
@@ -146,14 +524,14 @@
 }
 
 /* AlertText 是 Corner 的直接 child，因此不继承 Texture 的镜像。 */
-.lobotomy-corp-alert-text {
+.lobotomy-corp-alert-text{
   font-size: 28px;
   line-height: 45px;
   white-space: pre;
 }
 
 /* RightUp/Texture 的 TrumpetLevel 保留 localScaleY(-1) 和屏幕视觉 -45°。 */
-.lobotomy-corp-alert-trumpet-level {
+.lobotomy-corp-alert-trumpet-level{
   align-items: center;
   display: flex;
   font-size: 60px;
@@ -166,30 +544,29 @@
  * norwester 60px 的 normal 行盒实测为 87.2px（字体框为 70px + 17px），故保留
  * normal 行距以接近 Unity legacy Text 的 m_LineSpacing=1，而非压缩为 CSS 的 1。
  */
-.lobotomy-corp-alert-trumpet-level-content {
+.lobotomy-corp-alert-trumpet-level-content{
   line-height: normal;
   margin: 0;
   white-space: pre-line;
 }
 
 /* 独立于 EmergencyController；不继承四角 HUD 的持续闪烁。 */
-.lobotomy-corp-top-panel {
+.lobotomy-corp-top-panel{
   --lobotomy-corp-unity-canvas-scale: 1;
   height: 350px;
   left: 50%;
   pointer-events: none;
   position: fixed;
   top: 0;
-  transform: translateX(-50%)
-    scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
+  transform: translateX(-50%) scale(calc(0.5 * var(--lobotomy-corp-unity-canvas-scale)));
   transform-origin: top center;
   width: 1200px;
 }
 
 /* 对应 ActiveController anchoredPosition.y 从 180 收至 0 的掉落动画。 */
-.lobotomy-corp-top-panel-active-controller {
+.lobotomy-corp-top-panel-active-controller{
   animation: lobotomy-corp-top-panel-appear 0.5s cubic-bezier(0.18, 0.84,
-    0.32, 1) both;
+  0.32, 1) both;
   height: 350px;
   pointer-events: none;
   position: relative;
@@ -197,12 +574,12 @@
 }
 
 /* 同一实例切换至下一档 Trumpet 时保持显示位置，不重复播放掉落动画。 */
-.lobotomy-corp-top-panel[data-lobotomy-corp-top-panel-reused="true"] .lobotomy-corp-top-panel-active-controller {
+.lobotomy-corp-top-panel[data-lobotomy-corp-top-panel-reused="true"] .lobotomy-corp-top-panel-active-controller{
   animation: none;
 }
 
 /* 原版 Disappear 以 speed=-1 反向播放同一段 Appear clip。 */
-.lobotomy-corp-top-panel[data-lobotomy-corp-top-panel-state="disappearing"] .lobotomy-corp-top-panel-active-controller {
+.lobotomy-corp-top-panel[data-lobotomy-corp-top-panel-state="disappearing"] .lobotomy-corp-top-panel-active-controller{
   animation-direction: reverse;
   animation-duration: 0.5s;
   animation-fill-mode: both;
@@ -210,7 +587,7 @@
   animation-timing-function: cubic-bezier(0.18, 0.84, 0.32, 1);
 }
 
-.lobotomy-corp-top-panel-valve {
+.lobotomy-corp-top-panel-valve{
   display: block;
   height: 192px;
   pointer-events: none;
@@ -219,19 +596,18 @@
   width: 162px;
 }
 
-.lobotomy-corp-top-panel-valve.left {
+.lobotomy-corp-top-panel-valve.left{
   left: 20.2px;
 }
 
-.lobotomy-corp-top-panel-valve.right {
+.lobotomy-corp-top-panel-valve.right{
   right: 19.2px;
   transform: scaleX(-1);
 }
 
 /* FrameOutter 的 Sprite 直接作为容器背景，以保留 Unity 原始父子层级。 */
-.lobotomy-corp-top-panel-frame-outter {
-  background: url("/static/fun/lobotomy-corp/Assets/Sprite/Risk_Frame_Outter.png")
-    center / 100% 100% no-repeat;
+.lobotomy-corp-top-panel-frame-outter{
+  background: url("/static/fun/lobotomy-corp/Assets/Sprite/Risk_Frame_Outter.png") center / 100% 100% no-repeat;
   height: 188px;
   left: calc(50% - 442.3px);
   pointer-events: none;
@@ -240,7 +616,7 @@
   width: 887px;
 }
 
-.lobotomy-corp-top-panel-frame-inner {
+.lobotomy-corp-top-panel-frame-inner{
   display: block;
   height: 187px;
   left: 50%;
@@ -256,7 +632,7 @@
  * CSS 左上角 = FrameOutter 中心 - 按钮自身中心 + (x, -y)。
  * 保留原版 anchoredPosition=(-2.5, 12)，并隔离 app.css 的全局按钮规则。
  */
-button.lobotomy-corp-top-panel-action-button {
+button.lobotomy-corp-top-panel-action-button{
   --lobotomy-corp-restart-anchored-position-x: -2.5px;
   --lobotomy-corp-restart-anchored-position-y: 12px;
   appearance: none;
@@ -275,49 +651,49 @@ button.lobotomy-corp-top-panel-action-button {
   position: absolute;
   top: 50%;
   transform: translate(
-    calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
-    calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
+          calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
+          calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
   );
   transition: none;
   width: 812px;
 }
 
-button.lobotomy-corp-top-panel-action-button:hover:not(:disabled) {
+button.lobotomy-corp-top-panel-action-button:hover:not(:disabled){
   background: transparent;
   box-shadow: none;
   transform: translate(
-    calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
-    calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
+          calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
+          calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
   );
 }
 
-button.lobotomy-corp-top-panel-action-button:focus-visible:not(:disabled) {
+button.lobotomy-corp-top-panel-action-button:focus-visible:not(:disabled){
   background: transparent;
   box-shadow: none;
-  outline: 3px solid #ffffff;
+  outline: 3px solid #FFF;
   outline-offset: 4px;
   transform: translate(
-    calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
-    calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
+          calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
+          calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
   );
 }
 
-button.lobotomy-corp-top-panel-action-button:active:not(:disabled) {
+button.lobotomy-corp-top-panel-action-button:active:not(:disabled){
   --lobotomy-corp-restart-anchored-position-y: 5px;
   background: transparent;
   box-shadow: none;
   transform: translate(
-    calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
-    calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
+          calc(-50% + var(--lobotomy-corp-restart-anchored-position-x)),
+          calc(-50% - var(--lobotomy-corp-restart-anchored-position-y))
   );
 }
 
-button.lobotomy-corp-top-panel-action-button:disabled {
+button.lobotomy-corp-top-panel-action-button:disabled{
   cursor: default;
   opacity: 1;
 }
 
-.lobotomy-corp-top-panel-action-button-sprite {
+.lobotomy-corp-top-panel-action-button-sprite{
   display: block;
   height: 100%;
   inset: 0;
@@ -327,20 +703,20 @@ button.lobotomy-corp-top-panel-action-button:disabled {
   width: 100%;
 }
 
-.lobotomy-corp-top-panel-action-button-sprite.pressed {
+.lobotomy-corp-top-panel-action-button-sprite.pressed{
   opacity: 0;
 }
 
-button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-sprite.normal {
+button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-sprite.normal{
   opacity: 0;
 }
 
-button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-sprite.pressed {
+button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-sprite.pressed{
   opacity: 1;
 }
 
-.lobotomy-corp-top-panel-action-button-text {
-  color: #000000;
+.lobotomy-corp-top-panel-action-button-text{
+  color: #000;
   display: block;
   font-family: LobotomyRestartTitle, sans-serif;
   font-size: 70px;
@@ -354,35 +730,35 @@ button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-cor
   white-space: nowrap;
 }
 
-html[lang="ko-KR"] .lobotomy-corp-top-panel-action-button-text {
+html[lang="ko-KR"] .lobotomy-corp-top-panel-action-button-text{
   font-family: LobotomyRestartTitleKorean, sans-serif;
 }
 
-html[lang="ru-RU"] .lobotomy-corp-top-panel-action-button-text {
+html[lang="ru-RU"] .lobotomy-corp-top-panel-action-button-text{
   font-family: LobotomyRestartTitleRussian, sans-serif;
 }
 
-button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-text {
-  color: #3c3c3c;
+button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-corp-top-panel-action-button-text{
+  color: #3C3C3C;
 }
 
-@keyframes lobotomy-corp-emergency-pulse {
+@keyframes lobotomy-corp-emergency-pulse{
   0%,
-  100% {
+  100%{
     opacity: 0.4;
   }
 
-  50% {
+  50%{
     opacity: 0.8;
   }
 }
 
-@keyframes lobotomy-corp-top-panel-appear {
-  from {
+@keyframes lobotomy-corp-top-panel-appear{
+  from{
     transform: translateY(-180px);
   }
 
-  to {
+  to{
     transform: translateY(0);
   }
 }

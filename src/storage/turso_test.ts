@@ -19,6 +19,7 @@ import type {
 } from "../models.ts";
 import { createTursoStorage, type TursoClient } from "./turso.ts";
 import type { Storage } from "./types.ts";
+import { assertEquals, assertStrictEquals } from "../test_helpers.ts";
 
 Deno.test("Turso storage isolates users and replaces KV match prefix scans", async () => {
   await withStorage(async (storage) => {
@@ -124,7 +125,7 @@ Deno.test("Turso account CRUD parameterizes injection-like usernames", async () 
     const updatedUsername = '" OR 1=1 --';
     const created = account("injection-id", createdUsername);
 
-    assertEquals(await storage.createAccount(created), true);
+    assertStrictEquals(await storage.createAccount(created), true);
     assertEquals(
       (await storage.getAccountByUsername(createdUsername))?.id,
       created.id,
@@ -141,7 +142,10 @@ Deno.test("Turso account CRUD parameterizes injection-like usernames", async () 
       (await storage.getAccountByUsername(updatedUsername))?.id,
       created.id,
     );
-    assertEquals(await storage.createAccount(account("safe-id", "safe")), true);
+    assertStrictEquals(
+      await storage.createAccount(account("safe-id", "safe")),
+      true,
+    );
     assertEquals((await storage.listAccounts()).length, 2);
   });
 });
@@ -653,20 +657,6 @@ async function assertRejects(run: () => Promise<unknown>): Promise<void> {
     return;
   }
   throw new Error("Expected promise to reject.");
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param {unknown} actual 实际值。
- * @param {unknown} expected 期望值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
 }
 
 /**

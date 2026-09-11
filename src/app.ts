@@ -15,6 +15,7 @@ import {
   lobotomyCorpAssetResponse,
   lobotomyCorpScriptResponse,
   lobotomyCorpStyleResponse,
+  lobotomyCorpWhiteNightEventResponse,
 } from "./easter_egg_assets.ts";
 import { faviconResponse } from "./favicon.ts";
 import { createRoutes } from "./routes.ts";
@@ -76,6 +77,10 @@ export function createApplication() {
   app.get(
     "/static/fun/lobotomy-corp/lobotomy-corp.css",
     () => lobotomyCorpStyleResponse(),
+  );
+  app.get(
+    "/static/fun/lobotomy-corp/Events/WhiteNight.js",
+    () => lobotomyCorpWhiteNightEventResponse(),
   );
   app.get(
     "/static/fun/lobotomy-corp/*",

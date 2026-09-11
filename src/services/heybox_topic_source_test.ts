@@ -5,6 +5,7 @@ import {
   createHeyboxTopicSource,
   parseHeyboxTopicPosts,
 } from "./heybox_topic_source.ts";
+import { assert, assertEquals } from "../test_helpers.ts";
 
 Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
   const posts = parseHeyboxTopicPosts({
@@ -60,7 +61,7 @@ Deno.test("parseHeyboxTopicPosts extracts text from rich-content JSON", () => {
   }, "12099");
 
   assertEquals(posts[0].body, "第一段正文\n第二段正文");
-  assertEquals(posts[0].body.includes("storage/emulated"), false);
+  assert(!(posts[0].body.includes("storage/emulated")));
 });
 
 Deno.test("parseHeyboxTopicPosts rejects untrusted post share URLs", () => {
@@ -211,8 +212,8 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
   assertEquals(topicFeedUrl.searchParams.get("device_info"), "M2104K10AC");
   assertEquals(topicFeedUrl.searchParams.get("os_version"), "14");
   assertEquals(topicFeedUrl.searchParams.get("dw"), "393");
-  assertEquals(topicFeedUrl.searchParams.has("hkey"), true);
-  assertEquals(topicFeedUrl.searchParams.has("nonce"), true);
+  assert(topicFeedUrl.searchParams.has("hkey"));
+  assert(topicFeedUrl.searchParams.has("nonce"));
   assertEquals(topicFeedUrl.searchParams.get("_time"), "1782848432");
   assertEquals(detailUrl.searchParams.get("link_id"), "1");
   assertEquals(posts[0].id, "1");
@@ -350,19 +351,4 @@ async function assertRejects(
   }
 
   throw new Error(`Expected ${expectedMessage}`);
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
 }

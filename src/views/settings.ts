@@ -61,7 +61,7 @@ const securitySettingsFormId = "security-settings-form";
 /**
  * 《逆转裁判》入口与事件脚本的联合版本。
  *
- * 两份脚本共享初始化约定，必须同时更新，避免浏览器混用旧事件脚本与新入口。
+ * 两份脚本共享同一套初始化约定，版本号同时标识它们，避免浏览器混用旧事件脚本与新入口。
  */
 const aceAttorneyEasterEggScriptVersion = "20260907-inline-data-v2";
 
@@ -275,7 +275,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
-    <script src="/static/settings.js?v=20260906-avatar-crop-tangent-zoom" defer></script>
+    <script src="/static/settings.js?v=20260908-portrait-canvas" defer></script>
   `;
 
   return renderLayout({
@@ -312,10 +312,14 @@ function settingLabel(icon: MaterialSymbolName, label: string): string {
  * @param label 设置项标签。
  * @return dt 标签 HTML。
  */
-function authSettingLabel(icon: AuthIconName, label: string): string {
+function authSettingLabel(
+  icon: AuthIconName,
+  label: string,
+  dataAttribute?: string,
+): string {
   return `<dt class="settings-label-with-icon">${
     authIcon(icon, "settings-label-icon auth-settings-icon")
-  }<span>${escapeHtml(label)}</span></dt>`;
+  }<span ${dataAttribute ?? ""}>${escapeHtml(label)}</span></dt>`;
 }
 
 /**
@@ -569,11 +573,11 @@ function renderAccountSection(
             <button class="account-avatar-preview-button" type="button" data-avatar-preview aria-label="${
     escapeHtml(messages.accountAvatar)
   }">
-              <span class="account-avatar account-avatar-preview"><img class="account-avatar-default" src="${
+              <span class="account-avatar-risk-wrapper" data-lobotomy-corp-risk-host="settings"><span class="account-avatar account-avatar-preview"><img class="account-avatar-default" src="${
     defaultAvatarUrl(account?.id)
   }" alt="${
     escapeHtml(messages.accountAvatar)
-  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span>
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>
             </button>
             <label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button" aria-label="${
     escapeHtml(messages.accountAvatarChoose)
@@ -688,7 +692,13 @@ function renderAccountSection(
             </dd>
           </div>
           <div>
-            ${authSettingLabel("username", messages.accountDisplayName)}
+            ${
+    authSettingLabel(
+      "username",
+      messages.accountDisplayName,
+      "data-account-display-name-label",
+    )
+  }
             <dd>
               <div class="account-username-row">
                 <input
@@ -1869,7 +1879,6 @@ function renderPasskeyCredentialList(
  *
  * @param credential Passkey 凭证。
  * @param messages 当前语言文案。
- * @param locale 当前页面语言。
  * @return Passkey 凭证显示名称。
  */
 function passkeyCredentialDisplayName(
@@ -1887,6 +1896,7 @@ function passkeyCredentialDisplayName(
  *
  * @param credential Passkey 凭证。
  * @param messages 当前语言文案。
+ * @param locale 当前页面语言。
  * @return Passkey 凭证元信息。
  */
 function passkeyCredentialMeta(

@@ -12,6 +12,7 @@ import {
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { renderSettings } from "./settings.ts";
+import { assertEquals } from "../test_helpers.ts";
 
 /**
  * 视图测试使用的固定 CSRF 令牌。
@@ -279,7 +280,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260906-avatar-crop-tangent-zoom`,
+    `/static/settings.js?v=20260908-portrait-canvas`,
   );
   assertIncludes(
     html,
@@ -299,15 +300,15 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-easter-egg-structure`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260909-white-night-events`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-risk-custom-layout`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-white-night`,
   );
   assertIncludes(
     html,
-    `id="lobotomy-corp-locale-data">{"restartDay":"重新开始这一天","firedManager":"你被解雇了，主管！"}</script>`,
+    `id="lobotomy-corp-locale-data">{"restartDay":"重新开始这一天","firedManager":"你被解雇了，主管！","whiteNight.blockNavigation.denyPresence"`,
   );
   assertIncludes(html, `data-username-easter-egg-settings`);
 });
@@ -1105,21 +1106,6 @@ function settings(): AppSettings {
     themeColor: "#bd7fff",
     topics: [],
   };
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
 }
 
 /**

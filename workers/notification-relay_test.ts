@@ -2,6 +2,7 @@
  * @file 本文件验证通知中继 Worker 的转发、鉴权和错误处理行为。
  */
 import { handleRelayRequest } from "./notification-relay.js";
+import { assertEquals } from "../src/test_helpers.ts";
 
 Deno.test("notification relay forwards pushplus requests with fixed upstream URL", async () => {
   const requests: Request[] = [];
@@ -60,8 +61,14 @@ Deno.test("notification relay forwards wxpusher requests with fixed upstream URL
 
   assertEquals(response.status, 200);
   assertEquals(await response.json(), { code: 1000 });
-  assertEquals(requests[0].url, "https://wxpusher.zjiecode.com/api/send/message/simple-push");
-  assertEquals(requests[0].headers.get("content-type"), "application/json; charset=utf-8");
+  assertEquals(
+    requests[0].url,
+    "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+  );
+  assertEquals(
+    requests[0].headers.get("content-type"),
+    "application/json; charset=utf-8",
+  );
 });
 
 Deno.test("notification relay forwards server chan requests to sctapi", async () => {
@@ -95,8 +102,14 @@ Deno.test("notification relay forwards server chan requests to sctapi", async ()
   assertEquals(requests[0].method, "POST");
   assertEquals(requests[0].headers.get("authorization"), null);
   assertEquals(requests[0].headers.get("x-serverchan-send-key"), null);
-  assertEquals(requests[0].headers.get("content-type"), "application/json; charset=utf-8");
-  assertEquals(await requests[0].json(), { desp: "hello", title: "relay test" });
+  assertEquals(
+    requests[0].headers.get("content-type"),
+    "application/json; charset=utf-8",
+  );
+  assertEquals(await requests[0].json(), {
+    desp: "hello",
+    title: "relay test",
+  });
 });
 
 Deno.test("notification relay forwards server chan 3 requests to uid host", async () => {
@@ -118,7 +131,10 @@ Deno.test("notification relay forwards server chan 3 requests to uid host", asyn
   );
 
   assertEquals(response.status, 204);
-  assertEquals(requests[0].url, "https://123.push.ft07.com/send/sctp123tTOKEN.send");
+  assertEquals(
+    requests[0].url,
+    "https://123.push.ft07.com/send/sctp123tTOKEN.send",
+  );
 });
 
 Deno.test("notification relay rejects missing server chan send key", async () => {
@@ -137,7 +153,9 @@ Deno.test("notification relay rejects missing server chan send key", async () =>
   );
 
   assertEquals(response.status, 400);
-  assertEquals(await response.json(), { error: "serverchan_send_key_required" });
+  assertEquals(await response.json(), {
+    error: "serverchan_send_key_required",
+  });
   assertEquals(calls, 0);
 });
 
@@ -167,7 +185,9 @@ Deno.test("notification relay rejects unsafe server chan send keys", async () =>
     );
 
     assertEquals(response.status, 400);
-    assertEquals(await response.json(), { error: "invalid_serverchan_send_key" });
+    assertEquals(await response.json(), {
+      error: "invalid_serverchan_send_key",
+    });
   }
 });
 
@@ -212,17 +232,3 @@ Deno.test("notification relay exposes a health check", async () => {
   assertEquals(response.status, 200);
   assertEquals(await response.json(), { status: "ok" });
 });
-
-/**
- * 断言两个值的 JSON 表示完全一致。
- *
- * @param {unknown} actual 实际值。
- * @param {unknown} expected 期望值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
-}

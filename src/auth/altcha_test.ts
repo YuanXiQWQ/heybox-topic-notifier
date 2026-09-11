@@ -1,7 +1,7 @@
 /**
  * @file 本文件验证自建 ALTCHA 挑战的配置、生成与服务端校验行为。
  */
-import { assertEquals } from "../test_helpers.ts";
+import { assertEquals, assertStrictEquals } from "../test_helpers.ts";
 import {
   altchaConfigFromEnv,
   altchaConfigured,
@@ -24,10 +24,10 @@ const testConfig = {
 Deno.test("altchaConfigFromEnv defaults to a disabled configuration", () => {
   const config = altchaConfigFromEnv(() => undefined);
 
-  assertEquals(config.enabled, false);
+  assertStrictEquals(config.enabled, false);
   assertEquals(config.challengeCost, 1000);
   assertEquals(config.challengeTtlSeconds, 600);
-  assertEquals(altchaConfigured(config), false);
+  assertStrictEquals(altchaConfigured(config), false);
 });
 
 Deno.test("ALTCHA verifies a signed proof-of-work payload", async () => {
@@ -43,7 +43,7 @@ Deno.test("ALTCHA verifies a signed proof-of-work payload", async () => {
     testConfig,
   );
 
-  assertEquals(result.success, true);
+  assertStrictEquals(result.success, true);
 });
 
 Deno.test("ALTCHA rejects a tampered proof-of-work payload", async () => {
@@ -60,5 +60,5 @@ Deno.test("ALTCHA rejects a tampered proof-of-work payload", async () => {
     testConfig,
   );
 
-  assertEquals(result.success, false);
+  assertStrictEquals(result.success, false);
 });

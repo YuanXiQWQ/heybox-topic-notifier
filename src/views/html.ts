@@ -107,6 +107,63 @@ function renderLobotomyCorpLocaleData(locale: Locale): string {
 }
 
 /**
+ * 渲染所有已维护语言的“一罪与百善”特殊工作别名。
+ *
+ * 仅将客户端判断所需的单一字段注入页面，避免为匹配赎罪而额外发起请求。
+ *
+ * @return {string} 内联 JSON 脚本。
+ */
+function renderLobotomyCorpConfessionAliasesData(): string {
+  const localeFiles = [
+    "en-US",
+    "es-ES",
+    "ja-JP",
+    "ko-KR",
+    "ru-RU",
+    "vi-VN",
+    "zh-CN",
+    "zh-TW",
+  ];
+  return renderEasterEggJsonData(
+    "lobotomy-corp-confession-aliases-data",
+    localeFiles.map((localeFile) => {
+      const messages = readEasterEggJson(
+        `lobotomy-corp/Locales/${localeFile}.json`,
+      ) as Record<string, unknown>;
+      return messages["oneSin.specialWork.confession"];
+    }).filter((value): value is string => typeof value === "string"),
+  );
+}
+
+/**
+ * 渲染《脑叶公司》通用异想体资料。
+ *
+ * @return {string} 内联 JSON 脚本。
+ */
+function renderLobotomyCorpAbnormalitiesData(): string {
+  return renderEasterEggJsonData(
+    "lobotomy-corp-abnormalities-data",
+    readEasterEggJson("lobotomy-corp/Data/Abnormalities.json"),
+  );
+}
+
+/**
+ * 渲染当前已登录账户的显示名称，供异想体身份装饰在任意页面重新派生。
+ *
+ * @param {Pick<UserAccount, "displayName" | "username">|undefined} account 当前账户。
+ * @return {string} 安全内联的账户身份资料；匿名页面为空。
+ */
+function renderLobotomyCorpAccountIdentityData(
+  account: Pick<UserAccount, "displayName" | "username"> | undefined,
+): string {
+  return account
+    ? renderEasterEggJsonData("lobotomy-corp-account-identity-data", {
+      displayName: account.displayName ?? account.username,
+    })
+    : "";
+}
+
+/**
  * 渲染设置页所需的《逆转裁判》角色资料和当前语言文本。
  *
  * @param {Locale} locale 当前网页 locale。
@@ -159,12 +216,15 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260906-fourth-risk-custom-layout">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-white-night">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
-    <script src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260906-easter-egg-structure" defer></script>
+    ${renderLobotomyCorpConfessionAliasesData()}
+    ${renderLobotomyCorpAbnormalitiesData()}
+    ${renderLobotomyCorpAccountIdentityData(options.account)}
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260909-white-night-events"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
@@ -284,9 +344,9 @@ export function renderAvatar(
 ): string {
   const name = account.displayName ?? account.username;
   const alt = messages.accountAvatarAlt.replace("{name}", name);
-  return `<span class="account-avatar"><img class="account-avatar-default" src="${
+  return `<span class="account-avatar-risk-wrapper" data-lobotomy-corp-risk-host="nav"><span class="account-avatar"><img class="account-avatar-default" src="${
     defaultAvatarUrl(account.id)
   }" alt="${
     escapeHtml(alt)
-  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span>`;
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>`;
 }

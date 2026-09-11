@@ -2,7 +2,7 @@
  * @file 本文件验证应用装配层的通用中间件行为。
  */
 import { createApplication } from "./app.ts";
-import { assertEquals } from "./test_helpers.ts";
+import { assert, assertEquals } from "./test_helpers.ts";
 
 Deno.test("application adds baseline security headers", async () => {
   const { app } = createApplication();
@@ -12,15 +12,15 @@ Deno.test("application adds baseline security headers", async () => {
     response.headers.get("content-security-policy") ?? "";
 
   assertEquals(response.status, 200);
-  assertEquals(contentSecurityPolicy.includes("default-src 'self'"), true);
-  assertEquals(contentSecurityPolicy.includes("frame-ancestors 'none'"), true);
+  assert(contentSecurityPolicy.includes("default-src 'self'"));
+  assert(contentSecurityPolicy.includes("frame-ancestors 'none'"));
   assertEquals(
     contentSecurityPolicy.includes(
       "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/",
     ),
     true,
   );
-  assertEquals(contentSecurityPolicy.includes("object-src 'none'"), true);
+  assert(contentSecurityPolicy.includes("object-src 'none'"));
   assertEquals(
     contentSecurityPolicy.includes(
       "img-src 'self' https://cdn.max-c.com data: blob:",
@@ -73,7 +73,7 @@ Deno.test("application omits HSTS for non-HTTPS requests", async () => {
 
   assertEquals(response.status, 200);
   assertEquals(response.headers.get("strict-transport-security"), null);
-  assertEquals(response.headers.get("content-security-policy") !== null, true);
+  assert(response.headers.get("content-security-policy") !== null);
 });
 
 Deno.test("application serves the favicon without authentication", async () => {
@@ -151,7 +151,7 @@ Deno.test({
     );
 
     assertEquals(coordinatorResponse.status, 200);
-    assertEquals(coordinator.includes("previousEasterEgg?.stop()"), true);
+    assert(coordinator.includes("previousEasterEgg?.stop()"));
     assertEquals(scriptResponse.status, 200);
     assertEquals(
       script.includes("ace-attorney-easter-egg-data"),
@@ -193,7 +193,7 @@ Deno.test({
       stylesheet.includes("clamp(280px, 30vw, 740px)"),
       true,
     );
-    assertEquals(stylesheet.includes("left: 50%;"), true);
+    assert(stylesheet.includes("left: 50%;"));
     assertEquals(
       stylesheet.includes("width='4' height='4'"),
       true,
@@ -282,26 +282,26 @@ Deno.test({
       stylesheet.includes("background-color: rgb(255 255 255 / 0.82)"),
       true,
     );
-    assertEquals(stylesheet.includes("border-color: transparent"), true);
+    assert(stylesheet.includes("border-color: transparent"));
     assertEquals(
       stylesheet.includes("background-color: rgb(255 218 82 / 0.88)"),
       true,
     );
-    assertEquals(stylesheet.includes("height: 1px;"), true);
+    assert(stylesheet.includes("height: 1px;"));
     assertEquals(
       stylesheet.includes(
         ':root[dir="rtl"] .username-easter-egg-theme-aa456 .username-easter-egg-speaker::before',
       ),
       true,
     );
-    assertEquals(stylesheet.includes("transform: scaleX(-1);"), true);
+    assert(stylesheet.includes("transform: scaleX(-1);"));
     assertEquals(
       stylesheet.includes("clamp(26px, 2.8vw, 38px)"),
       true,
     );
-    assertEquals(stylesheet.includes("padding: 24px;"), true);
-    assertEquals(stylesheet.includes("max-height: 100%;"), true);
-    assertEquals(stylesheet.includes("max-width: 100%;"), true);
+    assert(stylesheet.includes("padding: 24px;"));
+    assert(stylesheet.includes("max-height: 100%;"));
+    assert(stylesheet.includes("max-width: 100%;"));
     assertEquals(
       stylesheet.includes("clamp(190px, 28vh, 270px)"),
       false,
@@ -341,8 +341,11 @@ Deno.test({
     const stylesheetResponse = await app.request(
       "/static/fun/lobotomy-corp/lobotomy-corp.css",
     );
+    const canvasScalerResponse = await app.request(
+      "/static/fun/lobotomy-corp/Events/CanvasScaler.js",
+    );
     const audioResponse = await app.request(
-      "/static/fun/lobotomy-corp/Assets/AudioClip/first-trumpet.wav",
+      "/static/fun/lobotomy-corp/Assets/Resources/sounds/bgm/emergency01_mast.ogg",
     );
     const fontResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/Font/norwester.otf",
@@ -388,15 +391,15 @@ Deno.test({
     const audioBytes = new Uint8Array(await audioResponse.arrayBuffer());
 
     assertEquals(scriptResponse.status, 200);
-    assertEquals(script.includes("firsttrumpet"), true);
-    assertEquals(script.includes("/[\\s-]+/gu"), true);
-    assertEquals(script.includes("lobotomy-corp-top-panel"), true);
-    assertEquals(script.includes("lobotomy-corp-alert-close"), false);
-    assertEquals(script.includes("data-lobotomy-corp-restart-day"), false);
-    assertEquals(script.includes('textContent = "结束警报"'), false);
-    assertEquals(script.includes("脑叶公司警报控制面板"), false);
-    assertEquals(script.includes("[0, 234, 219]"), true);
-    assertEquals(script.includes("[5, 174, 164]"), true);
+    assert(script.includes("firsttrumpet"));
+    assert(script.includes("/[\\s-]+/gu"));
+    assert(script.includes("lobotomy-corp-top-panel"));
+    assert(!(script.includes("lobotomy-corp-alert-close")));
+    assert(!(script.includes("data-lobotomy-corp-restart-day")));
+    assert(!(script.includes('textContent = "结束警报"')));
+    assert(!(script.includes("脑叶公司警报控制面板")));
+    assert(script.includes("[0, 234, 219]"));
+    assert(script.includes("[5, 174, 164]"));
     assertEquals(
       script.includes('addEventListener("click", finishAlert)'),
       false,
@@ -406,35 +409,46 @@ Deno.test({
       false,
     );
     assertEquals(stylesheetResponse.status, 200);
-    assertEquals(stylesheet.includes("pointer-events: none"), true);
+    assertEquals(canvasScalerResponse.status, 200);
+    assertEquals(
+      canvasScalerResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assertEquals(
+      (await canvasScalerResponse.text()).includes(
+        "lobotomyCorpCanvasScaleForViewport",
+      ),
+      true,
+    );
+    assert(stylesheet.includes("pointer-events: none"));
     assertEquals(
       stylesheet.includes("LobotomyNorwester"),
       true,
     );
-    assertEquals(stylesheet.includes("cubic-bezier(0.333333, 0,"), true);
-    assertEquals(stylesheet.includes("opacity: 0.4"), true);
-    assertEquals(stylesheet.includes("opacity: 0.8"), true);
-    assertEquals(stylesheet.includes("LobotomyRestartTitle"), true);
-    assertEquals(stylesheet.includes("LobotomyRestartTitleKorean"), true);
-    assertEquals(stylesheet.includes("LobotomyRestartTitleRussian"), true);
-    assertEquals(stylesheet.includes("Risk_Frame_Outter.png"), true);
-    assertEquals(script.includes("End_1.png"), true);
-    assertEquals(stylesheet.includes("background-blend-mode"), false);
-    assertEquals(stylesheet.includes("background: transparent"), true);
-    assertEquals(stylesheet.includes("border-radius: 0"), true);
-    assertEquals(stylesheet.includes("box-shadow: none"), true);
-    assertEquals(stylesheet.includes("font-weight: normal"), true);
-    assertEquals(stylesheet.includes("align-items: center"), true);
-    assertEquals(stylesheet.includes("justify-content: center"), true);
-    assertEquals(trumpetLevelContentRule.includes("line-height: normal"), true);
-    assertEquals(trumpetLevelContentRule.includes("line-height: 1"), false);
-    assertEquals(stylesheet.includes("min-height: 0"), true);
-    assertEquals(frameOutterRule.includes("height: 188px"), true);
-    assertEquals(frameOutterRule.includes("width: 887px"), true);
-    assertEquals(restartButtonRule.includes("height: 109px"), true);
-    assertEquals(restartButtonRule.includes("width: 812px"), true);
-    assertEquals(restartButtonRule.includes("left: 50%"), true);
-    assertEquals(restartButtonRule.includes("top: 50%"), true);
+    assert(stylesheet.includes("cubic-bezier(0.333333, 0,"));
+    assert(stylesheet.includes("opacity: 0.4"));
+    assert(stylesheet.includes("opacity: 0.8"));
+    assert(stylesheet.includes("LobotomyRestartTitle"));
+    assert(stylesheet.includes("LobotomyRestartTitleKorean"));
+    assert(stylesheet.includes("LobotomyRestartTitleRussian"));
+    assert(stylesheet.includes("Risk_Frame_Outter.png"));
+    assert(script.includes("End_1.png"));
+    assert(!(stylesheet.includes("background-blend-mode")));
+    assert(stylesheet.includes("background: transparent"));
+    assert(stylesheet.includes("border-radius: 0"));
+    assert(stylesheet.includes("box-shadow: none"));
+    assert(stylesheet.includes("font-weight: normal"));
+    assert(stylesheet.includes("align-items: center"));
+    assert(stylesheet.includes("justify-content: center"));
+    assert(trumpetLevelContentRule.includes("line-height: normal"));
+    assert(!(trumpetLevelContentRule.includes("line-height: 1")));
+    assert(stylesheet.includes("min-height: 0"));
+    assert(frameOutterRule.includes("height: 188px"));
+    assert(frameOutterRule.includes("width: 887px"));
+    assert(restartButtonRule.includes("height: 109px"));
+    assert(restartButtonRule.includes("width: 812px"));
+    assert(restartButtonRule.includes("left: 50%"));
+    assert(restartButtonRule.includes("top: 50%"));
     assertEquals(
       restartButtonRule.includes(
         "--lobotomy-corp-restart-anchored-position-x: -2.5px",
@@ -465,22 +479,22 @@ Deno.test({
       ),
       true,
     );
-    assertEquals(stylesheet.includes("top: 52px"), false);
-    assertEquals(stylesheet.includes("top: 45px"), false);
-    assertEquals(stylesheet.includes("calc(50% - 408.5px)"), false);
+    assert(!(stylesheet.includes("top: 52px")));
+    assert(!(stylesheet.includes("top: 45px")));
+    assert(!(stylesheet.includes("calc(50% - 408.5px)")));
     assertEquals(
       stylesheet.includes(
         "button.lobotomy-corp-top-panel-action-button:hover:not(:disabled)",
       ),
       true,
     );
-    assertEquals(stylesheet.includes("lobotomy-corp-top-panel-appear"), true);
-    assertEquals(stylesheet.includes("clamp(96px, 19vmin, 495px)"), false);
-    assertEquals(stylesheet.includes("rotate(90deg)"), false);
-    assertEquals(stylesheet.includes("rotate(180deg)"), false);
+    assert(stylesheet.includes("lobotomy-corp-top-panel-appear"));
+    assert(!(stylesheet.includes("clamp(96px, 19vmin, 495px)")));
+    assert(!(stylesheet.includes("rotate(90deg)")));
+    assert(!(stylesheet.includes("rotate(180deg)")));
     assertEquals(audioResponse.status, 200);
-    assertEquals(audioResponse.headers.get("content-type"), "audio/wav");
-    assertEquals(new TextDecoder().decode(audioBytes.slice(0, 4)), "RIFF");
+    assertEquals(audioResponse.headers.get("content-type"), "audio/ogg");
+    assertEquals(new TextDecoder().decode(audioBytes.slice(0, 4)), "OggS");
     assertEquals(fontResponse.status, 200);
     assertEquals(fontResponse.headers.get("content-type"), "font/otf");
     assertEquals(panelFontResponse.status, 200);
@@ -509,15 +523,15 @@ Deno.test("application auth pages do not load name Easter eggs", async () => {
   const registerHtml = await registerResponse.text();
   const loginHtml = await loginResponse.text();
 
-  assertEquals(registerHtml.includes('name="displayName"'), false);
-  assertEquals(registerHtml.includes("显示名称"), false);
+  assert(!(registerHtml.includes('name="displayName"')));
+  assert(!(registerHtml.includes("显示名称")));
   assertEquals(
     registerHtml.includes("data-username-easter-egg-register"),
     false,
   );
-  assertEquals(loginHtml.includes("data-username-easter-egg-register"), false);
-  assertEquals(loginHtml.includes("/static/fun/ace-attorney/"), false);
-  assertEquals(loginHtml.includes("/static/fun/lobotomy-corp/"), false);
+  assert(!(loginHtml.includes("data-username-easter-egg-register")));
+  assert(!(loginHtml.includes("/static/fun/ace-attorney/")));
+  assert(!(loginHtml.includes("/static/fun/lobotomy-corp/")));
   assertEquals(
     registerHtml.includes("/static/fun/ace-attorney/"),
     false,

@@ -1,14 +1,15 @@
 /**
  * @file 本文件负责将自定义提示框渲染到页面根节点，避免被父容器裁剪或遮挡。
  */
+// @ts-check
 
 (() => {
   const tooltipGap = 8;
   const viewportPadding = 8;
-  const tooltip = document.createElement("div");
-  tooltip.className = "app-tooltip";
+  const tooltip = document.createElement('div');
+  tooltip.className = 'app-tooltip';
   tooltip.hidden = true;
-  tooltip.setAttribute("role", "tooltip");
+  tooltip.setAttribute('role', 'tooltip');
   document.body.append(tooltip);
 
   /**
@@ -26,7 +27,7 @@
    */
   function findTooltipTarget(target) {
     if (!(target instanceof Element)) return undefined;
-    const element = target.closest("[data-tooltip]");
+    const element = target.closest('[data-tooltip]');
     return element instanceof HTMLElement ? element : undefined;
   }
 
@@ -39,23 +40,23 @@
     const targetRect = target.getBoundingClientRect();
     const tooltipRect = tooltip.getBoundingClientRect();
     const maximumLeft = Math.max(
-      viewportPadding,
-      globalThis.innerWidth - tooltipRect.width - viewportPadding,
+        viewportPadding,
+        globalThis.innerWidth - tooltipRect.width - viewportPadding,
     );
-    const preferredLeft = document.documentElement.dir === "rtl"
-      ? targetRect.left
-      : targetRect.right - tooltipRect.width;
+    const preferredLeft = document.documentElement.dir === 'rtl'
+        ? targetRect.left
+        : targetRect.right - tooltipRect.width;
     const left = Math.min(
-      Math.max(preferredLeft, viewportPadding),
-      maximumLeft,
+        Math.max(preferredLeft, viewportPadding),
+        maximumLeft,
     );
     const belowTop = targetRect.bottom + tooltipGap;
     const aboveTop = targetRect.top - tooltipRect.height - tooltipGap;
     const top = belowTop + tooltipRect.height <=
-          globalThis.innerHeight - viewportPadding ||
-        aboveTop < viewportPadding
-      ? belowTop
-      : aboveTop;
+    globalThis.innerHeight - viewportPadding ||
+    aboveTop < viewportPadding
+        ? belowTop
+        : aboveTop;
 
     tooltip.style.left = `${Math.round(left)}px`;
     tooltip.style.top = `${Math.round(top)}px`;
@@ -96,56 +97,68 @@
       reveal();
       return;
     }
-    image.addEventListener("load", reveal, { once: true });
+    image.addEventListener('load', reveal, {once: true});
   }
 
   /**
    * 初始化需要在资源加载后显示的头像。
    */
   function initializeDeferredImages() {
-    document.querySelectorAll("img[data-reveal-on-load]").forEach((image) => {
+    document.querySelectorAll('img[data-reveal-on-load]').forEach((image) => {
       if (image instanceof HTMLImageElement) revealImageAfterLoad(image);
     });
   }
 
-  document.addEventListener("pointerover", (event) => {
+  /**
+   * 判断事件的 relatedTarget 是否仍位于提示框目标内部。
+   *
+   * @param {Element} target 提示框目标。
+   * @param {EventTarget|null} related 事件的 relatedTarget。
+   * @return {boolean} 仍在目标内部时返回 true。
+   */
+  function containsRelatedTarget(target, related) {
+    return related instanceof Node && target.contains(related);
+  }
+
+  document.addEventListener('pointerover', (event) => {
     const target = findTooltipTarget(event.target);
-    if (!target || target.contains(event.relatedTarget)) return;
+    if (!target || containsRelatedTarget(target, event.relatedTarget)) return;
     showTooltip(target);
   });
 
-  document.addEventListener("pointerout", (event) => {
+  document.addEventListener('pointerout', (event) => {
     const target = findTooltipTarget(event.target);
     if (
-      !target || target !== activeTarget || target.contains(event.relatedTarget)
+        !target || target !== activeTarget ||
+        containsRelatedTarget(target, event.relatedTarget)
     ) {
       return;
     }
     hideTooltip();
   });
 
-  document.addEventListener("focusin", (event) => {
+  document.addEventListener('focusin', (event) => {
     const target = findTooltipTarget(event.target);
     if (target) showTooltip(target);
   });
 
-  document.addEventListener("focusout", (event) => {
+  document.addEventListener('focusout', (event) => {
     if (findTooltipTarget(event.target) === activeTarget) hideTooltip();
   });
 
-  document.addEventListener("click", (event) => {
+  document.addEventListener('click', (event) => {
     const target = findTooltipTarget(event.target);
     if (target && target === activeTarget) showTooltip(target);
   });
 
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") hideTooltip();
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') hideTooltip();
   });
 
-  globalThis.addEventListener("resize", () => {
+  globalThis.addEventListener('resize', () => {
     if (activeTarget) positionTooltip(activeTarget);
   });
-  globalThis.addEventListener("scroll", () => {
+  globalThis.addEventListener('scroll', () => {
     if (activeTarget) positionTooltip(activeTarget);
   }, true);
   initializeDeferredImages();

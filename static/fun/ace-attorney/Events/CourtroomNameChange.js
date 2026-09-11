@@ -1,14 +1,36 @@
 /**
  * @file 本文件提供修改显示名称时触发的《逆转裁判》主题彩蛋。
  */
+// @ts-check
+
+/**
+ * 一个彩蛋角色及其姓名写法。
+ *
+ * @typedef {object} CourtroomNameChangeCharacter
+ * @property {string} key 角色键。
+ * @property {Array<[string, string]>} names 姓名写法，允许姓与名颠倒。
+ * @property {"trilogy"|"aa456"|"investigations"} theme 角色所属资源集。
+ * @property {string} type 角色立绘类型。
+ */
+
+/**
+ * 本模块从宿主全局读取的能力。
+ *
+ * @typedef {object} CourtroomNameChangeHost
+ * @property {{finish: (gameId: string, stop: () => void) => void, start: (gameId: string, stop: () => void) => void}} [easterEggCoordinator] 跨游戏彩蛋协调器。
+ */
+
+/** 读取宿主全局能力的入口。 */
+const courtroomNameChangeHost =
+  /** @type {CourtroomNameChangeHost} */ (globalThis);
 
 /**
  * 创建当前页面使用的法庭改名事件。
  *
  * 角色资料和当前本地化均由游戏入口从内联 JSON 同步准备；该事件只承担演出与交互行为。
  *
- * @param {{characters: object[], messages: object}} configuration 已准备的静态资料。
- * @return {{activate: (username: string, target?: string) => Promise<boolean>, imageLocale: () => string, matches: (username: string) => boolean, theme: (username: string) => string|undefined, voiceLocale: (username?: string) => string}} 彩蛋公开 API。
+ * @param {{characters: CourtroomNameChangeCharacter[], messages: Record<string, any>}} configuration 已准备的静态资料。
+ * @return {{activate: (username: string, target?: "displayName"|"username") => Promise<boolean>, imageLocale: () => string, matches: (username: string) => boolean, theme: (username: string) => string|undefined, voiceLocale: (username?: string) => string}} 彩蛋公开 API。
  */
 function createCourtroomNameChange(configuration) {
   const usernameEasterEggCharacters = configuration.characters;
@@ -44,6 +66,8 @@ const usernameEasterEggChoiceSelectDelayMs = 245;
 
 /**
  * 当前彩蛋交互 Promise，避免重复打开多个彩蛋。
+ *
+ * @type {Promise<boolean>|undefined}
  */
 let activeUsernameEasterEgg;
 
@@ -64,7 +88,7 @@ function normalizeEasterEggUsername(value) {
  * 查找用户名对应的彩蛋角色，允许姓和名颠倒。
  *
  * @param {string} username 用户输入的用户名。
- * @return {{key: string, theme: "trilogy"|"aa456"|"investigations", type: string}|undefined} 匹配的角色信息。
+ * @return {CourtroomNameChangeCharacter|undefined} 匹配的角色信息。
  */
 function matchingUsernameEasterEggCharacter(username) {
   const candidate = normalizeEasterEggUsername(username);
@@ -113,6 +137,7 @@ function usernameEasterEggTheme(username) {
 function usernameEasterEggVoiceLocale(character) {
   const locale = document.documentElement.lang.toLocaleLowerCase("en-US");
   const voiceCollection = character?.theme === "aa456" ? "aa456" : "aa123";
+  /** @type {Record<"aa123"|"aa456", Array<"de-DE"|"en-US"|"es-ES"|"fr-FR"|"ja-JP"|"ko-KR"|"pt-BR"|"zh-CN">>} */
   const supportedLocales = {
     aa123: [
       "de-DE",
@@ -140,11 +165,11 @@ function usernameEasterEggVoiceLocale(character) {
 /**
  * 获取角色语音所在的资源集目录。
  *
- * @param {{theme: "trilogy"|"aa456"|"investigations"}} character 当前角色信息。
+ * @param {{theme: "trilogy"|"aa456"|"investigations"}|undefined} character 当前角色信息。
  * @return {"aa123"|"aa456"} 角色语音资源集目录。
  */
 function usernameEasterEggVoiceCollection(character) {
-  return character.theme === "aa456" ? "aa456" : "aa123";
+  return character?.theme === "aa456" ? "aa456" : "aa123";
 }
 
 /**
@@ -180,6 +205,7 @@ function usesEnglishUsernameEasterEggLocale() {
  */
 function usernameEasterEggImageLocale() {
   const locale = document.documentElement.lang.toLocaleLowerCase("en-US");
+  /** @type {Record<string, "de-DE"|"en-US"|"es-ES"|"fr-FR"|"ja-JP"|"ko-KR"|"pt-BR"|"zh-CN"|"zh-TW">} */
   const exactLocales = {
     "de-de": "de-DE",
     "en-us": "en-US",
@@ -240,7 +266,7 @@ function usernameEasterEggImageSource(assetRoot, character, imageLocale, cue) {
 /**
  * 获取当前页面语言对应的彩蛋交互文案。
  *
- * @return {typeof usernameEasterEggMessages.en} 彩蛋交互文案。
+ * @return {Record<string, any>} 当前语言的彩蛋交互文案。
  */
 function currentUsernameEasterEggMessages() {
   return usernameEasterEggMessages;
@@ -328,8 +354,8 @@ function createUsernameEasterEggButton(label, kind, action) {
  * @return {Promise<boolean>} 完成彩蛋时返回 true，取消改名时返回 false。
  */
 function activateUsernameEasterEgg(username, target = "username") {
-  const character = matchingUsernameEasterEggCharacter(username);
-  if (!character) {
+  const matchedCharacter = matchingUsernameEasterEggCharacter(username);
+  if (!matchedCharacter) {
     return Promise.resolve(true);
   }
   if (activeUsernameEasterEgg) {
@@ -337,6 +363,8 @@ function activateUsernameEasterEgg(username, target = "username") {
   }
 
   activeUsernameEasterEgg = new Promise((resolve) => {
+    // 上方守卫已确认角色存在；嵌套函数无法沿用类型收窄，这里固化一次。
+    const character = matchedCharacter;
     const voiceLocale = usernameEasterEggVoiceLocale(character);
     const imageLocale = usernameEasterEggImageLocale();
     const messages = currentUsernameEasterEggMessages();
@@ -351,12 +379,16 @@ function activateUsernameEasterEgg(username, target = "username") {
     const message = document.createElement("p");
     const continueButton = document.createElement("button");
     const actions = document.createElement("div");
+    /** @type {HTMLAudioElement|undefined} */
     let backgroundAudio;
     let choiceLocked = false;
     let finalized = false;
     let stageSequence = 0;
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
     let typewriterTimer;
+    /** @type {(() => void)|undefined} */
     let skipTypewriter;
+    /** @type {(() => void)|undefined} */
     let continueFinalDialogue;
 
     overlay.className =
@@ -492,7 +524,7 @@ function activateUsernameEasterEgg(username, target = "username") {
         let completed = false;
 
         /**
-         * 完成本轮字幕显示。
+         * 完成本次字幕显示。
          *
          * @param {boolean} revealAll 是否立即显示全部字幕。
          */
@@ -614,11 +646,11 @@ function activateUsernameEasterEgg(username, target = "username") {
      * 播放一轮台词图片、逐字字幕和选择按钮演出。
      *
      * @param {"igiari"|"matta"|"kurae"} cue 台词资源名。
-     * @param {string} text 本轮字幕。
-     * @param {{action: () => void, kind: "primary"|"secondary", label: string}[]} choices 本轮选项。
+     * @param {string} text 本次字幕。
+     * @param {{action: () => void, kind: "primary"|"secondary", label: string}[]} choices 本次选项。
      * @param {"msc-objection"|"msc-pressingPursuit"} [musicTrack] 需要切换的背景音乐。
      * @param {(() => void)|undefined} [finalAction] 无选项时点击双箭头执行的最终操作。
-     * @return {Promise<void>} 本轮交互提示显示完毕后的 Promise。
+     * @return {Promise<void>} 本次交互提示显示完毕后的 Promise。
      */
     async function showDialogueStage(
       cue,
@@ -709,7 +741,7 @@ function activateUsernameEasterEgg(username, target = "username") {
           "username-easter-egg-impact",
         );
         activeUsernameEasterEgg = undefined;
-        globalThis.easterEggCoordinator?.finish(
+        courtroomNameChangeHost.easterEggCoordinator?.finish(
           aceAttorneyEasterEggGameId,
           stopEasterEgg,
         );
@@ -822,7 +854,7 @@ function activateUsernameEasterEgg(username, target = "username") {
       finish(false);
     }
 
-    globalThis.easterEggCoordinator?.start(
+    courtroomNameChangeHost.easterEggCoordinator?.start(
       aceAttorneyEasterEggGameId,
       stopEasterEgg,
     );
@@ -862,6 +894,7 @@ function activateUsernameEasterEgg(username, target = "username") {
     imageLocale: usernameEasterEggImageLocale,
     matches: matchesUsernameEasterEgg,
     theme: usernameEasterEggTheme,
+    /** @param {string|undefined} username 用户输入的用户名。 @return {"de-DE"|"en-US"|"es-ES"|"fr-FR"|"ja-JP"|"ko-KR"|"pt-BR"|"zh-CN"} 彩蛋语音语言目录。 */
     voiceLocale: (username) =>
       usernameEasterEggVoiceLocale(
         username === undefined
