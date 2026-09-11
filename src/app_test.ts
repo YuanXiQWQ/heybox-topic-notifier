@@ -2,6 +2,7 @@
  * @file 本文件验证应用装配层的通用中间件行为。
  */
 import { createApplication } from "./app.ts";
+import { getMessages } from "./locales/index.ts";
 import { assert, assertEquals } from "./test_helpers.ts";
 
 Deno.test("application adds baseline security headers", async () => {
@@ -101,6 +102,31 @@ Deno.test("application login page declares the public favicon", async () => {
   assertEquals(
     html.includes('<link rel="icon" href="/favicon.ico" type="image/png">'),
     true,
+  );
+});
+
+Deno.test("application renders the styled 404 page for unmatched routes", async () => {
+  const { app } = createApplication();
+  // POST /healthz 是少数无需登录就能走到路由匹配的请求：该路径豁免认证，但没有
+  // POST 路由，因此会落在 notFound 处理器上。已登录用户访问任意失效地址走同一条路径。
+  const response = await app.request("/healthz", { method: "POST" });
+  const html = await response.text();
+
+  assertEquals(response.status, 404);
+  assert(html.includes('class="not-found"'));
+  assert(html.includes("<p class=\"not-found-code\">404</p>"));
+  assert(html.includes(getMessages("zh-CN").notFoundTitle));
+});
+
+Deno.test("unmatched paths send anonymous visitors to the login page first", async () => {
+  const { app } = createApplication();
+  const response = await app.request("/definitely-missing");
+
+  // 未登录访客先被认证中间件送去登录页，登录后按 returnTo 回到原地址再看到 404。
+  assertEquals(response.status, 303);
+  assertEquals(
+    response.headers.get("location"),
+    "/login?locale=zh-CN&returnTo=%2Fdefinitely-missing",
   );
 });
 
@@ -344,6 +370,30 @@ Deno.test({
     const canvasScalerResponse = await app.request(
       "/static/fun/lobotomy-corp/Events/CanvasScaler.js",
     );
+    const dontTouchMeResponse = await app.request(
+      "/static/fun/lobotomy-corp/Events/DontTouchMe.js",
+    );
+    const dangerScoreResponse = await app.request(
+      "/static/fun/lobotomy-corp/Events/DangerScore.js",
+    );
+    const shutdownVideoResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/MovieTexture/DontTouchMeGameShutdown.webm",
+    );
+    const shutdownSoundResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Resources/sounds/creature/dont_touch_me/touch_off.ogg",
+    );
+    const killEffectResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Resources/sprites/effect/touchkill.webm",
+    );
+    const deadSoundResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Resources/sounds/creature/dont_touch_me/touch_dead1.ogg",
+    );
+    const warningEffectResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Resources/sprites/effect/touchwarning.webm",
+    );
+    const moodDownSoundResponse = await app.request(
+      "/static/fun/lobotomy-corp/Assets/Resources/sounds/creature/dont_touch_me/touch_moodDown.ogg",
+    );
     const audioResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/Resources/sounds/bgm/emergency01_mast.ogg",
     );
@@ -419,6 +469,56 @@ Deno.test({
         "lobotomyCorpCanvasScaleForViewport",
       ),
       true,
+    );
+    assertEquals(dontTouchMeResponse.status, 200);
+    assertEquals(
+      dontTouchMeResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assertEquals(
+      (await dontTouchMeResponse.text()).includes(
+        "createDontTouchMeShutdown",
+      ),
+      true,
+    );
+    assertEquals(dangerScoreResponse.status, 200);
+    assertEquals(
+      dangerScoreResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assertEquals(
+      (await dangerScoreResponse.text()).includes(
+        "escapeAllDangerContribution",
+      ),
+      true,
+    );
+    assertEquals(shutdownVideoResponse.status, 200);
+    assertEquals(
+      shutdownVideoResponse.headers.get("content-type"),
+      "video/webm",
+    );
+    assertEquals(
+      shutdownVideoResponse.headers.get("accept-ranges"),
+      "bytes",
+    );
+    assertEquals(shutdownSoundResponse.status, 200);
+    assertEquals(
+      shutdownSoundResponse.headers.get("content-type"),
+      "audio/ogg",
+    );
+    assertEquals(killEffectResponse.status, 200);
+    assertEquals(killEffectResponse.headers.get("content-type"), "video/webm");
+    assertEquals(deadSoundResponse.status, 200);
+    assertEquals(deadSoundResponse.headers.get("content-type"), "audio/ogg");
+    assertEquals(warningEffectResponse.status, 200);
+    assertEquals(
+      warningEffectResponse.headers.get("content-type"),
+      "video/webm",
+    );
+    assertEquals(moodDownSoundResponse.status, 200);
+    assertEquals(
+      moodDownSoundResponse.headers.get("content-type"),
+      "audio/ogg",
     );
     assert(stylesheet.includes("pointer-events: none"));
     assertEquals(

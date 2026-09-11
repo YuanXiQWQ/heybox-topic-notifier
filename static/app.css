@@ -3105,3 +3105,36 @@ tr:last-child td{
     justify-content: flex-end;
   }
 }
+
+/* 404 页面：沿用普通页面外壳，内容居中并突出状态码与返回入口。 */
+.not-found{
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  margin: clamp(32px, 12vh, 120px) auto 0;
+  max-width: 560px;
+  text-align: center;
+}
+
+.not-found-code{
+  color: var(--theme-strong);
+  font-size: clamp(56px, 12vw, 96px);
+  font-weight: 700;
+  letter-spacing: .08em;
+  line-height: 1;
+  margin: 0;
+}
+
+.not-found h1{
+  margin: 0;
+}
+
+.not-found-description{
+  color: var(--muted);
+  margin: 0;
+}
+
+.not-found form{
+  margin-top: 6px;
+}
