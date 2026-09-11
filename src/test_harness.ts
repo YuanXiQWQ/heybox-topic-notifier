@@ -300,11 +300,16 @@ export class AudioMock extends Element {
  *
  * 只模拟 Alert 生命周期真正依赖的能力：可控时钟与计时器、音频、最小 DOM 与存储。
  *
- * @param {{navigationType?: "navigate" | "reload", now?: number}} [options] 初始导航类型与可控时钟起点。
+ * @param {{alertOverlays?: Element[], navigationType?: "navigate" | "reload", now?: number, pollingIntervalValue?: string}} [options] 初始导航类型、可控时钟起点、设置页轮询数值与页面上已存在的固定覆盖层。
  * @return {object} 测试上下文。
  */
 export function installLobotomyCorpAlertHarness(
-  options: { navigationType?: "navigate" | "reload"; now?: number } = {},
+  options: {
+    alertOverlays?: Element[];
+    navigationType?: "navigate" | "reload";
+    now?: number;
+    pollingIntervalValue?: string;
+  } = {},
 ) {
   // 每个测试独立使用一份干净的 Audio 实例列表与默认行为。
   AudioMock.reset();
@@ -354,6 +359,7 @@ export function installLobotomyCorpAlertHarness(
   );
   const originalDateNow = Date.now;
   const body = new Element();
+  const assignedLocations: string[] = [];
   const storage = new StorageMock();
   const documentListeners = new Map<string, ((event: Event) => void)[]>();
   const createdElements: Element[] = [];
@@ -401,8 +407,15 @@ export function installLobotomyCorpAlertHarness(
             : id === "lobotomy-corp-abnormalities-data"
             ? { textContent: abnormalitiesData }
             : null,
-        querySelector: () => undefined,
-        querySelectorAll: () => [],
+        querySelector: (selector: string) =>
+          selector === "[data-polling-interval-value]" &&
+            options.pollingIntervalValue !== undefined
+            ? { value: options.pollingIntervalValue }
+            : undefined,
+        querySelectorAll: (selector: string) =>
+          selector === ".lobotomy-corp-alert-overlay"
+            ? (options.alertOverlays ?? [])
+            : [],
         removeEventListener: (name: string, listener: (event: Event) => void) =>
           documentListeners.set(
             name,
@@ -418,6 +431,9 @@ export function installLobotomyCorpAlertHarness(
     location: {
       configurable: true,
       value: {
+        assign: (href: string) => {
+          assignedLocations.push(String(href));
+        },
         href: "https://warmnest.test/settings",
         pathname: "/settings",
         search: "",
@@ -488,6 +504,21 @@ export function installLobotomyCorpAlertHarness(
       listeners.forEach((listener) => listener(new Event(name)));
       return listeners.length;
     },
+    /**
+     * 在 document 上派发一次可取消事件并返回事件对象。
+     *
+     * 用于断言捕获阶段拦截器是否阻止了默认行为。
+     *
+     * @param {string} name 事件名。
+     * @return {Event} 已派发的事件。
+     */
+    dispatchDocumentEvent: (name: string) => {
+      const event = new Event(name, {cancelable: true});
+      [...(documentListeners.get(name) ?? [])].forEach((listener) =>
+        listener(event)
+      );
+      return event;
+    },
     /** @return {number} 触发当前所有待执行的 16ms 回调（Advent 帧与音乐渐变步进共用该延迟）。 */
     fireFrames: () => {
       const pending = [...timers.values()].filter((timer) =>
@@ -503,6 +534,8 @@ export function installLobotomyCorpAlertHarness(
         ),
     /** @return {Element[]} 本次测试中按创建顺序记录的全部 DOM 节点。 */
     createdElements: () => createdElements,
+    /** @return {string[]} location.assign 收到的地址。 */
+    assignedLocations: () => [...assignedLocations],
     /** @return {Element|undefined} 最近一次挂载且仍可见的 Alert overlay。 */
     overlay: () =>
       [...body.children].reverse().find((element) =>

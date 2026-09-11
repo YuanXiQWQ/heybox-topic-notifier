@@ -11,6 +11,22 @@ import {
   lobotomyCorpCanvasViewportForUpdate,
   lobotomyCorpViewportSize,
 } from './Events/CanvasScaler.js';
+import {
+  abnormalityEscapeDangerContribution,
+  clampDangerScore,
+  employeeCountForDepartments,
+  employeeDangerContribution,
+  escapableAbnormalitySummary,
+  escapeAllDangerContribution,
+  whiteNightApostleCount,
+  whiteNightDangerPoints,
+} from './Events/DangerScore.js';
+import {
+  createDontTouchMeShutdown,
+  dontTouchMeEscapeEffect,
+  dontTouchMeKillEffect,
+  dontTouchMePanicEffect,
+} from './Events/DontTouchMe.js';
 
 /**
  * 白夜被镇压后，后台 Trumpet 从 ducked 音量恢复到正常音量所需时长（毫秒）。
@@ -368,10 +384,11 @@ const lobotomyCorpSpecialEventSessionKey =
 const lobotomyCorpWhiteNightEventId = 'white-night';
 
 /** 模拟 11 名普通使徒对应员工死亡：11 × 4 = 44；第 12 名背叛者不走该死亡流程。 */
-const lobotomyCorpWhiteNightPreludeDangerContribution = 44;
+const lobotomyCorpWhiteNightPreludeDangerContribution =
+    employeeDangerContribution('death', whiteNightApostleCount);
 
 /** 白夜 Simple Advent 逻辑结束时的固定出逃危急值。 */
-const lobotomyCorpWhiteNightActiveDangerContribution = 98;
+const lobotomyCorpWhiteNightActiveDangerContribution = whiteNightDangerPoints;
 
 /**
  * 当前正在播放的脑叶公司警报及其结束操作。
@@ -414,15 +431,6 @@ let lobotomyCorpDangerDecayPausedRemainingMs;
 
 /** 当前 Danger 衰减所登记的唯一计时器。 */
 let lobotomyCorpDangerDecayTimer;
-
-/** 风险等级对应的默认出逃危急值。 */
-const lobotomyCorpDangerByRiskLevel = Object.freeze({
-  ALEPH: 75,
-  HE: 40,
-  TETH: 20,
-  WAW: 60,
-  ZAYIN: 5,
-});
 
 /** 已注册的 canonical 异想体提交观察者。 */
 const lobotomyCorpAbnormalitySubmissionListeners = new Set();
@@ -1470,8 +1478,10 @@ function lobotomyCorpDepartmentCountForDay() {
  * @return {number} 最终贡献。
  */
 function lobotomyCorpDangerContribution(abnormality, departmentCount) {
-  return (lobotomyCorpDangerByRiskLevel[abnormality.riskLevel] ?? 0) /
-      departmentCount;
+  return abnormalityEscapeDangerContribution(
+      abnormality.riskLevel,
+      departmentCount,
+  );
 }
 
 /**
@@ -1544,7 +1554,7 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     lobotomyCorpWhiteNightDangerSettlementStage = 'prelude-settled';
   }
   const alertLifecycle = setLobotomyCorpDangerScore(
-      Math.min(100, lobotomyCorpDangerScore + contribution),
+      clampDangerScore(lobotomyCorpDangerScore + contribution),
       preparedMedia,
       {
         positiveContribution: true,
@@ -3196,6 +3206,129 @@ function startLobotomyCorpAlert({
   return currentActivation.promise;
 }
 
+/** “别碰我”的 canonical 编号；保存该编号时由假关服彩蛋接管。 */
+const lobotomyCorpDontTouchMeId = 'O-05-47';
+
+/**
+ * 统计可出逃异想体的数量与平均危急值基值。
+ *
+ * 规则与点数表都在危急值模块里，这里只把页面已注入的异想体资料递进去。
+ *
+ * @return {{averageDanger: number, count: number, totalDanger: number}} 统计结果。
+ */
+function lobotomyCorpEscapableDangerSummary() {
+  return escapableAbnormalitySummary(lobotomyCorpAbnormalities);
+}
+
+/**
+ * 计算“异想体全部出逃”的危急值贡献。
+ *
+ * @param {number} departmentCount 当前已开放的部门数。
+ * @return {number} 危急值贡献。
+ */
+function lobotomyCorpEscapeAllDangerContribution(departmentCount) {
+  return escapeAllDangerContribution(
+      lobotomyCorpAbnormalities,
+      departmentCount,
+  );
+}
+
+/**
+ * 结算“别碰我”本次点击造成的员工危急值。
+ *
+ * 一个部门满编 5 人，且这笔贡献不除以部门数。
+ *
+ * @param {"death"|"panic"} kind 事件类型。
+ */
+function applyLobotomyCorpDontTouchMeWorkerDanger(kind) {
+  const contribution = employeeDangerContribution(
+      kind,
+      employeeCountForDepartments(lobotomyCorpDepartmentCountForDay()),
+  );
+  void setLobotomyCorpDangerScore(
+      clampDangerScore(lobotomyCorpDangerScore + contribution),
+      undefined,
+      {positiveContribution: true},
+  );
+}
+
+/**
+ * 结算“异想体全部出逃”的危急值。
+ *
+ * 出逃数量与平均基值都由危急值模块从异想体资料现算，本函数只负责写入。
+ */
+function applyLobotomyCorpDontTouchMeEscapeDanger() {
+  const contribution = lobotomyCorpEscapeAllDangerContribution(
+      lobotomyCorpDepartmentCountForDay(),
+  );
+  void setLobotomyCorpDangerScore(
+      clampDangerScore(lobotomyCorpDangerScore + contribution),
+      undefined,
+      {positiveContribution: true},
+  );
+}
+
+/**
+ * 把“别碰我”的假关服当作游戏崩溃收尾。
+ *
+ * 页面跳到 404 时游戏已经“关服”，危急值、警报与持久化的 Day 状态都应随之消失，
+ * 否则 404 页面会接着播放未播完的警报音乐。
+ */
+function crashLobotomyCorpDanger() {
+  void stopLobotomyCorpAlert();
+  clearLobotomyCorpDay();
+}
+
+/**
+ * “别碰我”假关服演出。
+ *
+ * 前 4 次点击只结算各自的危急值；第 5 次点击的假关服在跳转前把危急值与警报一并
+ * 当作游戏崩溃收尾。保存一开始就被拦截，用户返回设置页时显示名称仍是修改前的值。
+ */
+const lobotomyCorpDontTouchMeShutdown = createDontTouchMeShutdown({
+  assetRoot: lobotomyCorpAssetRoot,
+  onExit: crashLobotomyCorpDanger,
+  onEffectPicked: (effectId) => {
+    if (effectId === dontTouchMeKillEffect.id) {
+      applyLobotomyCorpDontTouchMeWorkerDanger('death');
+    } else if (effectId === dontTouchMePanicEffect.id) {
+      applyLobotomyCorpDontTouchMeWorkerDanger('panic');
+    } else if (effectId === dontTouchMeEscapeEffect.id) {
+      applyLobotomyCorpDontTouchMeEscapeDanger();
+    }
+  },
+});
+
+/**
+ * 判断待保存的显示名称是否由“别碰我”假关服接管。
+ *
+ * 特殊事件进行期间沿用“仅保存名称、不激活其它事件”的既有规则。
+ *
+ * @param {string} value 待保存的显示名称。
+ * @return {boolean} 需要拦截保存并播放假关服时返回 true。
+ */
+function lobotomyCorpBlocksDisplayNameSave(value) {
+  if (lobotomyCorpWhiteNightEvent.isActive()) return false;
+  return matchingLobotomyCorpAbnormality(value)?.canonicalId ===
+      lobotomyCorpDontTouchMeId;
+}
+
+/**
+ * 保存被拦截后播放“别碰我”本次点击对应的演出。
+ *
+ * @return {Promise<void>} 演出结束时完成。
+ */
+function playLobotomyCorpDontTouchMe() {
+  const stop = () => lobotomyCorpDontTouchMeShutdown.stop();
+  globalThis.easterEggCoordinator?.start(lobotomyCorpEasterEggGameId, stop);
+  return lobotomyCorpDontTouchMeShutdown.play().finally(() => {
+    globalThis.easterEggCoordinator?.finish?.(
+        lobotomyCorpEasterEggGameId,
+        stop,
+    );
+  });
+}
+
 // WhiteNight 只通过此窄接口访问通用 Day / Alert 生命周期，避免复制业务状态。
 const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   assetRoot: lobotomyCorpAssetRoot,
@@ -3229,9 +3362,12 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
 
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
+  blocksDisplayNameSave: lobotomyCorpBlocksDisplayNameSave,
   canvasScaleForViewport: lobotomyCorpCanvasScaleForViewport,
   canvasViewportForUpdate: lobotomyCorpCanvasViewportForUpdate,
   commitDisplayName: commitLobotomyCorpDisplayName,
+  escapeAllDangerContribution: lobotomyCorpEscapeAllDangerContribution,
+  escapableDangerSummary: lobotomyCorpEscapableDangerSummary,
   getDangerMusicHighWaterLevel: getLobotomyCorpDangerMusicHighWaterLevel,
   getDangerScore: getLobotomyCorpDangerScore,
   getSpecialEvent: () => lobotomyCorpWhiteNightEvent.getId(),
@@ -3247,6 +3383,7 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
     lobotomyCorpAbnormalitySubmissionListeners.add(listener);
     return () => lobotomyCorpAbnormalitySubmissionListeners.delete(listener);
   },
+  playDontTouchMe: playLobotomyCorpDontTouchMe,
   prepareDisplayName: prepareLobotomyCorpDisplayName,
   restartDay: restartLobotomyCorpDay,
   setDangerScore: setLobotomyCorpDangerScore,

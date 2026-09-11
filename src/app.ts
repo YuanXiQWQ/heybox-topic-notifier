@@ -6,6 +6,7 @@ import {
   type AuthOptions,
   createAuthMiddleware,
   createAuthRoutes,
+  readAuthSession,
 } from "./auth.ts";
 import {
   aceAttorneyAssetResponse,
@@ -13,14 +14,18 @@ import {
   aceAttorneyStyleResponse,
   easterEggCoordinatorScriptResponse,
   lobotomyCorpAssetResponse,
+  lobotomyCorpDangerScoreResponse,
+  lobotomyCorpDontTouchMeEventResponse,
   lobotomyCorpScriptResponse,
   lobotomyCorpStyleResponse,
   lobotomyCorpWhiteNightEventResponse,
 } from "./easter_egg_assets.ts";
 import { faviconResponse } from "./favicon.ts";
 import { createRoutes } from "./routes.ts";
+import { csrfTokenForRequest, withCsrfCookie } from "./security/csrf.ts";
 import { createSecurityHeadersMiddleware } from "./security/headers.ts";
 import { createAppContext } from "./services/app_context.ts";
+import { renderNotFound } from "./views/not_found.ts";
 
 /**
  * 创建应用实例和运行时上下文。
@@ -83,6 +88,14 @@ export function createApplication() {
     () => lobotomyCorpWhiteNightEventResponse(),
   );
   app.get(
+    "/static/fun/lobotomy-corp/Events/DangerScore.js",
+    () => lobotomyCorpDangerScoreResponse(),
+  );
+  app.get(
+    "/static/fun/lobotomy-corp/Events/DontTouchMe.js",
+    () => lobotomyCorpDontTouchMeEventResponse(),
+  );
+  app.get(
     "/static/fun/lobotomy-corp/*",
     (c) =>
       lobotomyCorpAssetResponse(
@@ -110,6 +123,28 @@ export function createApplication() {
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
   app.route("/", createRoutes(context));
+
+  // 未匹配任何路由时给出与普通页面同风格的 404。认证中间件在此之前已把未登录
+  // 访客重定向到登录页，因此这里渲染的是已登录用户访问失效地址的场景。
+  app.notFound(async (c) => {
+    const session = await readAuthSession(
+      c.req.header("cookie"),
+      context.storage,
+      authOptions,
+    );
+    const account = session
+      ? await context.storage.getAccountById(session.userId)
+      : undefined;
+    const settings = await context.storage.getSettings();
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    return withCsrfCookie(
+      c.html(
+        renderNotFound({ account, csrfToken: csrf.token, settings }),
+        404,
+      ),
+      csrf,
+    );
+  });
 
   return { app, context };
 }

@@ -25,6 +25,20 @@ import {
   whiteNightStageMusicAudibleMs,
 } from "../static/fun/lobotomy-corp/Events/WhiteNight.js";
 import { whiteNightSimpleAdventDurationMs } from "../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
+import {
+  dontTouchMeEffectVideoClassName,
+  dontTouchMeExitDelayMs,
+  dontTouchMeExitPath,
+  dontTouchMeKillEffect,
+  dontTouchMeOverlayClassName,
+  dontTouchMeRecoilAmplitudeRatio,
+  dontTouchMeRecoilArrowCount,
+  dontTouchMeRecoilStepMs,
+  dontTouchMeShutdownSoundPath,
+  dontTouchMeShutdownVideoPath,
+  dontTouchMeShoutSoundPath,
+  dontTouchMeVideoClassName,
+} from "../static/fun/lobotomy-corp/Events/DontTouchMe.js";
 
 /**
  * 派发顶部 Restart 面板的反向动画结束事件，模拟面板收起动画完成。
@@ -2949,6 +2963,306 @@ Deno.test("Lobotomy Corporation reuses an existing session when start races with
     );
     assertEquals(visibleAlertOverlayCount(harness.body), 1);
   } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("DontTouchMe derives camera recoil from CameraMover and RecoilEffect", () => {
+  // Main.unity 的 CameraMover：DefaultOrtho 8.5、recoil.scale 3、recoil.recoilCount 2。
+  assertEquals(dontTouchMeRecoilAmplitudeRatio(), 3 / 17);
+  // Recoil(level, maxTime) 的次数是 level × recoilCount × maxTime × 3。
+  assertEquals(dontTouchMeRecoilArrowCount(2, 5), 60);
+  assertEquals(dontTouchMeRecoilArrowCount(1, 3), 18);
+  // PlayRecoil 在方向列表末尾再追加一次原始位置，因此间隔按次数 + 1 均分。
+  assertEquals(dontTouchMeRecoilStepMs(2, 5), 5000 / 61);
+  assertEquals(dontTouchMeRecoilStepMs(1, 3), 3000 / 19);
+});
+
+Deno.test("DontTouchMe plays one impact per click and only shuts down on the fifth", async () => {
+  // 轮询数值 3 表示本 Day 有 3 个部门：满编共 15 人，全员死亡 15 × 4 = 60。
+  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const originalRandom = Math.random;
+  try {
+    // 固定选中 touchKill 分支，让两次点击的断言可预期。
+    Math.random = () => 0.1;
+    await harness.reload();
+    const api = harness.api() as unknown as {
+      blocksDisplayNameSave: (value: string) => boolean;
+      getDangerScore: () => number;
+      playDontTouchMe: () => Promise<void>;
+    };
+    const assetRoot = "/static/fun/lobotomy-corp/Assets";
+    const effectVideos = () =>
+      harness.createdElements().filter((element) =>
+        element.className === dontTouchMeEffectVideoClassName
+      );
+
+    // 只有“别碰我”自身接管保存，其它异想体继续走通用彩蛋的保存流程。
+    assertEquals(api.blocksDisplayNameSave("O-05-47"), true);
+    assertEquals(api.blocksDisplayNameSave(" o-05-47 "), true);
+    assertEquals(api.blocksDisplayNameSave("别碰我"), false);
+    assertEquals(api.blocksDisplayNameSave("T-03-46"), false);
+    assertEquals(api.blocksDisplayNameSave(""), false);
+
+    // 前四次点击只播放效果演出与音效，不跳转、也不进入假关服。
+    for (let click = 1; click <= 4; click++) {
+      const playback = api.playDontTouchMe();
+      const effectVideo = effectVideos().at(-1);
+      assert(effectVideo);
+      assertEquals(
+        effectVideo.src,
+        `${assetRoot}/${dontTouchMeKillEffect.videoPath}`,
+      );
+      effectVideo.dispatch("ended");
+      await playback;
+      // 全体员工死亡：部门数 3 × 满编 5 人 × 每名 +4 = 60，且不除以部门数。
+      if (click === 1) assertEquals(api.getDangerScore(), 60);
+      assertEquals(harness.assignedLocations().length, 0);
+      assertEquals(
+        harness.body.children.some((element) =>
+          element.className === dontTouchMeKillEffect.extraClassName
+        ),
+        false,
+      );
+    }
+    assertEquals(effectVideos().length, 4);
+    assertEquals(
+      AudioMock.items.filter((audio) => audio.src.includes("touch_dead")).length,
+      4,
+    );
+    assertEquals(
+      AudioMock.items.filter((audio) => audio.src.includes("touch_shout"))
+        .length,
+      0,
+    );
+    // 每次点击都按同一公式累加，最后由 Danger Score 的上限封顶。
+    assertEquals(api.getDangerScore(), 100);
+
+    // 第 5 次点击改为 ExitStart() → ForceExitScene：shout 先响，关服画面延后。
+    const shutdown = api.playDontTouchMe();
+    // 假关服开始后整页交互被拦截：再点保存或点导航栏都不会生效。
+    assertEquals(harness.dispatchDocumentEvent("click").defaultPrevented, true);
+    assertEquals(
+      harness.dispatchDocumentEvent("submit").defaultPrevented,
+      true,
+    );
+    // ExitStart() 的 Recoil(2, 5f)：1080px 视口的幅度是 1080 × 3/17 ≈ 190.588px，
+    // 固定随机数选出左上方向，Unity 的 +y 在 CSS 里取反。
+    const recoilAmplitude = Math.round((3 / 17) * 1080 * 1000) / 1000;
+    assertEquals(
+      harness.body.style.transform,
+      `translate3d(${-recoilAmplitude}px, ${-recoilAmplitude}px, 0)`,
+    );
+    assertEquals(
+      AudioMock.items.filter((audio) =>
+        audio.src.endsWith(dontTouchMeShoutSoundPath)
+      ).length,
+      1,
+    );
+    assertEquals(
+      harness.createdElements().some((element) =>
+        element.className === dontTouchMeVideoClassName
+      ),
+      false,
+    );
+
+    harness.pendingTimer(dontTouchMeExitDelayMs)!.callback();
+
+    const video = harness.createdElements().find((element) =>
+      element.className === dontTouchMeVideoClassName
+    );
+    assert(video);
+    assertEquals(video.src, `${assetRoot}/${dontTouchMeShutdownVideoPath}`);
+    assertEquals(
+      AudioMock.items.filter((audio) =>
+        audio.src.endsWith(dontTouchMeShutdownSoundPath)
+      ).length,
+      1,
+    );
+    assert(findByClass(harness.body, dontTouchMeOverlayClassName));
+
+    video.dispatch("ended");
+    await shutdown;
+
+    // 保存从未发生：演出结束后跳转错误页，用户返回时仍是修改前的名称。
+    assertEquals(harness.assignedLocations(), [dontTouchMeExitPath]);
+    // 关服即游戏崩溃：危急值清空、当天持久化状态一并清除，404 页面不会接着响警报。
+    assertEquals(api.getDangerScore(), 0);
+    assertEquals(harness.storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(harness.dispatchDocumentEvent("click").defaultPrevented, false);
+    assertEquals(
+      harness.body.children.some((element) =>
+        element.className === dontTouchMeOverlayClassName
+      ),
+      false,
+    );
+  } finally {
+    Math.random = originalRandom;
+    harness.restore();
+  }
+});
+
+Deno.test("DontTouchMe derives escapable danger from Abnormalities.json", async () => {
+  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  try {
+    await harness.reload();
+    const api = harness.api() as unknown as {
+      escapeAllDangerContribution: (departmentCount: number) => number;
+      escapableDangerSummary: () => {
+        averageDanger: number;
+        count: number;
+        totalDanger: number;
+      };
+    };
+    // Abnormalities.json 里 canBreach 为 true 的条目：40 只，总点数 1993。
+    const summary = api.escapableDangerSummary();
+    assertEquals(summary.count, 40);
+    assertEquals(summary.totalDanger, 1993);
+    assertEquals(summary.averageDanger, 1993 / 40);
+    // 3 个部门容纳 12 只：12 × 平均基值 / 部门数。
+    assertEquals(api.escapeAllDangerContribution(3), 12 * (1993 / 40) / 3);
+    // 11 个部门容纳 48 只，但可出逃只有 40 只，因此按 40 只计。
+    assertEquals(api.escapeAllDangerContribution(11), 40 * (1993 / 40) / 11);
+    assertEquals(api.escapeAllDangerContribution(0), 0);
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("DontTouchMe panics every worker with the original recoil and no sequence", async () => {
+  const alertOverlay = new Element();
+  const harness = installLobotomyCorpAlertHarness({
+    alertOverlays: [alertOverlay],
+    pollingIntervalValue: "3",
+  });
+  const originalRandom = Math.random;
+  try {
+    // 固定选中 PanicAllWorker 分支（三选一里的第 2 个）。
+    Math.random = () => 0.5;
+    await harness.reload();
+    const api = harness.api() as unknown as {
+      getDangerScore: () => number;
+      playDontTouchMe: () => Promise<void>;
+    };
+    const playback = api.playDontTouchMe();
+
+    // 这一支只有 panic 音效与镜头后坐，没有全屏序列，也不结算危急值。
+    assertEquals(
+      AudioMock.items.filter((audio) => audio.src.includes("touch_panic"))
+        .length,
+      1,
+    );
+    assertEquals(
+      harness.createdElements().some((element) =>
+        element.className === dontTouchMeEffectVideoClassName
+      ),
+      false,
+    );
+    // 全体员工恐慌：部门数 3 × 满编 5 人 × 每名 +2 = 30。
+    assertEquals(api.getDangerScore(), 30);
+    // CameraMover.Recoil(1, 3f)；固定随机数选出 RIGHTDOWN（x 为 +1、y 为 -1）。
+    const recoilAmplitude = Math.round((3 / 17) * 1080 * 1000) / 1000;
+    assertEquals(
+      harness.body.style.transform,
+      `translate3d(${recoilAmplitude}px, ${recoilAmplitude}px, 0)`,
+    );
+    // 警报 HUD 与“重新开始这一天”面板固定在视口上，用反向位移抵消抖动。
+    assertEquals(
+      alertOverlay.style.transform,
+      `translate3d(${-recoilAmplitude}px, ${-recoilAmplitude}px, 0)`,
+    );
+
+    // 18 次方向切换，间隔 3000 / 19 毫秒；最后一次之后立即复位。
+    const step = dontTouchMeRecoilStepMs(1, 3);
+    for (let index = 1; index < dontTouchMeRecoilArrowCount(1, 3); index++) {
+      harness.pendingTimer(step)!.callback();
+    }
+    await playback;
+    assertEquals(harness.body.style.transform, "");
+    assertEquals(alertOverlay.style.transform, "");
+  } finally {
+    Math.random = originalRandom;
+    harness.restore();
+  }
+});
+
+Deno.test("DontTouchMe escapes every abnormality with the WARNING sequence", async () => {
+  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const originalRandom = Math.random;
+  try {
+    // 固定选中 SetAllQliphothCounter 分支（三选一里的第 3 个）。
+    Math.random = () => 0.9;
+    await harness.reload();
+    const api = harness.api() as unknown as {
+      getDangerScore: () => number;
+      playDontTouchMe: () => Promise<void>;
+    };
+    const playback = api.playDontTouchMe();
+
+    assertEquals(
+      AudioMock.items.filter((audio) => audio.src.includes("touch_moodDown"))
+        .length,
+      1,
+    );
+    const effectVideo = harness.createdElements().find((element) =>
+      element.className === dontTouchMeEffectVideoClassName
+    );
+    assert(effectVideo);
+    assertEquals(
+      effectVideo.src,
+      "/static/fun/lobotomy-corp/Assets/Resources/sprites/effect/touchwarning.webm",
+    );
+    // 全体员工出逃：3 个部门容纳 12 只，12 × (1993 / 40) / 3 ≈ 199.3，被 100 封顶。
+    assertEquals(api.getDangerScore(), 100);
+
+    effectVideo.dispatch("ended");
+    await playback;
+    assertEquals(harness.assignedLocations().length, 0);
+  } finally {
+    Math.random = originalRandom;
+    harness.restore();
+  }
+});
+
+Deno.test("DontTouchMe forgets clicks outside its ten-second window", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  const originalRandom = Math.random;
+  try {
+    Math.random = () => 0.1;
+    await harness.reload();
+    const api = harness.api() as unknown as {
+      playDontTouchMe: () => Promise<void>;
+    };
+
+    for (let click = 1; click <= 4; click++) {
+      const playback = api.playDontTouchMe();
+      const effectVideo = harness.createdElements().findLast((element) =>
+        element.className === dontTouchMeEffectVideoClassName
+      );
+      assert(effectVideo);
+      effectVideo.dispatch("ended");
+      await playback;
+    }
+
+    // 超过 10 秒窗口后，第 5 次点击只播放演出，不进入假关服。
+    harness.setNow(10001);
+    const playback = api.playDontTouchMe();
+    assertEquals(
+      harness.createdElements().some((element) =>
+        element.className === dontTouchMeVideoClassName
+      ),
+      false,
+    );
+    assertEquals(harness.assignedLocations().length, 0);
+    const effectVideo = harness.createdElements().findLast((element) =>
+      element.className === dontTouchMeEffectVideoClassName
+    );
+    assert(effectVideo);
+    effectVideo.dispatch("ended");
+    await playback;
+    assertEquals(harness.assignedLocations().length, 0);
+  } finally {
+    Math.random = originalRandom;
     harness.restore();
   }
 });

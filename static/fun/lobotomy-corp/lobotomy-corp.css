@@ -762,3 +762,48 @@ button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-cor
     transform: translateY(0);
   }
 }
+
+/* ForceExitScene：1600×900、matchWidth 缩放的全屏关服画面。 */
+.lobotomy-corp-dont-touch-me-shutdown{
+  align-items: center;
+  background: #000;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10020;
+}
+
+/* 视频只作 RawImage 的贴图来源，声音由场景内单独的 touch_off AudioSource 提供。 */
+.lobotomy-corp-dont-touch-me-shutdown-video{
+  display: block;
+  height: auto;
+  max-height: 100vh;
+  pointer-events: none;
+  width: 100%;
+}
+
+/* 点击演出的公共覆盖层：覆盖全屏但不截获操作，用户可以继续点保存。 */
+.lobotomy-corp-dont-touch-me-effect{
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10020;
+}
+
+/*
+ * 两组序列都由 CustomScreenEffect 铺满屏幕：RectTransform 锚定 0~1、
+ * m_PreserveAspect = 0，因此原作本身就是非等比拉伸铺满，这里用 fill 还原。
+ */
+.lobotomy-corp-dont-touch-me-effect video{
+  display: block;
+  height: 100%;
+  inset: 0;
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
