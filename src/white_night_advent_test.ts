@@ -201,13 +201,23 @@ Deno.test("Simple Advent uses literal prefab layout, visible sprites, and Best F
     ),
     true,
   );
+  // 两个 Shader 以 vh 为回退值，只有浏览器支持 dvh 时由 @supports 覆盖；
+  // 这里按声明语义匹配，不依赖换行、空格或引号写法。
+  const shaderSelectorSource =
+    "\\.lobotomy-corp-white-night-simple-advent-global-shader\\s*,\\s*" +
+    "\\.lobotomy-corp-white-night-simple-advent-clock-shader\\s*\\{";
   assertEquals(
-    css.replaceAll("\r", "").includes(
-      ".lobotomy-corp-white-night-simple-advent-global-shader,\n" +
-        ".lobotomy-corp-white-night-simple-advent-clock-shader {\n" +
-        "  height: 100vh;\n  height: 100dvh;\n  inset: 0;\n" +
-        "  object-fit: fill;\n  width: 100vw;",
-    ),
+    new RegExp(
+      `${shaderSelectorSource}\\s*height:\\s*100vh;\\s*inset:\\s*0;` +
+        "\\s*object-fit:\\s*fill;\\s*width:\\s*100vw;",
+    ).test(css),
+    true,
+  );
+  assertEquals(
+    new RegExp(
+      "@supports \\(height: 100dvh\\)\\s*\\{\\s*" +
+        `${shaderSelectorSource}\\s*height:\\s*100dvh;`,
+    ).test(css),
     true,
   );
   assertEquals(

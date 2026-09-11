@@ -12,12 +12,11 @@ import {
   lobotomyCorpReferenceCanvasHeight,
   lobotomyCorpReferenceCanvasWidth,
   lobotomyCorpViewportSize,
-} from "./CanvasScaler.js";
+} from './CanvasScaler.js';
 
 /** AdventClockUI.prefab 的原始画布尺寸。 */
 export const whiteNightSimpleAdventCanvas = Object.freeze({
-  height: lobotomyCorpReferenceCanvasHeight,
-  width: lobotomyCorpReferenceCanvasWidth,
+  height: lobotomyCorpReferenceCanvasHeight, width: lobotomyCorpReferenceCanvasWidth,
 });
 
 /**
@@ -38,35 +37,26 @@ export const whiteNightSimpleAdventClockRect = Object.freeze({
 
 /** Name 父对象的 RectTransform；其偏移在每个 Names[] 子项之前应用。 */
 export const whiteNightSimpleAdventNameParentRect = Object.freeze({
-  anchorMax: Object.freeze({ x: 0.5, y: 0.5 }),
-  anchorMin: Object.freeze({ x: 0.5, y: 0.5 }),
-  anchoredPosition: Object.freeze({ x: 0, y: -8.750008 }),
-  pivot: Object.freeze({ x: 0.5, y: 0.5 }),
-  sizeDelta: Object.freeze({ height: 0, width: 0 }),
+  anchorMax: Object.freeze({x: 0.5, y: 0.5}),
+  anchorMin: Object.freeze({x: 0.5, y: 0.5}),
+  anchoredPosition: Object.freeze({x: 0, y: -8.750008}),
+  pivot: Object.freeze({x: 0.5, y: 0.5}),
+  sizeDelta: Object.freeze({height: 0, width: 0}),
 });
 
 /** AdventClockUI.Awake() 从 Names[0].color 读取的原始名字颜色。 */
 export const whiteNightSimpleAdventOriginalColor = Object.freeze({
-  alpha: 1,
-  blue: 1,
-  green: 1,
-  red: 1,
+  alpha: 1, blue: 1, green: 1, red: 1,
 });
 
 /** AdventClockUI.prefab 的 _NameTextAdventColor。 */
 export const whiteNightSimpleAdventColor = Object.freeze({
-  alpha: 1,
-  blue: 0.11978597,
-  green: 0,
-  red: 0.7058823,
+  alpha: 1, blue: 0.11978597, green: 0, red: 0.7058823,
 });
 
 /** Names[] Legacy Text 的 BMDOHYEON Best Fit 参数。 */
 export const whiteNightSimpleAdventNameText = Object.freeze({
-  fontFamily: "LobotomyAdventNames",
-  maxSize: 40,
-  normalMinSize: 14,
-  twelfthMinSize: 12,
+  fontFamily: 'LobotomyAdventNames', maxSize: 40, normalMinSize: 14, twelfthMinSize: 12,
 });
 
 /** SimpleAdventStart() 的 _advent_adventAnim 时长。 */
@@ -80,53 +70,26 @@ export const whiteNightSimpleAdventHideDurationMs = 500;
 
 /** Circle 节点引用的 ClockCenter Sprite 原始裁切参数。 */
 export const whiteNightSimpleAdventClockCenterSprite = Object.freeze({
-  pivot: Object.freeze({ x: 0.5052102, y: 0.7424417 }),
-  rect: Object.freeze({
-    height: 257.9327,
-    width: 259.85663,
-    x: 380.0761,
-    y: 0,
-  }),
-  texture: Object.freeze({ height: 383, width: 1024 }),
+  pivot: Object.freeze({x: 0.5052102, y: 0.7424417}), rect: Object.freeze({
+    height: 257.9327, width: 259.85663, x: 380.0761, y: 0,
+  }), texture: Object.freeze({height: 383, width: 1024}),
 });
 
 /** Simple Advent 实际可见的 prefab Sprite，保持父子 sibling 顺序。 */
-export const whiteNightSimpleAdventSprites = Object.freeze([
-  "ClockFrame.png",
-  "GlobalShader.png",
-  "ClockShader.png",
-  "LowerShader.png",
-]);
+export const whiteNightSimpleAdventSprites = Object.freeze(['ClockFrame.png', 'GlobalShader.png', 'ClockShader.png', 'LowerShader.png',]);
 
 /** AdventClockUI.Names[] 的明确 index → RectTransform 映射。 */
-export const whiteNightSimpleAdventNameSlots = Object.freeze([
-  [129.96, 239.4, 29.999994],
-  [227.28, 132.72, 60],
-  [260.52, -6.72, 90],
-  [227.04, -128.4, 121.44615],
-  [128.4, -220.8, 154.99998],
-  [-12.96, -252, 180],
-  [-142.8, -212.4, -150.00002],
-  [-229.2, -124.8, -119.99999],
-  [-260.4, 1.2, -90],
-  [-225.6, 141.6, -60.000023],
-  [-132, 241.2, -30.000015],
-  [0, 275.4, 0],
-].map(([x, y, rotation], index) =>
-  Object.freeze({
-    anchorMax: Object.freeze({ x: 0.5, y: 0.5 }),
-    anchorMin: Object.freeze({ x: 0.5, y: 0.5 }),
-    anchoredPosition: Object.freeze({ x, y }),
-    index,
-    minSize: index === 11
-      ? whiteNightSimpleAdventNameText.twelfthMinSize
-      : whiteNightSimpleAdventNameText.normalMinSize,
-    pivot: Object.freeze({ x: 0.5, y: 0.5 }),
-    rotation,
-    scale: Object.freeze({ x: 1, y: 1 }),
-    sizeDelta: Object.freeze({ height: 48, width: 114 }),
-  })
-));
+export const whiteNightSimpleAdventNameSlots = Object.freeze([[129.96, 239.4, 29.999994], [227.28, 132.72, 60], [260.52, -6.72, 90], [227.04, -128.4, 121.44615], [128.4, -220.8, 154.99998], [-12.96, -252, 180], [-142.8, -212.4, -150.00002], [-229.2, -124.8, -119.99999], [-260.4, 1.2, -90], [-225.6, 141.6, -60.000023], [-132, 241.2, -30.000015], [0, 275.4, 0],].map(([x, y, rotation], index) => Object.freeze({
+  anchorMax: Object.freeze({x: 0.5, y: 0.5}),
+  anchorMin: Object.freeze({x: 0.5, y: 0.5}),
+  anchoredPosition: Object.freeze({x, y}),
+  index,
+  minSize: index === 11 ? whiteNightSimpleAdventNameText.twelfthMinSize : whiteNightSimpleAdventNameText.normalMinSize,
+  pivot: Object.freeze({x: 0.5, y: 0.5}),
+  rotation,
+  scale: Object.freeze({x: 1, y: 1}),
+  sizeDelta: Object.freeze({height: 48, width: 114}),
+})));
 
 /**
  * 当前页面上的 Simple Advent 控制器。
@@ -142,9 +105,7 @@ let activeSimpleAdvent;
  * @return {string} CSS rgb() 颜色。
  */
 function toCssColor(color) {
-  return `rgb(${(color.red * 255).toFixed(6)} ${
-    (color.green * 255).toFixed(6)
-  } ${(color.blue * 255).toFixed(6)})`;
+  return `rgb(${(color.red * 255).toFixed(6)} ${(color.green * 255).toFixed(6)} ${(color.blue * 255).toFixed(6)})`;
 }
 
 /**
@@ -187,11 +148,7 @@ export function whiteNightSimpleAdventSmoothstep(rate) {
  */
 export function whiteNightSimpleAdventClockFitScaleForViewport(width, height) {
   const halfWidth = whiteNightSimpleAdventClockRect.width / 2;
-  const fitScale = Math.min(
-    width / 2 / halfWidth,
-    height / 2 / Math.abs(whiteNightSimpleAdventClockRect.topFromCanvasCenter),
-    height / 2 / whiteNightSimpleAdventClockRect.bottomFromCanvasCenter,
-  );
+  const fitScale = Math.min(width / 2 / halfWidth, height / 2 / Math.abs(whiteNightSimpleAdventClockRect.topFromCanvasCenter), height / 2 / whiteNightSimpleAdventClockRect.bottomFromCanvasCenter,);
   return Number.isFinite(fitScale) && fitScale > 0 ? fitScale : 1;
 }
 
@@ -203,25 +160,14 @@ export function whiteNightSimpleAdventClockFitScaleForViewport(width, height) {
  * @param {number} [scale] 已应用的逻辑画布缩放；省略时按基础 CanvasScaler 与 Clock fit 上限取小。
  * @return {{bottom: number, left: number, right: number, top: number}} viewport 坐标下的 Clock 包围盒。
  */
-export function whiteNightSimpleAdventClockViewportBounds(
-  width,
-  height,
-  scale,
-) {
-  const appliedScale = typeof scale === "number" && Number.isFinite(scale)
-    ? scale
-    : Math.min(
-      lobotomyCorpCanvasScaleForViewport(width, height),
-      whiteNightSimpleAdventClockFitScaleForViewport(width, height),
-    );
+export function whiteNightSimpleAdventClockViewportBounds(width, height, scale,) {
+  const appliedScale = typeof scale === 'number' && Number.isFinite(scale) ? scale : Math.min(lobotomyCorpCanvasScaleForViewport(width, height), whiteNightSimpleAdventClockFitScaleForViewport(width, height),);
   const halfWidth = whiteNightSimpleAdventClockRect.width / 2 * appliedScale;
   return {
-    bottom: height / 2 +
-      whiteNightSimpleAdventClockRect.bottomFromCanvasCenter * appliedScale,
+    bottom: height / 2 + whiteNightSimpleAdventClockRect.bottomFromCanvasCenter * appliedScale,
     left: width / 2 - halfWidth,
     right: width / 2 + halfWidth,
-    top: height / 2 +
-      whiteNightSimpleAdventClockRect.topFromCanvasCenter * appliedScale,
+    top: height / 2 + whiteNightSimpleAdventClockRect.topFromCanvasCenter * appliedScale,
   };
 }
 
@@ -236,19 +182,11 @@ export function whiteNightSimpleAdventClockViewportBounds(
  * @param {(width: number, height: number) => number} [canvasScaleForViewport] 逻辑画布缩放计算器。
  * @return {{background: {height: number, width: number}, clock: {height: number, scale: number, width: number}}} 两套展示坐标系的边界。
  */
-export function whiteNightSimpleAdventPresentationForViewport(
-  width,
-  height,
-  canvasScaleForViewport = lobotomyCorpCanvasScaleForViewport,
-) {
+export function whiteNightSimpleAdventPresentationForViewport(width, height, canvasScaleForViewport = lobotomyCorpCanvasScaleForViewport,) {
   // Clock 保持完整可见；该上限只作用于 1920×1080 逻辑画布，Fullscreen Shader 不受影响。
-  const scale = Math.min(
-    canvasScaleForViewport(width, height),
-    whiteNightSimpleAdventClockFitScaleForViewport(width, height),
-  );
+  const scale = Math.min(canvasScaleForViewport(width, height), whiteNightSimpleAdventClockFitScaleForViewport(width, height),);
   return {
-    background: { height, width },
-    clock: {
+    background: {height, width}, clock: {
       height: whiteNightSimpleAdventClockRect.height * scale,
       scale,
       width: whiteNightSimpleAdventClockRect.width * scale,
@@ -265,11 +203,11 @@ export function whiteNightSimpleAdventPresentationForViewport(
  * @return {any} 图层图片。
  */
 function createSprite(document, className, source) {
-  const image = document.createElement("img");
-  image.alt = "";
+  const image = document.createElement('img');
+  image.alt = '';
   image.className = className;
   image.src = source;
-  image.setAttribute("aria-hidden", "true");
+  image.setAttribute('aria-hidden', 'true');
   return image;
 }
 
@@ -283,16 +221,10 @@ function createSprite(document, className, source) {
  */
 function fitsName(name, fontSize, measureName) {
   if (measureName) return measureName(name, fontSize);
-  name.style.setProperty(
-    "--lobotomy-corp-advent-name-font-size",
-    `${fontSize}px`,
-  );
-  const hasHorizontalMetrics = Number.isFinite(name.scrollWidth) &&
-    Number.isFinite(name.clientWidth) && name.clientWidth > 0;
-  const hasVerticalMetrics = Number.isFinite(name.scrollHeight) &&
-    Number.isFinite(name.clientHeight) && name.clientHeight > 0;
-  return (!hasHorizontalMetrics || name.scrollWidth <= name.clientWidth) &&
-    (!hasVerticalMetrics || name.scrollHeight <= name.clientHeight);
+  name.style.setProperty('--lobotomy-corp-advent-name-font-size', `${fontSize}px`,);
+  const hasHorizontalMetrics = Number.isFinite(name.scrollWidth) && Number.isFinite(name.clientWidth) && name.clientWidth > 0;
+  const hasVerticalMetrics = Number.isFinite(name.scrollHeight) && Number.isFinite(name.clientHeight) && name.clientHeight > 0;
+  return (!hasHorizontalMetrics || name.scrollWidth <= name.clientWidth) && (!hasVerticalMetrics || name.scrollHeight <= name.clientHeight);
 }
 
 /**
@@ -304,23 +236,13 @@ function fitsName(name, fontSize, measureName) {
  * @return {number} 实际应用的逻辑字号。
  */
 export function fitWhiteNightSimpleAdventName(name, minimum, measureName) {
-  for (
-    let size = whiteNightSimpleAdventNameText.maxSize;
-    size >= minimum;
-    size--
-  ) {
+  for (let size = whiteNightSimpleAdventNameText.maxSize; size >= minimum; size--) {
     if (fitsName(name, size, measureName)) {
-      name.style.setProperty(
-        "--lobotomy-corp-advent-name-font-size",
-        `${size}px`,
-      );
+      name.style.setProperty('--lobotomy-corp-advent-name-font-size', `${size}px`,);
       return size;
     }
   }
-  name.style.setProperty(
-    "--lobotomy-corp-advent-name-font-size",
-    `${minimum}px`,
-  );
+  name.style.setProperty('--lobotomy-corp-advent-name-font-size', `${minimum}px`,);
   return minimum;
 }
 
@@ -379,31 +301,31 @@ export function createWhiteNightSimpleAdvent(options) {
   const host = /** @type {WhiteNightSimpleAdventHost} */ (globalThis);
   const document = options?.document ?? host.document;
   if (!document?.body || !document.createElement) {
-    throw new Error("WhiteNight Simple Advent requires a document body.");
+    throw new Error('WhiteNight Simple Advent requires a document body.');
   }
   activeSimpleAdvent?.dispose();
 
-  const assetRoot = options.assetRoot.replace(/\/$/, "");
-  const now = options.now ??
-    (() => host.performance?.now?.() ?? Date.now());
-  const requestFrame = options.requestFrame ??
-    ((callback) =>
-      host.requestAnimationFrame?.(callback) ??
-        setTimeout(() => callback(now()), 16));
-  const cancelFrame = options.cancelFrame ??
-    ((id) => host.cancelAnimationFrame?.(id) ?? clearTimeout(id));
+  const assetRoot = options.assetRoot.replace(/\/$/, '');
+  const now = options.now ?? (() => host.performance?.now?.() ?? Date.now());
+  const requestFrame = options.requestFrame ?? ((callback) => host.requestAnimationFrame?.(callback) ?? setTimeout(() => callback(now()), 16));
+  const cancelFrame = options.cancelFrame ?? ((id) => {
+    // 宿主缺少 requestAnimationFrame 时 requestFrame 退回定时器，取消也要对应回退。
+    if (typeof host.cancelAnimationFrame === 'function') {
+      host.cancelAnimationFrame(id);
+      return;
+    }
+    clearTimeout(id);
+  });
   const viewport = options.viewport ?? (() => lobotomyCorpViewportSize());
-  const canvasScaleForViewport = options.canvasScaleForViewport ??
-    lobotomyCorpCanvasScaleForViewport;
-  const canvasViewportForUpdate = options.canvasViewportForUpdate ??
-    lobotomyCorpCanvasViewportForUpdate;
-  const root = document.createElement("section");
-  const canvas = document.createElement("div");
-  const uiRoot = document.createElement("div");
-  const addApostle = document.createElement("div");
-  const clock = document.createElement("div");
-  const namesLayer = document.createElement("div");
-  const shader = document.createElement("div");
+  const canvasScaleForViewport = options.canvasScaleForViewport ?? lobotomyCorpCanvasScaleForViewport;
+  const canvasViewportForUpdate = options.canvasViewportForUpdate ?? lobotomyCorpCanvasViewportForUpdate;
+  const root = document.createElement('section');
+  const canvas = document.createElement('div');
+  const uiRoot = document.createElement('div');
+  const addApostle = document.createElement('div');
+  const clock = document.createElement('div');
+  const namesLayer = document.createElement('div');
+  const shader = document.createElement('div');
   /** @type {Array<{element: any, slot: {anchoredPosition: {x: number, y: number}, index: number, minSize: number, rotation: number}}>} */
   const nameNodes = [];
   const names = Array.isArray(options.names) ? options.names : [];
@@ -415,78 +337,37 @@ export function createWhiteNightSimpleAdvent(options) {
   /** @type {WhiteNightSimpleAdventViewport|undefined} */
   let stableViewport;
   // 刷新恢复时沿用已播放时长，避免把完整的四秒演出从头再播一次。
-  const requestedElapsedMs = typeof options.initialElapsedMs === "number" &&
-      Number.isFinite(options.initialElapsedMs)
-    ? options.initialElapsedMs
-    : 0;
-  const initialElapsedMs = clamp(
-    requestedElapsedMs,
-    0,
-    whiteNightSimpleAdventDurationMs,
-  );
+  const requestedElapsedMs = typeof options.initialElapsedMs === 'number' && Number.isFinite(options.initialElapsedMs) ? options.initialElapsedMs : 0;
+  const initialElapsedMs = clamp(requestedElapsedMs, 0, whiteNightSimpleAdventDurationMs,);
   const startedAt = now() - initialElapsedMs;
 
-  root.className = "lobotomy-corp-white-night-simple-advent";
-  root.id = "lobotomy-corp-white-night-simple-advent";
-  root.setAttribute("aria-hidden", "true");
-  canvas.className = "lobotomy-corp-white-night-simple-advent-canvas";
-  uiRoot.className = "lobotomy-corp-white-night-simple-advent-ui-root";
-  addApostle.className = "lobotomy-corp-white-night-simple-advent-add-apostle";
-  clock.className = "lobotomy-corp-white-night-simple-advent-clock";
-  namesLayer.className = "lobotomy-corp-white-night-simple-advent-names";
-  namesLayer.dataset.anchoredPositionY = String(
-    whiteNightSimpleAdventNameParentRect.anchoredPosition.y,
-  );
-  shader.className = "lobotomy-corp-white-night-simple-advent-shader";
+  root.className = 'lobotomy-corp-white-night-simple-advent';
+  root.id = 'lobotomy-corp-white-night-simple-advent';
+  root.setAttribute('aria-hidden', 'true');
+  canvas.className = 'lobotomy-corp-white-night-simple-advent-canvas';
+  uiRoot.className = 'lobotomy-corp-white-night-simple-advent-ui-root';
+  addApostle.className = 'lobotomy-corp-white-night-simple-advent-add-apostle';
+  clock.className = 'lobotomy-corp-white-night-simple-advent-clock';
+  namesLayer.className = 'lobotomy-corp-white-night-simple-advent-names';
+  namesLayer.dataset.anchoredPositionY = String(whiteNightSimpleAdventNameParentRect.anchoredPosition.y,);
+  shader.className = 'lobotomy-corp-white-night-simple-advent-shader';
 
-  clock.append(
-    createSprite(
-      document,
-      "lobotomy-corp-white-night-simple-advent-frame",
-      `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/ClockFrame.png`,
-    ),
-    namesLayer,
-  );
+  clock.append(createSprite(document, 'lobotomy-corp-white-night-simple-advent-frame', `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/ClockFrame.png`,), namesLayer,);
   whiteNightSimpleAdventNameSlots.forEach((slot) => {
-    const name = document.createElement("span");
+    const name = document.createElement('span');
     const suppliedName = names[slot.index];
-    name.className = "lobotomy-corp-white-night-simple-advent-name";
+    name.className = 'lobotomy-corp-white-night-simple-advent-name';
     name.dataset.index = String(slot.index);
     name.dataset.minimumFontSize = String(slot.minSize);
-    name.textContent = typeof suppliedName === "string" ? suppliedName : "";
-    name.style.setProperty(
-      "--lobotomy-corp-advent-name-x",
-      `${slot.anchoredPosition.x}px`,
-    );
-    name.style.setProperty(
-      "--lobotomy-corp-advent-name-y",
-      `${slot.anchoredPosition.y}px`,
-    );
-    name.style.setProperty(
-      "--lobotomy-corp-advent-name-rotation",
-      `${slot.rotation}deg`,
-    );
+    name.textContent = typeof suppliedName === 'string' ? suppliedName : '';
+    name.style.setProperty('--lobotomy-corp-advent-name-x', `${slot.anchoredPosition.x}px`,);
+    name.style.setProperty('--lobotomy-corp-advent-name-y', `${slot.anchoredPosition.y}px`,);
+    name.style.setProperty('--lobotomy-corp-advent-name-rotation', `${slot.rotation}deg`,);
     namesLayer.append(name);
-    nameNodes.push({ element: name, slot });
+    nameNodes.push({element: name, slot});
   });
 
-  shader.append(
-    createSprite(
-      document,
-      "lobotomy-corp-white-night-simple-advent-global-shader",
-      `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/GlobalShader.png`,
-    ),
-    createSprite(
-      document,
-      "lobotomy-corp-white-night-simple-advent-clock-shader",
-      `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/ClockShader.png`,
-    ),
-    createSprite(
-      document,
-      "lobotomy-corp-white-night-simple-advent-lower-shader",
-      `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/LowerShader.png`,
-    ),
-  );
+  shader.append(createSprite(document, 'lobotomy-corp-white-night-simple-advent-global-shader', `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/GlobalShader.png`,), createSprite(document, 'lobotomy-corp-white-night-simple-advent-clock-shader', `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/ClockShader.png`,), createSprite(document, 'lobotomy-corp-white-night-simple-advent-lower-shader', `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock/LowerShader.png`,),);
   addApostle.append(clock);
   uiRoot.append(addApostle);
   canvas.append(uiRoot);
@@ -504,26 +385,17 @@ export function createWhiteNightSimpleAdvent(options) {
   const updateCanvasScale = () => {
     const liveViewport = viewport();
     stableViewport = canvasViewportForUpdate(stableViewport, liveViewport);
-    const baseScale = canvasScaleForViewport(
-      stableViewport.width,
-      stableViewport.height,
-    );
-    const clockFitScale = whiteNightSimpleAdventClockFitScaleForViewport(
-      liveViewport.width,
-      liveViewport.height,
-    );
-    canvas.style.setProperty(
-      "--lobotomy-corp-advent-canvas-scale",
-      String(Math.min(baseScale, clockFitScale)),
-    );
+    const baseScale = canvasScaleForViewport(stableViewport.width, stableViewport.height,);
+    const clockFitScale = whiteNightSimpleAdventClockFitScaleForViewport(liveViewport.width, liveViewport.height,);
+    canvas.style.setProperty('--lobotomy-corp-advent-canvas-scale', String(Math.min(baseScale, clockFitScale)),);
   };
   /** 以当前字体（或 fallback 字体）重新执行每个 Name 的 Legacy Text Best Fit。 */
-  const fitNames = () =>
-    nameNodes.forEach(({ element, slot }) =>
-      fitWhiteNightSimpleAdventName(element, slot.minSize, options.measureName)
-    );
+  const fitNames = () => nameNodes.forEach(({
+                                              element,
+                                              slot
+                                            }) => fitWhiteNightSimpleAdventName(element, slot.minSize, options.measureName));
   const resizeTarget = host.visualViewport ?? host;
-  resizeTarget?.addEventListener?.("resize", updateCanvasScale);
+  resizeTarget?.addEventListener?.('resize', updateCanvasScale);
   updateCanvasScale();
   fitNames();
   void document.fonts?.ready?.then?.(() => {
@@ -549,58 +421,24 @@ export function createWhiteNightSimpleAdvent(options) {
    */
   const render = (timestamp) => {
     if (completed) return;
-    const elapsed = clamp(
-      timestamp - startedAt,
-      0,
-      whiteNightSimpleAdventDurationMs,
-    );
+    const elapsed = clamp(timestamp - startedAt, 0, whiteNightSimpleAdventDurationMs,);
     const rate = elapsed / whiteNightSimpleAdventDurationMs;
     const colorRate = Math.min(rate * 2, 1);
-    const red = whiteNightSimpleAdventOriginalColor.red +
-      (whiteNightSimpleAdventColor.red -
-          whiteNightSimpleAdventOriginalColor.red) * colorRate;
-    const green = whiteNightSimpleAdventOriginalColor.green +
-      (whiteNightSimpleAdventColor.green -
-          whiteNightSimpleAdventOriginalColor.green) * colorRate;
-    const blue = whiteNightSimpleAdventOriginalColor.blue +
-      (whiteNightSimpleAdventColor.blue -
-          whiteNightSimpleAdventOriginalColor.blue) * colorRate;
-    const rootShowRate = whiteNightSimpleAdventSmoothstep(
-      elapsed / whiteNightSimpleAdventShowDurationMs,
-    );
-    const clockShowRate = whiteNightSimpleAdventSmoothstep(
-      (elapsed - whiteNightSimpleAdventShowDurationMs / 2) /
-        (whiteNightSimpleAdventShowDurationMs / 2),
-    );
-    const hideRate = adventEnded
-      ? 1 - whiteNightSimpleAdventSmoothstep(
-        (timestamp - endingStartedAt) / whiteNightSimpleAdventHideDurationMs,
-      )
-      : 1;
-    root.style.setProperty(
-      "--lobotomy-corp-advent-root-alpha",
-      String(rootShowRate * hideRate),
-    );
-    clock.style.setProperty(
-      "--lobotomy-corp-advent-clock-alpha",
-      String(clockShowRate),
-    );
-    nameNodes.forEach(({ element }) => {
-      element.style.setProperty(
-        "--lobotomy-corp-advent-name-alpha",
-        String(rate),
-      );
-      element.style.setProperty(
-        "--lobotomy-corp-advent-name-color",
-        toCssColor({ red, green, blue }),
-      );
+    const red = whiteNightSimpleAdventOriginalColor.red + (whiteNightSimpleAdventColor.red - whiteNightSimpleAdventOriginalColor.red) * colorRate;
+    const green = whiteNightSimpleAdventOriginalColor.green + (whiteNightSimpleAdventColor.green - whiteNightSimpleAdventOriginalColor.green) * colorRate;
+    const blue = whiteNightSimpleAdventOriginalColor.blue + (whiteNightSimpleAdventColor.blue - whiteNightSimpleAdventOriginalColor.blue) * colorRate;
+    const rootShowRate = whiteNightSimpleAdventSmoothstep(elapsed / whiteNightSimpleAdventShowDurationMs,);
+    const clockShowRate = whiteNightSimpleAdventSmoothstep((elapsed - whiteNightSimpleAdventShowDurationMs / 2) / (whiteNightSimpleAdventShowDurationMs / 2),);
+    const hideRate = adventEnded ? 1 - whiteNightSimpleAdventSmoothstep((timestamp - endingStartedAt) / whiteNightSimpleAdventHideDurationMs,) : 1;
+    root.style.setProperty('--lobotomy-corp-advent-root-alpha', String(rootShowRate * hideRate),);
+    clock.style.setProperty('--lobotomy-corp-advent-clock-alpha', String(clockShowRate),);
+    nameNodes.forEach(({element}) => {
+      element.style.setProperty('--lobotomy-corp-advent-name-alpha', String(rate),);
+      element.style.setProperty('--lobotomy-corp-advent-name-color', toCssColor({red, green, blue}),);
     });
 
     if (elapsed >= whiteNightSimpleAdventDurationMs) beginAdventEnd(timestamp);
-    if (
-      adventEnded &&
-      timestamp - endingStartedAt >= whiteNightSimpleAdventHideDurationMs
-    ) {
+    if (adventEnded && timestamp - endingStartedAt >= whiteNightSimpleAdventHideDurationMs) {
       complete(true);
       return;
     }
@@ -616,21 +454,17 @@ export function createWhiteNightSimpleAdvent(options) {
     if (completed) return;
     completed = true;
     if (animationFrame !== undefined) cancelFrame(animationFrame);
-    resizeTarget?.removeEventListener?.("resize", updateCanvasScale);
+    resizeTarget?.removeEventListener?.('resize', updateCanvasScale);
     root.remove();
     if (activeSimpleAdvent?.element === root) activeSimpleAdvent = undefined;
     if (notifyHidden) (options.onHidden ?? options.onComplete)?.();
   };
 
   const controller = {
-    dispose: () => complete(false),
-    element: root,
-    finish: () => {
+    dispose: () => complete(false), element: root, finish: () => {
       beginAdventEnd(now());
       complete(true);
-    },
-    isAdventEnded: () => adventEnded,
-    isFinished: () => completed,
+    }, isAdventEnded: () => adventEnded, isFinished: () => completed,
   };
   activeSimpleAdvent = controller;
   options.playBell?.();

@@ -8,8 +8,11 @@ import {
 } from "./test_helpers.ts";
 import { AudioMock, Element } from "./test_harness.ts";
 import {
+  createWhiteNightConfessionViewportRenderer,
   createWhiteNightEvent,
   whiteNightConfessionSuppressionDelayMs,
+  whiteNightConfessionViewportLayout,
+  whiteNightConfessionViewportSlice,
   whiteNightConfessParticleSystem,
   whiteNightDeathSequenceDurationMs,
   whiteNightDeathSounds,
@@ -1162,4 +1165,77 @@ Deno.test("WhiteNight refresh message is deliberately layered above the Trumpet 
       ?.[0] ?? "";
   assert(/z-index:\s*10010;/.test(messageRule));
   assert(/pointer-events:\s*none;/.test(messageRule));
+});
+
+Deno.test("WhiteNight Confess extends only the cropped outer effect around an unchanged center", async () => {
+  const layout = whiteNightConfessionViewportLayout(1251, 1249, 586, 584)!;
+  const { start, end } = whiteNightConfessionViewportSlice;
+  const expectedScale = Math.min(980 / 586, 980 / 584);
+
+  assertEquals(layout.sourceX, [0, 586 * start, 586 * end, 586]);
+  assertEquals(layout.sourceY, [0, 584 * start, 584 * end, 584]);
+  assertEquals(layout.targetX[0], 0);
+  assertEquals(layout.targetX[3], 1251);
+  assertEquals(layout.targetY[0], 0);
+  assertEquals(layout.targetY[3], 1249);
+  assert(
+    Math.abs(
+      (layout.targetX[2] - layout.targetX[1]) /
+          (layout.sourceX[2] - layout.sourceX[1]) - expectedScale,
+    ) < 1e-9,
+  );
+  assert(
+    Math.abs(
+      (layout.targetY[2] - layout.targetY[1]) /
+          (layout.sourceY[2] - layout.sourceY[1]) - expectedScale,
+    ) < 1e-9,
+  );
+
+  const drawCalls: unknown[][] = [];
+  const context = {
+    clearRect: () => {},
+    drawImage: (...args: unknown[]) => drawCalls.push(args),
+    imageSmoothingEnabled: false,
+    imageSmoothingQuality: "low",
+  };
+  const canvas = {
+    clientHeight: 1249,
+    clientWidth: 1251,
+    getContext: () => context,
+    height: 0,
+    width: 0,
+  };
+  const video = {
+    ended: false,
+    paused: true,
+    readyState: 4,
+    videoHeight: 584,
+    videoWidth: 586,
+  };
+  const renderer = createWhiteNightConfessionViewportRenderer(
+    video as unknown as HTMLVideoElement,
+    canvas as unknown as HTMLCanvasElement,
+  )!;
+  renderer.draw();
+
+  assertEquals(canvas.width, 1251);
+  assertEquals(canvas.height, 1249);
+  assertEquals(drawCalls.length, 9);
+  assertStrictEquals(drawCalls[4][0], video);
+  assertEquals(drawCalls[4].slice(1, 5), [
+    layout.sourceX[1],
+    layout.sourceY[1],
+    layout.sourceX[2] - layout.sourceX[1],
+    layout.sourceY[2] - layout.sourceY[1],
+  ]);
+
+  const css = await Deno.readTextFile(
+    new URL("../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
+  );
+  const canvasRule =
+    css.match(/\.lobotomy-corp-white-night-confession-canvas\s*\{[^}]*\}/s)
+      ?.[0] ?? "";
+  assert(/height:\s*100%;/.test(canvasRule));
+  assert(/width:\s*100%;/.test(canvasRule));
+  assert(/position:\s*absolute;/.test(canvasRule));
 });

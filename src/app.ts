@@ -14,8 +14,8 @@ import {
   easterEggCoordinatorScriptResponse,
   lobotomyCorpAssetResponse,
   lobotomyCorpScriptResponse,
-  lobotomyCorpWhiteNightEventResponse,
   lobotomyCorpStyleResponse,
+  lobotomyCorpWhiteNightEventResponse,
 } from "./easter_egg_assets.ts";
 import { faviconResponse } from "./favicon.ts";
 import { createRoutes } from "./routes.ts";

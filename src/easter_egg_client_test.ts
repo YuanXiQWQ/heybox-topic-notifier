@@ -2711,13 +2711,14 @@ Deno.test("WhiteNight has no Alert INGAMEEFFECT Pause plumbing", async () => {
     assert(!scriptCode.includes(forbidden));
   }
   // 该标识只出现在持久化兼容读取处：把 ingame-effect-paused 迁移成普通播放。
+  // 断言按语义匹配，不依赖源码使用单引号还是双引号。
   assert(
-    script.includes('saved.playbackState === "ingame-effect-paused"'),
+    /saved\.playbackState === ["']ingame-effect-paused["']/.test(script),
   );
   // 该状态只用于读取迁移，不写入持久化。
-  assert(!(/\?\s*"ingame-effect-paused"/.test(script)));
+  assert(!(/\?\s*["']ingame-effect-paused["']/.test(script)));
   assert(
-    /saved\.playbackState === "ingame-effect-paused"\s*\?\s*"normal-playing"/
+    /saved\.playbackState === ["']ingame-effect-paused["']\s*\?\s*["']normal-playing["']/
       .test(script),
   );
 });

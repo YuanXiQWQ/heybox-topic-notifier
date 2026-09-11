@@ -26,28 +26,28 @@ export const lobotomyCorpPortraitCanvasBlendEnd = 960;
  * @return {number} 有限且大于零的 Canvas 缩放比例。
  */
 export function lobotomyCorpCanvasScaleForViewport(
-  viewportWidth,
-  viewportHeight,
+    viewportWidth,
+    viewportHeight,
 ) {
   const widthScale = viewportWidth / lobotomyCorpReferenceCanvasWidth;
   const heightScale = viewportHeight / lobotomyCorpReferenceCanvasHeight;
   const portraitScale = Math.sqrt(widthScale * heightScale);
   const portraitBlendProgress = Math.min(
-    1,
-    Math.max(
-      0,
-      (viewportWidth - lobotomyCorpPortraitCanvasBlendStart) /
-        (lobotomyCorpPortraitCanvasBlendEnd -
-          lobotomyCorpPortraitCanvasBlendStart),
-    ),
+      1,
+      Math.max(
+          0,
+          (viewportWidth - lobotomyCorpPortraitCanvasBlendStart) /
+          (lobotomyCorpPortraitCanvasBlendEnd -
+              lobotomyCorpPortraitCanvasBlendStart),
+      ),
   );
   const smoothProgress = portraitBlendProgress * portraitBlendProgress *
-    (3 - 2 * portraitBlendProgress);
+      (3 - 2 * portraitBlendProgress);
   const portraitCanvasScale = portraitScale +
-    (widthScale - portraitScale) * smoothProgress;
+      (widthScale - portraitScale) * smoothProgress;
   const canvasScale = viewportHeight > viewportWidth
-    ? portraitCanvasScale
-    : widthScale;
+      ? portraitCanvasScale
+      : widthScale;
   return Number.isFinite(canvasScale) && canvasScale > 0 ? canvasScale : 1;
 }
 
@@ -70,15 +70,15 @@ export function lobotomyCorpCanvasScaleForViewport(
  * @return {{height: number, width: number}} 可用于 CanvasScaler 的 viewport 尺寸。
  */
 export function lobotomyCorpViewportSize(
-  browser = /** @type {LobotomyCorpViewportHost} */ (globalThis),
+    browser = /** @type {LobotomyCorpViewportHost} */ (globalThis),
 ) {
   const visualViewport = browser.visualViewport;
   const documentElement = browser.document?.documentElement;
   return {
     height: visualViewport?.height || browser.innerHeight ||
-      documentElement?.clientHeight || lobotomyCorpReferenceCanvasHeight,
+        documentElement?.clientHeight || lobotomyCorpReferenceCanvasHeight,
     width: visualViewport?.width || browser.innerWidth ||
-      documentElement?.clientWidth || lobotomyCorpReferenceCanvasWidth,
+        documentElement?.clientWidth || lobotomyCorpReferenceCanvasWidth,
   };
 }
 
@@ -93,14 +93,14 @@ export function lobotomyCorpViewportSize(
  * @return {{height: number, width: number}} 应用于 CanvasScaler 的稳定 viewport。
  */
 export function lobotomyCorpCanvasViewportForUpdate(
-  previousViewport,
-  nextViewport,
+    previousViewport,
+    nextViewport,
 ) {
   if (!previousViewport) return nextViewport;
   const orientationChanged =
-    (previousViewport.height > previousViewport.width) !==
+      (previousViewport.height > previousViewport.width) !==
       (nextViewport.height > nextViewport.width);
   return previousViewport.width !== nextViewport.width || orientationChanged
-    ? nextViewport
-    : previousViewport;
+      ? nextViewport
+      : previousViewport;
 }

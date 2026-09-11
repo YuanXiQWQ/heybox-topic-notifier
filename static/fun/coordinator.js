@@ -24,7 +24,7 @@ function startEasterEgg(gameId, stop) {
   }
 
   const previousEasterEgg = activeEasterEgg;
-  activeEasterEgg = { gameId, stop };
+  activeEasterEgg = {gameId, stop};
   previousEasterEgg?.stop();
 }
 
@@ -38,7 +38,7 @@ function startEasterEgg(gameId, stop) {
  */
 function finishEasterEgg(gameId, stop) {
   if (
-    activeEasterEgg?.gameId === gameId && activeEasterEgg.stop === stop
+      activeEasterEgg?.gameId === gameId && activeEasterEgg.stop === stop
   ) {
     activeEasterEgg = undefined;
   }
