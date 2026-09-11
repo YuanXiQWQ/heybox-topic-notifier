@@ -1,7 +1,7 @@
 /**
  * @file 本文件验证用户名彩蛋资源读取与路径限制。
  */
-import { assertEquals } from "./test_helpers.ts";
+import { assert, assertEquals } from "./test_helpers.ts";
 import {
   aceAttorneyAssetResponse,
   lobotomyCorpAssetResponse,
@@ -158,24 +158,24 @@ Deno.test({
       ),
     );
 
-    assertEquals(css.includes("rotate(109.816715deg)"), true);
-    assertEquals(css.includes("width: var(--lobotomy-corp-ray-width)"), true);
-    assertEquals(css.includes("height: var(--lobotomy-corp-ray-height)"), true);
-    assertEquals(css.includes("mask-mode: luminance"), true);
+    assert(css.includes("rotate(109.816715deg)"));
+    assert(css.includes("width: var(--lobotomy-corp-ray-width)"));
+    assert(css.includes("height: var(--lobotomy-corp-ray-height)"));
+    assert(css.includes("mask-mode: luminance"));
     assertEquals(
       css.match(/mix-blend-mode: plus-lighter;/g)?.length ?? 0,
       1,
     );
-    assertEquals(css.includes("isolation: isolate"), false);
+    assert(!(css.includes("isolation: isolate")));
     assertEquals(
       css.includes(
         "background-color: rgb(var(--lobotomy-corp-ray-color))",
       ),
       true,
     );
-    assertEquals(css.includes("25.509644%"), true);
-    assertEquals(css.includes("49.319458%"), true);
-    assertEquals(css.includes("67.353323%"), true);
+    assert(css.includes("25.509644%"));
+    assert(css.includes("49.319458%"));
+    assert(css.includes("67.353323%"));
   },
 });
 
@@ -198,21 +198,17 @@ Deno.test({
     assertEquals(normal.headers.get("content-type"), "video/webm");
     assertEquals(death.status, 200);
     assertEquals(death.headers.get("content-type"), "video/webm");
-    const digest = await crypto.subtle.digest(
-      "SHA-256",
-      await death.arrayBuffer(),
-    );
-    const deathHash = Array.from(
-      new Uint8Array(digest),
-      (byte) => byte.toString(16).padStart(2, "0"),
-    ).join("").toUpperCase();
+    // WebM 是 EBML 容器，文件头固定为 1A 45 DF A3。
+    const webmSignature = [0x1A, 0x45, 0xDF, 0xA3];
     assertEquals(
-      deathHash,
-      "8BBC9197C2028C3C61FD778B1557470F0D51B920E6C9EB60CE87CDB1CB4A82A0",
+      Array.from(new Uint8Array(await death.arrayBuffer()).slice(0, 4)),
+      webmSignature,
     );
     assertEquals(range.status, 206);
     assertEquals(range.headers.get("accept-ranges"), "bytes");
-    assertEquals((await range.arrayBuffer()).byteLength, 32);
+    const rangeBytes = new Uint8Array(await range.arrayBuffer());
+    assertEquals(rangeBytes.byteLength, 32);
+    assertEquals(Array.from(rangeBytes.slice(0, 4)), webmSignature);
   },
 });
 

@@ -32,9 +32,8 @@ const lobotomyCorpSpecialEventMusicFadeOutMs = 1000;
 /**
  * 白夜 active 期间 Trumpet 保留的正常音量比例。
  *
- * WhiteNight active 时把 Trumpet 压低 75%，
- * 用于突出白夜 church BGM（Lucifer_standbg0）。该常量是这一语义的唯一来源，
- * 禁止在别处散落 0.25。
+ * WhiteNight active 时把 Trumpet 压到正常音量的 25%，用于突出白夜 church BGM
+ * （Lucifer_standbg0）。淡出终点、held 音量与刷新恢复都读取该常量。
  */
 const lobotomyCorpWhiteNightAlertDuckVolume = 0.25;
 
@@ -361,11 +360,11 @@ let lobotomyCorpDangerScore = 0;
 /**
  * 本次连续 Danger Emergency 已经达到的最高 **音乐** Trumpet 等级；0 表示当前没有进行中的 Emergency。
  *
- * 语义边界必须严格区分：
+ * 语义边界：
  * - 该变量只代表 Danger 循环音乐（music high-water），不代表 HUD 等级；
- * - HUD 永远使用当前 Danger Score 的实时阈值等级（见 lobotomyCorpDangerVisualAlert）；
+ * - HUD 等级由当前 Danger Score 的实时阈值决定（见 lobotomyCorpDangerVisualAlert）；
  * - 同一场 Emergency 的循环音乐只升不降，Danger 下降不改变下一轮曲目；
- * - 只有 Danger 跌破一级警报阈值（低于 10）时，本次 Emergency 才结束并把它清零。
+ * - Danger 跌破一级警报阈值（低于 10）时本次 Emergency 结束，该变量清零。
  */
 let lobotomyCorpDangerMusicHighWaterLevel = 0;
 
@@ -583,9 +582,9 @@ function clearPersistedLobotomyCorpAlert() {
 }
 
 /**
- * 持久化当前连续 Day；身份 UI 始终由已保存的显示名称派生，不写入这里。
+ * 持久化当前连续 Day；身份 UI 由已保存的显示名称派生，不写入这里。
  *
- * `dangerMusicHighWaterLevel` 只保存 Danger 循环音乐的高水位；HUD 等级永远在恢复时
+ * `dangerMusicHighWaterLevel` 只保存 Danger 循环音乐的高水位；HUD 等级在恢复时
  * 由当前 `dangerScore` 重新计算，不写入存储。
  */
 function persistLobotomyCorpDay() {
@@ -683,7 +682,7 @@ function restorePersistedLobotomyCorpDay() {
     lobotomyCorpDangerDecayPausedRemainingMs = decayPausedRemainingMs;
     lobotomyCorpWhiteNightDangerSettlementStage =
       whiteNightDangerSettlementStage;
-    // 恢复后 music high-water 至少为当前实时阈值；但绝不因 Danger 较低而降低已保存的等级。
+    // 恢复后 music high-water 至少为当前实时阈值；Danger 较低时不会降低已保存的等级。
     syncLobotomyCorpDangerMusicHighWater(score);
   } catch {
     clearPersistedLobotomyCorpDay();
@@ -928,7 +927,7 @@ function activateLobotomyCorpAlert(value, preparedMedia) {
 /**
  * 在同步用户手势中准备可能会在服务器确认后播放的警报媒体。
  *
- * 此阶段只触碰 Audio，绝不建立 Day、HUD 或持久化业务状态。
+ * 此阶段只触碰 Audio，不建立 Day、HUD 或持久化业务状态。
  *
  * @param {string} value 待保存的显示名称。
  * @return {{commit: () => Promise<boolean>, dispose: () => void}} 可提交或释放的媒体句柄。
@@ -1115,7 +1114,7 @@ function lobotomyCorpDangerThresholdLevel(dangerScore) {
  * 按 high-water 语义刷新本次 Danger Emergency 的 **音乐** 等级：Danger 上升时升级，下降时保持不变。
  *
  * Danger 跌破一级警报阈值（低于 10）时，本次 Emergency 结束并一次性重置 music high-water。
- * 该函数只服务 Danger 循环音乐，绝不能再用来决定 HUD。
+ * 该函数只服务 Danger 循环音乐，不参与 HUD 等级计算。
  *
  * @param {number} dangerScore 当前危急值。
  * @return {number} 更新后的 music high-water 等级；0 表示当前没有 Emergency。
@@ -1147,10 +1146,9 @@ function lobotomyCorpDangerVisualAlert() {
 /**
  * 读取一次 Danger 结算实际对应的警报，供 WhiteNight 入场时间线选择阶段音乐。
  *
- * WhiteNight 的两段入场 BGM 是「阶段驱动」的演出音乐，必须以这次结算真实产生的
- * Danger 阈值作为唯一真相，而不能读取只升不降的 Danger music high-water：
- * 未来即便第二阶段结算结果低于第一阶段（例如 Third → Second），阶段演出也必须
- * 能够显式切换到低等级曲目。该函数不修改任何 Danger 状态。
+ * WhiteNight 的两段入场 BGM 是「阶段驱动」的演出音乐，阶段曲目取自这次结算真实
+ * 产生的 Danger 阈值，而不是只升不降的 Danger music high-water：第二阶段结算结果
+ * 低于第一阶段时，阶段演出仍能切换到该结果对应的曲目。该函数不修改任何 Danger 状态。
  *
  * @return {{assetDirectory: string, level: number, soundPath: string}|undefined} 本次结算对应的警报；低于一级阈值时为 undefined。
  */
@@ -1225,7 +1223,7 @@ function restartLobotomyCorpDay() {
  *
  * Direct 只竞争**音乐**控制权：只有严格高于当前实际音乐等级（music owner 的等级，
  * 不是 HUD 等级）时才接管音乐；同级或更低一律不接管，也不会改变 HUD。
- * 所谓「接管」只发生在音乐层，HUD 永远只由实时 Danger 或 Direct 自己建立的会话决定。
+ * 所谓「接管」只发生在音乐层，HUD 只由实时 Danger 或 Direct 自己建立的会话决定。
  *
  * @param {{assetDirectory: string, level: number, soundPath: string}|undefined} candidate 指令对应的警报配置。
  * @param {object} [preparedMedia] 用户手势中预热的媒体。
@@ -1400,7 +1398,7 @@ function notifyLobotomyCorpAbnormalitySubmitted(
     try {
       listener(canonicalId, abnormality, context);
     } catch {
-      // 特殊事件观察失败不能阻断已确认的账户保存或通用出逃流程。
+      // 特殊事件观察失败不影响已确认的账户保存或通用出逃流程。
     }
   });
 }
@@ -2027,7 +2025,7 @@ function startLobotomyCorpAlert({
   visualAlert: initialVisualAlert,
 }) {
   /**
-   * 会话竞态兜底：已有 active session 时沿用「严格更高才接管音乐」的规则，绝不重建 DOM。
+   * 会话竞态兜底：已有 active session 时沿用「严格更高才接管音乐」的规则，不重建 DOM。
    *
    * 比较对象是本次新传入的 initialMusicAlert：它是本分支里唯一可用的音乐等级来源，
    * 未定义的引用会直接中断会话建立。
@@ -2094,7 +2092,7 @@ function startLobotomyCorpAlert({
     startedAt,
     syncVisual: () => {},
     takeOverMusic: () => Promise.resolve(true),
-    // 音乐等级永远读取当前实际音乐 owner，而不是 HUD 等级或 high-water。
+    // 音乐等级读取当前实际音乐 owner，不读 HUD 等级或 high-water。
     musicLevel: () => alertContext.musicAlert.level,
     musicSource: () => musicSourceState,
     visualAlert,
@@ -2168,11 +2166,11 @@ function startLobotomyCorpAlert({
       return;
     }
     if (!force && specialEventStageMusicOwned) {
-      // WhiteNight 阶段时间线正在演奏当前曲目：普通收起流程不得改写阶段演出。
+      // WhiteNight 阶段时间线正在演奏当前曲目：普通收起流程直接返回，保持阶段演出不变。
       return;
     }
     if (!force && lobotomyCorpWhiteNightEvent?.isActive()) {
-      // 白夜覆盖期间，曲目结束不能带走 Alert；保持同一实例以 ducked 音量后台循环。
+      // 白夜覆盖期间，曲目结束不结束 Alert：保持同一实例以 ducked 音量后台循环。
       holdAlertMusicForSpecialEvent();
       return;
     }
@@ -2246,7 +2244,7 @@ function startLobotomyCorpAlert({
    */
   function finishAlertFromAudioError() {
     if (musicSourceState === "danger") {
-      // 音频失败不能清除仍成立的 Danger owner，也不做无限快速重试。
+      // 音频失败不清除仍成立的 Danger owner，也不做无限快速重试。
       audio?.pause?.();
       alertContext.playbackState = "replay-intermission";
       replayAt = undefined;
@@ -2758,8 +2756,8 @@ function startLobotomyCorpAlert({
   /**
    * 复用正在后台播放的 Trumpet，从当前 ducked 音量平滑恢复到正常音量。
    *
-   * 恢复对象始终是 WhiteNight 阶段时间线最后 hold 住的那一条曲目：
-   * 同一条 Audio 从当前进度、当前音量（held 时即 duck 目标音量）淡入到 1.0，绝不先掉到 0；
+   * 恢复对象是 WhiteNight 阶段时间线最后 hold 住的那一条曲目：
+   * 同一条 Audio 从当前进度、当前音量（held 时即 duck 目标音量）淡入到 1.0，起点不归零；
    * 淡入期间继续保持 special hold 的 loop 与 ownership，避免曲目恰好 ended 打断渐变。
    */
   function resumeAlertMusicAfterSpecialEvent() {
@@ -2911,8 +2909,8 @@ function startLobotomyCorpAlert({
   /**
    * 只更换 overlay 中承载音频的节点，不重建四角 HUD。
    *
-   * 阶段演出换曲时使用：新的 Audio 需要进入 overlay，但视觉状态没有变化，
-   * 不应该因此重建四角节点或重播面板动画。
+   * 阶段演出换曲时使用：新的 Audio 需要进入 overlay，视觉状态没有变化，
+   * 因此不重建四角节点，也不重播面板动画。
    *
    * @param {HTMLAudioElement|undefined} previousAudio 被替换的音频。
    */
@@ -2970,7 +2968,7 @@ function startLobotomyCorpAlert({
   /**
    * 只替换 HUD 视觉：复用 overlay 与顶部 Restart panel，仅重建四角与按钮文案。
    *
-   * 该函数绝不触碰 Audio、replay 计时器或自然结束计时，因此 HUD 升降既不会
+   * 该函数不触碰 Audio、replay 计时器或自然结束计时，因此 HUD 升降不会
    * pause / restart 音乐，也不会让 replay gap 重新计时。
    *
    * @param {{assetDirectory: string, level: number, soundPath: string}|undefined} nextVisualAlert 新的 HUD 警报；undefined 表示收起四角警报框。
@@ -2986,7 +2984,7 @@ function startLobotomyCorpAlert({
   /**
    * 按「实时 Danger 优先」的规则重算 HUD。
    *
-   * Danger Emergency 存在时 HUD 永远等于实时 Danger 等级，与音乐等级、music high-water 无关；
+   * Danger Emergency 存在时 HUD 等于实时 Danger 等级，与音乐等级、music high-water 无关；
    * 只有 Direct 自己建立的会话在没有 Danger Emergency 时才显示 Direct 的警报框。
    * Danger Emergency 结束而 Direct one-shot 仍在播放时，HUD 直接消失（不显示 Direct 视觉）。
    */
@@ -3041,7 +3039,7 @@ function startLobotomyCorpAlert({
       createAlertAudio();
     }
     // 一次状态更新只渲染一次：先算好新的 HUD owner，再统一重建四角节点与新 Audio。
-    // 重建四角后必须重新写入 CanvasScaler，否则新节点会丢失缩放。
+    // 重建四角后重新写入 CanvasScaler，否则新节点会丢失缩放。
     applyVisualAlert(nextVisualAlertForSession());
     renderAlertOverlayChildren();
     updateCanvasScale(true);
@@ -3053,7 +3051,7 @@ function startLobotomyCorpAlert({
   /**
    * Direct one-shot 自然结束：恢复底层 Danger music high-water，或结束整个会话。
    *
-   * 恢复对象永远是 music high-water，而不是当前实时 HUD 等级；Danger < 10 时不恢复任何 Danger 音乐。
+   * 恢复对象是 music high-water，不是当前实时 HUD 等级；Danger < 10 时不恢复任何 Danger 音乐。
    */
   function finishDirectAlertMusic() {
     if (closing || finished) return;
@@ -3231,7 +3229,7 @@ if (isLobotomyCorpAlertPageReload() && !restoredLobotomyCorpSpecialEvent) {
   ensureLobotomyCorpDayCoordinator();
   const restoredLobotomyCorpAlert = persistedLobotomyCorpAlert();
   // Danger 来源的会话只有在 music high-water 仍然成立（Danger ≥ 10）时才有意义；
-  // Direct one-shot 会话即使没有 Danger Emergency 也必须原样恢复。
+  // Direct one-shot 会话在没有 Danger Emergency 时同样恢复。
   if (
     restoredLobotomyCorpAlert &&
     !(restoredLobotomyCorpAlert.musicSource === "danger" &&
@@ -3256,12 +3254,12 @@ if (isLobotomyCorpAlertPageReload() && !restoredLobotomyCorpSpecialEvent) {
       replayAt: restoredLobotomyCorpAlert.replayAt,
       resumeAt: restoredLobotomyCorpAlert.position,
       startedAt: restoredLobotomyCorpAlert.startedAt,
-      // 恢复时 HUD 永远重新按当前 Danger Score 计算；没有 Danger Emergency 时才回落到存档里的视觉。
+      // 恢复时 HUD 按当前 Danger Score 重新计算；没有 Danger Emergency 时才回落到存档里的视觉。
       visualAlert: lobotomyCorpDangerVisualAlert() ??
         restoredLobotomyCorpAlert.visualAlert,
     });
     if (restoredLobotomyCorpAlert.musicSource === "danger") {
-      // Danger 来源的音乐必须与本次 Emergency 的 music high-water 对齐：只补升，不降低。
+      // Danger 来源的音乐与本次 Emergency 的 music high-water 对齐：只补升，不降低。
       reconcileLobotomyCorpDangerAlert();
     }
   }

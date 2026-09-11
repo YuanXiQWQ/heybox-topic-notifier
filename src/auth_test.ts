@@ -47,7 +47,9 @@ import { base64UrlEncode } from "./security/crypto_utils.ts";
 import type { Storage, UserStorage } from "./storage/types.ts";
 import {
   addUniqueAccount,
+  assert,
   assertEquals,
+  assertStrictEquals,
   createMemoryRateLimitRecorder,
   submitLogin as login,
   submitRegistration as register,
@@ -114,32 +116,32 @@ Deno.test("auth routes render login page without extra configuration", async () 
   const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals(html.includes("登录"), true);
-  assertEquals(html.includes("用户名/邮箱"), true);
-  assertEquals(html.includes("其它登录方式"), true);
-  assertEquals(html.includes("忘记密码"), true);
-  assertEquals(html.includes("注册"), true);
-  assertEquals(html.includes("创建账号"), false);
-  assertEquals(html.includes("auth-action-row"), true);
-  assertEquals(html.includes("gap: 1px;"), true);
-  assertEquals(html.includes("overflow: hidden;"), true);
-  assertEquals(html.includes("border-radius: 0;"), true);
-  assertEquals(html.includes("auth-register-button"), true);
-  assertEquals(html.includes("data-auth-password-login-form"), true);
-  assertEquals(html.includes("data-auth-other-methods-open"), true);
-  assertEquals(html.includes("data-auth-method-dialog"), true);
-  assertEquals(html.includes("data-auth-email-mode-trigger"), true);
-  assertEquals(html.includes("使用验证码登录"), true);
-  assertEquals(html.includes("使用密码"), true);
-  assertEquals(html.includes("data-auth-password-mode-trigger"), true);
-  assertEquals(html.includes("data-auth-email-login-form"), true);
-  assertEquals(html.includes("data-auth-email-send-code-button"), true);
-  assertEquals(html.includes('name="authMethod" value="email"'), true);
-  assertEquals(html.includes("data-passkey-login"), true);
-  assertEquals(html.includes("data-passkey-login-button"), true);
-  assertEquals(html.includes('autocomplete="username webauthn"'), true);
-  assertEquals(html.includes("https://accounts.google.com/gsi/client"), false);
-  assertEquals(html.includes("data-google-login"), false);
+  assert(html.includes("登录"));
+  assert(html.includes("用户名/邮箱"));
+  assert(html.includes("其它登录方式"));
+  assert(html.includes("忘记密码"));
+  assert(html.includes("注册"));
+  assert(!(html.includes("创建账号")));
+  assert(html.includes("auth-action-row"));
+  assert(html.includes("gap: 1px;"));
+  assert(html.includes("overflow: hidden;"));
+  assert(html.includes("border-radius: 0;"));
+  assert(html.includes("auth-register-button"));
+  assert(html.includes("data-auth-password-login-form"));
+  assert(html.includes("data-auth-other-methods-open"));
+  assert(html.includes("data-auth-method-dialog"));
+  assert(html.includes("data-auth-email-mode-trigger"));
+  assert(html.includes("使用验证码登录"));
+  assert(html.includes("使用密码"));
+  assert(html.includes("data-auth-password-mode-trigger"));
+  assert(html.includes("data-auth-email-login-form"));
+  assert(html.includes("data-auth-email-send-code-button"));
+  assert(html.includes('name="authMethod" value="email"'));
+  assert(html.includes("data-passkey-login"));
+  assert(html.includes("data-passkey-login-button"));
+  assert(html.includes('autocomplete="username webauthn"'));
+  assert(!(html.includes("https://accounts.google.com/gsi/client")));
+  assert(!(html.includes("data-google-login")));
 });
 
 Deno.test("auth routes render email code login mode from query", async () => {
@@ -160,11 +162,11 @@ Deno.test("auth routes render email code login mode from query", async () => {
   );
 
   assertEquals(response.status, 200);
-  assertEquals(passwordFormOpenTag.includes("hidden"), true);
-  assertEquals(emailFormOpenTag.includes("hidden"), false);
-  assertEquals(html.includes("autofocus"), true);
-  assertEquals(html.includes("使用密码"), true);
-  assertEquals(html.includes("data-auth-password-mode-trigger"), true);
+  assert(passwordFormOpenTag.includes("hidden"));
+  assert(!(emailFormOpenTag.includes("hidden")));
+  assert(html.includes("autofocus"));
+  assert(html.includes("使用密码"));
+  assert(html.includes("data-auth-password-mode-trigger"));
 });
 
 Deno.test("auth routes render Google Identity Services when configured", async () => {
@@ -183,8 +185,8 @@ Deno.test("auth routes render Google Identity Services when configured", async (
     html.includes("https://accounts.google.com/gsi/client"),
     true,
   );
-  assertEquals(html.includes("data-google-login"), true);
-  assertEquals(html.includes('class="auth-google-button"'), false);
+  assert(html.includes("data-google-login"));
+  assert(!(html.includes('class="auth-google-button"')));
   assertEquals(
     html.includes(`data-google-client-id="${testGoogleClientId}"`),
     true,
@@ -193,8 +195,8 @@ Deno.test("auth routes render Google Identity Services when configured", async (
     html.includes('action="/auth/google?locale=en-US&amp;localeChanged=1"'),
     true,
   );
-  assertEquals(html.includes('name="credential" data-google-credential'), true);
-  assertEquals(html.includes("use_fedcm_for_prompt: true"), true);
+  assert(html.includes('name="credential" data-google-credential'));
+  assert(html.includes("use_fedcm_for_prompt: true"));
 });
 
 Deno.test("auth routes render Turnstile widget when enabled", async () => {
@@ -208,12 +210,12 @@ Deno.test("auth routes render Turnstile widget when enabled", async () => {
     html.includes("https://challenges.cloudflare.com/turnstile/v0/api.js"),
     true,
   );
-  assertEquals(html.includes("onerror="), false);
-  assertEquals(html.includes('id="turnstile-api-script"'), true);
-  assertEquals(html.includes('class="auth-turnstile cf-turnstile"'), true);
-  assertEquals(html.includes('data-sitekey="test-site-key"'), true);
-  assertEquals(html.includes('data-callback="collapseTurnstileWidget"'), true);
-  assertEquals(html.includes("turnstileSuccessDisplayMs = 1800"), true);
+  assert(!(html.includes("onerror=")));
+  assert(html.includes('id="turnstile-api-script"'));
+  assert(html.includes('class="auth-turnstile cf-turnstile"'));
+  assert(html.includes('data-sitekey="test-site-key"'));
+  assert(html.includes('data-callback="collapseTurnstileWidget"'));
+  assert(html.includes("turnstileSuccessDisplayMs = 1800"));
   assertEquals(
     html.includes('data-expired-callback="revealTurnstileWidgets"'),
     true,
@@ -234,10 +236,10 @@ Deno.test("auth routes render an automatic ALTCHA fallback for registration", as
     html.includes('data-error-callback="useAltchaFallback"'),
     true,
   );
-  assertEquals(html.includes("data-altcha-fallback"), true);
-  assertEquals(html.includes('name="altcha"'), true);
-  assertEquals(html.includes('fetch("/auth/altcha/challenge"'), true);
-  assertEquals(html.includes("window.setTimeout(() =>"), true);
+  assert(html.includes("data-altcha-fallback"));
+  assert(html.includes('name="altcha"'));
+  assert(html.includes('fetch("/auth/altcha/challenge"'));
+  assert(html.includes("window.setTimeout(() =>"));
 });
 
 Deno.test("auth routes localize anonymous pages with a language-only navigation bar", async () => {
@@ -247,20 +249,20 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
   const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals(html.includes('lang="en-US"'), true);
-  assertEquals(html.includes("Sign in"), true);
+  assert(html.includes('lang="en-US"'));
+  assert(html.includes("Sign in"));
   assertEquals(
     html.includes("Too many sign-in attempts. Try again in 15 minutes."),
     true,
   );
-  assertEquals(html.includes("Confirm password"), false);
-  assertEquals(html.includes('aria-label="Authentication navigation"'), true);
-  assertEquals(html.includes('class="auth-language-menu"'), true);
-  assertEquals(html.includes('class="auth-language-icon"'), true);
-  assertEquals(html.includes('viewBox="0 -960 960 960"'), true);
-  assertEquals(html.includes('d="m476-80'), true);
-  assertEquals(html.includes("<summary"), true);
-  assertEquals(html.includes(">语言/Language</span>"), true);
+  assert(!(html.includes("Confirm password")));
+  assert(html.includes('aria-label="Authentication navigation"'));
+  assert(html.includes('class="auth-language-menu"'));
+  assert(html.includes('class="auth-language-icon"'));
+  assert(html.includes('viewBox="0 -960 960 960"'));
+  assert(html.includes('d="m476-80'));
+  assert(html.includes("<summary"));
+  assert(html.includes(">语言/Language</span>"));
   assertEquals(
     html.includes(
       'href="/login?locale=zh-CN&amp;returnTo=%2F&amp;localeChanged=1"',
@@ -273,9 +275,9 @@ Deno.test("auth routes localize anonymous pages with a language-only navigation 
     ),
     true,
   );
-  assertEquals(html.includes("/settings"), false);
-  assertEquals(html.includes("/history"), false);
-  assertEquals(html.includes('href="/"'), false);
+  assert(!(html.includes("/settings")));
+  assert(!(html.includes("/history")));
+  assert(!(html.includes('href="/"')));
 });
 
 Deno.test("auth routes preserve explicit locale selection in auth links", async () => {
@@ -308,9 +310,9 @@ Deno.test("auth routes select anonymous page locale from browser language", asyn
   const html = await response.text();
 
   assertEquals(response.status, 200);
-  assertEquals(html.includes('lang="en-CA"'), true);
-  assertEquals(html.includes("Register"), true);
-  assertEquals(html.includes("Confirm password"), true);
+  assert(html.includes('lang="en-CA"'));
+  assert(html.includes("Register"));
+  assert(html.includes("Confirm password"));
 });
 
 Deno.test("auth routes default registered display names to usernames", async () => {
@@ -340,7 +342,7 @@ Deno.test("auth routes default registered display names to usernames", async () 
   assertEquals(response.headers.get("location"), "/settings");
   assertEquals(account?.username, "alice");
   assertEquals(account?.displayName, "alice");
-  assertEquals(account?.passwordHash === "correct-password", false);
+  assert(!(account?.passwordHash === "correct-password"));
   assertEquals(credential?.passwordHash, account?.passwordHash);
   assertEquals(session?.userId, account?.id);
   assertEquals(storage.savedSessions.length, 1);
@@ -376,26 +378,26 @@ Deno.test("auth routes ignore supplied display names during registration", async
 });
 
 Deno.test("username validation accepts Unicode and injection-like visible text", () => {
-  assertEquals(validUsername("蔚蓝社区"), true);
-  assertEquals(validUsername("O'Connor"), true);
-  assertEquals(validUsername('<script>alert("x")</script>'), true);
-  assertEquals(validUsername("😀".repeat(80)), true);
+  assertStrictEquals(validUsername("蔚蓝社区"), true);
+  assertStrictEquals(validUsername("O'Connor"), true);
+  assertStrictEquals(validUsername('<script>alert("x")</script>'), true);
+  assertStrictEquals(validUsername("😀".repeat(80)), true);
 });
 
 Deno.test("username validation rejects empty, oversized, and control text", () => {
-  assertEquals(validUsername(""), false);
-  assertEquals(validUsername("   "), false);
-  assertEquals(validUsername("a".repeat(81)), false);
-  assertEquals(validUsername("line\nbreak"), false);
-  assertEquals(validUsername("zero\u200Bwidth"), false);
+  assertStrictEquals(validUsername(""), false);
+  assertStrictEquals(validUsername("   "), false);
+  assertStrictEquals(validUsername("a".repeat(81)), false);
+  assertStrictEquals(validUsername("line\nbreak"), false);
+  assertStrictEquals(validUsername("zero\u200Bwidth"), false);
 });
 
 Deno.test("display name validation preserves case and rejects unsafe text", () => {
-  assertEquals(validDisplayName("Alice Wonderland"), true);
-  assertEquals(validDisplayName("成步堂龙一"), true);
-  assertEquals(validDisplayName("   "), false);
-  assertEquals(validDisplayName("line\nbreak"), false);
-  assertEquals(validDisplayName("a".repeat(81)), false);
+  assertStrictEquals(validDisplayName("Alice Wonderland"), true);
+  assertStrictEquals(validDisplayName("成步堂龙一"), true);
+  assertStrictEquals(validDisplayName("   "), false);
+  assertStrictEquals(validDisplayName("line\nbreak"), false);
+  assertStrictEquals(validDisplayName("a".repeat(81)), false);
 });
 
 Deno.test("auth routes reject registration without Turnstile token when enabled", async () => {
@@ -453,7 +455,7 @@ Deno.test("auth routes register users after Turnstile verification", async () =>
     (await storage.getAccountByUsername("alice"))?.username,
     "alice",
   );
-  assertEquals(requestBody.includes("response=verified-token"), true);
+  assert(requestBody.includes("response=verified-token"));
 });
 
 Deno.test("auth routes register users after ALTCHA fallback verification", async () => {
@@ -550,12 +552,12 @@ Deno.test("auth routes send email verification codes", async () => {
   const sentCode = sentMessages[0].text.match(/[0-9]{6}/)?.[0] ?? "";
 
   assertEquals(response.status, 200);
-  assertEquals(payload.ok, true);
+  assertStrictEquals(payload.ok, true);
   assertEquals(sentMessages.length, 1);
   assertEquals(sentMessages[0].to, "alice@example.com");
   assertEquals(verification.email, "alice@example.com");
   assertEquals(verification.purpose, "primary_login");
-  assertEquals(verification.codeHash === sentCode, false);
+  assert(!(verification.codeHash === sentCode));
 });
 
 Deno.test("auth pages submit email verification with the selected locale", async () => {
@@ -697,10 +699,10 @@ Deno.test("auth routes sign in with email verification and create a passwordless
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/");
   assertEquals(account?.primaryEmail, "alice@example.com");
-  assertEquals(account?.emailVerified, true);
+  assertStrictEquals(account?.emailVerified, true);
   assertEquals(account?.passwordHash, undefined);
-  assertEquals(credential?.verified, true);
-  assertEquals(credential?.lastVerifiedAt !== undefined, true);
+  assertStrictEquals(credential?.verified, true);
+  assert(credential?.lastVerifiedAt !== undefined);
   assertEquals(storage.savedSessions[0]?.userId, account?.id);
   assertEquals(
     storage.settingsByUserId.get(account?.id ?? "")?.locale,
@@ -750,14 +752,14 @@ Deno.test("auth routes sign in with Google credential and create a passwordless 
   assertEquals(identity?.provider, "google");
   assertEquals(identity?.providerUserId, "google-subject-id");
   assertEquals(identity?.email, "alice@example.com");
-  assertEquals(identity?.emailVerified, true);
+  assertStrictEquals(identity?.emailVerified, true);
   assertEquals(account?.authVersion, 2);
   assertEquals(account?.displayName, "Alice");
   assertEquals(account?.primaryEmail, "alice@example.com");
-  assertEquals(account?.emailVerified, true);
+  assertStrictEquals(account?.emailVerified, true);
   assertEquals(account?.passwordHash, undefined);
-  assertEquals(emailCredential?.verified, true);
-  assertEquals(emailCredential?.lastVerifiedAt !== undefined, true);
+  assertStrictEquals(emailCredential?.verified, true);
+  assert(emailCredential?.lastVerifiedAt !== undefined);
   assertEquals(session?.userId, account?.id);
   assertEquals(storage.savedSessions[0]?.userId, account?.id);
   assertEquals(
@@ -806,7 +808,7 @@ Deno.test("auth routes do not merge Google sign-in into an existing same-email a
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/");
   assertEquals(accounts.length, 2);
-  assertEquals(identity?.userId === existingAccount.id, false);
+  assert(!(identity?.userId === existingAccount.id));
   assertEquals(storage.savedSessions[0]?.userId, identity?.userId);
   assertEquals(
     (await storage.getAccountById(existingAccount.id))?.primaryEmail,
@@ -880,7 +882,7 @@ Deno.test("auth routes sign in with a Passkey credential", async () => {
   assertEquals(response.headers.get("location"), "/history");
   assertEquals(session?.username, "alice");
   assertEquals(credential?.counter, 7);
-  assertEquals(credential?.lastUsedAt !== undefined, true);
+  assert(credential?.lastUsedAt !== undefined);
   assertEquals(
     await storage.getPendingPasskeyChallenge(optionsPayload.challengeId),
     undefined,
@@ -949,7 +951,7 @@ Deno.test("auth routes require alternate MFA after Passkey login", async () => {
   );
 
   assertEquals(response.status, 303);
-  assertEquals(location.startsWith("/mfa?locale=zh-CN&challenge="), true);
+  assert(location.startsWith("/mfa?locale=zh-CN&challenge="));
   assertEquals(session, undefined);
   assertEquals(mfaChallenge?.primaryMethod, "passkey");
   assertEquals(mfaChallenge?.allowedMethods, ["email"]);
@@ -1125,7 +1127,7 @@ Deno.test("auth routes rate limit registration attempts by client", async () => 
   });
 
   assertEquals(limitedResponse.status, 429);
-  assertEquals(limitedResponse.headers.get("retry-after") !== null, true);
+  assert(limitedResponse.headers.get("retry-after") !== null);
   assertEquals(await storage.getAccountByUsername("too-many"), undefined);
 });
 
@@ -1307,7 +1309,7 @@ Deno.test("auth routes require MFA after password login when enabled", async () 
   const pageHtml = await pageResponse.text();
 
   assertEquals(response.status, 303);
-  assertEquals(location.startsWith("/mfa?locale=zh-CN&challenge="), true);
+  assert(location.startsWith("/mfa?locale=zh-CN&challenge="));
   assertEquals(
     new URL(location, "http://local").searchParams.get("returnTo"),
     "/history",
@@ -1322,15 +1324,15 @@ Deno.test("auth routes require MFA after password login when enabled", async () 
     "recoveryCode",
   ]);
   assertEquals(pageResponse.status, 200);
-  assertEquals(pageHtml.includes("data-mfa-email-form"), true);
-  assertEquals(pageHtml.includes("data-mfa-totp-form"), true);
-  assertEquals(pageHtml.includes("data-passkey-login"), true);
-  assertEquals(pageHtml.includes('data-mfa-method="passkey"'), true);
-  assertEquals(pageHtml.includes('data-mfa-method="totp"'), true);
-  assertEquals(pageHtml.includes('data-mfa-method="email"'), true);
-  assertEquals(pageHtml.includes('data-mfa-method="recoveryCode"'), false);
-  assertEquals(pageHtml.includes("无法使用验证器？"), true);
-  assertEquals(pageHtml.includes('style="--mfa-method-count: 3"'), true);
+  assert(pageHtml.includes("data-mfa-email-form"));
+  assert(pageHtml.includes("data-mfa-totp-form"));
+  assert(pageHtml.includes("data-passkey-login"));
+  assert(pageHtml.includes('data-mfa-method="passkey"'));
+  assert(pageHtml.includes('data-mfa-method="totp"'));
+  assert(pageHtml.includes('data-mfa-method="email"'));
+  assert(!(pageHtml.includes('data-mfa-method="recoveryCode"')));
+  assert(pageHtml.includes("无法使用验证器？"));
+  assert(pageHtml.includes('style="--mfa-method-count: 3"'));
   assertEquals(
     pageHtml.indexOf('data-mfa-method="email"') <
         pageHtml.indexOf('data-mfa-method="passkey"') &&
@@ -1338,17 +1340,17 @@ Deno.test("auth routes require MFA after password login when enabled", async () 
         pageHtml.indexOf('data-mfa-method="totp"'),
     true,
   );
-  assertEquals(pageHtml.includes("双重验证"), true);
+  assert(pageHtml.includes("双重验证"));
   assertEquals(
     pageHtml.includes('href="/static/app.css?v=20260904-game-polish"'),
     true,
   );
-  assertEquals(pageHtml.includes("box-shadow: 0 20px 50px"), false);
+  assert(!(pageHtml.includes("box-shadow: 0 20px 50px")));
   assertEquals(
     pageHtml.includes('class="secondary" data-mfa-email-send-code-button'),
     false,
   );
-  assertEquals(pageHtml.includes("border-bottom: 2px solid transparent"), true);
+  assert(pageHtml.includes("border-bottom: 2px solid transparent"));
 });
 
 Deno.test("auth routes complete email MFA and create a session", async () => {
@@ -1417,7 +1419,7 @@ Deno.test("auth routes complete email MFA and create a session", async () => {
   );
 
   assertEquals(codeResponse.status, 200);
-  assertEquals(codePayload.ok, true);
+  assertStrictEquals(codePayload.ok, true);
   assertEquals(sentMessages.length, 1);
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/history");
@@ -1479,8 +1481,8 @@ Deno.test("auth routes complete TOTP MFA and create a session", async () => {
 
   assertEquals(loginResponse.status, 303);
   assertEquals(pageResponse.status, 200);
-  assertEquals(pageHtml.includes("data-mfa-totp-form"), true);
-  assertEquals(pageHtml.includes('data-mfa-method="totp"'), true);
+  assert(pageHtml.includes("data-mfa-totp-form"));
+  assert(pageHtml.includes('data-mfa-method="totp"'));
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/history");
   assertEquals(session?.username, "alice");
@@ -1562,10 +1564,10 @@ Deno.test("auth routes consume a one-time recovery code for MFA", async () => {
   );
   const credential = await storage.getTotpCredential(account.id);
 
-  assertEquals(pageHtml.includes("data-mfa-method-selector"), true);
-  assertEquals(pageHtml.includes("data-mfa-recovery-code-form"), true);
-  assertEquals(pageHtml.includes('data-mfa-method="recoveryCode"'), false);
-  assertEquals(pageHtml.includes("无法使用验证器？"), true);
+  assert(pageHtml.includes("data-mfa-method-selector"));
+  assert(pageHtml.includes("data-mfa-recovery-code-form"));
+  assert(!(pageHtml.includes('data-mfa-method="recoveryCode"')));
+  assert(pageHtml.includes("无法使用验证器？"));
   assertEquals(
     pageHtml.includes('<div data-mfa-method-panel="totp"><form'),
     true,
@@ -1675,8 +1677,8 @@ Deno.test("auth routes complete Passkey MFA and create a session", async () => {
 
   assertEquals(loginResponse.status, 303);
   assertEquals(pageResponse.status, 200);
-  assertEquals(pageHtml.includes("data-passkey-login"), true);
-  assertEquals(pageHtml.includes("data-passkey-mfa-challenge"), true);
+  assert(pageHtml.includes("data-passkey-login"));
+  assert(pageHtml.includes("data-passkey-mfa-challenge"));
   assertEquals(optionsResponse.status, 200);
   assertEquals(
     optionsPayload.optionsJSON.allowCredentials?.map((item: { id: string }) =>
@@ -1690,7 +1692,7 @@ Deno.test("auth routes complete Passkey MFA and create a session", async () => {
   assertEquals(response.headers.get("location"), "/history");
   assertEquals(session?.username, "alice");
   assertEquals(credential?.counter, 5);
-  assertEquals(credential?.lastUsedAt !== undefined, true);
+  assert(credential?.lastUsedAt !== undefined);
   assertEquals(await storage.getPendingMfaChallenge(mfaChallengeId), undefined);
   assertEquals(
     await storage.getPendingPasskeyChallenge(optionsPayload.challengeId),

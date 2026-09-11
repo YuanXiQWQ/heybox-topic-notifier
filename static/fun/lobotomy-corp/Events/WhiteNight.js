@@ -11,11 +11,11 @@ import {
 } from "./WhiteNightAdvent.js";
 
 /**
- * WhiteNight 正式阶段开始后，新阶段 Trumpet 必须以正常音量完整播放的时长（毫秒）。
+ * WhiteNight 正式阶段开始后，新阶段 Trumpet 以正常音量完整播放的时长（毫秒）。
  *
  * 第二阶段 BGM 的 100% 可听窗口：结算后先从 0 秒起完整播放该时长，之后才淡出到
  * 后台 ducked hold。该值与 Simple Advent 轮盘的视觉时长
- * （`whiteNightSimpleAdventDurationMs`）相互独立，按听感单独调节（当前 3 秒）。
+ * （`whiteNightSimpleAdventDurationMs`）相互独立，按听感单独调节。
  */
 export const whiteNightStageMusicAudibleMs = 2000;
 
@@ -224,7 +224,7 @@ export function createWhiteNightEvent(shared) {
   /**
    * 判断白夜是否已经进入会接管网站的正式阶段。
    *
-   * Prelude 虽会持久化事件状态，但不能启用赎罪、导航阻断或无限冻结 Danger。
+   * Prelude 会持久化事件状态，但不启用赎罪、导航阻断或无限冻结 Danger。
    *
    * @return {boolean} 白夜 active 或 ending 阶段时返回 true。
    */
@@ -613,9 +613,8 @@ export function createWhiteNightEvent(shared) {
   /**
    * 让某个阶段实际结算结果对应的 Trumpet 进入可听窗口。
    *
-   * 曲目永远由这次结算真实产生的警报决定（`shared.stageMusicAlert()`），不硬编码
-   * First / Third；共享 Alert 层负责「阶段演出允许相对上一条阶段曲目降级、但不打断
-   * 更高等级 Direct one-shot」的仲裁。
+   * 曲目取自这次结算真实产生的警报（`shared.stageMusicAlert()`）；共享 Alert 层负责
+   * 「阶段演出允许相对上一条阶段曲目降级、但不打断更高等级 Direct one-shot」的仲裁。
    *
    * @param {object} current 当前事件状态。
    * @param {{assetDirectory: string, level: number, soundPath: string}|undefined} stageAlert 本阶段结算对应的警报。
@@ -670,8 +669,8 @@ export function createWhiteNightEvent(shared) {
       if (fadeMs > 0 && fadeRemaining > 0) {
         current.trumpetFadeMs = fadeMs;
         persist();
-        // 淡出固定从 1 插值到 ducked 音量；起始音量复用共享层的同一公式，
-        // 不能再写成只适用于 1 → 0 的 fadeRemaining / fadeMs。
+        // 淡出从 1 插值到 duck 目标音量；fadeRemaining / fadeMs 只是剩余比例，
+        // 起始音量由共享层的插值公式换算。
         const startVolume = shared.alertMusicFadeOutStartVolume?.(
           fadeRemaining / fadeMs,
         ) ?? Math.max(0, Math.min(1, fadeRemaining / fadeMs));
@@ -688,10 +687,10 @@ export function createWhiteNightEvent(shared) {
   /**
    * 按当前入口与已保存阶段应用 WhiteNight 的 Trumpet 演出策略。
    *
-   * 关键约束：
-   * - 经过 Simple Advent Prelude 的入口在正式阶段开始时不能立即 hold：第二阶段结算
-   *   产生的 Trumpet 必须先以正常音量完整播放；
-   * - 阶段曲目来自这次结算实际产生的警报，不得硬编码 First / Third；
+   * 规则：
+   * - 经过 Simple Advent Prelude 的入口在正式阶段开始时先进入可听窗口，让第二阶段
+   *   结算产生的 Trumpet 以正常音量完整播放；
+   * - 阶段曲目来自这次结算实际产生的警报；
    * - 不经过 Prelude 的入口（例如 plague-doctor-transformation）直接进入 hold。
    *
    * @param {object} options 入口配置。
@@ -1036,7 +1035,7 @@ export function createWhiteNightEvent(shared) {
     clearPersisted();
     shared.finishRestartPanel();
     current.timers.forEach(clearTimeout);
-    // Restart Day / 协调器中断必须取消而非 finish Advent，避免错误触发 +98。
+    // Restart Day / 协调器中断取消 Advent 而不 finish，避免触发 +98。
     current.advent?.dispose?.();
     current.listeners.forEach(([target, type, listener, options]) =>
       target?.removeEventListener?.(type, listener, options)

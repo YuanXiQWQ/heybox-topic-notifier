@@ -1,6 +1,15 @@
 /**
  * @file 本文件是《逆转裁判》彩蛋的总入口，负责同步准备静态资料、本地化并注册法庭改名事件。
  */
+// @ts-check
+
+/**
+ * 本模块从宿主全局读取的能力。
+ *
+ * @typedef {object} AceAttorneyEasterEggHost
+ * @property {any} [aceAttorneyCourtroomNameChange] 法庭改名事件工厂。
+ * @property {any} [usernameEasterEgg] 已注册的用户名彩蛋入口。
+ */
 
 /** 当前设置页以内联 JSON 提供的角色资料与交互文本。 */
 const aceAttorneyDataElementId = "ace-attorney-easter-egg-data";
@@ -24,12 +33,13 @@ function embeddedAceAttorneyData() {
  * 初始化数据、本地化与法院改名事件，并公开稳定的彩蛋 API。
  */
 function initializeAceAttorneyEasterEgg() {
-  const courtroomNameChange = globalThis.aceAttorneyCourtroomNameChange;
+  const host = /** @type {AceAttorneyEasterEggHost} */ (globalThis);
+  const courtroomNameChange = host.aceAttorneyCourtroomNameChange;
   if (!courtroomNameChange) {
     throw new Error("《逆转裁判》法庭改名事件尚未加载。");
   }
   const { characters, messages } = embeddedAceAttorneyData();
-  globalThis.usernameEasterEgg = courtroomNameChange.create({
+  host.usernameEasterEgg = courtroomNameChange.create({
     characters,
     messages,
   });

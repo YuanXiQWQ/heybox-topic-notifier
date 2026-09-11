@@ -1,6 +1,7 @@
 /**
  * @file 本文件负责将自定义提示框渲染到页面根节点，避免被父容器裁剪或遮挡。
  */
+// @ts-check
 
 (() => {
   const tooltipGap = 8;
@@ -108,16 +109,28 @@
     });
   }
 
+  /**
+   * 判断事件的 relatedTarget 是否仍位于提示框目标内部。
+   *
+   * @param {Element} target 提示框目标。
+   * @param {EventTarget|null} related 事件的 relatedTarget。
+   * @return {boolean} 仍在目标内部时返回 true。
+   */
+  function containsRelatedTarget(target, related) {
+    return related instanceof Node && target.contains(related);
+  }
+
   document.addEventListener("pointerover", (event) => {
     const target = findTooltipTarget(event.target);
-    if (!target || target.contains(event.relatedTarget)) return;
+    if (!target || containsRelatedTarget(target, event.relatedTarget)) return;
     showTooltip(target);
   });
 
   document.addEventListener("pointerout", (event) => {
     const target = findTooltipTarget(event.target);
     if (
-      !target || target !== activeTarget || target.contains(event.relatedTarget)
+      !target || target !== activeTarget ||
+      containsRelatedTarget(target, event.relatedTarget)
     ) {
       return;
     }

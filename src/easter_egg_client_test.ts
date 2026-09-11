@@ -1,12 +1,54 @@
 /**
  * @file 本文件验证彩蛋前端的协调及《脑叶公司》Trumpet 警报生命周期。
  */
-import { assertEquals, assertRejects } from "./test_helpers.ts";
+import {
+  assert,
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+  findAllByClass,
+  findByClass,
+  requireByClass,
+  stripCssComments,
+  stripJavaScriptCommentsAndStrings,
+} from "./test_helpers.ts";
+import {
+  AudioMock,
+  Element,
+  installLobotomyCorpAlertHarness,
+  StorageMock,
+} from "./test_harness.ts";
 import { renderLayout } from "./views/html.ts";
 import {
   whiteNightConfessionSuppressionDelayMs,
   whiteNightDeathSequenceDurationMs,
+  whiteNightStageMusicAudibleMs,
 } from "../static/fun/lobotomy-corp/Events/WhiteNight.js";
+import { whiteNightSimpleAdventDurationMs } from "../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
+
+/**
+ * 派发顶部 Restart 面板的反向动画结束事件，模拟面板收起动画完成。
+ *
+ * @param overlay 警报 overlay；缺失时不做任何事。
+ */
+function finishRestartPanelAnimation<
+  T extends {
+    children: T[];
+    className: string;
+    dispatch(name: string): void;
+  },
+>(overlay: T | undefined): void {
+  if (!overlay) return;
+  findByClass(overlay, "lobotomy-corp-top-panel-active-controller")
+    ?.dispatch("animationend");
+}
+
+/** Simple Advent 轮盘的逻辑时长（毫秒）；Prelude 在该时刻结束并结算第二笔危急值。 */
+const whiteNightPreludeDurationMs = whiteNightSimpleAdventDurationMs;
+
+/** 第二阶段 BGM 开始淡出的时刻（毫秒）：Prelude 结束后再完整可听一个可听窗口。 */
+const whiteNightFadeStartMs = whiteNightPreludeDurationMs +
+  whiteNightStageMusicAudibleMs;
 
 /**
  * 从页面内联脚本中读取《脑叶公司》当前本地化。
@@ -103,348 +145,6 @@ function renderedLobotomyCorpConfessionAliases(): string[] {
   return JSON.parse(serialized);
 }
 
-/**
- * 安装《脑叶公司》Alert 测试所需的浏览器替身。
- *
- * 只模拟 Alert 生命周期真正依赖的能力：可控时钟与计时器、音频、最小 DOM 与存储。
- *
- * @param {{navigationType?: "navigate" | "reload", now?: number}} [options] 初始导航类型与可控时钟起点。
- * @return {object} 测试上下文。
- */
-function installLobotomyCorpAlertHarness(
-  options: { navigationType?: "navigate" | "reload"; now?: number } = {},
-) {
-  class Element {
-    alt = "";
-    attributes: Record<string, string> = {};
-    children: Element[] = [];
-    className = "";
-    dataset: Record<string, string> = {};
-    disabled = false;
-    hidden = false;
-    offsetWidth = 1;
-    removed = false;
-    src = "";
-    style: Record<string, unknown> = {};
-    textContent = "";
-    type = "";
-    #events = new Map<string, ((event: Event) => void)[]>();
-    /** 创建可记录 DOM 状态的模拟节点。 */
-    constructor() {
-      this.style.setProperty = (name: string, value: string) =>
-        this.style[name] = value;
-    }
-    /** @param {...Element} nodes 要追加的节点。 */ append(
-      ...nodes: Element[]
-    ): void {
-      this.children.push(...nodes);
-    }
-    /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ addEventListener(
-      name: string,
-      listener: (event: Event) => void,
-    ): void {
-      this.#events.set(name, [...(this.#events.get(name) ?? []), listener]);
-    }
-    /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ removeEventListener(
-      name: string,
-      listener: (event: Event) => void,
-    ): void {
-      this.#events.set(
-        name,
-        (this.#events.get(name) ?? []).filter((item) => item !== listener),
-      );
-    }
-    /** @param {string} name 属性名。 @param {string} value 属性值。 */ setAttribute(
-      name: string,
-      value: string,
-    ): void {
-      this.attributes[name] = value;
-    }
-    /** @param {string} name 属性名。 */ removeAttribute(name: string): void {
-      delete this.attributes[name];
-    }
-    /** @param {...Element} nodes 替换当前子节点列表。 */ replaceChildren(
-      ...nodes: Element[]
-    ): void {
-      this.children = [...nodes];
-    }
-    /** 标记节点已删除。 */ remove(): void {
-      this.removed = true;
-    }
-    /** @param {string} name 事件名。 */ dispatch(name: string): void {
-      this.#events.get(name)?.forEach((listener) => listener(new Event(name)));
-    }
-  }
-  class AudioMock extends Element {
-    static items: AudioMock[] = [];
-    autoplayRejected = false;
-    duration = Number.NaN;
-    currentTime = 0;
-    loop = false;
-    muted = false;
-    pauseCount = 0;
-    playCount = 0;
-    preload = "";
-    readyState = 0;
-    volume = 1;
-    /** @param {string} source 音频地址。 */ constructor(source: string) {
-      super();
-      this.src = source;
-      AudioMock.items.push(this);
-    }
-    /** @return {Promise<void>} 播放结果。 */ play(): Promise<void> {
-      this.playCount++;
-      return Promise.resolve();
-    }
-    /** 暂停音频。 */ pause(): void {
-      this.pauseCount++;
-    }
-    /** 释放媒体资源。 */ load(): void {}
-  }
-  class StorageMock {
-    #values = new Map<string, string>();
-    /** @param {string} key 键。 @return {string|null} 存储值。 */ getItem(
-      key: string,
-    ): string | null {
-      return this.#values.get(key) ?? null;
-    }
-    /** @param {string} key 键。 @param {string} value 值。 */ setItem(
-      key: string,
-      value: string,
-    ): void {
-      this.#values.set(key, value);
-    }
-    /** @param {string} key 键。 */ removeItem(key: string): void {
-      this.#values.delete(key);
-    }
-  }
-  const browser = globalThis as typeof globalThis & {
-    Audio?: unknown;
-    document?: unknown;
-    innerHeight?: number;
-    innerWidth?: number;
-    localStorage?: unknown;
-    location?: unknown;
-    performance?: unknown;
-    sessionStorage?: unknown;
-    lobotomyCorpEasterEgg?: {
-      activate: (name: string) => Promise<boolean>;
-      commitDisplayName: (name: string) => Promise<boolean>;
-      getDangerMusicHighWaterLevel: () => number;
-      getDangerScore: () => number;
-      getSpecialEvent: () => string | undefined;
-      getSpecialEventPhase: () => string | undefined;
-      handleAbnormalitySubmitted: (name: string) => Promise<boolean>;
-      matches: (name: string) => boolean;
-      matchingAbnormality: (
-        name: string,
-      ) => { canonicalId: string } | undefined;
-      prepareDisplayName: (name: string) => {
-        commit: () => Promise<boolean>;
-        dispose: () => void;
-      };
-      restartDay: () => Promise<boolean>;
-      setDangerScore: (score: number) => Promise<boolean>;
-      startWhiteNight: (options: { source: string }) => boolean;
-    };
-  };
-  const original = Object.fromEntries(
-    [
-      "Audio",
-      "document",
-      "innerHeight",
-      "innerWidth",
-      "localStorage",
-      "location",
-      "performance",
-      "sessionStorage",
-      "setTimeout",
-      "clearTimeout",
-    ].map((name) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
-  );
-  const originalDateNow = Date.now;
-  const body = new Element();
-  const storage = new StorageMock();
-  const documentListeners = new Map<string, ((event: Event) => void)[]>();
-  const createdElements: Element[] = [];
-  let navigationType = options.navigationType ?? "navigate";
-  let now = options.now ?? 0;
-  let nextTimerId = 0;
-  const timers = new Map<
-    number,
-    {
-      callback: () => void;
-      delay: number;
-      cleared: boolean;
-      fired: boolean;
-    }
-  >();
-  const localeData = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
-  );
-  const abnormalitiesData = Deno.readTextFileSync(
-    new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
-      import.meta.url,
-    ),
-  );
-  Object.defineProperties(browser, {
-    Audio: { configurable: true, value: AudioMock },
-    document: {
-      configurable: true,
-      value: {
-        body,
-        addEventListener: (name: string, listener: (event: Event) => void) =>
-          documentListeners.set(name, [
-            ...(documentListeners.get(name) ?? []),
-            listener,
-          ]),
-        createElement: () => {
-          const element = new Element();
-          createdElements.push(element);
-          return element;
-        },
-        documentElement: { lang: "zh-CN" },
-        getElementById: (id: string) =>
-          id === "lobotomy-corp-locale-data"
-            ? { textContent: localeData }
-            : id === "lobotomy-corp-abnormalities-data"
-            ? { textContent: abnormalitiesData }
-            : null,
-        querySelector: () => undefined,
-        querySelectorAll: () => [],
-        removeEventListener: (name: string, listener: (event: Event) => void) =>
-          documentListeners.set(
-            name,
-            (documentListeners.get(name) ?? []).filter((item) =>
-              item !== listener
-            ),
-          ),
-      },
-    },
-    innerHeight: { configurable: true, value: 1080 },
-    innerWidth: { configurable: true, value: 1920 },
-    localStorage: { configurable: true, value: storage },
-    location: {
-      configurable: true,
-      value: {
-        href: "https://warmnest.test/settings",
-        pathname: "/settings",
-        search: "",
-      },
-    },
-    performance: {
-      configurable: true,
-      value: { getEntriesByType: () => [{ type: navigationType }] },
-    },
-    sessionStorage: { configurable: true, value: storage },
-    setTimeout: {
-      configurable: true,
-      value: (callback: () => void, delay = 0) => {
-        const id = ++nextTimerId;
-        const timer = {
-          callback: () => {
-            timer.fired = true;
-            callback();
-          },
-          cleared: false,
-          delay,
-          fired: false,
-        };
-        timers.set(id, timer);
-        return id;
-      },
-    },
-    clearTimeout: {
-      configurable: true,
-      value: (id: number) => {
-        const timer = timers.get(id);
-        if (timer) timer.cleared = true;
-      },
-    },
-  });
-  Date.now = () => now;
-  return {
-    AudioMock,
-    body,
-    storage,
-    timers,
-    /** @return {object} 当前已加载的彩蛋 API。 */ api: () =>
-      browser.lobotomyCorpEasterEgg!,
-    /** 重新导入模块，模拟内部导航或完整刷新。 */ reload: () =>
-      import(
-        `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
-      ),
-    /** @param {number} value 可控时钟。 */ setNow: (value: number) => {
-      now = value;
-    },
-    /** @param {"navigate" | "reload"} value 下一次导航类型。 */ setNavigationType:
-      (value: "navigate" | "reload") => {
-        navigationType = value;
-      },
-    /** @param {number} delay 计时器延迟。 @return {object|undefined} 仍未取消的计时器。 */ pendingTimer:
-      (delay: number) =>
-        [...timers.values()].find((timer) =>
-          timer.delay === delay && !timer.cleared && !timer.fired
-        ),
-    /**
-     * 按注册顺序在 document 上派发一次事件，用于模拟真实用户手势。
-     *
-     * @param {string} name 事件名。
-     * @return {number} 已派发的监听器数量。
-     */
-    dispatchDocument: (name: string) => {
-      const listeners = [...(documentListeners.get(name) ?? [])];
-      listeners.forEach((listener) => listener(new Event(name)));
-      return listeners.length;
-    },
-    /** @return {number} 触发当前所有待执行的 16ms 回调（Advent 帧与音乐渐变步进共用该延迟）。 */
-    fireFrames: () => {
-      const pending = [...timers.values()].filter((timer) =>
-        timer.delay === 16 && !timer.cleared && !timer.fired
-      );
-      pending.forEach((timer) => timer.callback());
-      return pending.length;
-    },
-    /** @return {AudioMock|undefined} 最近创建的 Trumpet 曲目。 */ lastTrumpet:
-      () =>
-        [...AudioMock.items].reverse().find((audio) =>
-          audio.src.includes("Resources/sounds/bgm/emergency")
-        ),
-    /** @return {Element[]} 本次测试中按创建顺序记录的全部 DOM 节点。 */
-    createdElements: () => createdElements,
-    /** @return {Element|undefined} 最近一次挂载且仍可见的 Alert overlay。 */
-    overlay: () =>
-      [...body.children].reverse().find((element) =>
-        !element.removed && element.className === "lobotomy-corp-alert-overlay"
-      ),
-    /** @param {Element} overlay Alert overlay。 @return {string} Trumpet 文本。 */
-    trumpet: (overlay: Element) =>
-      overlay.children[0].children[0].children[2].children[0].children[1]
-        .children[0].textContent,
-    /** @param {Element} overlay Alert overlay。 @return {boolean} 当前是否显示四角警报框。 */
-    hasHud: (overlay: Element) =>
-      overlay.children[0]?.className === "lobotomy-corp-emergency-controller",
-    /** @param {Element} overlay Alert overlay。 @return {Element} 顶部 Restart Day 面板。 */
-    panel: (overlay: Element) =>
-      overlay.children.find((child) =>
-        child.className === "lobotomy-corp-top-panel"
-      )!,
-    /** @param {Element} overlay Alert overlay。 @return {string|undefined} EmergencyImage 文件名。 */
-    riskFile: (overlay: Element) =>
-      overlay.children[0].children[0].children[0].children[0].children[1]
-        .children[0].src.split("/").at(-1),
-    /** 移除测试期间安装的全部浏览器替身。 */ restore: () => {
-      Date.now = originalDateNow;
-      for (const [name, descriptor] of Object.entries(original)) {
-        if (descriptor) Object.defineProperty(browser, name, descriptor);
-        else delete (browser as Record<string, unknown>)[name];
-      }
-      delete browser.lobotomyCorpEasterEgg;
-    },
-  };
-}
-
 Deno.test("Lobotomy Corporation locale data is injected from game JSON with fallbacks", () => {
   const simplifiedChinese = renderedLobotomyCorpLocale("zh-CN");
   assertEquals(simplifiedChinese.restartDay, "重新开始这一天");
@@ -484,7 +184,7 @@ Deno.test("Lobotomy Corporation injects every maintained Confession alias", () =
   assertEquals(aliases.length, 8);
   ["Confess", "Confesarse", "懺悔", "고해", "Исповедь", "Xoa dịu", "赎罪"]
     .forEach(
-      (alias) => assertEquals(aliases.includes(alias), true),
+      (alias) => assert(aliases.includes(alias)),
     );
 });
 
@@ -568,9 +268,9 @@ Deno.test("game entries use embedded data without synchronous requests", () => {
     new URL("../static/fun/lobotomy-corp/lobotomy-corp.js", import.meta.url),
   );
 
-  assertEquals(aceAttorneyEntry.includes("XMLHttpRequest"), false);
-  assertEquals(lobotomyCorpEntry.includes("XMLHttpRequest"), false);
-  assertEquals(lobotomyCorpEntry.includes("Abnormalities.json"), false);
+  assert(!(aceAttorneyEntry.includes("XMLHttpRequest")));
+  assert(!(lobotomyCorpEntry.includes("XMLHttpRequest")));
+  assert(!(lobotomyCorpEntry.includes("Abnormalities.json")));
 });
 
 Deno.test("Lobotomy Corporation CanvasScaler keeps portrait HUDs legible", async () => {
@@ -631,13 +331,13 @@ Deno.test("Lobotomy Corporation CanvasScaler keeps portrait HUDs legible", async
 
     const portrait390 = scale(390, 844);
     const portrait430 = scale(430, 932);
-    assertEquals(Number.isFinite(portrait390) && portrait390 > 0, true);
-    assertEquals(Number.isFinite(portrait430) && portrait430 > 0, true);
-    assertEquals(portrait390 > 390 / 1920, true);
-    assertEquals(portrait430 > 430 / 1920, true);
+    assert(Number.isFinite(portrait390) && portrait390 > 0);
+    assert(Number.isFinite(portrait430) && portrait430 > 0);
+    assert(portrait390 > 390 / 1920);
+    assert(portrait430 > 430 / 1920);
     // CSS 保留 Unity 原版的 0.5 倍根缩放；此处锁定最终视觉量级，防止退化回约 10%。
-    assertEquals(Math.abs(portrait390 * 0.5 - 0.199) < 0.01, true);
-    assertEquals(Math.abs(portrait430 * 0.5 - 0.22) < 0.01, true);
+    assert(Math.abs(portrait390 * 0.5 - 0.199) < 0.01);
+    assert(Math.abs(portrait430 * 0.5 - 0.22) < 0.01);
 
     const portraitViewport = { height: 844, width: 390 };
     const browserChromeViewport = browser.lobotomyCorpEasterEgg!
@@ -670,100 +370,9 @@ Deno.test("Lobotomy Corporation CanvasScaler keeps portrait HUDs legible", async
 });
 
 Deno.test("settings transaction disposes failed prepared media and commits only confirmed abnormality saves", async () => {
-  class Element {
-    attributes: Record<string, string> = {};
-    children: Element[] = [];
-    classList = { add: () => {}, remove: () => {} };
-    dataset: Record<string, string> = {};
-    disabled = false;
-    hidden = false;
-    offsetWidth = 1;
-    src = "";
-    style: Record<string, unknown> = {};
-    textContent = "";
-    #events = new Map<string, ((event: Event) => void)[]>();
-    /** 创建可记录 HUD 生命周期的模拟节点。 */
-    constructor() {
-      this.style.setProperty = (name: string, value: string) =>
-        this.style[name] = value;
-    }
-    /** @param {...Element} nodes 要追加的节点。 */ append(
-      ...nodes: Element[]
-    ): void {
-      this.children.push(...nodes);
-    }
-    /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ addEventListener(
-      name: string,
-      listener: (event: Event) => void,
-    ): void {
-      this.#events.set(name, [...(this.#events.get(name) ?? []), listener]);
-    }
-    /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ removeEventListener(
-      name: string,
-      listener: (event: Event) => void,
-    ): void {
-      this.#events.set(
-        name,
-        (this.#events.get(name) ?? []).filter((item) => item !== listener),
-      );
-    }
-    /** @param {string} name 属性名。 @param {string} value 属性值。 */ setAttribute(
-      name: string,
-      value: string,
-    ): void {
-      this.attributes[name] = value;
-    }
-    /** @param {string} name 属性名。 */ removeAttribute(name: string): void {
-      delete this.attributes[name];
-      if (name === "src") this.src = "";
-    }
-    /** 标记节点已从当前视觉树中移除。 */ remove(): void {}
-    /** 触发指定事件。 @param {string} name 事件名。 */ dispatch(
-      name: string,
-    ): void {
-      this.#events.get(name)?.forEach((listener) => listener(new Event(name)));
-    }
-  }
-  class AudioMock extends Element {
-    static items: AudioMock[] = [];
-    currentTime = 0;
-    duration = Number.NaN;
-    muted = false;
-    pauseCount = 0;
-    playCount = 0;
-    preload = "";
-    readyState = 0;
-    /** @param {string} source 音频地址。 */ constructor(source: string) {
-      super();
-      this.src = source;
-      AudioMock.items.push(this);
-    }
-    /** @return {Promise<void>} 播放结果。 */ play(): Promise<void> {
-      this.playCount++;
-      return Promise.resolve();
-    }
-    /** 暂停预备或正式音频。 */ pause(): void {
-      this.pauseCount++;
-    }
-    /** 释放已移除音源的解码资源。 */ load(): void {}
-  }
-  class StorageMock {
-    values = new Map<string, string>();
-    /** @param {string} key 键。 @return {string|null} 值。 */ getItem(
-      key: string,
-    ): string | null {
-      return this.values.get(key) ?? null;
-    }
-    /** @param {string} key 键。 @param {string} value 值。 */ setItem(
-      key: string,
-      value: string,
-    ): void {
-      this.values.set(key, value);
-    }
-    /** @param {string} key 键。 */ removeItem(key: string): void {
-      this.values.delete(key);
-    }
-  }
+  AudioMock.reset();
+  // 释放预备媒体时会 removeAttribute("src")，本测试据此确认预备音频已被释放。
+  AudioMock.clearSrcOnRemoveAttribute = true;
   const browser = globalThis as typeof globalThis & {
     Audio?: unknown;
     FormData?: unknown;
@@ -906,15 +515,15 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     );
     await Promise.resolve();
     const rejectedAudio = AudioMock.items[0];
-    assertEquals(rejected.saved, false);
+    assertStrictEquals(rejected.saved, false);
     assertEquals(observedCanonicalIds, []);
     assertEquals(api.getDangerScore(), 0);
     assertEquals(api.getSpecialEvent(), undefined);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
     assertEquals(body.children.length, 0);
-    assertEquals(rejectedAudio.muted, true);
+    assertStrictEquals(rejectedAudio.muted, true);
     assertEquals(rejectedAudio.playCount, 1);
-    assertEquals(rejectedAudio.pauseCount >= 1, true);
+    assert(rejectedAudio.pauseCount >= 1);
     assertEquals(rejectedAudio.src, "");
 
     Object.defineProperty(browser, "fetch", {
@@ -949,26 +558,26 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     );
     await Promise.resolve();
     await Promise.resolve();
-    assertEquals(confirmed.saved, true);
+    assertStrictEquals(confirmed.saved, true);
     assertEquals(observedCanonicalIds, ["T-03-46"]);
     assertEquals(api.getDangerScore(), 44);
     assertEquals(
       storage.getItem("warmnest.lobotomy-corp-day")?.includes("T-03-46"),
       true,
     );
-    assertEquals(body.children.length > 0, true);
+    assert(body.children.length > 0);
     assertEquals(api.getSpecialEvent(), "white-night");
     assertEquals(api.getSpecialEventPhase(), "prelude");
     const preparedChurch = AudioMock.items.find((audio) =>
       audio.src.endsWith("Lucifer_standbg0.ogg")
     )!;
-    assertEquals(preparedChurch.muted, true);
+    assertStrictEquals(preparedChurch.muted, true);
     assertEquals(preparedChurch.playCount, 1);
-    assertEquals(hasMedia(body, "WhiteNight_Confess_Dead.webm"), false);
+    assertStrictEquals(hasMedia(body, "WhiteNight_Confess_Dead.webm"), false);
     const savedIdentityLabel = displayNameLabel.textContent;
 
     const restarting = api.restartDay();
-    body.children.at(-1)?.children[1]?.children[0]?.dispatch("animationend");
+    finishRestartPanelAnimation(body.children.at(-1));
     await restarting;
     assertEquals(api.getDangerScore(), 0);
     assertEquals(api.getSpecialEvent(), undefined);
@@ -1055,16 +664,16 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
     );
     const api = browser.usernameEasterEgg!;
     ["Phoenix Wright", "成步堂龙一", "御剑怜侍", "王泥喜法介"].forEach(
-      (name) => assertEquals(api.matches(name), true),
+      (name) => assert(api.matches(name)),
     );
-    assertEquals(api.matches("普通用户"), false);
+    assert(!(api.matches("普通用户")));
     documentMock.documentElement.lang = "zh-HK";
     assertEquals(api.imageLocale(), "zh-TW");
     assertEquals(api.voiceLocale(), "zh-CN");
   } finally {
     if (originalDocument) {
       Object.defineProperty(browser, "document", originalDocument);
-    } else delete browser.document;
+    } else Reflect.deleteProperty(browser, "document");
     if (originalEvent) {
       Object.defineProperty(
         browser,
@@ -1077,38 +686,6 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
 });
 
 Deno.test("Lobotomy Corporation derives every risk host from server-rendered identity", async () => {
-  class Element {
-    alt = "";
-    className = "";
-    dataset: Record<string, string | undefined> = {};
-    removed = false;
-    src = "";
-    textContent = "";
-    children: Element[] = [];
-    /** @param {string} name 属性名称。 @param {string} value 属性值。 */ setAttribute(
-      name: string,
-      value: string,
-    ): void {
-      if (name === "aria-hidden") this.dataset.ariaHidden = value;
-    }
-    /** @param {...Element} nodes 要追加的节点。 */ append(
-      ...nodes: Element[]
-    ): void {
-      this.children.push(...nodes);
-    }
-    /** @param {string} selector CSS 选择器。 @return {Element|undefined} 匹配节点。 */ querySelector(
-      selector: string,
-    ): Element | undefined {
-      return selector === ".lobotomy-corp-risk-badge"
-        ? this.children.find((child) =>
-          child.className === "lobotomy-corp-risk-badge" && !child.removed
-        )
-        : undefined;
-    }
-    /** 移除当前节点。 */ remove(): void {
-      this.removed = true;
-    }
-  }
   const browser = globalThis as typeof globalThis & {
     Audio?: unknown;
     document?: unknown;
@@ -1167,13 +744,13 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
     assertEquals(label.textContent, "白夜");
     assertEquals(navAvatar.children.length, 0);
     assertEquals(settingsAvatar.children.length, 0);
-    assertEquals(
-      navAvatarWrapper.children[1].src.endsWith("Risk_Aleph.png"),
-      true,
+    assert(
+      requireByClass(navAvatarWrapper, "lobotomy-corp-risk-badge").src
+        .endsWith("Risk_Aleph.png"),
     );
-    assertEquals(
-      settingsAvatarWrapper.children[1].src.endsWith("Risk_Aleph.png"),
-      true,
+    assert(
+      requireByClass(settingsAvatarWrapper, "lobotomy-corp-risk-badge").src
+        .endsWith("Risk_Aleph.png"),
     );
     await browser.lobotomyCorpEasterEgg!.commitDisplayName("Bald-is-awesome!");
     assertEquals(label.textContent, "你是个秃子...");
@@ -1216,7 +793,7 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
   } finally {
     if (originalDocument) {
       Object.defineProperty(browser, "document", originalDocument);
-    } else delete browser.document;
+    } else Reflect.deleteProperty(browser, "document");
     if (originalApi) {
       Object.defineProperty(browser, "lobotomyCorpEasterEgg", originalApi);
     } else delete browser.lobotomyCorpEasterEgg;
@@ -1224,150 +801,8 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
 });
 
 Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-water", async () => {
-  class Element {
-    alt = "";
-    attributes: Record<string, string> = {};
-    children: Element[] = [];
-    className = "";
-    dataset: Record<string, string> = {};
-    disabled = false;
-    hidden = false;
-    offsetWidth = 1;
-    removed = false;
-    src = "";
-    style: Record<string, unknown> = {};
-    textContent = "";
-    type = "";
-    #events = new Map<string, ((event: Event) => void)[]>();
-    /** 创建可记录 DOM 状态的模拟节点。 */
-    constructor() {
-      this.style.setProperty = (name: string, value: string) =>
-        this.style[name] = value;
-    }
-    /** @param {...Element} nodes 要追加的节点。 */ append(
-      ...nodes: Element[]
-    ): void {
-      this.children.push(...nodes);
-    }
-    /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ addEventListener(
-      name: string,
-      listener: (event: Event) => void,
-    ): void {
-      this.#events.set(name, [...(this.#events.get(name) ?? []), listener]);
-    }
-    /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ removeEventListener(
-      name: string,
-      listener: (event: Event) => void,
-    ): void {
-      this.#events.set(
-        name,
-        (this.#events.get(name) ?? []).filter((item) => item !== listener),
-      );
-    }
-    /** @param {string} name 属性名。 @param {string} value 属性值。 */ setAttribute(
-      name: string,
-      value: string,
-    ): void {
-      this.attributes[name] = value;
-    }
-    /** @param {...Element} nodes 替换当前子节点列表。 */ replaceChildren(
-      ...nodes: Element[]
-    ): void {
-      this.children = [...nodes];
-    }
-    /** 标记节点已删除。 */ remove(): void {
-      this.removed = true;
-    }
-    /** @param {string} name 事件名。 */ dispatch(name: string): void {
-      this.#events.get(name)?.forEach((listener) => listener(new Event(name)));
-    }
-  }
-  class AudioMock extends Element {
-    static deferredPlayResolvers: (() => void)[] = [];
-    static deferNextPlayCount = 0;
-    static items: AudioMock[] = [];
-    static nextDuration = Number.NaN;
-    static nextReadyState = 0;
-    static playSnapshots: {
-      audio: AudioMock;
-      loop: boolean;
-      muted: boolean;
-      src: string;
-      volume: number;
-    }[] = [];
-    static rejectNextTrumpetPlayCount = 0;
-    static rejectUnmutedAutoplay = false;
-    static resetTrumpetPositionOnPlay = false;
-    autoplayRejected = false;
-    duration = AudioMock.nextDuration;
-    currentTime = 0;
-    loop = false;
-    muted = false;
-    pauseCount = 0;
-    playCount = 0;
-    preload = "";
-    readyState = AudioMock.nextReadyState;
-    volume = 1;
-    /** @param {string} source 音频地址。 */ constructor(source: string) {
-      super();
-      this.src = source;
-      AudioMock.items.push(this);
-    }
-    /** @return {Promise<void>} 播放结果。 */ play(): Promise<void> {
-      this.playCount++;
-      AudioMock.playSnapshots.push({
-        audio: this,
-        loop: this.loop,
-        muted: this.muted,
-        src: this.src,
-        volume: this.volume,
-      });
-      if (
-        AudioMock.resetTrumpetPositionOnPlay &&
-        this.src.includes("Resources/sounds/bgm/emergency")
-      ) {
-        this.currentTime = 0;
-      }
-      if (
-        this.src.includes("Resources/sounds/bgm/emergency") &&
-        AudioMock.rejectNextTrumpetPlayCount > 0
-      ) {
-        AudioMock.rejectNextTrumpetPlayCount--;
-        return Promise.reject(new Error("trumpet autoplay blocked"));
-      }
-      if (AudioMock.rejectUnmutedAutoplay && this.muted !== true) {
-        this.autoplayRejected = true;
-        return Promise.reject(new Error("unmuted autoplay blocked"));
-      }
-      if (AudioMock.deferNextPlayCount > 0) {
-        AudioMock.deferNextPlayCount--;
-        return new Promise((resolve) =>
-          AudioMock.deferredPlayResolvers.push(resolve)
-        );
-      }
-      return Promise.resolve();
-    }
-    /** 暂停音频。 */ pause(): void {
-      this.pauseCount++;
-    }
-  }
-  class StorageMock {
-    #values = new Map<string, string>();
-    /** @param {string} key 键。 @return {string|null} 存储值。 */ getItem(
-      key: string,
-    ): string | null {
-      return this.#values.get(key) ?? null;
-    }
-    /** @param {string} key 键。 @param {string} value 值。 */ setItem(
-      key: string,
-      value: string,
-    ): void {
-      this.#values.set(key, value);
-    }
-    /** @param {string} key 键。 */ removeItem(key: string): void {
-      this.#values.delete(key);
-    }
-  }
+  AudioMock.reset();
+  AudioMock.clearSrcOnRemoveAttribute = true;
   const browser = globalThis as typeof globalThis & {
     Audio?: unknown;
     document?: unknown;
@@ -1494,18 +929,21 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     },
   });
   /** @param {Element} overlay 警报外层。 @return {Element[]} Corner。 */ const corners =
-    (overlay: Element) => overlay.children[0].children[0].children;
+    (overlay: Element) => findAllByClass(overlay, "lobotomy-corp-alert-corner");
   /** @param {Element} overlay 警报外层。 @return {string} Trumpet 文本。 */ const trumpet =
     (overlay: Element) =>
-      corners(overlay)[2].children[0].children[1].children[0].textContent;
+      requireByClass(overlay, "lobotomy-corp-alert-trumpet-level-content")
+        .textContent;
   /** @param {Element} overlay 警报外层。 @return {Element} Restart 面板。 */ const panel =
-    (overlay: Element) => overlay.children[1];
+    (overlay: Element) => requireByClass(overlay, "lobotomy-corp-top-panel");
   /** @param {Element} overlay 警报外层。 @return {Element} EmergencyImage。 */ const risk =
-    (overlay: Element) =>
-      corners(overlay)[0].children[0].children[1].children[0];
+    (overlay: Element) => requireByClass(overlay, "lobotomy-corp-alert-risk");
   /** @param {Element} overlay 警报外层。 @param {number} cornerIndex 含图标的 Corner 索引。 @return {Element} EmergencyImage 的 RectTransform 容器。 */ const riskRect =
     (overlay: Element, cornerIndex: number) =>
-      corners(overlay)[cornerIndex].children[0].children[1];
+      requireByClass(
+        corners(overlay)[cornerIndex],
+        "lobotomy-corp-alert-factorial",
+      );
   try {
     await import(
       `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
@@ -1520,14 +958,14 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       "Bald-is-awesome!",
     );
     assertEquals(api.matchingAbnormality("unknown abnormality"), undefined);
-    assertEquals(api.matches("first-trumpet"), true);
+    assert(api.matches("first-trumpet"));
     [
       "FOURTH TRUMPET",
       "Fourth Trumpet",
       "fourth trumpet",
       "fourth-trumpet",
       "fourthtrumpet",
-    ].forEach((name) => assertEquals(api.matches(name), true));
+    ].forEach((name) => assert(api.matches(name)));
     const first = api.activate("first trumpet");
     const initialFirstOverlay = body.children.at(-1)!;
     const firstRiskRect = riskRect(initialFirstOverlay, 0);
@@ -1551,7 +989,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       secondAudio.src.endsWith("Resources/sounds/bgm/emergency02_mast.ogg"),
       true,
     );
-    assertEquals(await first, true);
+    assertStrictEquals(await first, true);
     const third = api.activate("third trumpet");
     const thirdOverlay = body.children.at(-1)!;
     const thirdRiskRect = riskRect(thirdOverlay, 0);
@@ -1562,7 +1000,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     assertEquals(thirdRiskRect.style.height, "150px");
     assertEquals(thirdRiskRect.style.transform, "rotate(135deg)");
     thirdAudio.currentTime = 20;
-    assertEquals(await second, true);
+    assertStrictEquals(await second, true);
     const down = api.activate("second trumpet");
     const downOverlay = body.children.at(-1)!;
     assertEquals(thirdAudio.pauseCount, 0);
@@ -1574,7 +1012,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       riskRect(fourthOverlay, cornerIndex)
     );
     assertEquals(trumpet(fourthOverlay), "Fourth\nTrumpet");
-    assertEquals(risk(fourthOverlay).src.endsWith("MiddleArea_4_27.png"), true);
+    assert(risk(fourthOverlay).src.endsWith("MiddleArea_4_27.png"));
     fourthRiskRects.forEach((currentRiskRect) => {
       assertEquals(currentRiskRect.style.left, "290px");
       assertEquals(currentRiskRect.style.top, "284px");
@@ -1592,24 +1030,28 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     assertEquals(fourthAudio.currentTime, 0);
     assertEquals(fourthAudio.playCount, 1);
     // 视觉等级替换复用同一个会话的 Restart panel，不重播 Appear 动画。
-    assertEquals(panel(fourthOverlay) === panel(initialFirstOverlay), true);
-    assertEquals(fourthOverlay === downOverlay, true);
+    assert(panel(fourthOverlay) === panel(initialFirstOverlay));
+    assert(fourthOverlay === downOverlay);
     assertEquals(
-      panel(fourthOverlay).children[0].children[1].children[1].children[2]
-        .textContent,
+      requireByClass(
+        panel(fourthOverlay),
+        "lobotomy-corp-top-panel-action-button-text",
+      ).textContent,
       "你被解雇了，主管！",
     );
     assertEquals(
-      panel(fourthOverlay).children[0].children[1].children[1]
-        .attributes["aria-label"],
+      requireByClass(
+        panel(fourthOverlay),
+        "lobotomy-corp-top-panel-action-button",
+      ).attributes["aria-label"],
       "你被解雇了，主管！",
     );
-    assertEquals(await down, true);
-    assertEquals(await third, true);
-    // 低等级 direct 不能改写 Fourth owner；曲目结束后才真正关闭 direct one-shot。
+    assertStrictEquals(await down, true);
+    assertStrictEquals(await third, true);
+    // 低等级 direct 不改写 Fourth owner；曲目结束后才关闭 direct one-shot。
     fourthAudio.dispatch("ended");
-    assertEquals(await fourth, true);
-    // 同级 direct 不得把持续 Danger owner 偷换为 one-shot；更高 direct 只能暂时接管音乐。
+    assertStrictEquals(await fourth, true);
+    // 同级 direct 不把持续 Danger owner 换成 one-shot；更高 direct 暂时接管音乐。
     void api.setDangerScore(20);
     const equalDangerFirst = AudioMock.items.at(-1)!;
     assertEquals(
@@ -1622,7 +1064,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     );
     const equalDirectFirst = api.activate("first trumpet");
     assertEquals(AudioMock.items.at(-1), equalDangerFirst);
-    assertEquals(await equalDirectFirst, true);
+    assertStrictEquals(await equalDirectFirst, true);
     const directSecondOverDanger = api.activate("second trumpet");
     const directSecondAudio = AudioMock.items.at(-1)!;
     // Direct 只接管音乐：2 > 1；四角 HUD 仍然跟随实时 Danger 显示 First。
@@ -1642,7 +1084,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       "direct",
     );
     directSecondAudio.dispatch("ended");
-    assertEquals(await directSecondOverDanger, true);
+    assertStrictEquals(await directSecondOverDanger, true);
     // Direct one-shot 结束后恢复底层 Danger 音乐；HUD 仍是实时 Danger 的 First。
     assertEquals(trumpet(body.children.at(-1)!), "First\nTrumpet");
     assertEquals(
@@ -1652,20 +1094,20 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     api.setDangerScore(100);
     const dangerOverlay = body.children.at(-1)!;
     assertEquals(trumpet(dangerOverlay), "Third\nTrumpet");
-    assertEquals(risk(dangerOverlay).src.endsWith("Risk_3.png"), true);
+    assert(risk(dangerOverlay).src.endsWith("Risk_3.png"));
     const dangerThirdAudio = AudioMock.items.at(-1)!;
     const dangerAudioCountBeforeDecay = AudioMock.items.length;
     // 自然衰减跨阈值：HUD 立即降级，但正在播放的曲目与 music high-water 都不变。
     api.setDangerScore(60);
     assertEquals(dangerThirdAudio.pauseCount, 0);
     assertEquals(trumpet(body.children.at(-1)!), "Second\nTrumpet");
-    assertEquals(risk(body.children.at(-1)!).src.endsWith("Risk_2.png"), true);
+    assert(risk(body.children.at(-1)!).src.endsWith("Risk_2.png"));
     assertEquals(api.getDangerMusicHighWaterLevel(), 3);
     dangerThirdAudio.dispatch("ended");
     const replayTimer = [...timers.values()].find((timer) =>
       timer.delay === 5000 && !timer.cleared
     );
-    assertEquals(replayTimer !== undefined, true);
+    assert(replayTimer !== undefined);
     replayTimer?.callback();
     // replay gap 结束后继续 music high-water 的 Third，而 HUD 仍按 Danger=60 显示 Second。
     assertEquals(trumpet(body.children.at(-1)!), "Second\nTrumpet");
@@ -1675,7 +1117,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     api.setDangerScore(9);
     assertEquals(api.getDangerMusicHighWaterLevel(), 0);
     const stop = api.setDangerScore(0);
-    assertEquals(await stop, true);
+    assertStrictEquals(await stop, true);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-alert"), null);
     const count = AudioMock.items.length;
     await api.setDangerScore(9);
@@ -1696,15 +1138,15 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     await api.setDangerScore(0);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
     void api.handleAbnormalitySubmitted("T-01-54");
-    assertEquals(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10, true);
+    assert(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10);
     void api.handleAbnormalitySubmitted("t-01-54");
-    assertEquals(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10, true);
+    assert(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10);
     void api.handleAbnormalitySubmitted("T-01-68");
-    assertEquals(Math.abs(api.getDangerScore() - 60 / 11) < 1e-10, true);
+    assert(Math.abs(api.getDangerScore() - 60 / 11) < 1e-10);
     void api.handleAbnormalitySubmitted("O-06-20");
-    assertEquals(Math.abs(api.getDangerScore() - 135 / 11) < 1e-10, true);
+    assert(Math.abs(api.getDangerScore() - 135 / 11) < 1e-10);
     const tethRestart = api.restartDay();
-    body.children.at(-1)!.children[1].children[0].dispatch("animationend");
+    finishRestartPanelAnimation(body.children.at(-1));
     await tethRestart;
     const audioCountBeforeWhiteNight = AudioMock.items.length;
     void api.handleAbnormalitySubmitted("T-03-46");
@@ -1728,18 +1170,19 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     )!;
     assertEquals(whiteNightRestartOnlyOverlay.children.length, 3);
     assertEquals(
-      whiteNightRestartOnlyOverlay.children[0].dataset
+      requireByClass(
+        whiteNightRestartOnlyOverlay,
+        "lobotomy-corp-emergency-controller",
+      ).dataset
         .lobotomyCorpIngameEffectPaused,
       undefined,
     );
     const whiteNightDay = storage.getItem("warmnest.lobotomy-corp-day") ?? "";
-    assertEquals(whiteNightDay.includes('"departmentCount"'), false);
-    assertEquals(whiteNightDay.includes('"decayPausedRemainingMs"'), false);
-    assertEquals(whiteNightDay.includes('"decayGraceDeadline"'), true);
+    assert(!(whiteNightDay.includes('"departmentCount"')));
+    assert(!(whiteNightDay.includes('"decayPausedRemainingMs"')));
+    assert(whiteNightDay.includes('"decayGraceDeadline"'));
     const whiteNightRestart = api.restartDay();
-    whiteNightRestartOnlyOverlay.children[1]?.children[0]?.dispatch(
-      "animationend",
-    );
+    finishRestartPanelAnimation(whiteNightRestartOnlyOverlay);
     await whiteNightRestart;
     assertEquals(api.getSpecialEvent(), undefined);
     assertEquals(api.getDangerScore(), 0);
@@ -1759,18 +1202,23 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
 
     // 保持普通 Trumpet 的既有媒体高水位回归覆盖。
     const secondWhiteNightRestart = api.restartDay();
-    [...body.children].reverse().find((element) =>
-      !element.removed && element.className === "lobotomy-corp-alert-overlay"
-    )?.children[1]?.children[0].dispatch("animationend");
+    finishRestartPanelAnimation(
+      [...body.children].reverse().find((element) =>
+        !element.removed && element.className === "lobotomy-corp-alert-overlay"
+      ),
+    );
     await secondWhiteNightRestart;
 
-    // 延迟预热 Promise 必须不能在 Second 已接管音频后反向暂停它。
+    // Second 已接管音频后，延迟预热 Promise 不会反向暂停它。
     void api.setDangerScore(45);
     AudioMock.deferNextPlayCount = 1;
     AudioMock.nextDuration = 0.1;
     AudioMock.nextReadyState = 1;
     const preparedSecond = api.prepareDisplayName("O-06-20");
-    assertEquals((AudioMock.items.at(-1)! as { muted?: boolean }).muted, true);
+    assertStrictEquals(
+      (AudioMock.items.at(-1)! as { muted?: boolean }).muted,
+      true,
+    );
     AudioMock.nextDuration = Number.NaN;
     AudioMock.nextReadyState = 0;
     const secondPreparedAudio = AudioMock.items.at(-1)!;
@@ -1788,9 +1236,12 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     assertEquals(secondPreparedAudio.pauseCount, 0);
     assertEquals(secondPreparedAudio.currentTime, 7);
     assertEquals(secondPreparedAudio.playCount, 2);
-    assertEquals((secondPreparedAudio as { muted?: boolean }).muted, false);
+    assertStrictEquals(
+      (secondPreparedAudio as { muted?: boolean }).muted,
+      false,
+    );
 
-    // 同级提交不会替换 BGM，未消费的预备音频必须被释放。
+    // 同级提交不替换 BGM，未消费的预备音频被释放。
     const redundantSecond = api.prepareDisplayName("second trumpet");
     const redundantSecondAudio = AudioMock.items.at(-1)!;
     void redundantSecond.commit();
@@ -1813,11 +1264,13 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     assertEquals(thirdPreparedAudio.pauseCount, 0);
     assertEquals(lowerSecondAudio.pauseCount, 1);
 
-    // Restart Day 终止整场 Day：白夜的 ducked Trumpet 必须停止，不能触发淡入。
+    // Restart Day 终止整场 Day：白夜的 ducked Trumpet 停止播放，也不触发淡入。
     const resetBeforeRestartCheck = api.restartDay();
-    [...body.children].reverse().find((element) =>
-      !element.removed && element.className === "lobotomy-corp-alert-overlay"
-    )?.children[1]?.children[0].dispatch("animationend");
+    finishRestartPanelAnimation(
+      [...body.children].reverse().find((element) =>
+        !element.removed && element.className === "lobotomy-corp-alert-overlay"
+      ),
+    );
     await resetBeforeRestartCheck;
     void api.setDangerScore(45);
     await Promise.resolve();
@@ -1831,12 +1284,14 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     const restartSuppressedPauseCount = restartSuppressedTrumpet.pauseCount;
     // WhiteNight active 的 held 音量是可调参数：只要求它是 (0, 1) 之间的背景音量。
     const restartHeldVolume = restartSuppressedTrumpet.volume;
-    assertEquals(restartHeldVolume > 0 && restartHeldVolume < 1, true);
+    assert(restartHeldVolume > 0 && restartHeldVolume < 1);
     restartSuppressedTrumpet.currentTime = 22;
     const restartDuringWhiteNight = api.restartDay();
-    [...body.children].reverse().find((element) =>
-      !element.removed && element.className === "lobotomy-corp-alert-overlay"
-    )?.children[1]?.children[0].dispatch("animationend");
+    finishRestartPanelAnimation(
+      [...body.children].reverse().find((element) =>
+        !element.removed && element.className === "lobotomy-corp-alert-overlay"
+      ),
+    );
     await restartDuringWhiteNight;
     assertEquals(api.getSpecialEvent(), undefined);
     assertEquals(
@@ -1896,13 +1351,13 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       (audio) =>
         audio.src.endsWith("Resources/sounds/bgm/emergency03_mast.ogg"),
     )!;
-    assertEquals(reloadedTrumpet.loop, true);
-    assertEquals(reloadedTrumpet.muted, false);
+    assertStrictEquals(reloadedTrumpet.loop, true);
+    assertStrictEquals(reloadedTrumpet.muted, false);
     const reloadedHeldVolume = reloadedTrumpet.volume;
-    assertEquals(reloadedHeldVolume > 0 && reloadedHeldVolume < 1, true);
-    assertEquals(reloadedTrumpet.autoplayRejected, false);
+    assert(reloadedHeldVolume > 0 && reloadedHeldVolume < 1);
+    assertStrictEquals(reloadedTrumpet.autoplayRejected, false);
     assertEquals(reloadedTrumpet.playCount, 2);
-    // 首次被拒绝且 Chromium 把 seek 重置为 0 时，持久化仍必须保留循环内的 12 秒位置。
+    // 首次被拒绝且 Chromium 把 seek 重置为 0 时，持久化仍保留循环内的 12 秒位置。
     assertEquals(reloadedTrumpet.currentTime, 0);
     assertEquals(
       JSON.parse(storage.getItem("warmnest.lobotomy-corp-alert") ?? "{}")
@@ -1916,11 +1371,11 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     );
     await Promise.resolve();
     await Promise.resolve();
-    assertEquals(AudioMock.items.includes(reloadedTrumpet), true);
+    assert(AudioMock.items.includes(reloadedTrumpet));
     assertEquals(reloadedTrumpet.currentTime, 12);
     assertEquals(reloadedTrumpet.pauseCount, 0);
-    assertEquals(reloadedTrumpet.muted, false);
-    // 首次交互只恢复播放权限，不得改写当前 held 音量。
+    assertStrictEquals(reloadedTrumpet.muted, false);
+    // 首次交互只恢复播放权限，不改写当前 held 音量。
     assertEquals(reloadedTrumpet.volume, reloadedHeldVolume);
     assertEquals(
       reloadedTrumpet.playCount,
@@ -1934,9 +1389,11 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       37,
     );
     const reloadedRestart = reloadedApi.restartDay();
-    [...body.children].reverse().find((element) =>
-      !element.removed && element.className === "lobotomy-corp-alert-overlay"
-    )?.children[1]?.children[0].dispatch("animationend");
+    finishRestartPanelAnimation(
+      [...body.children].reverse().find((element) =>
+        !element.removed && element.className === "lobotomy-corp-alert-overlay"
+      ),
+    );
     await reloadedRestart;
   } finally {
     for (const [name, descriptor] of Object.entries(original)) {
@@ -1948,23 +1405,6 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
 });
 
 Deno.test("Lobotomy Corporation preserves fractional Days across navigation and clears them on reload or coordinator interruption", async () => {
-  class StorageMock {
-    #values = new Map<string, string>();
-    /** @param {string} key 存储键。 @return {string|null} 存储值。 */ getItem(
-      key: string,
-    ): string | null {
-      return this.#values.get(key) ?? null;
-    }
-    /** @param {string} key 存储键。 @param {string} value 存储值。 */ setItem(
-      key: string,
-      value: string,
-    ): void {
-      this.#values.set(key, value);
-    }
-    /** @param {string} key 存储键。 */ removeItem(key: string): void {
-      this.#values.delete(key);
-    }
-  }
   const browser = globalThis as typeof globalThis & {
     document?: unknown;
     easterEggCoordinator?: { start: (id: string, stop: () => void) => void };
@@ -2010,32 +1450,7 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
   );
   let navigationType = "navigate";
   let coordinatorStop: (() => void) | undefined;
-  class AudioMock {
-    static items: AudioMock[] = [];
-    currentTime = 0;
-    hidden = false;
-    pauseCount = 0;
-    preload = "";
-    /** @param {string} source 音频地址。 */ constructor(public src: string) {
-      AudioMock.items.push(this);
-    }
-    /** @return {Promise<void>} 播放结果。 */ play(): Promise<void> {
-      return Promise.resolve();
-    }
-    /** 暂停预备或活动音频。 */ pause(): void {
-      this.pauseCount++;
-    }
-    /** @param {string} _name 属性名。 @param {string} _value 属性值。 */ setAttribute(
-      _name: string,
-      _value: string,
-    ): void {}
-    /** @param {string} _name 属性名。 */ removeAttribute(
-      _name: string,
-    ): void {}
-    /** 释放媒体资源。 */ load(): void {}
-    /** 测试音频不触发自然事件。 */ addEventListener(): void {}
-    /** 测试音频不触发自然事件。 */ removeEventListener(): void {}
-  }
+  AudioMock.reset();
   Object.defineProperties(browser, {
     Audio: { configurable: true, value: AudioMock },
     document: {
@@ -2086,7 +1501,7 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
       "Bald-is-awesome!",
     );
     await api.handleAbnormalitySubmitted("T-01-54");
-    assertEquals(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10, true);
+    assert(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10);
     assertEquals(
       storage.getItem("warmnest.lobotomy-corp-day")?.includes("T-01-54"),
       true,
@@ -2096,12 +1511,12 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
       `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     api = browser.lobotomyCorpEasterEgg!;
-    assertEquals(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10, true);
+    assert(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10);
     await api.handleAbnormalitySubmitted("t-01-54");
-    assertEquals(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10, true);
+    assert(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10);
 
     await api.handleAbnormalitySubmitted("O-06-20");
-    assertEquals(api.getDangerScore() > 0 && api.getDangerScore() < 10, true);
+    assert(api.getDangerScore() > 0 && api.getDangerScore() < 10);
     coordinatorStop?.();
     assertEquals(api.getDangerScore(), 0);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
@@ -2173,23 +1588,6 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
 });
 
 Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", async () => {
-  class StorageMock {
-    values = new Map<string, string>();
-    /** @param {string} key 键。 @return {string|null} 值。 */ getItem(
-      key: string,
-    ): string | null {
-      return this.values.get(key) ?? null;
-    }
-    /** @param {string} key 键。 @param {string} value 值。 */ setItem(
-      key: string,
-      value: string,
-    ): void {
-      this.values.set(key, value);
-    }
-    /** @param {string} key 键。 */ removeItem(key: string): void {
-      this.values.delete(key);
-    }
-  }
   const browser = globalThis as typeof globalThis & {
     document?: unknown;
     localStorage?: unknown;
@@ -2281,21 +1679,6 @@ Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", 
 });
 
 Deno.test("WhiteNight freezes and resumes the exact remaining Danger decay time", async () => {
-  class StorageMock {
-    values = new Map<string, string>();
-    /** @param {string} key 键。 @return {string|null} 值。 */
-    getItem(key: string): string | null {
-      return this.values.get(key) ?? null;
-    }
-    /** @param {string} key 键。 @param {string} value 值。 */
-    setItem(key: string, value: string): void {
-      this.values.set(key, value);
-    }
-    /** @param {string} key 键。 */
-    removeItem(key: string): void {
-      this.values.delete(key);
-    }
-  }
   const browser = globalThis as typeof globalThis & {
     document?: unknown;
     localStorage?: unknown;
@@ -2422,13 +1805,13 @@ Deno.test("WhiteNight freezes and resumes the exact remaining Danger decay time"
         throw new Error("Expected WhiteNight death fallback timer.");
       }
       fallback.callback();
-      assertEquals(await confession, true);
+      assertStrictEquals(await confession, true);
       assertEquals(api.getSpecialEvent(), undefined);
       const resumedDay = JSON.parse(
         storage.getItem("warmnest.lobotomy-corp-day") ?? "{}",
       );
       assertEquals(resumedDay.decayGraceDeadline, 211000);
-      assertEquals("decayPausedRemainingMs" in resumedDay, false);
+      assertStrictEquals("decayPausedRemainingMs" in resumedDay, false);
       assertEquals(
         [...timers.values()].some((timer) =>
           timer.delay === 28000 && !timer.cleared
@@ -2487,7 +1870,7 @@ Deno.test("Lobotomy Corporation keeps the Danger HUD real-time while the music k
       assertEquals(harness.AudioMock.items.length, firstEmergencyAudioCount);
       assertEquals(harness.overlay(), initialOverlay);
       assertEquals(harness.panel(harness.overlay()!), initialPanel);
-      // 视觉等级替换只复用面板，不得重播 Restart panel 的出现动画。
+      // 视觉等级替换只复用面板，不重播 Restart panel 的出现动画。
       assertEquals(
         harness.panel(harness.overlay()!).dataset.lobotomyCorpTopPanelReused,
         "true",
@@ -2500,10 +1883,10 @@ Deno.test("Lobotomy Corporation keeps the Danger HUD real-time while the music k
       );
     }
 
-    // replay gap 期间 HUD 变化不得取消或重新计时；gap 到期继续 music high-water 的 Third。
+    // replay gap 期间 HUD 变化不取消也不重新计时；gap 到期继续 music high-water 的 Third。
     thirdAudio.dispatch("ended");
     const replayTimer = harness.pendingTimer(5000);
-    assertEquals(replayTimer !== undefined, true);
+    assert(replayTimer !== undefined);
     void api.setDangerScore(20);
     assertEquals(harness.pendingTimer(5000), replayTimer);
     assertEquals(harness.trumpet(harness.overlay()!), "First\nTrumpet");
@@ -2519,7 +1902,7 @@ Deno.test("Lobotomy Corporation keeps the Danger HUD real-time while the music k
     assertEquals(harness.overlay(), undefined);
     assertEquals(api.getDangerMusicHighWaterLevel(), 0);
     assertEquals(api.getDangerScore(), 9);
-    assertEquals(thirdAudio.pauseCount > 0, true);
+    assert(thirdAudio.pauseCount > 0);
     assertEquals(harness.pendingTimer(5000), undefined);
     assertEquals(
       JSON.parse(
@@ -2638,7 +2021,7 @@ Deno.test("Lobotomy Corporation arbitrates Direct Trumpet against the music owne
 
     // Fourth 播完：恢复 music high-water 的 Third，而 HUD 仍是实时 Danger 的 Second。
     fourthAudio.dispatch("ended");
-    assertEquals(await fourth, true);
+    assertStrictEquals(await fourth, true);
     const restoredThird = harness.lastTrumpet()!;
     assertEquals(
       restoredThird.src.endsWith("Resources/sounds/bgm/emergency03_mast.ogg"),
@@ -2690,7 +2073,7 @@ Deno.test("Lobotomy Corporation arbitrates Direct Trumpet against the music owne
       true,
     );
     assertEquals(dangerOverDirect.currentTime, 0);
-    assertEquals(await directSecond, true);
+    assertStrictEquals(await directSecond, true);
 
     // Danger 覆盖期间跌破 10：只结束底层 Emergency，不打断 Direct one-shot。
     const fourthAtEnd = api.activate("fourth trumpet");
@@ -2698,14 +2081,14 @@ Deno.test("Lobotomy Corporation arbitrates Direct Trumpet against the music owne
     assertEquals(harness.trumpet(harness.overlay()!), "Third\nTrumpet");
     void api.setDangerScore(9);
     assertEquals(api.getDangerMusicHighWaterLevel(), 0);
-    assertEquals(harness.hasHud(harness.overlay()!), false);
+    assertStrictEquals(harness.hasHud(harness.overlay()!), false);
     assertEquals(
       harness.overlay()!.dataset.lobotomyCorpAlertMusicSource,
       "direct",
     );
     assertEquals(fourthAtEndAudio.pauseCount, 0);
     fourthAtEndAudio.dispatch("ended");
-    assertEquals(await fourthAtEnd, true);
+    assertStrictEquals(await fourthAtEnd, true);
     assertEquals(harness.overlay(), undefined);
   } finally {
     harness.restore();
@@ -2741,7 +2124,7 @@ Deno.test("Lobotomy Corporation restores the real-time HUD next to the Danger mu
     await harness.reload();
     const api = harness.api();
 
-    // Danger=30 的实时阈值是 First，music high-water 是 Third：恢复后两者必须并存。
+    // Danger=30 的实时阈值是 First，music high-water 是 Third：恢复后两者并存。
     assertEquals(api.getDangerScore(), 30);
     assertEquals(api.getDangerMusicHighWaterLevel(), 3);
     assertEquals(harness.overlay()!.dataset.lobotomyCorpAlertSource, "danger");
@@ -2757,7 +2140,7 @@ Deno.test("Lobotomy Corporation restores the real-time HUD next to the Danger mu
     // 恢复时正处于 replay gap：剩余 gap 到期继续 Third，HUD 仍按实时 Danger 显示 First。
     assertEquals(restoredAudio.pauseCount, 0);
     const replayTimer = harness.pendingTimer(5000);
-    assertEquals(replayTimer !== undefined, true);
+    assert(replayTimer !== undefined);
     replayTimer?.callback();
     assertEquals(harness.AudioMock.items.at(-1), restoredAudio);
     assertEquals(harness.trumpet(harness.overlay()!), "First\nTrumpet");
@@ -2779,7 +2162,7 @@ Deno.test("Lobotomy Corporation restores the real-time HUD next to the Danger mu
     void api.setDangerScore(9);
     assertEquals(harness.overlay(), undefined);
     assertEquals(api.getDangerMusicHighWaterLevel(), 0);
-    assertEquals(restoredAudio.pauseCount > 0, true);
+    assert(restoredAudio.pauseCount > 0);
 
     await api.restartDay();
     assertEquals(api.getDangerScore(), 0);
@@ -2805,7 +2188,7 @@ Deno.test("Lobotomy Corporation restores the real-time HUD next to the Danger mu
     const confession = api.commitDisplayName("O-03-03");
     harness.pendingTimer(whiteNightConfessionSuppressionDelayMs)?.callback();
     harness.pendingTimer(whiteNightDeathSequenceDurationMs)?.callback();
-    assertEquals(await confession, true);
+    assertStrictEquals(await confession, true);
     assertEquals(api.getSpecialEvent(), undefined);
     // WhiteNight hold 结束后恢复的是本次 Emergency 的 music high-water Third。
     assertEquals(harness.trumpet(harness.overlay()!), "Third\nTrumpet");
@@ -2832,7 +2215,7 @@ Deno.test("Lobotomy Corporation restores the real-time HUD next to the Danger mu
     void api.setDangerScore(9);
     assertEquals(harness.overlay(), undefined);
     assertEquals(api.getDangerMusicHighWaterLevel(), 0);
-    assertEquals(whiteNightThirdAudio.pauseCount > 0, true);
+    assert(whiteNightThirdAudio.pauseCount > 0);
   } finally {
     harness.restore();
   }
@@ -2897,9 +2280,12 @@ Deno.test("WhiteNight keeps the Prelude Alert running and hands the stage BGM ov
       firstAudio.src.endsWith("Resources/sounds/bgm/emergency01_mast.ogg"),
       true,
     );
-    assertEquals(firstAudio.playCount >= 1, true);
+    assert(firstAudio.playCount >= 1);
     const preludeOverlay = harness.overlay()!;
-    const preludeController = preludeOverlay.children[0];
+    const preludeController = requireByClass(
+      preludeOverlay,
+      "lobotomy-corp-emergency-controller",
+    );
     // Simple Advent 期间 Alert 全程正常运行：EmergencyController 不写任何 INGAMEEFFECT Pause 状态。
     assertEquals(
       preludeController.dataset.lobotomyCorpIngameEffectPaused,
@@ -2912,22 +2298,24 @@ Deno.test("WhiteNight keeps the Prelude Alert running and hands the stage BGM ov
       harness.setNow(at);
       harness.fireFrames();
       assertEquals(
-        preludeOverlay.children[0].dataset.lobotomyCorpIngameEffectPaused,
+        requireByClass(preludeOverlay, "lobotomy-corp-emergency-controller")
+          .dataset.lobotomyCorpIngameEffectPaused,
         undefined,
       );
       assertEquals(firstAudio.pauseCount, preludePauseCount);
       assertEquals(firstAudio.volume, 1);
-      assertEquals(firstAudio.loop, false);
-      assertEquals(firstAudio.src.endsWith("emergency01_mast.ogg"), true);
+      assertStrictEquals(firstAudio.loop, false);
+      assert(firstAudio.src.endsWith("emergency01_mast.ogg"));
     }
 
-    // t = 4000：Simple Advent 逻辑结束 → 第二阶段 +98 → HUD Third，Third 从头以正常音量播放。
-    harness.setNow(4000);
+    // Simple Advent 逻辑结束 → 第二阶段 +98 → HUD Third，Third 从头以正常音量播放。
+    harness.setNow(whiteNightPreludeDurationMs);
     harness.fireFrames();
     assertEquals(api.getDangerScore(), 100);
     assertEquals(harness.trumpet(harness.overlay()!), "Third\nTrumpet");
     assertEquals(
-      harness.overlay()!.children[0]?.dataset.lobotomyCorpIngameEffectPaused,
+      requireByClass(harness.overlay()!, "lobotomy-corp-emergency-controller")
+        .dataset.lobotomyCorpIngameEffectPaused,
       undefined,
     );
     const thirdAudio = harness.lastTrumpet()!;
@@ -2937,48 +2325,51 @@ Deno.test("WhiteNight keeps the Prelude Alert running and hands the stage BGM ov
     );
     assertEquals(thirdAudio.currentTime, 0);
     assertEquals(thirdAudio.volume, 1);
-    assertEquals(thirdAudio.muted, false);
-    assertEquals(thirdAudio.loop, false);
-    assertEquals(thirdAudio.playCount >= 1, true);
+    assertStrictEquals(thirdAudio.muted, false);
+    assertStrictEquals(thirdAudio.loop, false);
+    assert(thirdAudio.playCount >= 1);
     assertEquals(thirdAudio.pauseCount, 0);
-    assertEquals(firstAudio.pauseCount > preludePauseCount, true);
-    // 第二阶段曲目必须先完整可听 3000ms，之后才允许淡出。
-    const audibleTimer = harness.pendingTimer(3000);
-    assertEquals(audibleTimer !== undefined, true);
+    assert(firstAudio.pauseCount > preludePauseCount);
+    // 第二阶段曲目先完整可听一个可听窗口，之后才进入淡出。
+    const audibleTimer = harness.pendingTimer(whiteNightStageMusicAudibleMs);
+    assert(audibleTimer !== undefined);
     thirdAudio.currentTime = 5;
 
-    // t = 6999：仍处于正常音量播放窗口，尚未 fade、尚未 hold。
-    harness.setNow(6999);
+    // 可听窗口结束前一瞬：仍是正常音量，尚未 fade、尚未 hold。
+    harness.setNow(whiteNightFadeStartMs - 1);
     harness.fireFrames();
     assertEquals(thirdAudio.volume, 1);
-    assertEquals(thirdAudio.loop, false);
+    assertStrictEquals(thirdAudio.loop, false);
     assertEquals(thirdAudio.pauseCount, 0);
-    assertEquals(harness.pendingTimer(3000), audibleTimer);
+    assertEquals(
+      harness.pendingTimer(whiteNightStageMusicAudibleMs),
+      audibleTimer,
+    );
 
-    // t = 7000：第 3 秒边界才开始 fade-out（fade 时长不计入可听窗口）。
-    harness.setNow(7000);
+    // 可听窗口结束时才开始 fade-out（fade 时长不计入可听窗口）。
+    harness.setNow(whiteNightFadeStartMs);
     audibleTimer!.callback();
     assertEquals(thirdAudio.volume, 1);
     assertEquals(thirdAudio.pauseCount, 0);
 
-    // t = 7500：淡出进行到 50%，音量已低于 1.0；同一条 Audio 仍在推进。
+    // 淡出进行到 50%：音量已低于 1.0；同一条 Audio 仍在推进。
     // duck 目标音量是可调参数，因此这里先记录采样值，等淡出结束后用线性插值关系校验。
-    harness.setNow(7500);
+    harness.setNow(whiteNightFadeStartMs + 500);
     harness.fireFrames();
     const volumeAtHalfFadeOut = thirdAudio.volume;
-    assertEquals(volumeAtHalfFadeOut < 1, true);
-    assertEquals(thirdAudio.muted, false);
-    assertEquals(thirdAudio.loop, true);
+    assert(volumeAtHalfFadeOut < 1);
+    assertStrictEquals(thirdAudio.muted, false);
+    assertStrictEquals(thirdAudio.loop, true);
 
-    // t = 8000：fade 完成 → 进入 ducked hold；currentTime 未被重置或暂停。
-    harness.setNow(8000);
+    // fade 完成 → 进入 ducked hold；currentTime 未被重置或暂停。
+    harness.setNow(whiteNightFadeStartMs + 1000);
     harness.fireFrames();
     const duckVolume = thirdAudio.volume;
-    assertEquals(duckVolume > 0 && duckVolume < 1, true);
-    // 50% 处的采样必须严格等于 1.0 → duck 目标音量的线性插值中点。
-    assertEquals(Math.abs(volumeAtHalfFadeOut - (1 + duckVolume) / 2) < 1e-9, true);
+    assert(duckVolume > 0 && duckVolume < 1);
+    // 50% 处的采样等于 1.0 → duck 目标音量的线性插值中点。
+    assert(Math.abs(volumeAtHalfFadeOut - (1 + duckVolume) / 2) < 1e-9);
     assertEquals(thirdAudio.pauseCount, 0);
-    assertEquals(thirdAudio.muted, false);
+    assertStrictEquals(thirdAudio.muted, false);
     assertEquals(thirdAudio.currentTime, 5);
     assertEquals(
       JSON.parse(
@@ -2988,17 +2379,17 @@ Deno.test("WhiteNight keeps the Prelude Alert running and hands the stage BGM ov
     );
     assertEquals(harness.pendingTimer(16), undefined);
 
-    // WhiteNight 存活期间继续保持 ducked hold，绝不静音。
-    harness.setNow(8500);
+    // WhiteNight 存活期间继续保持 ducked hold，不静音。
+    harness.setNow(whiteNightFadeStartMs + 1500);
     harness.fireFrames();
     assertEquals(thirdAudio.volume, duckVolume);
     assertEquals(thirdAudio.pauseCount, 0);
     assertEquals(thirdAudio.currentTime, 5);
 
-    // WhiteNight active 中的用户手势：prepareAlertMusicForResume 不得改写当前 ducked 音量。
-    assertEquals(harness.dispatchDocument("pointerdown") > 0, true);
+    // WhiteNight active 中的用户手势：prepareAlertMusicForResume 不改写当前 ducked 音量。
+    assert(harness.dispatchDocument("pointerdown") > 0);
     assertEquals(thirdAudio.volume, duckVolume);
-    assertEquals(thirdAudio.muted, false);
+    assertStrictEquals(thirdAudio.muted, false);
     assertEquals(thirdAudio.currentTime, 5);
 
     // 白夜死亡：同一条 held 曲目从当前 ducked 音量、当前进度淡入，不重新开曲。
@@ -3007,23 +2398,23 @@ Deno.test("WhiteNight keeps the Prelude Alert running and hands the stage BGM ov
     const suppressionTimer = harness.pendingTimer(
       whiteNightConfessionSuppressionDelayMs,
     );
-    assertEquals(suppressionTimer !== undefined, true);
+    assert(suppressionTimer !== undefined);
     harness.setNow(10000 + whiteNightConfessionSuppressionDelayMs);
     suppressionTimer!.callback();
     assertEquals(thirdAudio.volume, duckVolume);
     harness.setNow(10000 + whiteNightConfessionSuppressionDelayMs + 1000);
     harness.fireFrames();
     const volumeAtHalfFadeIn = thirdAudio.volume;
-    assertEquals(volumeAtHalfFadeIn > duckVolume && volumeAtHalfFadeIn < 1, true);
-    assertEquals(thirdAudio.loop, true);
+    assert(volumeAtHalfFadeIn > duckVolume && volumeAtHalfFadeIn < 1);
+    assertStrictEquals(thirdAudio.loop, true);
     assertEquals(thirdAudio.pauseCount, 0);
     assertEquals(thirdAudio.currentTime, 5);
     harness.setNow(10000 + whiteNightConfessionSuppressionDelayMs + 2000);
     harness.fireFrames();
     assertEquals(thirdAudio.volume, 1);
-    // 淡入 50% 处的采样必须严格等于 duck → 1.0 的线性插值中点。
-    assertEquals(Math.abs(volumeAtHalfFadeIn - (duckVolume + 1) / 2) < 1e-9, true);
-    assertEquals(thirdAudio.loop, false);
+    // 淡入 50% 处的采样等于 duck → 1.0 的线性插值中点。
+    assert(Math.abs(volumeAtHalfFadeIn - (duckVolume + 1) / 2) < 1e-9);
+    assertStrictEquals(thirdAudio.loop, false);
     assertEquals(thirdAudio.pauseCount, 0);
     assertEquals(thirdAudio.currentTime, 5);
     assertEquals(
@@ -3037,7 +2428,7 @@ Deno.test("WhiteNight keeps the Prelude Alert running and hands the stage BGM ov
         whiteNightDeathSequenceDurationMs,
     );
     harness.pendingTimer(whiteNightDeathSequenceDurationMs)!.callback();
-    assertEquals(await confession, true);
+    assertStrictEquals(await confession, true);
     assertEquals(api.getSpecialEvent(), undefined);
     assertEquals(harness.trumpet(harness.overlay()!), "Third\nTrumpet");
   } finally {
@@ -3058,51 +2449,51 @@ Deno.test("WhiteNight fade-out keeps the in-progress volume through user interac
       await harness.reload();
       const api = harness.api();
       void api.handleAbnormalitySubmitted("T-03-46");
-      harness.setNow(4000);
+      harness.setNow(whiteNightPreludeDurationMs);
       harness.fireFrames();
       const fadeAudio = harness.lastTrumpet()!;
-      const audibleTimer = harness.pendingTimer(3000)!;
+      const audibleTimer = harness.pendingTimer(whiteNightStageMusicAudibleMs)!;
       assertEquals(fadeAudio.volume, 1);
-      assertEquals(audibleTimer !== undefined, true);
+      assert(audibleTimer !== undefined);
       fadeAudio.currentTime = 5;
 
-      // t = 7000：可听窗口结束，开始 1.0 → duck 目标音量的 1 秒淡出。
-      harness.setNow(7000);
+      // 可听窗口结束，开始 1.0 → duck 目标音量的 1 秒淡出。
+      harness.setNow(whiteNightFadeStartMs);
       audibleTimer.callback();
       assertEquals(fadeAudio.volume, 1);
 
-      // t = 7500：淡出进行到 50%（duck 目标可调，这里只记录采样值）。
-      harness.setNow(7500);
+      // 淡出进行到 50%（duck 目标可调，这里只记录采样值）。
+      harness.setNow(whiteNightFadeStartMs + 500);
       harness.fireFrames();
       const volumeBeforeGesture = fadeAudio.volume;
-      assertEquals(volumeBeforeGesture < 1, true);
+      assert(volumeBeforeGesture < 1);
 
       const pauseCountBeforeGesture = fadeAudio.pauseCount;
       const playCountBeforeGesture = fadeAudio.playCount;
-      assertEquals(harness.dispatchDocument(gesture) > 0, true);
+      assert(harness.dispatchDocument(gesture) > 0);
 
-      // 用户手势只恢复播放权限：不得把进行中的 fade 硬拉回 duck 目标音量。
+      // 用户手势只恢复播放权限：进行中的 fade 不被拉回 duck 目标音量。
       assertEquals(fadeAudio.volume, volumeBeforeGesture);
-      assertEquals(fadeAudio.muted, false);
-      assertEquals(fadeAudio.loop, true);
+      assertStrictEquals(fadeAudio.muted, false);
+      assertStrictEquals(fadeAudio.loop, true);
       assertEquals(fadeAudio.currentTime, 5);
       assertEquals(fadeAudio.pauseCount, pauseCountBeforeGesture);
-      assertEquals(fadeAudio.playCount > playCountBeforeGesture, true);
+      assert(fadeAudio.playCount > playCountBeforeGesture);
       assertEquals(harness.lastTrumpet(), fadeAudio);
 
-      // t = 7750：继续按同一线性公式下降，不出现跳变。
-      harness.setNow(7750);
+      // 淡出进行到 75%：继续按同一线性公式下降，不出现跳变。
+      harness.setNow(whiteNightFadeStartMs + 750);
       harness.fireFrames();
       const volumeAfterGesture = fadeAudio.volume;
-      assertEquals(volumeAfterGesture < volumeBeforeGesture, true);
+      assert(volumeAfterGesture < volumeBeforeGesture);
 
-      // t = 8000：淡出正常收束到 duck 目标音量；同一条 Audio 未被替换，也未重新计时。
-      harness.setNow(8000);
+      // 淡出正常收束到 duck 目标音量；同一条 Audio 未被替换，也未重新计时。
+      harness.setNow(whiteNightFadeStartMs + 1000);
       harness.fireFrames();
       const duckVolume = fadeAudio.volume;
-      assertEquals(duckVolume > 0 && duckVolume < 1, true);
-      assertEquals(duckVolume < volumeAfterGesture, true);
-      // 手势前后的两个采样必须严格满足 1.0 → duck 的线性插值（50% 与 75%）。
+      assert(duckVolume > 0 && duckVolume < 1);
+      assert(duckVolume < volumeAfterGesture);
+      // 手势前后的两个采样满足 1.0 → duck 的线性插值（50% 与 75%）。
       assertEquals(
         Math.abs(volumeBeforeGesture - (1 + duckVolume) / 2) < 1e-9,
         true,
@@ -3120,7 +2511,7 @@ Deno.test("WhiteNight fade-out keeps the in-progress volume through user interac
     }
   };
 
-  // pointerdown 与 keydown 共用同一个 recovery handler，两者都必须保持当前音量。
+  // pointerdown 与 keydown 共用同一个 recovery handler，两者都保持当前音量。
   await runFadeOutInteraction("pointerdown");
   await runFadeOutInteraction("keydown");
 });
@@ -3131,16 +2522,16 @@ Deno.test("WhiteNight death fade-in keeps the in-progress volume through user in
     await harness.reload();
     const api = harness.api();
     void api.handleAbnormalitySubmitted("T-03-46");
-    harness.setNow(4000);
+    harness.setNow(whiteNightPreludeDurationMs);
     harness.fireFrames();
     const fadeAudio = harness.lastTrumpet()!;
-    const audibleTimer = harness.pendingTimer(3000)!;
-    harness.setNow(7000);
+    const audibleTimer = harness.pendingTimer(whiteNightStageMusicAudibleMs)!;
+    harness.setNow(whiteNightFadeStartMs);
     audibleTimer.callback();
-    harness.setNow(8000);
+    harness.setNow(whiteNightFadeStartMs + 1000);
     harness.fireFrames();
     const duckVolume = fadeAudio.volume;
-    assertEquals(duckVolume > 0 && duckVolume < 1, true);
+    assert(duckVolume > 0 && duckVolume < 1);
 
     // WhiteNight 死亡：同一条曲目从 duck 目标音量开始 2 秒淡入。
     const confession = api.commitDisplayName("O-03-03");
@@ -3148,7 +2539,7 @@ Deno.test("WhiteNight death fade-in keeps the in-progress volume through user in
     const suppressionTimer = harness.pendingTimer(
       whiteNightConfessionSuppressionDelayMs,
     )!;
-    assertEquals(suppressionTimer !== undefined, true);
+    assert(suppressionTimer !== undefined);
     harness.setNow(10000 + whiteNightConfessionSuppressionDelayMs);
     suppressionTimer.callback();
     fadeAudio.currentTime = 5;
@@ -3157,31 +2548,31 @@ Deno.test("WhiteNight death fade-in keeps the in-progress volume through user in
     harness.setNow(10000 + whiteNightConfessionSuppressionDelayMs + 1000);
     harness.fireFrames();
     const volumeBeforeGesture = fadeAudio.volume;
-    assertEquals(volumeBeforeGesture > duckVolume && volumeBeforeGesture < 1, true);
+    assert(volumeBeforeGesture > duckVolume && volumeBeforeGesture < 1);
 
     const pauseCountBeforeGesture = fadeAudio.pauseCount;
     const playCountBeforeGesture = fadeAudio.playCount;
-    assertEquals(harness.dispatchDocument("pointerdown") > 0, true);
+    assert(harness.dispatchDocument("pointerdown") > 0);
 
-    // 淡入中途的用户交互同样只能恢复播放权限，不能改写当前音量。
+    // 淡入中途的用户交互同样只恢复播放权限，不改写当前音量。
     assertEquals(fadeAudio.volume, volumeBeforeGesture);
-    assertEquals(fadeAudio.muted, false);
-    assertEquals(fadeAudio.loop, true);
+    assertStrictEquals(fadeAudio.muted, false);
+    assertStrictEquals(fadeAudio.loop, true);
     assertEquals(fadeAudio.currentTime, 5);
     assertEquals(fadeAudio.pauseCount, pauseCountBeforeGesture);
-    assertEquals(fadeAudio.playCount > playCountBeforeGesture, true);
+    assert(fadeAudio.playCount > playCountBeforeGesture);
     assertEquals(harness.lastTrumpet(), fadeAudio);
 
     // 淡入继续正常收束：2000ms 后到 1.0，并退出 special hold。
     harness.setNow(10000 + whiteNightConfessionSuppressionDelayMs + 2000);
     harness.fireFrames();
     assertEquals(fadeAudio.volume, 1);
-    // 淡入 50% 处的采样必须严格等于 duck → 1.0 的线性插值中点。
+    // 淡入 50% 处的采样等于 duck → 1.0 的线性插值中点。
     assertEquals(
       Math.abs(volumeBeforeGesture - (duckVolume + 1) / 2) < 1e-9,
       true,
     );
-    assertEquals(fadeAudio.loop, false);
+    assertStrictEquals(fadeAudio.loop, false);
     assertEquals(fadeAudio.currentTime, 5);
 
     harness.setNow(
@@ -3189,7 +2580,7 @@ Deno.test("WhiteNight death fade-in keeps the in-progress volume through user in
         whiteNightDeathSequenceDurationMs,
     );
     harness.pendingTimer(whiteNightDeathSequenceDurationMs)!.callback();
-    assertEquals(await confession, true);
+    assertStrictEquals(await confession, true);
     assertEquals(api.getSpecialEvent(), undefined);
   } finally {
     harness.restore();
@@ -3208,11 +2599,11 @@ Deno.test("WhiteNight stage Trumpet takes over lower or equal Direct owners but 
      */
     const restart = async () => {
       const restarting = api.restartDay();
-      harness.overlay()!.children[1]?.children[0]?.dispatch("animationend");
+      finishRestartPanelAnimation(harness.overlay());
       await restarting;
     };
 
-    // A. 同级 Direct First：Prelude 期间普通仲裁保持同一条 Direct First，绝不静音。
+    // A. 同级 Direct First：Prelude 期间普通仲裁保持同一条 Direct First，不静音。
     void api.activate("first trumpet");
     const equalDirectAudio = harness.lastTrumpet()!;
     void api.handleAbnormalitySubmitted("T-03-46");
@@ -3224,11 +2615,11 @@ Deno.test("WhiteNight stage Trumpet takes over lower or equal Direct owners but 
       harness.overlay()!.dataset.lobotomyCorpAlertMusicSource,
       "direct",
     );
-    // 4 秒边界之后的第二阶段 BGM（Third）必须接管同级 Direct First，而不是被拦住。
-    harness.setNow(4000);
+    // Simple Advent 边界之后的第二阶段 BGM（Third）接管同级 Direct First。
+    harness.setNow(whiteNightPreludeDurationMs);
     harness.fireFrames();
-    assertEquals(harness.lastTrumpet() !== equalDirectAudio, true);
-    assertEquals(equalDirectAudio.pauseCount > 0, true);
+    assert(harness.lastTrumpet() !== equalDirectAudio);
+    assert(equalDirectAudio.pauseCount > 0);
     assertEquals(harness.trumpet(harness.overlay()!), "Third\nTrumpet");
     assertEquals(
       harness.overlay()!.dataset.lobotomyCorpAlertMusicSource,
@@ -3264,7 +2655,7 @@ Deno.test("WhiteNight stage Trumpet takes over lower or equal Direct owners but 
     assertEquals(api.getDangerMusicHighWaterLevel(), 1);
     await restart();
 
-    // D. 低于阶段结算的 Direct Second：阶段 BGM（Third）必须接管，而不是被 one-shot 拦住。
+    // D. 低于阶段结算的 Direct Second：阶段 BGM（Third）接管，one-shot 不拦截。
     void api.setDangerScore(40);
     void api.activate("second trumpet");
     const lowerDirectAudio = harness.lastTrumpet()!;
@@ -3295,41 +2686,39 @@ Deno.test("WhiteNight has no Alert INGAMEEFFECT Pause plumbing", async () => {
       "../static/fun/lobotomy-corp/Events/WhiteNight.js",
     ].map((path) => Deno.readTextFile(new URL(path, import.meta.url))),
   );
-  // 脚本、样式与事件模块中都不得出现 INGAMEEFFECT Pause 机制的标识、API 或规则。
-  for (const forbidden of [
-    "lobotomyCorpIngameEffectPaused",
-    "ingame-effect-paused",
-    "ingameEffectPaused",
-    "ingameEffectKeepsTrumpetAudible",
-    "replayPausedRemainingMs",
-    "pauseAlertForInGameEffect",
-    "resumeAlertFromInGameEffect",
-    "endAlertInGameEffectForSpecialEvent",
-    "syncInGameEffectPausePresentation",
-    "keepAlertMusicSuppressed",
-    "specialEventMusicSuppressed",
-  ]) {
-    assertEquals(css.includes(forbidden), false);
-    assertEquals(whiteNight.includes(forbidden), false);
+  // 注释或字符串里出现这些名字（例如兼容读取的旧状态值）不算违规，
+  // 因此只在去掉注释与字符串后的代码结构里检查标识符是否残留。
+  const scriptCode = stripJavaScriptCommentsAndStrings(script);
+  const whiteNightCode = stripJavaScriptCommentsAndStrings(whiteNight);
+  const cssCode = stripCssComments(css);
+  for (
+    const forbidden of [
+      "lobotomyCorpIngameEffectPaused",
+      "ingame-effect-paused",
+      "ingameEffectPaused",
+      "ingameEffectKeepsTrumpetAudible",
+      "replayPausedRemainingMs",
+      "pauseAlertForInGameEffect",
+      "resumeAlertFromInGameEffect",
+      "endAlertInGameEffectForSpecialEvent",
+      "syncInGameEffectPausePresentation",
+      "keepAlertMusicSuppressed",
+      "specialEventMusicSuppressed",
+    ]
+  ) {
+    assert(!cssCode.includes(forbidden));
+    assert(!whiteNightCode.includes(forbidden));
+    assert(!scriptCode.includes(forbidden));
   }
-  assertEquals(script.includes("ingameEffectPaused"), false);
-  assertEquals(script.includes("pauseAlertForInGameEffect"), false);
-  assertEquals(script.includes("resumeAlertFromInGameEffect"), false);
-  assertEquals(script.includes("endAlertInGameEffectForSpecialEvent"), false);
-  assertEquals(script.includes("syncInGameEffectPausePresentation"), false);
-  assertEquals(script.includes("lobotomyCorpIngameEffectPaused"), false);
-  assertEquals(script.includes("replayPausedRemainingMs"), false);
-  // 唯一允许保留的该标识是持久化兼容读取：把 ingame-effect-paused 迁移成普通播放。
-  assertEquals(
+  // 该标识只出现在持久化兼容读取处：把 ingame-effect-paused 迁移成普通播放。
+  assert(
     script.includes('saved.playbackState === "ingame-effect-paused"'),
-    true,
   );
-  // 该状态不得被写回持久化。
-  assertEquals(/\?\s*"ingame-effect-paused"/.test(script), false);
-  assertEquals(
+  // 该状态只用于读取迁移，不写入持久化。
+  assert(!(/\?\s*"ingame-effect-paused"/.test(script)));
+  assert(
     /saved\.playbackState === "ingame-effect-paused"\s*\?\s*"normal-playing"/
       .test(script),
-    true,
   );
 });
 
@@ -3342,7 +2731,7 @@ Deno.test("Direct music takeover renders the HUD exactly once", async () => {
     void api.activate("first trumpet");
     assertEquals(harness.trumpet(harness.overlay()!), "First\nTrumpet");
 
-    // Second 接管时 HUD 与音乐同时变化：四角节点只能因为一次状态更新重建一次。
+    // Second 接管时 HUD 与音乐同时变化：四角节点只因一次状态更新重建一次。
     const before = harness.createdElements().length;
     void api.activate("second trumpet");
     const created = harness.createdElements().slice(before);
@@ -3368,20 +2757,20 @@ Deno.test("WhiteNight Prelude keeps the ordinary Danger replay lifecycle running
     const thirdAudio = harness.lastTrumpet()!;
     // 曲目自然结束：Danger 音乐进入 5 秒 replay gap。
     thirdAudio.dispatch("ended");
-    assertEquals(harness.pendingTimer(5000) !== undefined, true);
+    assert(harness.pendingTimer(5000) !== undefined);
     assertEquals(thirdAudio.pauseCount, 1);
 
-    // 进入 WhiteNight Prelude：Simple Advent 不冻结 Alert，普通 replay gap 必须继续计时。
+    // 进入 WhiteNight Prelude：Simple Advent 不冻结 Alert，普通 replay gap 继续计时。
     void api.handleAbnormalitySubmitted("T-03-46");
     assertEquals(api.getDangerScore(), 100);
     assertEquals(api.getSpecialEvent(), "white-night");
     assertEquals(api.getSpecialEventPhase(), "prelude");
     const replayTimer = harness.pendingTimer(5000);
-    assertEquals(replayTimer !== undefined, true);
+    assert(replayTimer !== undefined);
     assertEquals(harness.lastTrumpet(), thirdAudio);
     assertEquals(thirdAudio.pauseCount, 1);
 
-    // gap 到期后按普通 Danger 规则重播 high-water 曲目，绝不被 Prelude 吞掉。
+    // gap 到期后按普通 Danger 规则重播 high-water 曲目，不被 Prelude 吞掉。
     harness.setNow(6000);
     replayTimer!.callback();
     assertEquals(harness.lastTrumpet(), thirdAudio);
@@ -3410,7 +2799,7 @@ Deno.test("WhiteNight Prelude refresh keeps the remaining Clock time and runs th
       harness.storage.getItem("warmnest.lobotomy-corp-special-event") ?? "{}",
     );
     assertEquals(savedSpecialEvent.trumpetPhase, "prelude");
-    assertEquals(savedSpecialEvent.preludeEndsAt, 4000);
+    assertEquals(savedSpecialEvent.preludeEndsAt, whiteNightPreludeDurationMs);
     // Prelude 的普通 Alert 以 normal-playing 持久化，不写任何 INGAMEEFFECT Pause 状态。
     assertEquals(
       JSON.parse(
@@ -3429,17 +2818,18 @@ Deno.test("WhiteNight Prelude refresh keeps the remaining Clock time and runs th
       resumedAudio.src.endsWith("Resources/sounds/bgm/emergency01_mast.ogg"),
       true,
     );
-    // 恢复的普通 Alert 必须没有 INGAMEEFFECT Pause 状态，HUD 与播放都保持运行。
+    // 恢复的普通 Alert 没有 INGAMEEFFECT Pause 状态，HUD 与播放都保持运行。
     assertEquals(
-      harness.overlay()!.children[0]?.dataset.lobotomyCorpIngameEffectPaused,
+      requireByClass(harness.overlay()!, "lobotomy-corp-emergency-controller")
+        .dataset.lobotomyCorpIngameEffectPaused,
       undefined,
     );
     // 媒体元数据就绪后从保存进度继续（不重头、不静音），并由普通 Alert 自行播放。
     resumedAudio.dispatch("loadedmetadata");
     assertEquals(resumedAudio.pauseCount, 0);
     assertEquals(resumedAudio.volume, 1);
-    assertEquals(resumedAudio.muted, false);
-    assertEquals(resumedAudio.loop, false);
+    assertStrictEquals(resumedAudio.muted, false);
+    assertStrictEquals(resumedAudio.loop, false);
     assertEquals(resumedAudio.currentTime, 1.5);
 
     // 刷新恢复只保留剩余 Clock 时间：t = 4000 才结算第二笔 +98。
@@ -3463,15 +2853,21 @@ Deno.test("WhiteNight staged Trumpet timers are cleared by Restart Day", async (
     await harness.reload();
     const api = harness.api();
     void api.handleAbnormalitySubmitted("T-03-46");
-    harness.setNow(4000);
+    harness.setNow(whiteNightPreludeDurationMs);
     harness.fireFrames();
     const thirdAudio = harness.lastTrumpet()!;
-    assertEquals(harness.pendingTimer(3000) !== undefined, true);
+    assertEquals(
+      harness.pendingTimer(whiteNightStageMusicAudibleMs) !== undefined,
+      true,
+    );
     const audioCount = harness.AudioMock.items.length;
 
     const restarting = api.restartDay();
-    assertEquals(harness.pendingTimer(3000), undefined);
-    harness.overlay()!.children[1]?.children[0]?.dispatch("animationend");
+    assertEquals(
+      harness.pendingTimer(whiteNightStageMusicAudibleMs),
+      undefined,
+    );
+    finishRestartPanelAnimation(harness.overlay());
     await restarting;
     assertEquals(api.getDangerScore(), 0);
     assertEquals(api.getSpecialEvent(), undefined);
@@ -3480,14 +2876,17 @@ Deno.test("WhiteNight staged Trumpet timers are cleared by Restart Day", async (
       volume: thirdAudio.volume,
     };
 
-    // 任何仍存活的计时器都不得在之后复活阶段音乐或改变媒体状态。
+    // 之后存活下来的计时器不会复活阶段音乐或改变媒体状态。
     harness.setNow(60000);
     harness.fireFrames();
     assertEquals(harness.AudioMock.items.length, audioCount);
-    assertEquals(thirdAudio.pauseCount > 0, true);
+    assert(thirdAudio.pauseCount > 0);
     assertEquals(thirdAudio.pauseCount, pausedPlayback.pauseCount);
     assertEquals(thirdAudio.volume, pausedPlayback.volume);
-    assertEquals(harness.pendingTimer(3000), undefined);
+    assertEquals(
+      harness.pendingTimer(whiteNightStageMusicAudibleMs),
+      undefined,
+    );
   } finally {
     harness.restore();
   }
@@ -3510,11 +2909,11 @@ Deno.test("Lobotomy Corporation reuses an existing session when start races with
      */
     const restart = async () => {
       const restarting = api.restartDay();
-      harness.overlay()?.children[1]?.children[0]?.dispatch("animationend");
+      finishRestartPanelAnimation(harness.overlay());
       await restarting;
     };
 
-    // A. 外层更低：竞态兜底不得重建会话，只保留内层已经建立的 Second。
+    // A. 外层更低：竞态兜底不重建会话，只保留内层已经建立的 Second。
     let lowerReentry = 0;
     const lowerMedia = {
       consume: () => {

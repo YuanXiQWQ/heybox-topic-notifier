@@ -1,6 +1,7 @@
 /**
  * @file 《脑叶公司》网页彩蛋共用的 Unity CanvasScaler 纯函数。
  */
+// @ts-check
 
 /** Unity CanvasScaler 的参考画布宽度。 */
 export const lobotomyCorpReferenceCanvasWidth = 1920;
@@ -51,12 +52,26 @@ export function lobotomyCorpCanvasScaleForViewport(
 }
 
 /**
+ * 提供 viewport 信息的宿主对象。
+ *
+ * 结构类型而非 `Window`：测试会传入只带所需字段的最小替身。
+ *
+ * @typedef {object} LobotomyCorpViewportHost
+ * @property {{height?: number, width?: number}|null} [visualViewport] 浏览器 VisualViewport。
+ * @property {number} [innerHeight] 窗口内高。
+ * @property {number} [innerWidth] 窗口内宽。
+ * @property {{documentElement?: {clientHeight?: number, clientWidth?: number}|null}|null} [document] 宿主 document。
+ */
+
+/**
  * 读取当前实际可见 viewport 的宽高，并在不支持 VisualViewport 时回退。
  *
- * @param {typeof globalThis} browser 提供 viewport 的浏览器对象。
+ * @param {LobotomyCorpViewportHost} [browser] 提供 viewport 的浏览器对象。
  * @return {{height: number, width: number}} 可用于 CanvasScaler 的 viewport 尺寸。
  */
-export function lobotomyCorpViewportSize(browser = globalThis) {
+export function lobotomyCorpViewportSize(
+  browser = /** @type {LobotomyCorpViewportHost} */ (globalThis),
+) {
   const visualViewport = browser.visualViewport;
   const documentElement = browser.document?.documentElement;
   return {

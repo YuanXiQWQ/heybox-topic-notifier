@@ -37,7 +37,9 @@ import {
 } from "./services/notifier.ts";
 import {
   addUniqueAccount,
+  assert,
   assertEquals,
+  assertStrictEquals,
   createMemoryRateLimitRecorder,
   submitLogin as login,
   submitRegistration as register,
@@ -346,7 +348,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
       useRegex: true,
     },
   ]);
-  assertEquals(settings.darkMode, true);
+  assertStrictEquals(settings.darkMode, true);
   assertEquals(settings.notificationEmailAddress, "new@example.com");
   assertEquals(settings.notificationEmailApiToken, "new-api-token");
   assertEquals(
@@ -361,7 +363,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   assertEquals(settings.notificationSmtpHost, "smtp.new.example.com");
   assertEquals(settings.notificationSmtpPassword, "smtp-new-password");
   assertEquals(settings.notificationSmtpPort, 587);
-  assertEquals(settings.notificationSmtpSecure, true);
+  assertStrictEquals(settings.notificationSmtpSecure, true);
   assertEquals(settings.notificationSmtpUsername, "smtp-new-user");
   assertEquals(settings.notificationWebhookService, "serverChan");
   assertEquals(
@@ -561,7 +563,7 @@ Deno.test("settings route rejects saves without a valid CSRF token", async () =>
   });
 
   assertEquals(response.status, 403);
-  assertEquals(saved, false);
+  assertStrictEquals(saved, false);
 });
 
 Deno.test("account route updates username for the signed-in user after password confirmation", async () => {
@@ -605,9 +607,13 @@ Deno.test("account avatar route validates and persists uploaded image bytes", as
   form.set("csrfToken", testCsrfToken);
   form.set(
     "avatar",
-    new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "avatar.png", {
-      type: "image/png",
-    }),
+    new File(
+      [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])],
+      "avatar.png",
+      {
+        type: "image/png",
+      },
+    ),
   );
 
   const uploadResponse = await app.request("/account/avatar", {
@@ -633,8 +639,14 @@ Deno.test("account avatar route validates and persists uploaded image bytes", as
     true,
   );
   assertEquals(uploadResponse.status, 303);
-  assertEquals(uploadResponse.headers.get("location"), "/settings?avatar=updated");
-  assertEquals((await storage.getUserAvatar(account.id))?.contentType, "image/png");
+  assertEquals(
+    uploadResponse.headers.get("location"),
+    "/settings?avatar=updated",
+  );
+  assertEquals(
+    (await storage.getUserAvatar(account.id))?.contentType,
+    "image/png",
+  );
   assertEquals(avatarResponse.headers.get("content-type"), "image/png");
   assertEquals(
     Array.from(new Uint8Array(await avatarResponse.arrayBuffer())),
@@ -983,10 +995,10 @@ Deno.test("account email route binds a verified email for the signed-in user", a
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/settings?email=updated");
   assertEquals(updatedAccount?.primaryEmail, "alice@example.com");
-  assertEquals(updatedAccount?.emailVerified, true);
+  assertStrictEquals(updatedAccount?.emailVerified, true);
   assertEquals(credential?.email, "alice@example.com");
-  assertEquals(credential?.verified, true);
-  assertEquals(credential?.lastVerifiedAt !== undefined, true);
+  assertStrictEquals(credential?.verified, true);
+  assert(credential?.lastVerifiedAt !== undefined);
   assertEquals(
     await storage.getPendingEmailVerification("email-binding-verification"),
     undefined,
@@ -1086,8 +1098,8 @@ Deno.test("account email route returns JSON for automatic binding verification",
     redirectTo: "/settings?email=updated",
   });
   assertEquals(updatedAccount?.primaryEmail, "alice@example.com");
-  assertEquals(updatedAccount?.emailVerified, true);
-  assertEquals(credential?.verified, true);
+  assertStrictEquals(updatedAccount?.emailVerified, true);
+  assertStrictEquals(credential?.verified, true);
 });
 
 Deno.test("account email route returns JSON errors for automatic verification", async () => {
@@ -1245,7 +1257,7 @@ Deno.test("account TOTP route binds an authenticator after a valid code", async 
   const credential = await storage.getTotpCredential(account.id);
 
   assertEquals(response.status, 200);
-  assertEquals(payload.ok, true);
+  assertStrictEquals(payload.ok, true);
   const recoveryLocation = typeof payload.redirectTo === "string"
     ? payload.redirectTo
     : "";
@@ -1398,7 +1410,7 @@ Deno.test("account recovery code route backfills codes for an existing authentic
     recoveryLocation.startsWith("/settings?recoveryCodes="),
     true,
   );
-  assertEquals(recoveryLocation.endsWith("#recovery-codes-row"), true);
+  assert(recoveryLocation.endsWith("#recovery-codes-row"));
   assertEquals(credential?.recoveryCodeHashes.length, 8);
 
   const reusedResponse = await app.request(
@@ -1477,7 +1489,7 @@ Deno.test("account recovery code route replaces every old recovery code", async 
   const credentials = await storage.listTotpCredentials(account.id);
 
   assertEquals(response.status, 200);
-  assertEquals(recoveryLocation.endsWith("#recovery-codes-row"), true);
+  assert(recoveryLocation.endsWith("#recovery-codes-row"));
   assertEquals(credentials.length, 2);
   assertEquals(credentials[0]?.recoveryCodeHashes.length, 8);
   assertEquals(credentials[1]?.recoveryCodeHashes, []);
@@ -1563,9 +1575,9 @@ Deno.test("account TOTP route deletes only the selected authenticator", async ()
   const recoveryCodesRowIndex = blockedSettingsHtml.indexOf(
     'id="recovery-codes-row"',
   );
-  assertEquals(totpRowIndex >= 0, true);
-  assertEquals(reauthPanelIndex > totpRowIndex, true);
-  assertEquals(reauthPanelIndex < recoveryCodesRowIndex, true);
+  assert(totpRowIndex >= 0);
+  assert(reauthPanelIndex > totpRowIndex);
+  assert(reauthPanelIndex < recoveryCodesRowIndex);
   assertNotIncludes(
     blockedSettingsHtml.slice(totpBindingStatusIndex, reauthPanelIndex),
     getMessages(currentSettings.locale).accountReauthRequired,
@@ -1882,8 +1894,8 @@ Deno.test("settings route renders inline sensitive reauth controls", async () =>
     "data-reauth-method-details",
     reauthPanelIndex,
   );
-  assertEquals(passkeyButtonIndex >= reauthPanelIndex, true);
-  assertEquals(passkeyButtonIndex < reauthDetailsIndex, true);
+  assert(passkeyButtonIndex >= reauthPanelIndex);
+  assert(passkeyButtonIndex < reauthDetailsIndex);
   assertNotIncludes(
     html.slice(passkeyBindingStatusIndex, reauthPanelIndex),
     getMessages(currentSettings.locale).accountReauthRequired,
@@ -2640,13 +2652,13 @@ Deno.test("simulate match records one randomized pending match through poller", 
     record.post.url,
     "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/",
   );
-  assertEquals(record.post.title.startsWith("模拟命中帖（测试 "), true);
-  assertEquals(record.post.excerpt.startsWith("模拟命中帖，随机样本 "), true);
+  assert(record.post.title.startsWith("模拟命中帖（测试 "));
+  assert(record.post.excerpt.startsWith("模拟命中帖，随机样本 "));
   assertEquals(
     record.post.excerpt.endsWith("这是一条用于验证命中记录的测试内容。"),
     true,
   );
-  assertEquals(record.keyword.startsWith("测试关键词 "), true);
+  assert(record.keyword.startsWith("测试关键词 "));
 });
 
 Deno.test("simulate match preserves dashboard table query", async () => {
@@ -2729,7 +2741,7 @@ Deno.test("run now rate limits repeated manual polling attempts", async () => {
   });
 
   assertEquals(limitedResponse.status, 429);
-  assertEquals(limitedResponse.headers.get("retry-after") !== null, true);
+  assert(limitedResponse.headers.get("retry-after") !== null);
   assertEquals(runs, 6);
 });
 

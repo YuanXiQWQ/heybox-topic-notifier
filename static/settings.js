@@ -1018,7 +1018,7 @@ function initNotificationSettings() {
    *
    * @param {HTMLElement} row 通知设置行元素。
    * @param {boolean} animate 是否播放展开动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function showRow(row, animate, token) {
     row.hidden = false;
@@ -1039,7 +1039,7 @@ function initNotificationSettings() {
    *
    * @param {HTMLElement} row 通知设置行元素。
    * @param {boolean} animate 是否播放收起动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function hideRow(row, animate, token) {
     row.dataset.notificationTransitionToken = String(token);
@@ -1065,7 +1065,7 @@ function initNotificationSettings() {
    *
    * @param {Set<string>} fields 需要显示的字段集合。
    * @param {boolean} animate 是否播放过渡动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function applyNotificationFields(fields, animate, token) {
     for (const row of rows) {
@@ -1330,7 +1330,7 @@ function initPollingSettings() {
    *
    * @param {HTMLElement} row 轮询设置行元素。
    * @param {boolean} animate 是否播放展开动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function showRow(row, animate, token) {
     row.hidden = false;
@@ -1351,7 +1351,7 @@ function initPollingSettings() {
    *
    * @param {HTMLElement} row 轮询设置行元素。
    * @param {boolean} animate 是否播放收起动画。
-   * @param {number} token 本轮过渡标记。
+   * @param {number} token 本次过渡标记。
    */
   function hideRow(row, animate, token) {
     row.dataset.pollingTransitionToken = String(token);
@@ -1484,7 +1484,7 @@ async function submitLobotomyCorpAccountSaveTransaction(
   mode,
   displayName,
 ) {
-  // 必须仍在 submit 的同步用户手势中准备媒体；业务副作用继续等服务器确认后才提交。
+  // 媒体准备在 submit 的同步用户手势中完成；业务副作用等服务器确认后才提交。
   const preparedMedia = mode === "displayName"
     ? globalThis.lobotomyCorpEasterEgg?.prepareDisplayName?.(displayName)
     : undefined;
@@ -1794,7 +1794,7 @@ function initAccountSettings() {
           },
         )
         .catch(() => {
-          // 彩蛋脚本更新期间若浏览器混用了旧缓存，不能因此阻断账户设置保存。
+          // 彩蛋脚本更新期间若浏览器混用了旧缓存，账户设置保存仍照常进行。
           form.dataset.usernameEasterEggApproved = "true";
           form.requestSubmit(saveButton);
         });

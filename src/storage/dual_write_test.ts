@@ -4,6 +4,7 @@
 import type { AppSettings, UserSession } from "../models.ts";
 import { createDualWriteStorage } from "./dual_write.ts";
 import type { Storage, UserStorage } from "./types.ts";
+import { assertEquals } from "../test_helpers.ts";
 
 Deno.test("dual write storage mirrors writes and keeps reads authoritative", async () => {
   const authoritativeCalls: string[] = [];
@@ -111,18 +112,6 @@ function testSession(): UserSession {
     userId: "alice-id",
     username: "alice",
   };
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param {unknown} actual 实际值。
- * @param {unknown} expected 期望值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error("Values are not equal.");
-  }
 }
 
 /**

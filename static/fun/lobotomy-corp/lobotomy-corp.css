@@ -67,7 +67,7 @@
   justify-content: center;
   pointer-events: none;
   position: fixed;
-  /* 刷新/逃逸阻挡提示是白夜最高优先级演出，必须盖过 Trumpet HUD。 */
+  /* 刷新/逃逸阻挡提示是白夜最高优先级演出，层级高于 Trumpet HUD。 */
   z-index: 10010;
 }
 
@@ -118,7 +118,7 @@
 
 .lobotomy-corp-white-night-simple-advent-canvas {
   --lobotomy-corp-advent-canvas-scale: 1;
-  /* Unity 的 1920×1080 逻辑画布只能由 CanvasScaler transform 缩放，不能先被 Flexbox 压缩。 */
+  /* Unity 的 1920×1080 逻辑画布由 CanvasScaler transform 缩放，Flexbox 不压缩它。 */
   flex-shrink: 0;
   height: 1080px;
   overflow: hidden;

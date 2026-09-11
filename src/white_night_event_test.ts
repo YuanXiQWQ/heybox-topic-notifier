@@ -1,5 +1,12 @@
 /** @file 白夜特殊事件的状态、媒体与动画事件回归测试。 */
-import { assertEquals } from "./test_helpers.ts";
+import {
+  assert,
+  assertEquals,
+  assertStrictEquals,
+  requireByClass,
+  stripJavaScriptCommentsAndStrings,
+} from "./test_helpers.ts";
+import { AudioMock, Element } from "./test_harness.ts";
 import {
   createWhiteNightEvent,
   whiteNightConfessionSuppressionDelayMs,
@@ -15,152 +22,15 @@ import {
  * @return {object} 事件测试的 document mock。
  */
 function createDocumentMock() {
-  class NodeMock {
-    children: NodeMock[] = [];
-    className = "";
-    dataset: Record<string, string> = {};
-    hidden = false;
-    listeners = new Map<string, Array<() => void>>();
-    parentElement?: NodeMock;
-    src = "";
-    styleProperties = new Map<string, string>();
-    style = {
-      setProperty: (name: string, value: string) => {
-        this.styleProperties.set(name, value);
-      },
-    };
-    append(...children: NodeMock[]): void {
-      children.forEach((child) => {
-        child.parentElement = this;
-        this.children.push(child);
-      });
-    }
-    addEventListener(type: string, listener: () => void): void {
-      this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-    }
-    removeEventListener(type: string, listener: () => void): void {
-      this.listeners.set(
-        type,
-        (this.listeners.get(type) ?? []).filter((item) => item !== listener),
-      );
-    }
-    remove(): void {
-      this.parentElement?.children.splice(
-        this.parentElement.children.indexOf(this),
-        1,
-      );
-    }
-    setAttribute(_name: string, _value: string): void {}
-    removeAttribute(_name: string): void {}
-    querySelector(): undefined {
-      return undefined;
-    }
-  }
-  const body = new NodeMock();
+  const body = new Element();
   return {
     body,
-    createElement: () => new NodeMock(),
+    createElement: () => new Element(),
     querySelector: () => undefined,
     querySelectorAll: () => [],
     addEventListener: () => {},
     removeEventListener: () => {},
   };
-}
-
-/** 可执行 capture 顺序与 DOM 查询的白夜交互节点。 */
-class InteractiveNode {
-  attributes: Record<string, string> = {};
-  children: InteractiveNode[] = [];
-  className = "";
-  dataset: Record<string, string> = {};
-  parentElement?: InteractiveNode;
-  selectors = new Set<string>();
-  src = "";
-  style = { setProperty: () => {} };
-  textContent = "";
-  value = "";
-
-  /** @param {...InteractiveNode} children 要追加的子节点。 */
-  append(...children: InteractiveNode[]): void {
-    children.forEach((child) => {
-      child.parentElement = this;
-      this.children.push(child);
-    });
-  }
-
-  /**
-   * 在指定子节点前插入节点。
-   *
-   * @param {InteractiveNode} child 新节点。
-   * @param {InteractiveNode} before 参照节点。
-   */
-  insertBefore(child: InteractiveNode, before: InteractiveNode): void {
-    child.parentElement = this;
-    const index = this.children.indexOf(before);
-    this.children.splice(index < 0 ? this.children.length : index, 0, child);
-  }
-
-  /** @param {string} selector 选择器。 @return {boolean} 是否匹配。 */
-  matches(selector: string): boolean {
-    return this.selectors.has(selector) ||
-      (selector === ".lobotomy-corp-top-panel-action-button" &&
-        this.className === "lobotomy-corp-top-panel-action-button") ||
-      (selector === ".lobotomy-corp-confession-work-icon" &&
-        this.className === "lobotomy-corp-confession-work-icon");
-  }
-
-  /** @param {string} selector 选择器。 @return {InteractiveNode|undefined} 最近匹配节点。 */
-  closest(selector: string): InteractiveNode | undefined {
-    if (
-      this.matches(selector) ||
-      (selector.includes("[data-polling-interval-value]") &&
-        (this.selectors.has("[data-polling-interval-value]") ||
-          this.selectors.has("[data-polling-interval-unit]")))
-    ) return this;
-    return this.parentElement?.closest(selector);
-  }
-
-  /** @param {string} selector 选择器。 @return {InteractiveNode|undefined} 首个后代。 */
-  querySelector(selector: string): InteractiveNode | undefined {
-    return this.children.find((child) =>
-      child.matches(selector) || child.querySelector(selector)
-    );
-  }
-
-  /** @param {string} name 属性名。 @return {string|null} 属性值。 */
-  getAttribute(name: string): string | null {
-    return this.attributes[name] ?? null;
-  }
-
-  /** @param {string} name 属性名。 @param {string} value 属性值。 */
-  setAttribute(name: string, value: string): void {
-    this.attributes[name] = value;
-  }
-
-  /** @param {string} name 属性名。 */
-  removeAttribute(name: string): void {
-    delete this.attributes[name];
-    if (name === "src") this.src = "";
-  }
-
-  /** 从父节点移除自身。 */
-  remove(): void {
-    const index = this.parentElement?.children.indexOf(this) ?? -1;
-    if (index >= 0) this.parentElement?.children.splice(index, 1);
-    this.parentElement = undefined;
-  }
-
-  /** 测试节点不拥有独立事件监听器。 */
-  addEventListener(): void {}
-
-  /** 测试节点不拥有独立事件监听器。 */
-  removeEventListener(): void {}
-
-  /** 测试媒体暂停占位。 */
-  pause(): void {}
-
-  /** 测试媒体释放占位。 */
-  load(): void {}
 }
 
 /**
@@ -171,42 +41,42 @@ class InteractiveNode {
 function createInteractiveDocument() {
   type Listener = (event: Record<string, unknown>) => void;
   const listeners = new Map<string, Listener[]>();
-  const body = new InteractiveNode();
-  const pollingValue = new InteractiveNode();
+  const body = new Element();
+  const pollingValue = new Element();
   pollingValue.value = "5";
   pollingValue.selectors.add("[data-polling-interval-value]");
-  const pollingUnit = new InteractiveNode();
+  const pollingUnit = new Element();
   pollingUnit.value = "minute";
   pollingUnit.selectors.add("[data-polling-interval-unit]");
-  const saveHost = new InteractiveNode();
-  const saveButton = new InteractiveNode();
+  const saveHost = new Element();
+  const saveButton = new Element();
   saveButton.textContent = "Save";
   saveButton.setAttribute("aria-label", "Save account");
   saveButton.selectors.add("[data-account-save-button]");
   saveHost.append(saveButton);
-  const displayNameInput = new InteractiveNode();
+  const displayNameInput = new Element();
   displayNameInput.selectors.add("[data-account-display-name-input]");
 
-  /** @param {InteractiveNode} root 根节点。 @param {string} className 类名。 @return {InteractiveNode[]} 匹配节点。 */
+  /** @param {Element} root 根节点。 @param {string} className 类名。 @return {Element[]} 匹配节点。 */
   const nodesByClass = (
-    root: InteractiveNode,
+    root: Element,
     className: string,
-  ): InteractiveNode[] => [
+  ): Element[] => [
     ...(root.className === className ? [root] : []),
     ...root.children.flatMap((child) => nodesByClass(child, className)),
   ];
   const document = {
     body,
-    /** @return {InteractiveNode} 新节点。 */
-    createElement: () => new InteractiveNode(),
-    /** @param {string} selector 选择器。 @return {InteractiveNode|undefined} 匹配控件。 */
+    /** @return {Element} 新节点。 */
+    createElement: () => new Element(),
+    /** @param {string} selector 选择器。 @return {Element|undefined} 匹配控件。 */
     querySelector: (selector: string) =>
       selector === "[data-account-save-button]"
         ? saveButton
         : selector === "[data-account-display-name-input]"
         ? displayNameInput
         : undefined,
-    /** @param {string} selector 选择器。 @return {InteractiveNode[]} 匹配控件。 */
+    /** @param {string} selector 选择器。 @return {Element[]} 匹配控件。 */
     querySelectorAll: (selector: string) =>
       selector.includes("[data-polling-interval-value]")
         ? [pollingValue, pollingUnit]
@@ -230,13 +100,13 @@ function createInteractiveDocument() {
    * 按注册顺序派发事件并模拟 stopImmediatePropagation。
    *
    * @param {string} type 事件类型。
-   * @param {InteractiveNode} target 事件目标。
+   * @param {Element} target 事件目标。
    * @param {Record<string, unknown>} extra 补充字段。
    * @return {{prevented: boolean, stopped: boolean}} 阻断结果。
    */
   const dispatch = (
     type: string,
-    target: InteractiveNode,
+    target: Element,
     extra: Record<string, unknown> = {},
   ) => {
     const result = { prevented: false, stopped: false };
@@ -278,28 +148,10 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
     ) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
   );
   const scheduled: Array<{ callback: () => void; delay: number }> = [];
-  class AudioMock {
-    static items: AudioMock[] = [];
-    currentTime = 91;
-    loop = false;
-    muted = true;
-    pauseCount = 0;
-    playCount = 0;
-    constructor(public src: string) {
-      AudioMock.items.push(this);
-    }
-    play(): Promise<void> {
-      this.playCount++;
-      return Promise.resolve();
-    }
-    pause(): void {
-      this.pauseCount++;
-    }
-    setAttribute(_name: string, _value: string): void {}
-    removeAttribute(_name: string): void {}
-    load(): void {}
-    addEventListener(_type: string, _listener: () => void): void {}
-  }
+  // 死亡音效从非零进度起播，且释放媒体后仍按 src 过滤实例，因此不清空 src。
+  AudioMock.reset();
+  AudioMock.initialCurrentTime = 91;
+  AudioMock.initialMuted = true;
   const document = createDocumentMock();
   let resumeCount = 0;
   let pausedDecay = 0;
@@ -366,24 +218,31 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
     const deathEntity = document.body.children.find((node) =>
       node.className === "lobotomy-corp-white-night-confession-entity"
     )!;
+    const confessionVideo = requireByClass(
+      deathEntity,
+      "lobotomy-corp-white-night-confession-video",
+    );
+    const confessParticles = requireByClass(
+      deathEntity,
+      "lobotomy-corp-white-night-confess-particles",
+    );
     assertEquals(
-      deathEntity.children[0].src,
+      confessionVideo.src,
       "",
     );
-    assertEquals(deathEntity.children[0].hidden, true);
-    assertEquals(deathEntity.children[1].children.length, 23);
+    assertStrictEquals(confessionVideo.hidden, true);
+    assertEquals(confessParticles.children.length, 23);
     assertEquals(
-      deathEntity.children[1].children.every((ray) =>
+      confessParticles.children.every((ray) =>
         ray.dataset.asset.endsWith("Texture2D/CFX3_T_RayStraight.png")
       ),
       true,
     );
-    assertEquals(
-      deathEntity.children[1].children.every((ray) =>
+    assert(
+      confessParticles.children.every((ray) =>
         ray.styleProperties.get("--lobotomy-corp-ray-color") ===
           "100.000000% 96.186610% 65.441175%"
       ),
-      true,
     );
     const church = AudioMock.items.find((audio) =>
       audio.src.endsWith("Lucifer_standbg0.ogg")
@@ -400,11 +259,11 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
       0,
     );
     assertEquals(
-      deathEntity.children[0].src.endsWith("WhiteNight_Confess_Dead.webm"),
+      confessionVideo.src.endsWith("WhiteNight_Confess_Dead.webm"),
       true,
     );
-    assertEquals(deathEntity.children[0].hidden, false);
-    assertEquals(church.pauseCount > 0, true);
+    assertStrictEquals(confessionVideo.hidden, false);
+    assert(church.pauseCount > 0);
     assertEquals(resumeCount, 1);
     assertEquals(
       scheduled.map(({ delay }) => delay).filter((delay) =>
@@ -417,7 +276,7 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
     ).forEach(({ callback }) => callback());
     scheduled.find(({ delay }) => delay === whiteNightDeathSequenceDurationMs)!
       .callback();
-    assertEquals(await completion, true);
+    assertStrictEquals(await completion, true);
     assertEquals(resumeCount, 1);
     assertEquals(resumedDecay, 1);
     const deathAudios = AudioMock.items.filter((audio) =>
@@ -426,9 +285,9 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
     assertEquals(deathAudios.length, 3);
     deathAudios.forEach((audio) => {
       assertEquals(audio.currentTime, 0);
-      assertEquals(audio.muted, false);
+      assertStrictEquals(audio.muted, false);
       assertEquals(audio.playCount, 1);
-      assertEquals(audio.pauseCount > 0, true);
+      assert(audio.pauseCount > 0);
     });
   } finally {
     for (const [name, descriptor] of Object.entries(originals)) {
@@ -458,7 +317,7 @@ Deno.test("direct WhiteNight submission stays in Prelude until Simple Advent end
     audibleMs: number;
     thenHold: boolean;
   }> = [];
-  // 阶段警报由共享层按「本次 Danger 结算结果」提供；本模块不得硬编码 First / Third。
+  // 阶段警报由共享层按「本次 Danger 结算结果」提供。
   const stageAlerts = [
     { assetDirectory: "third-trumpet", level: 3, soundPath: "third.ogg" },
     { assetDirectory: "second-trumpet", level: 2, soundPath: "second.ogg" },
@@ -513,13 +372,13 @@ Deno.test("direct WhiteNight submission stays in Prelude until Simple Advent end
       start: (options: { source: string }) => boolean;
     };
 
-    assertEquals(event.start({ source: "direct-submission" }), true);
+    assertStrictEquals(event.start({ source: "direct-submission" }), true);
     assertEquals(event.getPhase(), "prelude");
-    assertEquals(event.isActive(), false);
+    assert(!(event.isActive()));
     assertEquals(pausedDecay, 0);
-    assertEquals(await event.confess(), false);
+    assertStrictEquals(await event.confess(), false);
     assertEquals(timers.length, 1);
-    assertEquals(timers[0].delay > 0 && timers[0].delay <= 4000, true);
+    assert(timers[0].delay > 0 && timers[0].delay <= 4000);
     // Simple Advent 只负责视觉与 4 秒边界：Prelude 不暂停也不接管任何音乐，
     // 第一阶段 BGM 完全由 +44 结算正常产生的 Danger Alert 播放。
     assertEquals(stageMusicCalls.length, 0);
@@ -527,17 +386,17 @@ Deno.test("direct WhiteNight submission stays in Prelude until Simple Advent end
     timers[0].callback();
     assertEquals(settledActiveDanger, 1);
     assertEquals(event.getPhase(), "active");
-    assertEquals(event.isActive(), true);
+    assert(event.isActive());
     assertEquals(pausedDecay, 1);
-    // 第二阶段 BGM 同样由第二阶段结算结果决定，并且必须完整可听 3 秒后才淡出。
+    // 第二阶段 BGM 同样由第二阶段结算结果决定，并且完整可听一个可听窗口后才淡出。
     assertEquals(stageMusicCalls.length, 1);
     assertEquals(stageMusicCalls[0].alert, stageAlerts[0]);
     assertEquals(stageMusicCalls[0].audibleMs, whiteNightStageMusicAudibleMs);
-    assertEquals(stageMusicCalls[0].thenHold, true);
+    assertStrictEquals(stageMusicCalls[0].thenHold, true);
     event.finish();
 
     // Restart Day 在 Prelude 期间不需要解除任何 Pause：Simple Advent 从不冻结 Alert。
-    assertEquals(event.start({ source: "direct-submission" }), true);
+    assertStrictEquals(event.start({ source: "direct-submission" }), true);
     event.finish();
   } finally {
     for (const [name, descriptor] of Object.entries(originals)) {
@@ -616,15 +475,15 @@ Deno.test("WhiteNight stage Trumpet follows each settlement result even when it 
       start: (options: { source: string }) => boolean;
     };
 
-    assertEquals(event.start({ source: "direct-submission" }), true);
+    assertStrictEquals(event.start({ source: "direct-submission" }), true);
     // Prelude 不接管音乐：第一阶段 BGM 由 +44 的正常 Danger Alert 播放。
     assertEquals(stageMusicCalls.length, 0);
     timers[0].callback();
-    // 第二阶段：即使结算结果比 high-water 更低，也必须使用真实结算结果并完整可听 3 秒。
+    // 第二阶段：结算结果比 high-water 更低时，仍使用真实结算结果并完整可听一个可听窗口。
     assertEquals(stageMusicCalls.length, 1);
     assertEquals(stageMusicCalls[0].alert, stageAlerts[0]);
     assertEquals(stageMusicCalls[0].audibleMs, whiteNightStageMusicAudibleMs);
-    assertEquals(stageMusicCalls[0].thenHold, true);
+    assertStrictEquals(stageMusicCalls[0].thenHold, true);
     event.finish();
   } finally {
     for (const [name, descriptor] of Object.entries(originals)) {
@@ -634,14 +493,16 @@ Deno.test("WhiteNight stage Trumpet follows each settlement result even when it 
   }
 });
 
-Deno.test("WhiteNight never hardcodes a Trumpet level for its stage music", async () => {
+Deno.test("WhiteNight stage music never hardcodes a Trumpet level", async () => {
   const source = await Deno.readTextFile(
     new URL(
       "../static/fun/lobotomy-corp/Events/WhiteNight.js",
       import.meta.url,
     ),
   );
-  assertEquals(source.includes("stageMusicAlert"), true);
+  // 注释与字符串里提到资源名不算违规，因此只在去掉它们后的代码结构里检查标识符。
+  const code = stripJavaScriptCommentsAndStrings(source);
+  assert(code.includes("stageMusicAlert"));
   for (
     const forbidden of [
       "firsttrumpet",
@@ -653,7 +514,7 @@ Deno.test("WhiteNight never hardcodes a Trumpet level for its stage music", asyn
       "emergency04",
     ]
   ) {
-    assertEquals(source.includes(forbidden), false);
+    assert(!(code.includes(forbidden)));
   }
 });
 
@@ -774,18 +635,18 @@ Deno.test("WhiteNight restores the staged Trumpet timeline from the saved phase"
       trumpetFadeMs: 1000,
     };
 
-    // A. 可听窗口内：只补剩余时长，不重播完整的三秒。
+    // A. 可听窗口内：只补剩余时长，不重播完整的可听窗口。
     Date.now = () => 50000;
     const audible = restoreWith({
       ...savedBase,
       trumpetDeadline: 51500,
       trumpetPhase: "audible",
     });
-    assertEquals(audible.restore(), true);
+    assertStrictEquals(audible.restore(), true);
     assertEquals(calls.stage.length, 1);
     assertEquals(calls.stage[0].alert, stageAlert);
     assertEquals(calls.stage[0].audibleMs, 1500);
-    assertEquals(calls.stage[0].thenHold, true);
+    assertStrictEquals(calls.stage[0].thenHold, true);
     assertEquals(calls.fade, []);
     assertEquals(calls.hold, 0);
     audible.finish();
@@ -798,13 +659,16 @@ Deno.test("WhiteNight restores the staged Trumpet timeline from the saved phase"
       trumpetDeadline: 49600,
       trumpetPhase: "audible",
     });
-    assertEquals(fading.restore(), true);
+    assertStrictEquals(fading.restore(), true);
     assertEquals(calls.stage, []);
     assertEquals(calls.fade.length, 1);
     assertEquals(calls.fade[0].durationMs, 600);
     // 剩余 600 / 1000 = 0.6 → 音量 0.4 + 0.6 * 0.6 = 0.76。
     assertEquals(calls.fadeStartRatios, [0.6]);
-    assertEquals(calls.fade[0].startVolume, duckVolume + (1 - duckVolume) * 0.6);
+    assertEquals(
+      calls.fade[0].startVolume,
+      duckVolume + (1 - duckVolume) * 0.6,
+    );
     assertEquals(calls.hold, 0);
     fading.finish();
 
@@ -815,7 +679,7 @@ Deno.test("WhiteNight restores the staged Trumpet timeline from the saved phase"
       ...savedBase,
       trumpetPhase: "held",
     });
-    assertEquals(held.restore(), true);
+    assertStrictEquals(held.restore(), true);
     assertEquals(calls.stage, []);
     assertEquals(calls.fade, []);
     assertEquals(calls.hold, 1);
@@ -883,36 +747,8 @@ Deno.test("WhiteNight keeps source-specific entry behavior per entry source", ()
       Object.getOwnPropertyDescriptor(browser, name),
     ]),
   );
-  class AudioMock {
-    static items: AudioMock[] = [];
-    currentTime = 0;
-    muted = false;
-    pauseCount = 0;
-    src: string;
-    /** @param {string} src 音频地址。 */
-    constructor(src: string) {
-      this.src = src;
-      AudioMock.items.push(this);
-    }
-    /** @return {Promise<void>} 播放结果。 */
-    play(): Promise<void> {
-      return Promise.resolve();
-    }
-    /** 暂停音频。 */
-    pause(): void {
-      this.pauseCount++;
-    }
-    /** @param {string} _name 属性名。 @param {string} _value 属性值。 */
-    setAttribute(_name: string, _value: string): void {}
-    /** @param {string} name 属性名。 */
-    removeAttribute(name: string): void {
-      if (name === "src") this.src = "";
-    }
-    /** 释放音频。 */
-    load(): void {}
-    /** 测试不触发自然 ended。 */
-    addEventListener(): void {}
-  }
+  AudioMock.reset();
+  AudioMock.clearSrcOnRemoveAttribute = true;
   const document = createDocumentMock();
   let apostlesCompletionCount = 0;
   let hasTwelveApostles = false;
@@ -946,7 +782,7 @@ Deno.test("WhiteNight keeps source-specific entry behavior per entry source", ()
       start: (options: { source: string }) => boolean;
     };
 
-    assertEquals(event.start({ source: "direct-submission" }), true);
+    assertStrictEquals(event.start({ source: "direct-submission" }), true);
     assertEquals(event.getSource(), "direct-submission");
     assertEquals(AudioMock.items.length, 1);
     assertEquals(apostlesCompletionCount, 0);
@@ -961,17 +797,17 @@ Deno.test("WhiteNight keeps source-specific entry behavior per entry source", ()
     assertEquals(apostlesCompletionCount, 0);
     event.finish();
 
-    assertEquals(event.start({ source: "apostles-replay" }), true);
+    assertStrictEquals(event.start({ source: "apostles-replay" }), true);
     assertEquals(AudioMock.items.length, 3);
     assertEquals(apostlesCompletionCount, 0);
     event.finish();
 
     hasTwelveApostles = true;
-    assertEquals(event.start({ source: "direct-submission" }), true);
+    assertStrictEquals(event.start({ source: "direct-submission" }), true);
     assertEquals(apostlesCompletionCount, 0);
     event.finish();
     assertEquals(resumeCount, 4);
-    assertEquals(AudioMock.items.every((audio) => audio.pauseCount > 0), true);
+    assert(AudioMock.items.every((audio) => audio.pauseCount > 0));
   } finally {
     for (const [name, descriptor] of Object.entries(originals)) {
       if (descriptor) Object.defineProperty(browser, name, descriptor);
@@ -992,38 +828,8 @@ Deno.test("WhiteNight blocks escape and polling before downstream handlers while
       Object.getOwnPropertyDescriptor(browser, name),
     ]),
   );
-  class AudioMock {
-    static items: AudioMock[] = [];
-    currentTime = 0;
-    muted = false;
-    pauseCount = 0;
-    playCount = 0;
-    src: string;
-    /** @param {string} src 音频地址。 */
-    constructor(src: string) {
-      this.src = src;
-      AudioMock.items.push(this);
-    }
-    /** @return {Promise<void>} 播放结果。 */
-    play(): Promise<void> {
-      this.playCount++;
-      return Promise.resolve();
-    }
-    /** 暂停音频。 */
-    pause(): void {
-      this.pauseCount++;
-    }
-    /** @param {string} _name 属性名。 @param {string} _value 属性值。 */
-    setAttribute(_name: string, _value: string): void {}
-    /** @param {string} name 属性名。 */
-    removeAttribute(name: string): void {
-      if (name === "src") this.src = "";
-    }
-    /** 释放音频。 */
-    load(): void {}
-    /** 测试不触发自然 ended。 */
-    addEventListener(): void {}
-  }
+  AudioMock.reset();
+  AudioMock.clearSrcOnRemoveAttribute = true;
   const harness = createInteractiveDocument();
   const shownMessages: string[] = [];
   let replaceTarget = "";
@@ -1075,17 +881,20 @@ Deno.test("WhiteNight blocks escape and polling before downstream handlers while
       finish: () => void;
       start: (options: { source: string }) => boolean;
     };
-    assertEquals(event.start({ source: "plague-doctor-transformation" }), true);
+    assertStrictEquals(
+      event.start({ source: "plague-doctor-transformation" }),
+      true,
+    );
 
     let downstreamNavigation = 0;
     harness.document.addEventListener("click", () => downstreamNavigation++);
-    const link = new InteractiveNode();
+    const link = new Element();
     link.selectors.add("a[href]");
     const linkResult = harness.dispatch("click", link);
     assertEquals(linkResult, { prevented: true, stopped: true });
     assertEquals(downstreamNavigation, 0);
 
-    const navigationForm = new InteractiveNode();
+    const navigationForm = new Element();
     navigationForm.setAttribute("action", "/history");
     const navigationResult = harness.dispatch("submit", navigationForm);
     assertEquals(navigationResult, { prevented: true, stopped: true });
@@ -1099,7 +908,7 @@ Deno.test("WhiteNight blocks escape and polling before downstream handlers while
 
     let logoutRequestCount = 0;
     harness.document.addEventListener("submit", () => logoutRequestCount++);
-    const logoutForm = new InteractiveNode();
+    const logoutForm = new Element();
     logoutForm.setAttribute(
       "action",
       "https://warmnest.test/logout?locale=en-US",
@@ -1107,15 +916,18 @@ Deno.test("WhiteNight blocks escape and polling before downstream handlers while
     const logoutResult = harness.dispatch("submit", logoutForm);
     assertEquals(logoutResult, { prevented: true, stopped: true });
     assertEquals(logoutRequestCount, 0);
-    assertEquals(shownMessages.includes("whiteNight.blockExit"), true);
+    assert(shownMessages.includes("whiteNight.blockExit"));
 
-    const accountForm = new InteractiveNode();
+    const accountForm = new Element();
     accountForm.selectors.add("[data-account-form]");
-    assertEquals(harness.dispatch("submit", accountForm).prevented, false);
+    assertStrictEquals(
+      harness.dispatch("submit", accountForm).prevented,
+      false,
+    );
 
     const refreshResult = harness.dispatch(
       "keydown",
-      new InteractiveNode(),
+      new Element(),
       { key: "F5" },
     );
     assertEquals(refreshResult, { prevented: true, stopped: true });
@@ -1128,7 +940,7 @@ Deno.test("WhiteNight blocks escape and polling before downstream handlers while
     assertEquals(pollingResult, { prevented: true, stopped: true });
     assertEquals(harness.pollingValue.value, "5");
     assertEquals(autoSaveCount, 0);
-    assertEquals(shownMessages.includes("whiteNight.blockTime"), true);
+    assert(shownMessages.includes("whiteNight.blockTime"));
 
     harness.pollingUnit.value = "hour";
     const pollingUnitResult = harness.dispatch("change", harness.pollingUnit);
@@ -1168,7 +980,7 @@ Deno.test("WhiteNight blocks escape and polling before downstream handlers while
 
     harness.displayNameInput.value = "O-03-03";
     harness.dispatch("input", harness.displayNameInput);
-    const cancel = new InteractiveNode();
+    const cancel = new Element();
     cancel.selectors.add("[data-account-cancel-button]");
     harness.dispatch("click", cancel);
     assertEquals(harness.saveButton.textContent, "Save");
@@ -1219,55 +1031,24 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
       Object.getOwnPropertyDescriptor(browser, name),
     ]),
   );
-  class AudioMock {
-    static items: AudioMock[] = [];
-    static bellAttempts = 0;
-    static churchAttempts = 0;
-    currentTime = 0;
-    muted = false;
-    pauseCount = 0;
-    playCount = 0;
-    src: string;
-    /** @param {string} src 音频地址。 */
-    constructor(src: string) {
-      this.src = src;
-      AudioMock.items.push(this);
+  let bellAttempts = 0;
+  let churchAttempts = 0;
+  AudioMock.reset();
+  AudioMock.clearSrcOnRemoveAttribute = true;
+  // 模拟 Chromium 在被 autoplay 拒绝或刚开始播放时丢失预设 seek。
+  AudioMock.playHook = (audio) => {
+    if (audio.src.endsWith("Lucifer_standbg0.ogg")) {
+      churchAttempts++;
+      audio.currentTime = 0;
+      return churchAttempts === 1
+        ? Promise.reject(new Error("autoplay blocked"))
+        : Promise.resolve();
     }
-    /** @return {Promise<void>} 播放或自动播放拒绝结果。 */
-    play(): Promise<void> {
-      this.playCount++;
-      if (this.src.endsWith("Lucifer_standbg0.ogg")) {
-        AudioMock.churchAttempts++;
-        // 模拟 Chromium 在被 autoplay 拒绝或刚开始播放时丢失预设 seek。
-        this.currentTime = 0;
-        if (AudioMock.churchAttempts === 1) {
-          return Promise.reject(new Error("autoplay blocked"));
-        }
-        return Promise.resolve();
-      }
-      if (
-        this.src.endsWith("Lucifer_Bell0.ogg") &&
-        AudioMock.bellAttempts++ === 0
-      ) {
-        return Promise.reject(new Error("autoplay blocked"));
-      }
-      return Promise.resolve();
+    if (audio.src.endsWith("Lucifer_Bell0.ogg") && bellAttempts++ === 0) {
+      return Promise.reject(new Error("autoplay blocked"));
     }
-    /** 暂停音频。 */
-    pause(): void {
-      this.pauseCount++;
-    }
-    /** @param {string} _name 属性名。 @param {string} _value 属性值。 */
-    setAttribute(_name: string, _value: string): void {}
-    /** @param {string} name 属性名。 */
-    removeAttribute(name: string): void {
-      if (name === "src") this.src = "";
-    }
-    /** 释放音频。 */
-    load(): void {}
-    /** 测试不触发自然 ended。 */
-    addEventListener(): void {}
-  }
+    return undefined;
+  };
   const harness = createInteractiveDocument();
   const values = new Map<string, string>([[
     "white-night",
@@ -1318,15 +1099,16 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
       storageKey: "white-night",
       storages: () => [storage],
     }) as { finish: () => void; restore: () => boolean };
-    assertEquals(event.restore(), true);
+    assertStrictEquals(event.restore(), true);
     await Promise.resolve();
     await Promise.resolve();
-    assertEquals(
+    assert(
       harness.body.children.some((node) =>
         node.className === "lobotomy-corp-white-night-entity" &&
-        node.children[0]?.src.endsWith("WhiteNight_Escape_Idle.webm")
+        node.children.some((child) =>
+          child.src.endsWith("WhiteNight_Escape_Idle.webm")
+        )
       ),
-      true,
     );
     assertEquals(
       harness.body.children.some((node) =>
@@ -1348,7 +1130,7 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
       26.5,
     );
 
-    harness.dispatch("pointerdown", new InteractiveNode());
+    harness.dispatch("pointerdown", new Element());
     await Promise.resolve();
     await Promise.resolve();
     assertEquals(church.playCount, 2);
@@ -1378,6 +1160,6 @@ Deno.test("WhiteNight refresh message is deliberately layered above the Trumpet 
   const messageRule =
     css.match(/\.lobotomy-corp-white-night-message\s*\{[^}]*\}/s)
       ?.[0] ?? "";
-  assertEquals(/z-index:\s*10010;/.test(messageRule), true);
-  assertEquals(/pointer-events:\s*none;/.test(messageRule), true);
+  assert(/z-index:\s*10010;/.test(messageRule));
+  assert(/pointer-events:\s*none;/.test(messageRule));
 });

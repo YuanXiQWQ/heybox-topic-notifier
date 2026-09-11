@@ -12,6 +12,7 @@ import {
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { renderSettings } from "./settings.ts";
+import { assertEquals } from "../test_helpers.ts";
 
 /**
  * 视图测试使用的固定 CSRF 令牌。
@@ -1105,21 +1106,6 @@ function settings(): AppSettings {
     themeColor: "#bd7fff",
     topics: [],
   };
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
 }
 
 /**

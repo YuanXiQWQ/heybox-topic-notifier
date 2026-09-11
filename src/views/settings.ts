@@ -61,7 +61,7 @@ const securitySettingsFormId = "security-settings-form";
 /**
  * 《逆转裁判》入口与事件脚本的联合版本。
  *
- * 两份脚本共享初始化约定，必须同时更新，避免浏览器混用旧事件脚本与新入口。
+ * 两份脚本共享同一套初始化约定，版本号同时标识它们，避免浏览器混用旧事件脚本与新入口。
  */
 const aceAttorneyEasterEggScriptVersion = "20260907-inline-data-v2";
 

@@ -13,7 +13,7 @@ import {
   verifyEncryptedTotpCode,
   verifyTotpCode,
 } from "./totp.ts";
-import { assertEquals, assertRejects } from "../test_helpers.ts";
+import { assert, assertEquals, assertRejects } from "../test_helpers.ts";
 
 Deno.test("base32 helpers encode and decode RFC 4648 vectors without padding", () => {
   const vectors = [
@@ -110,7 +110,7 @@ Deno.test("TOTP secret encryption round-trips and supports encrypted verificatio
     new Date("2026-08-01T00:00:00.000Z"),
   );
 
-  assertEquals(encrypted.startsWith("v1."), true);
+  assert(encrypted.startsWith("v1."));
   assertEquals(decrypted, secret);
   assertEquals(
     await verifyEncryptedTotpCode(

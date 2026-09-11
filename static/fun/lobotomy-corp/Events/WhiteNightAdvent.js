@@ -4,6 +4,7 @@
  * 数据来自 Resources/prefabs/uicomponent/AdventClockUI.prefab；本模块不读取、
  * 不保存使徒名单，也不接入白夜状态机。
  */
+// @ts-check
 
 import {
   lobotomyCorpCanvasScaleForViewport,
@@ -35,7 +36,7 @@ export const whiteNightSimpleAdventClockRect = Object.freeze({
   width: 819,
 });
 
-/** Name 父对象的 RectTransform；其偏移必须先于每个 Names[] 子项应用。 */
+/** Name 父对象的 RectTransform；其偏移在每个 Names[] 子项之前应用。 */
 export const whiteNightSimpleAdventNameParentRect = Object.freeze({
   anchorMax: Object.freeze({ x: 0.5, y: 0.5 }),
   anchorMin: Object.freeze({ x: 0.5, y: 0.5 }),
@@ -127,6 +128,11 @@ export const whiteNightSimpleAdventNameSlots = Object.freeze([
   })
 ));
 
+/**
+ * 当前页面上的 Simple Advent 控制器。
+ *
+ * @type {ReturnType<typeof createWhiteNightSimpleAdvent>|undefined}
+ */
 let activeSimpleAdvent;
 
 /**
@@ -202,10 +208,12 @@ export function whiteNightSimpleAdventClockViewportBounds(
   height,
   scale,
 ) {
-  const appliedScale = Number.isFinite(scale) ? scale : Math.min(
-    lobotomyCorpCanvasScaleForViewport(width, height),
-    whiteNightSimpleAdventClockFitScaleForViewport(width, height),
-  );
+  const appliedScale = typeof scale === "number" && Number.isFinite(scale)
+    ? scale
+    : Math.min(
+      lobotomyCorpCanvasScaleForViewport(width, height),
+      whiteNightSimpleAdventClockFitScaleForViewport(width, height),
+    );
   const halfWidth = whiteNightSimpleAdventClockRect.width / 2 * appliedScale;
   return {
     bottom: height / 2 +
@@ -233,7 +241,7 @@ export function whiteNightSimpleAdventPresentationForViewport(
   height,
   canvasScaleForViewport = lobotomyCorpCanvasScaleForViewport,
 ) {
-  // Clock 必须完整可见；该上限只作用于 1920×1080 逻辑画布，Fullscreen Shader 不受影响。
+  // Clock 保持完整可见；该上限只作用于 1920×1080 逻辑画布，Fullscreen Shader 不受影响。
   const scale = Math.min(
     canvasScaleForViewport(width, height),
     whiteNightSimpleAdventClockFitScaleForViewport(width, height),
@@ -251,10 +259,10 @@ export function whiteNightSimpleAdventPresentationForViewport(
 /**
  * 创建 Prefab 中的 Image 对应节点。
  *
- * @param {Document} document 当前文档。
+ * @param {any} document 当前文档。
  * @param {string} className 图层类名。
  * @param {string} source 图片地址。
- * @return {HTMLImageElement} 图层图片。
+ * @return {any} 图层图片。
  */
 function createSprite(document, className, source) {
   const image = document.createElement("img");
@@ -268,9 +276,9 @@ function createSprite(document, className, source) {
 /**
  * 使用真实 DOM 尺寸判断当前 Legacy Text 字号是否可放进其 RectTransform。
  *
- * @param {HTMLElement} name 名字 Text 节点。
+ * @param {any} name 名字 Text 节点。
  * @param {number} fontSize 待测字号。
- * @param {((name: HTMLElement, fontSize: number) => boolean)|undefined} measureName 测试或宿主提供的测量器。
+ * @param {((name: any, fontSize: number) => boolean)|undefined} measureName 测试或宿主提供的测量器。
  * @return {boolean} 该字号完全容纳时返回 true。
  */
 function fitsName(name, fontSize, measureName) {
@@ -290,9 +298,9 @@ function fitsName(name, fontSize, measureName) {
 /**
  * 按 Unity Legacy Text Best Fit 的整数档位寻找最大可容纳字号。
  *
- * @param {HTMLElement} name 名字 Text 节点。
+ * @param {any} name 名字 Text 节点。
  * @param {number} minimum 原 prefab 指定的最小字号。
- * @param {((name: HTMLElement, fontSize: number) => boolean)|undefined} measureName 测试或宿主提供的测量器。
+ * @param {((name: any, fontSize: number) => boolean)|undefined} measureName 测试或宿主提供的测量器。
  * @return {number} 实际应用的逻辑字号。
  */
 export function fitWhiteNightSimpleAdventName(name, minimum, measureName) {
@@ -317,16 +325,59 @@ export function fitWhiteNightSimpleAdventName(name, minimum, measureName) {
 }
 
 /**
+ * Simple Advent 使用的 viewport 尺寸。
+ *
+ * @typedef {{height: number, width: number}} WhiteNightSimpleAdventViewport
+ */
+
+/**
+ * 本模块从宿主全局读取的能力。
+ *
+ * 结构类型而非 `Window`：文件在无 DOM 类型的环境中同样需要被检查。
+ *
+ * @typedef {object} WhiteNightSimpleAdventHost
+ * @property {((type: string, listener: () => void) => void)} [addEventListener] 监听事件。
+ * @property {((type: string, listener: () => void) => void)} [removeEventListener] 取消监听。
+ * @property {any} [document] 宿主 document。
+ * @property {any} [requestAnimationFrame] 申请动画帧。
+ * @property {any} [cancelAnimationFrame] 取消动画帧。
+ * @property {{now?: () => number}} [performance] 高精度计时器。
+ * @property {{addEventListener?: (type: string, listener: () => void) => void, removeEventListener?: (type: string, listener: () => void) => void}|null} [visualViewport] 浏览器 VisualViewport。
+ */
+
+/**
+ * 创建 Simple Advent 页面所需的展示与媒体钩子。
+ *
+ * @typedef {object} WhiteNightSimpleAdventOptions
+ * @property {string} assetRoot 资源根路径。
+ * @property {(width: number, height: number) => number} [canvasScaleForViewport] CanvasScaler 缩放函数。
+ * @property {(previous: WhiteNightSimpleAdventViewport|undefined, next: WhiteNightSimpleAdventViewport) => WhiteNightSimpleAdventViewport} [canvasViewportForUpdate] 稳定 viewport 选择函数。
+ * @property {(id: number) => void} [cancelFrame] 取消动画帧。
+ * @property {any} [document] 宿主 document（DOM 句柄按宿主环境提供的形状使用）。
+ * @property {number} [initialElapsedMs] 刷新恢复时的已播放时长。
+ * @property {(name: any, fontSize: number) => boolean} [measureName] 名字文本量度。
+ * @property {string[]} [names] 使徒名单。
+ * @property {() => number} [now] 当前时间来源。
+ * @property {() => void} [onAdventEnd] 4 秒逻辑边界回调。
+ * @property {() => void} [onComplete] onHidden 的兼容别名。
+ * @property {() => void} [onHidden] Hide_21 结束回调。
+ * @property {() => void} [playBell] 进入钟声回调。
+ * @property {(callback: any) => number} [requestFrame] 申请动画帧。
+ * @property {() => WhiteNightSimpleAdventViewport} [viewport] 实时 viewport 来源。
+ */
+
+/**
  * 创建白夜后续出逃的 Simple Advent 页面。
  *
  * `onAdventEnd` 对应原作 4 秒的 OnEndAdventEffect，`onHidden` 则在 Hide_21
  * 完成且 DOM 已移除后调用；`onComplete` 保留为 onHidden 的兼容别名。
  *
- * @param {{assetRoot: string, canvasScaleForViewport?: (width: number, height: number) => number, canvasViewportForUpdate?: (previous: {height: number, width: number}|undefined, next: {height: number, width: number}) => {height: number, width: number}, cancelFrame?: (id: number) => void, document?: Document, initialElapsedMs?: number, measureName?: (name: HTMLElement, fontSize: number) => boolean, names?: string[], now?: () => number, onAdventEnd?: () => void, onComplete?: () => void, onHidden?: () => void, playBell?: () => void, requestFrame?: (callback: FrameRequestCallback) => number, viewport?: () => {height: number, width: number}} options 展示和媒体钩子。
- * @return {{dispose: () => void, element: HTMLElement, finish: () => void, isAdventEnded: () => boolean, isFinished: () => boolean}} 可取消的展示控制器。
+ * @param {WhiteNightSimpleAdventOptions} options 展示和媒体钩子。
+ * @return {{dispose: () => void, element: any, finish: () => void, isAdventEnded: () => boolean, isFinished: () => boolean}} 可取消的展示控制器。
  */
 export function createWhiteNightSimpleAdvent(options) {
-  const document = options?.document ?? globalThis.document;
+  const host = /** @type {WhiteNightSimpleAdventHost} */ (globalThis);
+  const document = options?.document ?? host.document;
   if (!document?.body || !document.createElement) {
     throw new Error("WhiteNight Simple Advent requires a document body.");
   }
@@ -334,13 +385,13 @@ export function createWhiteNightSimpleAdvent(options) {
 
   const assetRoot = options.assetRoot.replace(/\/$/, "");
   const now = options.now ??
-    (() => globalThis.performance?.now?.() ?? Date.now());
+    (() => host.performance?.now?.() ?? Date.now());
   const requestFrame = options.requestFrame ??
     ((callback) =>
-      globalThis.requestAnimationFrame?.(callback) ??
+      host.requestAnimationFrame?.(callback) ??
         setTimeout(() => callback(now()), 16));
   const cancelFrame = options.cancelFrame ??
-    ((id) => globalThis.cancelAnimationFrame?.(id) ?? clearTimeout(id));
+    ((id) => host.cancelAnimationFrame?.(id) ?? clearTimeout(id));
   const viewport = options.viewport ?? (() => lobotomyCorpViewportSize());
   const canvasScaleForViewport = options.canvasScaleForViewport ??
     lobotomyCorpCanvasScaleForViewport;
@@ -353,16 +404,23 @@ export function createWhiteNightSimpleAdvent(options) {
   const clock = document.createElement("div");
   const namesLayer = document.createElement("div");
   const shader = document.createElement("div");
+  /** @type {Array<{element: any, slot: {anchoredPosition: {x: number, y: number}, index: number, minSize: number, rotation: number}}>} */
   const nameNodes = [];
   const names = Array.isArray(options.names) ? options.names : [];
+  /** @type {number|undefined} */
   let animationFrame;
   let adventEnded = false;
   let completed = false;
   let endingStartedAt = 0;
+  /** @type {WhiteNightSimpleAdventViewport|undefined} */
   let stableViewport;
   // 刷新恢复时沿用已播放时长，避免把完整的四秒演出从头再播一次。
+  const requestedElapsedMs = typeof options.initialElapsedMs === "number" &&
+      Number.isFinite(options.initialElapsedMs)
+    ? options.initialElapsedMs
+    : 0;
   const initialElapsedMs = clamp(
-    Number.isFinite(options.initialElapsedMs) ? options.initialElapsedMs : 0,
+    requestedElapsedMs,
     0,
     whiteNightSimpleAdventDurationMs,
   );
@@ -440,7 +498,7 @@ export function createWhiteNightSimpleAdvent(options) {
    * 更新 Unity 逻辑坐标空间的缩放比例。
    *
    * base scale 仍沿用项目共用 CanvasScaler 与稳定 viewport（忽略仅浏览器 chrome
-   * 导致的高度抖动）；但「Clock 必须完整落在当前可见画面内」优先级更高，因此
+   * 导致的高度抖动）；但「Clock 完整落在当前可见画面内」优先级更高，因此
    * Clock fit 上限使用本次实时 viewport。Fullscreen Shader 不经过这里。
    */
   const updateCanvasScale = () => {
@@ -464,7 +522,7 @@ export function createWhiteNightSimpleAdvent(options) {
     nameNodes.forEach(({ element, slot }) =>
       fitWhiteNightSimpleAdventName(element, slot.minSize, options.measureName)
     );
-  const resizeTarget = globalThis.visualViewport ?? globalThis;
+  const resizeTarget = host.visualViewport ?? host;
   resizeTarget?.addEventListener?.("resize", updateCanvasScale);
   updateCanvasScale();
   fitNames();
@@ -472,7 +530,11 @@ export function createWhiteNightSimpleAdvent(options) {
     if (!completed) fitNames();
   });
 
-  /** 在原作 4 秒逻辑边界启动 Hide_21，并立即通知上层。 */
+  /**
+   * 在原作 4 秒逻辑边界启动 Hide_21，并立即通知上层。
+   *
+   * @param {number} timestamp 逻辑边界时间戳。
+   */
   const beginAdventEnd = (timestamp) => {
     if (adventEnded) return;
     adventEnded = true;

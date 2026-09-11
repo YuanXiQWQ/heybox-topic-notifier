@@ -9,6 +9,7 @@ import {
 } from "./migrate_kv_to_turso.ts";
 import type { TursoStorage } from "./turso.ts";
 import type { UserStorage } from "./types.ts";
+import { assertEquals } from "../test_helpers.ts";
 
 Deno.test("KV backfill requires an explicit source connection URL", () => {
   let error: unknown;
@@ -168,18 +169,6 @@ function session(tokenHash: string, expiresAt: string): UserSession {
     userId: "alice-id",
     username: "alice",
   };
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param {unknown} actual 实际值。
- * @param {unknown} expected 期望值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error("Values are not equal.");
-  }
 }
 
 /**
