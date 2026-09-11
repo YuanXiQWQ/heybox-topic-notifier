@@ -216,7 +216,7 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-white-night">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260912-plague-doctor-3">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
@@ -224,7 +224,7 @@ export function renderLayout(options: {
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
     ${renderLobotomyCorpAccountIdentityData(options.account)}
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260909-white-night-events"></script>
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260912-plague-doctor-3"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>

@@ -67,6 +67,31 @@ Deno.test({
 
 Deno.test({
   name:
+    "Plague Doctor module and its tick sound are served to the browser",
+  permissions: { read: true },
+  fn: async () => {
+    const moduleResponse = await lobotomyCorpAssetResponse(
+      "Events/PlagueDoctor.js",
+    );
+    assertEquals(moduleResponse.status, 200);
+    assertEquals(
+      moduleResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assertEquals(
+      (await moduleResponse.text()).includes("createPlagueDoctorEvent"),
+      true,
+    );
+    const soundResponse = await lobotomyCorpAssetResponse(
+      "Assets/Resources/sounds/creature/deathangel/Lucifer_Tick1.ogg",
+    );
+    assertEquals(soundResponse.status, 200);
+    assertEquals(soundResponse.headers.get("content-type"), "audio/ogg");
+  },
+});
+
+Deno.test({
+  name:
     "Lobotomy Corporation OGG assets support normal and byte-range responses",
   permissions: { read: true },
   fn: async () => {

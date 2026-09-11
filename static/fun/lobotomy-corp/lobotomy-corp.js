@@ -27,6 +27,10 @@ import {
   dontTouchMeKillEffect,
   dontTouchMePanicEffect,
 } from './Events/DontTouchMe.js';
+import {
+  createPlagueDoctorEvent,
+  plagueDoctorAbnormalityId,
+} from './Events/PlagueDoctor.js';
 
 /**
  * 白夜被镇压后，后台 Trumpet 从 ducked 音量恢复到正常音量所需时长（毫秒）。
@@ -1255,6 +1259,7 @@ function stopLobotomyCorpAlert() {
  */
 function restartLobotomyCorpDay() {
   lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
+  lobotomyCorpPlagueDoctorEvent?.reset();
   return stopLobotomyCorpAlert();
 }
 
@@ -1423,6 +1428,67 @@ function syncLobotomyCorpAbnormalityIdentity(displayName) {
 }
 
 /**
+ * 用后台请求把账户的显示名称保存为新的值。
+ *
+ * 复用设置页账户表单的字段与 CSRF 令牌，但不触发整页导航，避免打断正在进行的
+ * 脑叶公司演出。环境缺少表单或 `fetch` 时安全返回 false。
+ *
+ * @param {string} value 要保存的显示名称。
+ * @return {Promise<boolean>} 服务端确认保存成功时返回 true。
+ */
+async function saveLobotomyCorpDisplayNameInBackground(value) {
+  const document = globalThis.document;
+  const form = document?.querySelector?.('[data-account-form]');
+  if (
+    typeof value !== 'string' || value.length === 0 || !form ||
+    typeof globalThis.fetch !== 'function' ||
+    typeof globalThis.FormData !== 'function'
+  ) {
+    return false;
+  }
+  try {
+    const body = new FormData(form);
+    body.set('accountAction', 'displayName');
+    body.set('displayName', value);
+    const token = form.querySelector?.('[name="csrfToken"]')?.value;
+    const response = await fetch(
+        form.getAttribute?.('action') ?? form.action ?? '',
+        {
+          body,
+          headers: {'x-csrf-token': String(token ?? '')},
+          method: form.method || 'post',
+        },
+    );
+    const responseUrl = new URL(
+        response.url,
+        globalThis.location?.href ?? 'http://localhost/',
+    );
+    return response.ok && responseUrl.searchParams.get('account') === 'updated';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 把显示名称改写为新的值并同步可见的身份表现。
+ *
+ * 疫医转变白夜时按原作把显示名称变成 `T-03-46`：先更新输入框与“显示名称”
+ * 标签，再请求服务端保存。
+ *
+ * @param {string} value 要写入的显示名称。
+ */
+function applyLobotomyCorpDisplayName(value) {
+  const document = globalThis.document;
+  const input = document?.querySelector?.('[data-account-display-name-input]');
+  if (input) {
+    input.value = value;
+    if (input.dataset) input.dataset.accountDisplayNameOriginal = value;
+  }
+  syncLobotomyCorpAbnormalityIdentity(value);
+  void saveLobotomyCorpDisplayNameInBackground(value);
+}
+
+/**
  * 通知所有观察者一次已确认的 canonical 异想体提交。
  *
  * @param {string} canonicalId 异想体 canonical 编号。
@@ -1583,6 +1649,15 @@ function commitLobotomyCorpDisplayName(value, preparedMedia) {
       lobotomyCorpWhiteNightEvent.matchesConfession(value)
   ) {
     return lobotomyCorpWhiteNightEvent.confess(preparedMedia);
+  }
+  // 疫医转变事件在记录期间接管显示名称提交：只绑定使徒或触发转变，
+  // 不产生普通异想体危急值，也不激活其它特殊事件。
+  if (
+    !lobotomyCorpWhiteNightEvent?.isActive() &&
+    lobotomyCorpPlagueDoctorEvent?.claim(value)
+  ) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
   }
   return matchingLobotomyCorpAbnormality(value)
       ? handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia)
@@ -3309,6 +3384,8 @@ const lobotomyCorpDontTouchMeShutdown = createDontTouchMeShutdown({
  */
 function lobotomyCorpBlocksDisplayNameSave(value) {
   if (lobotomyCorpWhiteNightEvent.isActive()) return false;
+  // 疫医记录期间由转变事件接管显示名称：别碰我不在此时抢走保存。
+  if (lobotomyCorpPlagueDoctorEvent?.isRecording()) return false;
   return matchingLobotomyCorpAbnormality(value)?.canonicalId ===
       lobotomyCorpDontTouchMeId;
 }
@@ -3360,6 +3437,29 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   storages: lobotomyCorpAlertStorages,
 });
 
+// 疫医转变事件：会话内记录 12 名使徒，第 12 名后播放完整降临并转入白夜。
+const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
+  abnormalityName: (value) => {
+    const match = matchingLobotomyCorpAbnormality(value);
+    return match ? lobotomyCorpAbnormalityName(match.abnormality) : undefined;
+  },
+  applyDisplayName: applyLobotomyCorpDisplayName,
+  assetRoot: lobotomyCorpAssetRoot,
+  messages: () => lobotomyCorpMessages,
+  onTransformation: () => {
+    lobotomyCorpWhiteNightEvent?.start({
+      source: 'plague-doctor-transformation',
+    });
+  },
+  settleDanger: (amount) => {
+    void setLobotomyCorpDangerScore(
+        clampDangerScore(lobotomyCorpDangerScore + amount),
+        undefined,
+        {positiveContribution: true},
+    );
+  },
+});
+
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
   blocksDisplayNameSave: lobotomyCorpBlocksDisplayNameSave,
@@ -3377,13 +3477,17 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
       matchesLobotomyCorpAlert(value) ||
       Boolean(matchingLobotomyCorpAbnormality(value)) ||
       (lobotomyCorpWhiteNightEvent.isActive() &&
-          lobotomyCorpWhiteNightEvent.matchesConfession(value)),
+          lobotomyCorpWhiteNightEvent.matchesConfession(value)) ||
+      lobotomyCorpPlagueDoctorEvent.isRecording(),
   matchingAbnormality: matchingLobotomyCorpAbnormality,
   onAbnormalitySubmitted: (listener) => {
     lobotomyCorpAbnormalitySubmissionListeners.add(listener);
     return () => lobotomyCorpAbnormalitySubmissionListeners.delete(listener);
   },
   playDontTouchMe: playLobotomyCorpDontTouchMe,
+  plagueDoctorApostles: () => lobotomyCorpPlagueDoctorEvent.apostleNames(),
+  plagueDoctorAbnormalityId,
+  plagueDoctorRecording: () => lobotomyCorpPlagueDoctorEvent.isRecording(),
   prepareDisplayName: prepareLobotomyCorpDisplayName,
   restartDay: restartLobotomyCorpDay,
   setDangerScore: setLobotomyCorpDangerScore,

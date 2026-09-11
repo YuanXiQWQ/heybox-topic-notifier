@@ -274,6 +274,204 @@
   width: 100%;
 }
 
+/* AdventClockUI.prefab：疫医使徒绑定与完整降临共用的圆盘；几何由模块写入行内样式。 */
+@font-face{
+  font-display: block;
+  font-family: LobotomyAdventDesc;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/NanumMyeongjo.ttf") format("truetype");
+}
+
+.lobotomy-corp-plague-doctor-advent{
+  --lobotomy-corp-advent-root-alpha: 0;
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10002;
+}
+
+.lobotomy-corp-plague-doctor-advent-canvas{
+  --lobotomy-corp-advent-canvas-scale: 1;
+  flex-shrink: 0;
+  height: 1080px;
+  opacity: var(--lobotomy-corp-advent-root-alpha);
+  pointer-events: none;
+  position: relative;
+  transform: scale(var(--lobotomy-corp-advent-canvas-scale));
+  transform-origin: center;
+  width: 1920px;
+}
+
+.lobotomy-corp-plague-doctor-advent-add-apostle{
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Shader 节点自身就是铺满 1920×1080 的 GlobalShader。 */
+/* Shader 图层由脚本按 viewport / canvasScale 放大，铺满整个页面。 */
+.lobotomy-corp-plague-doctor-advent-shader{
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.lobotomy-corp-plague-doctor-advent-clock{
+  --lobotomy-corp-advent-clock-alpha: 1;
+  opacity: var(--lobotomy-corp-advent-clock-alpha);
+  pointer-events: none;
+  position: absolute;
+}
+
+.lobotomy-corp-plague-doctor-advent-frame{
+  height: 100%;
+  inset: 0;
+  /* ClockFrame Image.m_PreserveAspect = true（508×512 in 819×819）。 */
+  object-fit: contain;
+  opacity: .8;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+/* Point：Clock 正中心的指针枢轴；Arrow 以底边中心为枢轴向上伸出 216。 */
+.lobotomy-corp-plague-doctor-advent-point{
+  --lobotomy-corp-advent-arrow-angle: 0deg;
+  --lobotomy-corp-advent-layer-alpha: 1;
+  height: 18px;
+  left: 50%;
+  opacity: var(--lobotomy-corp-advent-layer-alpha);
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(var(--lobotomy-corp-advent-arrow-angle));
+  transform-origin: center;
+  width: 18px;
+}
+
+.lobotomy-corp-plague-doctor-advent-arrow{
+  height: var(--lobotomy-corp-advent-arrow-height);
+  left: 50%;
+  object-fit: contain;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(
+  calc(-50% + var(--lobotomy-corp-advent-arrow-offset-x)),
+  calc(-100% + var(--lobotomy-corp-advent-arrow-offset-y)));
+  transform-origin: center bottom;
+  width: var(--lobotomy-corp-advent-arrow-width);
+}
+
+.lobotomy-corp-plague-doctor-advent-names{
+  height: 0;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: calc(50% + var(--lobotomy-corp-advent-name-parent-y));
+  width: 0;
+}
+
+.lobotomy-corp-plague-doctor-advent-name{
+  --lobotomy-corp-advent-name-alpha: 0;
+  --lobotomy-corp-advent-name-color: rgb(255 255 255);
+  align-items: center;
+  color: var(--lobotomy-corp-advent-name-color);
+  display: flex;
+  font-family: LobotomyAdventNames, "Malgun Gothic", sans-serif;
+  font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
+  font-weight: normal;
+  height: 48px;
+  justify-content: center;
+  left: var(--lobotomy-corp-advent-name-x);
+  line-height: normal;
+  opacity: var(--lobotomy-corp-advent-name-alpha);
+  overflow: hidden;
+  overflow-wrap: normal;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  text-overflow: clip;
+  text-shadow: 1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
+  -1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
+  1px 1px rgb(69.375004 0.510111 0.510111 / 50%),
+  -1px 1px rgb(69.375004 0.510111 0.510111 / 50%);
+  top: var(--lobotomy-corp-advent-name-y);
+  transform: translate(-50%, -50%) rotate(var(--lobotomy-corp-advent-name-rotation));
+  transform-origin: center;
+  white-space: normal;
+  width: 114px;
+}
+
+/* ApostleDesc：1600×180、NanumMyeongjo、MiddleCenter + Best Fit(20~50)。 */
+.lobotomy-corp-plague-doctor-advent-desc{
+  --lobotomy-corp-advent-desc-alpha: 0;
+  --lobotomy-corp-advent-desc-font-size: 25px;
+  align-items: center;
+  color: rgb(255 255 255);
+  display: flex;
+  font-family: LobotomyAdventDesc, "Nanum Myeongjo", serif;
+  font-size: var(--lobotomy-corp-advent-desc-font-size);
+  justify-content: center;
+  line-height: 1.2;
+  opacity: var(--lobotomy-corp-advent-desc-alpha);
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  white-space: pre-line;
+}
+
+/* BlackShader 与 Circle 属于 `_adventDisabled` 一侧：绑定阶段显示 Circle，降临显示黑幕。 */
+.lobotomy-corp-plague-doctor-advent-black-shader{
+  --lobotomy-corp-advent-layer-alpha: 0;
+  height: 1188px;
+  left: 50%;
+  object-fit: fill;
+  opacity: var(--lobotomy-corp-advent-layer-alpha);
+  pointer-events: none;
+  position: absolute;
+  top: calc(50% - 30px);
+  transform: translate(-50%, -50%);
+  width: 2112px;
+}
+
+.lobotomy-corp-plague-doctor-advent-clock-shader{
+  height: 100%;
+  left: 0;
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.lobotomy-corp-plague-doctor-advent-circle{
+  --lobotomy-corp-advent-layer-alpha: 1;
+  background-repeat: no-repeat;
+  opacity: var(--lobotomy-corp-advent-layer-alpha);
+  pointer-events: none;
+  position: absolute;
+  transform-origin: center;
+}
+
+.lobotomy-corp-plague-doctor-advent-lower-shader{
+  height: 27.111111%;
+  left: 0;
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  top: 74%;
+  width: 100%;
+}
+
 /* Confess ParticleSystem：Box Shape、4/s emission、5s lifetime 与 Stretch Billboard 均取自 prefab。 */
 .lobotomy-corp-white-night-confess-particles{
   inset: 0;
