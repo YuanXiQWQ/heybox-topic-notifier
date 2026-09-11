@@ -1,7 +1,7 @@
 /**
  * @file 本文件验证 Cloudflare Turnstile 服务端校验能力。
  */
-import { assertEquals } from "../test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "../test_helpers.ts";
 import { turnstileConfigFromEnv, verifyTurnstileToken } from "./turnstile.ts";
 
 Deno.test("turnstileConfigFromEnv reads disabled configuration by default", () => {
@@ -44,7 +44,7 @@ Deno.test("verifyTurnstileToken skips verification when disabled", async () => {
   });
 
   assertEquals(result, { skipped: true, success: true });
-  assertEquals(called, false);
+  assertStrictEquals(called, false);
 });
 
 Deno.test("verifyTurnstileToken rejects missing configuration and token", async () => {
@@ -89,9 +89,9 @@ Deno.test("verifyTurnstileToken posts siteverify payload", async () => {
 
   assertEquals(result, { success: true });
   assertEquals(requestUrl, "https://turnstile.example.test/siteverify");
-  assertEquals(requestBody.includes("secret=secret-key"), true);
-  assertEquals(requestBody.includes("response=response-token"), true);
-  assertEquals(requestBody.includes("remoteip=203.0.113.10"), true);
+  assert(requestBody.includes("secret=secret-key"));
+  assert(requestBody.includes("response=response-token"));
+  assert(requestBody.includes("remoteip=203.0.113.10"));
 });
 
 Deno.test("verifyTurnstileToken returns siteverify failure codes", async () => {

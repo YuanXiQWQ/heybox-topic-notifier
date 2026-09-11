@@ -1,0 +1,1286 @@
+{
+  "0-00-00": {
+    "riskLevel": "TETH",
+    "canBreach": true,
+    "aliases": [
+      "O-00-00"
+    ],
+    "names": {
+      "en-US": "Standard Training-Dummy Rabbit",
+      "zh-CN": "教学兔兔「Dummy」",
+      "zh-TW": "基礎訓練用模型兔子",
+      "ja-JP": "教育用 ウサギロボ",
+      "ko-KR": "교육용 오뚜기 토끼",
+      "ru-RU": "Заяц-неваляшка для обучающего режима",
+      "es-ES": "Conejo de Entrenamiento Estandar",
+      "bg-BG": "Стандартен заешки манекен",
+      "vi-VN": "교육용 오뚜기 토끼"
+    }
+  },
+  "Bald-is-awesome!": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "aliases": [
+      "秃头-真是-太棒啦！",
+      "光頭超棒!",
+      "ものすごいハゲ！",
+      "Лысина-это-круто!"
+    ],
+    "names": {
+      "en-US": "You’re Bald…",
+      "zh-CN": "你是个秃子...",
+      "zh-TW": "你禿了…",
+      "ja-JP": "お前、ハゲだよ…",
+      "ko-KR": "너 대머리야...",
+      "ru-RU": "Ты лысый…",
+      "es-ES": "Eres calvo…",
+      "bg-BG": "Ти си плешив...",
+      "vi-VN": "You’re Bald…"
+    }
+  },
+  "D-01-105": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "Il Pianto della Luna",
+      "zh-CN": "月光女神",
+      "zh-TW": "Il Pianto della Luna",
+      "ja-JP": "ラ・ルナ",
+      "ko-KR": "달의 울음",
+      "ru-RU": "Девушка на Луне",
+      "es-ES": "La Luna",
+      "bg-BG": "La Luna",
+      "vi-VN": "Il Pianto della Luna"
+    }
+  },
+  "D-01-106": {
+    "riskLevel": "ZAYIN",
+    "canBreach": true,
+    "names": {
+      "en-US": "Army in Black",
+      "zh-CN": "深黯「军团」",
+      "zh-TW": "Army in Black",
+      "ja-JP": "黒の兵隊",
+      "ko-KR": "검은 군단",
+      "ru-RU": "Армия в чёрном",
+      "es-ES": "Ejército Negro",
+      "bg-BG": "Армия в черно",
+      "vi-VN": "Army in Black"
+    }
+  },
+  "D-01-110": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Clouded Monk",
+      "zh-CN": "风云法师",
+      "zh-TW": "Clouded Monk",
+      "ja-JP": "風雲僧",
+      "ko-KR": "풍운승려",
+      "ru-RU": "Странствующий монах",
+      "es-ES": "Monje Heroico",
+      "bg-BG": "Героичен монах",
+      "vi-VN": "Clouded Monk"
+    }
+  },
+  "D-02-107": {
+    "riskLevel": "TETH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Ppodae",
+      "zh-CN": "波迪",
+      "zh-TW": "Ppodae",
+      "ja-JP": "キュートちゃん",
+      "ko-KR": "뽀대",
+      "ru-RU": "Пеподай",
+      "es-ES": "Ppodae",
+      "bg-BG": "Ppodae",
+      "vi-VN": "Ppodae"
+    }
+  },
+  "D-03-109": {
+    "riskLevel": "ALEPH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Melting Love",
+      "zh-CN": "溶解之爱",
+      "zh-TW": "溶解之愛",
+      "ja-JP": "溶ける愛",
+      "ko-KR": "녹아내리는 사랑",
+      "ru-RU": "Растаявшая любовь",
+      "es-ES": "Derretimiento de Amor",
+      "bg-BG": "Топяща се любов",
+      "vi-VN": "Melting Love"
+    }
+  },
+  "D-04-108": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "Parasite Tree",
+      "zh-CN": "寄生树",
+      "zh-TW": "Parasite Tree",
+      "ja-JP": "寄生樹",
+      "ko-KR": "기생수",
+      "ru-RU": "Дерево-паразит",
+      "es-ES": "Árbol Parasitario",
+      "bg-BG": "Дърво паразит",
+      "vi-VN": "Parasite Tree"
+    }
+  },
+  "D-09-104": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "Backward Clock",
+      "zh-CN": "回溯之钟",
+      "zh-TW": "倒轉之鐘",
+      "ja-JP": "逆行時計",
+      "ko-KR": "거꾸로 가는 시계",
+      "ru-RU": "Часы обратного хода",
+      "es-ES": "Reloj Hacia Atrás",
+      "bg-BG": "Часовник, движещ се назад",
+      "vi-VN": "Backward Clock"
+    }
+  },
+  "F-01-02": {
+    "riskLevel": "TETH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Scorched Girl",
+      "zh-CN": "焦化少女",
+      "zh-TW": "火柴女孩",
+      "ja-JP": "マッチガール",
+      "ko-KR": "불타버린 소녀",
+      "ru-RU": "Девочка со спичкой",
+      "es-ES": "Niña Chamuscada",
+      "bg-BG": "Обгорено Момиче",
+      "vi-VN": "Scorched Girl"
+    }
+  },
+  "F-01-18": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "The Lady Facing the Wall",
+      "zh-CN": "面壁女",
+      "zh-TW": "面壁的女士",
+      "ja-JP": "壁に向かう女",
+      "ko-KR": "벽을 보는 여인",
+      "ru-RU": "Смотрящая на стену",
+      "es-ES": "La mujer ante la pared",
+      "bg-BG": "Гледащата в стената",
+      "vi-VN": "Wall Gazer"
+    }
+  },
+  "F-01-37": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "The Snow Queen",
+      "zh-CN": "冰雪女皇",
+      "zh-TW": "冰雪女王",
+      "ja-JP": "雪の女王",
+      "ko-KR": "눈의 여왕",
+      "ru-RU": "Снежная королева",
+      "es-ES": "La Reina de la Nieve",
+      "bg-BG": "Снежната кралица",
+      "vi-VN": "The Snow Queen"
+    }
+  },
+  "F-01-57": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Little Red Riding Hooded Mercenary",
+      "zh-CN": "小红帽雇佣兵",
+      "zh-TW": "小紅帽雇傭兵",
+      "ja-JP": "赤ずきんの傭兵",
+      "ko-KR": "붉은 두건의 용병",
+      "ru-RU": "Наёмница \"Красный капюшон\"",
+      "es-ES": "La Mercenaria con la Caperucita Roja",
+      "bg-BG": "Малката Червена Шапчица Разбойничка",
+      "vi-VN": "Little Red Riding Hooded Mercenary"
+    }
+  },
+  "F-01-69": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Der Freischütz",
+      "zh-CN": "魔弹射手",
+      "zh-TW": "魔彈射手",
+      "ja-JP": "魔弾の射手",
+      "ko-KR": "마탄의 사수",
+      "ru-RU": "Вольный стрелок",
+      "es-ES": "Der Freischütz",
+      "bg-BG": "Вълшебния стрелец",
+      "vi-VN": "Der Freischütz"
+    }
+  },
+  "F-01-87": {
+    "riskLevel": "HE",
+    "canBreach": true,
+    "names": {
+      "en-US": "Scarecrow Searching for Wisdom",
+      "zh-CN": "索求智慧的稻草人",
+      "zh-TW": "尋求智慧的稻草人",
+      "ja-JP": "知恵を欲する案山子",
+      "ko-KR": "지혜를 구하는 허수아비",
+      "ru-RU": "Пугало ищущее мудрость",
+      "es-ES": "Espantapájaros Buscando Sabiduría",
+      "bg-BG": "Плашило търсещо мъдрост",
+      "vi-VN": "Scarecrow Searching for Wisdom"
+    }
+  },
+  "F-02-44": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Beauty and the Beast",
+      "zh-CN": "美女和野兽",
+      "zh-TW": "美女與野獸",
+      "ja-JP": "美女と野獣",
+      "ko-KR": "미녀와 야수",
+      "ru-RU": "Красавица и чудовище",
+      "es-ES": "La Bella y la Bestia",
+      "bg-BG": "Красавицата и Звяра",
+      "vi-VN": "Beauty and the Beast"
+    }
+  },
+  "F-02-49": {
+    "riskLevel": "HE",
+    "canBreach": true,
+    "names": {
+      "en-US": "Rudolta of the Sleigh",
+      "zh-CN": "雪橇鲁道夫",
+      "zh-TW": "魯道塔",
+      "ja-JP": "そりのルドル・タ",
+      "ko-KR": "썰매의 루돌타",
+      "ru-RU": "Рудольф",
+      "es-ES": "Rudolta",
+      "bg-BG": "Рудолта",
+      "vi-VN": "Rudolta"
+    }
+  },
+  "F-02-58": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Big and Will be Bad Wolf",
+      "zh-CN": "又大又可能很坏的狼",
+      "zh-TW": "又大又壞的狼...大概啦",
+      "ja-JP": "大きくて悪いオオカミ",
+      "ko-KR": "커다랗고 나쁠 늑대",
+      "ru-RU": "Большой и может быть злой волк",
+      "es-ES": "El Gran Lobo que puede ser Feroz",
+      "bg-BG": "Голям и Може и да е лош Вълк",
+      "vi-VN": "Big and Might be bad Wolf"
+    }
+  },
+  "F-02-70": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "Dream of a Black Swan",
+      "zh-CN": "黑天鹅之梦",
+      "zh-TW": "黑天鵝的夢",
+      "ja-JP": "黒鳥の夢",
+      "ko-KR": "흑조의 꿈",
+      "ru-RU": "Мечта чёрного лебедя",
+      "es-ES": "El Sueño de un Cisne Negro",
+      "bg-BG": "Мечта за Черен Лебед",
+      "vi-VN": "Dream of a Black Swan"
+    }
+  },
+  "F-04-42": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Snow White's Apple",
+      "zh-CN": "白雪公主的苹果",
+      "zh-TW": "白雪公主的蘋果",
+      "ja-JP": "白雪姫のりんご",
+      "ko-KR": "백설공주의 사과",
+      "ru-RU": "Яблоко Белоснежки",
+      "es-ES": "La Manzana de Blancanieves",
+      "bg-BG": "Ябълката на Снежанка",
+      "vi-VN": "Snow White's Apple"
+    }
+  },
+  "F-04-83": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "Fairy Festival",
+      "zh-CN": "精灵盛宴",
+      "zh-TW": "小精靈的宴會",
+      "ja-JP": "妖精の祭典",
+      "ko-KR": "요정의 축제",
+      "ru-RU": "Фестиваль фей",
+      "es-ES": "Festival de hadas",
+      "bg-BG": "Фестивал на Феите",
+      "vi-VN": "Fairy Festival"
+    }
+  },
+  "F-05-32": {
+    "riskLevel": "HE",
+    "canBreach": true,
+    "names": {
+      "en-US": "Warm-hearted Woodsman",
+      "zh-CN": "热心的樵夫",
+      "zh-TW": "熱心的樵夫",
+      "ja-JP": "暖かい心の木こり",
+      "ko-KR": "따뜻한 마음의 나무꾼",
+      "ru-RU": "Дровосек с добрым сердцем",
+      "es-ES": "Leñador de buen corazón",
+      "bg-BG": "Добросърдечен Лесничей",
+      "vi-VN": "Warm-hearted Woodsman"
+    }
+  },
+  "F-05-52": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "Opened Can of WellCheers",
+      "zh-CN": "韦尔奇乐牌汽水",
+      "zh-TW": "威爾奇爾思易開罐",
+      "ja-JP": "蓋の空いたウェルチアース",
+      "ko-KR": "뚜껑 따인 웰치어스",
+      "ru-RU": "Открытая банка \"Wellcheers\"",
+      "es-ES": "Lata abierta de Wellcheers",
+      "bg-BG": "Отворено кенче от Уелчиърс",
+      "vi-VN": "Opened can of Wellcheers"
+    }
+  },
+  "O-01-04": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "The Queen of Hatred",
+      "zh-CN": "憎恶女王",
+      "zh-TW": "憎恨女王",
+      "ja-JP": "憎しみの女王",
+      "ko-KR": "증오의 여왕",
+      "ru-RU": "Королева ненависти",
+      "es-ES": "La reina del odio",
+      "bg-BG": "Кралицата на омразата",
+      "vi-VN": "The queen of hatred"
+    }
+  },
+  "O-01-12": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Old Lady",
+      "zh-CN": "老妇人",
+      "zh-TW": "老婆婆",
+      "ja-JP": "オールドレディ",
+      "ko-KR": "늙은 여인",
+      "ru-RU": "Старая леди",
+      "es-ES": "Dama Antigua",
+      "bg-BG": "Стара жена",
+      "vi-VN": "Old lady"
+    }
+  },
+  "O-01-15": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Nameless Fetus",
+      "zh-CN": "无名怪婴",
+      "zh-TW": "無名的胎兒",
+      "ja-JP": "無名の胎児",
+      "ko-KR": "이름이 없는 태아",
+      "ru-RU": "Безымянный зародыш",
+      "es-ES": "Feto Sin Nombre",
+      "bg-BG": "Безименен зародиш",
+      "vi-VN": "Nameless Fetus"
+    }
+  },
+  "O-01-45": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "Plague Doctor",
+      "zh-CN": "疫医",
+      "zh-TW": "疫醫",
+      "ja-JP": "ペスト医師",
+      "ko-KR": "역병의사",
+      "ru-RU": "Чумной доктор",
+      "es-ES": "Doctor de la Plaga",
+      "bg-BG": "Чумен Лекар",
+      "vi-VN": "Plague Doctor"
+    }
+  },
+  "O-01-55": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Child of the Galaxy",
+      "zh-CN": "银河之子",
+      "zh-TW": "銀河之子",
+      "ja-JP": "銀河の子",
+      "ko-KR": "은하수의 아이",
+      "ru-RU": "Дитя галактики",
+      "es-ES": "El niño de la galaxia",
+      "bg-BG": "Детето на Вселената",
+      "vi-VN": "The Child of Galaxy"
+    }
+  },
+  "O-01-64": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "The King of Greed",
+      "zh-CN": "贪婪女王",
+      "zh-TW": "貪婪之王",
+      "ja-JP": "貪欲の王",
+      "ko-KR": "탐욕의 왕",
+      "ru-RU": "Король жадности",
+      "es-ES": "El Rey de la Codicia",
+      "bg-BG": "Кралят на Алчността",
+      "vi-VN": "The King of Greed"
+    }
+  },
+  "O-01-67": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Laetitia",
+      "zh-CN": "蕾蒂希娅",
+      "zh-TW": "蕾蒂希雅",
+      "ja-JP": "レティシア",
+      "ko-KR": "래티씨아",
+      "ru-RU": "Летиция",
+      "es-ES": "Laetitia",
+      "bg-BG": "Лаетитиа",
+      "vi-VN": "Laetitia"
+    }
+  },
+  "O-01-73": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "The Knight of Despair",
+      "zh-CN": "绝望骑士",
+      "zh-TW": "絕望騎士",
+      "ja-JP": "絶望の騎士",
+      "ko-KR": "절망의 기사",
+      "ru-RU": "Рыцарь отчаяния",
+      "es-ES": "La caballera de la desesperación",
+      "bg-BG": "Рицарката на Отчаянието",
+      "vi-VN": "The Knight of Despair"
+    }
+  },
+  "O-01-92": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Today’s Shy Look",
+      "zh-CN": "今天也很害羞",
+      "zh-TW": "今天的害羞表情",
+      "ja-JP": "今日は恥ずかしがり屋",
+      "ko-KR": "수줍은 오늘의 표정",
+      "ru-RU": "Сегодня стесняется",
+      "es-ES": "Mirada tímida",
+      "bg-BG": "Срамежлив Поглед Днес",
+      "vi-VN": "Shy Look Today"
+    }
+  },
+  "O-02-101": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "The Firebird",
+      "zh-CN": "炎雀",
+      "zh-TW": "火之鳥",
+      "ja-JP": "火の鳥",
+      "ko-KR": "불새",
+      "ru-RU": "Жар-птица",
+      "es-ES": "Pájaro Ardiente",
+      "bg-BG": "Огнена Птица",
+      "vi-VN": "Fiery Bird"
+    }
+  },
+  "O-02-40": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Big Bird",
+      "zh-CN": "大鸟",
+      "zh-TW": "大鳥",
+      "ja-JP": "大鳥",
+      "ko-KR": "큰 새",
+      "ru-RU": "Большая птица",
+      "es-ES": "Gran Ave",
+      "bg-BG": "Голяма птица",
+      "vi-VN": "Big bird"
+    }
+  },
+  "O-02-56": {
+    "riskLevel": "TETH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Punishing Bird",
+      "zh-CN": "惩戒鸟",
+      "zh-TW": "懲戒鳥",
+      "ja-JP": "罰鳥",
+      "ko-KR": "징벌 새",
+      "ru-RU": "Карающая птица",
+      "es-ES": "Ave Castigador",
+      "bg-BG": "Наказваща Птица",
+      "vi-VN": "Punishing Bird"
+    }
+  },
+  "O-02-62": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Judgement Bird",
+      "zh-CN": "审判鸟",
+      "zh-TW": "審判鳥",
+      "ja-JP": "審判鳥",
+      "ko-KR": "심판 새",
+      "ru-RU": "Птица правосудия",
+      "es-ES": "Ave del Juicio",
+      "bg-BG": "Птицата на Справедливостта",
+      "vi-VN": "Bird of Judgement"
+    }
+  },
+  "O-02-63": {
+    "riskLevel": "ALEPH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Apocalypse Bird",
+      "zh-CN": "终末鸟",
+      "zh-TW": "天啟鳥",
+      "ja-JP": "終末鳥",
+      "ko-KR": "종말새",
+      "ru-RU": "Птица апокалипсиса",
+      "es-ES": "El Ave del Apocalipsis",
+      "bg-BG": "Птица на Апокалипсиса",
+      "vi-VN": "Apocalypse Bird"
+    }
+  },
+  "O-02-74": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "The Naked Nest",
+      "zh-CN": "裸巢",
+      "zh-TW": "裸巢",
+      "ja-JP": "裸の巣",
+      "ko-KR": "벌거벗은 둥지",
+      "ru-RU": "Пустое гнездо",
+      "es-ES": "El Nido Desnudo",
+      "bg-BG": "Голото гнездо",
+      "vi-VN": "The Naked Nest"
+    }
+  },
+  "O-02-98": {
+    "riskLevel": "HE",
+    "canBreach": true,
+    "names": {
+      "en-US": "Porccubus",
+      "zh-CN": "棘刺公交",
+      "zh-TW": "荊棘魔女",
+      "ja-JP": "ポーキュバス",
+      "ko-KR": "포큐버스",
+      "ru-RU": "Суккубраз",
+      "es-ES": "Porccubus",
+      "bg-BG": "Поркъбъс",
+      "vi-VN": "Porccubus"
+    }
+  },
+  "O-03-03": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "One Sin and Hundreds of Good Deeds",
+      "zh-CN": "一罪与百善",
+      "zh-TW": "一罪百善",
+      "ja-JP": "たった一つの罪と何百もの善",
+      "ko-KR": "단 한번의 악과 수백 가지의 선행",
+      "ru-RU": "Один грех и сотни благих деяний",
+      "es-ES": "Un pecado y cientos de buenas acciones",
+      "bg-BG": "Един Грях и Стотици Добри Дела",
+      "vi-VN": "One Sin and Hundreds of Good Deeds"
+    }
+  },
+  "O-03-60": {
+    "riskLevel": "TETH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Fragment of the Universe",
+      "zh-CN": "宇宙碎片",
+      "zh-TW": "宇宙碎片",
+      "ja-JP": "宇宙の欠片",
+      "ko-KR": "우주 속의 조각",
+      "ru-RU": "Фрагмент вселенной",
+      "es-ES": "Fragmento del Universo",
+      "bg-BG": "Фрагмент от Вселената",
+      "vi-VN": "Fragment of the Universe"
+    }
+  },
+  "O-03-88": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Dimensional Refraction Variant",
+      "zh-CN": "次元衍射变体",
+      "zh-TW": "三維折射變異體",
+      "ja-JP": "次元屈折変異体",
+      "ko-KR": "차원굴절 변이체",
+      "ru-RU": "Разновидность преломления пространства",
+      "es-ES": "Variante de Refracción Dimensional",
+      "bg-BG": "Променливо измерение на пречупване",
+      "vi-VN": "Dimensional Refraction Variant"
+    }
+  },
+  "O-03-89": {
+    "riskLevel": "ALEPH",
+    "canBreach": true,
+    "names": {
+      "en-US": "CENSORED",
+      "zh-CN": "「CENSORED」",
+      "zh-TW": "刪除",
+      "ja-JP": "規制済み",
+      "ko-KR": "검열삭제",
+      "ru-RU": "ЗАЦЕНЗУРЕНО",
+      "es-ES": "CENSURADO",
+      "bg-BG": "ЦЕНЗУРИРАНО",
+      "vi-VN": "CENSORED"
+    }
+  },
+  "O-03-93": {
+    "riskLevel": "ALEPH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Blue Star",
+      "zh-CN": "碧蓝新星",
+      "zh-TW": "藍星",
+      "ja-JP": "蒼星",
+      "ko-KR": "푸른 별",
+      "ru-RU": "Голубая звезда",
+      "es-ES": "Estrella Azul",
+      "bg-BG": "Синя Звезда",
+      "vi-VN": "Blue Star"
+    }
+  },
+  "O-04-08": {
+    "riskLevel": "HE",
+    "canBreach": true,
+    "names": {
+      "en-US": "The Red Shoes",
+      "zh-CN": "红舞鞋",
+      "zh-TW": "紅色舞鞋",
+      "ja-JP": "赤い靴",
+      "ko-KR": "빨간 구두",
+      "ru-RU": "Красные туфли",
+      "es-ES": "Los Zapatos Rojos",
+      "bg-BG": "Червените Обувки",
+      "vi-VN": "The Red Shoes"
+    }
+  },
+  "O-04-100": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Grave of Cherry Blossoms",
+      "zh-CN": "樱下墓",
+      "zh-TW": "櫻花樹之墓",
+      "ja-JP": "墓穴の桜",
+      "ko-KR": "벚꽃의 무덤",
+      "ru-RU": "Могила сакуры",
+      "es-ES": "Tumba de los Flores de Cerezo",
+      "bg-BG": "Гроб на Черешов Цвят",
+      "vi-VN": "Grave of Cherry Blossoms"
+    }
+  },
+  "O-04-66": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "The Little Prince",
+      "zh-CN": "小王子",
+      "zh-TW": "小王子",
+      "ja-JP": "小さな王子",
+      "ko-KR": "어린 왕자",
+      "ru-RU": "Маленький принц",
+      "es-ES": "El Principito",
+      "bg-BG": "Малкия Принц",
+      "vi-VN": "The Little Prince"
+    }
+  },
+  "O-04-72": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "The Burrowing Heaven",
+      "zh-CN": "穿刺乐园",
+      "zh-TW": "滲透天堂",
+      "ja-JP": "地中の天国",
+      "ko-KR": "파고드는 천국",
+      "ru-RU": "Рвущийся к небесам",
+      "es-ES": "Escarbando el Paraíso",
+      "bg-BG": "Ровещото Небе",
+      "vi-VN": "The Burrowing Heaven"
+    }
+  },
+  "O-04-84": {
+    "riskLevel": "TETH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Meat Lantern",
+      "zh-CN": "陆生鮟鱇",
+      "zh-TW": "肉色夜燈",
+      "ja-JP": "肉の灯篭",
+      "ko-KR": "고기 초롱",
+      "ru-RU": "Мясной фонарь",
+      "es-ES": "Linterna de Carne",
+      "bg-BG": "Месен Фенер",
+      "vi-VN": "Meat Lantern"
+    }
+  },
+  "O-05-102": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Yin",
+      "zh-CN": "阴",
+      "zh-TW": "陰",
+      "ja-JP": "陰",
+      "ko-KR": "음",
+      "ru-RU": "Инь",
+      "es-ES": "Yin",
+      "bg-BG": "Ин",
+      "vi-VN": "Yin"
+    }
+  },
+  "O-05-30": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Singing Machine",
+      "zh-CN": "歌唱机",
+      "zh-TW": "唱歌的機器",
+      "ja-JP": "歌う機械",
+      "ko-KR": "노래하는 기계",
+      "ru-RU": "Поющая машина",
+      "es-ES": "Maquina de cantar",
+      "bg-BG": "Пееща Машина",
+      "vi-VN": "Singing Machine"
+    }
+  },
+  "O-05-47": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "Don’t Touch Me",
+      "zh-CN": "别碰我",
+      "zh-TW": "別碰我",
+      "ja-JP": "触れてはならない",
+      "ko-KR": "만지지마",
+      "ru-RU": "Не трогай меня",
+      "es-ES": "No me toques",
+      "bg-BG": "Не Ме Бутай",
+      "vi-VN": "Don't Touch Me"
+    }
+  },
+  "O-05-61": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Crumbling Armor",
+      "zh-CN": "破裂盔甲",
+      "zh-TW": "崩壞的盔甲",
+      "ja-JP": "壊れゆく甲冑",
+      "ko-KR": "부서져 가는 갑옷",
+      "ru-RU": "Рассыпающаяся броня",
+      "es-ES": "Armadura desmoronada",
+      "bg-BG": "Разпадаща се броня",
+      "vi-VN": "Crumbling Armor"
+    }
+  },
+  "O-05-76": {
+    "riskLevel": "HE",
+    "canBreach": true,
+    "names": {
+      "en-US": "Schadenfreude",
+      "zh-CN": "幸灾乐祸",
+      "zh-TW": "幸災樂禍",
+      "ja-JP": "シャーデンフロイデ",
+      "ko-KR": "샤덴프로이데",
+      "ru-RU": "Шаденфрейд",
+      "es-ES": "Schadenfreude",
+      "bg-BG": "Злощастна радост",
+      "vi-VN": "Schadenfreude"
+    }
+  },
+  "O-06-20": {
+    "riskLevel": "ALEPH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Nothing There",
+      "zh-CN": "「一无所有」",
+      "zh-TW": "什麼都不是",
+      "ja-JP": "「何もない」",
+      "ko-KR": "아무 것도 없는",
+      "ru-RU": "Здесь ничего нет",
+      "es-ES": "Nada Esta Ahí",
+      "bg-BG": "Няма Нищо Там",
+      "vi-VN": "Nothing There"
+    }
+  },
+  "O-07-103": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Yang",
+      "zh-CN": "阳",
+      "zh-TW": "陽",
+      "ja-JP": "陽",
+      "ko-KR": "양",
+      "ru-RU": "Ян",
+      "es-ES": "Yang",
+      "bg-BG": "Ян",
+      "vi-VN": "Yang"
+    }
+  },
+  "O-09-81": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "Mirror of Adjustment",
+      "zh-CN": "转性魔镜",
+      "zh-TW": "改變之鏡",
+      "ja-JP": "調整の鏡",
+      "ko-KR": "조정의 거울",
+      "ru-RU": "Корректирующее зеркало",
+      "es-ES": "Espejo de Ajuste",
+      "bg-BG": "Огледало на Корекция",
+      "vi-VN": "Mirror of Adjustment"
+    }
+  },
+  "O-09-91": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Portrait of Another World",
+      "zh-CN": "异世的肖像",
+      "zh-TW": "異世界的肖像畫",
+      "ja-JP": "異界の肖像",
+      "ko-KR": "이계의 초상",
+      "ru-RU": "Портрет другого мира",
+      "es-ES": "Retrato del Otro Mundo",
+      "bg-BG": "Портрет на Друг Свят",
+      "vi-VN": "Portrait of Another World"
+    }
+  },
+  "O-09-95": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Luminous Bracelet",
+      "zh-CN": "荧光手镯",
+      "zh-TW": "發光的手鐲",
+      "ja-JP": "輝く腕輪",
+      "ko-KR": "발광 팔찌",
+      "ru-RU": "Светящийся браслет",
+      "es-ES": "Pulsera luminosa",
+      "bg-BG": "Светеща Гривна",
+      "vi-VN": "Luminous Bracelet"
+    }
+  },
+  "O-09-96": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Behavior Adjustment",
+      "zh-CN": "行为矫正仪",
+      "zh-TW": "行為矯正",
+      "ja-JP": "行動矯正",
+      "ko-KR": "행동교정",
+      "ru-RU": "Корректировщик поведения",
+      "es-ES": "Ajuste de comportamiento",
+      "bg-BG": "Настройка на поведението",
+      "vi-VN": "Behavior Adjustment"
+    }
+  },
+  "T-01-31": {
+    "riskLevel": "ALEPH",
+    "canBreach": true,
+    "names": {
+      "en-US": "The Silent Orchestra",
+      "zh-CN": "沉默乐团",
+      "zh-TW": "沉默的管弦樂隊",
+      "ja-JP": "静かなオーケストラ",
+      "ko-KR": "고요한 오케스트라",
+      "ru-RU": "Безмолвный оркестр",
+      "es-ES": "La Orquesta Silenciosa",
+      "bg-BG": "Тихият Оркестър",
+      "vi-VN": "The Silent Orchestra"
+    }
+  },
+  "T-01-54": {
+    "riskLevel": "TETH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Forsaken Murderer",
+      "zh-CN": "被遗弃的杀人魔",
+      "zh-TW": "遭遺忘的殺人犯",
+      "ja-JP": "捨てられた殺人者",
+      "ko-KR": "버려진 살인마",
+      "ru-RU": "Покинутый убийца",
+      "es-ES": "Asesino Abandonado",
+      "bg-BG": "Изоставен убиец",
+      "vi-VN": "Forsaken Murderer"
+    }
+  },
+  "T-01-68": {
+    "riskLevel": "HE",
+    "canBreach": true,
+    "names": {
+      "en-US": "The Funeral of the Dead Butterflies",
+      "zh-CN": "亡蝶葬仪",
+      "zh-TW": "葬禮亡蝶",
+      "ja-JP": "死んだ蝶の葬儀",
+      "ko-KR": "죽은 나비들의 장례",
+      "ru-RU": "Похороны мёртвых бабочек",
+      "es-ES": "Funeral de las Mariposas Muertas",
+      "bg-BG": "Погребение на Мъртви Пеперуди",
+      "vi-VN": "Funeral of the Dead Butterflies"
+    }
+  },
+  "T-01-75": {
+    "riskLevel": "ALEPH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Mountain of Smiling Bodies",
+      "zh-CN": "微笑的尸山",
+      "zh-TW": "微笑的屍山",
+      "ja-JP": "笑う死体の山",
+      "ko-KR": "웃는 시체들의 산",
+      "ru-RU": "Гора улыбающихся тел",
+      "es-ES": "La Montaña de Cuerpos Sonrientes",
+      "bg-BG": "Планина от усмихващи се тела",
+      "vi-VN": "The Mountain of Smiling Bodies"
+    }
+  },
+  "T-02-43": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Spider Bud",
+      "zh-CN": "蜘蛛巢",
+      "zh-TW": "蜘蛛太太",
+      "ja-JP": "母なるクモ",
+      "ko-KR": "거미봉오리",
+      "ru-RU": "Паучье логово",
+      "es-ES": "Brote Aracnido",
+      "bg-BG": "Развъдник на паяци",
+      "vi-VN": "Spider Bud"
+    }
+  },
+  "T-02-71": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "The Dreaming Current",
+      "zh-CN": "梦中的洋流",
+      "zh-TW": "夢中的洋流",
+      "ja-JP": "夢見る流れ",
+      "ko-KR": "꿈꾸는 해류",
+      "ru-RU": "Дремлющее течение",
+      "es-ES": "La Corriente de Ensueño",
+      "bg-BG": "Сънувашата вълна",
+      "vi-VN": "The Dreaming Current"
+    }
+  },
+  "T-02-99": {
+    "riskLevel": "TETH",
+    "canBreach": true,
+    "names": {
+      "en-US": "Void Dream",
+      "zh-CN": "空虚之梦",
+      "zh-TW": "空洞夢境",
+      "ja-JP": "空虚な夢",
+      "ko-KR": "공허한 꿈",
+      "ru-RU": "Пустые сны",
+      "es-ES": "Sueño Vacío",
+      "bg-BG": "Празен сън",
+      "vi-VN": "Void Dream"
+    }
+  },
+  "T-03-46": {
+    "riskLevel": "ALEPH",
+    "canBreach": true,
+    "names": {
+      "en-US": "WhiteNight",
+      "zh-CN": "白夜",
+      "zh-TW": "白夜",
+      "ja-JP": "白夜",
+      "ko-KR": "백야",
+      "ru-RU": "Белая ночь",
+      "es-ES": "NocheBlanca",
+      "bg-BG": "Бяла Нощ",
+      "vi-VN": "WhiteNight"
+    }
+  },
+  "T-04-06": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Happy Teddy Bear",
+      "zh-CN": "快乐泰迪",
+      "zh-TW": "幸福的泰迪熊",
+      "ja-JP": "幸せなテディ",
+      "ko-KR": "행복한 테디",
+      "ru-RU": "Счастливый мишка",
+      "es-ES": "Feliz osito de peluche",
+      "bg-BG": "Щастливо Плюшено Мече",
+      "vi-VN": "Happy Teddy Bear"
+    }
+  },
+  "T-04-50": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "Queen Bee",
+      "zh-CN": "蜂后",
+      "zh-TW": "蜂后",
+      "ja-JP": "女王蜂",
+      "ko-KR": "여왕벌",
+      "ru-RU": "Пчелиная королева",
+      "es-ES": "Abeja Reina",
+      "bg-BG": "Пчела Майка",
+      "vi-VN": "Queen Bee"
+    }
+  },
+  "T-04-53": {
+    "riskLevel": "WAW",
+    "canBreach": true,
+    "names": {
+      "en-US": "Alriune",
+      "zh-CN": "爱娜温",
+      "zh-TW": "艾露內",
+      "ja-JP": "アルリウネ",
+      "ko-KR": "알리우네",
+      "ru-RU": "Альраун",
+      "es-ES": "Alriune",
+      "bg-BG": "Алрийн",
+      "vi-VN": "Alriune"
+    }
+  },
+  "T-05-41": {
+    "riskLevel": "HE",
+    "canBreach": true,
+    "names": {
+      "en-US": "All-Around Helper",
+      "zh-CN": "小帮手",
+      "zh-TW": "小幫手",
+      "ja-JP": "オールアラウンドヘルパー",
+      "ko-KR": "무엇이든 도와드립니다",
+      "ru-RU": "Маленький помощник",
+      "es-ES": "Pequeño Ayudante",
+      "bg-BG": "Малък помощник",
+      "vi-VN": "Little Helper"
+    }
+  },
+  "T-05-51": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Bloodbath",
+      "zh-CN": "血浴缸",
+      "zh-TW": "血浴池",
+      "ja-JP": "血の風呂",
+      "ko-KR": "피의 욕조",
+      "ru-RU": "Ванна с кровью",
+      "es-ES": "Baño de Sangre",
+      "bg-BG": "Кървава вана",
+      "vi-VN": "Bloodbath"
+    }
+  },
+  "T-06-27": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "1.76 MHz",
+      "zh-CN": "1.76兆赫",
+      "zh-TW": "1.76 兆赫",
+      "ja-JP": "1.76 MHz",
+      "ko-KR": "1.76 MHz",
+      "ru-RU": "1.76 MГц",
+      "es-ES": "1.76 MHz",
+      "bg-BG": "1.76 MHz",
+      "vi-VN": "1.76 MHz"
+    }
+  },
+  "T-09-09": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Theresia",
+      "zh-CN": "特蕾西娅",
+      "zh-TW": "特蕾希雅",
+      "ja-JP": "テレジア",
+      "ko-KR": "테레지아",
+      "ru-RU": "Тереза",
+      "es-ES": "Theresia",
+      "bg-BG": "Тереза",
+      "vi-VN": "Theresia"
+    }
+  },
+  "T-09-77": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "The Heart of Aspiration",
+      "zh-CN": "渴望之心",
+      "zh-TW": "渴望的心",
+      "ja-JP": "熱望する心臓",
+      "ko-KR": "열망하는 심장",
+      "ru-RU": "Сердце устремления",
+      "es-ES": "El Corazón de la Aspiración",
+      "bg-BG": "Сърце на Стремежа",
+      "vi-VN": "The Heart of Aspiration"
+    }
+  },
+  "T-09-78": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Notes from a Crazed Researcher",
+      "zh-CN": "癫狂研究员的笔记本",
+      "zh-TW": "瘋狂研究員的筆記",
+      "ja-JP": "狂研究者のノート",
+      "ko-KR": "미쳐버린 연구원의 수첩",
+      "ru-RU": "Записи сумасшедшего исследователя",
+      "es-ES": "Nota de un Investigador Enloquecido",
+      "bg-BG": "Бележник на Луд Изследовател",
+      "vi-VN": "Note from a Crazed Researcher"
+    }
+  },
+  "T-09-79": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "Flesh Idol",
+      "zh-CN": "血肉偶像",
+      "zh-TW": "血肉偶像",
+      "ja-JP": "肉の偶像",
+      "ko-KR": "살점 우상",
+      "ru-RU": "Божество из плоти",
+      "es-ES": "Ídolo de la carne",
+      "bg-BG": "Кръст от плът",
+      "vi-VN": "Flesh Idol"
+    }
+  },
+  "T-09-80": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Giant Tree Sap",
+      "zh-CN": "巨树汁液",
+      "zh-TW": "巨樹的汁液",
+      "ja-JP": "巨木の樹液",
+      "ko-KR": "거목수액",
+      "ru-RU": "Сок огромного дерева",
+      "es-ES": "Savia del Arbol Gigante",
+      "bg-BG": "Огромна капка дървесен сок",
+      "vi-VN": "Giant Tree Sap"
+    }
+  },
+  "T-09-82": {
+    "riskLevel": "HE",
+    "canBreach": false,
+    "names": {
+      "en-US": "Shelter from the 27th of March",
+      "zh-CN": "3月27日的避难所",
+      "zh-TW": "三月二十七日的避難所",
+      "ja-JP": "3月27日のシェルター",
+      "ko-KR": "3월 27일의 방공호",
+      "ru-RU": "Убежище из 27-го марта",
+      "es-ES": "Refugio del 27 de marzo",
+      "bg-BG": "Подслон от 27-ми март",
+      "vi-VN": "Shelter from the 27th of March"
+    }
+  },
+  "T-09-85": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "We Can Change Anything",
+      "zh-CN": "我们可以改变一切",
+      "zh-TW": "我們能改變一切",
+      "ja-JP": "何でも変えて差し上げます",
+      "ko-KR": "무엇이든 바꿔드립니다",
+      "ru-RU": "Мы можем изменить что угодно",
+      "es-ES": "Podemos Cambiar Cualquier Cosa",
+      "bg-BG": "Можем Да Променим Всичко",
+      "vi-VN": "We Can Change Anything"
+    }
+  },
+  "T-09-86": {
+    "riskLevel": "WAW",
+    "canBreach": false,
+    "names": {
+      "en-US": "Express Train to Hell",
+      "zh-CN": "黄泉列车",
+      "zh-TW": "地獄特快車",
+      "ja-JP": "地獄への急行列車",
+      "ko-KR": "지옥행 급행열차",
+      "ru-RU": "Адский экспресс",
+      "es-ES": "Tren Expreso al Infierno",
+      "bg-BG": "Бърз Влак за Ада",
+      "vi-VN": "Express Train to Hell"
+    }
+  },
+  "T-09-90": {
+    "riskLevel": "TETH",
+    "canBreach": false,
+    "names": {
+      "en-US": "Skin Prophecy",
+      "zh-CN": "人皮启示录",
+      "zh-TW": "肌膚的預言",
+      "ja-JP": "皮膚の予言",
+      "ko-KR": "살갗 예언",
+      "ru-RU": "Пророчество кожи",
+      "es-ES": "Profecía de la Piel",
+      "bg-BG": "Пророчество на Кожата",
+      "vi-VN": "Prophecy of the Skin"
+    }
+  },
+  "T-09-94": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "You Must Be Happy",
+      "zh-CN": "你必须要幸福",
+      "zh-TW": "你一定會快樂",
+      "ja-JP": "あなたは幸せでなければならない",
+      "ko-KR": "당신은 행복해야합니다.",
+      "ru-RU": "Тебе нужно быть счастливым.",
+      "es-ES": "Debes estar feliz.",
+      "bg-BG": "Трябва Да Си Щастлив.",
+      "vi-VN": "You Must Be Happy."
+    }
+  },
+  "T-09-97": {
+    "riskLevel": "ZAYIN",
+    "canBreach": false,
+    "names": {
+      "en-US": "Old Faith and Promise",
+      "zh-CN": "古老的信念与承诺",
+      "zh-TW": "Old Faith and Promise",
+      "ja-JP": "古い信念と約束",
+      "ko-KR": "오래전의 믿음과 약속",
+      "ru-RU": "Старые убеждения и обещания",
+      "es-ES": "Antigua Creencia y Promesa",
+      "bg-BG": "Древно Вярване и Обещание",
+      "vi-VN": "Old Faith and Promise"
+    }
+  }
+}

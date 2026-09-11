@@ -7,6 +7,16 @@ import {
   createAuthMiddleware,
   createAuthRoutes,
 } from "./auth.ts";
+import {
+  aceAttorneyAssetResponse,
+  aceAttorneyScriptResponse,
+  aceAttorneyStyleResponse,
+  easterEggCoordinatorScriptResponse,
+  lobotomyCorpAssetResponse,
+  lobotomyCorpScriptResponse,
+  lobotomyCorpStyleResponse,
+  lobotomyCorpWhiteNightEventResponse,
+} from "./easter_egg_assets.ts";
 import { faviconResponse } from "./favicon.ts";
 import { createRoutes } from "./routes.ts";
 import { createSecurityHeadersMiddleware } from "./security/headers.ts";
@@ -31,12 +41,72 @@ export function createApplication() {
     },
     google: context.config.google,
     passkey: context.config.passkey,
+    altcha: context.config.altcha,
     totp: context.config.totp,
     turnstile: context.config.turnstile,
   };
 
   app.use("*", createSecurityHeadersMiddleware());
   app.get("/favicon.ico", () => faviconResponse());
+  app.get(
+    "/static/fun/coordinator.js",
+    () => easterEggCoordinatorScriptResponse(),
+  );
+  app.get(
+    "/static/fun/ace-attorney/ace-attorney.js",
+    () => aceAttorneyScriptResponse(),
+  );
+  app.get(
+    "/static/fun/ace-attorney/ace-attorney.css",
+    () => aceAttorneyStyleResponse(),
+  );
+  app.get(
+    "/static/fun/ace-attorney/*",
+    (c) =>
+      aceAttorneyAssetResponse(
+        c.req.path.slice(
+          "/static/fun/ace-attorney/".length,
+        ),
+        c.req.header("range"),
+      ),
+  );
+  app.get(
+    "/static/fun/lobotomy-corp/lobotomy-corp.js",
+    () => lobotomyCorpScriptResponse(),
+  );
+  app.get(
+    "/static/fun/lobotomy-corp/lobotomy-corp.css",
+    () => lobotomyCorpStyleResponse(),
+  );
+  app.get(
+    "/static/fun/lobotomy-corp/Events/WhiteNight.js",
+    () => lobotomyCorpWhiteNightEventResponse(),
+  );
+  app.get(
+    "/static/fun/lobotomy-corp/*",
+    (c) =>
+      lobotomyCorpAssetResponse(
+        c.req.path.slice(
+          "/static/fun/lobotomy-corp/".length,
+        ),
+        c.req.header("range"),
+      ),
+  );
+  app.get("/static/fun/default-avatar/:filename", async (c) => {
+    const filename = c.req.param("filename");
+    if (!/^avatar[1-5]\.png$/.test(filename)) {
+      return new Response(null, { status: 404 });
+    }
+    const data = await Deno.readFile(
+      new URL(`../static/fun/default-avatar/${filename}`, import.meta.url),
+    );
+    return new Response(data, {
+      headers: {
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-type": "image/png",
+      },
+    });
+  });
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
   app.route("/", createRoutes(context));

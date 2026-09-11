@@ -23,7 +23,12 @@ import {
   notificationWebhookServices,
 } from "../notification_services.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
-import { escapeHtml, renderLayout } from "./html.ts";
+import {
+  defaultAvatarUrl,
+  escapeHtml,
+  renderAceAttorneyEasterEggData,
+  renderLayout,
+} from "./html.ts";
 import {
   authIcon,
   type AuthIconName,
@@ -53,6 +58,12 @@ const settingsAutosaveFormId = "settings-autosave-form";
  * 两步验证设置表单 ID，用于避免与验证器绑定表单嵌套。
  */
 const securitySettingsFormId = "security-settings-form";
+/**
+ * 《逆转裁判》入口与事件脚本的联合版本。
+ *
+ * 两份脚本共享同一套初始化约定，版本号同时标识它们，避免浏览器混用旧事件脚本与新入口。
+ */
+const aceAttorneyEasterEggScriptVersion = "20260907-inline-data-v2";
 
 /**
  * 为账户认证接口追加当前页面语言。
@@ -92,10 +103,11 @@ export type AccountStatus = {
     | "samePassword"
     | "confirmPassword"
     | "currentPassword"
+    | "displayName"
     | "updated"
     | "username"
     | "exists";
-  mode?: "password" | "username";
+  mode?: "displayName" | "password" | "username";
   type: "error" | "success";
 };
 
@@ -149,7 +161,12 @@ export type TotpSetupView = {
  * @return 完整设置页面 HTML。
  */
 export function renderSettings(options: {
-  account?: Pick<UserAccount, "emailVerified" | "primaryEmail" | "username">;
+  account?:
+    & Pick<
+      UserAccount,
+      "displayName" | "emailVerified" | "primaryEmail" | "username"
+    >
+    & { id?: string };
   accountStatus?: AccountStatus;
   csrfToken: string;
   emailBindingStatus?: EmailBindingStatus;
@@ -255,14 +272,21 @@ export function renderSettings(options: {
     </div>
     ${turnstileScriptHtml(options.turnstileSiteKey)}
     ${googleScriptHtml(options.googleClientId)}
-    <script src="/static/settings.js?v=20260903-transient-status" defer></script>
+    ${renderAceAttorneyEasterEggData(options.settings.locale)}
+    <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
+    <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
+    <script src="/static/settings.js?v=20260908-portrait-canvas" defer></script>
   `;
 
   return renderLayout({
+    account: options.account,
     body,
     csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
     locale: options.settings.locale,
+    stylesheets: [
+      "/static/fun/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",
+    ],
     themeColor: options.settings.themeColor,
     title: messages.appName,
   });
@@ -288,10 +312,14 @@ function settingLabel(icon: MaterialSymbolName, label: string): string {
  * @param label 设置项标签。
  * @return dt 标签 HTML。
  */
-function authSettingLabel(icon: AuthIconName, label: string): string {
+function authSettingLabel(
+  icon: AuthIconName,
+  label: string,
+  dataAttribute?: string,
+): string {
   return `<dt class="settings-label-with-icon">${
     authIcon(icon, "settings-label-icon auth-settings-icon")
-  }<span>${escapeHtml(label)}</span></dt>`;
+  }<span ${dataAttribute ?? ""}>${escapeHtml(label)}</span></dt>`;
 }
 
 /**
@@ -493,7 +521,9 @@ function transientSuccessStatusAttribute(
  */
 function renderAccountSection(
   settings: AppSettings,
-  account: Pick<UserAccount, "username"> | undefined,
+  account:
+    | (Pick<UserAccount, "displayName" | "username"> & { id?: string })
+    | undefined,
   status: AccountStatus | undefined,
   csrfToken: string,
   passkeyAvailable: boolean,
@@ -509,9 +539,13 @@ function renderAccountSection(
       ? 'data-state="error"'
       : "";
   const escapedUsername = escapeHtml(account?.username ?? "");
+  const escapedDisplayName = escapeHtml(
+    account?.displayName ?? account?.username ?? "",
+  );
   const initialMode = accountInitialMode(status);
   const accountActionsHidden = initialMode ? "" : "hidden";
-  const currentPasswordVisible = Boolean(initialMode) && !recentlyVerified;
+  const currentPasswordVisible = Boolean(initialMode) &&
+    initialMode !== "displayName" && !recentlyVerified;
   const currentPasswordHidden = currentPasswordVisible ? "" : "hidden";
   const currentPasswordDisabled = currentPasswordVisible ? "" : "disabled";
   const currentPasswordCollapsed = currentPasswordVisible ? "" : "is-collapsed";
@@ -520,12 +554,75 @@ function renderAccountSection(
     ? ""
     : "is-collapsed";
   const editUsernameLabel = escapeHtml(messages.accountEditUsername);
+  const editDisplayNameLabel = escapeHtml(messages.accountEditDisplayName);
 
   return `
+    <form class="account-avatar-upload-form" method="post" action="${
+    localizedAccountPath("/account/avatar", settings.locale)
+  }" enctype="multipart/form-data" data-avatar-upload-form data-avatar-upload-error="${
+    escapeHtml(messages.accountAvatarUploadFailed)
+  }">
+      ${csrfHiddenInput(csrfToken)}
+      <section class="settings-group account-settings-group" aria-labelledby="account-settings-heading">
+        <h2 id="account-settings-heading">${
+    escapeHtml(messages.accountSettings)
+  }</h2>
+        <dl class="settings-list"><div>
+          ${authSettingLabel("avatar", messages.accountAvatar)}
+          <dd><div class="account-avatar-setting">
+            <button class="account-avatar-preview-button" type="button" data-avatar-preview aria-label="${
+    escapeHtml(messages.accountAvatar)
+  }">
+              <span class="account-avatar-risk-wrapper" data-lobotomy-corp-risk-host="settings"><span class="account-avatar account-avatar-preview"><img class="account-avatar-default" src="${
+    defaultAvatarUrl(account?.id)
+  }" alt="${
+    escapeHtml(messages.accountAvatar)
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>
+            </button>
+            <label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button" aria-label="${
+    escapeHtml(messages.accountAvatarChoose)
+  }">
+              <input class="account-avatar-file-input" type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" data-avatar-file-input tabindex="-1">
+              <span class="account-avatar-picker-text">${
+    escapeHtml(messages.accountAvatarChoose)
+  }</span>
+            </label>
+            <span class="inline-action-status" data-avatar-upload-status hidden role="status"></span>
+          </div></dd>
+        </div></dl>
+      </section>
+      <dialog class="avatar-crop-dialog" data-avatar-crop-dialog data-avatar-uploading="${
+    escapeHtml(messages.accountAvatarUploading)
+  }">
+        <div class="avatar-crop-header"><h2>${
+    escapeHtml(messages.accountAvatarCrop)
+  }</h2><button type="button" class="icon-button" data-avatar-crop-cancel aria-label="${
+    escapeHtml(messages.accountCancel)
+  }">×</button></div>
+        <div class="avatar-crop-stage" data-avatar-crop-stage><canvas data-avatar-crop-canvas></canvas><span class="avatar-crop-mask" aria-hidden="true"></span></div>
+        <label class="avatar-crop-zoom"><span>${
+    escapeHtml(messages.accountAvatarZoom)
+  }</span><output data-avatar-crop-zoom-value>100%</output><input type="range" min="1" max="3" value="1" step="0.01" data-avatar-crop-zoom></label>
+        <div class="avatar-crop-actions"><button type="button" class="settings-row-action-button settings-icon-action-button" data-avatar-crop-confirm aria-label="${
+    escapeHtml(messages.accountAvatarConfirm)
+  }" data-tooltip="${escapeHtml(messages.accountAvatarConfirm)}">${
+    materialSymbolIcon("check", "settings-row-action-icon")
+  }</button></div>
+      </dialog>
+      <dialog class="avatar-preview-dialog" data-avatar-preview-dialog>
+        <button type="button" class="icon-button avatar-preview-close" data-avatar-preview-close aria-label="${
+    escapeHtml(messages.accountCancel)
+  }">×</button>
+        <img data-avatar-preview-image alt="${
+    escapeHtml(messages.accountAvatar)
+  }">
+      </dialog>
+    </form>
     <form
       method="post"
       action="${localizedAccountPath("/account", settings.locale)}"
       data-account-form
+      data-username-easter-egg-settings
       data-account-initial-mode="${initialMode ?? ""}"
       data-account-passkey-available="${passkeyAvailable}"
       data-account-password-available="${passwordAvailable}"
@@ -545,6 +642,7 @@ function renderAccountSection(
       data-account-password-verified="${
     escapeHtml(messages.accountPasswordVerified)
   }"
+      data-account-updated="${escapeHtml(messages.accountUpdated)}"
       data-account-passkey-failed="${escapeHtml(messages.accountReauthFailed)}"
       data-account-passkey-pending="${
     escapeHtml(messages.accountReauthPasskeyVerifying)
@@ -560,10 +658,9 @@ function renderAccountSection(
   }"
     >
       ${csrfHiddenInput(csrfToken)}
-      <section class="settings-group" aria-labelledby="account-settings-heading">
-        <h2 id="account-settings-heading">${
+      <section class="settings-group account-settings-continuation" aria-label="${
     escapeHtml(messages.accountSettings)
-  }</h2>
+  }">
         <dl class="settings-list">
           <div>
             ${authSettingLabel("username", messages.accountUsername)}
@@ -572,7 +669,6 @@ function renderAccountSection(
               <div class="account-username-row">
                 <input
                   name="username"
-                  dir="ltr"
                   value="${escapedUsername}"
                   autocomplete="username"
                   data-account-username-input
@@ -588,6 +684,40 @@ function renderAccountSection(
                     data-account-mode="username"
                     aria-label="${editUsernameLabel}"
                     data-tooltip="${editUsernameLabel}"
+                  >${
+    materialSymbolIcon("edit", "settings-row-action-icon")
+  }</button>
+                </div>
+              </div>
+            </dd>
+          </div>
+          <div>
+            ${
+    authSettingLabel(
+      "username",
+      messages.accountDisplayName,
+      "data-account-display-name-label",
+    )
+  }
+            <dd>
+              <div class="account-username-row">
+                <input
+                  name="displayName"
+                  value="${escapedDisplayName}"
+                  autocomplete="name"
+                  data-account-display-name-input
+                  data-account-display-name-original="${escapedDisplayName}"
+                  readonly
+                  required
+                >
+                ${accountFieldStatusHtml("displayName", status, messages)}
+                <div class="account-mode-buttons">
+                  <button
+                    type="button"
+                    class="settings-row-action-button settings-icon-action-button"
+                    data-account-mode="displayName"
+                    aria-label="${editDisplayNameLabel}"
+                    data-tooltip="${editDisplayNameLabel}"
                   >${
     materialSymbolIcon("edit", "settings-row-action-icon")
   }</button>
@@ -1182,6 +1312,7 @@ function renderGoogleUnbindForm(
     class="auth-method-action-form"
     method="post"
     action="${localizedAccountPath("/account/google/unbind", locale)}"
+    data-google-unbind-form
   >
     ${csrfHiddenInput(csrfToken)}
     <input
@@ -1748,7 +1879,6 @@ function renderPasskeyCredentialList(
  *
  * @param credential Passkey 凭证。
  * @param messages 当前语言文案。
- * @param locale 当前页面语言。
  * @return Passkey 凭证显示名称。
  */
 function passkeyCredentialDisplayName(
@@ -1766,6 +1896,7 @@ function passkeyCredentialDisplayName(
  *
  * @param credential Passkey 凭证。
  * @param messages 当前语言文案。
+ * @param locale 当前页面语言。
  * @return Passkey 凭证元信息。
  */
 function passkeyCredentialMeta(
@@ -2725,7 +2856,56 @@ function verifiedEmailCredentials(
  */
 function turnstileScriptHtml(siteKey: string | undefined): string {
   return siteKey
-    ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+    ? `<script>
+/**
+ * 在 Turnstile 验证成功后，待成功动画展示完毕再平滑收起组件。
+ */
+globalThis.collapseTurnstileWidget = () => {
+  const turnstileSuccessDisplayMs = 1800;
+  const turnstileCollapseAnimationMs = 280;
+
+  for (const widget of document.querySelectorAll(".cf-turnstile")) {
+    const response = widget.querySelector("input[name='${turnstileResponseFieldName}']");
+    if (response instanceof HTMLInputElement && response.value.trim()) {
+      widget.dataset.turnstileComplete = "true";
+
+      /**
+       * 在成功提示停留后启动当前组件的收起动画。
+       */
+      const startCollapse = () => {
+        if (widget.dataset.turnstileComplete !== "true") return;
+
+        widget.dataset.turnstileCollapsing = "true";
+
+        /**
+         * 在收起过渡结束后从页面布局中移除当前组件。
+         */
+        const finishCollapse = () => {
+          if (widget.dataset.turnstileComplete === "true") {
+            widget.hidden = true;
+          }
+        };
+
+        window.setTimeout(finishCollapse, turnstileCollapseAnimationMs);
+      };
+
+      window.setTimeout(startCollapse, turnstileSuccessDisplayMs);
+    }
+  }
+};
+
+/**
+ * 在需要重新进行 Turnstile 验证时恢复组件显示。
+ */
+globalThis.revealTurnstileWidgets = () => {
+  for (const widget of document.querySelectorAll(".cf-turnstile")) {
+    delete widget.dataset.turnstileComplete;
+    delete widget.dataset.turnstileCollapsing;
+    widget.hidden = false;
+  }
+};
+</script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
     : "";
 }
 
@@ -2753,7 +2933,7 @@ function turnstileWidgetHtml(siteKey: string | undefined): string {
       escapeHtml(siteKey)
     }" data-response-field-name="${
       escapeHtml(turnstileResponseFieldName)
-    }"></div>`
+    }" data-callback="collapseTurnstileWidget" data-expired-callback="revealTurnstileWidgets" data-error-callback="revealTurnstileWidgets"></div>`
     : "";
 }
 
@@ -2787,6 +2967,7 @@ type AccountStatusField =
   | "action"
   | "confirmPassword"
   | "currentPassword"
+  | "displayName"
   | "newPassword"
   | "username";
 
@@ -2805,6 +2986,8 @@ function accountFieldStatusHtml(
     ? "data-account-new-password-status"
     : field === "confirmPassword"
     ? "data-account-confirm-password-status"
+    : field === "displayName"
+    ? "data-account-display-name-status"
     : field === "username"
     ? "data-account-username-status"
     : "";
@@ -2828,6 +3011,8 @@ function accountStatusField(status: AccountStatus): AccountStatusField {
       return "confirmPassword";
     case "currentPassword":
       return "currentPassword";
+    case "displayName":
+      return "displayName";
     case "exists":
     case "username":
       return "username";
@@ -2842,7 +3027,7 @@ function accountStatusField(status: AccountStatus): AccountStatusField {
 
 function accountInitialMode(
   status: AccountStatus | undefined,
-): "password" | "username" | undefined {
+): "displayName" | "password" | "username" | undefined {
   if (!status || status.type !== "error") {
     return undefined;
   }
@@ -2852,6 +3037,9 @@ function accountInitialMode(
   }
 
   const field = accountStatusField(status);
+  if (field === "displayName") {
+    return "displayName";
+  }
   if (field === "username") {
     return "username";
   }
@@ -2868,6 +3056,8 @@ function accountStatusMessage(
   switch (status.code) {
     case "currentPassword":
       return messages.accountPasswordCurrentInvalid;
+    case "displayName":
+      return messages.accountDisplayNameInvalid;
     case "exists":
       return messages.accountUsernameExists;
     case "confirmPassword":
@@ -3213,7 +3403,6 @@ function renderNotificationSection(settings: AppSettings): string {
               <input
                 type="number"
                 name="notificationSmtpPort"
-                dir="ltr"
                 min="1"
                 step="1"
                 value="${settings.notificationSmtpPort}"
@@ -3319,7 +3508,6 @@ function renderPollingSection(settings: AppSettings): string {
                   <input
                     type="number"
                     name="pollIntervalValue"
-                    dir="ltr"
                     min="1"
                     step="1"
                     value="${settings.polling.intervalValue}"

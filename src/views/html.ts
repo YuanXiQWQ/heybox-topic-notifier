@@ -5,6 +5,7 @@ import { getMessages } from "../locales/index.ts";
 import { isRtlLocale, type Locale } from "../locales/types.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import {
+  authIcon,
   dashboardIcon,
   historyIcon,
   logoutIcon,
@@ -14,6 +15,7 @@ import {
   renderMatchTableRowLinkScript,
   renderMatchTableRowLinkStyle,
 } from "./match_table_row_link.ts";
+import type { UserAccount } from "../models.ts";
 
 /**
  * 转义 HTML 文本。
@@ -31,21 +33,175 @@ export function escapeHtml(value: string): string {
 }
 
 /**
+ * 读取游戏目录中的单一 JSON 资料来源。
+ *
+ * @param {string} relativePath 相对于 static/fun 的安全固定路径。
+ * @return {unknown} 已解析的 JSON 资料。
+ */
+function readEasterEggJson(relativePath: string): unknown {
+  return JSON.parse(Deno.readTextFileSync(
+    new URL(`../../static/fun/${relativePath}`, import.meta.url),
+  ));
+}
+
+/**
+ * 将 JSON 安全地嵌入 application/json 脚本节点，避免数据中的 HTML 结束标签参与解析。
+ *
+ * @param {string} id 节点标识。
+ * @param {unknown} data 要注入的 JSON 数据。
+ * @return {string} 安全的内联 JSON 脚本。
+ */
+function renderEasterEggJsonData(id: string, data: unknown): string {
+  const json = JSON.stringify(data)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
+  return `<script type="application/json" id="${id}">${json}</script>`;
+}
+
+/**
+ * 解析当前网页 locale 对应的《脑叶公司》本地化文件名。
+ *
+ * @param {Locale} locale 当前网页 locale。
+ * @return {string} 已维护的游戏本地化文件名。
+ */
+function lobotomyCorpLocaleFile(locale: Locale): string {
+  const aliases: Record<string, string> = {
+    "en-CA": "en-US",
+    "en-GB": "en-US",
+    "zh-HK": "zh-TW",
+    "zh-MO": "zh-TW",
+    "zh-SG": "zh-CN",
+  };
+  return aliases[locale] ?? (
+    [
+        "en-US",
+        "es-ES",
+        "ja-JP",
+        "ko-KR",
+        "ru-RU",
+        "vi-VN",
+        "zh-CN",
+        "zh-TW",
+      ].includes(locale)
+      ? locale
+      : "en-US"
+  );
+}
+
+/**
+ * 渲染当前页面所需的《脑叶公司》本地化资料。
+ *
+ * @param {Locale} locale 当前网页 locale。
+ * @return {string} 内联 JSON 脚本。
+ */
+function renderLobotomyCorpLocaleData(locale: Locale): string {
+  return renderEasterEggJsonData(
+    "lobotomy-corp-locale-data",
+    readEasterEggJson(
+      `lobotomy-corp/Locales/${lobotomyCorpLocaleFile(locale)}.json`,
+    ),
+  );
+}
+
+/**
+ * 渲染所有已维护语言的“一罪与百善”特殊工作别名。
+ *
+ * 仅将客户端判断所需的单一字段注入页面，避免为匹配赎罪而额外发起请求。
+ *
+ * @return {string} 内联 JSON 脚本。
+ */
+function renderLobotomyCorpConfessionAliasesData(): string {
+  const localeFiles = [
+    "en-US",
+    "es-ES",
+    "ja-JP",
+    "ko-KR",
+    "ru-RU",
+    "vi-VN",
+    "zh-CN",
+    "zh-TW",
+  ];
+  return renderEasterEggJsonData(
+    "lobotomy-corp-confession-aliases-data",
+    localeFiles.map((localeFile) => {
+      const messages = readEasterEggJson(
+        `lobotomy-corp/Locales/${localeFile}.json`,
+      ) as Record<string, unknown>;
+      return messages["oneSin.specialWork.confession"];
+    }).filter((value): value is string => typeof value === "string"),
+  );
+}
+
+/**
+ * 渲染《脑叶公司》通用异想体资料。
+ *
+ * @return {string} 内联 JSON 脚本。
+ */
+function renderLobotomyCorpAbnormalitiesData(): string {
+  return renderEasterEggJsonData(
+    "lobotomy-corp-abnormalities-data",
+    readEasterEggJson("lobotomy-corp/Data/Abnormalities.json"),
+  );
+}
+
+/**
+ * 渲染当前已登录账户的显示名称，供异想体身份装饰在任意页面重新派生。
+ *
+ * @param {Pick<UserAccount, "displayName" | "username">|undefined} account 当前账户。
+ * @return {string} 安全内联的账户身份资料；匿名页面为空。
+ */
+function renderLobotomyCorpAccountIdentityData(
+  account: Pick<UserAccount, "displayName" | "username"> | undefined,
+): string {
+  return account
+    ? renderEasterEggJsonData("lobotomy-corp-account-identity-data", {
+      displayName: account.displayName ?? account.username,
+    })
+    : "";
+}
+
+/**
+ * 渲染设置页所需的《逆转裁判》角色资料和当前语言文本。
+ *
+ * @param {Locale} locale 当前网页 locale。
+ * @return {string} 内联 JSON 脚本。
+ */
+export function renderAceAttorneyEasterEggData(locale: Locale): string {
+  const messageFile = locale.startsWith("zh")
+    ? "zh-CN"
+    : locale.startsWith("ja")
+    ? "ja-JP"
+    : "en-US";
+  return renderEasterEggJsonData("ace-attorney-easter-egg-data", {
+    characters: readEasterEggJson("ace-attorney/Data/Characters.json"),
+    messages: readEasterEggJson(`ace-attorney/Locales/${messageFile}.json`),
+  });
+}
+
+/**
  * 渲染应用基础页面布局。
  *
  * @param options 页面布局选项。
  * @return 完整 HTML 页面。
  */
 export function renderLayout(options: {
+  account?: Pick<UserAccount, "displayName" | "username"> & { id?: string };
   body: string;
   csrfToken: string;
   darkMode: boolean;
   locale: Locale;
+  stylesheets?: string[];
   themeColor: string;
   title: string;
 }): string {
   const messages = getMessages(options.locale);
   const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
+  const stylesheetHtml = (options.stylesheets ?? []).map((href) =>
+    `<link rel="stylesheet" href="${escapeHtml(href)}">`
+  ).join("\n    ");
 
   return `<!doctype html>
 <html
@@ -59,8 +215,16 @@ export function renderLayout(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-white-night">
+    ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
+    <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
+    ${renderLobotomyCorpLocaleData(options.locale)}
+    ${renderLobotomyCorpConfessionAliasesData()}
+    ${renderLobotomyCorpAbnormalitiesData()}
+    ${renderLobotomyCorpAccountIdentityData(options.account)}
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260909-white-night-events"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
@@ -82,14 +246,23 @@ export function renderLayout(options: {
     renderNavItem(historyIcon("nav-icon"), messages.navHistory)
   }</button>
         </form>
-        <form class="nav-item" method="post" action="/logout?locale=${
-    encodeURIComponent(options.locale)
-  }">
+        ${
+    options.account
+      ? renderAccountMenu(
+        options.account,
+        options.csrfToken,
+        options.locale,
+        messages,
+      )
+      : `<form class="nav-item" method="post" action="/logout?locale=${
+        encodeURIComponent(options.locale)
+      }">
           ${csrfHiddenInput(options.csrfToken)}
           <button class="nav-link-button" type="submit">${
-    renderNavItem(logoutIcon("nav-icon"), messages.navLogout)
-  }</button>
-        </form>
+        renderNavItem(logoutIcon("nav-icon"), messages.navLogout)
+      }</button>
+        </form>`
+  }
       </nav>
     </header>
     <main class="shell">${options.body}</main>
@@ -107,4 +280,73 @@ export function renderLayout(options: {
  */
 function renderNavItem(icon: string, label: string): string {
   return `${icon}<span class="nav-label">${escapeHtml(label)}</span>`;
+}
+
+/**
+ * 渲染导航栏中的账户下拉菜单。
+ *
+ * @param {Pick<UserAccount, "displayName" | "username"> & { id?: string }} account 当前账户。
+ * @param {string} csrfToken 当前页面的 CSRF 令牌。
+ * @param {Locale} locale 当前界面语言。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 账户菜单 HTML。
+ */
+function renderAccountMenu(
+  account: Pick<UserAccount, "displayName" | "username"> & { id?: string },
+  csrfToken: string,
+  locale: Locale,
+  messages: ReturnType<typeof getMessages>,
+): string {
+  return `<details class="nav-account-menu"><summary class="nav-avatar-button" aria-label="${
+    escapeHtml(messages.navAccountMenu)
+  }">${
+    renderAvatar(account, messages)
+  }</summary><div class="nav-account-dropdown"><a class="nav-account-menu-action" href="/settings">${
+    authIcon("username", "nav-account-menu-icon")
+  }<span>${
+    escapeHtml(messages.accountSettings)
+  }</span></a><form method="post" action="/logout?locale=${
+    encodeURIComponent(locale)
+  }">${
+    csrfHiddenInput(csrfToken)
+  }<button class="nav-account-menu-action nav-account-logout" type="submit">${
+    logoutIcon("nav-account-menu-icon")
+  }<span>${
+    escapeHtml(messages.navLogout)
+  }</span></button></form></div></details>`;
+}
+
+/**
+ * 为用户稳定地分配一张默认头像。
+ *
+ * @param {string | undefined} userId 用户 ID。
+ * @return {string} 默认头像资源路径。
+ */
+export function defaultAvatarUrl(userId: string | undefined): string {
+  const value = userId ?? "default";
+  const hash = Array.from(value).reduce(
+    (total, character) => (total * 31 + character.codePointAt(0)!) >>> 0,
+    0,
+  );
+  return `/static/fun/default-avatar/avatar${hash % 5 + 1}.png`;
+}
+
+/**
+ * 渲染上传头像和默认头像的叠层。
+ *
+ * @param {Pick<UserAccount, "displayName" | "username"> & { id?: string }} account 当前账户。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 头像 HTML。
+ */
+export function renderAvatar(
+  account: Pick<UserAccount, "displayName" | "username"> & { id?: string },
+  messages: ReturnType<typeof getMessages>,
+): string {
+  const name = account.displayName ?? account.username;
+  const alt = messages.accountAvatarAlt.replace("{name}", name);
+  return `<span class="account-avatar-risk-wrapper" data-lobotomy-corp-risk-host="nav"><span class="account-avatar"><img class="account-avatar-default" src="${
+    defaultAvatarUrl(account.id)
+  }" alt="${
+    escapeHtml(alt)
+  }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>`;
 }

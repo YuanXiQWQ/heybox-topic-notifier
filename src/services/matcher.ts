@@ -19,7 +19,7 @@ const regexMatchTimeoutMs = 100;
 /**
  * 正则 Worker 执行代码。
  *
- * 正则必须在独立 Worker 中运行，避免灾难性回溯阻塞主线程。
+ * 正则运行在独立 Worker 中，避免灾难性回溯阻塞主线程。
  */
 const regexWorkerSource = `
 self.onmessage = (event) => {

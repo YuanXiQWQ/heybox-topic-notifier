@@ -40,6 +40,7 @@ const storageWriteMethods = new Set<PropertyKey>([
   "recordLoginFailure",
   "recordRateLimitHit",
   "saveAccount",
+  "saveUserAvatar",
   "saveAuthenticationEvent",
   "saveAuthIdentity",
   "saveEmailCredential",

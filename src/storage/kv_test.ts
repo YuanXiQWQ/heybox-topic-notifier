@@ -17,6 +17,7 @@ import type {
   UserSecuritySettings,
 } from "../models.ts";
 import { createKvStorage, latestMatchByMatchedTime } from "./kv.ts";
+import { assert, assertEquals, assertStrictEquals } from "../test_helpers.ts";
 
 Deno.test("latestMatchByMatchedTime prefers the newest match before post time", () => {
   const olderMatchNewerPost = record("older-match-newer-post", {
@@ -172,7 +173,7 @@ Deno.test("updateAccount atomically moves the username index", async () => {
     passwordHash: "new-hash",
   });
 
-  assertEquals(updated, true);
+  assertStrictEquals(updated, true);
   assertEquals(await storage.getAccountByUsername("alice"), undefined);
   assertEquals((await storage.getAccountByUsername("yuanxi"))?.id, "alice-id");
   assertEquals(
@@ -191,9 +192,27 @@ Deno.test("updateAccount rejects an existing username without changing the accou
 
   const updated = await storage.updateAccount(account("alice-id", "bob"));
 
-  assertEquals(updated, false);
+  assertStrictEquals(updated, false);
   assertEquals((await storage.getAccountById("alice-id"))?.username, "alice");
   assertEquals((await storage.getAccountByUsername("bob"))?.id, "bob-id");
+});
+
+Deno.test("user avatars persist image bytes by user id", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const avatar = {
+    contentType: "image/png" as const,
+    data: new Uint8Array([137, 80, 78, 71]),
+    updatedAt: "2026-09-06T00:00:00.000Z",
+    userId: "alice-id",
+  };
+
+  await storage.saveUserAvatar(avatar);
+
+  assertEquals(await storage.getUserAvatar("alice-id"), avatar);
+  assertEquals(await storage.getUserAvatar("bob-id"), undefined);
 });
 
 Deno.test("security settings storage reads defaults and saved settings", async () => {
@@ -254,6 +273,7 @@ Deno.test("totp credential storage reads saved credentials by user id", async ()
   const normalizedCredential: TotpCredential = {
     credentialId: "legacy",
     enabledAt: credential.enabledAt,
+    label: undefined,
     recoveryCodeHashes: credential.recoveryCodeHashes,
     secretEncrypted: credential.secretEncrypted,
     userId: credential.userId,
@@ -536,7 +556,7 @@ Deno.test("pending MFA challenge storage preserves attempts and methods", async 
 
   assertEquals(await storage.getPendingMfaChallenge("mfa-challenge-id"), {
     ...challenge,
-    allowedMethods: ["email", "passkey"],
+    allowedMethods: ["passkey", "email"],
   });
 
   await storage.savePendingMfaChallenge({
@@ -743,12 +763,12 @@ Deno.test("recordRateLimitHit blocks requests after the configured limit", async
     60_000,
   );
 
-  assertEquals(first.allowed, true);
-  assertEquals(second.allowed, true);
-  assertEquals(third.allowed, false);
+  assertStrictEquals(first.allowed, true);
+  assertStrictEquals(second.allowed, true);
+  assertStrictEquals(third.allowed, false);
   assertEquals(third.count, 3);
   assertEquals(third.limit, 2);
-  assertEquals(third.retryAfterSeconds > 0, true);
+  assert(third.retryAfterSeconds > 0);
 });
 
 /**
@@ -1033,18 +1053,3 @@ type MemoryKvAtomicOperation = {
     options?: { expireIn?: number },
   ): MemoryKvAtomicOperation;
 };
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
-}

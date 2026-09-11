@@ -12,6 +12,7 @@ import {
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { renderSettings } from "./settings.ts";
+import { assertEquals } from "../test_helpers.ts";
 
 /**
  * 视图测试使用的固定 CSRF 令牌。
@@ -279,8 +280,37 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260903-transient-status`,
+    `/static/settings.js?v=20260908-portrait-canvas`,
   );
+  assertIncludes(
+    html,
+    `/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=20260907-inline-data-v2`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/ace-attorney/ace-attorney.js?v=20260907-inline-data-v2`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/ace-attorney/ace-attorney.css?v=20260905-investigations-corners`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/coordinator.js?v=20260905-cross-game-interruption`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260909-white-night-events`,
+  );
+  assertIncludes(
+    html,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-white-night`,
+  );
+  assertIncludes(
+    html,
+    `id="lobotomy-corp-locale-data">{"restartDay":"重新开始这一天","firedManager":"你被解雇了，主管！","whiteNight.blockNavigation.denyPresence"`,
+  );
+  assertIncludes(html, `data-username-easter-egg-settings`);
 });
 
 Deno.test("renderSettings marks navigation and locale controls with icons", () => {
@@ -312,6 +342,7 @@ Deno.test("renderSettings marks navigation and locale controls with icons", () =
 Deno.test("renderSettings keeps settings row actions compact", () => {
   const html = renderSettings({
     account: {
+      displayName: "Alice Wonderland",
       emailVerified: false,
       primaryEmail: undefined,
       username: "alice",
@@ -327,10 +358,13 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
   });
 
   assertIncludes(html, `data-account-mode="username"`);
+  assertIncludes(html, `data-account-mode="displayName"`);
   assertIncludes(html, `data-account-mode-trigger="password"`);
   assertIncludes(html, `aria-label="修改用户名"`);
+  assertIncludes(html, `aria-label="修改显示名称"`);
   assertIncludes(html, `aria-label="修改密码"`);
   assertIncludes(html, `data-tooltip="修改用户名"`);
+  assertIncludes(html, `data-tooltip="修改显示名称"`);
   assertIncludes(html, `data-tooltip="修改密码"`);
   assertIncludes(html, `class="settings-row-switch-cell"`);
   assertIncludes(html, `data-test-notify-status`);
@@ -349,6 +383,41 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
   assertNotIncludes(html, `>修改用户名</button>`);
   assertNotIncludes(html, `>修改密码</button>`);
   assertNotIncludes(html, `>验证当前密码</button>`);
+  assertIncludes(html, `value="Alice Wonderland"`);
+  assertEquals(
+    html.indexOf("data-account-username-input") <
+      html.indexOf("data-account-display-name-input"),
+    true,
+  );
+  assertEquals(
+    html.indexOf("data-account-display-name-input") <
+      html.indexOf("data-account-current-password-row"),
+    true,
+  );
+});
+
+Deno.test("renderSettings escapes an injection-like username", () => {
+  const html = renderSettings({
+    account: {
+      emailVerified: false,
+      primaryEmail: undefined,
+      username: `\"><script>alert(1)</script>`,
+    },
+    csrfToken: testCsrfToken,
+    secondFactorMethods: [],
+    securitySettings: {
+      preferredSecondFactor: undefined,
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+  });
+
+  assertIncludes(
+    html,
+    `value="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"`,
+  );
+  assertNotIncludes(html, `<script>alert(1)</script>`);
 });
 
 Deno.test("renderSettings keeps account password mode behind current password verification", () => {
@@ -394,6 +463,18 @@ Deno.test("renderSettings keeps account password mode behind current password ve
   assertNotIncludes(html, `data-account-verify-button`);
 });
 
+Deno.test("renderSettings separates avatar preview from the upload dropzone", () => {
+  const html = renderSettings({
+    csrfToken: testCsrfToken,
+    settings: settings(),
+  });
+
+  assertIncludes(html, "data-avatar-preview");
+  assertIncludes(html, "data-avatar-preview-dialog");
+  assertIncludes(html, "data-avatar-dropzone");
+  assertNotIncludes(html, "onload=");
+});
+
 Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => {
   const appSettings: AppSettings = {
     ...settings(),
@@ -413,6 +494,18 @@ Deno.test("renderSettings marks RTL pages and isolates technical inputs", () => 
     `name="notificationSmtpHost"\n                dir="ltr"`,
   );
   assertIncludes(html, `name="topic_0_id" dir="ltr" value="12345"`);
+  assertNotIncludes(
+    html,
+    `name="username"\n                  dir="ltr"`,
+  );
+  assertNotIncludes(
+    html,
+    `name="notificationSmtpPort"\n                dir="ltr"`,
+  );
+  assertNotIncludes(
+    html,
+    `name="pollIntervalValue"\n                    dir="ltr"`,
+  );
 });
 
 Deno.test("renderSettings does not expose notification secrets", () => {
@@ -493,6 +586,9 @@ Deno.test("renderSettings renders email binding controls and verified email stat
   assertBefore(html, `data-email-summary-row`, `data-email-code-row`);
   assertIncludes(html, `class="settings-turnstile cf-turnstile"`);
   assertIncludes(html, `data-response-field-name="cf-turnstile-response"`);
+  assertIncludes(html, `data-callback="collapseTurnstileWidget"`);
+  assertIncludes(html, `turnstileSuccessDisplayMs = 1800`);
+  assertIncludes(html, `data-expired-callback="revealTurnstileWidgets"`);
   assertIncludes(
     html,
     `https://challenges.cloudflare.com/turnstile/v0/api.js`,
@@ -918,6 +1014,7 @@ Deno.test("renderSettings renders Google unbind as an icon action", () => {
   });
 
   assertIncludes(html, `action="/account/google/unbind?locale=zh-CN"`);
+  assertIncludes(html, `data-google-unbind-form`);
   assertIncludes(html, `class="auth-method-toggle-button"`);
   assertIncludes(html, `aria-label="解绑"`);
   assertIncludes(html, `data-tooltip="解绑"`);
@@ -1009,21 +1106,6 @@ function settings(): AppSettings {
     themeColor: "#bd7fff",
     topics: [],
   };
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
 }
 
 /**

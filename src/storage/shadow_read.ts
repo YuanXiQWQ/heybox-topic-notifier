@@ -44,6 +44,7 @@ const storageReadMethods = new Set<PropertyKey>([
   "getSettings",
   "getTotpCredential",
   "getUserSecuritySettings",
+  "getUserAvatar",
   "listAccounts",
   "listAuthIdentitiesForUser",
   "listEmailCredentials",

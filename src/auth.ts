@@ -57,6 +57,13 @@ import {
   turnstileResponseFieldName,
   verifyTurnstileToken,
 } from "./auth/turnstile.ts";
+import {
+  type AltchaConfig,
+  altchaConfigured,
+  altchaResponseFieldName,
+  createAltchaChallenge,
+  verifyAltchaPayload,
+} from "./auth/altcha.ts";
 import { normalizeEmailAddress } from "./auth/email.ts";
 import {
   createEmailVerificationChallenge,
@@ -134,6 +141,7 @@ export type AuthOptions = {
   totp?: TotpConfig;
   turnstile?: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
+  altcha?: AltchaConfig;
 };
 
 /**
@@ -158,6 +166,7 @@ type AuthConfig = {
   totp: TotpConfig;
   turnstile: TurnstileConfig;
   turnstileFetch?: TurnstileFetch;
+  altcha: AltchaConfig;
 };
 
 /**
@@ -171,6 +180,15 @@ const defaultTurnstileConfig: TurnstileConfig = {
   enabled: false,
   secretKey: "",
   siteKey: "",
+};
+/**
+ * 默认关闭的 ALTCHA 配置。
+ */
+const defaultAltchaConfig: AltchaConfig = {
+  challengeCost: 1000,
+  challengeTtlSeconds: 10 * 60,
+  enabled: false,
+  hmacKey: "",
 };
 /**
  * 默认邮箱验证码配置。
@@ -279,6 +297,10 @@ const mfaPath = "/mfa";
  * Passkey challenge 最大校验失败次数。
  */
 const passkeyChallengeMaxAttempts = 5;
+/**
+ * ALTCHA 载荷的重放保护窗口（毫秒）。
+ */
+const altchaReplayWindowMs = 10 * 60 * 1000;
 
 /**
  * 创建认证中间件。
@@ -347,6 +369,7 @@ export function createAuthRoutes(
             ? authLocaleChangedValue
             : undefined,
         }),
+        altchaFallbackEnabled: altchaFallbackEnabled(config),
         csrfToken: csrf.token,
         emailTurnstileSiteKey: turnstileSiteKey(config),
         error: loginErrorMessage(url.searchParams.get("error"), messages),
@@ -420,6 +443,7 @@ export function createAuthRoutes(
         c.req.raw,
         form,
         config,
+        storage,
       );
       if (humanVerificationErrors) {
         return c.redirect(
@@ -512,6 +536,16 @@ export function createAuthRoutes(
     });
   });
 
+  app.get("/auth/altcha/challenge", async (c) => {
+    if (!altchaFallbackEnabled(config)) {
+      return new Response(null, { status: 404 });
+    }
+
+    return c.json(await createAltchaChallenge(config.altcha), 200, {
+      "cache-control": "no-store",
+    });
+  });
+
   app.get(config.registerPath, (c) => {
     const url = new URL(c.req.url);
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
@@ -534,6 +568,7 @@ export function createAuthRoutes(
         returnTo: safeReturnTo(url.searchParams.get("returnTo")),
         submitLabel: messages.authCreateAccount,
         syncLocale,
+        altchaFallbackEnabled: altchaFallbackEnabled(config),
         turnstileSiteKey: turnstileSiteKey(config),
       })),
       csrf,
@@ -553,34 +588,8 @@ export function createAuthRoutes(
     }
     const locale = authPageLocale(url, c.req.header("accept-language"), config);
     const syncLocale = shouldSyncAuthLocale(url);
-    const rateLimitResponse = await rateLimitExceededResponseFor(
-      storage,
-      publicRateLimitPolicies.registration,
-      clientRateLimitIdentifier((name) => c.req.header(name)),
-      { request: c.req.raw },
-    );
-    if (rateLimitResponse) {
-      return rateLimitResponse;
-    }
-
-    const humanVerificationErrors = await humanVerificationErrorCodes(
-      c.req.raw,
-      form,
-      config,
-    );
-    if (humanVerificationErrors) {
-      return c.redirect(
-        authPagePath(config.registerPath, locale, {
-          error: "humanVerification",
-          [authLocaleChangedParam]: syncLocale
-            ? authLocaleChangedValue
-            : undefined,
-        }),
-        303,
-      );
-    }
-
     const username = normalizeUsername(String(form.username ?? ""));
+    const displayName = username;
     const password = String(form.password ?? "");
     const confirmPassword = String(form.confirmPassword ?? "");
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
@@ -602,8 +611,37 @@ export function createAuthRoutes(
       );
     }
 
+    const humanVerificationErrors = await humanVerificationErrorCodes(
+      c.req.raw,
+      form,
+      config,
+      storage,
+    );
+    if (humanVerificationErrors) {
+      return c.redirect(
+        authPagePath(config.registerPath, locale, {
+          error: "humanVerification",
+          [authLocaleChangedParam]: syncLocale
+            ? authLocaleChangedValue
+            : undefined,
+        }),
+        303,
+      );
+    }
+
+    const rateLimitResponse = await rateLimitExceededResponseFor(
+      storage,
+      publicRateLimitPolicies.registration,
+      clientRateLimitIdentifier((name) => c.req.header(name)),
+      { request: c.req.raw },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const account: UserAccount = {
       createdAt: new Date().toISOString(),
+      displayName,
       id: crypto.randomUUID(),
       username,
       ...(await hashPassword(password)),
@@ -732,6 +770,7 @@ export function createAuthRoutes(
         c.req.raw,
         form,
         config,
+        storage,
       );
       if (humanVerificationErrors) {
         return c.json({ error: "humanVerification" }, 403);
@@ -3268,6 +3307,7 @@ function authConfig(options: AuthOptions): AuthConfig {
     totp: options.totp ?? defaultTotpConfig,
     turnstile: options.turnstile ?? defaultTurnstileConfig,
     turnstileFetch: options.turnstileFetch,
+    altcha: options.altcha ?? defaultAltchaConfig,
   };
 }
 
@@ -3296,6 +3336,16 @@ function turnstileSiteKey(config: AuthConfig): string | undefined {
   return config.turnstile.enabled && config.turnstile.siteKey
     ? config.turnstile.siteKey
     : undefined;
+}
+
+/**
+ * 判断注册页是否可使用 ALTCHA 自动降级。
+ *
+ * @param {AuthConfig} config 认证配置。
+ * @return {boolean} ALTCHA 配置完整时返回 true。
+ */
+function altchaFallbackEnabled(config: AuthConfig): boolean {
+  return altchaConfigured(config.altcha);
 }
 
 /**
@@ -3332,6 +3382,7 @@ function loginTurnstileSiteKey(
  * @param request 原始请求。
  * @param form 表单数据。
  * @param config 认证配置。
+ * @param storage 应用存储。
  * @return 校验失败时返回错误码列表，成功时返回 undefined。
  */
 async function humanVerificationErrorCodes(
@@ -3340,7 +3391,38 @@ async function humanVerificationErrorCodes(
     | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>
     | FormData,
   config: AuthConfig,
+  storage: Storage,
 ): Promise<string[] | undefined> {
+  const altchaPayload = formTextValue(form, altchaResponseFieldName);
+  if (altchaPayload) {
+    const altchaResult = await verifyAltchaPayload(
+      altchaPayload,
+      config.altcha,
+    );
+    if (!altchaResult.success) {
+      return humanVerificationFailure(
+        request,
+        altchaResult.errorCodes,
+        "ALTCHA 工作量证明校验失败，已拒绝认证请求。",
+      );
+    }
+
+    const replay = await storage.recordRateLimitHit(
+      ["altcha-payload", altchaResult.payloadId],
+      1,
+      altchaReplayWindowMs,
+    );
+    if (replay.allowed) {
+      return undefined;
+    }
+
+    return humanVerificationFailure(
+      request,
+      ["replayed-payload"],
+      "ALTCHA 工作量证明已被重复使用，已拒绝认证请求。",
+    );
+  }
+
   const result = await verifyTurnstileToken(
     turnstileTokenFromForm(form),
     config.turnstile,
@@ -3353,15 +3435,35 @@ async function humanVerificationErrorCodes(
     return undefined;
   }
 
+  return humanVerificationFailure(
+    request,
+    result.errorCodes,
+    "Turnstile 验证失败，已拒绝认证请求。",
+  );
+}
+
+/**
+ * 记录人机验证失败审计日志并返回错误码。
+ *
+ * @param {Request} request 原始请求。
+ * @param {string[]} errorCodes 验证失败错误码。
+ * @param {string} message 审计日志消息。
+ * @return {string[]} 原始错误码。
+ */
+function humanVerificationFailure(
+  request: Request,
+  errorCodes: string[],
+  message: string,
+): string[] {
   logSecurityAuditEvent({
     code: "human_verification_failed",
-    details: { errors: result.errorCodes.join(",") },
+    details: { errors: errorCodes.join(",") },
     level: "warn",
-    message: "人机验证失败，已拒绝认证请求。",
+    message,
     request,
   });
 
-  return result.errorCodes;
+  return errorCodes;
 }
 
 /**
@@ -3375,9 +3477,25 @@ function turnstileTokenFromForm(
     | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>
     | FormData,
 ): string | undefined {
+  return formTextValue(form, turnstileResponseFieldName);
+}
+
+/**
+ * 从认证表单读取单个文本字段。
+ *
+ * @param {FormData | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>} form 表单数据。
+ * @param {string} fieldName 字段名称。
+ * @return {string | undefined} 文本字段值。
+ */
+function formTextValue(
+  form:
+    | Record<string, FormDataEntryValue | FormDataEntryValue[] | undefined>
+    | FormData,
+  fieldName: string,
+): string | undefined {
   const value = form instanceof FormData
-    ? form.get(turnstileResponseFieldName)
-    : form[turnstileResponseFieldName];
+    ? form.get(fieldName)
+    : form[fieldName];
   const firstValue = Array.isArray(value) ? value[0] : value;
   return typeof firstValue === "string" ? firstValue : undefined;
 }
@@ -3693,6 +3811,7 @@ function arrayBufferFromBytes(value: Uint8Array): ArrayBuffer {
  */
 function renderAuthPage(options: {
   action: string;
+  altchaFallbackEnabled?: boolean;
   csrfToken: string;
   emailTurnstileSiteKey?: string;
   error?: string;
@@ -3742,11 +3861,12 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.appName)
   }</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
     <script src="/static/tooltip.js" defer></script>
     ${
     turnstileScriptHtml(
       options.turnstileSiteKey ?? options.emailTurnstileSiteKey,
+      options.altchaFallbackEnabled ?? false,
     )
   }
     ${googleScriptHtml(options.googleClientId)}
@@ -4074,7 +4194,13 @@ function renderAuthPage(options: {
       })
       : ""
   }
-          ${turnstileWidgetHtml(options.turnstileSiteKey)}
+          ${
+    turnstileWidgetHtml(
+      options.turnstileSiteKey,
+      options.altchaFallbackEnabled ?? false,
+      options.messages.authHumanVerificationRequired,
+    )
+  }
           ${
     options.mode === "login"
       ? renderAuthActionRow({
@@ -4306,6 +4432,7 @@ function renderPasskeyLoginForm(options: {
  */
 function renderEmailLoginForm(options: {
   action: string;
+  altchaFallbackEnabled?: boolean;
   csrfToken: string;
   emailTurnstileSiteKey?: string;
   initiallyVisible?: boolean;
@@ -4365,7 +4492,13 @@ function renderEmailLoginForm(options: {
               </button>
             </span>
           </label>
-          ${turnstileWidgetHtml(options.emailTurnstileSiteKey)}
+          ${
+    turnstileWidgetHtml(
+      options.emailTurnstileSiteKey,
+      options.altchaFallbackEnabled ?? false,
+      options.messages.authHumanVerificationRequired,
+    )
+  }
           <div
             class="auth-email-status"
             data-auth-email-status
@@ -4540,32 +4673,18 @@ function renderMfaPage(options: {
   selectedMethod?: SecondFactorMethod;
 }): string {
   const direction = isRtlLocale(options.locale) ? "rtl" : "ltr";
-  const methodPanels = ([
-    {
-      html: options.challenge.allowedMethods.includes("email")
-        ? renderMfaEmailForm(options)
-        : "",
-      method: "email",
-    },
-    {
-      html: options.challenge.allowedMethods.includes("totp")
-        ? renderMfaTotpForm(options)
-        : "",
-      method: "totp",
-    },
-    {
-      html: options.challenge.allowedMethods.includes("passkey")
-        ? renderMfaPasskeyForm(options)
-        : "",
-      method: "passkey",
-    },
-    {
-      html: options.challenge.allowedMethods.includes("recoveryCode")
-        ? renderMfaRecoveryCodeForm(options)
-        : "",
-      method: "recoveryCode",
-    },
-  ] satisfies Array<{ html: string; method: SecondFactorMethod }>).filter(
+  const methodPanels = options.challenge.allowedMethods.map((method) => {
+    switch (method) {
+      case "email":
+        return { html: renderMfaEmailForm(options), method };
+      case "passkey":
+        return { html: renderMfaPasskeyForm(options), method };
+      case "recoveryCode":
+        return { html: renderMfaRecoveryCodeForm(options), method };
+      case "totp":
+        return { html: renderMfaTotpForm(options), method };
+    }
+  }).filter(
     (panel) => panel.html.length > 0,
   );
   const selectedMethod =
@@ -4573,6 +4692,9 @@ function renderMfaPage(options: {
       ? options.selectedMethod
       : methodPanels[0]?.method;
   const availableMethods = methodPanels.map((panel) => panel.method);
+  const selectableMethods = availableMethods.filter((method) =>
+    method !== "recoveryCode"
+  );
   const languageOptionsHtml = renderMfaLanguageOptions(
     options.challenge.id,
     options.locale,
@@ -4593,159 +4715,183 @@ function renderMfaPage(options: {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.messages.authMfaTitle)}</title>
+    <link rel="icon" href="/favicon.ico" type="image/png">
+    <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    <script src="/static/tooltip.js" defer></script>
     <style>
       body {
-        background: #F6F2FB;
-        color: #21182C;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
       }
 
-      .topbar {
-        align-items: center;
-        display: flex;
-        justify-content: space-between;
-        padding: 20px clamp(20px, 4vw, 48px);
+      .auth-language-icon {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 auto;
       }
 
-      .brand {
-        font-weight: 800;
+      .auth-language-menu {
+        align-self: stretch;
+        position: relative;
       }
 
       .auth-language-button {
         align-items: center;
-        background: #FFFFFF;
-        border: 1px solid #E3D7F2;
-        border-radius: 6px;
+        color: var(--theme-link);
         cursor: pointer;
         display: inline-flex;
-        gap: 6px;
-        padding: 8px 12px;
+        font-weight: 700;
+        gap: 8px;
+        height: 100%;
+        justify-content: center;
+        list-style: none;
+        min-width: 0;
+        padding: 0 16px;
+        user-select: none;
+        white-space: nowrap;
       }
 
-      .auth-language-icon {
-        height: 18px;
-        width: 18px;
+      .auth-language-button:focus {
+        outline: none;
+      }
+
+      .auth-language-button::-webkit-details-marker {
+        display: none;
+      }
+
+      .auth-language-button:hover,
+      .auth-language-button:focus-visible {
+        background: var(--theme-soft);
+        text-decoration: none;
+      }
+
+      .auth-language-button:focus-visible {
+        box-shadow: inset 0 -2px 0 var(--theme-link);
       }
 
       .auth-language-options {
-        background: #FFFFFF;
-        border: 1px solid #E3D7F2;
+        background: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 6px;
+        box-shadow: 0 10px 20px var(--shadow-strong);
         display: grid;
         gap: 2px;
-        margin-top: 6px;
+        min-width: 132px;
+        overflow: hidden;
         padding: 4px;
         position: absolute;
+        inset-inline-end: 0;
+        top: calc(100% + 6px);
         z-index: 1;
       }
 
       .auth-language-options a {
-        color: #21182C;
+        border-radius: 4px;
+        color: var(--ink);
+        display: block;
+        font-size: 0.95rem;
         font-weight: 600;
+        line-height: 1.25;
+        min-height: 0;
         padding: 8px 12px;
+        text-align: center;
         text-decoration: none;
+      }
+
+      .auth-language-options a:hover,
+      .auth-language-options a:focus-visible,
+      .auth-language-options a[aria-current="true"] {
+        background: var(--theme-soft);
       }
 
       .auth-shell {
         display: grid;
-        min-height: calc(100vh - 80px);
         place-items: center;
         padding: 24px;
       }
 
       .auth-panel {
-        background: #FFFFFF;
-        border: 1px solid #E3D7F2;
-        border-radius: 8px;
-        box-shadow: 0 20px 50px rgba(58, 35, 82, 0.12);
         display: grid;
-        gap: 18px;
-        max-width: 420px;
-        padding: 28px;
-        width: min(100%, 420px);
+        gap: 16px;
+        width: min(100%, 360px);
       }
 
       .auth-panel h1 {
-        font-size: 1.6rem;
         margin: 0;
+        font-size: 1.45rem;
       }
 
       .auth-method-title,
       .mfa-method-list {
-        color: #5F526D;
+        color: var(--muted);
         font-size: 0.95rem;
         margin: 0;
       }
 
       .mfa-method-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        border-bottom: 1px solid var(--border);
+        display: grid;
+        grid-template-columns: repeat(var(--mfa-method-count), minmax(0, 1fr));
         list-style: none;
         padding: 0;
       }
 
+      .mfa-method-list li {
+        min-width: 0;
+      }
+
       .mfa-method-link {
-        background: #F6F2FB;
-        border: 1px solid #E3D7F2;
-        border-radius: 6px;
-        color: #4B276F;
+        border-bottom: 2px solid transparent;
+        box-sizing: border-box;
+        color: var(--theme-link);
         display: block;
         font-weight: 700;
-        padding: 6px 10px;
+        margin-bottom: -1px;
+        overflow-wrap: anywhere;
+        padding: 8px 10px;
+        text-align: center;
+        text-decoration: none;
+        width: 100%;
+      }
+
+      .mfa-method-link:hover,
+      .mfa-method-link:focus-visible {
+        background: var(--theme-soft);
         text-decoration: none;
       }
 
       .mfa-method-link[aria-current="true"] {
-        background: #7C3AED;
-        border-color: #7C3AED;
-        color: #FFFFFF;
+        border-color: var(--theme-strong);
+        color: var(--theme-strong);
       }
 
       .auth-panel form {
         display: grid;
-        gap: 14px;
+        gap: 12px;
       }
 
-      label {
+      .auth-panel label {
         display: grid;
         gap: 6px;
         font-weight: 700;
       }
 
-      input,
-      select {
-        border: 1px solid #D8CCE8;
-        border-radius: 6px;
-        font: inherit;
-        padding: 10px 12px;
-      }
-
-      button {
-        background: #7C3AED;
-        border: 0;
-        border-radius: 6px;
-        color: #FFFFFF;
-        cursor: pointer;
-        font: inherit;
-        font-weight: 800;
-        padding: 11px 14px;
-      }
-
-      button.secondary {
-        background: #EFE7FA;
-        color: #4B276F;
-      }
-
       .auth-email-code-row {
-        display: flex;
+        align-items: center;
+        display: grid;
         gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
       }
 
       .auth-email-code-row input {
-        flex: 1;
         min-width: 0;
+      }
+
+      .auth-recovery-link {
+        font-size: 0.9rem;
+        font-weight: 700;
+        justify-self: start;
       }
 
       .auth-passkey-method {
@@ -4758,23 +4904,25 @@ function renderMfaPage(options: {
       }
 
       .auth-passkey-status {
-        color: #5F526D;
-        font-size: 0.92rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        min-height: 18px;
       }
 
       .auth-passkey-status[data-state="error"] {
-        color: #B42318;
+        color: #b42318;
       }
 
       .auth-email-status,
       .auth-error {
-        color: #5F526D;
-        font-size: 0.92rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        min-height: 18px;
       }
 
       .auth-email-status[data-state="error"],
       .auth-error {
-        color: #B42318;
+        color: #b42318;
       }
     </style>
   </head>
@@ -4806,10 +4954,12 @@ function renderMfaPage(options: {
         ${
     renderMfaMethodList({
       challengeId: options.challenge.id,
-      currentMethod: selectedMethod,
+      currentMethod: selectedMethod === "recoveryCode"
+        ? "totp"
+        : selectedMethod,
       locale: options.locale,
       messages: options.messages,
-      methods: availableMethods,
+      methods: selectableMethods,
       returnTo: options.returnTo,
     })
   }
@@ -4826,7 +4976,7 @@ function renderMfaPage(options: {
   }
       </section>
     </main>
-    ${mfaMethodSelectorScript(availableMethods.length > 1)}
+    ${mfaMethodSelectorScript(selectableMethods.length > 1)}
     ${mfaEmailScript(availableMethods.includes("email"), options.locale)}
     ${authPasskeyLoginScript(availableMethods.includes("passkey"))}
   </body>
@@ -4901,7 +5051,7 @@ function renderMfaEmailForm(options: {
                 data-mfa-email-code-input
                 required
               >
-              <button type="button" class="secondary" data-mfa-email-send-code-button>
+              <button type="button" data-mfa-email-send-code-button>
                 ${escapeHtml(options.messages.authEmailSendCode)}
               </button>
             </span>
@@ -4981,6 +5131,7 @@ function renderMfaTotpForm(options: {
   action: string;
   challenge: PendingMfaChallenge;
   csrfToken: string;
+  locale: Locale;
   messages: Messages;
   returnTo: string;
 }): string {
@@ -5009,6 +5160,21 @@ function renderMfaTotpForm(options: {
               data-mfa-totp-code-input
               required
             >
+            ${
+    options.challenge.allowedMethods.includes("recoveryCode")
+      ? `<a
+                class="auth-recovery-link"
+                href="${
+        escapeHtml(mfaPagePath(
+          options.locale,
+          options.challenge.id,
+          options.returnTo,
+          { method: "recoveryCode" },
+        ))
+      }"
+              >${escapeHtml(options.messages.authMfaUseRecoveryCode)}</a>`
+      : ""
+  }
           </label>
           <button type="submit">${
     escapeHtml(options.messages.authMfaVerify)
@@ -5095,6 +5261,7 @@ function renderMfaMethodList(options: {
     class="mfa-method-list"
     aria-label="${escapeHtml(options.messages.authMfaChooseMethod)}"
     data-mfa-method-selector
+    style="--mfa-method-count: ${options.methods.length}"
   >
     ${
     options.methods.map((method) =>
@@ -5367,6 +5534,10 @@ function authEmailLoginScript(enabled: boolean, locale: Locale): string {
     return body;
   };
   const resetTurnstile = () => {
+    if (typeof globalThis.revealTurnstileWidgets === "function") {
+      globalThis.revealTurnstileWidgets();
+    }
+
     if (globalThis.turnstile && typeof globalThis.turnstile.reset === "function") {
       globalThis.turnstile.reset();
     }
@@ -5691,9 +5862,69 @@ function googleScriptHtml(clientId: string | undefined): string {
  * @param siteKey Turnstile site key。
  * @return 启用 Turnstile 时返回脚本 HTML。
  */
-function turnstileScriptHtml(siteKey: string | undefined): string {
+function turnstileScriptHtml(
+  siteKey: string | undefined,
+  altchaFallbackEnabled: boolean,
+): string {
   return siteKey
-    ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+    ? `<script>
+/**
+ * 在 Turnstile 验证成功后，待成功动画展示完毕再平滑收起组件。
+ */
+globalThis.collapseTurnstileWidget = () => {
+  const turnstileSuccessDisplayMs = 1800;
+  const turnstileCollapseAnimationMs = 280;
+
+  for (const widget of document.querySelectorAll(".cf-turnstile")) {
+    const response = widget.querySelector("input[name='${turnstileResponseFieldName}']");
+    if (response instanceof HTMLInputElement && response.value.trim()) {
+      widget.dataset.turnstileComplete = "true";
+
+      /**
+       * 在成功提示停留后启动当前组件的收起动画。
+       */
+      const startCollapse = () => {
+        if (widget.dataset.turnstileComplete !== "true") return;
+
+        widget.dataset.turnstileCollapsing = "true";
+
+        /**
+         * 在收起过渡结束后从页面布局中移除当前组件。
+         */
+        const finishCollapse = () => {
+          if (widget.dataset.turnstileComplete === "true") {
+            widget.hidden = true;
+          }
+        };
+
+        window.setTimeout(finishCollapse, turnstileCollapseAnimationMs);
+      };
+
+      window.setTimeout(startCollapse, turnstileSuccessDisplayMs);
+    }
+  }
+};
+
+/**
+ * 在需要重新进行 Turnstile 验证时恢复组件显示。
+ */
+globalThis.revealTurnstileWidgets = () => {
+  for (const widget of document.querySelectorAll(".cf-turnstile")) {
+    delete widget.dataset.turnstileComplete;
+    delete widget.dataset.turnstileCollapsing;
+    widget.hidden = false;
+  }
+};
+${altchaFallbackScript(altchaFallbackEnabled)}
+</script>
+<script id="turnstile-api-script" src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+document.getElementById("turnstile-api-script")?.addEventListener(
+  "error",
+  () => globalThis.useAltchaFallback?.(),
+  { once: true },
+);
+</script>`
     : "";
 }
 
@@ -5703,11 +5934,131 @@ function turnstileScriptHtml(siteKey: string | undefined): string {
  * @param siteKey Turnstile site key。
  * @return 启用 Turnstile 时返回组件 HTML。
  */
-function turnstileWidgetHtml(siteKey: string | undefined): string {
+function turnstileWidgetHtml(
+  siteKey: string | undefined,
+  altchaFallbackEnabled = false,
+  fallbackUnavailableMessage = "",
+): string {
   return siteKey
     ? `<div class="auth-turnstile cf-turnstile" data-sitekey="${
       escapeHtml(siteKey)
-    }"></div>`
+    }" data-callback="collapseTurnstileWidget" data-expired-callback="revealTurnstileWidgets" data-error-callback="useAltchaFallback"></div>
+${altchaWidgetHtml(altchaFallbackEnabled, fallbackUnavailableMessage)}`
+    : "";
+}
+
+/**
+ * 渲染 ALTCHA 自动降级所需的客户端脚本。
+ *
+ * @param {boolean} enabled 是否启用 ALTCHA 自动降级。
+ * @return {string} 客户端脚本文本。
+ */
+function altchaFallbackScript(enabled: boolean): string {
+  if (!enabled) return "";
+
+  return `
+/**
+ * 将十六进制文本转换为字节数组。
+ *
+ * @param {string} value 十六进制文本。
+ * @return {Uint8Array} 字节数组。
+ */
+globalThis.altchaHexBytes = (value) => {
+  if (!/^[0-9a-f]+$/i.test(value) || value.length % 2 !== 0) throw new Error("Invalid ALTCHA hex value.");
+  const bytes = new Uint8Array(value.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
+  return bytes;
+};
+
+/**
+ * 将字节数组编码为十六进制文本。
+ *
+ * @param {Uint8Array} bytes 字节数组。
+ * @return {string} 小写十六进制文本。
+ */
+globalThis.altchaBytesHex = (bytes) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+
+/**
+ * 在浏览器后台求解 ALTCHA PBKDF2 工作量证明。
+ *
+ * @param {unknown} challenge 服务端签名挑战。
+ * @return {Promise<{ counter: number; derivedKey: string }>} 工作量证明解答。
+ */
+globalThis.solveAltchaChallenge = async (challenge) => {
+  const parameters = challenge?.parameters;
+  if (!parameters || challenge?.signature === undefined || parameters.algorithm !== "PBKDF2/SHA-256" || !Number.isInteger(parameters.cost) || !Number.isInteger(parameters.keyLength) || typeof parameters.keyPrefix !== "string") throw new Error("Invalid ALTCHA challenge.");
+  const nonce = globalThis.altchaHexBytes(parameters.nonce);
+  const salt = globalThis.altchaHexBytes(parameters.salt);
+  const expectedPrefix = parameters.keyPrefix.toLowerCase();
+  const password = new Uint8Array(nonce.length + 4);
+  password.set(nonce);
+  const view = new DataView(password.buffer);
+
+  for (let counter = 0; counter < 100000; counter += 1) {
+    view.setUint32(nonce.length, counter, false);
+    const key = await crypto.subtle.importKey("raw", password, "PBKDF2", false, ["deriveBits"]);
+    const derived = new Uint8Array(await crypto.subtle.deriveBits({ hash: "SHA-256", iterations: parameters.cost, name: "PBKDF2", salt }, key, parameters.keyLength * 8));
+    const derivedKey = globalThis.altchaBytesHex(derived);
+    if (derivedKey.startsWith(expectedPrefix)) return { counter, derivedKey };
+    if (counter % 10 === 0) await new Promise((resolve) => window.setTimeout(resolve, 0));
+  };
+
+  throw new Error("ALTCHA challenge timed out.");
+};
+
+/**
+ * 在 Turnstile 无法加载或运行失败时启用本域 ALTCHA 验证。
+ */
+globalThis.useAltchaFallback = async () => {
+  const fallback = document.querySelector("[data-altcha-fallback]");
+  if (!(fallback instanceof HTMLElement) || fallback.dataset.loading === "true" || fallback.dataset.ready === "true") return;
+  const payloadInput = fallback.querySelector("[data-altcha-payload]");
+  const status = fallback.querySelector("[data-altcha-status]");
+  if (!(payloadInput instanceof HTMLInputElement)) return;
+  fallback.hidden = false;
+  fallback.dataset.loading = "true";
+  fallback.setAttribute("aria-busy", "true");
+  for (const widget of document.querySelectorAll(".cf-turnstile")) widget.hidden = true;
+
+  try {
+    const response = await fetch("/auth/altcha/challenge", { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) throw new Error("Could not fetch ALTCHA challenge.");
+    const challenge = await response.json();
+    const solution = await globalThis.solveAltchaChallenge(challenge);
+    payloadInput.value = btoa(JSON.stringify({ challenge, solution }));
+    fallback.dataset.ready = "true";
+  } catch {
+    fallback.dataset.unavailable = "true";
+    if (status instanceof HTMLElement) status.textContent = fallback.dataset.fallbackUnavailableMessage || "";
+  } finally {
+    fallback.dataset.loading = "false";
+    fallback.removeAttribute("aria-busy");
+  }
+};
+
+window.setTimeout(() => {
+  if (!globalThis.turnstile) globalThis.useAltchaFallback();
+}, 9000);`;
+}
+
+/**
+ * 渲染 ALTCHA 自动降级的表单字段。
+ *
+ * @param {boolean} enabled 是否启用 ALTCHA 自动降级。
+ * @param {string} fallbackUnavailableMessage 备用验证不可用提示。
+ * @return {string} ALTCHA 表单字段。
+ */
+function altchaWidgetHtml(
+  enabled: boolean,
+  fallbackUnavailableMessage: string,
+): string {
+  return enabled
+    ? `<div class="auth-turnstile" data-altcha-fallback hidden data-fallback-unavailable-message="${
+      escapeHtml(fallbackUnavailableMessage)
+    }">
+  <input type="hidden" name="${altchaResponseFieldName}" data-altcha-payload>
+  <span role="status" data-altcha-status></span>
+</div>`
     : "";
 }
 
@@ -5996,6 +6347,8 @@ function registerErrorMessage(
       return messages.authPasswordMinLength;
     case "confirmPassword":
       return messages.authPasswordConfirmationMismatch;
+    case "displayName":
+      return messages.authDisplayNameInvalid;
     case "username":
       return messages.authUsernameInvalid;
     case "humanVerification":
@@ -6034,13 +6387,27 @@ function validateRegistration(
 }
 
 /**
- * 判断用户名是否符合账号规则。
+ * 判断用户名是否为长度受控且不包含控制字符的 Unicode 文本。
  *
- * @param username 用户名。
- * @return 用户名有效时返回 true。
+ * @param {string} username 用户名。
+ * @return {boolean} 用户名有效时返回 true。
  */
 export function validUsername(username: string): boolean {
-  return /^[a-z0-9_-]{3,40}$/.test(username);
+  const length = [...username].length;
+  return length >= 1 && length <= 80 && /\S/u.test(username) &&
+    !/\p{C}/u.test(username);
+}
+
+/**
+ * 判断显示名称是否为长度受控且不包含控制字符的 Unicode 文本。
+ *
+ * @param {string} displayName 显示名称。
+ * @return {boolean} 显示名称有效时返回 true。
+ */
+export function validDisplayName(displayName: string): boolean {
+  const length = [...displayName].length;
+  return length >= 1 && length <= 80 && /\S/u.test(displayName) &&
+    !/\p{C}/u.test(displayName);
 }
 
 /**
@@ -6088,6 +6455,16 @@ function pathWithSearch(url: URL): string {
  */
 export function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
+}
+
+/**
+ * 规范化显示名称，同时保留用户输入的大小写。
+ *
+ * @param {string} value 原始显示名称。
+ * @return {string} 去除首尾空白后的显示名称。
+ */
+export function normalizeDisplayName(value: string): string {
+  return value.trim();
 }
 
 /**

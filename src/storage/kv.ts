@@ -25,6 +25,7 @@ import type {
   TopicRule,
   TotpCredential,
   UserAccount,
+  UserAvatar,
   UserSecuritySettings,
   UserSession,
 } from "../models.ts";
@@ -51,6 +52,7 @@ const keys = {
   account: (id: string) => ["accounts", id] as const,
   accountUsername: (username: string) =>
     ["accountUsernames", normalizeUsername(username)] as const,
+  avatar: (userId: string) => ["userAvatars", userId] as const,
   authenticationEvent: (
     userId: string,
     purpose: AuthenticationEventPurpose,
@@ -584,6 +586,17 @@ export function createKvStorage(
       }
 
       throw new Error("Could not update the account after concurrent updates.");
+    },
+
+    /** 获取用户头像。 */
+    async getUserAvatar(userId: string): Promise<UserAvatar | undefined> {
+      const entry = await (await kv()).get<UserAvatar>(keys.avatar(userId));
+      return entry.value ?? undefined;
+    },
+
+    /** 保存用户头像。 */
+    async saveUserAvatar(avatar: UserAvatar): Promise<void> {
+      await (await kv()).set(keys.avatar(avatar.userId), avatar);
     },
 
     /**
@@ -1959,6 +1972,10 @@ function normalizePollingSettings(
     enabled: typeof value?.enabled === "boolean"
       ? value.enabled
       : fallback.enabled,
+    intervalStartedAt: normalizeOptionalTimestamp(
+      value?.intervalStartedAt,
+      fallback.intervalStartedAt,
+    ),
     intervalUnit,
     intervalValue: normalizePollIntervalValue(
       value?.intervalValue ?? legacyIntervalMinutes,
@@ -1968,6 +1985,25 @@ function normalizePollingSettings(
     postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
     sort: normalizePollSort(value?.sort, fallback.sort),
   };
+}
+
+/**
+ * 规范化可选时间戳。
+ *
+ * @param value 待规范化值。
+ * @param fallback 兜底时间戳。
+ * @return 合法 ISO 时间戳，不存在合法值时返回 undefined。
+ */
+function normalizeOptionalTimestamp(
+  value: unknown,
+  fallback: string | undefined,
+): string | undefined {
+  if (typeof value === "string" && Number.isFinite(Date.parse(value))) {
+    return value;
+  }
+  return typeof fallback === "string" && Number.isFinite(Date.parse(fallback))
+    ? fallback
+    : undefined;
 }
 
 /**

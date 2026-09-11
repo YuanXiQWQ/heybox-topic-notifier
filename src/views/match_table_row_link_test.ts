@@ -5,7 +5,7 @@ import { renderLayout } from "./html.ts";
 
 Deno.test("renderLayout enables the middle match-table cells as one post link area", () => {
   const html = renderLayout({
-    body: "<table class=\"match-table\"></table>",
+    body: '<table class="match-table"></table>',
     csrfToken: "test-csrf-token",
     darkMode: false,
     locale: "zh-CN",
@@ -17,11 +17,30 @@ Deno.test("renderLayout enables the middle match-table cells as one post link ar
     html,
     ".match-table tbody tr.match-table-row-link > td:nth-child(n + 2):nth-last-child(n + 2)",
   );
-  assertIncludes(html, "row.classList.add(\"match-table-row-link\")");
+  assertIncludes(html, 'row.classList.add("match-table-row-link")');
   assertIncludes(html, "row.dataset.postUrl = postUrl");
-  assertIncludes(html, "cell.cellIndex === 0 || cell.cellIndex === lastCellIndex");
-  assertIncludes(html, "event.key !== \"Enter\" && event.key !== \" \"");
+  assertIncludes(
+    html,
+    "cell.cellIndex === 0 || cell.cellIndex === lastCellIndex",
+  );
+  assertIncludes(html, 'event.key !== "Enter" && event.key !== " "');
   assertIncludes(html, "const observer = new MutationObserver");
+});
+
+Deno.test("renderLayout renders a complete account menu for signed-in users", () => {
+  const html = renderLayout({
+    account: { displayName: "小明", id: "test-user", username: "xiaoming" },
+    body: "<p>测试</p>",
+    csrfToken: "test-csrf-token",
+    darkMode: false,
+    locale: "zh-CN",
+    themeColor: "#bd7fff",
+    title: "测试",
+  });
+
+  assertIncludes(html, 'class="nav-account-menu-action" href="/settings"');
+  assertIncludes(html, 'data-auth-icon="username"');
+  assertIncludes(html, 'class="nav-account-menu-action nav-account-logout"');
 });
 
 /**

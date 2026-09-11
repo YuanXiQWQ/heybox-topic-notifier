@@ -13,6 +13,7 @@ import {
   type TurnstileConfig,
   turnstileConfigFromEnv,
 } from "../auth/turnstile.ts";
+import { type AltchaConfig, altchaConfigFromEnv } from "../auth/altcha.ts";
 import {
   type EmailVerificationConfig,
   emailVerificationConfigFromEnv,
@@ -41,6 +42,7 @@ export type AppConfig = {
   port: number;
   reauth: ReauthConfig;
   totp: TotpConfig;
+  altcha: AltchaConfig;
   turnstile: TurnstileConfig;
 };
 
@@ -115,6 +117,7 @@ export function createAppContext() {
     port: Number(Deno.env.get("PORT") ?? "8000"),
     reauth: reauthConfigFromEnv(),
     totp: totpConfigFromEnv(),
+    altcha: altchaConfigFromEnv(),
     turnstile: turnstileConfigFromEnv(),
   };
 

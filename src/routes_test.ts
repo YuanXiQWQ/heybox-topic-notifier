@@ -26,6 +26,7 @@ import type {
   PendingRecoveryCodeReveal,
   TotpCredential,
   UserAccount,
+  UserAvatar,
   UserSecuritySettings,
   UserSession,
 } from "./models.ts";
@@ -36,7 +37,9 @@ import {
 } from "./services/notifier.ts";
 import {
   addUniqueAccount,
+  assert,
   assertEquals,
+  assertStrictEquals,
   createMemoryRateLimitRecorder,
   submitLogin as login,
   submitRegistration as register,
@@ -178,6 +181,7 @@ type AccountRouteStorage = {
   getSession(tokenHash: string): Promise<UserSession | undefined>;
   getSettings(): Promise<AppSettings>;
   getTotpCredential(userId: string): Promise<TotpCredential | undefined>;
+  getUserAvatar(userId: string): Promise<UserAvatar | undefined>;
   listTotpCredentials(userId: string): Promise<TotpCredential[]>;
   getUserSecuritySettings(userId: string): Promise<UserSecuritySettings>;
   listAuthIdentitiesForUser(
@@ -212,6 +216,7 @@ type AccountRouteStorage = {
   saveSession(session: UserSession): Promise<void>;
   saveTotpCredential(credential: TotpCredential): Promise<void>;
   saveUserSecuritySettings(settings: UserSecuritySettings): Promise<void>;
+  saveUserAvatar(avatar: UserAvatar): Promise<void>;
   deleteTotpCredential(userId: string, credentialId?: string): Promise<void>;
   deletePendingRecoveryCodeReveal(id: string): Promise<void>;
   updateAccount(account: UserAccount): Promise<boolean>;
@@ -264,58 +269,62 @@ Deno.test("root page does not tick scheduler", async () => {
 });
 
 Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => {
-  const settings = settingsFromForm({
-    activeKeywordTarget: "12099",
-    commonKeywordRulesJson: JSON.stringify([{
-      caseSensitive: true,
-      keyword: "new-common",
-      locations: ["body"],
-      useRegex: true,
-    }]),
-    darkMode: "on",
-    keyword_0: "new-topic",
-    keyword_0_caseSensitive: "on",
-    keyword_0_location_replies: "on",
-    keyword_0_useRegex: "",
-    locale: "zh-CN",
-    notificationEmailAddress: "new@example.com",
-    notificationEmailApiToken: "new-api-token",
-    notificationEmailApiUrl: "https://example.com/new-email-api",
-    notificationEmailFrom: "new-from@example.com",
-    notificationEmailService: "api",
-    notificationProvider: "email",
-    notificationPushPlusSecret: "pushplus-new",
-    notificationServerChanSendKey: "SCT-new",
-    notificationSmtpHost: "smtp.new.example.com",
-    notificationSmtpPassword: "smtp-new-password",
-    notificationSmtpPort: "587",
-    notificationSmtpSecure: "on",
-    notificationSmtpUsername: "smtp-new-user",
-    notificationWebhookService: "serverChan",
-    notificationWebhookUrl: "https://example.com/new-webhook",
-    notificationWxPusherSpt: "SPT-new",
-    pollEnabled: "on",
-    pollIntervalUnit: "second",
-    pollIntervalValue: "3",
-    pollPostLimit: "50",
-    pollSort: "replyTime",
-    themeColor: "#123abc",
-    topic_0_enabled: "on",
-    topic_0_id: "12099",
-    topic_0_keywordRulesJson: JSON.stringify([{
-      keyword: "stale-topic",
-      locations: ["title"],
-    }]),
-    topic_0_note: "蔚蓝",
-    topic_1_enabled: "on",
-    topic_1_id: "999",
-    topic_1_keywordRulesJson: JSON.stringify([{
-      keyword: "new-other",
-      locations: ["comments"],
-      useRegex: true,
-    }]),
-    topic_1_note: "其它",
-  }, currentSettings);
+  const settings = settingsFromForm(
+    {
+      activeKeywordTarget: "12099",
+      commonKeywordRulesJson: JSON.stringify([{
+        caseSensitive: true,
+        keyword: "new-common",
+        locations: ["body"],
+        useRegex: true,
+      }]),
+      darkMode: "on",
+      keyword_0: "new-topic",
+      keyword_0_caseSensitive: "on",
+      keyword_0_location_replies: "on",
+      keyword_0_useRegex: "",
+      locale: "zh-CN",
+      notificationEmailAddress: "new@example.com",
+      notificationEmailApiToken: "new-api-token",
+      notificationEmailApiUrl: "https://example.com/new-email-api",
+      notificationEmailFrom: "new-from@example.com",
+      notificationEmailService: "api",
+      notificationProvider: "email",
+      notificationPushPlusSecret: "pushplus-new",
+      notificationServerChanSendKey: "SCT-new",
+      notificationSmtpHost: "smtp.new.example.com",
+      notificationSmtpPassword: "smtp-new-password",
+      notificationSmtpPort: "587",
+      notificationSmtpSecure: "on",
+      notificationSmtpUsername: "smtp-new-user",
+      notificationWebhookService: "serverChan",
+      notificationWebhookUrl: "https://example.com/new-webhook",
+      notificationWxPusherSpt: "SPT-new",
+      pollEnabled: "on",
+      pollIntervalUnit: "second",
+      pollIntervalValue: "3",
+      pollPostLimit: "50",
+      pollSort: "replyTime",
+      themeColor: "#123abc",
+      topic_0_enabled: "on",
+      topic_0_id: "12099",
+      topic_0_keywordRulesJson: JSON.stringify([{
+        keyword: "stale-topic",
+        locations: ["title"],
+      }]),
+      topic_0_note: "蔚蓝",
+      topic_1_enabled: "on",
+      topic_1_id: "999",
+      topic_1_keywordRulesJson: JSON.stringify([{
+        keyword: "new-other",
+        locations: ["comments"],
+        useRegex: true,
+      }]),
+      topic_1_note: "其它",
+    },
+    currentSettings,
+    new Date("2026-09-04T08:00:00.000Z"),
+  );
 
   assertEquals(settings.commonKeywordRules, [{
     caseSensitive: true,
@@ -339,7 +348,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
       useRegex: true,
     },
   ]);
-  assertEquals(settings.darkMode, true);
+  assertStrictEquals(settings.darkMode, true);
   assertEquals(settings.notificationEmailAddress, "new@example.com");
   assertEquals(settings.notificationEmailApiToken, "new-api-token");
   assertEquals(
@@ -354,7 +363,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   assertEquals(settings.notificationSmtpHost, "smtp.new.example.com");
   assertEquals(settings.notificationSmtpPassword, "smtp-new-password");
   assertEquals(settings.notificationSmtpPort, 587);
-  assertEquals(settings.notificationSmtpSecure, true);
+  assertStrictEquals(settings.notificationSmtpSecure, true);
   assertEquals(settings.notificationSmtpUsername, "smtp-new-user");
   assertEquals(settings.notificationWebhookService, "serverChan");
   assertEquals(
@@ -364,6 +373,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
   assertEquals(settings.notificationWxPusherSpt, "SPT-new");
   assertEquals(settings.polling, {
     enabled: true,
+    intervalStartedAt: "2026-09-04T08:00:00.000Z",
     intervalUnit: "second",
     intervalValue: 3,
     postLimit: 50,
@@ -373,21 +383,56 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
 });
 
 Deno.test("settingsFromForm disables polling when switch is off", () => {
-  const settings = settingsFromForm({
-    activeKeywordTarget: "common",
-    pollIntervalUnit: "second",
-    pollIntervalValue: "1",
-    pollPostLimit: "100",
-    pollSort: "smart",
-  }, currentSettings);
+  const settings = settingsFromForm(
+    {
+      activeKeywordTarget: "common",
+      pollIntervalUnit: "second",
+      pollIntervalValue: "1",
+      pollPostLimit: "100",
+      pollSort: "smart",
+    },
+    currentSettings,
+    new Date("2026-09-04T08:00:00.000Z"),
+  );
 
   assertEquals(settings.polling, {
     enabled: false,
+    intervalStartedAt: "2026-09-04T08:00:00.000Z",
     intervalUnit: "second",
     intervalValue: 3,
     postLimit: 100,
     sort: "smart",
   });
+});
+
+Deno.test("settingsFromForm preserves the interval start when schedule is unchanged", () => {
+  const intervalStartedAt = "2026-09-04T07:00:00.000Z";
+  const settings = settingsFromForm({
+    pollEnabled: "on",
+    pollIntervalUnit: "minute",
+    pollIntervalValue: "1",
+  }, {
+    ...currentSettings,
+    polling: { ...currentSettings.polling, intervalStartedAt },
+  }, new Date("2026-09-04T08:00:00.000Z"));
+
+  assertEquals(settings.polling.intervalStartedAt, intervalStartedAt);
+});
+
+Deno.test("settingsFromForm starts a new interval when polling is enabled", () => {
+  const settings = settingsFromForm({
+    pollEnabled: "on",
+    pollIntervalUnit: "minute",
+    pollIntervalValue: "1",
+  }, {
+    ...currentSettings,
+    polling: { ...currentSettings.polling, enabled: false },
+  }, new Date("2026-09-04T08:00:00.000Z"));
+
+  assertEquals(
+    settings.polling.intervalStartedAt,
+    "2026-09-04T08:00:00.000Z",
+  );
 });
 
 Deno.test("settingsFromForm preserves existing notification secrets when submitted blank", () => {
@@ -518,7 +563,7 @@ Deno.test("settings route rejects saves without a valid CSRF token", async () =>
   });
 
   assertEquals(response.status, 403);
-  assertEquals(saved, false);
+  assertStrictEquals(saved, false);
 });
 
 Deno.test("account route updates username for the signed-in user after password confirmation", async () => {
@@ -548,6 +593,111 @@ Deno.test("account route updates username for the signed-in user after password 
     "yuanxi",
   );
   assertEquals(loginResponse.headers.get("location"), "/");
+});
+
+Deno.test("account avatar route validates and persists uploaded image bytes", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const registerResponse = await register(app, "alice", "correct-password");
+  const cookie = registerResponse.headers.get("set-cookie") ?? "";
+  const defaultAvatarResponse = await app.request("/account/avatar", {
+    headers: { cookie },
+  });
+  const form = new FormData();
+  form.set("csrfToken", testCsrfToken);
+  form.set(
+    "avatar",
+    new File(
+      [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])],
+      "avatar.png",
+      {
+        type: "image/png",
+      },
+    ),
+  );
+
+  const uploadResponse = await app.request("/account/avatar", {
+    body: form,
+    headers: testCsrfHeaders({
+      cookie,
+    }),
+    method: "POST",
+  });
+  const account = await storage.getAccountByUsername("alice");
+  if (!account) throw new Error("测试账户创建失败。");
+  const avatarResponse = await app.request("/account/avatar", {
+    headers: {
+      cookie,
+    },
+  });
+
+  assertEquals(defaultAvatarResponse.status, 302);
+  assertEquals(
+    defaultAvatarResponse.headers.get("location")?.startsWith(
+      "/static/fun/default-avatar/avatar",
+    ),
+    true,
+  );
+  assertEquals(uploadResponse.status, 303);
+  assertEquals(
+    uploadResponse.headers.get("location"),
+    "/settings?avatar=updated",
+  );
+  assertEquals(
+    (await storage.getUserAvatar(account.id))?.contentType,
+    "image/png",
+  );
+  assertEquals(avatarResponse.headers.get("content-type"), "image/png");
+  assertEquals(
+    Array.from(new Uint8Array(await avatarResponse.arrayBuffer())),
+    [137, 80, 78, 71, 13, 10, 26, 10],
+  );
+});
+
+Deno.test("account route updates non-unique display names without reauthentication", async () => {
+  const storage = createAccountRouteStorage();
+  const app = createAccountRouteApp(storage);
+  const aliceResponse = await register(app, "alice", "correct-password");
+  await register(app, "bob", "correct-password");
+
+  const response = await app.request("/account", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        accountAction: "displayName",
+        displayName: "成步堂龙一",
+      }),
+    ),
+    headers: testCsrfHeaders({
+      cookie: aliceResponse.headers.get("set-cookie") ?? "",
+    }),
+    method: "POST",
+  });
+  const bobResponse = await login(app, "bob", "correct-password");
+  const bobCookie = bobResponse.headers.get("set-cookie") ?? "";
+  const duplicateResponse = await app.request("/account", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        accountAction: "displayName",
+        displayName: "成步堂龙一",
+      }),
+    ),
+    headers: testCsrfHeaders({ cookie: bobCookie }),
+    method: "POST",
+  });
+
+  assertEquals(response.headers.get("location"), "/settings?account=updated");
+  assertEquals(
+    duplicateResponse.headers.get("location"),
+    "/settings?account=updated",
+  );
+  assertEquals(
+    (await storage.getAccountByUsername("alice"))?.displayName,
+    "成步堂龙一",
+  );
+  assertEquals(
+    (await storage.getAccountByUsername("bob"))?.displayName,
+    "成步堂龙一",
+  );
 });
 
 Deno.test("account route updates password for the signed-in user after password confirmation", async () => {
@@ -845,10 +995,10 @@ Deno.test("account email route binds a verified email for the signed-in user", a
   assertEquals(response.status, 303);
   assertEquals(response.headers.get("location"), "/settings?email=updated");
   assertEquals(updatedAccount?.primaryEmail, "alice@example.com");
-  assertEquals(updatedAccount?.emailVerified, true);
+  assertStrictEquals(updatedAccount?.emailVerified, true);
   assertEquals(credential?.email, "alice@example.com");
-  assertEquals(credential?.verified, true);
-  assertEquals(credential?.lastVerifiedAt !== undefined, true);
+  assertStrictEquals(credential?.verified, true);
+  assert(credential?.lastVerifiedAt !== undefined);
   assertEquals(
     await storage.getPendingEmailVerification("email-binding-verification"),
     undefined,
@@ -948,8 +1098,8 @@ Deno.test("account email route returns JSON for automatic binding verification",
     redirectTo: "/settings?email=updated",
   });
   assertEquals(updatedAccount?.primaryEmail, "alice@example.com");
-  assertEquals(updatedAccount?.emailVerified, true);
-  assertEquals(credential?.verified, true);
+  assertStrictEquals(updatedAccount?.emailVerified, true);
+  assertStrictEquals(credential?.verified, true);
 });
 
 Deno.test("account email route returns JSON errors for automatic verification", async () => {
@@ -1107,7 +1257,7 @@ Deno.test("account TOTP route binds an authenticator after a valid code", async 
   const credential = await storage.getTotpCredential(account.id);
 
   assertEquals(response.status, 200);
-  assertEquals(payload.ok, true);
+  assertStrictEquals(payload.ok, true);
   const recoveryLocation = typeof payload.redirectTo === "string"
     ? payload.redirectTo
     : "";
@@ -1260,7 +1410,7 @@ Deno.test("account recovery code route backfills codes for an existing authentic
     recoveryLocation.startsWith("/settings?recoveryCodes="),
     true,
   );
-  assertEquals(recoveryLocation.endsWith("#recovery-codes-row"), true);
+  assert(recoveryLocation.endsWith("#recovery-codes-row"));
   assertEquals(credential?.recoveryCodeHashes.length, 8);
 
   const reusedResponse = await app.request(
@@ -1339,7 +1489,7 @@ Deno.test("account recovery code route replaces every old recovery code", async 
   const credentials = await storage.listTotpCredentials(account.id);
 
   assertEquals(response.status, 200);
-  assertEquals(recoveryLocation.endsWith("#recovery-codes-row"), true);
+  assert(recoveryLocation.endsWith("#recovery-codes-row"));
   assertEquals(credentials.length, 2);
   assertEquals(credentials[0]?.recoveryCodeHashes.length, 8);
   assertEquals(credentials[1]?.recoveryCodeHashes, []);
@@ -1425,9 +1575,9 @@ Deno.test("account TOTP route deletes only the selected authenticator", async ()
   const recoveryCodesRowIndex = blockedSettingsHtml.indexOf(
     'id="recovery-codes-row"',
   );
-  assertEquals(totpRowIndex >= 0, true);
-  assertEquals(reauthPanelIndex > totpRowIndex, true);
-  assertEquals(reauthPanelIndex < recoveryCodesRowIndex, true);
+  assert(totpRowIndex >= 0);
+  assert(reauthPanelIndex > totpRowIndex);
+  assert(reauthPanelIndex < recoveryCodesRowIndex);
   assertNotIncludes(
     blockedSettingsHtml.slice(totpBindingStatusIndex, reauthPanelIndex),
     getMessages(currentSettings.locale).accountReauthRequired,
@@ -1744,8 +1894,8 @@ Deno.test("settings route renders inline sensitive reauth controls", async () =>
     "data-reauth-method-details",
     reauthPanelIndex,
   );
-  assertEquals(passkeyButtonIndex >= reauthPanelIndex, true);
-  assertEquals(passkeyButtonIndex < reauthDetailsIndex, true);
+  assert(passkeyButtonIndex >= reauthPanelIndex);
+  assert(passkeyButtonIndex < reauthDetailsIndex);
   assertNotIncludes(
     html.slice(passkeyBindingStatusIndex, reauthPanelIndex),
     getMessages(currentSettings.locale).accountReauthRequired,
@@ -2502,13 +2652,13 @@ Deno.test("simulate match records one randomized pending match through poller", 
     record.post.url,
     "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/",
   );
-  assertEquals(record.post.title.startsWith("模拟命中帖（测试 "), true);
-  assertEquals(record.post.excerpt.startsWith("模拟命中帖，随机样本 "), true);
+  assert(record.post.title.startsWith("模拟命中帖（测试 "));
+  assert(record.post.excerpt.startsWith("模拟命中帖，随机样本 "));
   assertEquals(
     record.post.excerpt.endsWith("这是一条用于验证命中记录的测试内容。"),
     true,
   );
-  assertEquals(record.keyword.startsWith("测试关键词 "), true);
+  assert(record.keyword.startsWith("测试关键词 "));
 });
 
 Deno.test("simulate match preserves dashboard table query", async () => {
@@ -2591,7 +2741,7 @@ Deno.test("run now rate limits repeated manual polling attempts", async () => {
   });
 
   assertEquals(limitedResponse.status, 429);
-  assertEquals(limitedResponse.headers.get("retry-after") !== null, true);
+  assert(limitedResponse.headers.get("retry-after") !== null);
   assertEquals(runs, 6);
 });
 
@@ -2896,6 +3046,7 @@ function createAccountRouteStorage(): AccountRouteStorage {
   const securitySettingsByUserId = new Map<string, UserSecuritySettings>();
   const sessionsByTokenHash = new Map<string, UserSession>();
   const totpCredentialsByUserId = new Map<string, TotpCredential>();
+  const avatarsByUserId = new Map<string, UserAvatar>();
 
   return {
     ...createMemoryRateLimitRecorder(),
@@ -3045,6 +3196,12 @@ function createAccountRouteStorage(): AccountRouteStorage {
       ),
     saveUserSecuritySettings: (settings: UserSecuritySettings) => {
       securitySettingsByUserId.set(settings.userId, settings);
+      return Promise.resolve();
+    },
+    getUserAvatar: (userId: string) =>
+      Promise.resolve(avatarsByUserId.get(userId)),
+    saveUserAvatar: (avatar: UserAvatar) => {
+      avatarsByUserId.set(avatar.userId, avatar);
       return Promise.resolve();
     },
     getPendingEmailVerification: (id: string) =>

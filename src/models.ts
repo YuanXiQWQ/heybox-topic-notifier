@@ -58,6 +58,7 @@ export type PollIntervalUnit =
  */
 export type PollingSettings = {
   enabled: boolean;
+  intervalStartedAt?: string;
   intervalUnit: PollIntervalUnit;
   intervalValue: number;
   postLimit: number;
@@ -205,6 +206,14 @@ export type UserAccount = {
   passwordSalt?: string;
   primaryEmail?: string;
   username: string;
+};
+
+/** 用户上传的头像二进制数据。 */
+export type UserAvatar = {
+  contentType: "image/gif" | "image/jpeg" | "image/png" | "image/webp";
+  data: Uint8Array;
+  updatedAt: string;
+  userId: string;
 };
 
 /**

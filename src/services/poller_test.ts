@@ -3,7 +3,7 @@
  */
 import type { AppSettings, MatchRecord, TopicPost } from "../models.ts";
 import type { Storage } from "../storage/types.ts";
-import { assertEquals, assertRejects } from "../test_helpers.ts";
+import { assert, assertEquals, assertRejects } from "../test_helpers.ts";
 import { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
@@ -346,7 +346,7 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
 
   assertEquals(records.map((record) => record.post.id), ["retry-me"]);
   assertEquals(notifiedMatches, []);
-  assertEquals(Boolean(lastPollAt), true);
+  assert(Boolean(lastPollAt));
 });
 
 /**

@@ -9,6 +9,7 @@ import {
   shouldPollFromLastStart,
   shouldRunDeployCron,
 } from "./crons.ts";
+import { assertEquals, assertStrictEquals } from "./test_helpers.ts";
 
 /**
  * 五分钟轮询测试配置。
@@ -20,29 +21,90 @@ const fiveMinutes = { intervalUnit: "minute" as const, intervalValue: 5 };
 const threeSeconds = { intervalUnit: "second" as const, intervalValue: 3 };
 
 Deno.test("shouldPoll runs when no previous poll exists", () => {
-  assertEquals(shouldPoll(undefined, fiveMinutes, new Date("2026-06-30T12:00:00.000Z")), true);
+  assertEquals(
+    shouldPoll(undefined, fiveMinutes, new Date("2026-06-30T12:00:00.000Z")),
+    true,
+  );
 });
 
 Deno.test("shouldPoll waits until the configured interval elapses", () => {
   const now = new Date("2026-06-30T12:05:00.000Z");
 
-  assertEquals(shouldPoll("2026-06-30T12:01:00.000Z", fiveMinutes, now), false);
-  assertEquals(shouldPoll("2026-06-30T12:00:00.000Z", fiveMinutes, now), true);
+  assertStrictEquals(
+    shouldPoll("2026-06-30T12:01:00.000Z", fiveMinutes, now),
+    false,
+  );
+  assertStrictEquals(
+    shouldPoll("2026-06-30T12:00:00.000Z", fiveMinutes, now),
+    true,
+  );
+});
+
+Deno.test("shouldPoll starts a fresh interval after polling settings change", () => {
+  const polling = {
+    ...fiveMinutes,
+    intervalStartedAt: "2026-06-30T12:04:00.000Z",
+  };
+
+  assertEquals(
+    shouldPoll(
+      "2026-06-30T11:00:00.000Z",
+      polling,
+      new Date("2026-06-30T12:08:59.999Z"),
+    ),
+    false,
+  );
+  assertEquals(
+    shouldPoll(
+      "2026-06-30T11:00:00.000Z",
+      polling,
+      new Date("2026-06-30T12:09:00.000Z"),
+    ),
+    true,
+  );
+});
+
+Deno.test("shouldPoll waits from a new interval even without a previous poll", () => {
+  const polling = {
+    ...fiveMinutes,
+    intervalStartedAt: "2026-06-30T12:04:00.000Z",
+  };
+
+  assertEquals(
+    shouldPoll(
+      undefined,
+      polling,
+      new Date("2026-06-30T12:08:00.000Z"),
+    ),
+    false,
+  );
 });
 
 Deno.test("shouldPoll supports second intervals", () => {
   const now = new Date("2026-06-30T12:00:03.000Z");
 
-  assertEquals(shouldPoll("2026-06-30T12:00:01.000Z", threeSeconds, now), false);
-  assertEquals(shouldPoll("2026-06-30T12:00:00.000Z", threeSeconds, now), true);
+  assertEquals(
+    shouldPoll("2026-06-30T12:00:01.000Z", threeSeconds, now),
+    false,
+  );
+  assertStrictEquals(
+    shouldPoll("2026-06-30T12:00:00.000Z", threeSeconds, now),
+    true,
+  );
 });
 
 Deno.test("pollingIntervalMs clamps second intervals to at least three seconds", () => {
-  assertEquals(pollingIntervalMs({ intervalUnit: "second", intervalValue: 1 }), 3000);
+  assertEquals(
+    pollingIntervalMs({ intervalUnit: "second", intervalValue: 1 }),
+    3000,
+  );
 });
 
 Deno.test("shouldPoll runs when previous poll time is invalid", () => {
-  assertEquals(shouldPoll("not-a-date", fiveMinutes, new Date("2026-06-30T12:00:00.000Z")), true);
+  assertEquals(
+    shouldPoll("not-a-date", fiveMinutes, new Date("2026-06-30T12:00:00.000Z")),
+    true,
+  );
 });
 
 Deno.test("shouldPollFromLastStart waits from a newer manual poll completion", () => {
@@ -88,14 +150,18 @@ Deno.test("poll scheduler runs one due poll and updates its in-memory start guar
         getLastPollAt: () => Promise.resolve(lastPollAt),
         getSettings: () =>
           Promise.resolve({
-            polling: { enabled: true, intervalUnit: "minute", intervalValue: 5 },
+            polling: {
+              enabled: true,
+              intervalUnit: "minute",
+              intervalValue: 5,
+            },
           }),
       },
     } as unknown as Parameters<typeof createPollScheduler>[0],
   );
 
-  assertEquals(await scheduler.tick(), true);
-  assertEquals(await scheduler.tick(), false);
+  assertStrictEquals(await scheduler.tick(), true);
+  assertStrictEquals(await scheduler.tick(), false);
   assertEquals(runs, 1);
 });
 
@@ -112,22 +178,26 @@ Deno.test("poll scheduler swallows scheduled poll failures", async () => {
         getLastPollAt: () => Promise.resolve(undefined),
         getSettings: () =>
           Promise.resolve({
-            polling: { enabled: true, intervalUnit: "minute", intervalValue: 5 },
+            polling: {
+              enabled: true,
+              intervalUnit: "minute",
+              intervalValue: 5,
+            },
           }),
       },
     } as unknown as Parameters<typeof createPollScheduler>[0],
   );
 
-  assertEquals(await scheduler.tick(), false);
+  assertStrictEquals(await scheduler.tick(), false);
 });
 
 Deno.test("deploy cron runs on production and dev timelines", () => {
-  assertEquals(shouldRunDeployCron("production"), true);
-  assertEquals(shouldRunDeployCron("git-branch/dev"), true);
-  assertEquals(shouldRunDeployCron("preview"), false);
-  assertEquals(shouldRunDeployCron("preview/abc123"), false);
-  assertEquals(shouldRunDeployCron("git-branch/main"), false);
-  assertEquals(shouldRunDeployCron(undefined), false);
+  assertStrictEquals(shouldRunDeployCron("production"), true);
+  assertStrictEquals(shouldRunDeployCron("git-branch/dev"), true);
+  assertStrictEquals(shouldRunDeployCron("preview"), false);
+  assertStrictEquals(shouldRunDeployCron("preview/abc123"), false);
+  assertStrictEquals(shouldRunDeployCron("git-branch/main"), false);
+  assertStrictEquals(shouldRunDeployCron(undefined), false);
 });
 
 Deno.test("local cron registration starts when default polling is disabled", () => {
@@ -149,7 +219,7 @@ Deno.test("local cron registration starts when default polling is disabled", () 
       setInterval: (() => {
         intervals += 1;
         return undefined as unknown as ReturnType<typeof setInterval>;
-      }) as typeof setInterval,
+      }) as unknown as typeof setInterval,
     },
   );
 
@@ -175,22 +245,9 @@ Deno.test("local cron registration starts when polling is enabled", () => {
       setInterval: (() => {
         intervals += 1;
         return undefined as unknown as ReturnType<typeof setInterval>;
-      }) as typeof setInterval,
+      }) as unknown as typeof setInterval,
     },
   );
 
   assertEquals(intervals, 1);
 });
-
-/**
- * 断言两个值严格相等。
- *
- * @param actual 实际值。
- * @param expected 期望值。
- * @return 断言通过时无返回值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  if (actual !== expected) {
-    throw new Error(`Expected ${String(expected)}, got ${String(actual)}`);
-  }
-}

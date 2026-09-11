@@ -19,6 +19,7 @@ import type {
 } from "../models.ts";
 import { createTursoStorage, type TursoClient } from "./turso.ts";
 import type { Storage } from "./types.ts";
+import { assertEquals, assertStrictEquals } from "../test_helpers.ts";
 
 Deno.test("Turso storage isolates users and replaces KV match prefix scans", async () => {
   await withStorage(async (storage) => {
@@ -118,6 +119,53 @@ Deno.test("Turso account constraints preserve atomic username behavior", async (
   });
 });
 
+Deno.test("Turso account CRUD parameterizes injection-like usernames", async () => {
+  await withStorage(async (storage) => {
+    const createdUsername = "x'); DROP TABLE user_accounts; --";
+    const updatedUsername = '" OR 1=1 --';
+    const created = account("injection-id", createdUsername);
+
+    assertStrictEquals(await storage.createAccount(created), true);
+    assertEquals(
+      (await storage.getAccountByUsername(createdUsername))?.id,
+      created.id,
+    );
+    assertEquals(
+      await storage.updateAccount({ ...created, username: updatedUsername }),
+      true,
+    );
+    assertEquals(
+      await storage.getAccountByUsername(createdUsername),
+      undefined,
+    );
+    assertEquals(
+      (await storage.getAccountByUsername(updatedUsername))?.id,
+      created.id,
+    );
+    assertStrictEquals(
+      await storage.createAccount(account("safe-id", "safe")),
+      true,
+    );
+    assertEquals((await storage.listAccounts()).length, 2);
+  });
+});
+
+Deno.test("Turso stores avatar image bytes in the avatar table", async () => {
+  await withStorage(async (storage) => {
+    const avatar = {
+      contentType: "image/webp" as const,
+      data: new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80]),
+      updatedAt: "2026-09-06T00:00:00.000Z",
+      userId: "alice-id",
+    };
+
+    await storage.saveUserAvatar(avatar);
+
+    assertEquals(await storage.getUserAvatar("alice-id"), avatar);
+    assertEquals(await storage.getUserAvatar("bob-id"), undefined);
+  });
+});
+
 Deno.test("Turso authentication events can only be consumed once", async () => {
   await withStorage(async (storage) => {
     const event: AuthenticationEvent = {
@@ -179,7 +227,7 @@ Deno.test("Turso expiring challenges are not returned after expiry", async () =>
 
     assertEquals(
       (await storage.getPendingMfaChallenge(challenge.id))?.allowedMethods,
-      ["email", "passkey"],
+      ["passkey", "email"],
     );
     assertEquals(
       await storage.getPendingMfaChallenge("expired-challenge"),
@@ -609,20 +657,6 @@ async function assertRejects(run: () => Promise<unknown>): Promise<void> {
     return;
   }
   throw new Error("Expected promise to reject.");
-}
-
-/**
- * 断言两个值的 JSON 表示相等。
- *
- * @param {unknown} actual 实际值。
- * @param {unknown} expected 期望值。
- */
-function assertEquals(actual: unknown, expected: unknown): void {
-  const actualJson = JSON.stringify(actual);
-  const expectedJson = JSON.stringify(expected);
-  if (actualJson !== expectedJson) {
-    throw new Error(`Expected ${expectedJson}, got ${actualJson}`);
-  }
 }
 
 /**

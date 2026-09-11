@@ -1,8 +1,8 @@
 /**
  * @file 本文件验证邮箱验证码生成、哈希和邮件渲染能力。
  */
-import { assertEquals } from "../test_helpers.ts";
-import { getMessages } from "../locales/index.ts";
+import { assert, assertEquals } from "../test_helpers.ts";
+import { getMessages, mergeMessages } from "../locales/index.ts";
 import {
   createEmailVerificationChallenge,
   emailVerificationConfigFromEnv,
@@ -38,7 +38,7 @@ Deno.test("emailVerificationConfigFromEnv reads defaults and overrides", () => {
 Deno.test("generateEmailVerificationCode returns six digits", () => {
   const code = generateEmailVerificationCode();
 
-  assertEquals(/^[0-9]{6}$/.test(code), true);
+  assert(/^[0-9]{6}$/.test(code));
 });
 
 Deno.test("createEmailVerificationChallenge stores only a hash", async () => {
@@ -58,7 +58,7 @@ Deno.test("createEmailVerificationChallenge stores only a hash", async () => {
 
   assertEquals(challenge.code, "123456");
   assertEquals(challenge.verification.email, "alice@example.com");
-  assertEquals(challenge.verification.codeHash === "123456", false);
+  assert(!(challenge.verification.codeHash === "123456"));
   assertEquals(challenge.verification.expiresAt, "2026-08-01T00:10:00.000Z");
   assertEquals(
     await verifyEmailVerificationCode("123456", challenge.verification, {
@@ -99,7 +99,7 @@ Deno.test("sendEmailVerificationCode renders localized message", async () => {
     sentMessages[0].subject,
     `${messages.appName} · ${messages.authEmailCode}`,
   );
-  assertEquals(sentMessages[0].text.includes("123456"), true);
+  assert(sentMessages[0].text.includes("123456"));
 });
 
 Deno.test("emailVerificationEmailMessage renders Chinese by default", () => {
@@ -116,7 +116,7 @@ Deno.test("emailVerificationEmailMessage renders Chinese by default", () => {
     message.subject,
     `${messages.appName} · ${messages.authEmailCode}`,
   );
-  assertEquals(message.text.includes("123456"), true);
+  assert(message.text.includes("123456"));
 });
 
 Deno.test("emailVerificationEmailMessage formats expiry with the requested locale", () => {
@@ -128,6 +128,27 @@ Deno.test("emailVerificationEmailMessage formats expiry with the requested local
     purpose: "primary_login",
   });
 
-  assertEquals(message.text.includes("10 分後"), true);
-  assertEquals(message.text.includes("分钟内有效"), false);
+  assert(message.text.includes("10 分後"));
+  assert(!(message.text.includes("分钟内有效")));
+});
+
+Deno.test("emailVerificationEmailMessage uses templates from localized messages", () => {
+  const message = emailVerificationEmailMessage(
+    {
+      code: "123456",
+      email: "alice@example.com",
+      expiresAt: "2099-08-01T00:10:00.000Z",
+      locale: "en-US",
+      purpose: "primary_login",
+    },
+    mergeMessages({
+      emailVerificationEmailSubjectTemplate: "{appName} | {emailCodeLabel}",
+      emailVerificationEmailTextTemplate:
+        "Use {code} for {appName}. It expires {expiresIn}.",
+    }),
+  );
+
+  assertEquals(message.subject, "小黑盒话题提醒 | 验证码");
+  assert(message.text.includes("Use 123456 for 小黑盒话题提醒."));
+  assert(!(message.text.includes("{expiresIn}")));
 });

@@ -19,6 +19,7 @@ import type {
   PendingRecoveryCodeReveal,
   TotpCredential,
   UserAccount,
+  UserAvatar,
   UserSecuritySettings,
   UserSession,
 } from "../models.ts";
@@ -172,6 +173,10 @@ export type Storage = UserStorage & {
    * @return {Promise<boolean>} 更新成功时返回 true。
    */
   updateAccount(account: UserAccount): Promise<boolean>;
+  /** 获取用户头像。 */
+  getUserAvatar(userId: string): Promise<UserAvatar | undefined>;
+  /** 保存用户头像。 */
+  saveUserAvatar(avatar: UserAvatar): Promise<void>;
   /**
    * 获取用户安全设置。
    *

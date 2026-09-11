@@ -79,10 +79,29 @@ export function isRtlLocale(locale: Locale): boolean {
  */
 export type Messages = {
   appName: string;
+  /**
+   * 邮箱验证码邮件主题模板，可使用 {appName} 和 {emailCodeLabel} 占位符。
+   */
+  emailVerificationEmailSubjectTemplate?: string;
+  /**
+   * 邮箱验证码邮件正文模板，可使用 {appName}、{emailCodeLabel}、{code} 和 {expiresIn} 占位符。
+   */
+  emailVerificationEmailTextTemplate?: string;
   accountConfirmPassword: string;
   accountCurrentPassword: string;
   accountCancel: string;
+  accountAvatar: string;
+  accountAvatarAlt: string;
+  accountAvatarChoose: string;
+  accountAvatarConfirm: string;
+  accountAvatarCrop: string;
+  accountAvatarUploadFailed: string;
+  accountAvatarUploading: string;
+  accountAvatarZoom: string;
+  accountDisplayName: string;
+  accountDisplayNameInvalid: string;
   accountEdit: string;
+  accountEditDisplayName: string;
   accountEditPassword: string;
   accountEditUsername: string;
   accountEmail: string;
@@ -204,6 +223,8 @@ export type Messages = {
   accountUsernameInvalid: string;
   authConfirmPassword: string;
   authCreateAccount: string;
+  authDisplayName: string;
+  authDisplayNameInvalid: string;
   authEmail: string;
   authEmailCode: string;
   authEmailCodeFailed: string;
@@ -237,6 +258,7 @@ export type Messages = {
   authMfaRequired: string;
   authMfaTitle: string;
   authMfaUnavailable: string;
+  authMfaUseRecoveryCode: string;
   authMfaVerify: string;
   authNavigation: string;
   authPassword: string;
@@ -289,6 +311,7 @@ export type Messages = {
   matchTitle: string;
   matchedKeyword: string;
   navDashboard: string;
+  navAccountMenu: string;
   navHistory: string;
   navLogout: string;
   navSettings: string;

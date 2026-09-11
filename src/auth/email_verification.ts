@@ -6,6 +6,7 @@ import type {
   PendingEmailVerification,
 } from "../models.ts";
 import type { Locale } from "../locales/types.ts";
+import type { Messages } from "../locales/types.ts";
 import { getMessages } from "../locales/index.ts";
 import {
   base64UrlEncode,
@@ -44,6 +45,18 @@ const uint32SampleSpace = 2 ** 32;
 const maxUnbiasedEmailCodeRandomValue = Math.floor(
   uint32SampleSpace / emailVerificationCodeSpace,
 ) * emailVerificationCodeSpace;
+
+/**
+ * 邮箱验证码邮件主题默认模板。
+ */
+const defaultEmailVerificationEmailSubjectTemplate =
+  "{appName} · {emailCodeLabel}";
+
+/**
+ * 邮箱验证码邮件正文默认模板。
+ */
+const defaultEmailVerificationEmailTextTemplate =
+  "{emailCodeLabel}: {code}\n{expiresIn}";
 
 /**
  * 邮箱验证码配置。
@@ -254,12 +267,13 @@ export async function sendEmailVerificationCode(
  * 渲染邮箱验证码邮件。
  *
  * @param delivery 邮箱验证码发送请求。
+ * @param messages 当前语言文案，省略时根据请求语言读取。
  * @return 邮箱验证码邮件消息。
  */
 export function emailVerificationEmailMessage(
   delivery: EmailVerificationDelivery,
+  messages: Messages = getMessages(delivery.locale),
 ): EmailVerificationEmailMessage {
-  const messages = getMessages(delivery.locale);
   const minutes = Math.max(
     1,
     Math.ceil((Date.parse(delivery.expiresAt) - Date.now()) / 60_000),
@@ -268,8 +282,22 @@ export function emailVerificationEmailMessage(
     numeric: "always",
     style: "long",
   }).format(minutes, "minute");
-  const subject = `${messages.appName} · ${messages.authEmailCode}`;
-  const text = `${messages.authEmailCode}: ${delivery.code}\n${expiresIn}`;
+  const templateValues = {
+    appName: messages.appName,
+    code: delivery.code,
+    emailCodeLabel: messages.authEmailCode,
+    expiresIn,
+  };
+  const subject = interpolateEmailVerificationEmailTemplate(
+    messages.emailVerificationEmailSubjectTemplate ??
+      defaultEmailVerificationEmailSubjectTemplate,
+    templateValues,
+  );
+  const text = interpolateEmailVerificationEmailTemplate(
+    messages.emailVerificationEmailTextTemplate ??
+      defaultEmailVerificationEmailTextTemplate,
+    templateValues,
+  );
 
   return {
     html: text.split("\n").map((line) => `<p>${escapeHtml(line)}</p>`).join(""),
@@ -277,6 +305,28 @@ export function emailVerificationEmailMessage(
     text,
     to: delivery.email,
   };
+}
+
+/**
+ * 替换邮箱验证码邮件模板中的受支持占位符。
+ *
+ * @param template 邮件文案模板。
+ * @param values 占位符对应的文本。
+ * @return 替换完成的邮件文本。
+ */
+function interpolateEmailVerificationEmailTemplate(
+  template: string,
+  values: {
+    appName: string;
+    code: string;
+    emailCodeLabel: string;
+    expiresIn: string;
+  },
+): string {
+  return template.replaceAll(
+    /\{(appName|code|emailCodeLabel|expiresIn)\}/g,
+    (_placeholder, key: keyof typeof values) => values[key],
+  );
 }
 
 /**
