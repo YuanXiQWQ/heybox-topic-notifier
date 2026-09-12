@@ -886,10 +886,11 @@ export function playPlagueDoctorAdvent(options) {
  * @param {() => void} shared.onTransformation 转变完成、应进入白夜时的回调。
  * @param {(amount: number) => void} shared.settleDanger 结算固定危急值。
  * @param {(value: string) => void} [shared.applyDisplayName] 转变后把显示名称改写为白夜。
+ * @param {() => string|undefined} [shared.loginSession] 当前登录会话标识；变化表示用户重新登录。
  * @return {object} 疫医事件 API。
  */
 export function createPlagueDoctorEvent(shared) {
-  /** @type {{apostles: string[], recording: boolean, transformed: boolean}|undefined} */
+  /** @type {{apostles: string[], loginSession?: string, recording: boolean, transformed: boolean}|undefined} */
   let state;
   let busy = false;
   let transforming = false;
@@ -917,6 +918,11 @@ export function createPlagueDoctorEvent(shared) {
    * @return {void}
    */
   const persist = () => {
+    if (!state) return;
+    const loginSession = shared.loginSession?.();
+    if (typeof loginSession === 'string' && loginSession.length > 0) {
+      state.loginSession = loginSession;
+    }
     try {
       storage()?.setItem(plagueDoctorStorageKey, JSON.stringify(state));
     } catch {
@@ -938,16 +944,27 @@ export function createPlagueDoctorEvent(shared) {
     } catch {
       saved = undefined;
     }
+    const loginSession = shared.loginSession?.();
+    // 每次登录都会生成新的会话标识：标识变化即视为重新登录，已绑定的使徒必须清空。
+    const savedSession = typeof saved?.loginSession === 'string'
+      ? saved.loginSession
+      : undefined;
+    const relogged = typeof loginSession === 'string' && loginSession.length > 0 &&
+      savedSession !== undefined && savedSession !== loginSession;
     state = {
       apostles: Array.isArray(saved?.apostles)
-        ? saved.apostles.filter((/** @type {unknown} */ name) =>
-            typeof name === 'string'
-          )
-            .slice(0, plagueDoctorApostleCount)
+        ? (relogged
+          ? []
+          : saved.apostles.filter((/** @type {unknown} */ name) =>
+              typeof name === 'string'
+            )
+            .slice(0, plagueDoctorApostleCount))
         : [],
       recording: saved?.recording === true,
-      transformed: saved?.transformed === true,
+      transformed: relogged ? false : saved?.transformed === true,
     };
+    if (relogged) state.recording = false;
+    persist();
   };
   restore();
 

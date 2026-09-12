@@ -16,6 +16,8 @@ import { escapeHtml, renderLayout } from "./html.ts";
 export function renderNotFound(options: {
   account?: Pick<UserAccount, "displayName" | "id" | "username">;
   csrfToken: string;
+  /** 当前登录会话标识；彩蛋据此判断是否重新登录。 */
+  loginSession?: string;
   settings: AppSettings;
 }): string {
   const messages = getMessages(options.settings.locale);
@@ -38,6 +40,7 @@ export function renderNotFound(options: {
     body,
     csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
+    loginSession: options.loginSession,
     locale: options.settings.locale,
     themeColor: options.settings.themeColor,
     title: `${messages.notFoundTitle} · ${messages.appName}`,

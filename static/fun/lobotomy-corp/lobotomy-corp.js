@@ -3445,6 +3445,7 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
   },
   applyDisplayName: applyLobotomyCorpDisplayName,
   assetRoot: lobotomyCorpAssetRoot,
+  loginSession: lobotomyCorpLoginSession,
   messages: () => lobotomyCorpMessages,
   onTransformation: () => {
     lobotomyCorpWhiteNightEvent?.start({
@@ -3566,6 +3567,27 @@ function persistedLobotomyCorpDisplayName() {
   return globalThis.document?.querySelector?.(
       '[data-account-display-name-input]',
   )?.dataset?.accountDisplayNameOriginal;
+}
+
+/**
+ * 读取服务端渲染的登录会话标识。
+ *
+ * 每次登录都会写入新的值，因此彩蛋可以据此判断用户是否重新登录（例如清空已绑定的
+ * 疫医使徒）。页面未注入该字段时返回 undefined，此时保持既有状态不变。
+ *
+ * @return {string|undefined} 当前登录会话标识。
+ */
+function lobotomyCorpLoginSession() {
+  const serialized = lobotomyCorpEmbeddedText(
+      'lobotomy-corp-account-identity-data',
+  );
+  if (!serialized) return undefined;
+  try {
+    const loginSession = JSON.parse(serialized)?.loginSession;
+    return typeof loginSession === 'string' ? loginSession : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const persistedDisplayName = persistedLobotomyCorpDisplayName();

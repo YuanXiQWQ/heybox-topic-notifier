@@ -342,6 +342,64 @@ Deno.test("疫医：已经转变过的会话再次提交 O-01-45 直接进入白
   }
 });
 
+Deno.test("疫医：同一登录会话内刷新保留使徒，重新登录后清空", async () => {
+  const harness = installLobotomyCorpAlertHarness({ loginSession: "session-a" });
+  try {
+    await harness.reload();
+    const api = harness.api();
+    const clock = { value: 0 };
+    await api.commitDisplayName("O-01-45");
+    await api.commitDisplayName("使徒甲");
+    await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
+    assertEquals(api.plagueDoctorApostles(), ["使徒甲"]);
+
+    // 同一登录会话内刷新：使徒记录保留。
+    await harness.reload();
+    assertEquals(harness.api().plagueDoctorApostles(), ["使徒甲"]);
+    assertStrictEquals(harness.api().plagueDoctorRecording(), true);
+
+    // 重新登录：会话标识变化，已绑定的使徒必须清空。
+    harness.setLoginSession("session-b");
+    await harness.reload();
+    assertEquals(harness.api().plagueDoctorApostles(), []);
+    assertStrictEquals(harness.api().plagueDoctorRecording(), false);
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("疫医：重新登录后连已转变标记也一并清空", async () => {
+  const harness = installLobotomyCorpAlertHarness({ loginSession: "session-a" });
+  try {
+    harness.storage.setItem(
+      plagueDoctorStorageKey,
+      JSON.stringify({
+        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
+        loginSession: "session-a",
+        recording: true,
+        transformed: true,
+      }),
+    );
+    await harness.reload();
+    assertEquals(
+      harness.api().plagueDoctorApostles().length,
+      plagueDoctorApostleCount,
+    );
+
+    harness.setLoginSession("session-b");
+    await harness.reload();
+    const api = harness.api();
+    assertEquals(api.plagueDoctorApostles(), []);
+    // 重新登录后再次提交 O-01-45 只是重新开始记录，不再立刻进入白夜。
+    await api.commitDisplayName("O-01-45");
+    assertStrictEquals(api.plagueDoctorRecording(), true);
+    assertStrictEquals(api.getSpecialEvent(), undefined);
+    assertStrictEquals(api.getDangerScore(), 0);
+  } finally {
+    harness.restore();
+  }
+});
+
 Deno.test("疫医：白夜进行期间再次提交 O-01-45 不重复结算", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {

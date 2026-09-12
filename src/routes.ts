@@ -187,6 +187,7 @@ export function createRoutes(context: AppContext): Hono {
         account,
         csrfToken: csrf.token,
         initialNextPollProgress: initialNextPollProgress(url.searchParams),
+        loginSession: session?.createdAt,
         pendingTable,
         returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
         settings,
@@ -425,6 +426,7 @@ export function createRoutes(context: AppContext): Hono {
         googleBindingStatus: googleBindingStatusFromSearch(url.searchParams),
         googleClientId: settingsGoogleClientId(context),
         googleIdentity: googleIdentities[0],
+        loginSession: session?.createdAt,
         passkeyBindingStatus: passkeyBindingStatusFromSearch(
           url.searchParams,
         ),
@@ -1978,7 +1980,13 @@ export function createRoutes(context: AppContext): Hono {
     );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
-      c.html(renderHistory({ account, csrfToken: csrf.token, historyTable, settings })),
+      c.html(renderHistory({
+        account,
+        csrfToken: csrf.token,
+        historyTable,
+        loginSession: session?.createdAt,
+        settings,
+      })),
       csrf,
     );
   });

@@ -306,6 +306,7 @@ export class AudioMock extends Element {
 export function installLobotomyCorpAlertHarness(
   options: {
     alertOverlays?: Element[];
+    loginSession?: string;
     navigationType?: "navigate" | "reload";
     now?: number;
     pollingIntervalValue?: string;
@@ -367,6 +368,7 @@ export function installLobotomyCorpAlertHarness(
   const documentListeners = new Map<string, ((event: Event) => void)[]>();
   const createdElements: Element[] = [];
   let navigationType = options.navigationType ?? "navigate";
+  let loginSession = options.loginSession;
   let now = options.now ?? 0;
   let nextTimerId = 0;
   const timers = new Map<
@@ -409,6 +411,13 @@ export function installLobotomyCorpAlertHarness(
             ? { textContent: localeData }
             : id === "lobotomy-corp-abnormalities-data"
             ? { textContent: abnormalitiesData }
+            : id === "lobotomy-corp-account-identity-data"
+            ? {
+              textContent: JSON.stringify({
+                displayName: "Tester",
+                ...(loginSession ? { loginSession } : {}),
+              }),
+            }
             : null,
         querySelector: (selector: string) =>
           selector === "[data-polling-interval-value]" &&
@@ -491,6 +500,10 @@ export function installLobotomyCorpAlertHarness(
       (value: "navigate" | "reload") => {
         navigationType = value;
       },
+    /** @param {string|undefined} value 当前登录会话标识；变化即模拟重新登录。 */
+    setLoginSession: (value: string | undefined) => {
+      loginSession = value;
+    },
     /** @param {number} delay 计时器延迟。 @return {object|undefined} 仍未取消的计时器。 */ pendingTimer:
       (delay: number) =>
         [...timers.values()].find((timer) =>
