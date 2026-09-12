@@ -393,7 +393,7 @@ function isAceAttorneyAssetPath(assetPath: string): boolean {
 function isLobotomyCorpAssetPath(assetPath: string): boolean {
   return /^Assets\/.+\.(?:mp3|ogg|otf|png|ttf|wav|webm)$/u.test(assetPath) ||
     assetPath === "Data/Abnormalities.json" ||
-    /^(?:Events\/(?:CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|WhiteNight|WhiteNightAdvent))\.js$/u
+    /^(?:Events\/(?:AdventLight|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|WhiteNight|WhiteNightAdvent))\.js$/u
       .test(assetPath) ||
     /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u
       .test(

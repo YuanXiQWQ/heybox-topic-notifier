@@ -293,6 +293,28 @@
   z-index: 10002;
 }
 
+/*
+ * 网页宿主隔离层（属于网页，不属于《脑叶公司》原作素材）。
+ *
+ * 原作 AdventClockUI 是半透明 UI，游戏里它后面是游戏世界；网页没有游戏世界，
+ * 于是先铺一层不透明的 world surface 把普通网站隔离掉，再在上面原样绘制
+ * 原作 UI（GlobalShader / DeathAngelClockDark / ClockShader / LowerShader）。
+ *
+ * 底面取宿主页面底色（`--bg`），不取纯黑：原作 DeathAngelClockDark 是一块带正圆
+ * 开口的深色幕布，开口处按设计就是要露出后面的世界。铺成纯黑会把盘心那块开口也
+ * 一起糊死成黑圆（网页里开口本来露出的就是页面底色）。取页面底色后盘心保持原来看得
+ * 见底色的观感，而这一层仍是不透明的，网站的文字、分隔线、表格边界一律透不出来。
+ *
+ * 它必须是 viewport-space 的固定层：放进 1920×1080 画布内会被 CanvasScaler 缩放，
+ * 非 16:9 窗口下重新露边。它不继承 root alpha、没有过渡动画，DOM 一出现即不透明。
+ */
+.lobotomy-corp-plague-doctor-advent-world{
+  background: var(--bg, #f6f7f8);
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+}
+
 .lobotomy-corp-plague-doctor-advent-canvas{
   --lobotomy-corp-advent-canvas-scale: 1;
   flex-shrink: 0;
@@ -432,15 +454,40 @@
 /* BlackShader 与 Circle 属于 `_adventDisabled` 一侧：绑定阶段显示 Circle，降临显示黑幕。 */
 .lobotomy-corp-plague-doctor-advent-black-shader{
   --lobotomy-corp-advent-layer-alpha: 0;
-  height: 1188px;
+  /*
+   * 尺寸由脚本按「圆盘的实际尺寸」算出来（prefab 里黑幕 2112×1188 对应圆盘 819，
+   * 也就是宽 = 圆盘宽 × 2112/819、高 = 圆盘宽 × 1188/819），不再写死；
+   * 中心相对画布中心上移 30 沿用 prefab。
+   *
+   * 空洞尺寸必须跟着圆盘走：跟 viewport 走时，非等比拉伸会把正圆空洞压成竖椭圆，
+   * 等比放大又会把空洞放得比圆盘还大（页面的浅色底就从圆盘外围漏出来）。
+   */
+  background-position: center;
+  background-repeat: no-repeat;
   left: 50%;
-  object-fit: fill;
   opacity: var(--lobotomy-corp-advent-layer-alpha);
   pointer-events: none;
   position: absolute;
+  /* prefab 的中心比画布中心高 30。 */
   top: calc(50% - 30px);
   transform: translate(-50%, -50%);
-  width: 2112px;
+}
+
+/*
+ * 黑幕在画布之外的同色延伸带（DeathAngelClockDark.png 的边缘色 rgb(8,1,0)，实测值）。
+ *
+ * prefab 的黑幕 2112×1188 比 1920×1080 画布大，所以游戏里它本来就盖满整个画面；
+ * 网页视口比例不固定，画布之外那圈需要补上，四条带的几何由脚本按 viewport 算出。
+ *
+ * 用独立的带而不是黑幕自己的 border：border 与贴图盒子之间会留下亚像素空隙，
+ * 贴图边缘的抗锯齿会混到接缝外面的东西上——宿主隔离层取页面底色后，那条缝就是
+ * 一条能看见的浅色横线（700×900 实测 y=222 那行 58,47,48，上下都是 11,3,3）。
+ * 带与贴图重叠一段，贴图边缘的抗锯齿落在同色里；带的外边界留在视口之外。
+ */
+.lobotomy-corp-plague-doctor-advent-black-shader-band{
+  background-color: rgb(8 1 0);
+  pointer-events: none;
+  position: absolute;
 }
 
 .lobotomy-corp-plague-doctor-advent-clock-shader{
@@ -454,9 +501,12 @@
 }
 
 .lobotomy-corp-plague-doctor-advent-circle{
+  --lobotomy-corp-advent-center-opacity: 1;
   --lobotomy-corp-advent-layer-alpha: 1;
   background-repeat: no-repeat;
-  opacity: var(--lobotomy-corp-advent-layer-alpha);
+  /* 贴图自身 alpha 已经很淡，这里再按 prefab 观感整体压一层，避免内孔显出黑块。 */
+  opacity: calc(
+  var(--lobotomy-corp-advent-layer-alpha) * var(--lobotomy-corp-advent-center-opacity));
   pointer-events: none;
   position: absolute;
   transform-origin: center;
@@ -470,6 +520,46 @@
   position: absolute;
   top: 74%;
   width: 100%;
+}
+
+/*
+ * DeathAngel AdventLight：`Resources/prefabs/effect/creature/deathangel/AdventLight.prefab`
+ * 的 `AdventLight └── ParticlePretend` 结构。
+ *
+ * ParticlePretend 只有一层 SpriteRenderer（Sprite `Copy`），颜色与缩放全部来自
+ * `ApostleAdventLight.anim`，所以这里把原始 `Copy.png` 当作 alpha 蒙版使用，
+ * 颜色由脚本逐帧写入变量；不使用渐变、光圈或任何手工插值。
+ */
+.lobotomy-corp-advent-light{
+  height: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 0;
+}
+
+.lobotomy-corp-advent-light-particle{
+  --lobotomy-corp-advent-light-color: rgb(255 255 255);
+  --lobotomy-corp-advent-light-scale: 1;
+  --lobotomy-corp-advent-light-size: 0px;
+  --lobotomy-corp-advent-light-visible: 0;
+  background-color: var(--lobotomy-corp-advent-light-color);
+  height: var(--lobotomy-corp-advent-light-size);
+  left: 0;
+  mask-image: var(--lobotomy-corp-advent-light-sprite);
+  mask-position: var(--lobotomy-corp-advent-light-mask-position);
+  mask-repeat: no-repeat;
+  mask-size: var(--lobotomy-corp-advent-light-mask-size);
+  opacity: var(--lobotomy-corp-advent-light-visible);
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -50%) scale(var(--lobotomy-corp-advent-light-scale));
+  transform-origin: center;
+  -webkit-mask-image: var(--lobotomy-corp-advent-light-sprite);
+  -webkit-mask-position: var(--lobotomy-corp-advent-light-mask-position);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: var(--lobotomy-corp-advent-light-mask-size);
+  width: var(--lobotomy-corp-advent-light-size);
 }
 
 /* Confess ParticleSystem：Box Shape、4/s emission、5s lifetime 与 Stretch Billboard 均取自 prefab。 */

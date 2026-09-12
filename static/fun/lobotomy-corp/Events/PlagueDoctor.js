@@ -13,6 +13,10 @@
  * `BlackShader` / `ClockShader` / `Lowershader` / `Circle`）与 `ApostleDesc`
  * （1600×180、中心下移 438）。指针 `Point` 位于 Clock 正中心，`Arrow` 以底边
  * 中心为枢轴向上伸出 216，因此它是「根部固定在圆盘中心」的时钟指针。
+ *
+ * 完整降临里每名使徒的转化光效来自原始 `AdventLight.prefab`（见
+ * `AdventLight.js`），不是自制渐变：镜头聚焦完成后才触发 `Run`，颜色与缩放
+ * 全部取自 `ApostleAdventLight.anim`。
  */
 // @ts-check
 
@@ -23,6 +27,10 @@ import {
   whiteNightSimpleAdventNameSlots,
   whiteNightSimpleAdventOriginalColor,
 } from './WhiteNightAdvent.js';
+import {
+  createDeathAngelAdventLight,
+  deathAngelAdventLightPrefab,
+} from './AdventLight.js';
 import {
   lobotomyCorpCanvasScaleForViewport,
   lobotomyCorpCanvasViewportForUpdate,
@@ -40,8 +48,77 @@ export const plagueDoctorWhiteNightId = 'T-03-46';
 /** 触发疫医转变所需的使徒数量。 */
 export const plagueDoctorApostleCount = 12;
 
+/**
+ * 第 12 名使徒是「叛徒」，没有 AdventLight 光效。
+ *
+ * 原作依据：`WhiteNightSpace.ApostleStaticInfo.GetApostleType(11)` 返回
+ * `ApostleType.BETRAYER`；`DeathAngel.GenApostle()` 对该类型不生成使徒单位
+ * （只给这名员工挂 `DeathAngelBetrayerBuf`），所以
+ * `AdventClockUI.ExecuteNextAdventTarget()` 在镜头移动后因 `AposlteModel == null`
+ * 直接 return，`StartAdventAnim()` 里 `TurnOnAdventLight()` 抛出的空引用被
+ * `catch (Exception)` 吞掉。这一名只有镜头聚焦、台词与名字变红，没有光效。
+ */
+export const plagueDoctorBetrayerIndex = 11;
+
 /** 疫医转变白夜时结算的固定危急值，不按部门数换算。 */
 export const plagueDoctorTransformationDanger = 98;
+
+/** 网页宿主隔离层的类名（属于网页，不属于《脑叶公司》原作素材）。 */
+export const plagueDoctorAdventWorldClassName =
+  'lobotomy-corp-plague-doctor-advent-world';
+
+/**
+ * 每个宿主 document 的滚动 inline 原值。
+ *
+ * 按 document 记录（而不是模块级单变量），这样同一个模块服务多个 document 时
+ * 不会互相串状态，也保证解锁时只还原自己锁过的那份。
+ *
+ * @type {WeakMap<object, {body: string|undefined, documentElement: string|undefined}>}
+ */
+const plagueDoctorHostScrollLocks = new WeakMap();
+
+/**
+ * 锁住宿主页面滚动。
+ *
+ * 全局 `:root { overflow-y: scroll }` 让 `<html>` 成为滚动容器，所以主要锁它，
+ * `body` 一并锁上以覆盖浏览器差异。只改 inline `overflow`（真正禁止滚动），
+ * 不动 `scrollTop`，也不用 `scrollbar-width` / `::-webkit-scrollbar` 做视觉隐藏；
+ * 原有 inline 值先存下来，解锁时精确写回。
+ *
+ * @param {any} [hostDocument] 宿主 document，省略时取全局 document。
+ * @return {void}
+ */
+export function lockPlagueDoctorHostScroll(hostDocument) {
+  const document = hostDocument ?? globalThis.document;
+  if (!document || plagueDoctorHostScrollLocks.has(document)) return;
+  const rootElement = document?.documentElement;
+  const body = document?.body;
+  plagueDoctorHostScrollLocks.set(document, {
+    body: body?.style?.overflow,
+    documentElement: rootElement?.style?.overflow,
+  });
+  if (rootElement?.style) rootElement.style.overflow = 'hidden';
+  if (body?.style) body.style.overflow = 'hidden';
+}
+
+/**
+ * 还原宿主页面滚动，写回锁之前的 exact inline 值。
+ *
+ * @param {any} [hostDocument] 宿主 document，省略时取全局 document。
+ * @return {void}
+ */
+export function unlockPlagueDoctorHostScroll(hostDocument) {
+  const document = hostDocument ?? globalThis.document;
+  const state = document ? plagueDoctorHostScrollLocks.get(document) : undefined;
+  if (!document || state === undefined) return;
+  plagueDoctorHostScrollLocks.delete(document);
+  const rootElement = document?.documentElement;
+  const body = document?.body;
+  if (rootElement?.style) {
+    rootElement.style.overflow = state.documentElement ?? '';
+  }
+  if (body?.style) body.style.overflow = state.body ?? '';
+}
 
 /** AdventClockUI 的 Name Effect 时序（毫秒）。 */
 export const plagueDoctorBindingTimings = Object.freeze({
@@ -53,16 +130,37 @@ export const plagueDoctorBindingTimings = Object.freeze({
 
 /** AdventClockUI 的完整降临（Full Advent）时序（毫秒）。 */
 export const plagueDoctorAdventTimings = Object.freeze({
+  /** `AdventClockUI._advent_adventAnim`：每名使徒的降临动画时长。 */
   adventAnimMs: 4000,
+  /** `AdventClockUI._adventMaxTime`：完整降临的兜底上限。 */
   adventMaxMs: 80000,
+  /** `AdventClockUI._advent_cameraMove`：镜头聚焦一名使徒所需的时长。 */
   cameraMoveMs: 1000,
+  /** `PlagueDoctorAnim.OnStartAdvent()` 的 `_adventEffectTimer`。 */
+  plagueDoctorAdventMs: 3000,
 });
+
+/**
+ * 使徒转化光效的挂点，取自 AdventLight.prefab 与使徒动画 prefab。
+ *
+ * 光效本身由 `AdventLight.js` 按原始 `.anim` 播放，这里只暴露 prefab 记录，
+ * 供测试核对网页使用的挂点与 prefab 一致。
+ */
+export const plagueDoctorAdventLightPrefab = deathAngelAdventLightPrefab;
 
 /** 疫医事件使用的媒体路径。 */
 export const plagueDoctorSoundPaths = Object.freeze({
   advent: 'Resources/sounds/creature/deathangel/Lucifer_Advent1.ogg',
   bell: 'Resources/sounds/creature/deathangel/Lucifer_Bell0.ogg',
+  // DeathAngelApostle.Escape() → MakeAdventSound()：每名使徒登场时的合唱。
+  choir: 'Resources/sounds/creature/deathangel/Choir1.ogg',
   tick: 'Resources/sounds/creature/deathangel/Lucifer_Tick1.ogg',
+  // DeathAngelApostle.Escape() → MakeAdventSound()：随机一首使徒低语（Whisper0~2）。
+  whispers: Object.freeze([
+    'Resources/sounds/creature/deathangel/Lucifer_Apostle_Whisper0.ogg',
+    'Resources/sounds/creature/deathangel/Lucifer_Apostle_Whisper1.ogg',
+    'Resources/sounds/creature/deathangel/Lucifer_Apostle_Whisper2.ogg',
+  ]),
 });
 
 /**
@@ -127,7 +225,7 @@ export const plagueDoctorRingHole = Object.freeze({
   height: 252,
   textureHeight: 512,
   textureWidth: 508,
-  width: 250,
+  width: 252,
   x: 129,
   y: 130,
 });
@@ -146,6 +244,14 @@ export const plagueDoctorClockCenterContent = Object.freeze({
 
 /** ClockFrame 按 819×819 逻辑矩形做保持长宽比适配时的缩放。 */
 const plagueDoctorFrameFit = Math.min(819 / 508, 819 / 512);
+
+/**
+ * 圆盘中心贴图的整体不透明度。
+ *
+ * 贴图自身只有约 0.25~0.35 的 alpha，这里再乘一层，让它和盘外的暗背景亮度接近，
+ * 不会在圆盘空缺里显出一块偏黑的小圆。
+ */
+export const plagueDoctorCenterImageOpacity = 0.5;
 
 /**
  * 计算圆盘中心 ClockCenter 贴图的落位与 CSS 背景参数。
@@ -170,6 +276,124 @@ function clockCenterBackground() {
 }
 
 const plagueDoctorClockCenter = clockCenterBackground();
+
+/**
+ * AdventClockUI.prefab 里 Clock（圆盘）的参考边长。
+ *
+ * 黑幕等「按圆盘取比例」的尺寸都以它为基准换算，避免写死具体窗口下的像素值。
+ */
+export const plagueDoctorClockReferenceSize = 819;
+
+/**
+ * prefab 里 BlackShader（DeathAngelClockDark）的 RectTransform 尺寸。
+ *
+ * 它与圆盘 819 的比值就是黑幕中间那圈透明空洞相对圆盘的大小；网页按
+ * `宽 = 圆盘宽 × 2112 / 819`、`高 = 圆盘宽 × 1188 / 819` 动态算出实际尺寸，
+ * 这样空洞在任何窗口下都和圆盘保持同一比例（既不会被压成椭圆，也不会比圆盘还大）。
+ */
+export const plagueDoctorBlackShaderSize = Object.freeze({
+  height: 1188,
+  width: 2112,
+});
+
+/**
+ * 黑幕（DeathAngelClockDark）在 1920×1080 画布里的摆放：贴图本身，以及画布之外那圈同色延伸。
+ *
+ * 贴图按 prefab 的 2112×1188、中心相对画布中心上移 30 摆放，尺寸只跟圆盘走
+ * （宽 = 圆盘宽 × 2112/819），所以中间那圈正圆开口在任何窗口下都与圆盘同比例。
+ *
+ * 画布之外的覆盖用四条同色（贴图自身边缘色 rgb(8,1,0)）的延伸带，不用 border：
+ * border 与贴图盒子的接缝会留下亚像素空隙，抗锯齿会混到接缝外面的东西上，宿主底面
+ * 取页面底色之后那条缝就是一条能看见的浅色横线（700×900 实测 y=222 那行 58,47,48，
+ * 上下都是 11,3,3）。延伸带往视口外各多留 margin、往贴图里重叠 overlap，
+ * 这样两边的抗锯齿都落在同色里。
+ *
+ * @param {object} input 计算输入。
+ * @param {number} input.canvasScale 当前逻辑画布缩放。
+ * @param {number} input.dialWidth 圆盘在画布上的宽度。
+ * @param {number} input.viewportHeight 可见 viewport 高度。
+ * @param {number} input.viewportWidth 可见 viewport 宽度。
+ * @return {{bands: Array<{height: number, left: number, top: number, width: number}>, height: number, width: number}} 贴图尺寸与四条延伸带（按上、下、左、右顺序，画布像素）。
+ */
+export function plagueDoctorBlackShaderLayout(input) {
+  const scale = Number.isFinite(input.canvasScale) && input.canvasScale > 0
+    ? input.canvasScale
+    : 1;
+  const textureScale = input.dialWidth / plagueDoctorClockReferenceSize;
+  const width = plagueDoctorBlackShaderSize.width * textureScale;
+  const height = plagueDoctorBlackShaderSize.height * textureScale;
+  // 画布外的余量（画布像素）：延伸带的边界要落到视口之外。
+  const margin = 64;
+  // 与贴图的重叠（画布像素）：贴图边缘的抗锯齿要落在同色延伸带里。
+  const overlap = 16;
+  const viewportWidth = input.viewportWidth / scale;
+  const viewportHeight = input.viewportHeight / scale;
+  // 贴图中心比画布中心高 30；shader 图层盒子正好是 viewport 换算到画布上的尺寸，
+  // 所以它内部坐标就是从 (-margin, -margin) 到 (viewportWidth + margin, viewportHeight + margin)。
+  const centerX = viewportWidth / 2;
+  const centerY = viewportHeight / 2 - 30;
+  const textureLeft = centerX - width / 2;
+  const textureTop = centerY - height / 2;
+  const textureRight = centerX + width / 2;
+  const textureBottom = centerY + height / 2;
+  /**
+   * 负的尺寸会让元素反向绘制，统一夹到 0。
+   *
+   * @param {number} value 原始尺寸。
+   * @return {number} 不小于 0 的尺寸。
+   */
+  const clamp = (value) => Math.max(0, value);
+  /**
+   * 组装一条矩形延伸带。
+   *
+   * @param {number} left 左边界（画布像素）。
+   * @param {number} top 上边界（画布像素）。
+   * @param {number} bandWidth 宽度（画布像素）。
+   * @param {number} bandHeight 高度（画布像素）。
+   * @return {{height: number, left: number, top: number, width: number}} 延伸带盒子。
+   */
+  const band = (left, top, bandWidth, bandHeight) => ({
+    height: clamp(bandHeight),
+    left,
+    top,
+    width: clamp(bandWidth),
+  });
+  const bands = [
+    // 上
+    band(
+      -margin,
+      -margin,
+      viewportWidth + margin * 2,
+      textureTop + overlap + margin,
+    ),
+    // 下
+    band(
+      -margin,
+      textureBottom - overlap,
+      viewportWidth + margin * 2,
+      viewportHeight + margin - (textureBottom - overlap),
+    ),
+    // 左
+    band(
+      -margin,
+      textureTop + overlap,
+      textureLeft + overlap + margin,
+      height - overlap * 2,
+    ),
+    // 右
+    band(
+      textureRight - overlap,
+      textureTop + overlap,
+      viewportWidth + margin - (textureRight - overlap),
+      height - overlap * 2,
+    ),
+  ];
+  return {
+    bands,
+    height,
+    width,
+  };
+}
 
 /**
  * AdventClockUI.prefab 在 1920×1080 逻辑画布上的几何（CSS 左上原点、像素）。
@@ -276,17 +500,6 @@ export function plagueDoctorArrowCurveValue(rate) {
 }
 
 /**
- * 将 Unity AnimationCurve 的零切线 Hermite 曲线用于淡入淡出。
- *
- * @param {number} rate 区间内的线性时间比例。
- * @return {number} 零切线 Hermite 插值结果。
- */
-function zeroTangentCurve(rate) {
-  const normalized = clamp(rate, 0, 1);
-  return normalized * normalized * (3 - 2 * normalized);
-}
-
-/**
  * 按 `PlagueDoctor.GetApostleDescRefined` 把台词里的 `#n` 替换为使徒名字。
  *
  * 源码从最高序号往低替换，避免 `#1` 命中 `#10` 的前缀。
@@ -344,6 +557,7 @@ function placeBox(element, box) {
  * @param {object} options 图层配置。
  * @param {string} options.assetRoot 资源根路径。
  * @param {any} options.document 宿主 document。
+ * @param {boolean} [options.hostWorld] 是否创建网页宿主隔离层。
  * @param {Array<{element: any}>} options.nameNodes 名字节点。
  * @return {any} 图层句柄。
  */
@@ -363,12 +577,21 @@ function buildAdventStage(options) {
     `${spriteRoot}/ClockArrow.png`,
   );
   const shader = document.createElement('div');
-  const blackShader = createSprite(
-    document,
-    'lobotomy-corp-plague-doctor-advent-black-shader',
-    // BlackShader 在 prefab 中引用的是 DeathAngelClockDark 这张暗角图。
-    `${spriteRoot}/DeathAngelClockDark.png`,
+  // BlackShader 在 prefab 中引用的是 DeathAngelClockDark 这张暗角图（2112×1188，比画布大）。
+  const blackShader = document.createElement('div');
+  blackShader.className = 'lobotomy-corp-plague-doctor-advent-black-shader';
+  blackShader.setAttribute('aria-hidden', 'true');
+  blackShader.style.setProperty(
+    'background-image',
+    `url("${spriteRoot}/DeathAngelClockDark.png")`,
   );
+  // 画布之外那圈用四条同色延伸带补齐，它们排在贴图下面（详见 layout 函数的说明）。
+  const blackShaderBands = [0, 1, 2, 3].map(() => {
+    const element = document.createElement('div');
+    element.className = 'lobotomy-corp-plague-doctor-advent-black-shader-band';
+    element.setAttribute('aria-hidden', 'true');
+    return element;
+  });
   const clockShader = createSprite(
     document,
     'lobotomy-corp-plague-doctor-advent-clock-shader',
@@ -382,6 +605,15 @@ function buildAdventStage(options) {
   const circle = document.createElement('div');
   const desc = document.createElement('div');
   const geometry = plagueDoctorStageGeometry;
+  // 宿主隔离层：只有完整降临需要（原作里它后面是游戏世界，网页里得先盖住网站）。
+  // 底色由 CSS 取宿主页面底色：DeathAngelClockDark 的盘心开口按设计要露出后面的
+  // 世界，铺纯黑会把那块开口也糊成黑圆。
+  const world = options.hostWorld === true
+    ? document.createElement('div')
+    : undefined;
+  // 使徒转化光效是独立的 AdventLight 视觉层：原作里它在世界层（Particle
+  // 排序层，Order 10），因此网页把它排在表盘 UI 之前，靠圆环内孔露出光斑。
+  const adventLight = createDeathAngelAdventLight({ assetRoot, document });
 
   root.className = 'lobotomy-corp-plague-doctor-advent';
   root.id = 'lobotomy-corp-plague-doctor-advent';
@@ -394,9 +626,32 @@ function buildAdventStage(options) {
   shader.className = 'lobotomy-corp-plague-doctor-advent-shader';
   circle.className = 'lobotomy-corp-plague-doctor-advent-circle';
   desc.className = 'lobotomy-corp-plague-doctor-advent-desc';
+  if (world) {
+    world.className = plagueDoctorAdventWorldClassName;
+    world.setAttribute('aria-hidden', 'true');
+  }
 
   placeBox(clock, geometry.clock);
   placeBox(desc, geometry.desc);
+  // 黑幕尺寸由圆盘尺寸算出（prefab 里黑幕 2112×1188 对应圆盘 819），
+  // 于是中间那圈透明空洞永远与圆盘同比例：任何窗口下都不会被压扁或放得比圆盘大。
+  const blackShaderScale = geometry.clock.width / plagueDoctorClockReferenceSize;
+  // 贴图按 prefab 尺寸居中画，尺寸只跟圆盘走（不由 viewport 决定，空洞比例才恒定）；
+  // 画布之外那圈延伸带的尺寸在 fitShaderLayer 里按 viewport 给。
+  blackShader.style.setProperty(
+    'width',
+    `${plagueDoctorBlackShaderSize.width * blackShaderScale}px`,
+  );
+  blackShader.style.setProperty(
+    'height',
+    `${plagueDoctorBlackShaderSize.height * blackShaderScale}px`,
+  );
+  blackShader.style.setProperty(
+    'background-size',
+    `${
+      plagueDoctorBlackShaderSize.width * blackShaderScale
+    }px ${plagueDoctorBlackShaderSize.height * blackShaderScale}px`,
+  );
   // Shader 节点自身就是 GlobalShader（preserveAspect=0，铺满 1920×1080）。
   shader.style.setProperty(
     'background-image',
@@ -440,6 +695,10 @@ function buildAdventStage(options) {
   circle.style.setProperty('width', `${circleBox.width}px`);
   circle.style.setProperty('height', `${circleBox.height}px`);
   circle.style.setProperty('transform', `rotate(${circleBox.rotation}deg)`);
+  circle.style.setProperty(
+    '--lobotomy-corp-advent-center-opacity',
+    String(plagueDoctorCenterImageOpacity),
+  );
 
   point.append(arrow);
   clock.append(
@@ -451,17 +710,27 @@ function buildAdventStage(options) {
     point,
     namesLayer,
   );
-  // 顺序与 prefab 一致：Clock → Shader（含黑幕与两层 shader）→ Circle → ApostleDesc。
-  addApostle.append(clock, shader, circle, desc);
+  // 顺序与 prefab 一致：Clock → Shader（含黑幕与两层 shader）→ Circle →
+  // ApostleDesc；AdventLight 作为世界层先于整块 UI 绘制。
+  addApostle.append(adventLight.element, clock, shader, circle, desc);
+  // 延伸带要压在贴图下面，所以先挂上；Shader 子层顺序仍是黑幕 → ClockShader → LowerShader。
+  blackShaderBands.forEach((band) => shader.append(band));
   shader.append(blackShader, clockShader, lowerShader);
   canvas.append(addApostle);
-  root.append(canvas);
+  // world 是 viewport-space 的固定层，必须排在 canvas 之前（也就是整块原作 UI 之下）。
+  if (world) {
+    root.append(world, canvas);
+  } else {
+    root.append(canvas);
+  }
   options.nameNodes.forEach(({ element }) => namesLayer.append(element));
   document.body.append(root);
   return {
+    adventLight,
     addApostle,
     arrow,
     blackShader,
+    blackShaderBands,
     canvas,
     circle,
     clock,
@@ -472,6 +741,7 @@ function buildAdventStage(options) {
     point,
     root,
     shader,
+    world,
   };
 }
 
@@ -481,6 +751,7 @@ function buildAdventStage(options) {
  * @param {object} options 演出配置。
  * @param {string} options.assetRoot 资源根路径。
  * @param {any} [options.document] 宿主 document。
+ * @param {boolean} [options.hostWorld] 是否创建网页宿主隔离层（只有完整降临需要）。
  * @param {((name: any, fontSize: number) => boolean)|undefined} [options.measureName] 名字文本量度。
  * @param {string[]} options.names 12 个名字槽位的使徒名单。
  * @return {{dispose: () => void, layers: any, now: () => number, refitShaderLayer: () => void, run: (render: (elapsed: number) => boolean) => void, setAdventMode: (advent: boolean) => void, setDesc: (text: string) => void}} 演出控制器。
@@ -540,7 +811,12 @@ function createPlagueDoctorClock(options) {
     name.style.setProperty('--lobotomy-corp-advent-name-alpha', '0');
     return { element: name, slot };
   });
-  const layers = buildAdventStage({ assetRoot, document, nameNodes });
+  const layers = buildAdventStage({
+    assetRoot,
+    document,
+    hostWorld: options.hostWorld === true,
+    nameNodes,
+  });
   /** @type {{height: number, width: number}|undefined} */
   let stableViewport;
   /** @type {number|undefined} */
@@ -564,6 +840,26 @@ function createPlagueDoctorClock(options) {
       : 1;
     layers.shader.style.setProperty('width', `${viewportWidth / scale}px`);
     layers.shader.style.setProperty('height', `${viewportHeight / scale}px`);
+    // 黑幕：贴图保持 prefab 比例居中，画布之外用四条同色延伸带补齐（边界在视口之外），
+    // 贴图边缘的抗锯齿落在与它同色的延伸带上，所以接缝处不会再露出底面。
+    const blackShaderLayout = plagueDoctorBlackShaderLayout({
+      canvasScale: scale,
+      dialWidth: plagueDoctorStageGeometry.clock.width,
+      viewportHeight,
+      viewportWidth,
+    });
+    for (let index = 0; index < layers.blackShaderBands.length; index++) {
+      const element = layers.blackShaderBands[index];
+      const box = blackShaderLayout.bands[index];
+      // 贴图已经把某个方向盖满时，那一条就不用画。
+      const visible = box && box.width > 0 && box.height > 0;
+      element.style.setProperty('display', visible ? 'block' : 'none');
+      if (!visible) continue;
+      element.style.setProperty('left', `${box.left}px`);
+      element.style.setProperty('top', `${box.top}px`);
+      element.style.setProperty('width', `${box.width}px`);
+      element.style.setProperty('height', `${box.height}px`);
+    }
   };
 
   /**
@@ -576,11 +872,15 @@ function createPlagueDoctorClock(options) {
       stableViewport.width,
       stableViewport.height,
     );
+    // 表盘是 1920×1080 的固定构图：只按宽度适配时，超宽屏会把圆盘顶出屏幕、
+    // 台词沉到底部之外；这里再取一次“整块构图完整装进 viewport”的上限。
+    const fit = Math.min(live.width / 1920, live.height / 1080);
+    const scale = Number.isFinite(fit) && fit > 0 ? Math.min(base, fit) : base;
     layers.canvas.style.setProperty(
       '--lobotomy-corp-advent-canvas-scale',
-      String(base),
+      String(scale),
     );
-    fitShaderLayer(live.width, live.height, base);
+    fitShaderLayer(live.width, live.height, scale);
   };
   const fitNames = () =>
     nameNodes.forEach(({ element, slot }) =>
@@ -768,7 +1068,56 @@ export function playPlagueDoctorBinding(options) {
 }
 
 /**
+ * 按原作调用链排出完整降临（Full Advent）的每一步。
+ *
+ * 全部时长取自 `WhiteNightSpace` 源码与 `AdventClockUI.prefab`：
+ * 1. `PlagueDoctor.OnClockUIEnd()` 在 `StartAdventEvent()` 之后把镜头移向疫医
+ *    （`_advent_cameraMove`，1 秒）。
+ * 2. `PlagueDoctorAnim.OnStartAdvent()` 播放疫医自身 3 秒 Advent 演出，结束后
+ *    `OnPlagueDoctorAdventEnd()` 调 `AdventClockUI.AdventTimerStart()`。
+ * 3. 每名使徒：`ExecuteNextAdventTarget()` 用 1 秒把镜头聚焦到该员工，聚焦完成
+ *    后 `StartAdventAnim()` 才触发 AdventLight 并开始 4 秒降临计时
+ *    （`_advent_adventAnim`）。
+ *
+ * @param {number} count 使徒数量。
+ * @return {{steps: Array<{at: number, index: number, kind: string, startedAt: number}>, totalMs: number}} 各步起始毫秒与总时长。
+ */
+export function plagueDoctorAdventSchedule(count) {
+  const { adventAnimMs, cameraMoveMs, plagueDoctorAdventMs } =
+    plagueDoctorAdventTimings;
+  const apostleCount = Number.isFinite(count) && count > 0
+    ? Math.floor(count)
+    : 0;
+  /** @type {Array<{at: number, index: number, kind: string, startedAt: number}>} */
+  const steps = [{
+    at: 0,
+    index: -1,
+    kind: 'plagueDoctorCamera',
+    startedAt: 0,
+  }];
+  let cursor = cameraMoveMs;
+  steps.push({
+    at: cursor,
+    index: -1,
+    kind: 'plagueDoctorAdvent',
+    startedAt: 0,
+  });
+  cursor += plagueDoctorAdventMs;
+  for (let index = 0; index < apostleCount; index++) {
+    steps.push({ at: cursor, index, kind: 'cameraFocus', startedAt: 0 });
+    cursor += cameraMoveMs;
+    steps.push({ at: cursor, index, kind: 'adventAnim', startedAt: 0 });
+    cursor += adventAnimMs;
+  }
+  return { steps, totalMs: cursor };
+}
+
+/**
  * 播放第 12 名使徒完成后的完整降临（AdventClockUI.StartAdventEvent）。
+ *
+ * 演出先按 {@link plagueDoctorAdventSchedule} 走原作时序，再按
+ * `OnEndAdventEffect` 结束。每名使徒的转化光效由 `AdventLight.js` 播放原始
+ * `ApostleAdventLight.anim`，并且只在镜头聚焦完成后触发。
  *
  * @param {object} options 演出配置。
  * @param {string} options.assetRoot 资源根路径。
@@ -780,35 +1129,38 @@ export function playPlagueDoctorBinding(options) {
  * @return {{dispose: () => void, element: any, finished: Promise<void>}} 演出句柄。
  */
 export function playPlagueDoctorAdvent(options) {
+  const hostDocument = options.document ?? globalThis.document;
   const clock = createPlagueDoctorClock({
     assetRoot: options.assetRoot,
     document: options.document,
+    hostWorld: true,
     names: options.names,
   });
   const { layers } = clock;
   const names = Array.isArray(options.names) ? options.names : [];
   const originalColor = whiteNightSimpleAdventOriginalColor;
   const adventColor = whiteNightSimpleAdventColor;
-  const { adventAnimMs, adventMaxMs, cameraMoveMs } = plagueDoctorAdventTimings;
-  /** @type {Array<{at: number, index: number, kind: string, startedAt: number}>} */
-  const schedule = [];
-  let cursor = 0;
-  names.forEach((_, index) => {
-    schedule.push({ at: cursor, index, kind: 'camera', startedAt: 0 });
-    cursor += cameraMoveMs;
-    schedule.push({ at: cursor, index, kind: 'anim', startedAt: 0 });
-    cursor += adventAnimMs;
-  });
-  const totalMs = Math.min(cursor, adventMaxMs);
+  const { adventAnimMs, adventMaxMs } = plagueDoctorAdventTimings;
+  const schedule = plagueDoctorAdventSchedule(names.length);
+  const steps = schedule.steps;
+  const totalMs = Math.min(schedule.totalMs, adventMaxMs);
   layers.root.style.setProperty('--lobotomy-corp-advent-root-alpha', '1');
   layers.clock.style.setProperty('--lobotomy-corp-advent-clock-alpha', '1');
   clock.setAdventMode(true);
+  // 宿主隔离：完整降临期间锁住网页滚动（保存原值，退出时精确恢复）。
+  lockPlagueDoctorHostScroll(hostDocument);
+  // 演出开始到第一次聚焦完成之间 Desc 是空的：原作里第一句台词要等镜头聚焦到
+  // 第一名员工、AdventLight 开始 Run 的同一刻，才由 AdventTimer.Rate 淡入。
+  clock.setDesc('');
+  layers.desc.style.setProperty('--lobotomy-corp-advent-desc-alpha', '0');
   // 12 个名字在各自的绑定演出里已经揭示，完整降临只负责逐个变红。
   Array.from(layers.namesLayer.children ?? []).forEach(
     (/** @type {any} */ node) =>
       node.style.setProperty('--lobotomy-corp-advent-name-alpha', '1'),
   );
   let index = 0;
+  /** @type {{index: number, kind: string, startedAt: number}|undefined} */
+  let currentAdvent;
   let finished = false;
   /** @type {() => void} */
   let resolveFinished = () => {};
@@ -817,10 +1169,19 @@ export function playPlagueDoctorAdvent(options) {
     resolveFinished = () => resolve();
   });
   clock.run((elapsed) => {
-    while (index < schedule.length && schedule[index].at <= elapsed) {
-      const step = schedule[index++];
-      const nameNode = layers.namesLayer.children[step.index];
-      if (step.kind === 'camera') {
+    // plagueDoctorCamera / plagueDoctorAdvent 只承担原作前两段的时长：网页没有
+    // 疫医所在的设施图层，这两步保持黑幕与过场 BGM，不另造视觉。
+    while (index < steps.length && steps[index].at <= elapsed) {
+      const step = steps[index++];
+      step.startedAt = elapsed;
+      if (step.kind === 'cameraFocus') {
+        // ExecuteNextAdventTarget()：镜头开始移向这名员工，同时敲钟并换台词。
+        // 镜头到位之前不启动 AdventLight，光效保持关闭。
+        layers.adventLight.stop();
+        // 镜头移动期间没有正在进行的降临动画：清掉 currentAdvent，Desc 的 alpha
+        // 才不会被上一名使徒的 4 秒计时继续驱动（否则新台词会先整句亮起、
+        // 等光球开始时再被清零，变成「字幕先出现又消失再淡入」）。
+        currentAdvent = undefined;
         clock.setDesc(
           refineApostleDesc(options.messages, step.index + 1, names),
         );
@@ -828,21 +1189,41 @@ export function playPlagueDoctorAdvent(options) {
           '--lobotomy-corp-advent-desc-alpha',
           '0',
         );
+        // ExecuteNextAdventTarget() 先敲钟，再让这名使徒 Escape()；Escape() 里的
+        // MakeAdventSound() 会再放一首合唱与一句随机低语，两者是同一刻。
         options.playSound?.(plagueDoctorSoundPaths.bell);
-      } else {
-        nameNode?.style.setProperty(
-          '--lobotomy-corp-advent-name-color',
-          toCssColor(adventColor),
-        );
+        // 第 12 名是叛徒：原作在 Escape() 之前就因 AposlteModel == null 返回，
+        // 所以它只有钟声，没有合唱与低语。
+        if (step.index !== plagueDoctorBetrayerIndex) {
+          options.playSound?.(plagueDoctorSoundPaths.choir);
+          const whispers = plagueDoctorSoundPaths.whispers;
+          options.playSound?.(
+            whispers[Math.floor(Math.random() * whispers.length)],
+          );
+        }
+      } else if (step.kind === 'adventAnim') {
+        // StartAdventAnim()：镜头已完成聚焦，此刻才 TurnOnAdventLight()，并开始
+        // 4 秒降临计时；每次 Run 都从 `.anim` 第 0 帧重新开始。
+        // 第 12 名是叛徒，原作不会为它生成使徒单位，TurnOnAdventLight() 抛出的
+        // 空引用被吞掉，因此这一名只有计时与台词，没有 AdventLight。
+        currentAdvent = step;
+        if (step.index !== plagueDoctorBetrayerIndex) {
+          layers.adventLight.run(elapsed);
+        }
+      } else if (step.kind === 'plagueDoctorCamera') {
+        // PlagueDoctor.OnClockUIEnd()：镜头开始移向疫医的同一刻也敲一次钟
+        // （`MakeSound("creature/deathangel/Lucifer_Bell0")`）。
+        options.playSound?.(plagueDoctorSoundPaths.bell);
       }
-      step.startedAt = elapsed;
     }
-    const current = schedule
-      .slice(0, index)
-      .reverse()
-      .find((item) => item.kind === 'anim');
-    if (current) {
-      const rate = clamp((elapsed - current.startedAt) / adventAnimMs, 0, 1);
+    // AdventLight 按 ApostleAdventLight.anim 的时间轴推进（UnscaledTime）。
+    layers.adventLight.render(elapsed);
+    if (currentAdvent) {
+      const rate = clamp(
+        (elapsed - currentAdvent.startedAt) / adventAnimMs,
+        0,
+        1,
+      );
       const colorRate = Math.min(rate * 2, 1);
       const red = originalColor.red +
         (adventColor.red - originalColor.red) * colorRate;
@@ -850,24 +1231,31 @@ export function playPlagueDoctorAdvent(options) {
         (adventColor.green - originalColor.green) * colorRate;
       const blue = originalColor.blue +
         (adventColor.blue - originalColor.blue) * colorRate;
-      layers.namesLayer.children[current.index]?.style.setProperty(
+      layers.namesLayer.children[currentAdvent.index]?.style.setProperty(
         '--lobotomy-corp-advent-name-color',
         toCssColor({ blue, green, red }),
       );
       layers.desc.style.setProperty(
         '--lobotomy-corp-advent-desc-alpha',
-        String(zeroTangentCurve(rate)),
+        // AdventClockUI.Update 里 Desc 的 alpha 直接取 AdventTimer.Rate，
+        // 没有额外平滑曲线。
+        String(rate),
       );
     }
     if (elapsed < totalMs || finished) return !finished;
     finished = true;
     options.onAdventEnd?.();
     clock.dispose();
+    // world 层随 root 一起移除后，才能把网页还回去。
+    unlockPlagueDoctorHostScroll(hostDocument);
     resolveFinished();
     return false;
   });
   return {
-    dispose: () => clock.dispose(),
+    dispose: () => {
+      clock.dispose();
+      unlockPlagueDoctorHostScroll(hostDocument);
+    },
     element: layers.root,
     finished: finishedPromise,
   };
@@ -898,6 +1286,51 @@ export function createPlagueDoctorEvent(shared) {
   let activeClock;
   /** @type {any} 完整降临的专属 BGM（对应 BgmManager 的 UniqueBgm）。 */
   let adventBgm;
+
+  /** 转盘演出期间要拦截的页面交互事件。 */
+  const blockedInteractionEvents = ['click', 'mousedown', 'pointerdown', 'submit'];
+  let blockingInteraction = false;
+
+  /**
+   * 在捕获阶段吞掉一次页面交互。
+   *
+   * @param {any} event 页面事件。
+   * @return {void}
+   */
+  const blockInteraction = (event) => {
+    event?.preventDefault?.();
+    event?.stopImmediatePropagation?.();
+  };
+
+  /**
+   * 开始拦截页面交互：转盘转动期间不允许用户继续点击网页。
+   *
+   * @return {void}
+   */
+  const startBlockingInteraction = () => {
+    const document = globalThis.document;
+    if (blockingInteraction || typeof document?.addEventListener !== 'function') {
+      return;
+    }
+    blockingInteraction = true;
+    blockedInteractionEvents.forEach((type) =>
+      document.addEventListener(type, blockInteraction, true)
+    );
+  };
+
+  /**
+   * 解除页面交互拦截。
+   *
+   * @return {void}
+   */
+  const stopBlockingInteraction = () => {
+    const document = globalThis.document;
+    if (!blockingInteraction) return;
+    blockingInteraction = false;
+    blockedInteractionEvents.forEach((type) =>
+      document.removeEventListener(type, blockInteraction, true)
+    );
+  };
 
   /**
    * 读取会话存储。
@@ -1013,6 +1446,7 @@ export function createPlagueDoctorEvent(shared) {
     busy = false;
     transforming = false;
     activeClock = undefined;
+    stopBlockingInteraction();
     // 白夜登场前先收掉疫医的过场 BGM，避免与白夜教堂音乐重叠。
     clearAdventBgm();
     if (state) {
@@ -1041,6 +1475,8 @@ export function createPlagueDoctorEvent(shared) {
       completeTransformation();
       return;
     }
+    // `StartAdventEvent()` 先起 UniqueBgm，再开黑幕与镜头，所以 BGM 要早于演出脚本。
+    adventBgm = playSound(plagueDoctorSoundPaths.advent);
     const clock = playPlagueDoctorAdvent({
       assetRoot: shared.assetRoot,
       document: globalThis.document,
@@ -1050,7 +1486,7 @@ export function createPlagueDoctorEvent(shared) {
       playSound,
     });
     activeClock = clock;
-    adventBgm = playSound(plagueDoctorSoundPaths.advent);
+    startBlockingInteraction();
   };
 
   /**
@@ -1067,6 +1503,7 @@ export function createPlagueDoctorEvent(shared) {
     current.apostles.push(name);
     persist();
     busy = true;
+    startBlockingInteraction();
     if (typeof globalThis.document?.createElement === 'function') {
       const clock = playPlagueDoctorBinding({
         assetRoot: shared.assetRoot,
@@ -1087,6 +1524,7 @@ export function createPlagueDoctorEvent(shared) {
           startTransformation();
         } else {
           busy = false;
+          stopBlockingInteraction();
         }
       });
       return;
@@ -1095,6 +1533,7 @@ export function createPlagueDoctorEvent(shared) {
       startTransformation();
     } else {
       busy = false;
+      stopBlockingInteraction();
     }
   };
 
@@ -1141,6 +1580,7 @@ export function createPlagueDoctorEvent(shared) {
     clearAdventBgm();
     busy = false;
     transforming = false;
+    stopBlockingInteraction();
   };
 
   return Object.freeze({

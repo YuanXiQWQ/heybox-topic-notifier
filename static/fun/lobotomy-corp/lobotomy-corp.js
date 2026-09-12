@@ -860,6 +860,8 @@ function ensureLobotomyCorpDayCoordinator() {
  */
 function finishLobotomyCorpDayFromCoordinator() {
   lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
+  // 被其它彩蛋中断时也要收掉疫医的进行中演出（含完整降临的宿主隔离层与滚动锁）。
+  lobotomyCorpPlagueDoctorEvent?.reset();
   clearLobotomyCorpDay();
   activeLobotomyCorpAlert?.finish();
 }
