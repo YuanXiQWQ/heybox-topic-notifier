@@ -104,10 +104,10 @@ Deno.test("Advent dial switches CJK text to a system font as a whole run", () =>
       `字体栈应包含 ${family}`,
     );
   }
+  // 换行可能是 LF 也可能是 CRLF，用正则跨行匹配。
   assert(
-    css.includes(
-      '.lobotomy-corp-white-night-simple-advent-name[data-cjk="1"],\n.lobotomy-corp-plague-doctor-advent-name[data-cjk="1"]',
-    ),
+    /\.lobotomy-corp-white-night-simple-advent-name\[data-cjk="1"\][\s\S]*?\.lobotomy-corp-plague-doctor-advent-name\[data-cjk="1"\]/u
+      .test(css),
     "两个轮盘的名字都应有整段切换规则",
   );
   assert(

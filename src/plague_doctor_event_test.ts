@@ -22,6 +22,7 @@ import {
   plagueDoctorCenterImageOpacity,
   plagueDoctorClockCenterContent,
   plagueDoctorCssArrowAngle,
+  plagueDoctorDescTopForViewport,
   plagueDoctorRingHole,
   plagueDoctorSoundPaths,
   plagueDoctorStageGeometry,
@@ -515,6 +516,44 @@ Deno.test("疫医：完整降临挂载独立 world 层，且在原作 UI 之下"
   }
 });
 
+/**
+ * 黑幕延伸带必须跟着黑幕的开关走。
+ *
+ * 绑定阶段黑幕是关的（`SetEffect(false)`），延伸带也属于黑幕——不一起收起的话，
+ * 窄屏下画布之外的上下两边会被填成深色（实测就是这样）。
+ */
+Deno.test("疫医：绑定阶段黑幕延伸带收起", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    const clock = { value: 0 };
+    await api.commitDisplayName("O-01-45");
+    for (let index = 1; index <= 2; index++) {
+      await api.commitDisplayName(`apostle-${index}`);
+      await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
+    }
+    /** @return {import("./test_harness.ts").Element[]} 当前仍挂载的延伸带 */
+    const liveBands = () =>
+      harness.createdElements().filter((element) =>
+        !element.removed &&
+        element.className ===
+          "lobotomy-corp-plague-doctor-advent-black-shader-band"
+      );
+    const bindingBands = liveBands();
+    assert(bindingBands.length > 0, "绑定阶段也应挂延伸带（只是收起）");
+    for (const band of bindingBands) {
+      assertEquals(
+        band.styleProperties.get("--lobotomy-corp-advent-layer-alpha"),
+        "0",
+        "绑定阶段延伸带必须收起",
+      );
+    }
+  } finally {
+    harness.restore();
+  }
+});
+
 /** 绑定阶段的表盘不需要宿主隔离层（只有完整降临需要）。 */
 Deno.test("疫医：绑定阶段不创建 world 层", async () => {
   const harness = installLobotomyCorpAlertHarness();
@@ -965,6 +1004,69 @@ Deno.test("疫医：已经转变过的会话再次提交 O-01-45 直接进入白
  * 用到的 142 个汉字里 BMDOHYEON 缺 32 个、NanumMyeongjo 一个都没有。原作一个 Legacy Text
  * 只用一支字体，所以这里也是整段切换（`data-cjk="1"`），而不是让浏览器逐字回退。
  */
+/**
+ * 台词槽位（ApostleDesc）要钉在可见画面底部，不能跟着画布往上飘。
+ *
+ * prefab 里它是「相对画布中心下移 438」的矩形，16:9 下边缘离画面底 12；网页把整块
+ * 1920×1080 构图 fit 进 viewport 后，非 16:9 窗口上下会有黑边，台词若仍按画布坐标摆
+ * 就会浮到画面中部（900×1200 实测离画面底 352px，700×900 是 257px）。
+ */
+Deno.test("疫医：台词槽位钉在画面底部，16:9 时保持 prefab 位置", async () => {
+  const desc = plagueDoctorStageGeometry.desc;
+  // 16:9：结果必须正好是 prefab 的 888（画面比例正确时位置完全不变）。
+  assertEquals(
+    plagueDoctorDescTopForViewport({ canvasScale: 1, viewportHeight: 1080 }),
+    desc.top,
+  );
+  for (
+    const viewport of [
+      { height: 1080, width: 2560 },
+      { height: 1080, width: 1920 },
+      { height: 900, width: 1440 },
+      { height: 1200, width: 900 },
+      { height: 900, width: 700 },
+      { height: 800, width: 480 },
+    ]
+  ) {
+    const scale = Math.min(viewport.width / 1920, viewport.height / 1080);
+    const label = `${viewport.width}×${viewport.height}`;
+    const top = plagueDoctorDescTopForViewport({
+      canvasScale: scale,
+      viewportHeight: viewport.height,
+    });
+    // 画布上下居中：画面底在画布坐标里是 540 + viewportHeight / (2 × scale)。
+    const bottomInCanvas = viewport.height / (2 * scale) + 540;
+    assertClose(bottomInCanvas - (top + desc.height), 12, 1e-9);
+    assert(top >= desc.top, `${label} 台词不该比 16:9 时更靠上`);
+  }
+
+  // 页面确实按这条规则设置 top（测试宿主 1920×1080、画布缩放 1）。
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    harness.storage.setItem(
+      plagueDoctorStorageKey,
+      JSON.stringify({
+        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
+        recording: true,
+        transformed: false,
+      }),
+    );
+    await harness.reload();
+    const api = harness.api();
+    const clock = { value: 0 };
+    await api.commitDisplayName("O-01-45");
+    await advance(harness, clock, 16);
+    const element = findByClassName(
+      harness,
+      "lobotomy-corp-plague-doctor-advent-desc",
+    );
+    assert(element, "完整降临应有台词槽位");
+    assertEquals(element!.styleProperties.get("top"), `${desc.top}px`);
+  } finally {
+    harness.restore();
+  }
+});
+
 Deno.test("疫医：中日文名字与台词整段切换系统字体", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {

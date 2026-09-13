@@ -515,6 +515,8 @@
  * 带与贴图重叠一段，贴图边缘的抗锯齿落在同色里；带的外边界留在视口之外。
  */
 .lobotomy-corp-plague-doctor-advent-black-shader-band{
+  /* 与黑幕同一开关：绑定阶段黑幕是关的，延伸带也必须一起收起。 */
+  opacity: var(--lobotomy-corp-advent-layer-alpha, 1);
   background-color: rgb(8 1 0);
   pointer-events: none;
   position: absolute;

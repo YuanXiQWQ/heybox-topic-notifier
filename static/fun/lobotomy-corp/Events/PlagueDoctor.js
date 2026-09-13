@@ -298,6 +298,35 @@ export const plagueDoctorBlackShaderSize = Object.freeze({
 });
 
 /**
+ * 台词槽位（ApostleDesc）相对画布顶部的 top，单位是 1920×1080 画布像素。
+ *
+ * prefab 里 ApostleDesc 是「相对画布中心下移 438」的 1600×180 矩形，在 16:9 画面下
+ * 下边缘离画面底 12；网页画布按「整块构图装进 viewport」缩放后，非 16:9 的窗口会在
+ * 上下留黑边，若仍按画布坐标摆，台词就跟着画布往上飘（900×1200 实测离画面底 352px）。
+ *
+ * 因此这里把台词下边缘钉在**可见画面底部上方 12 画布像素**：16:9 时结果就是 prefab 的
+ * 888（画面比例对时完全不变），只有非 16:9 的窗口才会把它往下压回底部黑幕里。
+ *
+ * @param {object} input 计算输入。
+ * @param {number} input.canvasScale 当前逻辑画布缩放。
+ * @param {number} input.viewportHeight 可见 viewport 高度。
+ * @return {number} 台词槽位相对画布顶部的 top（画布像素）。
+ */
+export function plagueDoctorDescTopForViewport(input) {
+  const scale = Number.isFinite(input.canvasScale) && input.canvasScale > 0
+    ? input.canvasScale
+    : 1;
+  const desc = plagueDoctorStageGeometry.desc;
+  /** 台词下边缘离画面底的画布像素数（prefab：1080 - 1068 = 12）。 */
+  const bottomMargin =
+    lobotomyCorpReferenceCanvasHeight - (desc.top + desc.height);
+  // 画布上下居中：画布中心到画面底的距离是 viewportHeight / (2 × scale) 画布像素，
+  // 再减去画布中心到台词下边缘的距离（540 - 12 - 180）。
+  return input.viewportHeight / (2 * scale) +
+    (lobotomyCorpReferenceCanvasHeight / 2 - bottomMargin - desc.height);
+}
+
+/**
  * 黑幕（DeathAngelClockDark）在 1920×1080 画布里的摆放：贴图本身，以及画布之外那圈同色延伸。
  *
  * 贴图按 prefab 的 2112×1188、中心相对画布中心上移 30 摆放，尺寸只跟圆盘走
@@ -883,6 +912,17 @@ function createPlagueDoctorClock(options) {
       '--lobotomy-corp-advent-canvas-scale',
       String(scale),
     );
+    // 台词钉在可见画面底部上方 12 画布像素：16:9 时等于 prefab 的 888，比例不对时
+    // 也不会跟着画布往上飘。
+    layers.desc.style.setProperty(
+      'top',
+      `${
+        plagueDoctorDescTopForViewport({
+          canvasScale: scale,
+          viewportHeight: live.height,
+        })
+      }px`,
+    );
     fitShaderLayer(live.width, live.height, scale);
   };
   const fitNames = () =>
@@ -929,6 +969,14 @@ function createPlagueDoctorClock(options) {
         '--lobotomy-corp-advent-layer-alpha',
         advent ? '1' : '0',
       );
+      // 延伸带属于黑幕：绑定阶段黑幕关掉时它们也必须一起收起，
+      // 否则窄屏下画布之外的上下两边会被填成深色。
+      for (let index = 0; index < layers.blackShaderBands.length; index++) {
+        layers.blackShaderBands[index].style.setProperty(
+          '--lobotomy-corp-advent-layer-alpha',
+          advent ? '1' : '0',
+        );
+      }
     },
     /**
      * 把 Desc 文本按 Legacy Text Best Fit（20~50）铺进 1600×180 的矩形。
