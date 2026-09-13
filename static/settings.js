@@ -411,6 +411,19 @@ function initTotpBinding(scope = document) {
   }
 
   form.dataset.totpBindingInitialized = 'true';
+  // “别碰我”需要连续点击保存按钮：按下时不让按钮抢走显示名称的焦点，否则编辑器
+  // 收起会隐藏保存按钮，用户就无法继续连点。
+  saveButton.addEventListener('pointerdown', (event) => {
+    if (
+        mode === 'displayName' &&
+        globalThis.lobotomyCorpEasterEgg?.blocksDisplayNameSave?.(
+            displayNameInput.value,
+        )
+    ) {
+      event.preventDefault();
+    }
+  });
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     void submitTotpBinding(section, form);
@@ -1752,6 +1765,26 @@ function initAccountSettings() {
       } else if (passkeyAvailable) {
         void startAccountPasskeyReauth();
       }
+      return;
+    }
+
+    // 被彩蛋接管的显示名称不发出保存请求，保存值保持修改前的名称。
+    if (
+        mode === 'displayName' &&
+        globalThis.lobotomyCorpEasterEgg?.blocksDisplayNameSave?.(
+            displayNameInput.value,
+        )
+    ) {
+      event.preventDefault();
+      // 演出期间与结束后都必须保持显示名称的焦点：编辑器收起会隐藏保存按钮，
+      // 用户就无法继续连点触发假关服。
+      const keepDisplayNameFocus = () => {
+        if (!displayNameInput.readOnly) displayNameInput.focus();
+      };
+      keepDisplayNameFocus();
+      void Promise.resolve(
+          globalThis.lobotomyCorpEasterEgg?.playDontTouchMe?.(),
+      ).then(keepDisplayNameFocus, keepDisplayNameFocus);
       return;
     }
 

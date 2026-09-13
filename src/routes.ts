@@ -2,8 +2,6 @@
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
 import { type Context, Hono } from "@hono/hono";
-// @ts-types="npm:@types/qrcode@^1.5.5"
-import QRCode from "qrcode";
 import {
   hashPassword,
   normalizeDisplayName,
@@ -187,6 +185,7 @@ export function createRoutes(context: AppContext): Hono {
         account,
         csrfToken: csrf.token,
         initialNextPollProgress: initialNextPollProgress(url.searchParams),
+        loginSession: session?.createdAt,
         pendingTable,
         returnTo: withoutPollResetFlag(`${url.pathname}${url.search}`),
         settings,
@@ -398,12 +397,9 @@ export function createRoutes(context: AppContext): Hono {
           periodSeconds: context.config.totp.periodSeconds,
           secretBase32: material.secretBase32,
         });
+        const { totpQrCodeDataUrl } = await import("./auth/totp_qr.ts");
         totpSetup = {
-          qrCodeDataUrl: await QRCode.toDataURL(otpAuthUri, {
-            errorCorrectionLevel: "M",
-            margin: 2,
-            width: 240,
-          }),
+          qrCodeDataUrl: await totpQrCodeDataUrl(otpAuthUri),
           secretBase32: material.secretBase32,
           secretEncrypted: material.secretEncrypted,
         };
@@ -425,6 +421,7 @@ export function createRoutes(context: AppContext): Hono {
         googleBindingStatus: googleBindingStatusFromSearch(url.searchParams),
         googleClientId: settingsGoogleClientId(context),
         googleIdentity: googleIdentities[0],
+        loginSession: session?.createdAt,
         passkeyBindingStatus: passkeyBindingStatusFromSearch(
           url.searchParams,
         ),
@@ -1978,7 +1975,13 @@ export function createRoutes(context: AppContext): Hono {
     );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
-      c.html(renderHistory({ account, csrfToken: csrf.token, historyTable, settings })),
+      c.html(renderHistory({
+        account,
+        csrfToken: csrf.token,
+        historyTable,
+        loginSession: session?.createdAt,
+        settings,
+      })),
       csrf,
     );
   });

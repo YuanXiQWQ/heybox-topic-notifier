@@ -48,7 +48,7 @@ ID, а Deno Deploy также изолирует данные Production и Git 
 Настраиваются в Deno Deploy App по необходимости. Файл `.env.example` в корне репозитория организован по сценариям: по умолчанию включена только минимально работоспособная конфигурация,
 а остальные настройки тюнинга polling, каналов уведомлений, relay и security allowlist остаются закомментированными; раскомментируйте только строки, соответствующие нужному сценарию.
 
-- Базовые значения по умолчанию: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Базовые значения по умолчанию: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Настройка polling: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Переопределение запросов Heybox: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Общие параметры уведомлений: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV и изолируются по user ID. Browser Cookie хранит то
 hash и время истечения.
 
 Реальное получение тем Heybox сейчас является единственным runtime-источником данных. По умолчанию `HEYBOX_SIGNATURE_MODE=app` использует проверенный список времени публикаций App API;
-`web` сохранён только как диагностический fallback. `POLL_ENABLED`
-служит только начальным переключателем polling для новых аккаунтов или default account; фактическое получение данных зависит от “Enable polling” на странице настроек каждого аккаунта.
+`web` сохранён только как диагностический fallback.
+Новые аккаунты начинают с выключенным polling и получают данные только после включения “Enable polling” на своей странице настроек.
 
 ## Relay уведомлений
 

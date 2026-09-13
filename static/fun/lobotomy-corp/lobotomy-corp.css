@@ -214,7 +214,9 @@
   align-items: center;
   color: var(--lobotomy-corp-advent-name-color);
   display: flex;
-  font-family: LobotomyAdventNames, "Malgun Gothic", sans-serif;
+  /* 原版名字用 BMDOHYEON（韩文，中日文字形不全），后面按游戏的语言字体表思路补系统字体。 */
+  font-family: LobotomyAdventNames, "Malgun Gothic", "Microsoft YaHei",
+    "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
   font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
   font-weight: normal;
   height: 48px;
@@ -238,6 +240,20 @@
   white-space: normal;
   width: 114px;
   opacity: var(--lobotomy-corp-advent-name-alpha);
+}
+
+/*
+ * 出现中日文的使徒名字：整段改用系统 CJK 字体。
+ *
+ * 原版 BMDOHYEON 是韩文字体，中日文字形不全（12 条中文台词用到的 142 个汉字里它缺 32 个），
+ * 而原作一个 Legacy Text 只用一支字体；这里同样整段切换，避免一个名字里两种字体混排。
+ * 字体名按系统常见顺序列出，与游戏用 OS 字体补语言字体的做法一致。
+ */
+.lobotomy-corp-white-night-simple-advent-name[data-cjk="1"],
+.lobotomy-corp-plague-doctor-advent-name[data-cjk="1"]{
+  font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei",
+    LobotomyAdventNames, sans-serif;
 }
 
 /* Shader 是 Clock 的后续 sibling；Circle/ClockCenter、BlackShader、Point/Arrow 都被 Simple 模式关闭。 */
@@ -272,6 +288,346 @@
   position: absolute;
   top: 74%;
   width: 100%;
+}
+
+/* AdventClockUI.prefab：疫医使徒绑定与完整降临共用的圆盘；几何由模块写入行内样式。 */
+@font-face{
+  font-display: block;
+  font-family: LobotomyAdventDesc;
+  src: url("/static/fun/lobotomy-corp/Assets/Font/NanumMyeongjo.ttf") format("truetype");
+}
+
+.lobotomy-corp-plague-doctor-advent{
+  --lobotomy-corp-advent-root-alpha: 0;
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10002;
+}
+
+/*
+ * 网页宿主隔离层（属于网页，不属于《脑叶公司》原作素材）。
+ *
+ * 原作 AdventClockUI 是半透明 UI，游戏里它后面是游戏世界；网页没有游戏世界，
+ * 于是先铺一层不透明的 world surface 把普通网站隔离掉，再在上面原样绘制
+ * 原作 UI（GlobalShader / DeathAngelClockDark / ClockShader / LowerShader）。
+ *
+ * 底面取宿主页面底色（`--bg`），不取纯黑：原作 DeathAngelClockDark 是一块带正圆
+ * 开口的深色幕布，开口处按设计就是要露出后面的世界。铺成纯黑会把盘心那块开口也
+ * 一起糊死成黑圆（网页里开口本来露出的就是页面底色）。取页面底色后盘心保持原来看得
+ * 见底色的观感，而这一层仍是不透明的，网站的文字、分隔线、表格边界一律透不出来。
+ *
+ * 它必须是 viewport-space 的固定层：放进 1920×1080 画布内会被 CanvasScaler 缩放，
+ * 非 16:9 窗口下重新露边。它不继承 root alpha、没有过渡动画，DOM 一出现即不透明。
+ */
+.lobotomy-corp-plague-doctor-advent-world{
+  background: var(--bg, #f6f7f8);
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+}
+
+.lobotomy-corp-plague-doctor-advent-canvas{
+  --lobotomy-corp-advent-canvas-scale: 1;
+  flex-shrink: 0;
+  height: 1080px;
+  opacity: var(--lobotomy-corp-advent-root-alpha);
+  pointer-events: none;
+  position: relative;
+  transform: scale(var(--lobotomy-corp-advent-canvas-scale));
+  transform-origin: center;
+  width: 1920px;
+}
+
+.lobotomy-corp-plague-doctor-advent-add-apostle{
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/*
+ * 收容单元里的疫医实体视频（世界层，属于网页移植的取景，不是原作 UI）。
+ *
+ * 它是按原作镜头（正交 4、看向 `_eye1` 下方 0.2/0.9）渲染的整幅 1920×1080 画面，
+ * 因此只要铺满画布，圆盘开口露出的就是原作里那块画面。它在表盘 UI 之下，
+ * 由 DeathAngelClockDark 的开口决定可见范围，所以不要给它加遮罩或裁剪。
+ */
+.lobotomy-corp-plague-doctor-advent-world-entity{
+  height: 100%;
+  inset: 0;
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+/*
+ * 镜头聚焦视图：网页自己的「显示名称输入框」（不是原作素材）。
+ *
+ * 原作里镜头移向的是这名被转变的员工；网页没有员工，于是聚焦到页面上的显示名称
+ * 输入框，并把这一刻的使徒名字写进去。它同样在表盘 UI 之下，由圆盘开口露出。
+ */
+.lobotomy-corp-plague-doctor-advent-focus{
+  opacity: var(--lobotomy-corp-advent-focus-alpha, 0);
+  pointer-events: none;
+  position: absolute;
+}
+
+/* 输入框沿用站点自身的控件样式，只按画布尺寸放大，保证看起来就是那个输入框。 */
+.lobotomy-corp-plague-doctor-advent-focus-input{
+  height: 100%;
+  min-height: 0;
+  padding: 0 18px;
+  width: 100%;
+}
+
+/* Shader 节点自身就是铺满 1920×1080 的 GlobalShader。 */
+/* Shader 图层由脚本按 viewport / canvasScale 放大，铺满整个页面。 */
+.lobotomy-corp-plague-doctor-advent-shader{
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.lobotomy-corp-plague-doctor-advent-clock{
+  --lobotomy-corp-advent-clock-alpha: 1;
+  opacity: var(--lobotomy-corp-advent-clock-alpha);
+  pointer-events: none;
+  position: absolute;
+}
+
+.lobotomy-corp-plague-doctor-advent-frame{
+  height: 100%;
+  inset: 0;
+  /* ClockFrame Image.m_PreserveAspect = true（508×512 in 819×819）。 */
+  object-fit: contain;
+  opacity: .8;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+/* Point：Clock 正中心的指针枢轴；Arrow 以底边中心为枢轴向上伸出 216。 */
+.lobotomy-corp-plague-doctor-advent-point{
+  --lobotomy-corp-advent-arrow-angle: 0deg;
+  --lobotomy-corp-advent-layer-alpha: 1;
+  height: 18px;
+  left: 50%;
+  opacity: var(--lobotomy-corp-advent-layer-alpha);
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(var(--lobotomy-corp-advent-arrow-angle));
+  transform-origin: center;
+  width: 18px;
+}
+
+.lobotomy-corp-plague-doctor-advent-arrow{
+  height: var(--lobotomy-corp-advent-arrow-height);
+  left: 50%;
+  object-fit: contain;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(
+  calc(-50% + var(--lobotomy-corp-advent-arrow-offset-x)),
+  calc(-100% + var(--lobotomy-corp-advent-arrow-offset-y)));
+  transform-origin: center bottom;
+  width: var(--lobotomy-corp-advent-arrow-width);
+}
+
+.lobotomy-corp-plague-doctor-advent-names{
+  height: 0;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: calc(50% + var(--lobotomy-corp-advent-name-parent-y));
+  width: 0;
+}
+
+.lobotomy-corp-plague-doctor-advent-name{
+  --lobotomy-corp-advent-name-alpha: 0;
+  --lobotomy-corp-advent-name-color: rgb(255 255 255);
+  align-items: center;
+  color: var(--lobotomy-corp-advent-name-color);
+  display: flex;
+  font-family: LobotomyAdventNames, "Malgun Gothic", "Microsoft YaHei",
+    "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+  font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
+  font-weight: normal;
+  height: 48px;
+  justify-content: center;
+  left: var(--lobotomy-corp-advent-name-x);
+  line-height: normal;
+  opacity: var(--lobotomy-corp-advent-name-alpha);
+  overflow: hidden;
+  overflow-wrap: normal;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  text-overflow: clip;
+  text-shadow: 1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
+  -1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
+  1px 1px rgb(69.375004 0.510111 0.510111 / 50%),
+  -1px 1px rgb(69.375004 0.510111 0.510111 / 50%);
+  top: var(--lobotomy-corp-advent-name-y);
+  transform: translate(-50%, -50%) rotate(var(--lobotomy-corp-advent-name-rotation));
+  transform-origin: center;
+  white-space: normal;
+  width: 114px;
+}
+
+/* ApostleDesc：1600×180、NanumMyeongjo、MiddleCenter + Best Fit(20~50)。 */
+.lobotomy-corp-plague-doctor-advent-desc{
+  --lobotomy-corp-advent-desc-alpha: 0;
+  --lobotomy-corp-advent-desc-font-size: 25px;
+  align-items: center;
+  color: rgb(255 255 255);
+  display: flex;
+  /* 台词槽位是 NanumMyeongjo（韩文衬线，没有汉字字形），补系统衬线中文字体。 */
+  font-family: LobotomyAdventDesc, "Nanum Myeongjo", "SimSun", "Songti SC",
+    "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: var(--lobotomy-corp-advent-desc-font-size);
+  justify-content: center;
+  line-height: 1.2;
+  opacity: var(--lobotomy-corp-advent-desc-alpha);
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  white-space: pre-line;
+}
+
+/*
+ * 中日文台词：整段改用系统衬线 CJK 字体。
+ *
+ * NanumMyeongjo 是韩文衬线体，实测 12 条中文台词里的 142 个汉字**一个字形都没有**，
+ * 所以中文台词本来就只能靠系统字体；这里显式指定衬线中文字体，保持原槽位的衬线观感。
+ */
+.lobotomy-corp-plague-doctor-advent-desc[data-cjk="1"]{
+  font-family: "SimSun", "Songti SC", "Noto Serif CJK SC",
+    "Source Han Serif SC", "Microsoft YaHei", LobotomyAdventDesc, serif;
+}
+
+/* BlackShader 与 Circle 属于 `_adventDisabled` 一侧：绑定阶段显示 Circle，降临显示黑幕。 */
+.lobotomy-corp-plague-doctor-advent-black-shader{
+  --lobotomy-corp-advent-layer-alpha: 0;
+  /*
+   * 尺寸由脚本按「圆盘的实际尺寸」算出来（prefab 里黑幕 2112×1188 对应圆盘 819，
+   * 也就是宽 = 圆盘宽 × 2112/819、高 = 圆盘宽 × 1188/819），不再写死；
+   * 中心相对画布中心上移 30 沿用 prefab。
+   *
+   * 空洞尺寸必须跟着圆盘走：跟 viewport 走时，非等比拉伸会把正圆空洞压成竖椭圆，
+   * 等比放大又会把空洞放得比圆盘还大（页面的浅色底就从圆盘外围漏出来）。
+   */
+  background-position: center;
+  background-repeat: no-repeat;
+  left: 50%;
+  opacity: var(--lobotomy-corp-advent-layer-alpha);
+  pointer-events: none;
+  position: absolute;
+  /* prefab 的中心比画布中心高 30。 */
+  top: calc(50% - 30px);
+  transform: translate(-50%, -50%);
+}
+
+/*
+ * 黑幕在画布之外的同色延伸带（DeathAngelClockDark.png 的边缘色 rgb(8,1,0)，实测值）。
+ *
+ * prefab 的黑幕 2112×1188 比 1920×1080 画布大，所以游戏里它本来就盖满整个画面；
+ * 网页视口比例不固定，画布之外那圈需要补上，四条带的几何由脚本按 viewport 算出。
+ *
+ * 用独立的带而不是黑幕自己的 border：border 与贴图盒子之间会留下亚像素空隙，
+ * 贴图边缘的抗锯齿会混到接缝外面的东西上——宿主隔离层取页面底色后，那条缝就是
+ * 一条能看见的浅色横线（700×900 实测 y=222 那行 58,47,48，上下都是 11,3,3）。
+ * 带与贴图重叠一段，贴图边缘的抗锯齿落在同色里；带的外边界留在视口之外。
+ */
+.lobotomy-corp-plague-doctor-advent-black-shader-band{
+  /* 与黑幕同一开关：绑定阶段黑幕是关的，延伸带也必须一起收起。 */
+  opacity: var(--lobotomy-corp-advent-layer-alpha, 1);
+  background-color: rgb(8 1 0);
+  pointer-events: none;
+  position: absolute;
+}
+
+.lobotomy-corp-plague-doctor-advent-clock-shader{
+  height: 100%;
+  left: 0;
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.lobotomy-corp-plague-doctor-advent-circle{
+  --lobotomy-corp-advent-center-opacity: 1;
+  --lobotomy-corp-advent-layer-alpha: 1;
+  background-repeat: no-repeat;
+  /* 贴图自身 alpha 已经很淡，这里再按 prefab 观感整体压一层，避免内孔显出黑块。 */
+  opacity: calc(
+  var(--lobotomy-corp-advent-layer-alpha) * var(--lobotomy-corp-advent-center-opacity));
+  pointer-events: none;
+  position: absolute;
+  transform-origin: center;
+}
+
+.lobotomy-corp-plague-doctor-advent-lower-shader{
+  height: 27.111111%;
+  left: 0;
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  top: 74%;
+  width: 100%;
+}
+
+/*
+ * DeathAngel AdventLight：`Resources/prefabs/effect/creature/deathangel/AdventLight.prefab`
+ * 的 `AdventLight └── ParticlePretend` 结构。
+ *
+ * ParticlePretend 只有一层 SpriteRenderer（Sprite `Copy`），颜色与缩放全部来自
+ * `ApostleAdventLight.anim`，所以这里把原始 `Copy.png` 当作 alpha 蒙版使用，
+ * 颜色由脚本逐帧写入变量；不使用渐变、光圈或任何手工插值。
+ */
+.lobotomy-corp-advent-light{
+  height: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 0;
+}
+
+.lobotomy-corp-advent-light-particle{
+  --lobotomy-corp-advent-light-color: rgb(255 255 255);
+  --lobotomy-corp-advent-light-scale: 1;
+  --lobotomy-corp-advent-light-size: 0px;
+  --lobotomy-corp-advent-light-visible: 0;
+  background-color: var(--lobotomy-corp-advent-light-color);
+  height: var(--lobotomy-corp-advent-light-size);
+  left: 0;
+  mask-image: var(--lobotomy-corp-advent-light-sprite);
+  mask-position: var(--lobotomy-corp-advent-light-mask-position);
+  mask-repeat: no-repeat;
+  mask-size: var(--lobotomy-corp-advent-light-mask-size);
+  opacity: var(--lobotomy-corp-advent-light-visible);
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -50%) scale(var(--lobotomy-corp-advent-light-scale));
+  transform-origin: center;
+  -webkit-mask-image: var(--lobotomy-corp-advent-light-sprite);
+  -webkit-mask-position: var(--lobotomy-corp-advent-light-mask-position);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: var(--lobotomy-corp-advent-light-mask-size);
+  width: var(--lobotomy-corp-advent-light-size);
 }
 
 /* Confess ParticleSystem：Box Shape、4/s emission、5s lifetime 与 Stretch Billboard 均取自 prefab。 */
@@ -761,4 +1117,49 @@ button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-cor
   to{
     transform: translateY(0);
   }
+}
+
+/* ForceExitScene：1600×900、matchWidth 缩放的全屏关服画面。 */
+.lobotomy-corp-dont-touch-me-shutdown{
+  align-items: center;
+  background: #000;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10020;
+}
+
+/* 视频只作 RawImage 的贴图来源，声音由场景内单独的 touch_off AudioSource 提供。 */
+.lobotomy-corp-dont-touch-me-shutdown-video{
+  display: block;
+  height: auto;
+  max-height: 100vh;
+  pointer-events: none;
+  width: 100%;
+}
+
+/* 点击演出的公共覆盖层：覆盖全屏但不截获操作，用户可以继续点保存。 */
+.lobotomy-corp-dont-touch-me-effect{
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 10020;
+}
+
+/*
+ * 两组序列都由 CustomScreenEffect 铺满屏幕：RectTransform 锚定 0~1、
+ * m_PreserveAspect = 0，因此原作本身就是非等比拉伸铺满，这里用 fill 还原。
+ */
+.lobotomy-corp-dont-touch-me-effect video{
+  display: block;
+  height: 100%;
+  inset: 0;
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
 }

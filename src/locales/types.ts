@@ -316,6 +316,9 @@ export type Messages = {
   navLogout: string;
   navSettings: string;
   nextPoll: string;
+  notFoundAction: string;
+  notFoundDescription: string;
+  notFoundTitle: string;
   notificationDisabled: string;
   notificationEmailAddress: string;
   notificationEmail: string;

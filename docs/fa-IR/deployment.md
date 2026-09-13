@@ -49,7 +49,7 @@ ID جدا می‌شوند، و Deno Deploy نیز داده‌های Production �
 در Deno Deploy App بر اساس نیاز پیکربندی کنید. فایل `.env.example` در ریشهٔ مخزن بر اساس سناریوها مرتب شده است: به‌صورت پیش‌فرض فقط حداقل پیکربندی قابل استفاده فعال است،
 و سایر تنظیمات بهینه‌سازی polling، کانال‌های اعلان، رله و allowlist امنیتی به‌صورت comment باقی می‌مانند؛ برای هر سناریو فقط خط‌های مربوط را از حالت comment خارج کنید.
 
-- مقدارهای پیش‌فرض پایه: `APP_LOCALE`، `HEYBOX_TOPIC_ID`، `POLL_ENABLED`، `NOTIFIER_PROVIDER`
+- مقدارهای پیش‌فرض پایه: `APP_LOCALE`، `HEYBOX_TOPIC_ID`، `NOTIFIER_PROVIDER`
 - بهینه‌سازی polling: `POLL_INTERVAL_MINUTES`، `POLL_POST_LIMIT`، `POLL_SORT`
 - بازنویسی درخواست‌های Heybox: `HEYBOX_SIGNATURE_MODE`، `HEYBOX_DEVICE_ID`، `HEYBOX_COOKIE`، `HEYBOX_USER_AGENT`
 - گزینه‌های عمومی اعلان: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -76,8 +76,8 @@ Deno KV ذخیره می‌شوند و بر اساس user ID جدا هستند. �
 و زمان انقضا را ذخیره می‌کند.
 
 واکشی واقعی موضوعات Heybox در حال حاضر تنها منبع دادهٔ در حال اجرا است. به‌صورت پیش‌فرض، `HEYBOX_SIGNATURE_MODE=app` از فهرست زمان انتشار App API تأییدشده استفاده می‌کند؛
-`web` فقط به‌عنوان fallback تشخیصی نگه داشته شده است. `POLL_ENABLED`
-فقط به‌عنوان کلید اولیهٔ polling برای حساب‌های جدید یا حساب پیش‌فرض عمل می‌کند؛ این‌که واقعاً واکشی انجام شود، به گزینهٔ «فعال‌سازی polling» در صفحهٔ تنظیمات هر حساب بستگی دارد.
+`web` فقط به‌عنوان fallback تشخیصی نگه داشته شده است.
+حساب‌های جدید با polling غیرفعال شروع می‌کنند و تنها پس از فعال‌کردن «فعال‌سازی polling» در صفحهٔ تنظیمات خودشان واکشی می‌کنند.
 
 ## رلهٔ اعلان
 

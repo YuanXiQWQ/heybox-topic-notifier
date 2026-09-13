@@ -18,6 +18,13 @@ type SessionStorage = Pick<
  * 已认证会话信息。
  */
 export type AuthSession = {
+  /**
+   * 本次登录创建会话的时间。
+   *
+   * 每次登录都会写入新的会话记录，因此它可以作为“登录会话”的稳定标识：同一会话
+   * 内所有页面一致，重新登录后改变。
+   */
+  createdAt: string;
   userId: string;
   username: string;
 };
@@ -71,7 +78,11 @@ export async function readAuthSession(
     return undefined;
   }
 
-  return { userId: session.userId, username: session.username };
+  return {
+    createdAt: session.createdAt,
+    userId: session.userId,
+    username: session.username,
+  };
 }
 
 /**

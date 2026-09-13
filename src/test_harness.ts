@@ -43,6 +43,8 @@ export class Element {
   disabled = false;
   hidden = false;
   id = "";
+  /** `<html lang>` 等语言标记。 */
+  lang = "";
   offsetWidth = 1;
   parentElement: Element | undefined = undefined;
   removed = false;
@@ -300,11 +302,17 @@ export class AudioMock extends Element {
  *
  * 只模拟 Alert 生命周期真正依赖的能力：可控时钟与计时器、音频、最小 DOM 与存储。
  *
- * @param {{navigationType?: "navigate" | "reload", now?: number}} [options] 初始导航类型与可控时钟起点。
+ * @param {{alertOverlays?: Element[], navigationType?: "navigate" | "reload", now?: number, pollingIntervalValue?: string}} [options] 初始导航类型、可控时钟起点、设置页轮询数值与页面上已存在的固定覆盖层。
  * @return {object} 测试上下文。
  */
 export function installLobotomyCorpAlertHarness(
-  options: { navigationType?: "navigate" | "reload"; now?: number } = {},
+  options: {
+    alertOverlays?: Element[];
+    loginSession?: string;
+    navigationType?: "navigate" | "reload";
+    now?: number;
+    pollingIntervalValue?: string;
+  } = {},
 ) {
   // 每个测试独立使用一份干净的 Audio 实例列表与默认行为。
   AudioMock.reset();
@@ -319,6 +327,7 @@ export function installLobotomyCorpAlertHarness(
     sessionStorage?: unknown;
     lobotomyCorpEasterEgg?: {
       activate: (name: string) => Promise<boolean>;
+      blocksDisplayNameSave: (name: string) => boolean;
       commitDisplayName: (name: string) => Promise<boolean>;
       getDangerMusicHighWaterLevel: () => number;
       getDangerScore: () => number;
@@ -329,6 +338,8 @@ export function installLobotomyCorpAlertHarness(
       matchingAbnormality: (
         name: string,
       ) => { canonicalId: string } | undefined;
+      plagueDoctorApostles: () => string[];
+      plagueDoctorRecording: () => boolean;
       prepareDisplayName: (name: string) => {
         commit: () => Promise<boolean>;
         dispose: () => void;
@@ -354,10 +365,16 @@ export function installLobotomyCorpAlertHarness(
   );
   const originalDateNow = Date.now;
   const body = new Element();
+  /** 页面滚动位置与滚动调用记录（用于断言演出不主动改滚动）。 */
+  const documentElement = new Element();
+  documentElement.lang = "zh-CN";
+  const scrollState = { calls: [] as string[], x: 0, y: 0 };
+  const assignedLocations: string[] = [];
   const storage = new StorageMock();
   const documentListeners = new Map<string, ((event: Event) => void)[]>();
   const createdElements: Element[] = [];
   let navigationType = options.navigationType ?? "navigate";
+  let loginSession = options.loginSession;
   let now = options.now ?? 0;
   let nextTimerId = 0;
   const timers = new Map<
@@ -394,15 +411,31 @@ export function installLobotomyCorpAlertHarness(
           createdElements.push(element);
           return element;
         },
-        documentElement: { lang: "zh-CN" },
+        // `<html>` 既是全局 `:root { overflow-y: scroll }` 的滚动容器，
+        // 也承载演出期间的 scroll lock，因此需要可读写的 inline style。
+        documentElement,
         getElementById: (id: string) =>
           id === "lobotomy-corp-locale-data"
             ? { textContent: localeData }
             : id === "lobotomy-corp-abnormalities-data"
             ? { textContent: abnormalitiesData }
+            : id === "lobotomy-corp-account-identity-data"
+            ? {
+              textContent: JSON.stringify({
+                displayName: "Tester",
+                ...(loginSession ? { loginSession } : {}),
+              }),
+            }
             : null,
-        querySelector: () => undefined,
-        querySelectorAll: () => [],
+        querySelector: (selector: string) =>
+          selector === "[data-polling-interval-value]" &&
+            options.pollingIntervalValue !== undefined
+            ? { value: options.pollingIntervalValue }
+            : undefined,
+        querySelectorAll: (selector: string) =>
+          selector === ".lobotomy-corp-alert-overlay"
+            ? (options.alertOverlays ?? [])
+            : [],
         removeEventListener: (name: string, listener: (event: Event) => void) =>
           documentListeners.set(
             name,
@@ -418,6 +451,9 @@ export function installLobotomyCorpAlertHarness(
     location: {
       configurable: true,
       value: {
+        assign: (href: string) => {
+          assignedLocations.push(String(href));
+        },
         href: "https://warmnest.test/settings",
         pathname: "/settings",
         search: "",
@@ -426,6 +462,31 @@ export function installLobotomyCorpAlertHarness(
     performance: {
       configurable: true,
       value: { getEntriesByType: () => [{ type: navigationType }] },
+    },
+    // 页面滚动替身：记录 scrollTo/scrollBy，供测试断言演出不主动改滚动位置。
+    scrollBy: {
+      configurable: true,
+      value: (x: number, y: number) => {
+        scrollState.calls.push(`scrollBy(${x},${y})`);
+        scrollState.x += x;
+        scrollState.y += y;
+      },
+    },
+    scrollTo: {
+      configurable: true,
+      value: (x: number, y: number) => {
+        scrollState.calls.push(`scrollTo(${x},${y})`);
+        scrollState.x = x;
+        scrollState.y = y;
+      },
+    },
+    scrollX: {
+      configurable: true,
+      get: () => scrollState.x,
+    },
+    scrollY: {
+      configurable: true,
+      get: () => scrollState.y,
     },
     sessionStorage: { configurable: true, value: storage },
     setTimeout: {
@@ -457,6 +518,7 @@ export function installLobotomyCorpAlertHarness(
   return {
     AudioMock,
     body,
+    documentElement,
     storage,
     timers,
     /** @return {object} 当前已加载的彩蛋 API。 */ api: () =>
@@ -472,6 +534,10 @@ export function installLobotomyCorpAlertHarness(
       (value: "navigate" | "reload") => {
         navigationType = value;
       },
+    /** @param {string|undefined} value 当前登录会话标识；变化即模拟重新登录。 */
+    setLoginSession: (value: string | undefined) => {
+      loginSession = value;
+    },
     /** @param {number} delay 计时器延迟。 @return {object|undefined} 仍未取消的计时器。 */ pendingTimer:
       (delay: number) =>
         [...timers.values()].find((timer) =>
@@ -488,6 +554,21 @@ export function installLobotomyCorpAlertHarness(
       listeners.forEach((listener) => listener(new Event(name)));
       return listeners.length;
     },
+    /**
+     * 在 document 上派发一次可取消事件并返回事件对象。
+     *
+     * 用于断言捕获阶段拦截器是否阻止了默认行为。
+     *
+     * @param {string} name 事件名。
+     * @return {Event} 已派发的事件。
+     */
+    dispatchDocumentEvent: (name: string) => {
+      const event = new Event(name, {cancelable: true});
+      [...(documentListeners.get(name) ?? [])].forEach((listener) =>
+        listener(event)
+      );
+      return event;
+    },
     /** @return {number} 触发当前所有待执行的 16ms 回调（Advent 帧与音乐渐变步进共用该延迟）。 */
     fireFrames: () => {
       const pending = [...timers.values()].filter((timer) =>
@@ -503,6 +584,16 @@ export function installLobotomyCorpAlertHarness(
         ),
     /** @return {Element[]} 本次测试中按创建顺序记录的全部 DOM 节点。 */
     createdElements: () => createdElements,
+    /** @param {number} x 横坐标。 @param {number} y 纵坐标。 */
+    setScrollPosition: (x: number, y: number) => {
+      scrollState.x = x;
+      scrollState.y = y;
+      scrollState.calls.length = 0;
+    },
+    /** @return {{calls: string[], x: number, y: number}} 滚动调用记录与当前位置。 */
+    scrollState: () => scrollState,
+    /** @return {string[]} location.assign 收到的地址。 */
+    assignedLocations: () => [...assignedLocations],
     /** @return {Element|undefined} 最近一次挂载且仍可见的 Alert overlay。 */
     overlay: () =>
       [...body.children].reverse().find((element) =>

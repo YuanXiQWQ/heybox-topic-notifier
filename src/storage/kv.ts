@@ -40,6 +40,7 @@ import {
 } from "../notification_services.ts";
 import type {
   LoginFailure,
+  MatchedPostIndexEntry,
   RateLimitHit,
   Storage,
   UserStorage,
@@ -327,6 +328,27 @@ export function createKvStorage(
        */
       async listPendingMatches(): Promise<MatchRecord[]> {
         return pendingFromRecords(await listMatchRecords(userId));
+      },
+
+      /**
+       * 列出当前用户已命中帖子的精简索引。
+       *
+       * @return 按帖子 ID 去重后的索引条目。
+       */
+      async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
+        return matchedPostIndexFromRecords(await listMatchRecords(userId));
+      },
+
+      /**
+       * 列出当前用户指定帖子的命中记录。
+       *
+       * @param postId 帖子 ID。
+       * @return 该帖子的命中记录。
+       */
+      async listMatchesForPost(postId: string): Promise<MatchRecord[]> {
+        return (await listMatchRecords(userId)).filter((record) =>
+          record.post.id === postId
+        );
       },
 
       /**
@@ -1468,6 +1490,25 @@ export function createKvStorage(
     },
 
     /**
+     * 列出默认用户已命中帖子的精简索引。
+     *
+     * @return 默认用户已命中帖子的索引条目。
+     */
+    async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
+      return await forUser("default").listMatchedPostIndex();
+    },
+
+    /**
+     * 列出默认用户指定帖子的命中记录。
+     *
+     * @param postId 帖子 ID。
+     * @return 默认用户该帖子的命中记录。
+     */
+    async listMatchesForPost(postId: string): Promise<MatchRecord[]> {
+      return await forUser("default").listMatchesForPost(postId);
+    },
+
+    /**
      * 保存默认用户命中记录。
      *
      * @param record 命中记录。
@@ -1800,6 +1841,57 @@ function historyFromRecords(records: MatchRecord[]): MatchRecord[] {
   return records.toSorted((left, right) =>
     right.matchedAt.localeCompare(left.matchedAt)
   );
+}
+
+/**
+ * 从命中记录构建按帖子去重的精简索引。
+ *
+ * @param records 命中记录列表。
+ * @return 按帖子 ID 去重后的索引条目，详情刷新时间取最新值。
+ */
+function matchedPostIndexFromRecords(
+  records: MatchRecord[],
+): MatchedPostIndexEntry[] {
+  const entries = new Map<string, MatchedPostIndexEntry>();
+
+  for (const record of records) {
+    const postId = record.post.id;
+    if (!postId) {
+      continue;
+    }
+
+    entries.set(postId, {
+      detailRefreshedAt: laterIsoTimestamp(
+        entries.get(postId)?.detailRefreshedAt,
+        record.detailRefreshedAt,
+      ),
+      postId,
+    });
+  }
+
+  return [...entries.values()];
+}
+
+/**
+ * 取两个可选 ISO 时间中较晚的一个。
+ *
+ * @param left 候选时间。
+ * @param right 候选时间。
+ * @return 较晚的合法时间，都不合法时返回 undefined。
+ */
+function laterIsoTimestamp(
+  left: string | undefined,
+  right: string | undefined,
+): string | undefined {
+  const leftTime = Date.parse(left ?? "");
+  const rightTime = Date.parse(right ?? "");
+  if (!Number.isFinite(leftTime)) {
+    return Number.isFinite(rightTime) ? right : undefined;
+  }
+  if (!Number.isFinite(rightTime)) {
+    return left;
+  }
+  return leftTime >= rightTime ? left : right;
 }
 
 /**

@@ -48,7 +48,7 @@ ID، كما يعزل Deno Deploy بيانات Production وGit Branch حسب tim
 تُضبط في Deno Deploy App حسب الحاجة. تم تنظيم `.env.example` في جذر المستودع حسب السيناريوهات: افتراضيًا لا يفعّل إلا الحد الأدنى القابل للاستخدام،
 بينما تبقى إعدادات تحسين polling، وقنوات الإشعارات، والترحيل، وقوائم السماح الأمنية معلّقة، وتُزال علامة التعليق فقط عن الأسطر المناسبة للسيناريو المطلوب.
 
-- القيم الافتراضية الأساسية: `APP_LOCALE`، `HEYBOX_TOPIC_ID`، `POLL_ENABLED`، `NOTIFIER_PROVIDER`
+- القيم الافتراضية الأساسية: `APP_LOCALE`، `HEYBOX_TOPIC_ID`، `NOTIFIER_PROVIDER`
 - تحسين polling: `POLL_INTERVAL_MINUTES`، `POLL_POST_LIMIT`، `POLL_SORT`
 - تجاوزات طلبات Heybox: `HEYBOX_SIGNATURE_MODE`، `HEYBOX_DEVICE_ID`، `HEYBOX_COOKIE`، `HEYBOX_USER_AGENT`
 - عناصر الإشعارات العامة: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV، وتُعزل حسب user ID. لا يحفظ Browser Cookie إلا rando
 hash ووقت الانتهاء.
 
 جلب مواضيع Heybox الحقيقية هو مصدر بيانات التشغيل الوحيد حاليًا. يستخدم الوضع الافتراضي `HEYBOX_SIGNATURE_MODE=app` قائمة نشر App API التي تم التحقق منها؛
-ويُحتفظ بـ `web` فقط كخيار تشخيصي احتياطي. يعمل `POLL_ENABLED`
-فقط كمفتاح polling أولي للحسابات الجديدة أو الحساب الافتراضي؛ أما ما إذا كان الجلب سيحدث فعليًا، فيعتمد على خيار “تمكين polling” داخل صفحة إعدادات كل حساب.
+ويُحتفظ بـ `web` فقط كخيار تشخيصي احتياطي.
+تبدأ الحسابات الجديدة مع تعطيل polling، ولا تجلب البيانات إلا بعد تفعيل خيار “تمكين polling” في صفحة إعداداتها.
 
 ## ترحيل الإشعارات
 

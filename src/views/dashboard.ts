@@ -19,6 +19,8 @@ export function renderDashboard(options: {
   account?: Pick<UserAccount, "displayName" | "id" | "username">;
   csrfToken: string;
   initialNextPollProgress?: string;
+  /** 当前登录会话标识；彩蛋据此判断是否重新登录。 */
+  loginSession?: string;
   pendingTable: MatchTableResult;
   returnTo: string;
   settings: AppSettings;
@@ -125,6 +127,7 @@ export function renderDashboard(options: {
     body,
     csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
+    loginSession: options.loginSession,
     locale: options.settings.locale,
     themeColor: options.settings.themeColor,
     title: messages.appName,

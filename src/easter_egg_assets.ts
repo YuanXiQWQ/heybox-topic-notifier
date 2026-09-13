@@ -140,6 +140,46 @@ export async function lobotomyCorpWhiteNightEventResponse(): Promise<Response> {
 }
 
 /**
+ * 创建《脑叶公司》危急值规则模块响应。
+ *
+ * @return {Promise<Response>} JavaScript 模块响应。
+ */
+export async function lobotomyCorpDangerScoreResponse(): Promise<Response> {
+  const script = await Deno.readTextFile(
+    new URL(
+      "../static/fun/lobotomy-corp/Events/DangerScore.js",
+      import.meta.url,
+    ),
+  );
+  return new Response(script, {
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "text/javascript; charset=utf-8",
+    },
+  });
+}
+
+/**
+ * 创建《脑叶公司》“别碰我”假关服模块响应。
+ *
+ * @return {Promise<Response>} JavaScript 模块响应。
+ */
+export async function lobotomyCorpDontTouchMeEventResponse(): Promise<Response> {
+  const script = await Deno.readTextFile(
+    new URL(
+      "../static/fun/lobotomy-corp/Events/DontTouchMe.js",
+      import.meta.url,
+    ),
+  );
+  return new Response(script, {
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "text/javascript; charset=utf-8",
+    },
+  });
+}
+
+/**
  * 创建《脑叶公司》彩蛋样式表响应。
  *
  * @return {Promise<Response>} CSS 响应。
@@ -225,8 +265,11 @@ async function easterEggAssetResponse(
     const partialContent = range
       ? content.slice(range.start, range.end + 1)
       : content;
+    // 代码与文案必须随发布立即生效；媒体资源仍按天缓存。
     const headers: Record<string, string> = {
-      "cache-control": "public, max-age=86400",
+      "cache-control": /\.(?:js|json)$/u.test(assetPath)
+        ? "no-store"
+        : "public, max-age=86400",
       "content-length": String(partialContent.byteLength),
       "content-type": contentType,
     };
@@ -350,9 +393,8 @@ function isAceAttorneyAssetPath(assetPath: string): boolean {
 function isLobotomyCorpAssetPath(assetPath: string): boolean {
   return /^Assets\/.+\.(?:mp3|ogg|otf|png|ttf|wav|webm)$/u.test(assetPath) ||
     assetPath === "Data/Abnormalities.json" ||
-    /^(?:Events\/(?:CanvasScaler|WhiteNight|WhiteNightAdvent))\.js$/u.test(
-      assetPath,
-    ) ||
+    /^(?:Events\/(?:AdventLight|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|WhiteNight|WhiteNightAdvent))\.js$/u
+      .test(assetPath) ||
     /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u
       .test(
         assetPath,

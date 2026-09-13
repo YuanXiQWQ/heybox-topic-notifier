@@ -54,10 +54,30 @@ export const whiteNightSimpleAdventColor = Object.freeze({
   alpha: 1, blue: 0.11978597, green: 0, red: 0.7058823,
 });
 
-/** Names[] Legacy Text 的 BMDOHYEON Best Fit 参数。 */
-export const whiteNightSimpleAdventNameText = Object.freeze({
-  fontFamily: 'LobotomyAdventNames', maxSize: 40, normalMinSize: 14, twelfthMinSize: 12,
-});
+  /** Names[] Legacy Text 的 BMDOHYEON Best Fit 参数。 */
+  export const whiteNightSimpleAdventNameText = Object.freeze({
+    fontFamily: 'LobotomyAdventNames', maxSize: 40, normalMinSize: 14, twelfthMinSize: 12,
+  });
+
+  /**
+   * 这段文字是否需要改用系统中日韩字体。
+   *
+   * 原版 AdventClockUI 的 12 个名字用 BMDOHYEON、台词用 NanumMyeongjo，都是韩文字体，
+   * 中日文字形不全（实测 12 条中文台词共 142 个汉字：BMDOHYEON 缺 32 个，NanumMyeongjo
+   * 一个都没有），而这两支字体也不在游戏的语言字体表里（`GlobalGameManager.fontList`
+   * 只有 kr/en/ru/es），中文只能落到系统字体。
+   *
+   * 原作一个 Legacy Text 只用一支字体，所以这里也是**整段**切换，而不是让浏览器逐字回退
+   * （逐字回退会把一个名字拼成两种字体）。
+   *
+   * @param {unknown} text 待渲染文本。
+   * @return {boolean} 出现中日文（汉字、假名、日文标点）时返回 true。
+   */
+  export function adventTextNeedsCjkFont(text) {
+    return /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u.test(
+      typeof text === 'string' ? text : '',
+    );
+  }
 
 /** SimpleAdventStart() 的 _advent_adventAnim 时长。 */
 export const whiteNightSimpleAdventDurationMs = 4000;
@@ -360,6 +380,7 @@ export function createWhiteNightSimpleAdvent(options) {
     name.dataset.index = String(slot.index);
     name.dataset.minimumFontSize = String(slot.minSize);
     name.textContent = typeof suppliedName === 'string' ? suppliedName : '';
+    name.dataset.cjk = adventTextNeedsCjkFont(suppliedName) ? '1' : '';
     name.style.setProperty('--lobotomy-corp-advent-name-x', `${slot.anchoredPosition.x}px`,);
     name.style.setProperty('--lobotomy-corp-advent-name-y', `${slot.anchoredPosition.y}px`,);
     name.style.setProperty('--lobotomy-corp-advent-name-rotation', `${slot.rotation}deg`,);

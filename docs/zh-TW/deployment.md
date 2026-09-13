@@ -48,7 +48,7 @@ ID 前綴隔離，Deno Deploy 也會依 timeline 隔離 Production 和 Git Branc
 Deno Deploy App 中依需求設定。儲存庫根目錄的 `.env.example` 已依情境整理：預設只啟用最小可用設定，
 其他輪詢調校、通知通道、中繼和安全白名單設定保持註解，使用哪個情境再取消對應行。
 
-- 基礎預設值：`APP_LOCALE`、`HEYBOX_TOPIC_ID`、`POLL_ENABLED`、`NOTIFIER_PROVIDER`
+- 基礎預設值：`APP_LOCALE`、`HEYBOX_TOPIC_ID`、`NOTIFIER_PROVIDER`
 - 輪詢調校：`POLL_INTERVAL_MINUTES`、`POLL_POST_LIMIT`、`POLL_SORT`
 - 小黑盒請求覆蓋：`HEYBOX_SIGNATURE_MODE`、`HEYBOX_DEVICE_ID`、`HEYBOX_COOKIE`、 `HEYBOX_USER_AGENT`
 - 通知公共項目：`NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV 中，並依使用者 ID 隔離。瀏覽器 Cookie 只儲存隨機 sessi
 雜湊合過期時間。
 
 真實小黑盒話題抓取是目前唯一執行資料來源。預設 `HEYBOX_SIGNATURE_MODE=app` 使用已驗證的 App API
-發布時間清單；`web` 僅保留作為診斷回退。`POLL_ENABLED`
-只作為新帳號或預設帳號的初始輪詢開關；是否實際抓取，以各帳號設定頁中的「啟用輪詢」為準。
+發布時間清單；`web` 僅保留作為診斷回退。新帳號預設關閉輪詢，
+只有帳號在設定頁開啟「啟用輪詢」後才會實際抓取。
 
 ## 通知中繼
 

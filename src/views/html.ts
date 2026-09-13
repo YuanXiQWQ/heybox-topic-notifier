@@ -155,10 +155,13 @@ function renderLobotomyCorpAbnormalitiesData(): string {
  */
 function renderLobotomyCorpAccountIdentityData(
   account: Pick<UserAccount, "displayName" | "username"> | undefined,
+  loginSession?: string,
 ): string {
   return account
     ? renderEasterEggJsonData("lobotomy-corp-account-identity-data", {
       displayName: account.displayName ?? account.username,
+      // 登录会话标识：彩蛋用它判断用户是否重新登录过（会话内状态需随之清空）。
+      ...(loginSession ? { loginSession } : {}),
     })
     : "";
 }
@@ -192,6 +195,8 @@ export function renderLayout(options: {
   body: string;
   csrfToken: string;
   darkMode: boolean;
+  /** 当前登录会话标识；彩蛋据此判断是否重新登录。 */
+  loginSession?: string;
   locale: Locale;
   stylesheets?: string[];
   themeColor: string;
@@ -216,15 +221,15 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260908-white-night">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260913-plague-doctor-ids-1">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
-    ${renderLobotomyCorpAccountIdentityData(options.account)}
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260909-white-night-events"></script>
+    ${renderLobotomyCorpAccountIdentityData(options.account, options.loginSession)}
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260913-plague-doctor-ids-1"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>

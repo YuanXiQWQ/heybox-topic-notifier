@@ -103,7 +103,8 @@ Deno.test("recordMatches saves provided matches and marks successful notificatio
     } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),
-      listHistory: () => Promise.resolve([]),
+      listMatchedPostIndex: () => Promise.resolve([]),
+      listMatchesForPost: () => Promise.resolve([]),
       markMatchNotified: (id: string) => {
         notifiedMatches.push(id);
         return Promise.resolve();
@@ -156,7 +157,12 @@ Deno.test("poller combines common and topic keywords for enabled topics", async 
     } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),
-      listHistory: () =>
+      listMatchedPostIndex: () =>
+        Promise.resolve([{
+          detailRefreshedAt: new Date().toISOString(),
+          postId: "p3",
+        }]),
+      listMatchesForPost: () =>
         Promise.resolve([
           {
             id: "12099:p3:common-hit:title",
@@ -245,7 +251,8 @@ Deno.test("poller refreshes existing matched post details without notifying agai
     } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),
-      listHistory: () => Promise.resolve([existingRecord]),
+      listMatchedPostIndex: () => Promise.resolve([{ postId: "existing" }]),
+      listMatchesForPost: () => Promise.resolve([existingRecord]),
       saveMatch: (record: MatchRecord) => {
         savedRecords.push(record);
         return Promise.resolve();
@@ -257,9 +264,71 @@ Deno.test("poller refreshes existing matched post details without notifying agai
 
   await poller.runOnce();
 
-  assertEquals(savedRecords, [{ ...existingRecord, post: refreshedPost }]);
   assertEquals(detailedPostIds, ["existing"]);
+  assertEquals(savedRecords.length, 1);
+  assertEquals(savedRecords[0].id, existingRecord.id);
+  assertEquals(savedRecords[0].post, refreshedPost);
+  assert(Number.isFinite(Date.parse(savedRecords[0].detailRefreshedAt ?? "")));
   assertEquals(sentMatches, 0);
+});
+
+Deno.test("poller keeps matched post details until the refresh interval elapses", async () => {
+  const listedPost = post("existing", { title: "common-hit" });
+  const existingRecord: MatchRecord = {
+    detailRefreshedAt: new Date().toISOString(),
+    id: "12099:existing:common-hit:title",
+    keyword: "common-hit",
+    location: "title",
+    matchedAt: "2026-07-13T01:30:00.000Z",
+    post: listedPost,
+  };
+  const savedRecords: MatchRecord[] = [];
+  const detailedPostIds: string[] = [];
+  let loadedPostCount = 0;
+
+  const poller = createPoller({
+    matcher: createMatcher(),
+    notifier: {
+      sendMatch: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendMatches: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendNotification: () =>
+        Promise.resolve({ provider: "webhook", sent: true }),
+      sendTest: () => Promise.resolve({ provider: "webhook", sent: true }),
+      sendEmailMessage: () =>
+        Promise.resolve({ provider: "email", sent: true }),
+    } as ReturnType<typeof createNotifier>,
+    source: {
+      getPostDetails: (listed) => {
+        detailedPostIds.push(listed.id);
+        return Promise.resolve(listedPost);
+      },
+      listLatestPosts: () => Promise.resolve([listedPost]),
+    } as TopicSource,
+    storage: {
+      getSettings: () => Promise.resolve(settings),
+      listMatchedPostIndex: () =>
+        Promise.resolve([{
+          detailRefreshedAt: existingRecord.detailRefreshedAt,
+          postId: "existing",
+        }]),
+      listMatchesForPost: () => {
+        loadedPostCount += 1;
+        return Promise.resolve([existingRecord]);
+      },
+      saveMatch: (record: MatchRecord) => {
+        savedRecords.push(record);
+        return Promise.resolve();
+      },
+      markMatchNotified: () => Promise.resolve(),
+      setLastPollAt: () => Promise.resolve(),
+    } as unknown as Storage,
+  });
+
+  await poller.runOnce();
+
+  assertEquals(detailedPostIds, []);
+  assertEquals(loadedPostCount, 0);
+  assertEquals(savedRecords, []);
 });
 
 Deno.test("poller saves detailed post time for new matches", async () => {
@@ -290,7 +359,8 @@ Deno.test("poller saves detailed post time for new matches", async () => {
     } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),
-      listHistory: () => Promise.resolve([]),
+      listMatchedPostIndex: () => Promise.resolve([]),
+      listMatchesForPost: () => Promise.resolve([]),
       saveMatch: (record: MatchRecord) => {
         savedRecords.push(record);
         return Promise.resolve();
@@ -303,6 +373,12 @@ Deno.test("poller saves detailed post time for new matches", async () => {
   await poller.runOnce();
 
   assertEquals(savedRecords.map((record) => record.post), [detailedPost]);
+  assertEquals(
+    savedRecords.every((record) =>
+      Number.isFinite(Date.parse(record.detailRefreshedAt ?? ""))
+    ),
+    true,
+  );
 });
 
 Deno.test("poller leaves matched posts retryable when notification fails", async () => {
@@ -326,7 +402,8 @@ Deno.test("poller leaves matched posts retryable when notification fails", async
     } as TopicSource,
     storage: {
       getSettings: () => Promise.resolve(settings),
-      listHistory: () => Promise.resolve([]),
+      listMatchedPostIndex: () => Promise.resolve([]),
+      listMatchesForPost: () => Promise.resolve([]),
       markMatchNotified: (id: string) => {
         notifiedMatches.push(id);
         return Promise.resolve();

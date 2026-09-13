@@ -48,7 +48,7 @@ ID, y Deno Deploy también aísla los datos de Production y Git Branch por timel
 Configúralas en la Deno Deploy App según sea necesario. El archivo `.env.example` de la raíz del repositorio está organizado por escenarios: por defecto solo activa la configuración mínima utilizable,
 mientras que otros ajustes de optimización de sondeo, canales de notificación, retransmisión y lista de permitidos de seguridad permanecen comentados. Descomenta las líneas correspondientes según el escenario que uses.
 
-- Valores predeterminados básicos: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Valores predeterminados básicos: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Optimización de sondeo: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Sobrescritura de solicitudes de Heybox: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Opciones comunes de notificación: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV y se aíslan por user ID. La cookie del navegador solo guarda un token d
 y la hora de caducidad.
 
 La obtención real de temas de Heybox es actualmente la única fuente de datos en ejecución. Por defecto, `HEYBOX_SIGNATURE_MODE=app` usa la lista de publicaciones de App API verificada;
-`web` solo se conserva como fallback de diagnóstico. `POLL_ENABLED`
-solo sirve como interruptor inicial de sondeo para cuentas nuevas o la cuenta predeterminada; si realmente se obtienen datos depende de la opción “habilitar sondeo” en la página de ajustes de cada cuenta.
+`web` solo se conserva como fallback de diagnóstico.
+Las cuentas nuevas empiezan con el sondeo desactivado y solo obtienen datos después de activar “habilitar sondeo” en su página de ajustes.
 
 ## Retransmisión de notificaciones
 

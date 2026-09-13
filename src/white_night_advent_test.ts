@@ -8,6 +8,7 @@ import {
 } from "./test_helpers.ts";
 import { Element } from "./test_harness.ts";
 import {
+  adventTextNeedsCjkFont,
   createWhiteNightSimpleAdvent,
   whiteNightSimpleAdventClockFitScaleForViewport,
   whiteNightSimpleAdventClockRect,
@@ -52,6 +53,119 @@ function cssRule(css: string, className: string): string {
   return css.match(new RegExp(`\\.${className}\\s*\\{([^}]*)\\}`, "s"))?.[1] ??
     "";
 }
+
+/**
+ * 轮盘上的名字/台词要按「原文只用一支字体」的方式处理中日文。
+ *
+ * 原版 12 个名字用 BMDOHYEON、台词用 NanumMyeongjo，都是韩文字体；实测 12 条中文台词
+ * 用到的 142 个汉字里 BMDOHYEON 缺 32 个、NanumMyeongjo 一个都没有。原作一个 Legacy
+ * Text 只用一支字体，所以中日文要整段换成系统 CJK 字体，不能逐字回退。
+ */
+Deno.test("Advent dial switches CJK text to a system font as a whole run", () => {
+  // 中日文：汉字、假名、日文标点都要切换。
+  for (
+    const text of [
+      "使徒",
+      "我还告诉你，你是使徒张三",
+      "良秀",
+      "しと",
+      "使徒・一号",
+      "第１名使徒",
+    ]
+  ) {
+    assertStrictEquals(adventTextNeedsCjkFont(text), true, `${text} 应换字体`);
+  }
+  // 韩文/拉丁/西里尔不换：这两支韩文字体本来就是它们的原版字体。
+  for (
+    const text of [
+      "이상",
+      "Gregor",
+      "Yi Sang",
+      "Данте",
+      "",
+      "아포슬 1",
+    ]
+  ) {
+    assertStrictEquals(adventTextNeedsCjkFont(text), false, `${text} 不该换字体`);
+  }
+
+  const css = Deno.readTextFileSync(
+    new URL(
+      "../static/fun/lobotomy-corp/lobotomy-corp.css",
+      import.meta.url,
+    ),
+  );
+  // 默认字体栈里也要有系统 CJK 字体兜底（逐字回退时不至于落空）。
+  for (
+    const family of ["Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC"]
+  ) {
+    assert(
+      css.includes(`"${family}"`),
+      `字体栈应包含 ${family}`,
+    );
+  }
+  // 换行可能是 LF 也可能是 CRLF，用正则跨行匹配。
+  assert(
+    /\.lobotomy-corp-white-night-simple-advent-name\[data-cjk="1"\][\s\S]*?\.lobotomy-corp-plague-doctor-advent-name\[data-cjk="1"\]/u
+      .test(css),
+    "两个轮盘的名字都应有整段切换规则",
+  );
+  assert(
+    css.includes('.lobotomy-corp-plague-doctor-advent-desc[data-cjk="1"]'),
+    "台词槽位应有整段切换规则",
+  );
+});
+
+/** Simple Advent 的 12 个名字同样按「整段换系统字体」处理。 */
+Deno.test("Simple Advent marks CJK names for the system font", () => {
+  const harness = createAdventDocument();
+  createWhiteNightSimpleAdvent({
+    assetRoot: "/static/fun/lobotomy-corp/Assets",
+    cancelFrame: () => {},
+    canvasScaleForViewport: () => 0.75,
+    canvasViewportForUpdate: (_previous, next) => next,
+    document: harness.document,
+    measureName: () => true,
+    names: [
+      "使徒一号",
+      "이상",
+      "Gregor",
+      "良秀",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "十二",
+    ],
+    now: () => 0,
+    playBell: () => {},
+    requestFrame: () => 1,
+    viewport: () => ({ height: 900, width: 1200 }),
+  });
+  const root = requireByClass(
+    harness.body,
+    "lobotomy-corp-white-night-simple-advent",
+  );
+  const names = findAllByClass(
+    root,
+    "lobotomy-corp-white-night-simple-advent-name",
+  );
+  assertStrictEquals(names.length, 12);
+  const flags = names.map((name: Element) =>
+    `${name.textContent}:${name.dataset.cjk}`
+  );
+  assertEquals(flags, [
+    "使徒一号:1",
+    "이상:",
+    "Gregor:",
+    "良秀:1",
+    ":", ":", ":", ":", ":", ":", ":",
+    "十二:1",
+  ]);
+});
 
 Deno.test("Simple Advent uses literal prefab layout, visible sprites, and Best Fit limits", async () => {
   const harness = createAdventDocument();

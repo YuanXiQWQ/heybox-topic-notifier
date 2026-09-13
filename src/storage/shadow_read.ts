@@ -49,6 +49,8 @@ const storageReadMethods = new Set<PropertyKey>([
   "listAuthIdentitiesForUser",
   "listEmailCredentials",
   "listHistory",
+  "listMatchedPostIndex",
+  "listMatchesForPost",
   "listPasskeyCredentials",
   "listPendingMatches",
   "listTotpCredentials",
@@ -63,6 +65,8 @@ const userReadMethods = new Set<PropertyKey>([
   "getLastPollAt",
   "getSettings",
   "listHistory",
+  "listMatchedPostIndex",
+  "listMatchesForPost",
   "listPendingMatches",
 ]);
 
