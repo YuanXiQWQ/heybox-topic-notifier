@@ -365,6 +365,26 @@
   width: 100%;
 }
 
+/*
+ * 镜头聚焦视图：网页自己的「显示名称输入框」（不是原作素材）。
+ *
+ * 原作里镜头移向的是这名被转变的员工；网页没有员工，于是聚焦到页面上的显示名称
+ * 输入框，并把这一刻的使徒名字写进去。它同样在表盘 UI 之下，由圆盘开口露出。
+ */
+.lobotomy-corp-plague-doctor-advent-focus{
+  opacity: var(--lobotomy-corp-advent-focus-alpha, 0);
+  pointer-events: none;
+  position: absolute;
+}
+
+/* 输入框沿用站点自身的控件样式，只按画布尺寸放大，保证看起来就是那个输入框。 */
+.lobotomy-corp-plague-doctor-advent-focus-input{
+  height: 100%;
+  min-height: 0;
+  padding: 0 18px;
+  width: 100%;
+}
+
 /* Shader 节点自身就是铺满 1920×1080 的 GlobalShader。 */
 /* Shader 图层由脚本按 viewport / canvasScale 放大，铺满整个页面。 */
 .lobotomy-corp-plague-doctor-advent-shader{

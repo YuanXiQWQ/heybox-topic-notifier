@@ -17,6 +17,8 @@ import {
   plagueDoctorClockReferenceSize,
   plagueDoctorAdventSchedule,
   plagueDoctorAdventEntityVideo,
+  plagueDoctorAdventFocusClassName,
+  plagueDoctorAdventFocusTimings,
   plagueDoctorAdventTimings,
   plagueDoctorApostleCount,
   plagueDoctorBindingTimings,
@@ -778,6 +780,144 @@ Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收
       true,
       "睁眼结束后应撤掉疫医实体视频",
     );
+  } finally {
+    harness.restore();
+  }
+});
+
+/**
+ * 镜头交接：疫医变白夜只有一瞬间，镜头随即移到「显示名称输入框」。
+ *
+ * 原作里 `OnPlagueDoctorAdventEnd()` 一边关疫医一边开白夜，紧接着
+ * `ExecuteNextAdventTarget()` 就把镜头移向本次转变的员工（`_advent_cameraMove`）。
+ * 网页没有员工，于是聚焦网页自己的显示名称输入框，并在每名使徒的钟声那一刻把它
+ * 里面的文字换成这名使徒的名字（那次保存的是异想体时改用编号），并做一次淡入淡出。
+ */
+Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    // 前 11 名是普通名字，第 12 名提交异想体编号（记录里会存它的本地化名）。
+    harness.storage.setItem(
+      plagueDoctorStorageKey,
+      JSON.stringify({
+        apostles: [
+          "甲",
+          "乙",
+          "丙",
+          "丁",
+          "戊",
+          "己",
+          "庚",
+          "辛",
+          "壬",
+          "癸",
+          "子",
+        ],
+        recording: true,
+        transformed: false,
+      }),
+    );
+    await harness.reload();
+    const api = harness.api();
+    const clock = { value: 0 };
+    await api.commitDisplayName("O-01-45");
+    // 第 12 名绑定的仍然是本地化名。
+    assertEquals(api.plagueDoctorApostles().at(-1), "疫医");
+    // 先走完整 12 名的绑定演出（Name Effect），之后才进入完整降临。
+    await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
+    await advance(harness, clock, 16);
+
+    const focus = findByClassName(harness, plagueDoctorAdventFocusClassName);
+    assert(focus, "完整降临应挂载聚焦视图");
+    const focusInput = focus!.children[0];
+    assert(focusInput, "聚焦视图里应有输入框");
+    // 聚焦视图放在宿主隔离层里：它是网页界面，必须画在表盘 UI 之下。
+    const world = findByClassName(harness, plagueDoctorAdventWorldClassName);
+    assert(world, "完整降临应有宿主隔离层");
+    assertStrictEquals(
+      world!.children.some((child) =>
+        child.className === plagueDoctorAdventFocusClassName
+      ),
+      true,
+      "聚焦视图应挂在宿主隔离层里",
+    );
+    assertStrictEquals(
+      focus!.styleProperties.get("--lobotomy-corp-advent-focus-alpha"),
+      "0",
+    );
+
+    const schedule = plagueDoctorAdventSchedule(plagueDoctorApostleCount);
+    const focusAt = (index: number) =>
+      schedule.steps.find((step) =>
+        step.kind === "cameraFocus" && step.index === index
+      )!.at;
+    const entity = findByClassName(
+      harness,
+      "lobotomy-corp-plague-doctor-advent-world-entity",
+    );
+    const focusAlpha = () =>
+      Number(focus!.styleProperties.get("--lobotomy-corp-advent-focus-alpha"));
+    const textAlpha = () =>
+      Number(
+        focusInput!.styleProperties.get(
+          "--lobotomy-corp-advent-focus-text-alpha",
+        ),
+      );
+
+    const shift = (element: { styleProperties: Map<string, string> }) =>
+      Number(
+        /translateX\((-?\d+(?:\.\d+)?)px\)/u.exec(
+          element.styleProperties.get("transform") ?? "",
+        )?.[1],
+      );
+    // 白夜登场（= 镜头交界的起点）：白夜还在画面里，输入框还在画面外等着移进来。
+    await advance(harness, clock, focusAt(0));
+    assert(shift(entity!) <= 0, `白夜还没开始移动，实际 ${shift(entity!)}`);
+    assert(shift(focus!) > 0, `镜头移动前输入框应在画面外，实际 ${shift(focus!)}`);
+    assertStrictEquals(entity!.hidden, false);
+
+    // 镜头移动过半：白夜本体向左平移出画面、输入框从右侧移进来（不是淡出）。
+    await advance(harness, clock, plagueDoctorAdventFocusTimings.handoffMs / 2);
+    assertStrictEquals(focusAlpha(), 1);
+    // 两者朝相反方向同步移动：白夜移出多少，输入框就移进多少，方向由输入框
+    // 在页面里的真实位置决定（不写死左右）。
+    assert(
+      shift(focus!) !== 0 && Math.sign(shift(focus!)) === -Math.sign(shift(entity!)),
+      `白夜与输入框应反向移动，实际 ${shift(focus!)} / ${shift(entity!)}`,
+    );
+
+    // 镜头到位（第一名使徒）：实体撤掉，输入框里是第一名使徒的名字。
+    await advance(harness, clock, plagueDoctorAdventFocusTimings.handoffMs / 2);
+    assertStrictEquals(focusAlpha(), 1);
+    assertStrictEquals(entity!.hidden, true);
+    assertStrictEquals(focusInput!.value, "甲");
+    assertClose(textAlpha(), 1, 0.01);
+
+    // 轮到第二名：钟声那一刻先淡出旧名字，再换成新名字淡入。
+    await advance(harness, clock, focusAt(1) - focusAt(0));
+    assertStrictEquals(focusInput!.value, "甲");
+    await advance(
+      harness,
+      clock,
+      plagueDoctorAdventFocusTimings.textFadeOutMs + 32,
+    );
+    assertStrictEquals(focusInput!.value, "乙");
+    assert(textAlpha() < 0.2, "换名字时文本应当还在淡入");
+    await advance(
+      harness,
+      clock,
+      plagueDoctorAdventFocusTimings.textFadeInMs,
+    );
+    assertClose(textAlpha(), 1, 0.01);
+
+    // 第 12 名是异想体，输入框里显示它的编号而不是本地化名。
+    await advance(harness, clock, focusAt(11) - focusAt(1));
+    await advance(
+      harness,
+      clock,
+      plagueDoctorAdventFocusTimings.textFadeOutMs + 32,
+    );
+    assertStrictEquals(focusInput!.value, "O-01-45");
   } finally {
     harness.restore();
   }

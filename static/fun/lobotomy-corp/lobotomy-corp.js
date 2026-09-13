@@ -3445,6 +3445,22 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
     const match = matchingLobotomyCorpAbnormality(value);
     return match ? lobotomyCorpAbnormalityName(match.abnormality) : undefined;
   },
+  // 完整降临聚焦到某名使徒时，输入框显示的是记录里的名字；那次保存的是异想体时
+  // 改显示它的编号，所以这里提供「本地化名 → 编号」的反查。
+  abnormalityCode: (name) => {
+    const normalized = normalizeLobotomyCorpAbnormalityName(name);
+    const direct = lobotomyCorpAbnormalityIndex.get(normalized);
+    if (direct) return direct;
+    // 记录里存的是异想体的本地化名，而索引只收 canonical 编号与 aliases，
+    // 因此再按各语言的显示名比一遍。
+    const matched = Object.entries(lobotomyCorpAbnormalities).find(([, data]) =>
+      Object.values(data?.names ?? {}).some((localized) =>
+        typeof localized === 'string' &&
+        normalizeLobotomyCorpAbnormalityName(localized) === normalized
+      )
+    );
+    return matched?.[0];
+  },
   applyDisplayName: applyLobotomyCorpDisplayName,
   assetRoot: lobotomyCorpAssetRoot,
   loginSession: lobotomyCorpLoginSession,

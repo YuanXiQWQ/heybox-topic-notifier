@@ -193,6 +193,28 @@ export const plagueDoctorClockFactor = -30;
  */
 export const plagueDoctorAdventEntityVideo = 'PlagueDoctor_Advent.webm';
 
+/** 镜头聚焦的「显示名称输入框」视图类名（属于网页宿主界面，不是原作素材）。 */
+export const plagueDoctorAdventFocusClassName =
+  'lobotomy-corp-plague-doctor-advent-focus';
+
+/**
+ * 镜头交接的时序（毫秒）：疫医变成白夜的那一瞬间镜头就开始移向使徒。
+ *
+ * 原作里 `PlagueDoctor.OnPlagueDoctorAdventEnd()` 关掉疫医、打开白夜单位，紧接着
+ * `AdventClockUI.ExecuteNextAdventTarget()` 就调
+ * `CameraMoveEvent(..., _advent_cameraMove)`；白夜只是「一瞬间」出现，镜头随即离开。
+ * 网页把这段交接画成：实体视频在 `handoffMs` 内淡出、聚焦视图在同一段时间里淡入，
+ * 文本框里的使徒名字同时完成一次淡入淡出。
+ */
+export const plagueDoctorAdventFocusTimings = Object.freeze({
+  /** 实体视频淡出、聚焦视图淡入的总时长（＝原作镜头移动的 `_advent_cameraMove`）。 */
+  handoffMs: 1000,
+  /** 使徒轮换时文本框淡出的时长。 */
+  textFadeOutMs: 220,
+  /** 使徒轮换时文本框淡入的时长。 */
+  textFadeInMs: 330,
+});
+
 /**
  * 计算指针在 CSS 坐标系下的角度。
  *
@@ -452,6 +474,19 @@ export function plagueDoctorBlackShaderLayout(input) {
  * 所有数值都由 prefab 的 RectTransform 与 Sprite 裁切换算得到，模块与测试共用，
  * 避免样式与 prefab 脱节。
  */
+/**
+ * 聚焦视图（显示名称输入框）在 1920×1080 画布上的位置与尺寸。
+ *
+ * 中心对齐圆盘中心（`Clock` 顶部 25 + 819/2），尺寸控制在 `DeathAngelClockDark`
+ * 开口里完全可见（开口半径约 264 画布像素）。
+ */
+export const plagueDoctorAdventFocusBox = Object.freeze({
+  height: 84,
+  left: lobotomyCorpReferenceCanvasWidth / 2 - 160,
+  top: 25 + plagueDoctorClockReferenceSize / 2 - 42,
+  width: 320,
+});
+
 export const plagueDoctorStageGeometry = Object.freeze({
   /** 指针 Arrow：枢轴为底边中心，相对 Clock 中心的偏移 (1,-15.1)。 */
   arrow: Object.freeze({
@@ -674,6 +709,12 @@ function buildAdventStage(options) {
   const worldEntity = options.hostWorld === true
     ? document.createElement('video')
     : undefined;
+  // 原作镜头接着会移到（本次转变的）使徒身上；网页没有员工，于是把「显示名称」
+  // 输入框当作那个被聚焦的对象：它是网页自己的界面，不是原作素材。
+  const focus = options.hostWorld === true
+    ? document.createElement('div')
+    : undefined;
+  const focusInput = focus ? document.createElement('input') : undefined;
 
   root.className = 'lobotomy-corp-plague-doctor-advent';
   root.id = 'lobotomy-corp-plague-doctor-advent';
@@ -698,6 +739,23 @@ function buildAdventStage(options) {
     worldEntity.setAttribute('aria-hidden', 'true');
     worldEntity.src = `${deathAngelRoot}/${plagueDoctorAdventEntityVideo}`;
     worldEntity.hidden = true;
+  }
+  if (focus && focusInput) {
+    focus.className = plagueDoctorAdventFocusClassName;
+    focus.setAttribute('aria-hidden', 'true');
+    focusInput.className = 'lobotomy-corp-plague-doctor-advent-focus-input';
+    focusInput.readOnly = true;
+    focusInput.setAttribute('tabindex', '-1');
+    focusInput.setAttribute('aria-hidden', 'true');
+    focus.style.setProperty(
+      '--lobotomy-corp-advent-focus-alpha',
+      '0',
+    );
+    focusInput.style.setProperty(
+      '--lobotomy-corp-advent-focus-text-alpha',
+      '0',
+    );
+    focus.append(focusInput);
   }
 
   placeBox(clock, geometry.clock);
@@ -784,6 +842,11 @@ function buildAdventStage(options) {
   if (worldEntity) {
     addApostle.append(worldEntity);
   }
+  // 聚焦视图放在宿主隔离层里：它是 viewport-space 的网页界面，且必须位于表盘 UI
+  // 之下、网页之上（表盘 UI 的开口正好露出它）。
+  if (focus && world) {
+    world.append(focus);
+  }
   addApostle.append(adventLight.element, clock, shader, circle, desc);
   // 延伸带要压在贴图下面，所以先挂上；Shader 子层顺序仍是黑幕 → ClockShader → LowerShader。
   blackShaderBands.forEach((band) => shader.append(band));
@@ -808,6 +871,8 @@ function buildAdventStage(options) {
     clock,
     clockShader,
     desc,
+    focus,
+    focusInput,
     lowerShader,
     namesLayer,
     point,
@@ -827,7 +892,7 @@ function buildAdventStage(options) {
  * @param {boolean} [options.hostWorld] 是否创建网页宿主隔离层（只有完整降临需要）。
  * @param {((name: any, fontSize: number) => boolean)|undefined} [options.measureName] 名字文本量度。
  * @param {string[]} options.names 12 个名字槽位的使徒名单。
- * @return {{dispose: () => void, layers: any, now: () => number, refitShaderLayer: () => void, run: (render: (elapsed: number) => boolean) => void, setAdventMode: (advent: boolean) => void, setDesc: (text: string) => void}} 演出控制器。
+ * @return {{dispose: () => void, layers: any, now: () => number, panDistance: () => number, panTargetX: () => number, panTargetY: () => number, refitShaderLayer: () => void, run: (render: (elapsed: number) => boolean) => void, setAdventMode: (advent: boolean) => void, setDesc: (text: string) => void}} 演出控制器。
  */
 function createPlagueDoctorClock(options) {
   const host = /** @type {any} */ (globalThis);
@@ -937,6 +1002,50 @@ function createPlagueDoctorClock(options) {
     }
   };
 
+  /** 镜头交接时整块画面横向平移的距离（视口宽的一半）。 */
+  let panDistance = 0;
+  /**
+   * 镜头交接的目标位移。
+   *
+   * 原作的镜头是移向「本次转变的员工」，方向由那名员工在设施里的位置决定；网页没有
+   * 员工，被聚焦的是页面上的显示名称输入框，所以目标位移取**这个输入框相对视口中心
+   * 的真实偏移**——镜头朝输入框真正所在的方向移动，而不是固定某个方向。
+   */
+  let panTargetX = 0;
+  /** 镜头交接目标位移的纵向分量。 */
+  let panTargetY = 0;
+  /**
+   * 按页面里显示名称输入框的实际位置，更新镜头交接的目标位移。
+   *
+   * 找不到输入框时退回「向右侧移入」，保证演出仍然完整。
+   *
+   * @return {void}
+   */
+  const measurePanTarget = () => {
+    const live = viewport();
+    const input = document.querySelector?.('[data-account-display-name-input]');
+    const rect = input?.getBoundingClientRect?.();
+    if (rect && Number.isFinite(rect.left) && rect.width > 0) {
+      // 位移量按视口尺寸收窄：原作镜头只走一间房的距离，输入框在页面上可能离
+      // 视口中心很远，直接照搬会让这 1 秒的镜头看起来慢得不像话。
+      const limitX = live.width / 4;
+      const limitY = live.height / 4;
+      panTargetX = Math.max(
+        -limitX,
+        Math.min(limitX, rect.left + rect.width / 2 - live.width / 2),
+      );
+      panTargetY = Math.max(
+        -limitY,
+        Math.min(limitY, rect.top + rect.height / 2 - live.height / 2),
+      );
+      panDistance = Math.max(1, Math.hypot(panTargetX, panTargetY));
+      return;
+    }
+    panTargetX = live.width / 2;
+    panTargetY = 0;
+    panDistance = live.width / 2;
+  };
+
   /**
    * 更新 1920×1080 逻辑画布的缩放。
    */
@@ -967,6 +1076,20 @@ function createPlagueDoctorClock(options) {
       }px`,
     );
     fitShaderLayer(live.width, live.height, scale);
+    // 聚焦视图跟着画布一起缩放：它按画布尺寸摆放，中心对齐圆盘中心
+    // （画布中心上方 105.5 画布像素）。
+    if (layers.focus) {
+      const box = plagueDoctorAdventFocusBox;
+      const centerY = live.height / 2 - 105.5 * scale;
+      layers.focus.style.setProperty('left', `${live.width / 2 - box.width * scale / 2}px`);
+      layers.focus.style.setProperty('top', `${centerY - box.height * scale / 2}px`);
+      layers.focus.style.setProperty('width', `${box.width * scale}px`);
+      layers.focus.style.setProperty('height', `${box.height * scale}px`);
+      layers.focusInput?.style?.setProperty('font-size', `${30 * scale}px`);
+    }
+    // 镜头交接的位移：整块画面朝显示名称输入框所在的方向平移，表示镜头从收容
+    // 单元移到被聚焦的输入框（白夜本体不会消失，只是被移出画面）。
+    measurePanTarget();
   };
   const fitNames = () =>
     nameNodes.forEach(({ element, slot }) =>
@@ -1052,6 +1175,12 @@ function createPlagueDoctorClock(options) {
     /** 图层句柄。 */
     layers,
     /** @return {void} 重新按当前 viewport 铺满 shader 图层。 */
+    /** @return {number} 镜头交接时整块画面横向平移的距离。 */
+    panDistance: () => panDistance,
+    /** @return {number} 镜头交接目标位移的横向分量。 */
+    panTargetX: () => panTargetX,
+    /** @return {number} 镜头交接目标位移的纵向分量。 */
+    panTargetY: () => panTargetY,
     refitShaderLayer: () => updateCanvasScale(),
     /**
      * 派发一帧渲染回调。
@@ -1218,6 +1347,7 @@ export function plagueDoctorAdventSchedule(count) {
  * @param {object} options 演出配置。
  * @param {string} options.assetRoot 资源根路径。
  * @param {any} [options.document] 宿主 document。
+ * @param {string[]} [options.focusTexts] 每名使徒被聚焦时输入框里显示的文本（异想体用编号）。
  * @param {Record<string, string>|undefined} options.messages 当前语言文案。
  * @param {string[]} options.names 12 名使徒名字。
  * @param {(soundPath: string) => void} [options.playSound] 音效播放回调。
@@ -1257,6 +1387,19 @@ export function playPlagueDoctorAdvent(options) {
   let index = 0;
   /** @type {{index: number, kind: string, startedAt: number}|undefined} */
   let currentAdvent;
+  /**
+   * 聚焦视图（显示名称输入框）当前显示的使徒文本与本次淡入淡出的起点。
+   *
+   * `focusTexts[i]` 由事件层算好：使徒名；如果那次保存的是异想体，则是异想体编号。
+   */
+  const focusTexts = Array.isArray(options.focusTexts) ? options.focusTexts : [];
+  let focusText = '';
+  let focusTextStartedAt = -Infinity;
+  let focusTextApplied = true;
+  const entityHandoffStartAt = plagueDoctorAdventTimings.cameraMoveMs +
+    plagueDoctorAdventTimings.plagueDoctorAdventMs;
+  const entityHideAt = entityHandoffStartAt +
+    plagueDoctorAdventFocusTimings.handoffMs;
   let finished = false;
   /** @type {() => void} */
   let resolveFinished = () => {};
@@ -1288,6 +1431,14 @@ export function playPlagueDoctorAdvent(options) {
         // ExecuteNextAdventTarget() 先敲钟，再让这名使徒 Escape()；Escape() 里的
         // MakeAdventSound() 会再放一首合唱与一句随机低语，两者是同一刻。
         options.playSound?.(plagueDoctorSoundPaths.bell);
+        // 镜头这一刻聚焦到这名使徒：网页没有员工，于是聚焦到网页自己的
+        // 「显示名称输入框」，并在钟声响起的同一刻把里面的文字换成这名使徒的
+        // 名字（异想体则用编号），做一次淡出→换字→淡入。
+        if (layers.focusInput) {
+          focusText = focusTexts[step.index] ?? names[step.index] ?? '';
+          focusTextStartedAt = elapsed;
+          focusTextApplied = false;
+        }
         // 第 12 名是叛徒：原作在 Escape() 之前就因 AposlteModel == null 返回，
         // 所以它只有钟声，没有合唱与低语。
         if (step.index !== plagueDoctorBetrayerIndex) {
@@ -1325,15 +1476,76 @@ export function playPlagueDoctorAdvent(options) {
         }
       }
     }
-    // 睁眼演出结束后的那一秒是白夜换场：`OnPlagueDoctorAdventEnd()` 关掉疫医、
-    // 打开白夜单位，同时镜头开始移向第一名使徒（`ExecuteNextAdventTarget`，
-    // 时长同样是 `_advent_cameraMove`）。这一秒也在这段视频里，之后才撤掉。
+    // 疫医变白夜只有一瞬间：`OnPlagueDoctorAdventEnd()` 同时在关疫医、开白夜，
+    // 紧接着镜头就开始移向第一名使徒。这里用 `handoffMs` 把实体视频淡出、把聚焦
+    // 视图淡入，表示镜头正在离开收容单元、对准被聚焦的对象。
+    if (layers.focus) {
+      const handoffRate = clamp(
+        (elapsed - entityHandoffStartAt) /
+          plagueDoctorAdventFocusTimings.handoffMs,
+        0,
+        1,
+      );
+      // 镜头移动：白夜本体平移出画面、输入框从另一侧移进来，两者始终不透明。
+      layers.focus.style.setProperty(
+        '--lobotomy-corp-advent-focus-alpha',
+        elapsed >= entityHandoffStartAt ? '1' : '0',
+      );
+      const panOffset = Math.round(clock.panDistance() * (1 - handoffRate));
+      const targetX = clock.panTargetX?.() ?? 0;
+      const targetY = clock.panTargetY?.() ?? 0;
+      layers.focus.style.setProperty(
+        'transform',
+        `translate(${Math.round(targetX * (1 - handoffRate))}px, ${
+          Math.round(targetY * (1 - handoffRate))
+        }px)`,
+      );
+      if (layers.worldEntity) {
+        layers.worldEntity.style?.setProperty?.(
+          'transform',
+          `translate(${-Math.round(targetX * handoffRate)}px, ${
+            -Math.round(targetY * handoffRate)
+          }px)`,
+        );
+      }
+      if (layers.focusInput) {
+        const textElapsed = elapsed - focusTextStartedAt;
+        const textAlpha = textElapsed <
+            plagueDoctorAdventFocusTimings.textFadeOutMs
+          ? 1 -
+            clamp(
+              textElapsed / plagueDoctorAdventFocusTimings.textFadeOutMs,
+              0,
+              1,
+            )
+          : clamp(
+            (textElapsed - plagueDoctorAdventFocusTimings.textFadeOutMs) /
+              plagueDoctorAdventFocusTimings.textFadeInMs,
+            0,
+            1,
+          );
+        if (
+          !focusTextApplied &&
+          textElapsed >= plagueDoctorAdventFocusTimings.textFadeOutMs
+        ) {
+          focusTextApplied = true;
+          layers.focusInput.value = focusText;
+        }
+        layers.focusInput.style.setProperty(
+          '--lobotomy-corp-advent-focus-text-alpha',
+          String(textAlpha),
+        );
+        layers.focusInput.style.color = textAlpha >= 1
+          ? ''
+          : `color-mix(in srgb, var(--muted) ${
+            (textAlpha * 100).toFixed(1)
+          }%, transparent)`;
+      }
+    }
     if (
       layers.worldEntity &&
       !layers.worldEntity.hidden &&
-      elapsed >= plagueDoctorAdventTimings.cameraMoveMs +
-          plagueDoctorAdventTimings.plagueDoctorAdventMs +
-          plagueDoctorAdventTimings.cameraMoveMs
+      elapsed >= entityHideAt
     ) {
       layers.worldEntity.pause?.();
       layers.worldEntity.hidden = true;
@@ -1392,6 +1604,7 @@ export function playPlagueDoctorAdvent(options) {
  * @param {object} shared 宿主能力。
  * @param {string} shared.assetRoot 资源根路径。
  * @param {(value: string) => string|undefined} shared.abnormalityName 识别到异想体时返回本地化名称。
+ * @param {(name: string) => string|undefined} [shared.abnormalityCode] 由异想体本地化名反查编号。
  * @param {() => Record<string, string>|undefined} shared.messages 当前语言文案。
  * @param {() => void} shared.onTransformation 转变完成、应进入白夜时的回调。
  * @param {(amount: number) => void} shared.settleDanger 结算固定危急值。
@@ -1525,6 +1738,18 @@ export function createPlagueDoctorEvent(shared) {
 
   /** @return {string[]} 已绑定的使徒名字。 */
   const apostleNames = () => [...(state?.apostles ?? [])];
+  /**
+   * 完整降临聚焦每名使徒时，输入框里要显示的文字。
+   *
+   * 记录里存的是那次保存的显示名称；如果那次保存的是异想体（记录里存的是异想体的
+   * 本地化名），就改用它对应的异想体编号，与「转变后显示名称被改写成编号」一致。
+   *
+   * @return {string[]} 每名使徒对应的文本。
+   */
+  const apostleFocusTexts = () =>
+    (state?.apostles ?? []).map((name) =>
+      shared.abnormalityCode?.(name) ?? name
+    );
   /** @return {boolean} 是否正在记录使徒。 */
   const isRecording = () => state?.recording === true;
   /** @return {boolean} 本次会话内是否已经完成过一次转变。 */
@@ -1602,6 +1827,7 @@ export function createPlagueDoctorEvent(shared) {
     const clock = playPlagueDoctorAdvent({
       assetRoot: shared.assetRoot,
       document: globalThis.document,
+      focusTexts: apostleFocusTexts(),
       messages: shared.messages?.(),
       names: apostleNames(),
       onAdventEnd: completeTransformation,
