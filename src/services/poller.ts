@@ -2,7 +2,7 @@
  * @file 本文件负责轮询话题帖子、匹配关键词并触发通知。
  */
 import type { AppSettings, MatchRecord } from "../models.ts";
-import type { Storage } from "../storage/types.ts";
+import type { MatchedPostIndexEntry, Storage } from "../storage/types.ts";
 import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import type { TopicSource } from "./topic_source.ts";
@@ -10,11 +10,17 @@ import type { TopicSource } from "./topic_source.ts";
 type PollStorage = Pick<
   Storage,
   | "getSettings"
-  | "listHistory"
+  | "listMatchedPostIndex"
+  | "listMatchesForPost"
   | "markMatchNotified"
   | "saveMatch"
   | "setLastPollAt"
 >;
+
+/**
+ * 已命中帖子的详情刷新间隔。
+ */
+export const postDetailRefreshIntervalMs = 6 * 60 * 60 * 1000;
 
 type PollNotifier = Pick<ReturnType<typeof createNotifier>, "sendMatches">;
 
@@ -63,13 +69,12 @@ export function createPoller(
       const enabledTopics = settings.topics.filter((topic) =>
         topic.enabled && topic.id.trim()
       );
-      const existingMatchesByPostId = matchesByPostId(
-        await runStorage.listHistory(),
+      const matchedPostIndex = matchedPostIndexByPostId(
+        await runStorage.listMatchedPostIndex(),
       );
-      const existingMatchedPostIds = new Set(existingMatchesByPostId.keys());
       const matchedRecords: MatchRecord[] = [];
       const matchedPostIds = new Set<string>();
-      const matchedAt = new Date().toISOString();
+      const runAt = new Date().toISOString();
 
       for (const topic of enabledTopics) {
         const posts = await source.listLatestPosts(topic.id, {
@@ -82,15 +87,19 @@ export function createPoller(
         ];
 
         for (const post of posts) {
-          const alreadyMatched = existingMatchedPostIds.has(post.id);
+          const matchedPost = matchedPostIndex.get(post.id);
 
-          if (alreadyMatched) {
-            const refreshedPost = await resolvePostDetails(source, post);
-            await updateExistingMatchesPost(
-              runStorage,
-              existingMatchesByPostId.get(post.id) ?? [],
-              refreshedPost,
-            );
+          if (matchedPost) {
+            if (shouldRefreshPostDetails(matchedPost.detailRefreshedAt, runAt)) {
+              const refreshedPost = await resolvePostDetails(source, post);
+              await refreshMatchedPostRecords(
+                runStorage,
+                await runStorage.listMatchesForPost(post.id),
+                refreshedPost,
+                runAt,
+              );
+              matchedPost.detailRefreshedAt = runAt;
+            }
             continue;
           }
 
@@ -101,18 +110,22 @@ export function createPoller(
 
           const detailedPost = await resolvePostDetails(source, post);
           const record: MatchRecord = {
+            detailRefreshedAt: runAt,
             id:
               `${topic.id}:${detailedPost.id}:${match.keyword}:${match.location}`,
             keyword: match.keyword,
             location: match.location,
-            matchedAt,
+            matchedAt: runAt,
             post: detailedPost,
           };
 
           await saveMatchRecord(runStorage, record);
           matchedRecords.push(record);
           matchedPostIds.add(record.post.id);
-          existingMatchedPostIds.add(record.post.id);
+          matchedPostIndex.set(record.post.id, {
+            detailRefreshedAt: runAt,
+            postId: record.post.id,
+          });
         }
       }
 
@@ -178,28 +191,57 @@ async function resolvePostDetails(
   return source.getPostDetails ? await source.getPostDetails(post) : post;
 }
 
-function matchesByPostId(records: MatchRecord[]): Map<string, MatchRecord[]> {
-  const result = new Map<string, MatchRecord[]>();
-
-  for (const record of records) {
-    const recordsWithPostId = result.get(record.post.id) ?? [];
-    recordsWithPostId.push(record);
-    result.set(record.post.id, recordsWithPostId);
-  }
-
-  return result;
+/**
+ * 构建帖子 ID 到已命中索引的映射。
+ *
+ * @param index 存储返回的已命中帖子索引。
+ * @return 按帖子 ID 索引的映射。
+ */
+function matchedPostIndexByPostId(
+  index: MatchedPostIndexEntry[],
+): Map<string, MatchedPostIndexEntry> {
+  return new Map(index.map((entry) => [entry.postId, { ...entry }]));
 }
 
-async function updateExistingMatchesPost(
+/**
+ * 判断已命中帖子的详情是否需要重新抓取。
+ *
+ * @param detailRefreshedAt 上次详情刷新时间。
+ * @param now 本次轮询时间。
+ * @return 超过刷新间隔或从未刷新时返回 true。
+ */
+function shouldRefreshPostDetails(
+  detailRefreshedAt: string | undefined,
+  now: string,
+): boolean {
+  const refreshedTime = Date.parse(detailRefreshedAt ?? "");
+  if (!Number.isFinite(refreshedTime)) {
+    return true;
+  }
+
+  return Date.parse(now) - refreshedTime >= postDetailRefreshIntervalMs;
+}
+
+/**
+ * 用最新帖子详情覆盖已命中记录，并记录刷新时间。
+ *
+ * @param storage 目标存储。
+ * @param records 该帖子的已有命中记录。
+ * @param post 最新帖子详情。
+ * @param refreshedAt 本次刷新时间。
+ * @return 更新完成后的 Promise。
+ */
+async function refreshMatchedPostRecords(
   storage: Pick<PollStorage, "saveMatch">,
   records: MatchRecord[],
   post: MatchRecord["post"],
+  refreshedAt: string,
 ): Promise<void> {
   for (const record of records) {
-    if (JSON.stringify(record.post) === JSON.stringify(post)) {
-      continue;
-    }
-
-    await storage.saveMatch({ ...record, post });
+    await storage.saveMatch({
+      ...record,
+      detailRefreshedAt: refreshedAt,
+      post,
+    });
   }
 }

@@ -42,6 +42,7 @@ import {
 } from "./turso_schema.ts";
 import type {
   LoginFailure,
+  MatchedPostIndexEntry,
   RateLimitHit,
   Storage,
   UserStorage,
@@ -341,6 +342,46 @@ export function createTursoStorage(
        */
       async listPendingMatches(): Promise<MatchRecord[]> {
         return await listMatches(userId, "pending");
+      },
+      /**
+       * 列出当前用户已命中帖子的精简索引。
+       *
+       * @return {Promise<MatchedPostIndexEntry[]>} 按帖子 ID 去重后的索引条目。
+       */
+      async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
+        const result = await execute({
+          sql: `SELECT json_extract(value_json, '$.post.id') AS post_id,
+              MAX(json_extract(value_json, '$.detailRefreshedAt'))
+                AS detail_refreshed_at
+            FROM matches
+            WHERE user_id = ?
+            GROUP BY post_id`,
+          args: [userId],
+        });
+        return result.rows.flatMap((row) => {
+          const postId = stringValue(row.post_id);
+          return postId
+            ? [{
+              detailRefreshedAt: stringValue(row.detail_refreshed_at),
+              postId,
+            }]
+            : [];
+        });
+      },
+      /**
+       * 列出当前用户指定帖子的命中记录。
+       *
+       * @param {string} postId 帖子 ID。
+       * @return {Promise<MatchRecord[]>} 该帖子的命中记录。
+       */
+      async listMatchesForPost(postId: string): Promise<MatchRecord[]> {
+        const result = await execute({
+          sql: `SELECT value_json FROM matches
+            WHERE user_id = ? AND json_extract(value_json, '$.post.id') = ?
+            ORDER BY matched_at DESC, id ASC`,
+          args: [userId, postId],
+        });
+        return result.rows.map((row) => parseJsonRow<MatchRecord>(row));
       },
       /**
        * 保存当前用户的一条命中记录。

@@ -94,6 +94,59 @@ Deno.test("Turso match ordering preserves Deno KV key order for time ties", asyn
   });
 });
 
+Deno.test("Turso lists a deduplicated matched post index and its records", async () => {
+  await withStorage(async (storage) => {
+    const post = {
+      body: "",
+      commentReplies: [],
+      comments: [],
+      excerpt: "",
+      id: "post-1",
+      publishedAt: "2026-09-01T01:00:00.000Z",
+      title: "post-1",
+      url: "https://example.com/post-1",
+    };
+    await storage.saveMatch({
+      detailRefreshedAt: "2026-09-01T02:00:00.000Z",
+      id: "match-a",
+      keyword: "keyword",
+      location: "title",
+      matchedAt: "2026-09-01T02:00:00.000Z",
+      post,
+    });
+    await storage.saveMatch({
+      detailRefreshedAt: "2026-09-01T05:00:00.000Z",
+      id: "match-b",
+      keyword: "keyword",
+      location: "body",
+      matchedAt: "2026-09-01T03:00:00.000Z",
+      post,
+    });
+    await storage.saveMatch({
+      detailRefreshedAt: "2026-09-01T04:00:00.000Z",
+      id: "match-c",
+      keyword: "keyword",
+      location: "title",
+      matchedAt: "2026-09-01T04:00:00.000Z",
+      post: { ...post, id: "post-2", title: "post-2" },
+    });
+
+    const index = (await storage.listMatchedPostIndex()).toSorted(
+      (left, right) => left.postId.localeCompare(right.postId),
+    );
+
+    assertEquals(index, [
+      { detailRefreshedAt: "2026-09-01T05:00:00.000Z", postId: "post-1" },
+      { detailRefreshedAt: "2026-09-01T04:00:00.000Z", postId: "post-2" },
+    ]);
+    assertEquals(
+      (await storage.listMatchesForPost("post-1")).map((item) => item.id),
+      ["match-b", "match-a"],
+    );
+    assertEquals(await storage.listMatchesForPost("missing-post"), []);
+  });
+});
+
 Deno.test("Turso account constraints preserve atomic username behavior", async () => {
   await withStorage(async (storage) => {
     const results = await Promise.all([

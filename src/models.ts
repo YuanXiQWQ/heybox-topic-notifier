@@ -113,6 +113,8 @@ export type TopicPost = {
  */
 export type MatchRecord = {
   completedAt?: string;
+  /** 帖子详情最近一次刷新时间；用于限制已命中帖子重抓详情的频率。 */
+  detailRefreshedAt?: string;
   id: string;
   keyword: string;
   location: MatchLocation;
