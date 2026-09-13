@@ -48,7 +48,7 @@ ID, e o Deno Deploy também isola dados de Production e Git Branch por timeline.
 Configure no Deno Deploy App conforme necessário. O `.env.example` na raiz do repositório está organizado por cenário: por padrão, apenas a configuração mínima utilizável é ativada,
 enquanto outras configurações de ajuste de polling, canais de notificação, retransmissão e allowlist de segurança permanecem comentadas; descomente as linhas correspondentes apenas para o cenário que for usar.
 
-- Valores padrão básicos: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Valores padrão básicos: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Ajuste de polling: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Sobrescrita de requisições do Heybox: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Itens comuns de notificação: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV e isolados por user ID. O cookie do navegador salva apenas um random ses
 e o horário de expiração.
 
 A busca real de tópicos do Heybox é atualmente a única fonte de dados em execução. Por padrão, `HEYBOX_SIGNATURE_MODE=app` usa a lista verificada de horários de publicação da App API;
-`web` é mantido apenas como fallback de diagnóstico. `POLL_ENABLED`
-serve apenas como chave inicial de polling para novas contas ou para a conta padrão; se a busca realmente ocorre depende da opção “Enable polling” na página de configurações de cada conta.
+`web` é mantido apenas como fallback de diagnóstico.
+Contas novas começam com o polling desativado e só buscam dados depois de ativar “Enable polling” na própria página de configurações.
 
 ## Retransmissão de notificações
 

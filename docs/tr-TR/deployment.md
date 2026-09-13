@@ -48,7 +48,7 @@ ID prefix’e göre izole edilir ve Deno Deploy, Production ile Git Branch veril
 Deno Deploy App içinde ihtiyaca göre yapılandırın. Repository root içindeki `.env.example` senaryolara göre düzenlenmiştir: varsayılan olarak yalnızca minimum kullanılabilir configuration etkinleştirilir,
 diğer polling tuning, notification channel, relay ve security allowlist ayarları yorumda bırakılır; hangi senaryo kullanılacaksa yalnızca ilgili satırların yorumu kaldırılır.
 
-- Temel varsayılanlar: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Temel varsayılanlar: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling tuning: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Heybox request overrides: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Ortak notification öğesi: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV içinde saklanır ve user ID’ye göre izole edilir. Browser Cookie yal
 hash ve expiry time saklar.
 
 Gerçek Heybox topic fetching şu anda tek runtime data source’tur. Varsayılan olarak `HEYBOX_SIGNATURE_MODE=app`, doğrulanmış App API
-publish-time list’i kullanır; `web` yalnızca diagnostic fallback olarak tutulur. `POLL_ENABLED`
-yalnızca yeni account veya default account için initial polling switch olarak kullanılır; gerçekten fetch yapılıp yapılmayacağı her account’un settings page içindeki “Enable polling” seçeneğine bağlıdır.
+publish-time list’i kullanır; `web` yalnızca diagnostic fallback olarak tutulur.
+Yeni account’lar polling kapalı olarak başlar ve yalnızca kendi settings page’inde “Enable polling” açıldıktan sonra fetch yapar.
 
 ## Notification Relay
 

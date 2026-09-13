@@ -48,7 +48,7 @@ ID, và Deno Deploy cũng tách dữ liệu Production và Git Branch theo timel
 Cấu hình trong Deno Deploy App theo nhu cầu. File `.env.example` ở root repository đã được sắp xếp theo kịch bản: mặc định chỉ bật cấu hình tối thiểu có thể dùng được,
 còn các cấu hình khác về tinh chỉnh polling, kênh thông báo, relay và security allowlist vẫn được comment; dùng kịch bản nào thì bỏ comment các dòng tương ứng.
 
-- Giá trị mặc định cơ bản: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Giá trị mặc định cơ bản: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Tinh chỉnh polling: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Ghi đè request Heybox: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Mục thông báo chung: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV và được tách biệt theo user ID. Browser Cookie chỉ lưu random
 hash và thời gian hết hạn.
 
 Việc lấy chủ đề Heybox thật hiện là nguồn dữ liệu runtime duy nhất. Mặc định `HEYBOX_SIGNATURE_MODE=app` sử dụng danh sách thời gian đăng của App API đã được xác minh;
-`web` chỉ được giữ lại làm fallback chẩn đoán. `POLL_ENABLED`
-chỉ là công tắc polling ban đầu cho tài khoản mới hoặc tài khoản mặc định; việc có thực sự lấy dữ liệu hay không phụ thuộc vào “Enable polling” trong trang thiết lập của từng tài khoản.
+`web` chỉ được giữ lại làm fallback chẩn đoán.
+Tài khoản mới bắt đầu với polling tắt và chỉ lấy dữ liệu sau khi bật “Enable polling” trong trang thiết lập của mình.
 
 ## Relay thông báo
 

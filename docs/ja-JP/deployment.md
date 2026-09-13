@@ -48,7 +48,7 @@ ID プレフィックスで分離され、Deno Deploy も timeline ごとに Pro
 Deno Deploy App 側で必要に応じて設定します。リポジトリルートの `.env.example` は場面別に整理されています。既定では最小限の利用可能設定だけが有効で、
 その他のポーリング調整、通知経路、中継、安全許可リスト設定はコメントのままです。利用する場面に応じて該当行だけコメント解除してください。
 
-- 基本既定値: `APP_LOCALE`、`HEYBOX_TOPIC_ID`、`POLL_ENABLED`、`NOTIFIER_PROVIDER`
+- 基本既定値: `APP_LOCALE`、`HEYBOX_TOPIC_ID`、`NOTIFIER_PROVIDER`
 - ポーリング調整: `POLL_INTERVAL_MINUTES`、`POLL_POST_LIMIT`、`POLL_SORT`
 - 小黑盒要求上書き: `HEYBOX_SIGNATURE_MODE`、`HEYBOX_DEVICE_ID`、`HEYBOX_COOKIE`、`HEYBOX_USER_AGENT`
 - 通知共通項目: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV に保存され、user ID ごとに分離されます。ブラウザー 
 ハッシュと有効期限を保存します。
 
 実際の小黑盒話題取得は、現在唯一の実行時データソースです。既定の `HEYBOX_SIGNATURE_MODE=app` は検証済みの App API
-投稿時刻リストを使用します。`web` は診断用フォールバックとしてのみ残しています。`POLL_ENABLED`
-は新規アカウントまたは既定アカウントの初期ポーリングスイッチにすぎません。実際に取得するかどうかは、各アカウント設定画面の「ポーリングを有効化」に従います。
+投稿時刻リストを使用します。`web` は診断用フォールバックとしてのみ残しています。
+新規アカウントはポーリング無効の状態で始まり、設定画面で「ポーリングを有効化」をオンにした後だけ実際に取得します。
 
 ## 通知中継
 

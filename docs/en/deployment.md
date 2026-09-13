@@ -52,7 +52,7 @@ Configure values in the Deno Deploy app only as needed. The repository root `.en
 grouped by scenario: only the minimal safe configuration is enabled by default, and polling tweaks,
 notification channels, relay settings, and outbound allowlists stay commented until used.
 
-- Base defaults: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Base defaults: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling tweaks: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Heybox request overrides: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`,
   `HEYBOX_USER_AGENT`
@@ -85,9 +85,8 @@ token hashes and expiration times.
 
 Real Heybox topic fetching is the only active runtime data source. The default
 `HEYBOX_SIGNATURE_MODE=app` uses the verified app API publish-time list. `web` is only kept as a
-diagnostic fallback. `POLL_ENABLED` only seeds the initial polling switch for new or default
-accounts. Actual fetching is controlled by the "enable polling" setting on each account's settings
-page.
+diagnostic fallback. New accounts start with polling disabled; fetching only begins after the account
+turns on the "enable polling" setting on its settings page.
 
 ## Notification Relay
 

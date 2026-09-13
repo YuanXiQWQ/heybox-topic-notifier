@@ -48,7 +48,7 @@ ID และ Deno Deploy ยังแยกข้อมูล Production กั�
 ตั้งค่าใน Deno Deploy App ตามความจำเป็น ไฟล์ `.env.example` ที่ root ของ repository ถูกจัดตาม scenario: ค่าเริ่มต้นเปิดใช้งานเฉพาะ configuration ขั้นต่ำที่ใช้งานได้
 ส่วน configuration อื่น ๆ สำหรับ polling tuning, notification channels, relay และ security allowlist จะยังถูก comment ไว้ ให้ uncomment เฉพาะบรรทัดที่ตรงกับ scenario ที่ใช้
 
-- Basic defaults: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Basic defaults: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling tuning: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Heybox request overrides: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Common notification item: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV และแยกตาม user ID Browser Cookie เก็บเฉพ
 hash และเวลาหมดอายุ
 
 การ fetch หัวข้อ Heybox จริงเป็น runtime data source เพียงแหล่งเดียวในปัจจุบัน ค่าเริ่มต้น `HEYBOX_SIGNATURE_MODE=app` ใช้ publish-time list ของ App API ที่ผ่านการตรวจสอบแล้ว;
-`web` ถูกเก็บไว้เป็น diagnostic fallback เท่านั้น `POLL_ENABLED`
-เป็นเพียง initial polling switch สำหรับ account ใหม่หรือ default account; จะ fetch จริงหรือไม่ขึ้นอยู่กับ “Enable polling” ใน settings page ของแต่ละ account
+`web` ถูกเก็บไว้เป็น diagnostic fallback เท่านั้น
+account ใหม่เริ่มต้นด้วย polling ที่ปิดอยู่ และจะ fetch ข้อมูลหลังเปิด “Enable polling” ใน settings page ของตนเองเท่านั้น
 
 ## Notification Relay
 
