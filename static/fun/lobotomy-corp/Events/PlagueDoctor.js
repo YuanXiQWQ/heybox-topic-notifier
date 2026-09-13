@@ -173,6 +173,27 @@ export const plagueDoctorSoundPaths = Object.freeze({
 export const plagueDoctorClockFactor = -30;
 
 /**
+ * 疫医转变开场用的实体视频（世界层，靠圆盘开口露出）。
+ *
+ * 内容由解包工程里的 `ExportPlagueDoctorAdvent.Run` 直接渲染原作资源得到：
+ * `Resources/prefabs/unit/creatureanimator/PlagueDoctorAnim.prefab` 的疫医骨架
+ * （`TextAsset/skeleton_15.json` + `TextAsset/skeleton.atlas_31.txt`）按
+ * `PlagueDoctorSkeletonAnim.SetState(12)` 的最终形态摆放，并且一直在播 `PlagueDoc`
+ * 的 Animator 默认状态 `0_Default_`（翅膀摆动、骨骼位移都来自这段原作动画），
+ * 镜头用 `PlagueDoctor.OnClockUIEnd()` 的 `CameraMoveEvent(eye1 - (0.2, 0.9), 4f, 1f)`
+ * 取景，眼睛按 `PlagueDoctorAnim.OnStartAdvent()` 的 3 秒计时在 0.2 / 0.6 分两半出现
+ * （`_eye1` 精灵夹在骨架 z = −0.17 那一层，所以是分层绘制的）。
+ *
+ * 第 5 秒是 `PlagueDoctor.OnPlagueDoctorAdventEnd()` 之后的画面：疫医被隐藏、
+ * 白夜本体（`DeathAngelAnim.prefab` 的 `WhiteNight` 子物体，默认动画
+ * `0_Default_inside`）登场。
+ *
+ * 视频自带 1 秒镜头移动（全长 5 秒）：网页从演出第 0 毫秒播放，动画相位、两次
+ * 睁眼（镜头到位 + 0.6 / 1.8 秒）与白夜换场（镜头到位 + 3 秒）就都与原作一致。
+ */
+export const plagueDoctorAdventEntityVideo = 'PlagueDoctor_Advent.webm';
+
+/**
  * 计算指针在 CSS 坐标系下的角度。
  *
  * 序号 0 对应 Unity 旋转 0°，即指针垂直向上指向第 12 个格子（`twelveth`），
@@ -595,6 +616,10 @@ function buildAdventStage(options) {
   const { assetRoot, document } = options;
   const spriteRoot =
     `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock`;
+  // 白夜系视频与贴图分开存放：视频直接放在 deathangel 目录下（与
+  // WhiteNight_Escape_Idle.webm / WhiteNight_Confess_Dead.webm 同级）。
+  const deathAngelRoot =
+    `${assetRoot}/Resources/sprites/creaturesprite/deathangel`;
   const root = document.createElement('section');
   const canvas = document.createElement('div');
   const addApostle = document.createElement('div');
@@ -644,6 +669,11 @@ function buildAdventStage(options) {
   // 使徒转化光效是独立的 AdventLight 视觉层：原作里它在世界层（Particle
   // 排序层，Order 10），因此网页把它排在表盘 UI 之前，靠圆环内孔露出光斑。
   const adventLight = createDeathAngelAdventLight({ assetRoot, document });
+  // 原作里圆盘开口后面是收容单元与疫医实体本身；网页把它预渲染成视频，同样挂在
+  // 世界层（表盘 UI 之前），由 DeathAngelClockDark 的开口露出。
+  const worldEntity = options.hostWorld === true
+    ? document.createElement('video')
+    : undefined;
 
   root.className = 'lobotomy-corp-plague-doctor-advent';
   root.id = 'lobotomy-corp-plague-doctor-advent';
@@ -659,6 +689,15 @@ function buildAdventStage(options) {
   if (world) {
     world.className = plagueDoctorAdventWorldClassName;
     world.setAttribute('aria-hidden', 'true');
+  }
+  if (worldEntity) {
+    worldEntity.className = 'lobotomy-corp-plague-doctor-advent-world-entity';
+    worldEntity.muted = true;
+    worldEntity.playsInline = true;
+    worldEntity.preload = 'auto';
+    worldEntity.setAttribute('aria-hidden', 'true');
+    worldEntity.src = `${deathAngelRoot}/${plagueDoctorAdventEntityVideo}`;
+    worldEntity.hidden = true;
   }
 
   placeBox(clock, geometry.clock);
@@ -742,6 +781,9 @@ function buildAdventStage(options) {
   );
   // 顺序与 prefab 一致：Clock → Shader（含黑幕与两层 shader）→ Circle →
   // ApostleDesc；AdventLight 作为世界层先于整块 UI 绘制。
+  if (worldEntity) {
+    addApostle.append(worldEntity);
+  }
   addApostle.append(adventLight.element, clock, shader, circle, desc);
   // 延伸带要压在贴图下面，所以先挂上；Shader 子层顺序仍是黑幕 → ClockShader → LowerShader。
   blackShaderBands.forEach((band) => shader.append(band));
@@ -772,6 +814,7 @@ function buildAdventStage(options) {
     root,
     shader,
     world,
+    worldEntity,
   };
 }
 
@@ -1267,7 +1310,33 @@ export function playPlagueDoctorAdvent(options) {
         // PlagueDoctor.OnClockUIEnd()：镜头开始移向疫医的同一刻也敲一次钟
         // （`MakeSound("creature/deathangel/Lucifer_Bell0")`）。
         options.playSound?.(plagueDoctorSoundPaths.bell);
+        // 同一刻开始播放收容单元里那具疫医实体：视频前 1 秒对应原作的镜头移动，
+        // 之后才是 `PlagueDoctorAnim` 的 3 秒睁眼演出。
+        const entity = layers.worldEntity;
+        if (entity) {
+          entity.hidden = false;
+          try {
+            entity.currentTime = 0;
+          } catch {
+            // 视频还没拿到 metadata 时设置 currentTime 会抛错，忽略即可。
+          }
+          const playback = entity.play?.();
+          playback?.catch?.(() => {});
+        }
       }
+    }
+    // 睁眼演出结束后的那一秒是白夜换场：`OnPlagueDoctorAdventEnd()` 关掉疫医、
+    // 打开白夜单位，同时镜头开始移向第一名使徒（`ExecuteNextAdventTarget`，
+    // 时长同样是 `_advent_cameraMove`）。这一秒也在这段视频里，之后才撤掉。
+    if (
+      layers.worldEntity &&
+      !layers.worldEntity.hidden &&
+      elapsed >= plagueDoctorAdventTimings.cameraMoveMs +
+          plagueDoctorAdventTimings.plagueDoctorAdventMs +
+          plagueDoctorAdventTimings.cameraMoveMs
+    ) {
+      layers.worldEntity.pause?.();
+      layers.worldEntity.hidden = true;
     }
     // AdventLight 按 ApostleAdventLight.anim 的时间轴推进（UnscaledTime）。
     layers.adventLight.render(elapsed);

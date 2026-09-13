@@ -16,6 +16,7 @@ import {
   plagueDoctorBetrayerIndex,
   plagueDoctorClockReferenceSize,
   plagueDoctorAdventSchedule,
+  plagueDoctorAdventEntityVideo,
   plagueDoctorAdventTimings,
   plagueDoctorApostleCount,
   plagueDoctorBindingTimings,
@@ -696,6 +697,86 @@ Deno.test("疫医：world 层不影响原作 Shader 链", async () => {
         "lobotomy-corp-plague-doctor-advent-clock-shader",
         "lobotomy-corp-plague-doctor-advent-lower-shader",
       ],
+    );
+  } finally {
+    harness.restore();
+  }
+});
+
+/**
+ * 疫医转变开场：圆盘聚焦的是收容单元里那具疫医实体（不是白夜本体）。
+ *
+ * 原作调用链：`PlagueDoctor.OnClockUIEnd()` 先把镜头移向 `PlagueDoctorAnim._eye1`
+ * （`CameraMoveEvent(_eye1.position - (0.2, 0.9), 4f, 1f)`），镜头到位后回调
+ * `PlagueDoctorAnim.OnStartAdvent()` 起 3 秒计时，`Rate >= 0.2 / 0.6` 时依次打开
+ * `_eye1` / `_eye2`（睁眼），计时结束才由 `OnPlagueDoctorAdventEnd()` 关掉疫医、
+ * 让白夜单位登场。
+ *
+ * 网页用的视频自带头 1 秒镜头移动，因此整段「聚焦疫医 → 白夜登场」就是演出最前面的
+ * `cameraMoveMs + plagueDoctorAdventMs + cameraMoveMs`（最后 1 秒是白夜换场，
+ * 镜头同时开始移向第一名使徒），之后必须撤掉。
+ */
+Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收尾", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    harness.storage.setItem(
+      plagueDoctorStorageKey,
+      JSON.stringify({
+        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
+        recording: true,
+        transformed: false,
+      }),
+    );
+    await harness.reload();
+    const api = harness.api();
+    const clock = { value: 0 };
+    await api.commitDisplayName("O-01-45");
+    await advance(harness, clock, 16);
+
+    const entity = findByClassName(
+      harness,
+      "lobotomy-corp-plague-doctor-advent-world-entity",
+    );
+    assert(entity, "完整降临应挂载疫医实体视频");
+    assertStrictEquals(
+      entity!.src,
+      `/static/fun/lobotomy-corp/Assets/Resources/sprites/creaturesprite/deathangel/${
+        plagueDoctorAdventEntityVideo
+      }`,
+    );
+    // 视频属于世界层：必须排在同级的 Shader 图层之前（也就是整块原作 UI 之下）。
+    const addApostle = findByClassName(
+      harness,
+      "lobotomy-corp-plague-doctor-advent-add-apostle",
+    );
+    assert(addApostle, "完整降临应有 AddApostle 节点");
+    const order = addApostle!.children.map((child) => child.className);
+    assert(
+      order.indexOf("lobotomy-corp-plague-doctor-advent-world-entity") <
+        order.indexOf("lobotomy-corp-plague-doctor-advent-shader"),
+      `疫医实体必须画在 Shader 之下，实际顺序 ${order.join(" / ")}`,
+    );
+
+    // 演出第 1 帧：镜头开始移向疫医，实体视频同步开播。
+    assertStrictEquals(entity!.hidden, false);
+
+    // 睁眼结束后的那一秒是白夜换场（`OnPlagueDoctorAdventEnd()`），视频里已经包含，
+    // 换场这一秒走完才撤掉。
+    const entityVisibleFor = plagueDoctorAdventTimings.cameraMoveMs +
+      plagueDoctorAdventTimings.plagueDoctorAdventMs +
+      plagueDoctorAdventTimings.cameraMoveMs;
+    // 3 秒睁眼演出还在进行中（距离结束还有 200ms）：实体必须仍然可见。
+    await advance(harness, clock, entityVisibleFor - 216);
+    assertStrictEquals(
+      entity!.hidden,
+      false,
+      "白夜换场那一秒结束前实体都应可见",
+    );
+    await advance(harness, clock, 400);
+    assertStrictEquals(
+      entity!.hidden,
+      true,
+      "睁眼结束后应撤掉疫医实体视频",
     );
   } finally {
     harness.restore();

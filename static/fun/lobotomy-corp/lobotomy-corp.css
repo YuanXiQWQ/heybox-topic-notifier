@@ -349,6 +349,22 @@
   position: absolute;
 }
 
+/*
+ * 收容单元里的疫医实体视频（世界层，属于网页移植的取景，不是原作 UI）。
+ *
+ * 它是按原作镜头（正交 4、看向 `_eye1` 下方 0.2/0.9）渲染的整幅 1920×1080 画面，
+ * 因此只要铺满画布，圆盘开口露出的就是原作里那块画面。它在表盘 UI 之下，
+ * 由 DeathAngelClockDark 的开口决定可见范围，所以不要给它加遮罩或裁剪。
+ */
+.lobotomy-corp-plague-doctor-advent-world-entity{
+  height: 100%;
+  inset: 0;
+  object-fit: fill;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
 /* Shader 节点自身就是铺满 1920×1080 的 GlobalShader。 */
 /* Shader 图层由脚本按 viewport / canvasScale 放大，铺满整个页面。 */
 .lobotomy-corp-plague-doctor-advent-shader{
