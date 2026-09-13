@@ -1616,6 +1616,8 @@ export function createPlagueDoctorEvent(shared) {
   let state;
   let busy = false;
   let transforming = false;
+  /** 本次页面里是否已经结算过疫医转变的固定危急值。 */
+  let transformedOnThisPage = false;
   /** @type {{dispose: () => void}|undefined} */
   let activeClock;
   /** @type {any} 完整降临的专属 BGM（对应 BgmManager 的 UniqueBgm）。 */
@@ -1786,9 +1788,14 @@ export function createPlagueDoctorEvent(shared) {
   /**
    * 走入白夜：结算固定 +98，改写显示名称并通知宿主启动白夜事件。
    *
+   * @param {{firstTime: boolean}} info 本次转变是否为该会话的第一次完整降临。
    * @return {void}
    */
   const completeTransformation = (/** @type {{firstTime: boolean}} */ info) => {
+    // 固定危急值在「本次页面里的第一次白夜登场」结算一次：刷新后重新提交疫医编号
+    // 仍会补这一次结算，但同一页面里重复提交不会重复叠加。
+    const shouldSettleDanger = !transformedOnThisPage;
+    transformedOnThisPage = true;
     busy = false;
     transforming = false;
     activeClock = undefined;
@@ -1800,7 +1807,9 @@ export function createPlagueDoctorEvent(shared) {
       state.recording = false;
       persist();
     }
-    shared.settleDanger?.(plagueDoctorTransformationDanger);
+    if (shouldSettleDanger) {
+      shared.settleDanger?.(plagueDoctorTransformationDanger);
+    }
     shared.applyDisplayName?.(plagueDoctorWhiteNightId);
     shared.onTransformation?.(info);
   };

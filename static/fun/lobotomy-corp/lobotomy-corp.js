@@ -1646,20 +1646,19 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
  */
 function commitLobotomyCorpDisplayName(value, preparedMedia) {
   syncLobotomyCorpAbnormalityIdentity(value);
+  // 疫医转变事件接管显示名称提交：记录期间只绑定使徒，已转变后直接进白夜，
+  // 两条路径都不产生普通异想体危急值，也不激活其它特殊事件。
+  // 白夜进行期间也要询问一次：那时只有再次提交疫医编号会被它接管（白夜已经在场
+  // 就不会重复启动），其余名称照常交给白夜 Confess 与普通异想体路径。
+  if (lobotomyCorpPlagueDoctorEvent?.claim(value)) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
   if (
       lobotomyCorpWhiteNightEvent?.isActive() &&
       lobotomyCorpWhiteNightEvent.matchesConfession(value)
   ) {
     return lobotomyCorpWhiteNightEvent.confess(preparedMedia);
-  }
-  // 疫医转变事件在记录期间接管显示名称提交：只绑定使徒或触发转变，
-  // 不产生普通异想体危急值，也不激活其它特殊事件。
-  if (
-    !lobotomyCorpWhiteNightEvent?.isActive() &&
-    lobotomyCorpPlagueDoctorEvent?.claim(value)
-  ) {
-    preparedMedia?.dispose?.();
-    return Promise.resolve(true);
   }
   return matchingLobotomyCorpAbnormality(value)
       ? handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia)
@@ -3348,8 +3347,8 @@ function applyLobotomyCorpDontTouchMeEscapeDanger() {
 /**
  * 把“别碰我”的假关服当作游戏崩溃收尾。
  *
- * 页面跳到 404 时游戏已经“关服”，危急值、警报与持久化的 Day 状态都应随之消失，
- * 否则 404 页面会接着播放未播完的警报音乐。
+ * 游戏一退出就不该再有警报：危急值、警报与持久化的 Day 状态在关服画面出现时立刻消失，
+ * 画面播放期间不会继续响警报，随后的 404 页面也无从恢复警报音乐。
  */
 function crashLobotomyCorpDanger() {
   void stopLobotomyCorpAlert();
@@ -3359,8 +3358,8 @@ function crashLobotomyCorpDanger() {
 /**
  * “别碰我”假关服演出。
  *
- * 前 4 次点击只结算各自的危急值；第 5 次点击的假关服在跳转前把危急值与警报一并
- * 当作游戏崩溃收尾。保存一开始就被拦截，用户返回设置页时显示名称仍是修改前的值。
+ * 前 4 次点击只结算各自的危急值；第 5 次点击的假关服在关服画面出现时把危急值与警报
+ * 一并当作游戏崩溃收尾。保存一开始就被拦截，用户返回设置页时显示名称仍是修改前的值。
  */
 const lobotomyCorpDontTouchMeShutdown = createDontTouchMeShutdown({
   assetRoot: lobotomyCorpAssetRoot,

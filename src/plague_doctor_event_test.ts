@@ -5,7 +5,7 @@ import {
   assertStrictEquals,
   stripJavaScriptCommentsAndStrings,
 } from "./test_helpers.ts";
-import { installLobotomyCorpAlertHarness } from "./test_harness.ts";
+import { AudioMock, installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   apostleAdventLightClip,
 } from "../static/fun/lobotomy-corp/Events/AdventLight.js";
@@ -35,6 +35,7 @@ import {
 import {
   whiteNightSimpleAdventClockCenterSprite,
   whiteNightSimpleAdventColor,
+  whiteNightSimpleAdventDurationMs,
 } from "../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
 
 /** 断言数值与期望值的误差在容差内。 */
@@ -1524,6 +1525,57 @@ Deno.test("疫医：第一次满 12 使徒只结算一次 98 且不走 Simple Ad
       false,
       "plague-doctor-transformation 不应播放 Simple Advent",
     );
+  } finally {
+    harness.restore();
+  }
+});
+
+/**
+ * 已转变的会话再次提交疫医编号时没有完整降临顶替入场，白夜必须自己走一遍
+ * Simple Advent（转盘 + 4 秒结算边界），而且入场钟只能敲一次。
+ */
+Deno.test("疫医：已转变的会话再次提交疫医编号走 Simple Advent 且只敲一次钟", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    harness.storage.setItem(
+      plagueDoctorStorageKey,
+      JSON.stringify({
+        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
+        recording: true,
+        transformed: true,
+      }),
+    );
+    await harness.reload();
+    const api = harness.api();
+    const clock = { value: 0 };
+    AudioMock.playSnapshots.length = 0;
+    await api.commitDisplayName("O-01-45");
+    assertStrictEquals(api.getSpecialEvent(), "white-night");
+    assertStrictEquals(api.getSpecialEventPhase(), "prelude");
+    assert(
+      harness.createdElements().some((element) =>
+        element.id === "lobotomy-corp-white-night-simple-advent"
+      ),
+      "再次提交疫医编号应播放 Simple Advent",
+    );
+    /** 本次提交产生的 Lucifer_Bell0 播放次数。 */
+    const bellPlayCount = () =>
+      AudioMock.playSnapshots.filter((snapshot) =>
+        snapshot.src.includes("Lucifer_Bell0")
+      ).length;
+    // 入口表不再敲钟，这一次钟声来自 Simple Advent 自己的 StartSimpleAdventEvent。
+    assertStrictEquals(bellPlayCount(), 1);
+
+    // 4 秒 Simple Advent 走完、白夜本体登场时不能再敲第二声钟。
+    await advance(harness, clock, whiteNightSimpleAdventDurationMs);
+    assertStrictEquals(api.getSpecialEventPhase(), "active");
+    assertStrictEquals(bellPlayCount(), 1);
+
+    // 白夜已经在场时再次提交疫医编号：不重复结算、不重复启动、也不再敲钟。
+    await api.commitDisplayName("O-01-45");
+    assertStrictEquals(api.getDangerScore(), plagueDoctorTransformationDanger);
+    assertStrictEquals(api.getSpecialEventPhase(), "active");
+    assertStrictEquals(bellPlayCount(), 1);
   } finally {
     harness.restore();
   }

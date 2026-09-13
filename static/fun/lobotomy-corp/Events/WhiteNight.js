@@ -1074,7 +1074,7 @@ export function createWhiteNightEvent(shared) {
   /**
    * 启动白夜；direct-submission 先进入四秒 Simple Advent Prelude。
    *
-   * @param {{churchPosition?: number, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, preparedMedia?: object, preludeEndsAt?: number, restore?: boolean, resumeEnding?: boolean, skipPrelude?: boolean, source: 'apostles-replay'|'direct-submission'|'plague-doctor-transformation', trumpetDeadline?: number, trumpetFadeMs?: number, trumpetPhase?: string}} options 事件入口配置。
+   * @param {{churchPosition?: number, lockLocation?: string, pendingNavigationViolation?: boolean, pendingRecoveryBell?: boolean, preparedMedia?: object, preludeEndsAt?: number, restore?: boolean, resumeEnding?: boolean, skipPrelude?: boolean, source: 'apostles-replay'|'direct-submission'|'plague-doctor-transformation'|'plague-doctor-transformation-replay', trumpetDeadline?: number, trumpetFadeMs?: number, trumpetPhase?: string}} options 事件入口配置。
    * @return {boolean} 新事件启动时返回 true。
    */
   const start = (options) => {

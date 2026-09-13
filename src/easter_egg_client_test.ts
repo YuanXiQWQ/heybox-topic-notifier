@@ -3038,6 +3038,19 @@ Deno.test("DontTouchMe plays one impact per click and only shuts down on the fif
     // 每次点击都按同一公式累加，最后由 Danger Score 的上限封顶。
     assertEquals(api.getDangerScore(), 100);
 
+    /** 警报曲目累计被暂停的次数。 */
+    const alertMusicPauseCount = () =>
+      AudioMock.items
+        .filter((item) => item.src.includes("Resources/sounds/bgm/emergency"))
+        .reduce((total, item) => total + item.pauseCount, 0);
+    /** 警报曲目累计开始的播放次数。 */
+    const emergencyPlayCount = () =>
+      AudioMock.playSnapshots.filter((snapshot) =>
+        snapshot.src.includes("Resources/sounds/bgm/emergency")
+      ).length;
+    const pausesBeforeShutdown = alertMusicPauseCount();
+    const emergencyPlaysBeforeShutdown = emergencyPlayCount();
+
     // 第 5 次点击改为 ExitStart() → ForceExitScene：shout 先响，关服画面延后。
     const shutdown = api.playDontTouchMe();
     // 假关服开始后整页交互被拦截：再点保存或点导航栏都不会生效。
@@ -3045,6 +3058,19 @@ Deno.test("DontTouchMe plays one impact per click and only shuts down on the fif
     assertEquals(
       harness.dispatchDocumentEvent("submit").defaultPrevented,
       true,
+    );
+    // 前摇（touch_shout 与 Recoil(2, 5f)）期间关服画面还没出现：警报既不停、
+    // 也不换曲。
+    assertEquals(api.getDangerScore(), 100);
+    assertEquals(
+      alertMusicPauseCount(),
+      pausesBeforeShutdown,
+      "关服画面出现前不应停掉警报音乐",
+    );
+    assertEquals(
+      emergencyPlayCount(),
+      emergencyPlaysBeforeShutdown,
+      "关服画面出现前不应切换警报曲目",
     );
     // ExitStart() 的 Recoil(2, 5f)：1080px 视口的幅度是 1080 × 3/17 ≈ 190.588px，
     // 固定随机数选出左上方向，Unity 的 +y 在 CSS 里取反。
@@ -3068,6 +3094,16 @@ Deno.test("DontTouchMe plays one impact per click and only shuts down on the fif
 
     harness.pendingTimer(dontTouchMeExitDelayMs)!.callback();
 
+    // 关服画面出现就是游戏被关掉的那一刻：警报音乐立即暂停，危急值与当天持久化
+    // 状态一并清空，画面播放与随后的跳转期间都不会再响警报。
+    assert(
+      alertMusicPauseCount() > pausesBeforeShutdown,
+      "关服画面出现后警报音乐必须立即暂停",
+    );
+    assertEquals(api.getDangerScore(), 0);
+    assertEquals(harness.storage.getItem("warmnest.lobotomy-corp-day"), null);
+    const emergencyPlaysAtShutdown = emergencyPlayCount();
+
     const video = harness.createdElements().find((element) =>
       element.className === dontTouchMeVideoClassName
     );
@@ -3080,6 +3116,8 @@ Deno.test("DontTouchMe plays one impact per click and only shuts down on the fif
       1,
     );
     assert(findByClass(harness.body, dontTouchMeOverlayClassName));
+    // 关服画面播放期间保持静音：不再起第二段警报曲目。
+    assertEquals(emergencyPlayCount(), emergencyPlaysAtShutdown);
 
     video.dispatch("ended");
     await shutdown;
