@@ -3410,6 +3410,9 @@ function playLobotomyCorpDontTouchMe() {
 
 // WhiteNight 只通过此窄接口访问通用 Day / Alert 生命周期，避免复制业务状态。
 const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
+  // Simple Advent 的 12 个名字槽位取疫医记录的使徒名单；没有绑定使徒时是空数组，
+  // 转盘里就不会出现任何名字。
+  apostleNames: () => lobotomyCorpPlagueDoctorEvent.apostleNames(),
   assetRoot: lobotomyCorpAssetRoot,
   confessionAliases: () => lobotomyCorpConfessionAliases,
   ensureCoordinator: ensureLobotomyCorpDayCoordinator,

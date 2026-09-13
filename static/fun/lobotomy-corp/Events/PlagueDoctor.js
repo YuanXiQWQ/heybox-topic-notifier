@@ -1491,7 +1491,6 @@ export function playPlagueDoctorAdvent(options) {
         '--lobotomy-corp-advent-focus-alpha',
         elapsed >= entityHandoffStartAt ? '1' : '0',
       );
-      const panOffset = Math.round(clock.panDistance() * (1 - handoffRate));
       const targetX = clock.panTargetX?.() ?? 0;
       const targetY = clock.panTargetY?.() ?? 0;
       layers.focus.style.setProperty(

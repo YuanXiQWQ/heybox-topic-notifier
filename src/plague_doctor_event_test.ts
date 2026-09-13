@@ -10,20 +10,20 @@ import {
   apostleAdventLightClip,
 } from "../static/fun/lobotomy-corp/Events/AdventLight.js";
 import {
-  plagueDoctorBlackShaderLayout,
-  plagueDoctorBlackShaderSize,
-  plagueDoctorAdventWorldClassName,
-  plagueDoctorBetrayerIndex,
-  plagueDoctorClockReferenceSize,
-  plagueDoctorAdventSchedule,
   plagueDoctorAdventEntityVideo,
   plagueDoctorAdventFocusClassName,
   plagueDoctorAdventFocusTimings,
+  plagueDoctorAdventSchedule,
   plagueDoctorAdventTimings,
+  plagueDoctorAdventWorldClassName,
   plagueDoctorApostleCount,
+  plagueDoctorBetrayerIndex,
   plagueDoctorBindingTimings,
+  plagueDoctorBlackShaderLayout,
+  plagueDoctorBlackShaderSize,
   plagueDoctorCenterImageOpacity,
   plagueDoctorClockCenterContent,
+  plagueDoctorClockReferenceSize,
   plagueDoctorCssArrowAngle,
   plagueDoctorDescTopForViewport,
   plagueDoctorRingHole,
@@ -83,9 +83,16 @@ Deno.test("疫医：表盘几何与 AdventClockUI.prefab 完全一致", () => {
   });
   // Circle：ClockCenter 贴图对齐到 ClockFrame 的圆环内孔（尺寸与盘心一致）。
   const sprite = whiteNightSimpleAdventClockCenterSprite;
-  const frameFit = Math.min(819 / plagueDoctorRingHole.textureWidth, 819 /
-    plagueDoctorRingHole.textureHeight);
-  assertClose(geometry.circle.width, plagueDoctorRingHole.width * frameFit, 0.01);
+  const frameFit = Math.min(
+    819 / plagueDoctorRingHole.textureWidth,
+    819 /
+      plagueDoctorRingHole.textureHeight,
+  );
+  assertClose(
+    geometry.circle.width,
+    plagueDoctorRingHole.width * frameFit,
+    0.01,
+  );
   assertClose(
     geometry.circle.height,
     plagueDoctorRingHole.height * frameFit,
@@ -147,8 +154,10 @@ Deno.test("疫医：指针从垂直向上开始顺时针转动", () => {
   );
   // shader 图层按 viewport 铺满，背景不会只覆盖 16:9 逻辑画布。
   assert(
-    css.includes("position: absolute;\n  top: 50%;")
-      || /\.lobotomy-corp-plague-doctor-advent-shader\{[\s\S]*?top: 50%;/u.test(css),
+    css.includes("position: absolute;\n  top: 50%;") ||
+      /\.lobotomy-corp-plague-doctor-advent-shader\{[\s\S]*?top: 50%;/u.test(
+        css,
+      ),
     "shader 图层应铺满 viewport",
   );
   // 盘心贴图要比背景更透明：整体再乘一层不透明度，并接到 CSS 变量上。
@@ -259,10 +268,9 @@ Deno.test("疫医：黑幕渲染尺寸由圆盘尺寸推出", async () => {
     );
     assert(blackShader, "完整降临应挂载黑幕");
     const dialWidth = plagueDoctorStageGeometry.clock.width;
-    const expectedWidth =
-      plagueDoctorBlackShaderSize.width * dialWidth / plagueDoctorClockReferenceSize;
-    const expectedHeight =
-      plagueDoctorBlackShaderSize.height * dialWidth /
+    const expectedWidth = plagueDoctorBlackShaderSize.width * dialWidth /
+      plagueDoctorClockReferenceSize;
+    const expectedHeight = plagueDoctorBlackShaderSize.height * dialWidth /
       plagueDoctorClockReferenceSize;
     // 贴图尺寸只跟圆盘走：空洞与圆盘的比例就是 prefab 的 2112×1188 : 819，跟窗口无关。
     assertEquals(
@@ -282,7 +290,8 @@ Deno.test("疫医：黑幕渲染尺寸由圆盘尺寸推出", async () => {
     // 画布之外那圈由四条延伸带补上（测试宿主 1920×1080、画布缩放 1，上下各一条）。
     const bands = harness.createdElements().filter((element) =>
       !element.removed &&
-      element.className === "lobotomy-corp-plague-doctor-advent-black-shader-band"
+      element.className ===
+        "lobotomy-corp-plague-doctor-advent-black-shader-band"
     );
     assertEquals(bands.length, 4);
     const layout = plagueDoctorBlackShaderLayout({
@@ -594,7 +603,8 @@ Deno.test("疫医：world 层是 viewport-space 固定底面，且不含遮挡�
     ),
   );
   const rule =
-    /\.lobotomy-corp-plague-doctor-advent-world\{[\s\S]*?\n\}/u.exec(css)?.[0] ??
+    /\.lobotomy-corp-plague-doctor-advent-world\{[\s\S]*?\n\}/u.exec(css)
+      ?.[0] ??
       "";
   assert(rule.length > 0, "应有 world 层样式");
   // 不透明：网站内容一律透不出来。
@@ -742,9 +752,7 @@ Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收
     assert(entity, "完整降临应挂载疫医实体视频");
     assertStrictEquals(
       entity!.src,
-      `/static/fun/lobotomy-corp/Assets/Resources/sprites/creaturesprite/deathangel/${
-        plagueDoctorAdventEntityVideo
-      }`,
+      `/static/fun/lobotomy-corp/Assets/Resources/sprites/creaturesprite/deathangel/${plagueDoctorAdventEntityVideo}`,
     );
     // 视频属于世界层：必须排在同级的 Shader 图层之前（也就是整块原作 UI 之下）。
     const addApostle = findByClassName(
@@ -866,14 +874,17 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
 
     const shift = (element: { styleProperties: Map<string, string> }) =>
       Number(
-        /translateX\((-?\d+(?:\.\d+)?)px\)/u.exec(
+        /translate\((-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px\)/u.exec(
           element.styleProperties.get("transform") ?? "",
         )?.[1],
       );
     // 白夜登场（= 镜头交界的起点）：白夜还在画面里，输入框还在画面外等着移进来。
     await advance(harness, clock, focusAt(0));
     assert(shift(entity!) <= 0, `白夜还没开始移动，实际 ${shift(entity!)}`);
-    assert(shift(focus!) > 0, `镜头移动前输入框应在画面外，实际 ${shift(focus!)}`);
+    assert(
+      shift(focus!) > 0,
+      `镜头移动前输入框应在画面外，实际 ${shift(focus!)}`,
+    );
     assertStrictEquals(entity!.hidden, false);
 
     // 镜头移动过半：白夜本体向左平移出画面、输入框从右侧移进来（不是淡出）。
@@ -882,7 +893,8 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
     // 两者朝相反方向同步移动：白夜移出多少，输入框就移进多少，方向由输入框
     // 在页面里的真实位置决定（不写死左右）。
     assert(
-      shift(focus!) !== 0 && Math.sign(shift(focus!)) === -Math.sign(shift(entity!)),
+      shift(focus!) !== 0 &&
+        Math.sign(shift(focus!)) === -Math.sign(shift(entity!)),
       `白夜与输入框应反向移动，实际 ${shift(focus!)} / ${shift(entity!)}`,
     );
 
@@ -1321,7 +1333,9 @@ Deno.test("疫医：中日文名字与台词整段切换系统字体", async () 
     assertEquals(chinese!.dataset.cjk, "1");
     // 没有名字的槽位不该带这个标记。
     assertEquals(
-      names.some((element) => element.textContent === "" && element.dataset.cjk === "1"),
+      names.some((element) =>
+        element.textContent === "" && element.dataset.cjk === "1"
+      ),
       false,
     );
     const desc = findByClassName(
@@ -1454,8 +1468,16 @@ Deno.test("疫医：第 12 名（叛徒）不播放 AdventLight", async () => {
     );
     assert(color, "叛徒的名字仍应变成降临色");
     assertClose(Number(color![1]), whiteNightSimpleAdventColor.red * 255, 0.01);
-    assertClose(Number(color![2]), whiteNightSimpleAdventColor.green * 255, 0.01);
-    assertClose(Number(color![3]), whiteNightSimpleAdventColor.blue * 255, 0.01);
+    assertClose(
+      Number(color![2]),
+      whiteNightSimpleAdventColor.green * 255,
+      0.01,
+    );
+    assertClose(
+      Number(color![3]),
+      whiteNightSimpleAdventColor.blue * 255,
+      0.01,
+    );
   } finally {
     harness.restore();
   }
@@ -1508,7 +1530,9 @@ Deno.test("疫医：第一次满 12 使徒只结算一次 98 且不走 Simple Ad
 });
 
 Deno.test("疫医：同一登录会话内刷新保留使徒，重新登录后清空", async () => {
-  const harness = installLobotomyCorpAlertHarness({ loginSession: "session-a" });
+  const harness = installLobotomyCorpAlertHarness({
+    loginSession: "session-a",
+  });
   try {
     await harness.reload();
     const api = harness.api();
@@ -1534,7 +1558,9 @@ Deno.test("疫医：同一登录会话内刷新保留使徒，重新登录后清
 });
 
 Deno.test("疫医：重新登录后连已转变标记也一并清空", async () => {
-  const harness = installLobotomyCorpAlertHarness({ loginSession: "session-a" });
+  const harness = installLobotomyCorpAlertHarness({
+    loginSession: "session-a",
+  });
   try {
     harness.storage.setItem(
       plagueDoctorStorageKey,
@@ -1572,18 +1598,27 @@ Deno.test("疫医：转盘转动期间拦截页面点击，演出结束后放开
     const api = harness.api();
     const clock = { value: 0 };
     // 演出开始前不拦截。
-    assertStrictEquals(harness.dispatchDocumentEvent("click").defaultPrevented, false);
+    assertStrictEquals(
+      harness.dispatchDocumentEvent("click").defaultPrevented,
+      false,
+    );
     await api.commitDisplayName("O-01-45");
     await api.commitDisplayName("使徒甲");
     // 绑定演出进行中：点击被吞掉。
-    assertStrictEquals(harness.dispatchDocumentEvent("click").defaultPrevented, true);
+    assertStrictEquals(
+      harness.dispatchDocumentEvent("click").defaultPrevented,
+      true,
+    );
     assertStrictEquals(
       harness.dispatchDocumentEvent("pointerdown").defaultPrevented,
       true,
     );
     await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
     // 演出结束后恢复。
-    assertStrictEquals(harness.dispatchDocumentEvent("click").defaultPrevented, false);
+    assertStrictEquals(
+      harness.dispatchDocumentEvent("click").defaultPrevented,
+      false,
+    );
   } finally {
     harness.restore();
   }
