@@ -958,6 +958,64 @@ Deno.test("疫医：已经转变过的会话再次提交 O-01-45 直接进入白
   }
 });
 
+/**
+ * 中日文的使徒名字与台词要整段换系统 CJK 字体。
+ *
+ * 原版名字槽位是 BMDOHYEON、台词槽位是 NanumMyeongjo，都是韩文字体：实测 12 条中文台词
+ * 用到的 142 个汉字里 BMDOHYEON 缺 32 个、NanumMyeongjo 一个都没有。原作一个 Legacy Text
+ * 只用一支字体，所以这里也是整段切换（`data-cjk="1"`），而不是让浏览器逐字回退。
+ */
+Deno.test("疫医：中日文名字与台词整段切换系统字体", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    harness.storage.setItem(
+      plagueDoctorStorageKey,
+      JSON.stringify({
+        apostles: ["使徒一号"],
+        recording: true,
+        transformed: false,
+      }),
+    );
+    await harness.reload();
+    const api = harness.api();
+    const clock = { value: 0 };
+    await api.commitDisplayName("O-01-45");
+    await advance(harness, clock, 16);
+    // 走到第一名使徒的台词（ExecuteNextAdventTarget → SetAdventDesc）。
+    await advance(
+      harness,
+      clock,
+      plagueDoctorAdventTimings.cameraMoveMs +
+        plagueDoctorAdventTimings.plagueDoctorAdventMs +
+        16,
+    );
+    const names = harness.createdElements().filter((element) =>
+      element.className === "lobotomy-corp-plague-doctor-advent-name"
+    );
+    assert(names.length > 0, "完整降临应有名字槽位");
+    const chinese = names.find((element) => element.textContent === "使徒一号");
+    assert(chinese, "应能找到中文名字槽位");
+    assertEquals(chinese!.dataset.cjk, "1");
+    // 没有名字的槽位不该带这个标记。
+    assertEquals(
+      names.some((element) => element.textContent === "" && element.dataset.cjk === "1"),
+      false,
+    );
+    const desc = findByClassName(
+      harness,
+      "lobotomy-corp-plague-doctor-advent-desc",
+    );
+    assert(desc, "完整降临应有台词槽位");
+    assert(
+      /[\u4e00-\u9fff]/u.test(desc!.textContent),
+      `台词应为中文，实际：${desc!.textContent}`,
+    );
+    assertEquals(desc!.dataset.cjk, "1");
+  } finally {
+    harness.restore();
+  }
+});
+
 Deno.test("疫医：完整降临逐名员工播放原始 AdventLight", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {

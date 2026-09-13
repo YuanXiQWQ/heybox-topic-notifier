@@ -21,6 +21,7 @@
 // @ts-check
 
 import {
+  adventTextNeedsCjkFont,
   fitWhiteNightSimpleAdventName,
   whiteNightSimpleAdventClockCenterSprite,
   whiteNightSimpleAdventColor,
@@ -796,6 +797,8 @@ function createPlagueDoctorClock(options) {
     name.dataset.index = String(slot.index);
     name.dataset.minimumFontSize = String(slot.minSize);
     name.textContent = typeof supplied === 'string' ? supplied : '';
+    // 中日文名字整段换系统字体（原版这两支韩文字体缺字形，且一个 Text 只用一支字体）。
+    name.dataset.cjk = adventTextNeedsCjkFont(supplied) ? '1' : '';
     name.style.setProperty(
       '--lobotomy-corp-advent-name-x',
       `${slot.anchoredPosition.x}px`,
@@ -935,6 +938,8 @@ function createPlagueDoctorClock(options) {
      */
     setDesc: (text) => {
       layers.desc.textContent = text;
+      // 台词槽位是 NanumMyeongjo（韩文衬线，实测一个汉字都没有），中日文整段换系统衬线字体。
+      layers.desc.dataset.cjk = adventTextNeedsCjkFont(text) ? '1' : '';
       for (
         let size = plagueDoctorDescText.maxSize;
         size >= plagueDoctorDescText.minSize;

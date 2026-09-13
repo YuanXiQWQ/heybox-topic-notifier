@@ -214,7 +214,9 @@
   align-items: center;
   color: var(--lobotomy-corp-advent-name-color);
   display: flex;
-  font-family: LobotomyAdventNames, "Malgun Gothic", sans-serif;
+  /* 原版名字用 BMDOHYEON（韩文，中日文字形不全），后面按游戏的语言字体表思路补系统字体。 */
+  font-family: LobotomyAdventNames, "Malgun Gothic", "Microsoft YaHei",
+    "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
   font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
   font-weight: normal;
   height: 48px;
@@ -238,6 +240,20 @@
   white-space: normal;
   width: 114px;
   opacity: var(--lobotomy-corp-advent-name-alpha);
+}
+
+/*
+ * 出现中日文的使徒名字：整段改用系统 CJK 字体。
+ *
+ * 原版 BMDOHYEON 是韩文字体，中日文字形不全（12 条中文台词用到的 142 个汉字里它缺 32 个），
+ * 而原作一个 Legacy Text 只用一支字体；这里同样整段切换，避免一个名字里两种字体混排。
+ * 字体名按系统常见顺序列出，与游戏用 OS 字体补语言字体的做法一致。
+ */
+.lobotomy-corp-white-night-simple-advent-name[data-cjk="1"],
+.lobotomy-corp-plague-doctor-advent-name[data-cjk="1"]{
+  font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei",
+    LobotomyAdventNames, sans-serif;
 }
 
 /* Shader 是 Clock 的后续 sibling；Circle/ClockCenter、BlackShader、Point/Arrow 都被 Simple 模式关闭。 */
@@ -407,7 +423,8 @@
   align-items: center;
   color: var(--lobotomy-corp-advent-name-color);
   display: flex;
-  font-family: LobotomyAdventNames, "Malgun Gothic", sans-serif;
+  font-family: LobotomyAdventNames, "Malgun Gothic", "Microsoft YaHei",
+    "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
   font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
   font-weight: normal;
   height: 48px;
@@ -439,7 +456,9 @@
   align-items: center;
   color: rgb(255 255 255);
   display: flex;
-  font-family: LobotomyAdventDesc, "Nanum Myeongjo", serif;
+  /* 台词槽位是 NanumMyeongjo（韩文衬线，没有汉字字形），补系统衬线中文字体。 */
+  font-family: LobotomyAdventDesc, "Nanum Myeongjo", "SimSun", "Songti SC",
+    "Noto Serif CJK SC", "Source Han Serif SC", serif;
   font-size: var(--lobotomy-corp-advent-desc-font-size);
   justify-content: center;
   line-height: 1.2;
@@ -449,6 +468,17 @@
   position: absolute;
   text-align: center;
   white-space: pre-line;
+}
+
+/*
+ * 中日文台词：整段改用系统衬线 CJK 字体。
+ *
+ * NanumMyeongjo 是韩文衬线体，实测 12 条中文台词里的 142 个汉字**一个字形都没有**，
+ * 所以中文台词本来就只能靠系统字体；这里显式指定衬线中文字体，保持原槽位的衬线观感。
+ */
+.lobotomy-corp-plague-doctor-advent-desc[data-cjk="1"]{
+  font-family: "SimSun", "Songti SC", "Noto Serif CJK SC",
+    "Source Han Serif SC", "Microsoft YaHei", LobotomyAdventDesc, serif;
 }
 
 /* BlackShader 与 Circle 属于 `_adventDisabled` 一侧：绑定阶段显示 Circle，降临显示黑幕。 */
