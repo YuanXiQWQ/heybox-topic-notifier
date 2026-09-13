@@ -2,8 +2,6 @@
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
 import { type Context, Hono } from "@hono/hono";
-// @ts-types="npm:@types/qrcode@^1.5.5"
-import QRCode from "qrcode";
 import {
   hashPassword,
   normalizeDisplayName,
@@ -398,12 +396,9 @@ export function createRoutes(context: AppContext): Hono {
           periodSeconds: context.config.totp.periodSeconds,
           secretBase32: material.secretBase32,
         });
+        const { totpQrCodeDataUrl } = await import("./auth/totp_qr.ts");
         totpSetup = {
-          qrCodeDataUrl: await QRCode.toDataURL(otpAuthUri, {
-            errorCorrectionLevel: "M",
-            margin: 2,
-            width: 240,
-          }),
+          qrCodeDataUrl: await totpQrCodeDataUrl(otpAuthUri),
           secretBase32: material.secretBase32,
           secretEncrypted: material.secretEncrypted,
         };
