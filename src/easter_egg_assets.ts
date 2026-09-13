@@ -265,8 +265,11 @@ async function easterEggAssetResponse(
     const partialContent = range
       ? content.slice(range.start, range.end + 1)
       : content;
+    // 代码与文案必须随发布立即生效；媒体资源仍按天缓存。
     const headers: Record<string, string> = {
-      "cache-control": "public, max-age=86400",
+      "cache-control": /\.(?:js|json)$/u.test(assetPath)
+        ? "no-store"
+        : "public, max-age=86400",
       "content-length": String(partialContent.byteLength),
       "content-type": contentType,
     };
@@ -390,7 +393,7 @@ function isAceAttorneyAssetPath(assetPath: string): boolean {
 function isLobotomyCorpAssetPath(assetPath: string): boolean {
   return /^Assets\/.+\.(?:mp3|ogg|otf|png|ttf|wav|webm)$/u.test(assetPath) ||
     assetPath === "Data/Abnormalities.json" ||
-    /^(?:Events\/(?:CanvasScaler|DangerScore|DontTouchMe|WhiteNight|WhiteNightAdvent))\.js$/u
+    /^(?:Events\/(?:AdventLight|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|WhiteNight|WhiteNightAdvent))\.js$/u
       .test(assetPath) ||
     /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u
       .test(

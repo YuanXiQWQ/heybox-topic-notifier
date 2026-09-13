@@ -27,6 +27,10 @@ import {
   dontTouchMeKillEffect,
   dontTouchMePanicEffect,
 } from './Events/DontTouchMe.js';
+import {
+  createPlagueDoctorEvent,
+  plagueDoctorAbnormalityId,
+} from './Events/PlagueDoctor.js';
 
 /**
  * 白夜被镇压后，后台 Trumpet 从 ducked 音量恢复到正常音量所需时长（毫秒）。
@@ -856,6 +860,8 @@ function ensureLobotomyCorpDayCoordinator() {
  */
 function finishLobotomyCorpDayFromCoordinator() {
   lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
+  // 被其它彩蛋中断时也要收掉疫医的进行中演出（含完整降临的宿主隔离层与滚动锁）。
+  lobotomyCorpPlagueDoctorEvent?.reset();
   clearLobotomyCorpDay();
   activeLobotomyCorpAlert?.finish();
 }
@@ -1255,6 +1261,7 @@ function stopLobotomyCorpAlert() {
  */
 function restartLobotomyCorpDay() {
   lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
+  lobotomyCorpPlagueDoctorEvent?.reset();
   return stopLobotomyCorpAlert();
 }
 
@@ -1423,6 +1430,67 @@ function syncLobotomyCorpAbnormalityIdentity(displayName) {
 }
 
 /**
+ * 用后台请求把账户的显示名称保存为新的值。
+ *
+ * 复用设置页账户表单的字段与 CSRF 令牌，但不触发整页导航，避免打断正在进行的
+ * 脑叶公司演出。环境缺少表单或 `fetch` 时安全返回 false。
+ *
+ * @param {string} value 要保存的显示名称。
+ * @return {Promise<boolean>} 服务端确认保存成功时返回 true。
+ */
+async function saveLobotomyCorpDisplayNameInBackground(value) {
+  const document = globalThis.document;
+  const form = document?.querySelector?.('[data-account-form]');
+  if (
+    typeof value !== 'string' || value.length === 0 || !form ||
+    typeof globalThis.fetch !== 'function' ||
+    typeof globalThis.FormData !== 'function'
+  ) {
+    return false;
+  }
+  try {
+    const body = new FormData(form);
+    body.set('accountAction', 'displayName');
+    body.set('displayName', value);
+    const token = form.querySelector?.('[name="csrfToken"]')?.value;
+    const response = await fetch(
+        form.getAttribute?.('action') ?? form.action ?? '',
+        {
+          body,
+          headers: {'x-csrf-token': String(token ?? '')},
+          method: form.method || 'post',
+        },
+    );
+    const responseUrl = new URL(
+        response.url,
+        globalThis.location?.href ?? 'http://localhost/',
+    );
+    return response.ok && responseUrl.searchParams.get('account') === 'updated';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 把显示名称改写为新的值并同步可见的身份表现。
+ *
+ * 疫医转变白夜时按原作把显示名称变成 `T-03-46`：先更新输入框与“显示名称”
+ * 标签，再请求服务端保存。
+ *
+ * @param {string} value 要写入的显示名称。
+ */
+function applyLobotomyCorpDisplayName(value) {
+  const document = globalThis.document;
+  const input = document?.querySelector?.('[data-account-display-name-input]');
+  if (input) {
+    input.value = value;
+    if (input.dataset) input.dataset.accountDisplayNameOriginal = value;
+  }
+  syncLobotomyCorpAbnormalityIdentity(value);
+  void saveLobotomyCorpDisplayNameInBackground(value);
+}
+
+/**
  * 通知所有观察者一次已确认的 canonical 异想体提交。
  *
  * @param {string} canonicalId 异想体 canonical 编号。
@@ -1578,6 +1646,14 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
  */
 function commitLobotomyCorpDisplayName(value, preparedMedia) {
   syncLobotomyCorpAbnormalityIdentity(value);
+  // 疫医转变事件接管显示名称提交：记录期间只绑定使徒，已转变后直接进白夜，
+  // 两条路径都不产生普通异想体危急值，也不激活其它特殊事件。
+  // 白夜进行期间也要询问一次：那时只有再次提交疫医编号会被它接管（白夜已经在场
+  // 就不会重复启动），其余名称照常交给白夜 Confess 与普通异想体路径。
+  if (lobotomyCorpPlagueDoctorEvent?.claim(value)) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
   if (
       lobotomyCorpWhiteNightEvent?.isActive() &&
       lobotomyCorpWhiteNightEvent.matchesConfession(value)
@@ -3271,8 +3347,8 @@ function applyLobotomyCorpDontTouchMeEscapeDanger() {
 /**
  * 把“别碰我”的假关服当作游戏崩溃收尾。
  *
- * 页面跳到 404 时游戏已经“关服”，危急值、警报与持久化的 Day 状态都应随之消失，
- * 否则 404 页面会接着播放未播完的警报音乐。
+ * 游戏一退出就不该再有警报：危急值、警报与持久化的 Day 状态在关服画面出现时立刻消失，
+ * 画面播放期间不会继续响警报，随后的 404 页面也无从恢复警报音乐。
  */
 function crashLobotomyCorpDanger() {
   void stopLobotomyCorpAlert();
@@ -3282,8 +3358,8 @@ function crashLobotomyCorpDanger() {
 /**
  * “别碰我”假关服演出。
  *
- * 前 4 次点击只结算各自的危急值；第 5 次点击的假关服在跳转前把危急值与警报一并
- * 当作游戏崩溃收尾。保存一开始就被拦截，用户返回设置页时显示名称仍是修改前的值。
+ * 前 4 次点击只结算各自的危急值；第 5 次点击的假关服在关服画面出现时把危急值与警报
+ * 一并当作游戏崩溃收尾。保存一开始就被拦截，用户返回设置页时显示名称仍是修改前的值。
  */
 const lobotomyCorpDontTouchMeShutdown = createDontTouchMeShutdown({
   assetRoot: lobotomyCorpAssetRoot,
@@ -3309,6 +3385,8 @@ const lobotomyCorpDontTouchMeShutdown = createDontTouchMeShutdown({
  */
 function lobotomyCorpBlocksDisplayNameSave(value) {
   if (lobotomyCorpWhiteNightEvent.isActive()) return false;
+  // 疫医记录期间不再压制别的异想体：别碰我拿到的编号照常由它自己接管保存，
+  // 否则它的彩蛋会被疫医的记录吞掉。
   return matchingLobotomyCorpAbnormality(value)?.canonicalId ===
       lobotomyCorpDontTouchMeId;
 }
@@ -3331,6 +3409,9 @@ function playLobotomyCorpDontTouchMe() {
 
 // WhiteNight 只通过此窄接口访问通用 Day / Alert 生命周期，避免复制业务状态。
 const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
+  // Simple Advent 的 12 个名字槽位取疫医记录的使徒名单；没有绑定使徒时是空数组，
+  // 转盘里就不会出现任何名字。
+  apostleNames: () => lobotomyCorpPlagueDoctorEvent.apostleNames(),
   assetRoot: lobotomyCorpAssetRoot,
   confessionAliases: () => lobotomyCorpConfessionAliases,
   ensureCoordinator: ensureLobotomyCorpDayCoordinator,
@@ -3360,6 +3441,34 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   storages: lobotomyCorpAlertStorages,
 });
 
+// 疫医转变事件：会话内记录 12 名使徒，第 12 名后播放完整降临并转入白夜。
+const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
+  // 记录期间提交异想体编号（或其别名）时，疫医不接管这次保存：编号交给该异想体
+  // 自己的彩蛋，只有其它文本才绑定成使徒。
+  submittedAbnormalityId: (value) =>
+    matchingLobotomyCorpAbnormality(value)?.canonicalId,
+  applyDisplayName: applyLobotomyCorpDisplayName,
+  assetRoot: lobotomyCorpAssetRoot,
+  loginSession: lobotomyCorpLoginSession,
+  messages: () => lobotomyCorpMessages,
+  onTransformation: (/** @type {any} */ info) => {
+    lobotomyCorpWhiteNightEvent?.start({
+      // 首次转变由疫医的完整降临顶替入场演出；已经转变过时没有再演一遍完整降临，
+      // 白夜要按 normal 入口补上 Simple Advent（转盘 + 逐名使徒的台词）。
+      source: info?.firstTime === false
+        ? 'plague-doctor-transformation-replay'
+        : 'plague-doctor-transformation',
+    });
+  },
+  settleDanger: (amount) => {
+    void setLobotomyCorpDangerScore(
+        clampDangerScore(lobotomyCorpDangerScore + amount),
+        undefined,
+        {positiveContribution: true},
+    );
+  },
+});
+
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
   blocksDisplayNameSave: lobotomyCorpBlocksDisplayNameSave,
@@ -3377,13 +3486,17 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
       matchesLobotomyCorpAlert(value) ||
       Boolean(matchingLobotomyCorpAbnormality(value)) ||
       (lobotomyCorpWhiteNightEvent.isActive() &&
-          lobotomyCorpWhiteNightEvent.matchesConfession(value)),
+          lobotomyCorpWhiteNightEvent.matchesConfession(value)) ||
+      lobotomyCorpPlagueDoctorEvent.isRecording(),
   matchingAbnormality: matchingLobotomyCorpAbnormality,
   onAbnormalitySubmitted: (listener) => {
     lobotomyCorpAbnormalitySubmissionListeners.add(listener);
     return () => lobotomyCorpAbnormalitySubmissionListeners.delete(listener);
   },
   playDontTouchMe: playLobotomyCorpDontTouchMe,
+  plagueDoctorApostles: () => lobotomyCorpPlagueDoctorEvent.apostleNames(),
+  plagueDoctorAbnormalityId,
+  plagueDoctorRecording: () => lobotomyCorpPlagueDoctorEvent.isRecording(),
   prepareDisplayName: prepareLobotomyCorpDisplayName,
   restartDay: restartLobotomyCorpDay,
   setDangerScore: setLobotomyCorpDangerScore,
@@ -3462,6 +3575,27 @@ function persistedLobotomyCorpDisplayName() {
   return globalThis.document?.querySelector?.(
       '[data-account-display-name-input]',
   )?.dataset?.accountDisplayNameOriginal;
+}
+
+/**
+ * 读取服务端渲染的登录会话标识。
+ *
+ * 每次登录都会写入新的值，因此彩蛋可以据此判断用户是否重新登录（例如清空已绑定的
+ * 疫医使徒）。页面未注入该字段时返回 undefined，此时保持既有状态不变。
+ *
+ * @return {string|undefined} 当前登录会话标识。
+ */
+function lobotomyCorpLoginSession() {
+  const serialized = lobotomyCorpEmbeddedText(
+      'lobotomy-corp-account-identity-data',
+  );
+  if (!serialized) return undefined;
+  try {
+    const loginSession = JSON.parse(serialized)?.loginSession;
+    return typeof loginSession === 'string' ? loginSession : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const persistedDisplayName = persistedLobotomyCorpDisplayName();

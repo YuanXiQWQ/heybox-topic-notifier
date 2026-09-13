@@ -174,6 +174,8 @@ export function renderSettings(options: {
   googleBindingStatus?: GoogleBindingStatus;
   googleClientId?: string;
   googleIdentity?: AuthIdentity;
+  /** 当前登录会话标识；彩蛋据此判断是否重新登录。 */
+  loginSession?: string;
   passkeyBindingStatus?: PasskeyBindingStatus;
   passkeyCredentials?: PasskeyCredential[];
   reauthPasswordAvailable?: boolean;
@@ -283,6 +285,7 @@ export function renderSettings(options: {
     body,
     csrfToken: options.csrfToken,
     darkMode: options.settings.darkMode,
+    loginSession: options.loginSession,
     locale: options.settings.locale,
     stylesheets: [
       "/static/fun/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",

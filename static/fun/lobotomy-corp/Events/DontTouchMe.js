@@ -344,7 +344,7 @@ function playDontTouchMePanic(assetRoot) {
  *
  * 覆盖层不接收指针事件，因此演出期间用户仍可继续点击保存按钮。
  *
- * @param {{assetRoot: string, blockPageInteraction?: boolean, delayMs?: number, extraClassName: string, leadingSoundPath?: string, navigateTo?: string, onExit?: () => void, recoil?: {level: number, maxTime: number}, soundPaths: readonly string[], videoPath: string}} options 序列参数。
+ * @param {{assetRoot: string, blockPageInteraction?: boolean, delayMs?: number, extraClassName: string, leadingSoundPath?: string, navigateTo?: string, onExit?: () => void, recoil?: {level: number, maxTime: number}, soundPaths: readonly string[], videoPath: string}} options 序列参数；带 `navigateTo` 时表示假关服，`onExit` 在关服画面出现时调用。
  * @return {{promise: Promise<void>, stop: () => void}} 演出 Promise 与立即清理操作。
  */
 function playDontTouchMeSequence(options) {
@@ -369,8 +369,22 @@ function playDontTouchMeSequence(options) {
   /** @type {(() => void)|undefined} 镜头后坐的停止操作。 */
   let stopRecoil;
   let settled = false;
+  /** 本次退出是否已经通知宿主收尾；假关服只收尾一次。 */
+  let exitNotified = false;
   /** @type {(value?: unknown) => void} */
   let resolvePlayback = () => {};
+
+  /**
+   * 通知宿主「游戏已退出」。
+   *
+   * 假关服是游戏崩溃：警报要在关服画面出现时结束，不能等到跳转前才收尾，
+   * 否则画面播放期间音乐仍在响。
+   */
+  function notifyExit() {
+    if (exitNotified) return;
+    exitNotified = true;
+    options.onExit?.();
+  }
 
   const dispose = () => {
     if (delayTimer !== undefined) globalThis.clearTimeout?.(delayTimer);
@@ -408,8 +422,8 @@ function playDontTouchMeSequence(options) {
     resolvePlayback();
     // 保存从未发生，用户返回设置页时显示名称仍是修改前的值。
     if (options.navigateTo) {
-      // 跳转前先让宿主收尾：网页把这次退出当作游戏崩溃，清空危急值并结束警报。
-      options.onExit?.();
+      // 跳转前再确认一次宿主已收尾（正常路径在前面已经开始收尾了）。
+      notifyExit();
       globalThis.location?.assign?.(options.navigateTo);
     }
   }
@@ -451,6 +465,11 @@ function playDontTouchMeSequence(options) {
     video.setAttribute('aria-hidden', 'true');
     overlay.append(video);
     body.append(overlay);
+    if (options.navigateTo) {
+      // 关服画面就是游戏被关掉的那一刻：警报与危急值从这里收尾，画面播放与随后的
+      // 跳转期间都不会再响警报；在此之前的前摇仍照常伴随警报。
+      notifyExit();
+    }
     // 原作从候选音效里随机挑一条（例如 dead1 / dead2），这里保持同样的语义。
     const soundPath = options.soundPaths[
       Math.floor(Math.random() * options.soundPaths.length)
@@ -511,7 +530,7 @@ function playDontTouchMeSequence(options) {
 /**
  * 创建“别碰我”点击演出控制器。
  *
- * @param {{assetRoot: string, onEffectPicked?: (effectId: string) => void, onExit?: () => void}} shared 彩蛋共享资源根路径、点击副作用回调与假关服跳转前的收尾回调。
+ * @param {{assetRoot: string, onEffectPicked?: (effectId: string) => void, onExit?: () => void}} shared 彩蛋共享资源根路径、点击副作用回调与关服画面出现时的收尾回调。
  * @return {{isActive: () => boolean, play: () => Promise<void>, stop: () => void}} 演出控制器。
  */
 export function createDontTouchMeShutdown(shared) {

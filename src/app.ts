@@ -139,7 +139,12 @@ export function createApplication() {
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(
-        renderNotFound({ account, csrfToken: csrf.token, settings }),
+        renderNotFound({
+          account,
+          csrfToken: csrf.token,
+          loginSession: session?.createdAt,
+          settings,
+        }),
         404,
       ),
       csrf,

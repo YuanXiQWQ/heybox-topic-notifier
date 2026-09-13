@@ -43,6 +43,8 @@ export class Element {
   disabled = false;
   hidden = false;
   id = "";
+  /** `<html lang>` 等语言标记。 */
+  lang = "";
   offsetWidth = 1;
   parentElement: Element | undefined = undefined;
   removed = false;
@@ -306,6 +308,7 @@ export class AudioMock extends Element {
 export function installLobotomyCorpAlertHarness(
   options: {
     alertOverlays?: Element[];
+    loginSession?: string;
     navigationType?: "navigate" | "reload";
     now?: number;
     pollingIntervalValue?: string;
@@ -324,6 +327,7 @@ export function installLobotomyCorpAlertHarness(
     sessionStorage?: unknown;
     lobotomyCorpEasterEgg?: {
       activate: (name: string) => Promise<boolean>;
+      blocksDisplayNameSave: (name: string) => boolean;
       commitDisplayName: (name: string) => Promise<boolean>;
       getDangerMusicHighWaterLevel: () => number;
       getDangerScore: () => number;
@@ -334,6 +338,8 @@ export function installLobotomyCorpAlertHarness(
       matchingAbnormality: (
         name: string,
       ) => { canonicalId: string } | undefined;
+      plagueDoctorApostles: () => string[];
+      plagueDoctorRecording: () => boolean;
       prepareDisplayName: (name: string) => {
         commit: () => Promise<boolean>;
         dispose: () => void;
@@ -359,11 +365,16 @@ export function installLobotomyCorpAlertHarness(
   );
   const originalDateNow = Date.now;
   const body = new Element();
+  /** 页面滚动位置与滚动调用记录（用于断言演出不主动改滚动）。 */
+  const documentElement = new Element();
+  documentElement.lang = "zh-CN";
+  const scrollState = { calls: [] as string[], x: 0, y: 0 };
   const assignedLocations: string[] = [];
   const storage = new StorageMock();
   const documentListeners = new Map<string, ((event: Event) => void)[]>();
   const createdElements: Element[] = [];
   let navigationType = options.navigationType ?? "navigate";
+  let loginSession = options.loginSession;
   let now = options.now ?? 0;
   let nextTimerId = 0;
   const timers = new Map<
@@ -400,12 +411,21 @@ export function installLobotomyCorpAlertHarness(
           createdElements.push(element);
           return element;
         },
-        documentElement: { lang: "zh-CN" },
+        // `<html>` 既是全局 `:root { overflow-y: scroll }` 的滚动容器，
+        // 也承载演出期间的 scroll lock，因此需要可读写的 inline style。
+        documentElement,
         getElementById: (id: string) =>
           id === "lobotomy-corp-locale-data"
             ? { textContent: localeData }
             : id === "lobotomy-corp-abnormalities-data"
             ? { textContent: abnormalitiesData }
+            : id === "lobotomy-corp-account-identity-data"
+            ? {
+              textContent: JSON.stringify({
+                displayName: "Tester",
+                ...(loginSession ? { loginSession } : {}),
+              }),
+            }
             : null,
         querySelector: (selector: string) =>
           selector === "[data-polling-interval-value]" &&
@@ -443,6 +463,31 @@ export function installLobotomyCorpAlertHarness(
       configurable: true,
       value: { getEntriesByType: () => [{ type: navigationType }] },
     },
+    // 页面滚动替身：记录 scrollTo/scrollBy，供测试断言演出不主动改滚动位置。
+    scrollBy: {
+      configurable: true,
+      value: (x: number, y: number) => {
+        scrollState.calls.push(`scrollBy(${x},${y})`);
+        scrollState.x += x;
+        scrollState.y += y;
+      },
+    },
+    scrollTo: {
+      configurable: true,
+      value: (x: number, y: number) => {
+        scrollState.calls.push(`scrollTo(${x},${y})`);
+        scrollState.x = x;
+        scrollState.y = y;
+      },
+    },
+    scrollX: {
+      configurable: true,
+      get: () => scrollState.x,
+    },
+    scrollY: {
+      configurable: true,
+      get: () => scrollState.y,
+    },
     sessionStorage: { configurable: true, value: storage },
     setTimeout: {
       configurable: true,
@@ -473,6 +518,7 @@ export function installLobotomyCorpAlertHarness(
   return {
     AudioMock,
     body,
+    documentElement,
     storage,
     timers,
     /** @return {object} 当前已加载的彩蛋 API。 */ api: () =>
@@ -488,6 +534,10 @@ export function installLobotomyCorpAlertHarness(
       (value: "navigate" | "reload") => {
         navigationType = value;
       },
+    /** @param {string|undefined} value 当前登录会话标识；变化即模拟重新登录。 */
+    setLoginSession: (value: string | undefined) => {
+      loginSession = value;
+    },
     /** @param {number} delay 计时器延迟。 @return {object|undefined} 仍未取消的计时器。 */ pendingTimer:
       (delay: number) =>
         [...timers.values()].find((timer) =>
@@ -534,6 +584,14 @@ export function installLobotomyCorpAlertHarness(
         ),
     /** @return {Element[]} 本次测试中按创建顺序记录的全部 DOM 节点。 */
     createdElements: () => createdElements,
+    /** @param {number} x 横坐标。 @param {number} y 纵坐标。 */
+    setScrollPosition: (x: number, y: number) => {
+      scrollState.x = x;
+      scrollState.y = y;
+      scrollState.calls.length = 0;
+    },
+    /** @return {{calls: string[], x: number, y: number}} 滚动调用记录与当前位置。 */
+    scrollState: () => scrollState,
     /** @return {string[]} location.assign 收到的地址。 */
     assignedLocations: () => [...assignedLocations],
     /** @return {Element|undefined} 最近一次挂载且仍可见的 Alert overlay。 */

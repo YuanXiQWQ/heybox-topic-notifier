@@ -67,6 +67,76 @@ Deno.test({
 
 Deno.test({
   name:
+    "Plague Doctor module and its tick sound are served to the browser",
+  permissions: { read: true },
+  fn: async () => {
+    const moduleResponse = await lobotomyCorpAssetResponse(
+      "Events/PlagueDoctor.js",
+    );
+    assertEquals(moduleResponse.status, 200);
+    assertEquals(
+      moduleResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assertEquals(
+      (await moduleResponse.text()).includes("createPlagueDoctorEvent"),
+      true,
+    );
+    // 绑定阶段：滴答；完整降临：开场钟声、每名使徒的钟声 + 合唱 + 低语。
+    for (
+      const sound of [
+        "Lucifer_Tick1.ogg",
+        "Lucifer_Bell0.ogg",
+        "Choir1.ogg",
+        "Lucifer_Apostle_Whisper0.ogg",
+        "Lucifer_Apostle_Whisper1.ogg",
+        "Lucifer_Apostle_Whisper2.ogg",
+        "Lucifer_Advent1.ogg",
+      ]
+    ) {
+      const soundResponse = await lobotomyCorpAssetResponse(
+        `Assets/Resources/sounds/creature/deathangel/${sound}`,
+      );
+      assertEquals(soundResponse.status, 200, `${sound} 应可下载`);
+      assertEquals(
+        soundResponse.headers.get("content-type"),
+        "audio/ogg",
+        `${sound} 应以 audio/ogg 下发`,
+      );
+    }
+  },
+});
+
+Deno.test({
+  name:
+    "AdventLight module and its original Copy sprite are served to the browser",
+  permissions: { read: true },
+  fn: async () => {
+    const moduleResponse = await lobotomyCorpAssetResponse(
+      "Events/AdventLight.js",
+    );
+    assertEquals(moduleResponse.status, 200);
+    assertEquals(
+      moduleResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assert((await moduleResponse.text()).includes("createDeathAngelAdventLight"));
+
+    const spriteResponse = await lobotomyCorpAssetResponse(
+      "Assets/Resources/texture/particle/Copy.png",
+    );
+    assertEquals(spriteResponse.status, 200);
+    assertEquals(spriteResponse.headers.get("content-type"), "image/png");
+    // PNG 头：89 50 4E 47。
+    assertEquals(
+      Array.from(new Uint8Array(await spriteResponse.arrayBuffer()).slice(0, 4)),
+      [0x89, 0x50, 0x4e, 0x47],
+    );
+  },
+});
+
+Deno.test({
+  name:
     "Lobotomy Corporation OGG assets support normal and byte-range responses",
   permissions: { read: true },
   fn: async () => {
