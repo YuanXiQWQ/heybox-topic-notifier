@@ -800,12 +800,12 @@ Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收
  * 原作里 `OnPlagueDoctorAdventEnd()` 一边关疫医一边开白夜，紧接着
  * `ExecuteNextAdventTarget()` 就把镜头移向本次转变的员工（`_advent_cameraMove`）。
  * 网页没有员工，于是聚焦网页自己的显示名称输入框，并在每名使徒的钟声那一刻把它
- * 里面的文字换成这名使徒的名字（那次保存的是异想体时改用编号），并做一次淡入淡出。
+ * 里面的文字换成这名使徒记录里的名字，并做一次淡入淡出。
  */
 Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    // 前 11 名是普通名字，第 12 名提交异想体编号（记录里会存它的本地化名）。
+    // 已绑定 11 名，第 12 名绑定完就进入完整降临。
     harness.storage.setItem(
       plagueDoctorStorageKey,
       JSON.stringify({
@@ -829,9 +829,9 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
-    await api.commitDisplayName("O-01-45");
-    // 第 12 名绑定的仍然是本地化名。
-    assertEquals(api.plagueDoctorApostles().at(-1), "疫医");
+    await api.commitDisplayName("丑");
+    // 记录里存的就是输入原文。
+    assertEquals(api.plagueDoctorApostles().at(-1), "丑");
     // 先走完整 12 名的绑定演出（Name Effect），之后才进入完整降临。
     await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
     await advance(harness, clock, 16);
@@ -923,14 +923,14 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
     );
     assertClose(textAlpha(), 1, 0.01);
 
-    // 第 12 名是异想体，输入框里显示它的编号而不是本地化名。
+    // 第 12 名是普通名字，输入框原样显示记录里的文字。
     await advance(harness, clock, focusAt(11) - focusAt(1));
     await advance(
       harness,
       clock,
       plagueDoctorAdventFocusTimings.textFadeOutMs + 32,
     );
-    assertStrictEquals(focusInput!.value, "O-01-45");
+    assertStrictEquals(focusInput!.value, "丑");
   } finally {
     harness.restore();
   }
@@ -1043,19 +1043,46 @@ Deno.test("疫医：第一次保存 O-01-45 只开始记录，不计为使徒", 
   }
 });
 
-Deno.test("疫医：记录期间每次保存绑定一名使徒，识别到异想体时写异想体名", async () => {
+/**
+ * 记录期间只有非异想体输入才计入使徒，使徒名就是输入原文。
+ *
+ * 异想体编号（及其别名）归各自的异想体彩蛋：它们既不计入使徒，也不播绑定动画，
+ * 否则该异想体的彩蛋会和疫医彩蛋抢同一次保存。
+ */
+Deno.test("疫医：记录期间异想体编号不计入使徒，其余输入按原文绑定", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
+    // 第一次提交疫医编号只是开始记录，之后一次次提交也不再计入使徒。
     await api.commitDisplayName("O-01-45");
     await api.commitDisplayName("O-01-45");
     await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
-    assertEquals(api.plagueDoctorApostles(), ["疫医"]);
+    assertEquals(api.plagueDoctorApostles(), []);
+    // 绑定演出会敲滴答音并挂表盘，两者都不该出现。
+    assertEquals(
+      harness.AudioMock.items.filter((audio) =>
+        audio.src.includes(plagueDoctorSoundPaths.tick)
+      ).length,
+      0,
+      "异想体编号不应播放绑定动画的滴答音",
+    );
+    assertEquals(
+      harness.createdElements().some((element) =>
+        !element.removed &&
+        element.className === "lobotomy-corp-plague-doctor-advent"
+      ),
+      false,
+      "异想体编号不应挂出绑定演出的表盘",
+    );
+    // 别碰我的编号同样不计入使徒，直接交给它自己的彩蛋。
+    await api.commitDisplayName("O-05-47");
+    assertEquals(api.plagueDoctorApostles(), []);
+    // 普通输入（含首尾空白）按原文绑定。
     await api.commitDisplayName("  hello  ");
     await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
-    assertEquals(api.plagueDoctorApostles(), ["疫医", "  hello  "]);
+    assertEquals(api.plagueDoctorApostles(), ["  hello  "]);
     // 绑定期间不产生普通异想体危急值。
     assertStrictEquals(api.getDangerScore(), 0);
   } finally {
@@ -1063,31 +1090,45 @@ Deno.test("疫医：记录期间每次保存绑定一名使徒，识别到异想
   }
 });
 
-Deno.test("疫医：记录期间提交白夜编号只绑定使徒，不激活白夜", async () => {
+/**
+ * 记录期间提交白夜编号由白夜自己接管：不计入使徒，白夜照常按自己的入口登场。
+ *
+ * 两个彩蛋不该抢同一次保存，编号属于哪个异想体就由哪个彩蛋处理。
+ */
+Deno.test("疫医：记录期间提交白夜编号不纳入使徒，交给白夜自己的入口", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
     await harness.reload();
     const api = harness.api();
-    const clock = { value: 0 };
     await api.commitDisplayName("O-01-45");
-    await api.commitDisplayName("T-03-46");
-    await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
-    assertEquals(api.plagueDoctorApostles(), ["白夜"]);
-    assertStrictEquals(api.getSpecialEvent(), undefined);
-    assertStrictEquals(api.getDangerScore(), 0);
+    // 白夜的入口要等到自己那条警报结束才兑现，因此这里只看同步部分。
+    void api.commitDisplayName("T-03-46");
+    assertEquals(api.plagueDoctorApostles(), []);
+    assertStrictEquals(api.getSpecialEvent(), "white-night");
+    // direct-submission 的第一笔是 Simple Advent 开始时 11 名普通使徒的死亡抽象。
+    assertStrictEquals(api.getDangerScore(), 44);
+    // 使徒记录本身保留，白夜结束后还能接着记。
+    assertStrictEquals(api.plagueDoctorRecording(), true);
   } finally {
     harness.restore();
   }
 });
 
-Deno.test("疫医：记录期间别碰我不接管显示名称保存", async () => {
+/**
+ * 记录期间别碰我照常接管自己的编号。
+ *
+ * 疫医不再吞掉别的异想体编号，因此别碰我保存拦截在记录期间同样生效，
+ * 它的假关服不会被疫医的记录挡住。
+ */
+Deno.test("疫医：记录期间别碰我照常接管显示名称保存", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
     await harness.reload();
     const api = harness.api();
     assertStrictEquals(api.blocksDisplayNameSave("O-05-47"), true);
     await api.commitDisplayName("O-01-45");
-    assertStrictEquals(api.blocksDisplayNameSave("O-05-47"), false);
+    assertStrictEquals(api.plagueDoctorRecording(), true);
+    assertStrictEquals(api.blocksDisplayNameSave("O-05-47"), true);
   } finally {
     harness.restore();
   }
@@ -1315,7 +1356,7 @@ Deno.test("疫医：中日文名字与台词整段切换系统字体", async () 
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
-    await api.commitDisplayName("O-01-45");
+    await api.commitDisplayName("使徒二号");
     await advance(harness, clock, 16);
     // 走到第一名使徒的台词（ExecuteNextAdventTarget → SetAdventDesc）。
     await advance(

@@ -1602,8 +1602,7 @@ export function playPlagueDoctorAdvent(options) {
  *
  * @param {object} shared 宿主能力。
  * @param {string} shared.assetRoot 资源根路径。
- * @param {(value: string) => string|undefined} shared.abnormalityName 识别到异想体时返回本地化名称。
- * @param {(name: string) => string|undefined} [shared.abnormalityCode] 由异想体本地化名反查编号。
+ * @param {(value: string) => string|undefined} [shared.submittedAbnormalityId] 输入本身是已录入异想体（编号或其别名）时返回 canonical 编号。
  * @param {() => Record<string, string>|undefined} shared.messages 当前语言文案。
  * @param {(info: {firstTime: boolean}) => void} shared.onTransformation 转变完成、应进入白夜时的回调。
  * @param {(amount: number) => void} shared.settleDanger 结算固定危急值。
@@ -1742,15 +1741,12 @@ export function createPlagueDoctorEvent(shared) {
   /**
    * 完整降临聚焦每名使徒时，输入框里要显示的文字。
    *
-   * 记录里存的是那次保存的显示名称；如果那次保存的是异想体（记录里存的是异想体的
-   * 本地化名），就改用它对应的异想体编号，与「转变后显示名称被改写成编号」一致。
+   * 记录里存的就是那次保存的显示名称，因此聚焦时原样显示，不做任何异想体解析。
    *
    * @return {string[]} 每名使徒对应的文本。
    */
   const apostleFocusTexts = () =>
-    (state?.apostles ?? []).map((name) =>
-      shared.abnormalityCode?.(name) ?? name
-    );
+    [...(state?.apostles ?? [])];
   /** @return {boolean} 是否正在记录使徒。 */
   const isRecording = () => state?.recording === true;
   /** @return {boolean} 本次会话内是否已经完成过一次转变。 */
@@ -1854,7 +1850,9 @@ export function createPlagueDoctorEvent(shared) {
   const bindApostle = (value) => {
     const current = state;
     if (!current) return;
-    const name = shared.abnormalityName?.(value) ?? value;
+    // 使徒名字就是这次保存的显示名称本身；异想体相关输入已经在 claim 里排除，
+    // 名字不再经过异想体解析。
+    const name = value;
     const index = current.apostles.length;
     current.apostles.push(name);
     persist();
@@ -1920,6 +1918,14 @@ export function createPlagueDoctorEvent(shared) {
     if ((state?.apostles.length ?? 0) >= plagueDoctorApostleCount) {
       startTransformation();
       return true;
+    }
+    // 异想体编号（及其别名）归各自的异想体彩蛋：记录期间它们一律不计入使徒，也不播
+    // 绑定动画，否则该异想体自己的彩蛋会和疫医彩蛋互相抢同一次保存。
+    const submittedId = shared.submittedAbnormalityId?.(value);
+    if (submittedId) {
+      // 疫医自己的编号已经由上面的分支处理；回到这里只说明记录期间又提交了一次，
+      // 本事件自行吞掉，不让它落到普通异想体路径去结算危急值。
+      return submittedId === plagueDoctorAbnormalityId;
     }
     bindApostle(value);
     return true;

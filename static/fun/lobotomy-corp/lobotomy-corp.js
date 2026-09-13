@@ -3385,8 +3385,8 @@ const lobotomyCorpDontTouchMeShutdown = createDontTouchMeShutdown({
  */
 function lobotomyCorpBlocksDisplayNameSave(value) {
   if (lobotomyCorpWhiteNightEvent.isActive()) return false;
-  // 疫医记录期间由转变事件接管显示名称：别碰我不在此时抢走保存。
-  if (lobotomyCorpPlagueDoctorEvent?.isRecording()) return false;
+  // 疫医记录期间不再压制别的异想体：别碰我拿到的编号照常由它自己接管保存，
+  // 否则它的彩蛋会被疫医的记录吞掉。
   return matchingLobotomyCorpAbnormality(value)?.canonicalId ===
       lobotomyCorpDontTouchMeId;
 }
@@ -3443,26 +3443,10 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
 
 // 疫医转变事件：会话内记录 12 名使徒，第 12 名后播放完整降临并转入白夜。
 const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
-  abnormalityName: (value) => {
-    const match = matchingLobotomyCorpAbnormality(value);
-    return match ? lobotomyCorpAbnormalityName(match.abnormality) : undefined;
-  },
-  // 完整降临聚焦到某名使徒时，输入框显示的是记录里的名字；那次保存的是异想体时
-  // 改显示它的编号，所以这里提供「本地化名 → 编号」的反查。
-  abnormalityCode: (name) => {
-    const normalized = normalizeLobotomyCorpAbnormalityName(name);
-    const direct = lobotomyCorpAbnormalityIndex.get(normalized);
-    if (direct) return direct;
-    // 记录里存的是异想体的本地化名，而索引只收 canonical 编号与 aliases，
-    // 因此再按各语言的显示名比一遍。
-    const matched = Object.entries(lobotomyCorpAbnormalities).find(([, data]) =>
-      Object.values(data?.names ?? {}).some((localized) =>
-        typeof localized === 'string' &&
-        normalizeLobotomyCorpAbnormalityName(localized) === normalized
-      )
-    );
-    return matched?.[0];
-  },
+  // 记录期间提交异想体编号（或其别名）时，疫医不接管这次保存：编号交给该异想体
+  // 自己的彩蛋，只有其它文本才绑定成使徒。
+  submittedAbnormalityId: (value) =>
+    matchingLobotomyCorpAbnormality(value)?.canonicalId,
   applyDisplayName: applyLobotomyCorpDisplayName,
   assetRoot: lobotomyCorpAssetRoot,
   loginSession: lobotomyCorpLoginSession,
