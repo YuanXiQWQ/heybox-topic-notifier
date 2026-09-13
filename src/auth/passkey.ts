@@ -1,19 +1,15 @@
 /**
  * @file 本文件提供 Passkey / WebAuthn 配置、挑战生成和响应校验能力。
  */
-import {
-  type AuthenticationResponseJSON,
-  type AuthenticatorTransportFuture,
-  generateAuthenticationOptions,
-  generateRegistrationOptions,
-  type PublicKeyCredentialCreationOptionsJSON,
-  type PublicKeyCredentialRequestOptionsJSON,
-  type RegistrationResponseJSON,
-  type VerifiedAuthenticationResponse,
-  type VerifiedRegistrationResponse,
-  verifyAuthenticationResponse,
-  verifyRegistrationResponse,
-  type WebAuthnCredential,
+import type {
+  AuthenticationResponseJSON,
+  AuthenticatorTransportFuture,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+  VerifiedAuthenticationResponse,
+  VerifiedRegistrationResponse,
+  WebAuthnCredential,
 } from "@simplewebauthn/server";
 import type {
   PasskeyChallengePurpose,
@@ -141,6 +137,9 @@ export async function createPasskeyRegistrationOptions(input: {
   existingCredentials?: readonly PasskeyCredential[];
   now?: Date;
 }): Promise<PasskeyRegistrationOptionsResult> {
+  const { generateRegistrationOptions } = await import(
+    "@simplewebauthn/server"
+  );
   const optionsJSON = await generateRegistrationOptions({
     attestationType: "none",
     authenticatorSelection: {
@@ -189,6 +188,9 @@ export async function createPasskeyAuthenticationOptions(input: {
   userId?: string;
   userVerification?: PasskeyUserVerification;
 }): Promise<PasskeyAuthenticationOptionsResult> {
+  const { generateAuthenticationOptions } = await import(
+    "@simplewebauthn/server"
+  );
   const credentials = input.credentials ?? [];
   const optionsJSON = await generateAuthenticationOptions({
     allowCredentials: credentials.length > 0
@@ -226,6 +228,9 @@ export async function verifyPasskeyRegistrationResponse(input: {
   config: PasskeyConfig;
   response: RegistrationResponseJSON;
 }): Promise<VerifiedRegistrationResponse> {
+  const { verifyRegistrationResponse } = await import(
+    "@simplewebauthn/server"
+  );
   return await verifyRegistrationResponse({
     expectedChallenge: input.challenge.challenge,
     expectedOrigin: input.config.expectedOrigin,
@@ -247,6 +252,9 @@ export async function verifyPasskeyAuthenticationResponse(input: {
   requireUserVerification?: boolean;
   response: AuthenticationResponseJSON;
 }): Promise<VerifiedAuthenticationResponse> {
+  const { verifyAuthenticationResponse } = await import(
+    "@simplewebauthn/server"
+  );
   return await verifyAuthenticationResponse({
     credential: passkeyCredentialForVerification(input.credential),
     expectedChallenge: input.challenge.challenge,

@@ -48,7 +48,7 @@ ID, dan Deno Deploy juga mengisolasi data Production dan Git Branch berdasarkan 
 Konfigurasikan di Deno Deploy App sesuai kebutuhan. `.env.example` di root repository sudah disusun berdasarkan skenario: secara default hanya konfigurasi minimum yang dapat digunakan yang diaktifkan,
 sedangkan konfigurasi lain untuk penyetelan polling, kanal notifikasi, relay, dan allowlist keamanan tetap diberi komentar; hapus komentar hanya pada baris yang sesuai dengan skenario yang digunakan.
 
-- Nilai default dasar: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Nilai default dasar: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Penyetelan polling: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Override request Heybox: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Item umum notifikasi: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV dan diisolasi berdasarkan user ID. Cookie browser hanya menyimpan random
 dan waktu kedaluwarsa.
 
 Pengambilan topik Heybox nyata saat ini adalah satu-satunya sumber data runtime. Secara default `HEYBOX_SIGNATURE_MODE=app` menggunakan daftar waktu publikasi App API yang sudah diverifikasi;
-`web` hanya dipertahankan sebagai fallback diagnostik. `POLL_ENABLED`
-hanya berfungsi sebagai sakelar polling awal untuk akun baru atau akun default; apakah pengambilan benar-benar dilakukan bergantung pada “Enable polling” di halaman pengaturan tiap akun.
+`web` hanya dipertahankan sebagai fallback diagnostik.
+Akun baru dimulai dengan polling nonaktif dan baru mengambil data setelah mengaktifkan “Enable polling” di halaman pengaturannya.
 
 ## Relay Notifikasi
 

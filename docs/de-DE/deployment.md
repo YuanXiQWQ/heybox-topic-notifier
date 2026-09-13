@@ -48,7 +48,7 @@ ID-Präfix isoliert, und Deno Deploy isoliert außerdem Production- und Git-Bran
 Konfigurieren Sie diese in der Deno Deploy App nach Bedarf. Die `.env.example` im Repository-Root ist nach Szenarien organisiert: Standardmäßig ist nur die minimal nutzbare Konfiguration aktiviert;
 weitere Einstellungen für Polling-Tuning, Benachrichtigungskanäle, Relay und Sicherheits-Allowlist bleiben auskommentiert und werden je nach Szenario aktiviert.
 
-- Basis-Standardwerte: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Basis-Standardwerte: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling-Tuning: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Heybox-Request-Overrides: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Gemeinsame Benachrichtigungsoptionen: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV gespeichert und nach User ID isoliert. Das Browser-Cookie speichert nur 
 Hash und Ablaufzeit.
 
 Das Abrufen echter Heybox-Themen ist derzeit die einzige laufende Datenquelle. Standardmäßig verwendet `HEYBOX_SIGNATURE_MODE=app` die verifizierte Veröffentlichungsliste der App API;
-`web` bleibt nur als diagnostischer Fallback erhalten. `POLL_ENABLED`
-dient nur als anfänglicher Polling-Schalter für neue Konten oder das Standardkonto. Ob tatsächlich abgerufen wird, richtet sich nach „Polling aktivieren“ auf der Einstellungsseite des jeweiligen Kontos.
+`web` bleibt nur als diagnostischer Fallback erhalten.
+Neue Konten starten mit deaktiviertem Polling und rufen erst ab, wenn „Polling aktivieren“ auf ihrer Einstellungsseite eingeschaltet wird.
 
 ## Benachrichtigungs-Relay
 

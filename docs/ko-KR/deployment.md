@@ -48,7 +48,7 @@ ID prefix로 분리되며, Deno Deploy도 timeline 기준으로 Production과 Gi
 Deno Deploy App에서 필요에 따라 구성하세요. repository 루트의 `.env.example`은 시나리오별로 정리되어 있습니다. 기본적으로는 최소 사용 가능 구성만 활성화되고,
 그 외 polling 튜닝, 알림 채널, 릴레이, 보안 allowlist 구성은 주석 처리되어 있습니다. 사용할 시나리오에 해당하는 줄만 주석 해제하세요.
 
-- 기본값: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- 기본값: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling 튜닝: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Heybox 요청 override: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - 알림 공통 항목: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV에 저장되고 user ID 기준으로 분리됩니다. 브라우저 Cooki
 hash와 만료 시간을 저장합니다.
 
 실제 Heybox 토픽 가져오기는 현재 유일한 런타임 데이터 소스입니다. 기본 `HEYBOX_SIGNATURE_MODE=app`은 검증된 App API
-게시 시간 목록을 사용합니다. `web`은 진단용 fallback으로만 유지됩니다. `POLL_ENABLED`
-는 새 계정 또는 기본 계정의 초기 polling 스위치일 뿐입니다. 실제 가져오기 여부는 각 계정 설정 페이지의 “Enable polling”에 따릅니다.
+게시 시간 목록을 사용합니다. `web`은 진단용 fallback으로만 유지됩니다.
+새 계정은 polling이 꺼진 상태로 시작하며, 설정 페이지에서 “Enable polling”을 켠 뒤에만 실제로 가져옵니다.
 
 ## 알림 릴레이
 

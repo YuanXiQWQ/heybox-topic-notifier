@@ -72,6 +72,62 @@ Deno.test("deleteMatches removes records from match history", async () => {
   assertEquals(await storage.listHistory(), []);
 });
 
+Deno.test("listMatchedPostIndex deduplicates posts and keeps the newest refresh time", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, {
+    openKv: () => Promise.resolve(kv),
+  });
+  const post = {
+    body: "",
+    commentReplies: [],
+    comments: [],
+    excerpt: "",
+    id: "post-1",
+    publishedAt: "2026-07-12T09:00:00.000Z",
+    title: "post-1",
+    url: "https://example.com/post-1",
+  };
+  await storage.saveMatch({
+    detailRefreshedAt: "2026-07-12T10:00:00.000Z",
+    id: "match-a",
+    keyword: "keyword",
+    location: "title",
+    matchedAt: "2026-07-12T10:00:00.000Z",
+    post,
+  });
+  await storage.saveMatch({
+    detailRefreshedAt: "2026-07-12T12:00:00.000Z",
+    id: "match-b",
+    keyword: "keyword",
+    location: "body",
+    matchedAt: "2026-07-12T10:00:00.000Z",
+    post,
+  });
+  await storage.saveMatch({
+    detailRefreshedAt: "2026-07-12T11:00:00.000Z",
+    id: "match-c",
+    keyword: "keyword",
+    location: "title",
+    matchedAt: "2026-07-12T11:00:00.000Z",
+    post: { ...post, id: "post-2", title: "post-2" },
+  });
+
+  const index = (await storage.listMatchedPostIndex()).toSorted((left, right) =>
+    left.postId.localeCompare(right.postId)
+  );
+
+  assertEquals(index, [
+    { detailRefreshedAt: "2026-07-12T12:00:00.000Z", postId: "post-1" },
+    { detailRefreshedAt: "2026-07-12T11:00:00.000Z", postId: "post-2" },
+  ]);
+  assertEquals(
+    (await storage.listMatchesForPost("post-1")).map((item) => item.id)
+      .toSorted(),
+    ["match-a", "match-b"],
+  );
+  assertEquals(await storage.listMatchesForPost("missing-post"), []);
+});
+
 Deno.test("getDashboardSnapshot reads matches once for state and pending rows", async () => {
   const kv = new MemoryKv();
   const storage = createKvStorage(defaultSettings, {

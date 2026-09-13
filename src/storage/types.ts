@@ -44,6 +44,16 @@ export type RateLimitHit = {
 };
 
 /**
+ * 已命中帖子的精简索引条目。
+ *
+ * 索引只保留帖子 ID 与详情刷新时间，避免轮询时为读取整条命中记录解析正文与评论。
+ */
+export type MatchedPostIndexEntry = {
+  detailRefreshedAt?: string;
+  postId: string;
+};
+
+/**
  * 指定用户作用域下的数据存储契约。
  */
 export type UserStorage = {
@@ -89,6 +99,19 @@ export type UserStorage = {
    * @return {Promise<MatchRecord[]>} 未完成的命中记录。
    */
   listPendingMatches(): Promise<MatchRecord[]>;
+  /**
+   * 列出当前用户已命中帖子的精简索引。
+   *
+   * @return {Promise<MatchedPostIndexEntry[]>} 按帖子 ID 去重后的索引条目。
+   */
+  listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]>;
+  /**
+   * 列出当前用户指定帖子的命中记录。
+   *
+   * @param {string} postId 帖子 ID。
+   * @return {Promise<MatchRecord[]>} 该帖子的命中记录。
+   */
+  listMatchesForPost(postId: string): Promise<MatchRecord[]>;
   /**
    * 保存当前用户命中记录。
    *

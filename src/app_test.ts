@@ -3,7 +3,22 @@
  */
 import { createApplication } from "./app.ts";
 import { getMessages } from "./locales/index.ts";
+import { defaultAppSettingsFromEnv } from "./services/app_context.ts";
 import { assert, assertEquals } from "./test_helpers.ts";
+
+Deno.test("new accounts start with polling disabled", () => {
+  const previousValue = Deno.env.get("POLL_ENABLED");
+  Deno.env.set("POLL_ENABLED", "true");
+  try {
+    assertEquals(defaultAppSettingsFromEnv().polling.enabled, false);
+  } finally {
+    if (previousValue === undefined) {
+      Deno.env.delete("POLL_ENABLED");
+    } else {
+      Deno.env.set("POLL_ENABLED", previousValue);
+    }
+  }
+});
 
 Deno.test("application adds baseline security headers", async () => {
   const { app } = createApplication();

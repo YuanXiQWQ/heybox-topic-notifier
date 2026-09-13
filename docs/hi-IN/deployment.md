@@ -48,7 +48,7 @@ ID prefix के अनुसार isolated है, और Deno Deploy timeline
 Deno Deploy App में ज़रूरत के अनुसार configure करें। Repository root में `.env.example` scenario के अनुसार व्यवस्थित है: default में केवल minimum usable configuration enabled है,
 जबकि अन्य polling tuning, notification channel, relay और security allowlist configuration commented रहते हैं; जिस scenario का उपयोग करना हो, उसी की संबंधित lines uncomment करें।
 
-- Basic defaults: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- Basic defaults: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling tuning: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - Heybox request overrides: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - Common notification item: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -75,8 +75,8 @@ Deno KV में stored रहती हैं और user ID के अनु�
 hash और expiry time store करता है।
 
 Real Heybox topic fetching वर्तमान में एकमात्र runtime data source है। Default `HEYBOX_SIGNATURE_MODE=app` verified App API
-publish-time list का उपयोग करता है; `web` केवल diagnostic fallback के रूप में रखा गया है। `POLL_ENABLED`
-केवल new account या default account के लिए initial polling switch है; वास्तविक fetching होगी या नहीं, यह प्रत्येक account settings page में “enable polling” पर निर्भर करता है।
+publish-time list का उपयोग करता है; `web` केवल diagnostic fallback के रूप में रखा गया है।
+नए account polling बंद के साथ शुरू होते हैं और अपने settings page में “enable polling” चालू करने के बाद ही fetching करते हैं।
 
 ## Notification relay
 

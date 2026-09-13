@@ -49,7 +49,7 @@ ID, ו-Deno Deploy גם מפריד נתוני Production ו-Git Branch לפי ti
 הגדירו אותם ב-Deno Deploy App לפי הצורך. הקובץ `.env.example` בשורש המאגר מאורגן לפי תרחישים: כברירת מחדל מופעלת רק ההגדרה המינימלית השימושית,
 ושאר הגדרות כוונון polling, ערוצי התראות, relay ו-security allowlist נשארות בהערה; בטלו הערה רק לשורות המתאימות לתרחיש שבו משתמשים.
 
-- ערכי ברירת מחדל בסיסיים: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `POLL_ENABLED`, `NOTIFIER_PROVIDER`
+- ערכי ברירת מחדל בסיסיים: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - כוונון polling: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
 - עקיפת בקשות Heybox: `HEYBOX_SIGNATURE_MODE`, `HEYBOX_DEVICE_ID`, `HEYBOX_COOKIE`, `HEYBOX_USER_AGENT`
 - פריטי התראה כלליים: `NOTIFIER_DELIVERY_TIMEOUT_SECONDS`
@@ -76,8 +76,8 @@ Deno KV ומבודדים לפי user ID. ה-Browser Cookie שומר רק session
 וזמן תפוגה.
 
 שליפת נושאי Heybox אמיתיים היא כרגע מקור נתוני הריצה היחיד. כברירת מחדל `HEYBOX_SIGNATURE_MODE=app` משתמש ברשימת זמני פרסום מאומתת של App API;
-`web` נשמר רק כ-fallback אבחוני. `POLL_ENABLED`
-משמש רק כמתג polling התחלתי עבור חשבונות חדשים או חשבון ברירת מחדל; אם השליפה מתבצעת בפועל נקבע לפי “Enable polling” בדף ההגדרות של כל חשבון.
+`web` נשמר רק כ-fallback אבחוני.
+חשבונות חדשים מתחילים עם polling מושבת, והם שולפים נתונים רק לאחר הפעלת “Enable polling” בדף ההגדרות שלהם.
 
 ## Relay להתראות
 

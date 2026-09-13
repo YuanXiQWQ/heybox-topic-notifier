@@ -54,6 +54,8 @@ export type AppContext = ReturnType<typeof createAppContext>;
 /**
  * 从环境变量创建默认应用设置。
  *
+ * 轮询开关固定为关闭，账号需要到设置页手动开启后才会参与轮询。
+ *
  * @return {AppSettings} 默认应用设置。
  */
 export function defaultAppSettingsFromEnv(): AppSettings {
@@ -85,7 +87,7 @@ export function defaultAppSettingsFromEnv(): AppSettings {
     notificationWebhookUrl: Deno.env.get("NOTIFIER_WEBHOOK_URL") ?? "",
     notificationWxPusherSpt: Deno.env.get("NOTIFIER_WXPUSHER_SPT") ?? "",
     polling: {
-      enabled: Deno.env.get("POLL_ENABLED") === "true",
+      enabled: false,
       intervalUnit: "minute",
       intervalValue: positiveIntegerFromEnv("POLL_INTERVAL_MINUTES", 1),
       postLimit: positiveIntegerFromEnv("POLL_POST_LIMIT", 20),

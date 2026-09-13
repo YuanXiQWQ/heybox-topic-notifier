@@ -1,12 +1,11 @@
 /**
  * @file 本文件提供基于 Turso/libSQL 的应用数据存储实现。
  */
-import {
-  createClient,
-  type InArgs,
-  type InStatement,
-  type ResultSet,
-  type Row,
+import type {
+  InArgs,
+  InStatement,
+  ResultSet,
+  Row,
 } from "@libsql/client/web";
 import { normalizeEmailAddress } from "../auth/email.ts";
 import {
@@ -43,6 +42,7 @@ import {
 } from "./turso_schema.ts";
 import type {
   LoginFailure,
+  MatchedPostIndexEntry,
   RateLimitHit,
   Storage,
   UserStorage,
@@ -94,9 +94,24 @@ export function createTursoStorage(
   defaultSettings: AppSettings,
   options: TursoStorageOptions = {},
 ): TursoStorage {
-  const client = options.client ?? createRemoteClient(options);
+  const connection = options.client
+    ? undefined
+    : tursoConnectionFromOptions(options);
   const writeMode = options.writeMode ?? "live";
+  let clientPromise: Promise<TursoClient> | undefined;
   let readyPromise: Promise<void> | undefined;
+
+  /**
+   * 获取 libSQL 客户端；首次调用时才加载驱动并建立连接。
+   *
+   * @return {Promise<TursoClient>} libSQL 客户端。
+   */
+  function resolveClient(): Promise<TursoClient> {
+    clientPromise ??= options.client
+      ? Promise.resolve(options.client)
+      : createRemoteClient(connection!);
+    return clientPromise;
+  }
 
   /**
    * 确保数据库已经应用当前版本 schema。
@@ -104,7 +119,7 @@ export function createTursoStorage(
    * @return {Promise<void>} schema 就绪后的 Promise。
    */
   async function ready(): Promise<void> {
-    readyPromise ??= ensureTursoSchema(client);
+    readyPromise ??= ensureTursoSchema(await resolveClient());
     await readyPromise;
   }
 
@@ -116,7 +131,7 @@ export function createTursoStorage(
    */
   async function execute(statement: InStatement): Promise<ResultSet> {
     await ready();
-    return await client.execute(statement);
+    return await (await resolveClient()).execute(statement);
   }
 
   /**
@@ -129,7 +144,7 @@ export function createTursoStorage(
     statements: Array<InStatement | [string, InArgs?]>,
   ): Promise<ResultSet[]> {
     await ready();
-    return await client.batch(statements, "write");
+    return await (await resolveClient()).batch(statements, "write");
   }
 
   /**
@@ -327,6 +342,46 @@ export function createTursoStorage(
        */
       async listPendingMatches(): Promise<MatchRecord[]> {
         return await listMatches(userId, "pending");
+      },
+      /**
+       * 列出当前用户已命中帖子的精简索引。
+       *
+       * @return {Promise<MatchedPostIndexEntry[]>} 按帖子 ID 去重后的索引条目。
+       */
+      async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
+        const result = await execute({
+          sql: `SELECT json_extract(value_json, '$.post.id') AS post_id,
+              MAX(json_extract(value_json, '$.detailRefreshedAt'))
+                AS detail_refreshed_at
+            FROM matches
+            WHERE user_id = ?
+            GROUP BY post_id`,
+          args: [userId],
+        });
+        return result.rows.flatMap((row) => {
+          const postId = stringValue(row.post_id);
+          return postId
+            ? [{
+              detailRefreshedAt: stringValue(row.detail_refreshed_at),
+              postId,
+            }]
+            : [];
+        });
+      },
+      /**
+       * 列出当前用户指定帖子的命中记录。
+       *
+       * @param {string} postId 帖子 ID。
+       * @return {Promise<MatchRecord[]>} 该帖子的命中记录。
+       */
+      async listMatchesForPost(postId: string): Promise<MatchRecord[]> {
+        const result = await execute({
+          sql: `SELECT value_json FROM matches
+            WHERE user_id = ? AND json_extract(value_json, '$.post.id') = ?
+            ORDER BY matched_at DESC, id ASC`,
+          args: [userId, postId],
+        });
+        return result.rows.map((row) => parseJsonRow<MatchRecord>(row));
       },
       /**
        * 保存当前用户的一条命中记录。
@@ -1558,12 +1613,15 @@ export function createTursoStorage(
 }
 
 /**
- * 创建远程 Turso HTTP 客户端。
+ * 读取并校验 Turso 连接配置。
  *
  * @param {TursoStorageOptions} options Turso 连接选项。
- * @return {TursoClient} libSQL 客户端。
+ * @return {{authToken: string, url: string}} 连接地址与访问令牌。
  */
-function createRemoteClient(options: TursoStorageOptions): TursoClient {
+function tursoConnectionFromOptions(options: TursoStorageOptions): {
+  authToken: string;
+  url: string;
+} {
   const url = options.url?.trim();
   const authToken = options.authToken?.trim();
   if (!url || !authToken) {
@@ -1571,7 +1629,21 @@ function createRemoteClient(options: TursoStorageOptions): TursoClient {
       "Turso storage requires TURSO_DATABASE_URL and TURSO_AUTH_TOKEN.",
     );
   }
-  return createClient({ authToken, url });
+  return { authToken, url };
+}
+
+/**
+ * 创建远程 Turso HTTP 客户端。
+ *
+ * @param {{authToken: string, url: string}} connection 连接地址与访问令牌。
+ * @return {Promise<TursoClient>} libSQL 客户端。
+ */
+async function createRemoteClient(connection: {
+  authToken: string;
+  url: string;
+}): Promise<TursoClient> {
+  const { createClient } = await import("@libsql/client/web");
+  return createClient(connection);
 }
 
 /**
