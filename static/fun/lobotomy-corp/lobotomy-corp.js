@@ -3468,9 +3468,13 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
   assetRoot: lobotomyCorpAssetRoot,
   loginSession: lobotomyCorpLoginSession,
   messages: () => lobotomyCorpMessages,
-  onTransformation: () => {
+  onTransformation: (/** @type {any} */ info) => {
     lobotomyCorpWhiteNightEvent?.start({
-      source: 'plague-doctor-transformation',
+      // 首次转变由疫医的完整降临顶替入场演出；已经转变过时没有再演一遍完整降临，
+      // 白夜要按 normal 入口补上 Simple Advent（转盘 + 逐名使徒的台词）。
+      source: info?.firstTime === false
+        ? 'plague-doctor-transformation-replay'
+        : 'plague-doctor-transformation',
     });
   },
   settleDanger: (amount) => {

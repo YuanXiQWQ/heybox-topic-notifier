@@ -257,6 +257,18 @@ const whiteNightEntryBehaviors = Object.freeze({
     playApostlesCompletion: false,
     playEntryBell: false,
   }),
+  /**
+   * 疫医已经转变过、再次提交 O-01-45。
+   *
+   * 首次转变由疫医自己的完整降临（Full Advent）顶替了入场演出，所以那条入口不开
+   * Simple Advent Prelude；这一次没有完整降临，白夜必须照常走 Prelude。
+   */
+  'plague-doctor-transformation-replay': Object.freeze({
+    playApostlesCompletion: false,
+    // 入场钟由 Simple Advent 自己的 `StartSimpleAdventEvent()` 敲，这里不要再敲一次。
+    playEntryBell: false,
+    usesSimpleAdventPrelude: true,
+  }),
 });
 
 /**

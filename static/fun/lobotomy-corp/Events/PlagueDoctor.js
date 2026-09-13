@@ -1605,7 +1605,7 @@ export function playPlagueDoctorAdvent(options) {
  * @param {(value: string) => string|undefined} shared.abnormalityName 识别到异想体时返回本地化名称。
  * @param {(name: string) => string|undefined} [shared.abnormalityCode] 由异想体本地化名反查编号。
  * @param {() => Record<string, string>|undefined} shared.messages 当前语言文案。
- * @param {() => void} shared.onTransformation 转变完成、应进入白夜时的回调。
+ * @param {(info: {firstTime: boolean}) => void} shared.onTransformation 转变完成、应进入白夜时的回调。
  * @param {(amount: number) => void} shared.settleDanger 结算固定危急值。
  * @param {(value: string) => void} [shared.applyDisplayName] 转变后把显示名称改写为白夜。
  * @param {() => string|undefined} [shared.loginSession] 当前登录会话标识；变化表示用户重新登录。
@@ -1788,7 +1788,7 @@ export function createPlagueDoctorEvent(shared) {
    *
    * @return {void}
    */
-  const completeTransformation = () => {
+  const completeTransformation = (/** @type {{firstTime: boolean}} */ info) => {
     busy = false;
     transforming = false;
     activeClock = undefined;
@@ -1802,7 +1802,7 @@ export function createPlagueDoctorEvent(shared) {
     }
     shared.settleDanger?.(plagueDoctorTransformationDanger);
     shared.applyDisplayName?.(plagueDoctorWhiteNightId);
-    shared.onTransformation?.();
+    shared.onTransformation?.(info);
   };
 
   /**
@@ -1818,7 +1818,7 @@ export function createPlagueDoctorEvent(shared) {
     if (
       !firstTime || typeof globalThis.document?.createElement !== 'function'
     ) {
-      completeTransformation();
+      completeTransformation({ firstTime: false });
       return;
     }
     // `StartAdventEvent()` 先起 UniqueBgm，再开黑幕与镜头，所以 BGM 要早于演出脚本。
@@ -1829,7 +1829,7 @@ export function createPlagueDoctorEvent(shared) {
       focusTexts: apostleFocusTexts(),
       messages: shared.messages?.(),
       names: apostleNames(),
-      onAdventEnd: completeTransformation,
+      onAdventEnd: () => completeTransformation({ firstTime: true }),
       playSound,
     });
     activeClock = clock;
