@@ -10,6 +10,12 @@ import {
 } from "./test_helpers.ts";
 import { Element, StorageMock } from "./test_harness.ts";
 import {
+  blackForestEggPrefabScale,
+  blackForestEggSpineAssets,
+  blackForestEggSpineLayout,
+  blackForestEggTransitionSeconds,
+} from "../static/fun/lobotomy-corp/Events/BlackForestEggSpine.js";
+import {
   blackForestActivePhases,
   blackForestBirdOrderFor,
   blackForestBirds,
@@ -126,21 +132,66 @@ Deno.test("Black Forest birds and eggs keep their original pairing", () => {
   assertEquals(blackForestEggs.bigEyes.bird, "bigBird");
   assertEquals(blackForestEggs.longArms.bird, "longBird");
   assertEquals(blackForestEggs.smallBeak.bird, "smallBird");
-  assertEquals(
-    blackForestEggs.bigEyes.sprite,
-    "Resources/sprites/creaturesprite/bossbird/egg/BigBirdEgg.png",
-  );
-  assertEquals(
-    blackForestEggs.longArms.sprite,
-    "Resources/sprites/creaturesprite/bossbird/egg/LongBirdEgg.png",
-  );
-  assertEquals(
-    blackForestEggs.smallBeak.sprite,
-    "Resources/sprites/creaturesprite/bossbird/egg/SmallBirdEgg.png",
-  );
+  assertEquals(blackForestEggs.bigEyes.spine, "bigEyes");
+  assertEquals(blackForestEggs.longArms.spine, "longArms");
+  assertEquals(blackForestEggs.smallBeak.spine, "smallBeak");
   assertEquals([...blackForestEggOrder], ["bigEyes", "longArms", "smallBeak"]);
   assertEquals([...blackForestActivePhases], ["cg", "hunt", "suppress"]);
   assertEquals(blackForestEventId, "black-forest");
+});
+
+/** 三颗蛋必须使用原作 Spine 骨架、原始 Atlas 与同一套 Animator 状态名。 */
+Deno.test("Black Forest egg visuals use the original Spine animation chain", () => {
+  assertEquals(blackForestEggPrefabScale, 0.7);
+  assertEquals(blackForestEggTransitionSeconds, 0.25);
+  assertEquals(
+    { ...blackForestEggSpineAssets.bigEyes.animations },
+    {
+      dead: "Dead",
+      fullBlood: "1_Full_blood",
+      halfBlood: "2_Half_blood",
+      halfTransition: "Full_blood_to_Half_blood",
+    },
+  );
+  assertEquals(
+    {
+      assetDirectory: blackForestEggSpineAssets.bigEyes.assetDirectory,
+      atlasFile: blackForestEggSpineAssets.bigEyes.atlasFile,
+      skeletonFile: blackForestEggSpineAssets.bigEyes.skeletonFile,
+    },
+    {
+      assetDirectory: "Resources/spinedata/bossbird/egg/big",
+      atlasFile: "skeleton.atlas_13.txt",
+      skeletonFile: "skeleton_24.json",
+    },
+  );
+  assertEquals(
+    {
+      assetDirectory: blackForestEggSpineAssets.longArms.assetDirectory,
+      atlasFile: blackForestEggSpineAssets.longArms.atlasFile,
+      skeletonFile: blackForestEggSpineAssets.longArms.skeletonFile,
+    },
+    {
+      assetDirectory: "Resources/spinedata/bossbird/egg/long",
+      atlasFile: "skeleton2.atlas_1.txt",
+      skeletonFile: "skeleton2_1.json",
+    },
+  );
+  assertEquals(
+    {
+      assetDirectory: blackForestEggSpineAssets.smallBeak.assetDirectory,
+      atlasFile: blackForestEggSpineAssets.smallBeak.atlasFile,
+      skeletonFile: blackForestEggSpineAssets.smallBeak.skeletonFile,
+    },
+    {
+      assetDirectory: "Resources/spinedata/bossbird/egg/small",
+      atlasFile: "skeleton2.atlas_0.txt",
+      skeletonFile: "skeleton2_0.json",
+    },
+  );
+  const layout = blackForestEggSpineLayout(24, 24);
+  assert(layout !== undefined);
+  assert(layout.pixelsPerSkeletonUnit > 0);
 });
 
 /** 输入的两只鸟决定出场顺序，第三只是没输入的那只。 */
@@ -662,7 +713,10 @@ Deno.test("Black Forest hunts the eggs and ends with the EGO gift", () => {
   assertEquals(eggs.length, 3);
   eggs.forEach((egg) => {
     assertEquals(egg.children.length, 1);
-    assert(egg.children[0].src.includes("bossbird/egg/"));
+    assertEquals(
+      egg.children[0].className,
+      "lobotomy-corp-black-forest-egg-spine",
+    );
   });
   // 逐个点掉：每次点击都会把原图标放回去。
   for (const egg of [...eggs]) {
@@ -746,7 +800,8 @@ Deno.test("Black Forest styles follow the prefab layers and gift slot", () => {
   assert(gift.includes("z-index: 0"));
   const avatar = cssRule(css, "account-avatar-risk-wrapper > .account-avatar");
   assert(avatar.includes("z-index: 1"));
-  assert(css.includes(".lobotomy-corp-black-forest-egg-image"));
+  assert(css.includes(".lobotomy-corp-black-forest-egg-spine"));
+  assert(!css.includes(".lobotomy-corp-black-forest-egg-image"));
 });
 
 /** 台词文本必须与游戏本地化一致（中文 12 条 narration）。 */

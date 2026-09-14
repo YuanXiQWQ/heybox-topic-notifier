@@ -1,0 +1,69 @@
+
+skeleton2.png
+size: 1024,1024
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+Bigbird_egg1
+  rotate: false
+  xy: 2, 148
+  size: 329, 402
+  orig: 329, 402
+  offset: 0, 0
+  index: -1
+Bigbird_egg_dead_bottom
+  rotate: true
+  xy: 716, 656
+  size: 329, 281
+  orig: 329, 281
+  offset: 0, 0
+  index: -1
+Bigbird_egg_dead_top
+  rotate: true
+  xy: 333, 247
+  size: 303, 204
+  orig: 303, 204
+  offset: 0, 0
+  index: -1
+Bigbird_egg_light
+  rotate: false
+  xy: 2, 552
+  size: 381, 433
+  orig: 381, 433
+  offset: 0, 0
+  index: -1
+Supporter
+  rotate: false
+  xy: 2, 2
+  size: 400, 144
+  orig: 400, 144
+  offset: 0, 0
+  index: -1
+Supporter_light
+  rotate: false
+  xy: 539, 437
+  size: 124, 144
+  orig: 124, 144
+  offset: 0, 0
+  index: -1
+tallbird_egg1_feather
+  rotate: true
+  xy: 716, 607
+  size: 47, 237
+  orig: 47, 237
+  offset: 0, 0
+  index: -1
+tallbird_egg2
+  rotate: false
+  xy: 385, 583
+  size: 329, 402
+  orig: 329, 402
+  offset: 0, 0
+  index: -1
+tallbird_egg2_feather
+  rotate: true
+  xy: 716, 558
+  size: 47, 237
+  orig: 47, 237
+  offset: 0, 0
+  index: -1

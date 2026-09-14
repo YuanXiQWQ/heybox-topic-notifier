@@ -19,6 +19,7 @@
 // @ts-check
 
 import { lobotomyCorpViewportSize } from './CanvasScaler.js';
+import { createBlackForestEggSpineStage } from './BlackForestEggSpine.js';
 import { adventTextNeedsCjkFont } from './WhiteNightAdvent.js';
 
 /** 终末鸟事件在持久化状态里的唯一标识。 */
@@ -70,24 +71,25 @@ export const blackForestBirds = Object.freeze({
  * 三颗鸟蛋。
  *
  * 蛋名来自 `BossBird_<lang>.xml` 的 `bigBirdEgg / longBirdEgg / smallBirdEgg`
- * （中文为「大眼 / 长臂 / 小喙」），贴图取自
- * `Resources/sprites/creaturesprite/bossbird/egg/`。
+ * （中文为「大眼 / 长臂 / 小喙」）。`BossBird.MakeBirdObjects` 用
+ * `1000351 / 1000352 / 1000353` 创建它们，`CreatureList.txt` 与各自的 `*Egg_stat.txt`
+ * 再把每颗蛋接到 `Unit/CreatureAnimator/BigEgg`、`LongEgg`、`SmallEgg` 的 Spine 动画。
  */
 export const blackForestEggs = Object.freeze({
   bigEyes: Object.freeze({
     bird: 'bigBird',
     labelKey: 'blackForest.egg.bigEyes.label',
-    sprite: 'Resources/sprites/creaturesprite/bossbird/egg/BigBirdEgg.png',
+    spine: 'bigEyes',
   }),
   longArms: Object.freeze({
     bird: 'longBird',
     labelKey: 'blackForest.egg.longArms.label',
-    sprite: 'Resources/sprites/creaturesprite/bossbird/egg/LongBirdEgg.png',
+    spine: 'longArms',
   }),
   smallBeak: Object.freeze({
     bird: 'smallBird',
     labelKey: 'blackForest.egg.smallBeak.label',
-    sprite: 'Resources/sprites/creaturesprite/bossbird/egg/SmallBirdEgg.png',
+    spine: 'smallBeak',
   }),
 });
 
@@ -486,10 +488,10 @@ function blackForestBirdInfo(key) {
  * 按键取一颗蛋的资料。
  *
  * @param {string} key 蛋的键。
- * @return {{bird: string, labelKey: string, sprite: string}|undefined} 蛋的资料。
+ * @return {{bird: string, labelKey: string, spine: string}|undefined} 蛋的资料。
  */
 function blackForestEggInfo(key) {
-  return /** @type {Record<string, {bird: string, labelKey: string, sprite: string}>} */ (
+  return /** @type {Record<string, {bird: string, labelKey: string, spine: string}>} */ (
     blackForestEggs
   )[key];
 }
@@ -761,7 +763,7 @@ export function createBlackForestEvent(shared) {
   let state;
   /** @type {any} */
   let player;
-  /** @type {Array<{node: any, original: any}>} */
+  /** @type {Array<{node: any, original: any, stage: any}>} */
   let mountedEggs = [];
 
   /** @return {any} 宿主 document。 */
@@ -951,11 +953,12 @@ export function createBlackForestEvent(shared) {
   /**
    * 用鸟蛋替换一个图标槽位。
    *
-   * 先量出图标原本的占位尺寸，再把它藏起来、用同尺寸的按钮承载鸟蛋，结束后可以原样还原。
+   * 先量出图标原本的占位尺寸，再把它藏起来、用同尺寸的按钮承载 Spine 画布，结束后
+   * 可以原样还原。
    *
    * @param {any} node 图标槽位节点。
    * @param {string} egg 蛋的键。
-   * @return {{node: any, original: any}} 还原所需的信息。
+   * @return {{node: any, original: any, stage: any}} 还原所需的信息。
    */
   const mountEgg = (node, egg) => {
     const host = document();
@@ -972,18 +975,21 @@ export function createBlackForestEvent(shared) {
     button.setAttribute('tabindex', '0');
     button.style.width = bounds?.width > 0 ? `${bounds.width}px` : '1em';
     button.style.height = bounds?.height > 0 ? `${bounds.height}px` : '1em';
-    const sprite = host.createElement('img');
-    sprite.alt = '';
-    sprite.className = 'lobotomy-corp-black-forest-egg-image';
-    sprite.setAttribute('aria-hidden', 'true');
-    sprite.src = `${shared.assetRoot}/${info?.sprite ?? ''}`;
-    button.append(sprite);
+    const stage = createBlackForestEggSpineStage({
+      assetRoot: shared.assetRoot,
+      document: host,
+      egg: info?.spine ?? '',
+      globalObject: shared.globalObject,
+      height: bounds?.height,
+      width: bounds?.width,
+    });
+    if (stage?.canvas) button.append(stage.canvas);
     button.addEventListener('click', onEggClick);
     button.addEventListener('keydown', onEggKeyDown);
     // 原图标留在原处、只隐藏占位，结束后按原样恢复。
     node.style.setProperty('display', 'none');
     node.parentElement?.insertBefore(button, node);
-    return { node: button, original: node };
+    return { node: button, original: node, stage };
   };
 
   /**
@@ -1032,7 +1038,8 @@ export function createBlackForestEvent(shared) {
 
   /** 还原所有被鸟蛋替换掉的图标。 */
   const unmountEggs = () => {
-    mountedEggs.forEach(({ node, original }) => {
+    mountedEggs.forEach(({ node, original, stage }) => {
+      stage?.dispose?.();
       original?.style?.removeProperty?.('display');
       node.remove?.();
     });

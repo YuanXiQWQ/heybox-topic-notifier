@@ -802,7 +802,7 @@
     "Source Han Serif SC", "Microsoft YaHei", LobotomyAdventDesc, serif;
 }
 
-/* 临时顶替页面图标的鸟蛋；尺寸沿用被替换图标的占位。 */
+/* 临时顶替页面图标的鸟蛋；画布尺寸沿用被替换图标的占位。 */
 .lobotomy-corp-black-forest-egg{
   align-items: center;
   background: none;
@@ -814,10 +814,9 @@
   padding: 0;
 }
 
-.lobotomy-corp-black-forest-egg-image{
+.lobotomy-corp-black-forest-egg-spine{
   display: block;
   height: 100%;
-  object-fit: contain;
   width: 100%;
 }
 

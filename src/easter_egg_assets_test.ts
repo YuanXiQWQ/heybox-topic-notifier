@@ -273,13 +273,30 @@ Deno.test({
       assertEquals(response.status, 200, `${sound} 应可下载`);
       assertEquals(response.headers.get("content-type"), "audio/ogg");
     }
-    // 三颗鸟蛋与「破晓」饰品贴图。
-    for (const egg of ["BigBirdEgg.png", "LongBirdEgg.png", "SmallBirdEgg.png"]) {
+    // 三颗鸟蛋的原作 Spine 骨架、Atlas 与分页贴图。
+    for (
+      const eggPath of [
+        "Assets/Resources/spinedata/bossbird/egg/big/skeleton_24.json",
+        "Assets/Resources/spinedata/bossbird/egg/big/skeleton.atlas_13.txt",
+        "Assets/Resources/spinedata/bossbird/egg/big/skeleton.png",
+        "Assets/Resources/spinedata/bossbird/egg/long/skeleton2_1.json",
+        "Assets/Resources/spinedata/bossbird/egg/long/skeleton2.atlas_1.txt",
+        "Assets/Resources/spinedata/bossbird/egg/long/skeleton2.png",
+        "Assets/Resources/spinedata/bossbird/egg/small/skeleton2_0.json",
+        "Assets/Resources/spinedata/bossbird/egg/small/skeleton2.atlas_0.txt",
+        "Assets/Resources/spinedata/bossbird/egg/small/skeleton2.png",
+      ]
+    ) {
       const response = await lobotomyCorpAssetResponse(
-        `Assets/Resources/sprites/creaturesprite/bossbird/egg/${egg}`,
+        eggPath,
       );
-      assertEquals(response.status, 200, `${egg} 应可下载`);
-      assertEquals(response.headers.get("content-type"), "image/png");
+      assertEquals(response.status, 200, `${eggPath} 应可下载`);
+      const expectedType = eggPath.endsWith(".json")
+        ? "application/json; charset=utf-8"
+        : eggPath.endsWith(".txt")
+        ? "text/plain; charset=utf-8"
+        : "image/png";
+      assertEquals(response.headers.get("content-type"), expectedType);
     }
     const gift = await lobotomyCorpAssetResponse(
       "Assets/Resources/sprites/worker/equipment/attachment/BossBirdWing.png",
