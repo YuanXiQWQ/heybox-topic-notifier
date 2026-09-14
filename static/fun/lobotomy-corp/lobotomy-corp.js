@@ -3665,9 +3665,16 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
 
 const restoredLobotomyCorpSpecialEvent = lobotomyCorpWhiteNightEvent
     .persisted();
-const restoredLobotomyCorpBlackForest = lobotomyCorpBlackForestEvent
+let restoredLobotomyCorpBlackForest = lobotomyCorpBlackForestEvent
     .persisted();
-// 终末鸟事件处于会接管页面的阶段（CG / 寻找鸟蛋 / 终末鸟死亡 CG）时，刷新同样要保留警报与 Day。
+const refreshedDuringBlackForestOpening =
+    isLobotomyCorpAlertPageReload() &&
+    restoredLobotomyCorpBlackForest?.phase === 'cg';
+if (refreshedDuringBlackForestOpening) {
+  lobotomyCorpBlackForestEvent.clearPersisted();
+  restoredLobotomyCorpBlackForest = undefined;
+}
+// 终末鸟事件正式进入寻找鸟蛋或镇压阶段后，刷新同样要保留警报与 Day。
 const restoredLobotomyCorpBlackForestActive =
     blackForestActivePhases.includes(
         restoredLobotomyCorpBlackForest?.phase,

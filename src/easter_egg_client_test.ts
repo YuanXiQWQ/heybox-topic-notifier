@@ -1705,6 +1705,55 @@ Deno.test("Lobotomy Corporation direct Apocalypse Bird settles each bird at its 
   }
 });
 
+Deno.test("refreshing during the Black Forest opening cancels the event and resets Danger", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    await api.handleAbnormalitySubmitted("O-02-56");
+    void api.handleAbnormalitySubmitted("O-02-62");
+    await Promise.resolve();
+    assertEquals(api.blackForestPhase(), "cg");
+    harness.setNavigationType("reload");
+    await harness.reload();
+    const reloadedApi = harness.api();
+    assertEquals(reloadedApi.blackForestPhase(), undefined);
+    assertEquals(reloadedApi.getDangerScore(), 0);
+    assertEquals(
+      harness.storage.getItem("warmnest.lobotomy-corp-black-forest"),
+      null,
+    );
+    assertEquals(harness.storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(harness.storage.getItem("warmnest.lobotomy-corp-alert"), null);
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("refreshing after the Black Forest opening preserves the active event", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    await api.handleAbnormalitySubmitted("O-02-63");
+    const timeline = blackForestCgTimeline(
+      blackForestNarrationSequence(["bigBird", "longBird", "smallBird"]),
+    );
+    harness.setNow(timeline.at(-1)!.endMs);
+    harness.fireFrames();
+    await Promise.resolve();
+    assertEquals(api.blackForestPhase(), "hunt");
+    const expectedDanger = api.getDangerScore();
+    harness.setNavigationType("reload");
+    await harness.reload();
+    const reloadedApi = harness.api();
+    assertEquals(reloadedApi.blackForestPhase(), "hunt");
+    assertEquals(reloadedApi.getDangerScore(), expectedDanger);
+  } finally {
+    harness.restore();
+  }
+});
+
 Deno.test("WhiteNight restart fallback reuses the original button without the top panel frame", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
