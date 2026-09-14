@@ -16,7 +16,6 @@
  * | WAW 级   | 60   |
  * | ALEPH 级 | 75   |
  * | 白夜     | 98   |
- * | 终末鸟   | 75（不计部门数） |
  *
  * 每个 Day 的危急值上限是 100，任何单笔贡献都由它封顶。
  */
@@ -64,12 +63,6 @@ export const abnormalityDangerPoints = Object.freeze({
 
 /** 白夜的固定点数；它不走 ALEPH 的 75。 */
 export const whiteNightDangerPoints = 98;
-
-/** 终末鸟的 canonical 编号；它同样不按等级点数 ÷ 部门数结算。 */
-export const apocalypseBirdCanonicalId = 'O-02-63';
-
-/** 终末鸟的固定点数；它不走 ALEPH 的 75 除法。 */
-export const apocalypseBirdDangerPoints = 75;
 
 /**
  * 把任意点数封顶到允许范围。

@@ -594,6 +594,9 @@ export function createBlackForestCgPlayer(options) {
   let startedAt = 0;
   /** @type {Set<string>} */
   const playedSounds = new Set();
+  /** @type {Array<((index: number, key: string) => void)|undefined>} */
+  let endCallbacks = [];
+  const firedEndCallbacks = new Set();
   /** @type {(() => void)|undefined} */
   let settle;
   let active = false;
@@ -638,12 +641,26 @@ export function createBlackForestCgPlayer(options) {
   };
 
   /**
+   * 在每段 CG 结束时执行一次回调。
+   *
+   * @param {number} elapsed 已播放时长。
+   */
+  const runEndCallbacks = (elapsed) => {
+    timeline.forEach((segment, index) => {
+      if (elapsed < segment.endMs || firedEndCallbacks.has(index)) return;
+      firedEndCallbacks.add(index);
+      endCallbacks[index]?.(index, segment.key);
+    });
+  };
+
+  /**
    * 按已播放时长刷新画面；供测试直接驱动时间线。
    *
    * @param {number} elapsedMs 已播放时长。
    */
   const renderAt = (elapsedMs) => {
     const elapsed = Number.isFinite(elapsedMs) ? Math.max(0, elapsedMs) : 0;
+    runEndCallbacks(elapsed);
     const state = blackForestCgFrameAt(timeline, elapsed);
     if (state.finished) {
       root.style.setProperty('--lobotomy-corp-black-forest-canvas-alpha', '0');
@@ -730,13 +747,16 @@ export function createBlackForestCgPlayer(options) {
      * 播放一段 CG。
      *
      * @param {string[]} keys CG 序列。
+     * @param {Array<((index: number, key: string) => void)|undefined>} [callbacks] 每段 CG 结束时的回调。
      * @return {Promise<void>} 整段 CG 播完时完成。
      */
-    play(keys) {
+    play(keys, callbacks) {
       if (active) return Promise.resolve();
       timeline = blackForestCgTimeline(keys);
       if (timeline.length === 0) return Promise.resolve();
       playedSounds.clear();
+      endCallbacks = Array.isArray(callbacks) ? [...callbacks] : [];
+      firedEndCallbacks.clear();
       lastIndex = -1;
       active = true;
       startedAt = now();
@@ -835,10 +855,9 @@ export function createBlackForestEvent(shared) {
    * 则随时可以召唤。
    *
    * @param {string} canonicalId 异想体 canonical 编号。
-   * @param {any} [preparedMedia] 用户手势中预热的媒体，只有直接召唤时才会用到。
    * @return {boolean} 本次提交触发了终末鸟事件时返回 true。
    */
-  const recordSubmission = (canonicalId, preparedMedia) => {
+  const recordSubmission = (canonicalId) => {
     if (isActive() || typeof canonicalId !== 'string') return false;
     // 其它特殊事件进行期间只保存名称：既不记录鸟，也不开始本事件。
     if (shared.mutexBlocked?.()) return false;
@@ -859,7 +878,6 @@ export function createBlackForestEvent(shared) {
     if (canonicalId === blackForestAbnormalityIds.apocalypseBird) {
       return start({
         order: [...blackForestDefaultBirdOrder],
-        preparedMedia,
         source: 'direct-submission',
       });
     }
@@ -872,7 +890,6 @@ export function createBlackForestEvent(shared) {
     if (state.birds.length < 2) return false;
     return start({
       order: blackForestBirdOrderFor(state.birds),
-      preparedMedia,
       source: 'two-birds',
     });
   };
@@ -887,10 +904,10 @@ export function createBlackForestEvent(shared) {
   /**
    * 开始终末鸟事件。
    *
-   * @param {{order: string[], preparedMedia?: any, source: string}} options 出场顺序、预热媒体与触发来源。
+   * @param {{order: string[], source: string}} options 出场顺序与触发来源。
    * @return {boolean} 事件已开始返回 true。
    */
-  const start = ({ order, preparedMedia, source }) => {
+  const start = ({ order, source }) => {
     if (isActive() || shared.mutexBlocked?.()) return false;
     state = {
       birds: state?.birds ?? [],
@@ -905,12 +922,9 @@ export function createBlackForestEvent(shared) {
     };
     persist();
     shared.ensureCoordinator?.();
-    shared.mountRestartPanel?.();
-    // 事件期间冻结危急值衰减：警报与顶部的「重新开始这一天」必须一直可用。
+    shared.mountRestartButton?.();
+    // 事件期间冻结危急值衰减。
     shared.pauseDangerDecay?.();
-    if (source === 'direct-submission') {
-      shared.settleDirectBirdDanger?.(preparedMedia);
-    }
     void playCg();
     return true;
   };
@@ -931,17 +945,49 @@ export function createBlackForestEvent(shared) {
    * 播放一段 CG。
    *
    * @param {string[]} keys CG 序列。
+   * @param {Array<((index: number, key: string) => void)|undefined>} [callbacks] 每段 CG 结束时的回调。
    * @return {Promise<void>} 播放结束时完成。
    */
-  const playNarration = (keys) => {
+  const playNarration = (keys, callbacks) => {
     const controller = cgPlayer();
-    return controller ? controller.play(keys) : Promise.resolve();
+    return controller ? controller.play(keys, callbacks) : Promise.resolve();
   };
 
   /** 播放开场 CG，结束后进入寻找鸟蛋阶段。 */
   const playCg = async () => {
-    await playNarration(blackForestNarrationSequence(state?.order ?? []));
+    const order = [...(state?.order ?? [])];
+    const source = state?.source;
+    const keys = blackForestNarrationSequence(order);
+    const forcedBirdId = source === 'two-birds'
+      ? blackForestBirdInfo(order.at(-1) ?? '')?.id
+      : undefined;
+    /** @type {Array<(() => void)|undefined>} */
+    const callbacks = keys.map(() => undefined);
+    if (forcedBirdId) {
+      const escapeIndex = keys.indexOf('escape');
+      if (escapeIndex >= 0) {
+        callbacks[escapeIndex] = () =>
+          shared.settleBlackForestDanger?.([forcedBirdId]);
+      }
+    }
+    if (source === 'direct-submission') {
+      // 每只鸟在其抵达 CG 开始前的上一个 CG 结束点结算。
+      keys.forEach((_key, index) => {
+        const nextArrival = keys[index + 1];
+        const birdId = Object.keys(blackForestBirds)
+          .map((bird) => blackForestBirdInfo(bird))
+          .find((bird) => bird?.arrival === nextArrival)?.id;
+        if (birdId) {
+          callbacks[index] = () =>
+            shared.settleBlackForestDanger?.([birdId]);
+        }
+      });
+    }
+    await playNarration(keys, callbacks);
     if (!state || state.phase !== 'cg') return;
+    shared.settleBlackForestDanger?.([
+      blackForestAbnormalityIds.apocalypseBird,
+    ]);
     state.phase = 'hunt';
     state.eggs = blackForestEggAssignment(shared.random ?? Math.random);
     persist();
@@ -1100,7 +1146,7 @@ export function createBlackForestEvent(shared) {
     unmountEggs();
     player?.stop?.();
     player = undefined;
-    shared.finishRestartPanel?.();
+    shared.finishRestartButton?.();
     if (completed || current?.gift === true) {
       // 「破晓」是事件留下的奖励：事件结束后仍按存档挂在头像框上。
       state = {
@@ -1153,7 +1199,7 @@ export function createBlackForestEvent(shared) {
       // 记录阶段只保留「已经输入过哪几只鸟」，不占用任何页面资源。
       return true;
     }
-    shared.mountRestartPanel?.();
+    shared.mountRestartButton?.();
     shared.pauseDangerDecay?.();
     if (state.phase === 'cg') {
       void playCg();

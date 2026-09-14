@@ -431,6 +431,7 @@ Deno.test("Black Forest validates persisted state", () => {
 Deno.test("Black Forest CG player renders the five narration layers", () => {
   const harness = createCgDocument();
   const sounds: string[] = [];
+  const completed: string[] = [];
   const player = createBlackForestCgPlayer({
     assetRoot: "/static/fun/lobotomy-corp/Assets",
     cancelFrame: () => {},
@@ -444,7 +445,10 @@ Deno.test("Black Forest CG player renders the five narration layers", () => {
     requestFrame: () => 0,
     viewport: () => ({ height: 900, width: 1600 }),
   });
-  void player.play(["escape", "bossBirdAppear"]);
+  void player.play(["escape", "bossBirdAppear"], [
+    (_index: number, key: string) => completed.push(key),
+    (_index: number, key: string) => completed.push(key),
+  ]);
   const root = requireByClass(harness.body, "lobotomy-corp-black-forest-cg");
   // 绘制顺序：Background_1 → DisplayImage → BackGroundFoward → Text → FrameUpper。
   assertEquals(
@@ -497,8 +501,10 @@ Deno.test("Black Forest CG player renders the five narration layers", () => {
     "1",
   );
   assertEquals(sounds, []);
+  assertEquals(completed, []);
   // 换到下一句：台词替换成中日文并整段换字体。
   player.renderAt(6500);
+  assertEquals(completed, ["escape"]);
   assertEquals(text.textContent, "是那个怪物！");
   assertEquals(text.dataset.cjk, "1");
   assertEquals(
@@ -511,6 +517,8 @@ Deno.test("Black Forest CG player renders the five narration layers", () => {
   assertEquals(sounds, [
     "/static/fun/lobotomy-corp/Assets/Resources/sounds/creature/BossBird/BossBird_Birth.ogg",
   ]);
+  player.renderAt(11000);
+  assertEquals(completed, ["escape", "bossBirdAppear"]);
   player.stop();
   assertEquals(harness.body.children.length, 0);
 });
@@ -592,7 +600,7 @@ function createBlackForestHarness(options = {}) {
   const body = new Element();
   const storage = new StorageMock();
   const applied: string[] = [];
-  const danger: number[] = [];
+  const danger: unknown[] = [];
   const events: string[] = [];
   // 每个槽位放一个独立的元素，模拟「本页存在的图标」。
   blackForestIconSlots.forEach((slot) => {
@@ -613,17 +621,18 @@ function createBlackForestHarness(options = {}) {
       querySelectorAll: (selector: string) => body.querySelectorAll(selector),
     }),
     ensureCoordinator: () => events.push("ensure"),
-    finishRestartPanel: () => events.push("finish-panel"),
+    finishRestartButton: () => events.push("finish-restart-button"),
     messages: () => ({
       "blackForest.egg.bigEyes.label": "大眼",
       "blackForest.egg.longArms.label": "长臂",
       "blackForest.egg.smallBeak.label": "小喙",
     }),
-    mountRestartPanel: () => events.push("mount-panel"),
+    mountRestartButton: () => events.push("mount-restart-button"),
     mutexBlocked: () => false,
     pauseDangerDecay: () => events.push("pause"),
     resumeDangerDecay: () => events.push("resume"),
-    settleDirectBirdDanger: () => danger.push(1),
+    settleBlackForestDanger: (canonicalIds: string[]) =>
+      danger.push([...canonicalIds]),
     storageKey: "test.black-forest",
     storages: () => [storage],
     ...options,
@@ -646,7 +655,7 @@ Deno.test("Black Forest starts after two birds", () => {
     JSON.parse(harness.storage.getItem("test.black-forest") ?? "{}").order
       .join(",") === "smallBird,longBird,bigBird",
   );
-  assertEquals(harness.events.includes("mount-panel"), true);
+  assertEquals(harness.events.includes("mount-restart-button"), true);
   assertEquals(harness.events.includes("pause"), true);
   // 事件激活期间不再记录新的鸟。
   assertStrictEquals(event.recordSubmission("O-02-40"), false);
@@ -667,13 +676,13 @@ Deno.test("Black Forest keeps the first escaped bird without a visible alarm", (
   event.finish();
 });
 
-/** 直接输入 O-02-63：不需要警报，并补三只鸟的出逃危急值。 */
+/** 直接输入 O-02-63：不需要警报，危急值由后续 CG 时间线逐笔结算。 */
 Deno.test("Black Forest direct summon needs no alarm and settles bird danger", () => {
   const harness = createBlackForestHarness();
   const event = createBlackForestEvent(harness.shared);
   assertStrictEquals(event.recordSubmission("O-02-63"), true);
   assertEquals(event.getPhase(), "cg");
-  assertEquals(harness.danger.length, 1);
+  assertEquals(harness.danger.length, 0);
   assertEquals(
     JSON.parse(harness.storage.getItem("test.black-forest") ?? "{}").order,
     ["bigBird", "longBird", "smallBird"],
