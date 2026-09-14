@@ -199,6 +199,13 @@ export type UserAccount = {
   authVersion?: number;
   createdAt: string;
   displayName?: string;
+  /**
+   * 显示名称是否仍跟随 Google 账号。
+   *
+   * 为 true 时 Google 登录会把 Google 资料里的名称同步到 displayName；
+   * 未设置或为 false 时 displayName 由用户或注册流程决定，Google 登录不会覆盖。
+   */
+  displayNameFromGoogle?: boolean;
   emailVerified?: boolean;
   id: string;
   passwordHash?: string;

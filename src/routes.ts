@@ -534,6 +534,7 @@ export function createRoutes(context: AppContext): Hono {
       const updated = await context.storage.updateAccount({
         ...account,
         displayName,
+        displayNameFromGoogle: false,
       });
       return updated
         ? c.redirect("/settings?account=updated", 303)
