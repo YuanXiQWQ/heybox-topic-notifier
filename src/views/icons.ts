@@ -232,9 +232,13 @@ function googleAuthIcon(className: string): string {
  * 渲染仪表盘图标。
  *
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-export function dashboardIcon(className = "ui-icon"): string {
+export function dashboardIcon(
+  className = "ui-icon",
+  blackForestSlot?: string,
+): string {
   return strokedIcon(
     className,
     `
@@ -243,6 +247,7 @@ export function dashboardIcon(className = "ui-icon"): string {
     <rect x="4" y="13" width="7" height="7" rx="1.5"></rect>
     <rect x="13" y="16" width="7" height="4" rx="1.5"></rect>
   `,
+    blackForestSlot,
   );
 }
 
@@ -250,9 +255,13 @@ export function dashboardIcon(className = "ui-icon"): string {
  * 渲染设置图标。
  *
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-export function settingsIcon(className = "ui-icon"): string {
+export function settingsIcon(
+  className = "ui-icon",
+  blackForestSlot?: string,
+): string {
   return strokedIcon(
     className,
     `
@@ -263,6 +272,7 @@ export function settingsIcon(className = "ui-icon"): string {
     <circle cx="8" cy="17" r="2.5"></circle>
     <path d="M10.5 17H20"></path>
   `,
+    blackForestSlot,
   );
 }
 
@@ -270,9 +280,13 @@ export function settingsIcon(className = "ui-icon"): string {
  * 渲染历史图标。
  *
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-export function historyIcon(className = "ui-icon"): string {
+export function historyIcon(
+  className = "ui-icon",
+  blackForestSlot?: string,
+): string {
   return strokedIcon(
     className,
     `
@@ -280,6 +294,7 @@ export function historyIcon(className = "ui-icon"): string {
     <path d="M4 5v5h5"></path>
     <path d="M12 8v5l3 2"></path>
   `,
+    blackForestSlot,
   );
 }
 
@@ -331,13 +346,18 @@ export function copyIcon(className = "ui-icon"): string {
  *
  * @param name 图标名称。
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
 export function materialSymbolIcon(
   name: MaterialSymbolName,
   className = "ui-icon",
+  blackForestSlot?: string,
 ): string {
-  return `<svg class="${className}" aria-hidden="true" focusable="false" viewBox="0 -960 960 960" fill="currentColor"><path d="${
+  const slotAttribute = blackForestSlot
+    ? ` data-lobotomy-corp-black-forest-slot="${blackForestSlot}"`
+    : "";
+  return `<svg class="${className}"${slotAttribute} aria-hidden="true" focusable="false" viewBox="0 -960 960 960" fill="currentColor"><path d="${
     materialSymbolPaths[name]
   }"></path></svg>`;
 }
@@ -347,8 +367,16 @@ export function materialSymbolIcon(
  *
  * @param className 图标 CSS 类名。
  * @param content 图标路径内容。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-function strokedIcon(className: string, content: string): string {
-  return `<svg class="${className}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${content}</svg>`;
+function strokedIcon(
+  className: string,
+  content: string,
+  blackForestSlot?: string,
+): string {
+  const slotAttribute = blackForestSlot
+    ? ` data-lobotomy-corp-black-forest-slot="${blackForestSlot}"`
+    : "";
+  return `<svg class="${className}"${slotAttribute} aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${content}</svg>`;
 }

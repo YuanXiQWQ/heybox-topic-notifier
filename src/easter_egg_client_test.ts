@@ -1589,6 +1589,26 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
   }
 });
 
+Deno.test("Lobotomy Corporation starts Black Forest after two bird submissions", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    await api.handleAbnormalitySubmitted("O-02-56");
+    assertEquals(api.blackForestPhase(), "recording");
+    await api.handleAbnormalitySubmitted("O-02-62");
+    assertEquals(api.blackForestPhase(), "cg");
+    assertEquals(
+      JSON.parse(
+        harness.storage.getItem("warmnest.lobotomy-corp-black-forest") ?? "{}",
+      ).order,
+      ["smallBird", "longBird", "bigBird"],
+    );
+  } finally {
+    harness.restore();
+  }
+});
+
 Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", async () => {
   const browser = globalThis as typeof globalThis & {
     document?: unknown;

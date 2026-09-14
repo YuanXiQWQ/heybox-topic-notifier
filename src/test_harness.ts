@@ -327,6 +327,7 @@ export function installLobotomyCorpAlertHarness(
     sessionStorage?: unknown;
     lobotomyCorpEasterEgg?: {
       activate: (name: string) => Promise<boolean>;
+      blackForestPhase: () => string | undefined;
       blocksDisplayNameSave: (name: string) => boolean;
       commitDisplayName: (name: string) => Promise<boolean>;
       getDangerMusicHighWaterLevel: () => number;

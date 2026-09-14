@@ -300,11 +300,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260913-plague-doctor-spine-1`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260914-black-forest-1`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260913-plague-doctor-spine-1`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1`,
   );
   assertIncludes(
     html,

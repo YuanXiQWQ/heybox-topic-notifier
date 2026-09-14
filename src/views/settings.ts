@@ -300,11 +300,16 @@ export function renderSettings(options: {
  *
  * @param icon Material Symbols 图标名称。
  * @param label 设置项标签文本。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return dt 标签 HTML。
  */
-function settingLabel(icon: MaterialSymbolName, label: string): string {
+function settingLabel(
+  icon: MaterialSymbolName,
+  label: string,
+  blackForestSlot?: string,
+): string {
   return `<dt class="settings-label-with-icon">${
-    materialSymbolIcon(icon, "settings-label-icon")
+    materialSymbolIcon(icon, "settings-label-icon", blackForestSlot)
   }<span>${escapeHtml(label)}</span></dt>`;
 }
 
@@ -346,7 +351,7 @@ function renderGlobalSettingsSection(
   }</h2>
         <dl class="settings-list">
           <div>
-            ${settingLabel("palette", messages.theme)}
+            ${settingLabel("palette", messages.theme, "settings.theme")}
             <dd>
               <input
                 class="theme-color-input"
@@ -360,7 +365,7 @@ function renderGlobalSettingsSection(
             </dd>
           </div>
           <div>
-            ${settingLabel("dark_mode", messages.darkMode)}
+            ${settingLabel("dark_mode", messages.darkMode, "settings.darkMode")}
             <dd>
               <label class="switch-control">
                 <input
@@ -374,7 +379,7 @@ function renderGlobalSettingsSection(
             </dd>
           </div>
           <div>
-            ${settingLabel("translate", messages.locale)}
+            ${settingLabel("translate", messages.locale, "settings.locale")}
             <dd>
               <select name="locale" ${formAttribute}>
                 ${

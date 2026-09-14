@@ -328,7 +328,9 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
         data-tooltip="${escapeHtml(messages.filter)}"
         aria-label="${escapeHtml(messages.filter)}"
       >
-        ${filterIcon()}
+        ${
+    filterIcon(options.path === "/history" ? "history.filter" : "dashboard.filter")
+  }
       </label>
     </div>
   `;
@@ -1079,10 +1081,14 @@ function renderTableActionScript(): string {
 /**
  * 渲染筛选图标。
  *
+ * @param blackForestSlot 彩蛋图标槽位标识。
  * @return 筛选图标 SVG。
  */
-function filterIcon(): string {
-  return `<svg aria-hidden="true" viewBox="0 0 24 24">
+function filterIcon(blackForestSlot?: string): string {
+  const slotAttribute = blackForestSlot
+    ? ` data-lobotomy-corp-black-forest-slot="${blackForestSlot}"`
+    : "";
+  return `<svg${slotAttribute} aria-hidden="true" viewBox="0 0 24 24">
     <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"></path>
   </svg>`;
 }

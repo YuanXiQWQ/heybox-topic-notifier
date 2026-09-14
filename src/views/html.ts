@@ -221,7 +221,7 @@ export function renderLayout(options: {
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20260906-account-menu">
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260913-plague-doctor-spine-1">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
@@ -229,7 +229,7 @@ export function renderLayout(options: {
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
     ${renderLobotomyCorpAccountIdentityData(options.account, options.loginSession)}
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260913-plague-doctor-spine-1"></script>
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260914-black-forest-1"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
@@ -238,17 +238,26 @@ export function renderLayout(options: {
       <nav class="primary-nav" aria-label="Primary">
         <form class="nav-item" method="get" action="/">
           <button class="nav-link-button" type="submit">${
-    renderNavItem(dashboardIcon("nav-icon"), messages.navDashboard)
+    renderNavItem(
+      dashboardIcon("nav-icon", "nav.dashboard"),
+      messages.navDashboard,
+    )
   }</button>
         </form>
         <form class="nav-item" method="get" action="/settings">
           <button class="nav-link-button" type="submit">${
-    renderNavItem(settingsIcon("nav-icon"), messages.navSettings)
+    renderNavItem(
+      settingsIcon("nav-icon", "nav.settings"),
+      messages.navSettings,
+    )
   }</button>
         </form>
         <form class="nav-item" method="get" action="/history">
           <button class="nav-link-button" type="submit">${
-    renderNavItem(historyIcon("nav-icon"), messages.navHistory)
+    renderNavItem(
+      historyIcon("nav-icon", "nav.history"),
+      messages.navHistory,
+    )
   }</button>
         </form>
         ${
