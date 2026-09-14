@@ -32,6 +32,15 @@
   width: min(88vw, 1380px);
 }
 
+/* WhiteNight Spine 画布：铺满整个视口，相机取景由出逃待机包围盒算出。 */
+.lobotomy-corp-white-night-spine{
+  height: 100%;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
 /* WhiteNight 主 Animator 的 Suppressed 轨道与 Confess/SuppressAnimator 同时存在。 */
 .lobotomy-corp-white-night-confession-entity{
   align-items: center;
@@ -42,34 +51,6 @@
   pointer-events: none;
   position: fixed;
   z-index: 9991;
-}
-
-/* Dead 视频作为 Canvas 的逐帧来源，不直接参与网页排版。 */
-.lobotomy-corp-white-night-confession-video{
-  display: none;
-}
-
-/* Canvas 保持本体尺寸，只把被导出画布截断的外围光效延展到 viewport。 */
-.lobotomy-corp-white-night-confession-canvas{
-  height: 100%;
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
-  width: 100%;
-  z-index: 1;
-}
-
-/* Canvas 2D 不可用时保留原视频作为降级。 */
-.lobotomy-corp-white-night-confession-video-fallback{
-  display: block;
-  height: min(88vh, 980px);
-  max-height: 88vh;
-  max-width: 88vw;
-  object-fit: contain;
-  pointer-events: none;
-  position: relative;
-  width: min(88vw, 980px);
-  z-index: 1;
 }
 
 /* DeathAngelBlock.prefab：1920×1080 Image、CanvasGroup 1.5 秒 alpha curve。 */
@@ -695,12 +676,12 @@
 
   /* SizeModule Y 在 0.25509644 lifetime 达到 1；同期 X Hermite 曲线约为 0.644。 */
   25.509644%{
-    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(var(--lobotomy-corp-ray-travel-y-full)) scale(0.644, 1);
+    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(calc(var(--lobotomy-corp-ray-travel) * 0.25509644)) scale(0.644, 1);
   }
 
   /* SizeModule X 在 0.49319458 lifetime 达到 1。 */
   49.319458%{
-    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(var(--lobotomy-corp-ray-travel-x-full)) scale(1);
+    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(calc(var(--lobotomy-corp-ray-travel) * 0.49319458)) scale(1);
   }
 
   67.353323%{
@@ -713,7 +694,7 @@
 
   100%{
     opacity: 0;
-    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(var(--lobotomy-corp-ray-travel-end)) scale(1);
+    transform: translate(-50%, -50%) rotate(109.816715deg) translateX(var(--lobotomy-corp-ray-travel)) scale(1);
   }
 }
 

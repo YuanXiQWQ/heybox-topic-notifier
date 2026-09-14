@@ -652,7 +652,7 @@ function buildAdventStage(options) {
   const spriteRoot =
     `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock`;
   // 白夜系视频与贴图分开存放：视频直接放在 deathangel 目录下（与
-  // WhiteNight_Escape_Idle.webm / WhiteNight_Confess_Dead.webm 同级）。
+  // PlagueDoctor_Advent.webm 同级）。
   const deathAngelRoot =
     `${assetRoot}/Resources/sprites/creaturesprite/deathangel`;
   const root = document.createElement('section');

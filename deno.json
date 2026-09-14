@@ -1,4 +1,7 @@
 {
+  "exclude": [
+    "static/fun/lobotomy-corp/vendor"
+  ],
   "tasks": {
     "dev": "deno run --env-file=.env --allow-net --allow-env --allow-read --unstable-kv --watch src/main.ts",
     "start": "deno run --allow-net --allow-env --allow-read --unstable-kv src/main.ts",

@@ -9,6 +9,11 @@ import {
   createWhiteNightSimpleAdvent,
   whiteNightSimpleAdventDurationMs,
 } from './WhiteNightAdvent.js';
+import {
+  createWhiteNightSpineStage,
+  whiteNightSpineIdleBounds,
+  whiteNightSpineWorldUnitToVh,
+} from './WhiteNightSpine.js';
 
 /**
  * WhiteNight 正式阶段开始后，新阶段 Trumpet 以正常音量完整播放的时长（毫秒）。
@@ -30,6 +35,8 @@ export const whiteNightTrumpetPhases = Object.freeze([
 export const whiteNightSoundPaths = Object.freeze({
   bell: 'Resources/sounds/creature/deathangel/Lucifer_Bell0.ogg',
   church: 'Resources/sounds/creature/deathangel/Lucifer_standbg0.ogg',
+  // 出逃特技第 3.5 秒的动画事件音效（OnAnimCalled(210)）。
+  skill: 'Resources/sounds/creature/whitenight/WhiteNight_Atk.ogg',
 });
 
 /** Dead_23.anim 的真实 Animation Event 时间（秒）。 */
@@ -99,148 +106,25 @@ const whiteNightConfessRayCount = Math.ceil(
     whiteNightConfessParticleSystem.emissionRate,
 );
 
-/** Dead_23 最晚音效事件及其原始音频尾音全部播放完成所需时长。 */
-export const whiteNightDeathSequenceDurationMs = 8830;
-
 /**
- * Dead 视频的九宫格切片比例。
+ * 出逃态下白夜骨骼在 DeathAngelAnim 预制体根下的位置。
  *
- * 前 4.1 秒的白夜本体像素始终位于源画面的 23.2%～74.1% 范围内，因此保留中间
- * 20%～80% 不变，只延展没有本体的外围光效。这样既不会缩放白夜本体，也能让被
- * 586×584 导出画布截断的横、竖光柱继续延伸到 viewport 边缘。
+ * `DeathAngel.Escape()` 用 `_outPos = (0.06, 1.5)`、`_outScale = 1` 摆放骨骼。
  */
-export const whiteNightConfessionViewportSlice = Object.freeze({
-  end: 0.8,
-  start: 0.2,
+const whiteNightSkeletonPrefabPosition = Object.freeze({
+  x: 0.06,
+  y: 1.5,
 });
 
 /**
- * 计算 Dead 视频九宫格映射，保持中心动画比例并把外围光效延展到 viewport。
+ * 拿不到骨架实测包围盒时的退路：按画布标称取景换算。
  *
- * @param {number} viewportWidth viewport 宽度。
- * @param {number} viewportHeight viewport 高度。
- * @param {number} sourceWidth Dead 视频宽度。
- * @param {number} sourceHeight Dead 视频高度。
- * @return {{sourceX: number[], sourceY: number[], targetX: number[], targetY: number[]}|undefined} 九宫格源坐标和目标坐标。
+ * 出逃待机包围盒实测约 17.588 世界单位高，画布按 88% 视口高取景。
  */
-export function whiteNightConfessionViewportLayout(
-    viewportWidth,
-    viewportHeight,
-    sourceWidth,
-    sourceHeight,
-) {
-  if (
-    ![viewportWidth, viewportHeight, sourceWidth, sourceHeight]
-        .every((value) => Number.isFinite(value) && value > 0)
-  ) {
-    return undefined;
-  }
-  const scale = Math.min(
-      Math.min(viewportWidth * 0.88, 980) / sourceWidth,
-      Math.min(viewportHeight * 0.88, 980) / sourceHeight,
-  );
-  const logicalWidth = sourceWidth * scale;
-  const logicalHeight = sourceHeight * scale;
-  const left = (viewportWidth - logicalWidth) / 2;
-  const top = (viewportHeight - logicalHeight) / 2;
-  const {start, end} = whiteNightConfessionViewportSlice;
-  return {
-    sourceX: [0, sourceWidth * start, sourceWidth * end, sourceWidth],
-    sourceY: [0, sourceHeight * start, sourceHeight * end, sourceHeight],
-    targetX: [
-      0,
-      left + logicalWidth * start,
-      left + logicalWidth * end,
-      viewportWidth,
-    ],
-    targetY: [
-      0,
-      top + logicalHeight * start,
-      top + logicalHeight * end,
-      viewportHeight,
-    ],
-  };
-}
+const whiteNightConfessFallbackVhPerWorldUnit = 100 * 0.88 / 17.588;
 
-/**
- * 把 Dead 视频逐帧绘制为 viewport 九宫格。
- *
- * 视频中间 60% 按原比例逐像素绘制；四周只延展源画面已经被裁断的光效末端。
- * Canvas 不可用时返回 undefined，由调用方退回原始居中视频。
- *
- * @param {HTMLVideoElement} video Dead 视频节点。
- * @param {HTMLCanvasElement} canvas 全屏输出画布。
- * @return {{dispose: Function, draw: Function, start: Function}|undefined} 绘制控制器。
- */
-export function createWhiteNightConfessionViewportRenderer(video, canvas) {
-  const context = canvas.getContext?.('2d', {alpha: true});
-  if (!context) return undefined;
-  let animationFrame;
-  let disposed = false;
-  const draw = () => {
-    const width = Math.max(0, Math.round(
-        canvas.clientWidth || globalThis.innerWidth || 0,
-    ));
-    const height = Math.max(0, Math.round(
-        canvas.clientHeight || globalThis.innerHeight || 0,
-    ));
-    const layout = whiteNightConfessionViewportLayout(
-        width,
-        height,
-        video.videoWidth,
-        video.videoHeight,
-    );
-    if (!layout || video.readyState < 2) return;
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
-    context.clearRect(0, 0, width, height);
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = 'high';
-    for (let row = 0; row < 3; row++) {
-      for (let column = 0; column < 3; column++) {
-        const sourceX = layout.sourceX[column];
-        const sourceY = layout.sourceY[row];
-        const sourceWidth = layout.sourceX[column + 1] - sourceX;
-        const sourceHeight = layout.sourceY[row + 1] - sourceY;
-        const targetX = Math.round(layout.targetX[column]);
-        const targetY = Math.round(layout.targetY[row]);
-        const targetWidth = Math.round(layout.targetX[column + 1]) - targetX;
-        const targetHeight = Math.round(layout.targetY[row + 1]) - targetY;
-        context.drawImage(
-            video,
-            sourceX,
-            sourceY,
-            sourceWidth,
-            sourceHeight,
-            targetX,
-            targetY,
-            targetWidth,
-            targetHeight,
-        );
-      }
-    }
-  };
-  const start = () => {
-    if (disposed || animationFrame !== undefined) return;
-    const tick = () => {
-      animationFrame = undefined;
-      draw();
-      if (!video.paused && !video.ended) start();
-    };
-    animationFrame = globalThis.requestAnimationFrame?.(tick);
-  };
-  return {
-    dispose: () => {
-      disposed = true;
-      if (animationFrame !== undefined) {
-        globalThis.cancelAnimationFrame?.(animationFrame);
-        animationFrame = undefined;
-      }
-    },
-    draw,
-    start,
-  };
-}
+/** Dead_23 最晚音效事件及其原始音频尾音全部播放完成所需时长。 */
+export const whiteNightDeathSequenceDurationMs = 8830;
 
 /** 白夜允许的入口以及各入口是否播放进入钟声和使徒完成演出。 */
 const whiteNightEntryBehaviors = Object.freeze({
@@ -274,12 +158,19 @@ const whiteNightEntryBehaviors = Object.freeze({
 /**
  * 按 Unity Box Shape 与 Transform 投影创建一枚 Confess 粒子。
  *
+ * 位置、长度与位移都换算成 vh：粒子系统在预制体根下 (5.84, 17.96)，出逃态骨骼在
+ * (0.06, 1.5)，相减得到相对骨骼原点的世界偏移，再减去相机中心（出逃待机包围盒中心）
+ * 才是相对视口中心的位置。Stretched Billboard 沿运动方向按 `lengthScale` 拉长
+ * （长度 = `startSize.x × lengthScale` = 41.3 世界单位），横向宽度取 `startSize.y`，
+ * 飞行距离取 `speed × lifetime`。
+ *
  * @param {Document} document 当前文档。
  * @param {string} assetRoot 《脑叶公司》资源根路径。
  * @param {number} index 粒子发射序号。
+ * @param {{cameraCenterX: number, cameraCenterY: number, sourceOffsetX: number, sourceOffsetY: number, vhPerWorldUnit: number}} view 相机映射与光源锚点。
  * @return {HTMLElement} 对应一枚 Stretched Billboard 的浏览器节点。
  */
-function createWhiteNightConfessRay(document, assetRoot, index) {
+function createWhiteNightConfessRay(document, assetRoot, index, view) {
   const source = whiteNightConfessParticleSystem;
   const color = source.initial.color;
   const exposure = Math.max(color.red, color.green, color.blue);
@@ -288,10 +179,18 @@ function createWhiteNightConfessRay(document, assetRoot, index) {
   const radians = source.transform.rotationZ * Math.PI / 180;
   const cosine = Math.cos(radians);
   const sine = Math.sin(radians);
-  const worldViewportHeight = 100 / (source.camera.orthographicSize * 2);
   // Transform X=90° 后 Shape 的 Y 轴进入景深；画面坐标只保留 X/Z。
-  const worldX = source.transform.positionX + cosine * localX - sine * localZ;
-  const worldY = source.transform.positionY - sine * localX - cosine * localZ;
+  const offsetX = view.sourceOffsetX;
+  const offsetY = view.sourceOffsetY;
+  const worldX = offsetX + cosine * localX - sine * localZ -
+      view.cameraCenterX;
+  const worldY = offsetY - sine * localX - cosine * localZ -
+      view.cameraCenterY;
+  const vhPerWorldUnit = view.vhPerWorldUnit;
+  // Stretched Billboard 沿运动方向按 lengthScale 拉长：长度 = startSize.x × lengthScale
+  // = 41.3 世界单位（约 2.5 个白夜身高），横向宽度 = startSize.y。
+  const rayLength =
+      source.initial.sizeX * source.renderer.lengthScale;
   const texture = `${assetRoot}/Texture2D/CFX3_T_RayStraight.png`;
   const ray = document.createElement('span');
   ray.className = 'lobotomy-corp-white-night-confess-ray';
@@ -317,41 +216,25 @@ function createWhiteNightConfessRay(document, assetRoot, index) {
   );
   ray.style.setProperty(
       '--lobotomy-corp-ray-left',
-      `calc(50% + ${worldX * worldViewportHeight}vh)`,
+      `calc(50% + ${worldX * vhPerWorldUnit}vh)`,
   );
   ray.style.setProperty(
       '--lobotomy-corp-ray-top',
-      `calc(50% - ${worldY * worldViewportHeight}vh)`,
+      `calc(50% - ${worldY * vhPerWorldUnit}vh)`,
   );
   ray.style.setProperty(
       '--lobotomy-corp-ray-width',
-      `${
-          source.initial.sizeX * source.renderer.lengthScale * worldViewportHeight
-      }vh`,
+      `${rayLength * vhPerWorldUnit}vh`,
   );
   ray.style.setProperty(
       '--lobotomy-corp-ray-height',
-      `${source.initial.sizeY * worldViewportHeight}vh`,
+      `${source.initial.sizeY * vhPerWorldUnit}vh`,
   );
   ray.style.setProperty(
-      '--lobotomy-corp-ray-travel-y-full',
+      '--lobotomy-corp-ray-travel',
       `${
           source.initial.speed * source.initial.lifetimeSeconds *
-          source.sizeOverLifetime.yFullAt * worldViewportHeight
-      }vh`,
-  );
-  ray.style.setProperty(
-      '--lobotomy-corp-ray-travel-x-full',
-      `${
-          source.initial.speed * source.initial.lifetimeSeconds *
-          source.sizeOverLifetime.xFullAt * worldViewportHeight
-      }vh`,
-  );
-  ray.style.setProperty(
-      '--lobotomy-corp-ray-travel-end',
-      `${
-          source.initial.speed * source.initial.lifetimeSeconds *
-          worldViewportHeight
+          vhPerWorldUnit
       }vh`,
   );
   return ray;
@@ -975,19 +858,33 @@ export function createWhiteNightEvent(shared) {
 
     if (document?.createElement && document.body) {
       const entity = document.createElement('section');
-      const video = document.createElement('video');
+      const current = state;
       entity.className = 'lobotomy-corp-white-night-entity';
-      video.autoplay = true;
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.src =
-          `${shared.assetRoot}/Resources/sprites/creaturesprite/deathangel/WhiteNight_Escape_Idle.webm`;
-      video.setAttribute('aria-hidden', 'true');
-      entity.append(video);
+      // 出逃待机、特技与镇压都是同一副 Spine 骨架上的动画，直接播放骨骼可以让切换
+      // 从当前姿势接续。宿主没有 WebGL 时白夜没有本体画面，事件本身照常运行。
+      const stage = createWhiteNightSpineStage({
+        assetRoot: shared.assetRoot,
+        document,
+        globalObject: globalThis,
+        onSkillSound: () => playAudio(whiteNightSoundPaths.skill),
+      });
+      if (stage) {
+        entity.append(stage.canvas);
+        current.spineStage = stage;
+        addListener(
+            globalThis,
+            'resize',
+            () => current.spineStage?.resize?.(),
+        );
+        stage.ready.catch((error) => {
+          // 骨架或运行时加载失败时白夜没有本体画面，这里留下控制台痕迹便于排查。
+          globalThis.console?.warn?.('[WhiteNight] Spine stage failed', error);
+          stage.dispose();
+          current.spineStage = undefined;
+        });
+      }
       document.body.append(entity);
-      state.entity = entity;
-      state.idleVideo = video;
+      current.entity = entity;
     }
     state.churchAudio = playAudio(
         whiteNightSoundPaths.church,
@@ -1201,12 +1098,10 @@ export function createWhiteNightEvent(shared) {
     current.entity?.remove?.();
     current.confessionEntity?.remove?.();
     current.particleLayer?.remove?.();
-    current.confessionRenderer?.dispose?.();
+    current.spineStage?.dispose?.();
     releaseMedia(current.churchAudio);
     current.bellAudios?.forEach(releaseMedia);
     current.deathAudios?.forEach(releaseMedia);
-    releaseMedia(current.idleVideo);
-    releaseMedia(current.confessionVideo);
     current.preparedDeathMedia?.dispose?.();
     globalThis.document?.querySelectorAll?.(
         '.lobotomy-corp-white-night-message',
@@ -1249,65 +1144,50 @@ export function createWhiteNightEvent(shared) {
     };
     if (document?.createElement && document.body) {
       const entity = document.createElement('section');
-      const video = document.createElement('video');
-      const canvas = document.createElement('canvas');
       const particles = document.createElement('div');
       entity.className = 'lobotomy-corp-white-night-confession-entity';
-      // WhiteNight_Confess_Dead.webm 的 alpha 已按浏览器合成语义重写为
-      // max(覆盖度, 颜色峰值)，使「颜色 × alpha」等于 Unity 渲染结果的原始颜色，
-      // additive 十字光柱（effect_line/effect_light）与收尾阶段才不会丢失亮度。
-      video.className = 'lobotomy-corp-white-night-confession-video';
-      video.autoplay = true;
-      video.hidden = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.setAttribute('aria-hidden', 'true');
-      canvas.className = 'lobotomy-corp-white-night-confession-canvas';
-      canvas.setAttribute('aria-hidden', 'true');
-      const renderer = createWhiteNightConfessionViewportRenderer(
-          video,
-          canvas,
-      );
-      if (renderer) {
-        addListener(video, 'loadeddata', renderer.start);
-        addListener(video, 'play', renderer.start);
-        addListener(video, 'seeked', renderer.draw);
-        addListener(globalThis, 'resize', renderer.draw);
-      } else {
-        canvas.hidden = true;
-        video.className +=
-            ' lobotomy-corp-white-night-confession-video-fallback';
-      }
       particles.className = 'lobotomy-corp-white-night-confess-particles';
       // ParticleSystem 使用 CFX3_RayStraight ADD.mat；浏览器直接加载其 _MainTex：CFX3_T_RayStraight.png。
+      // 恢复演出时舞台可能还没测量完，用骨架实测包围盒兜底，换算结果一致。
+      const confessBounds = current.spineStage?.viewBounds ??
+          whiteNightSpineIdleBounds;
+      const vhPerWorldUnit = whiteNightSpineWorldUnitToVh(
+          confessBounds,
+          globalThis.innerWidth ?? 1280,
+          globalThis.innerHeight ?? 720,
+      ) ?? whiteNightConfessFallbackVhPerWorldUnit;
+      const view = {
+        cameraCenterX: confessBounds
+            ? (confessBounds.minX + confessBounds.maxX) / 200
+            : 0,
+        cameraCenterY: confessBounds
+            ? (confessBounds.minY + confessBounds.maxY) / 200
+            : 0,
+        // 光源位置照搬 prefab：Confess 在预制体根下 (5.84, 17.96)，出逃态骨骼在
+        // (0.06, 1.5)，相减即相对骨骼原点的偏移。
+        sourceOffsetX: whiteNightConfessParticleSystem.transform.positionX -
+            whiteNightSkeletonPrefabPosition.x,
+        sourceOffsetY: whiteNightConfessParticleSystem.transform.positionY -
+            whiteNightSkeletonPrefabPosition.y,
+        vhPerWorldUnit,
+      };
       for (let index = 0; index < whiteNightConfessRayCount; index++) {
         particles.append(
-            createWhiteNightConfessRay(document, shared.assetRoot, index),
+            createWhiteNightConfessRay(document, shared.assetRoot, index, view),
         );
       }
-      entity.append(video, canvas, particles);
+      entity.append(particles);
       document.body.append(entity);
       state.confessionEntity = entity;
-      state.confessionVideo = video;
-      state.confessionRenderer = renderer;
       state.particleLayer = particles;
     }
     const suppressionTimer = setTimeout(() => {
       if (state !== current) return;
       releaseMedia(current.churchAudio);
       current.churchAudio = undefined;
-      current.entity?.remove?.();
-      current.entity = undefined;
-      releaseMedia(current.idleVideo);
-      current.idleVideo = undefined;
-      if (current.confessionVideo) {
-        current.confessionVideo.hidden = false;
-        current.confessionVideo.src =
-            `${shared.assetRoot}/Resources/sprites/creaturesprite/deathangel/WhiteNight_Confess_Dead.webm`;
-        // display:none 的视频仅作为 Canvas 帧源，部分浏览器不会替它执行 autoplay。
-        // 这里显式播放同一素材，不改变 Dead_23 的时间轴。
-        const playAttempt = current.confessionVideo.play?.();
-        playAttempt?.catch?.(() => {});
+      if (current.spineStage) {
+        // 镇压点：同一副骨架继续播 Dead，取景与姿势都从出逃待机接续。
+        current.spineStage.playDeath();
       }
       shared.resumeAlertMusic();
       current.alertMusicResumed = true;

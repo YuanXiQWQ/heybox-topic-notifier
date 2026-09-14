@@ -502,17 +502,6 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     api.onAbnormalitySubmitted((id) => observedCanonicalIds.push(id));
     const form = { action: "https://warmnest.test/settings", method: "post" };
 
-    /**
-     * 判断模拟 DOM 子树中是否存在指定媒体。
-     *
-     * @param {Element} node 当前节点。
-     * @param {string} suffix 媒体路径结尾。
-     * @return {boolean} 找到媒体时返回 true。
-     */
-    const hasMedia = (node: Element, suffix: string): boolean =>
-      node.src.endsWith(suffix) ||
-      node.children.some((child) => hasMedia(child, suffix));
-
     Object.defineProperty(browser, "fetch", {
       configurable: true,
       value: () =>
@@ -587,7 +576,6 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     )!;
     assertStrictEquals(preparedChurch.muted, true);
     assertEquals(preparedChurch.playCount, 1);
-    assertStrictEquals(hasMedia(body, "WhiteNight_Confess_Dead.webm"), false);
     const savedIdentityLabel = displayNameLabel.textContent;
 
     const restarting = api.restartDay();
