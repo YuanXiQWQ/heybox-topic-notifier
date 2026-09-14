@@ -15,6 +15,12 @@ import {
   whiteNightSpineRuntimePath,
   whiteNightSpineSkeletonFile,
 } from "../static/fun/lobotomy-corp/Events/WhiteNightSpine.js";
+import {
+  plagueDoctorSpineAssetDirectory,
+  plagueDoctorSpineAtlasFile,
+  plagueDoctorSpinePageFiles,
+  plagueDoctorSpineSkeletonFile,
+} from "../static/fun/lobotomy-corp/Events/PlagueDoctorSpine.js";
 
 Deno.test({
   name: "WhiteNight Spine 运行时、骨架与白圈资源都能通过彩蛋资源路由读取",
@@ -36,6 +42,19 @@ Deno.test({
         "image/png",
       ],
       [`Assets/${whiteNightSpineRangeTexture}`, "image/png"],
+      // 疫医骨架：JSON、Atlas 与两页贴图同样走 `Assets/Resources/spinedata` 规则。
+      [
+        `Assets/${plagueDoctorSpineAssetDirectory}/${plagueDoctorSpineSkeletonFile}`,
+        "application/json; charset=utf-8",
+      ],
+      [
+        `Assets/${plagueDoctorSpineAssetDirectory}/${plagueDoctorSpineAtlasFile}`,
+        "text/plain; charset=utf-8",
+      ],
+      ...plagueDoctorSpinePageFiles.map((page): [string, string] => [
+        `Assets/${plagueDoctorSpineAssetDirectory}/${page}`,
+        "image/png",
+      ]),
       [
         "Assets/Resources/sounds/creature/whitenight/WhiteNight_Atk.ogg",
         "audio/ogg",
@@ -350,7 +369,7 @@ Deno.test({
   permissions: { read: true },
   fn: async () => {
     const normal = await lobotomyCorpAssetResponse(
-      "Assets/Resources/sprites/creaturesprite/deathangel/PlagueDoctor_Advent.webm",
+      "Assets/Resources/sprites/effect/touchwarning.webm",
     );
     const death = await lobotomyCorpAssetResponse(
       "Assets/Resources/sprites/effect/touchkill.webm",

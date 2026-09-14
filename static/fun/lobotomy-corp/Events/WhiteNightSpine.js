@@ -7,11 +7,19 @@
  * 用与骨骼同名的动画复刻同一个状态机。
  */
 
+import {
+  loadSpineRuntime,
+  spineAssetPaths,
+  spineModuleRoot,
+  spineRuntimePath,
+  waitForSpineAssets,
+} from './SpineRuntime.js';
+
 /** 白夜骨架数据在 `Assets` 下的相对目录。 */
 export const whiteNightSpineAssetDirectory = 'Resources/spinedata/deathangel';
 
 /** Spine WebGL 运行时相对彩蛋模块根路径的位置。 */
-export const whiteNightSpineRuntimePath = 'vendor/spine-webgl-3.6.53.js';
+export const whiteNightSpineRuntimePath = spineRuntimePath;
 
 /** 骨架 JSON 文件名。 */
 export const whiteNightSpineSkeletonFile = 'skeleton_5.json';
@@ -96,18 +104,13 @@ const whiteNightSpineLoopingAnimations = Object.freeze([
   whiteNightSpineAnimations.escapeIdle,
 ]);
 
-/** 按全局对象缓存的运行时加载过程，避免重复注入脚本。 */
-const whiteNightSpineRuntimeLoads = new WeakMap();
-
 /**
  * 由 `Assets` 目录推导彩蛋模块根路径。
  *
  * @param {string} assetRoot `Assets` 目录的公开路径。
  * @return {string} 模块根路径。
  */
-export function whiteNightSpineModuleRoot(assetRoot) {
-  return String(assetRoot ?? '').replace(/\/Assets\/?$/, '');
-}
+export const whiteNightSpineModuleRoot = spineModuleRoot;
 
 /**
  * 计算 Spine 资源在彩蛋资源路由下的路径。
@@ -121,16 +124,12 @@ export function whiteNightSpineModuleRoot(assetRoot) {
  * @return {{assetDirectory: string, atlasPath: string, pathPrefix: string, skeletonPath: string}} 资源目录、目录前缀与文件相对路径。
  */
 export function whiteNightSpineAssetPaths(moduleRoot) {
-  const separator = whiteNightSpineAssetDirectory.lastIndexOf('/');
-  const parentDirectory = whiteNightSpineAssetDirectory.slice(0, separator + 1);
-  const leafDirectory = whiteNightSpineAssetDirectory.slice(separator + 1);
-  return {
-    // 相对彩蛋模块根路径（无结尾斜杠），供测试与资源路由使用。
-    assetDirectory: `Assets/${parentDirectory}${leafDirectory}`,
-    atlasPath: `${leafDirectory}/${whiteNightSpineAtlasFile}`,
-    pathPrefix: `${moduleRoot}/Assets/${parentDirectory}`,
-    skeletonPath: `${leafDirectory}/${whiteNightSpineSkeletonFile}`,
-  };
+  return spineAssetPaths(
+    whiteNightSpineAssetDirectory,
+    whiteNightSpineSkeletonFile,
+    whiteNightSpineAtlasFile,
+    moduleRoot,
+  );
 }
 
 /**
@@ -293,46 +292,10 @@ export function advanceWhiteNightSpineSkill(state, deltaSeconds) {
 /**
  * 加载 Spine WebGL 运行时。
  *
- * 运行时是官方的全局脚本构建，加载后挂在全局对象的 `spine` 上；重复调用共用同一次
- * 注入。宿主没有 DOM 时直接返回 undefined，调用方退回预渲染视频。
- *
- * @param {object} options 加载配置。
- * @param {Document} [options.document] 当前文档。
- * @param {object} [options.globalObject] 全局对象。
- * @param {string} [options.path] 运行时脚本的公开路径。
- * @return {Promise<object|undefined>} 运行时命名空间。
+ * 实现由 {@link ./SpineRuntime.js} 共用；宿主没有 DOM 时返回 undefined，调用方放弃
+ * 接管画面。
  */
-export function loadWhiteNightSpineRuntime({document, globalObject, path}) {
-  if (globalObject?.spine?.webgl) {
-    return Promise.resolve(globalObject.spine);
-  }
-  if (!document?.createElement || !globalObject || !path) {
-    return Promise.resolve(undefined);
-  }
-  let loads = whiteNightSpineRuntimeLoads.get(globalObject);
-  if (!loads) {
-    loads = new Map();
-    whiteNightSpineRuntimeLoads.set(globalObject, loads);
-  }
-  const cached = loads.get(path);
-  if (cached) return cached;
-  const pending = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = path;
-    script.async = true;
-    script.addEventListener?.('load', () => {
-      const runtime = globalObject.spine;
-      if (runtime?.webgl) resolve(runtime);
-      else reject(new Error('spine runtime namespace missing'));
-    });
-    script.addEventListener?.('error', () => {
-      reject(new Error(`spine runtime failed to load: ${path}`));
-    });
-    (document.head ?? document.body)?.append?.(script);
-  });
-  loads.set(path, pending);
-  return pending;
-}
+export const loadWhiteNightSpineRuntime = loadSpineRuntime;
 
 /**
  * 采样一条动画的骨骼包围盒。
@@ -605,7 +568,7 @@ export function createWhiteNightSpineStage(options) {
     assetManager = new runtime.webgl.AssetManager(gl, spinePaths.pathPrefix);
     assetManager.loadText(spinePaths.skeletonPath);
     assetManager.loadTextureAtlas(spinePaths.atlasPath);
-    await waitForAssets();
+    await waitForSpineAssets(assetManager, hostGlobal, () => disposed);
     if (disposed) return false;
     if (assetManager.hasErrors()) {
       throw new Error(
@@ -633,20 +596,6 @@ export function createWhiteNightSpineStage(options) {
     }
     return true;
   };
-
-  /**
-   * 等待 AssetManager 结算所有排队资源。
-   *
-   * @return {Promise<void>} 加载结束时兑现。
-   */
-  const waitForAssets = () =>
-    new Promise((resolve) => {
-      const check = () => {
-        if (disposed || assetManager.isLoadingComplete()) resolve();
-        else hostGlobal.setTimeout?.(check, 16);
-      };
-      check();
-    });
 
   /**
    * 加载特技白圈贴图。
