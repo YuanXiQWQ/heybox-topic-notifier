@@ -32,8 +32,17 @@ export const blackForestEggTransitionSeconds = 0.25;
  */
 export const blackForestEggHalfTransitionExitTime = 0.75;
 
-/** 为页面图标槽位再次等比缩小的比例；骨架本身不改形。 */
-export const blackForestEggIconScale = 0.82;
+/** 鸟蛋动画包围盒与画布边缘之间保留的可见比例。 */
+export const blackForestEggIconScale = 0.95;
+
+/** 鸟蛋画布相对原图标槽位的显示倍数。 */
+export const blackForestEggCanvasScale = 1.55;
+
+/** 鸟蛋画布的最小显示边长（CSS 像素）。 */
+export const blackForestEggMinimumCanvasSize = 32;
+
+/** 采样 Spine 动画包围盒时每秒使用的帧数。 */
+export const blackForestEggBoundsSampleRate = 12;
 
 /**
  * 三颗蛋的原始 Spine 资源与 Animator 动画名。
@@ -92,29 +101,31 @@ export const blackForestEggReferenceHeight = 556.78;
 /**
  * 计算一颗蛋在图标槽位内的取景。
  *
- * 三个 prefab 都以 `0.7` 缩放骨架，页面只在这个整体尺寸上再等比缩小。画布始终以
- * 骨架根节点为中心，不让任何一种动画被单独拉伸或裁切。
+ * 三个 prefab 都以 `0.7` 缩放骨架；网页以四条动画的联合包围盒为中心取景，
+ * 不让待机、半血或死亡动画被单独拉伸或裁切。
  *
- * @param {number} width 图标槽位的 CSS 宽度。
- * @param {number} height 图标槽位的 CSS 高度。
+ * @param {number} width 画布的 CSS 宽度。
+ * @param {number} height 画布的 CSS 高度。
+ * @param {{minX: number, minY: number, maxX: number, maxY: number}} [bounds] 动画包围盒；缺省时使用静态骨架尺寸。
  * @return {{centerX: number, centerY: number, pixelsPerSkeletonUnit: number}|undefined} 相机映射。
  */
-export function blackForestEggSpineLayout(width, height) {
+export function blackForestEggSpineLayout(width, height, bounds) {
   if (!(width > 0) || !(height > 0)) return undefined;
-  const referenceWorldWidth =
-    blackForestEggReferenceWidth * blackForestEggPrefabScale;
-  const referenceWorldHeight =
-    blackForestEggReferenceHeight * blackForestEggPrefabScale;
-  const pixelsPerWorldUnit = Math.min(
-    width / referenceWorldWidth,
-    height / referenceWorldHeight,
+  const boundsWidth = bounds
+    ? bounds.maxX - bounds.minX
+    : blackForestEggReferenceWidth;
+  const boundsHeight = bounds
+    ? bounds.maxY - bounds.minY
+    : blackForestEggReferenceHeight;
+  if (!(boundsWidth > 0) || !(boundsHeight > 0)) return undefined;
+  const pixelsPerSkeletonUnit = Math.min(
+    width / boundsWidth,
+    height / boundsHeight,
   ) * blackForestEggIconScale;
-  const pixelsPerSkeletonUnit =
-    pixelsPerWorldUnit * blackForestEggPrefabScale;
   if (!(pixelsPerSkeletonUnit > 0)) return undefined;
   return {
-    centerX: 0,
-    centerY: 0,
+    centerX: bounds ? (bounds.minX + bounds.maxX) / 2 : 0,
+    centerY: bounds ? (bounds.minY + bounds.maxY) / 2 : 0,
     pixelsPerSkeletonUnit,
   };
 }
@@ -135,6 +146,54 @@ export function blackForestEggSpinePaths(egg, moduleRoot) {
     config.atlasFile,
     moduleRoot,
   );
+}
+
+/**
+ * 采样一组 Spine 动画的联合包围盒。
+ *
+ * 每帧更新骨架后取所有附件世界顶点的并集；调用方随后需要清空轨道并恢复待机动画。
+ *
+ * @param {object} runtime Spine 运行时命名空间。
+ * @param {object} animationState 用于采样的动画状态。
+ * @param {object} skeleton 用于采样的骨架实例。
+ * @param {Array<object>} animations 要采样的动画。
+ * @return {{minX: number, minY: number, maxX: number, maxY: number}|undefined} 联合包围盒。
+ */
+export function measureBlackForestEggSpineBounds(
+  runtime,
+  animationState,
+  skeleton,
+  animations,
+) {
+  const offset = new runtime.Vector2();
+  const size = new runtime.Vector2();
+  const temp = new Array(8);
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  animations.forEach((animation) => {
+    const sampleCount = Math.max(
+      2,
+      Math.ceil(animation.duration * blackForestEggBoundsSampleRate),
+    );
+    const step = animation.duration / sampleCount;
+    animationState.setAnimation(0, animation.name, false);
+    for (let index = 0; index <= sampleCount; index++) {
+      if (index > 0) animationState.update(step);
+      animationState.apply(skeleton);
+      skeleton.updateWorldTransform();
+      skeleton.getBounds(offset, size, temp);
+      if (!Number.isFinite(size.x) || !Number.isFinite(size.y)) continue;
+      minX = Math.min(minX, offset.x);
+      minY = Math.min(minY, offset.y);
+      maxX = Math.max(maxX, offset.x + size.x);
+      maxY = Math.max(maxY, offset.y + size.y);
+    }
+    animationState.clearTracks();
+  });
+  if (!(maxX > minX) || !(maxY > minY)) return undefined;
+  return {maxX, maxY, minX, minY};
 }
 
 /**
@@ -181,6 +240,7 @@ export function createBlackForestEggSpineStage(options) {
   let animationState;
   let animationStateData;
   let currentAnimation;
+  let eggBounds;
   let sceneRenderer;
   let skeleton;
   let skeletonData;
@@ -224,12 +284,18 @@ export function createBlackForestEggSpineStage(options) {
    * 按图标槽位的 CSS 尺寸同步 WebGL 画布与相机。
    */
   const resize = () => {
-    const width = Math.max(1, Math.round(
-      options.width || canvas.clientWidth || 1,
-    ));
-    const height = Math.max(1, Math.round(
-      options.height || canvas.clientHeight || 1,
-    ));
+    const baseWidth = Math.max(1, options.width || canvas.clientWidth || 1);
+    const baseHeight = Math.max(1, options.height || canvas.clientHeight || 1);
+    const displayScale = Math.max(
+      blackForestEggCanvasScale,
+      blackForestEggMinimumCanvasSize / Math.min(baseWidth, baseHeight),
+    );
+    const width = Math.max(1, Math.round(baseWidth * displayScale));
+    const height = Math.max(1, Math.round(baseHeight * displayScale));
+    if (canvas.style) {
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+    }
     const ratio = Math.min(2, Math.max(1, hostGlobal.devicePixelRatio ?? 1));
     const pixelWidth = Math.max(1, Math.round(width * ratio));
     const pixelHeight = Math.max(1, Math.round(height * ratio));
@@ -237,7 +303,7 @@ export function createBlackForestEggSpineStage(options) {
     if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
     if (!sceneRenderer || !runtime) return;
     sceneRenderer.resize(runtime.webgl.ResizeMode.Expand);
-    const layout = blackForestEggSpineLayout(width, height);
+    const layout = blackForestEggSpineLayout(width, height, eggBounds);
     if (!layout) return;
     const camera = sceneRenderer.camera;
     camera.position.x = layout.centerX;
@@ -394,6 +460,15 @@ export function createBlackForestEggSpineStage(options) {
       blackForestEggTransitionSeconds,
     );
     animationState = new runtime.AnimationState(animationStateData);
+    eggBounds = measureBlackForestEggSpineBounds(
+      runtime,
+      animationState,
+      skeleton,
+      Object.values(config.animations)
+        .map((name) => skeletonData.findAnimation(name))
+        .filter(Boolean),
+    );
+    animationState.clearTracks();
     sceneRenderer = new runtime.webgl.SceneRenderer(canvas, gl, false);
     resize();
     if (!playFullBlood()) {

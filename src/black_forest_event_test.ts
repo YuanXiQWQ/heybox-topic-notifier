@@ -10,10 +10,14 @@ import {
 } from "./test_helpers.ts";
 import { Element, StorageMock } from "./test_harness.ts";
 import {
+  blackForestEggCanvasScale,
+  blackForestEggIconScale,
+  blackForestEggMinimumCanvasSize,
   blackForestEggPrefabScale,
   blackForestEggSpineAssets,
   blackForestEggSpineLayout,
   blackForestEggTransitionSeconds,
+  measureBlackForestEggSpineBounds,
 } from "../static/fun/lobotomy-corp/Events/BlackForestEggSpine.js";
 import {
   blackForestActivePhases,
@@ -192,6 +196,79 @@ Deno.test("Black Forest egg visuals use the original Spine animation chain", () 
   const layout = blackForestEggSpineLayout(24, 24);
   assert(layout !== undefined);
   assert(layout.pixelsPerSkeletonUnit > 0);
+  assert(blackForestEggCanvasScale > 1);
+  assert(blackForestEggMinimumCanvasSize > 0);
+  const measuredBounds = {
+    maxX: 260,
+    maxY: 340,
+    minX: -140,
+    minY: -300,
+  };
+  const measuredLayout = blackForestEggSpineLayout(
+    48,
+    48,
+    measuredBounds,
+  );
+  assert(measuredLayout !== undefined);
+  assertEquals(measuredLayout?.centerX, 60);
+  assertEquals(measuredLayout?.centerY, 20);
+  assert(
+    Math.abs(
+      measuredLayout.pixelsPerSkeletonUnit -
+        48 / 640 * blackForestEggIconScale,
+    ) < 1e-10,
+  );
+});
+
+/** 鸟蛋取景必须覆盖全部待机、半血、死亡动画，而不是只看静态 setup bounds。 */
+Deno.test("Black Forest egg camera uses the sampled animation bounds", () => {
+  class Vector2 {
+    x = 0;
+    y = 0;
+
+    /** 写入向量。 */
+    set(x: number, y: number) {
+      this.x = x;
+      this.y = y;
+    }
+  }
+  const runtime = {Vector2};
+  let clearCount = 0;
+  const sampledAnimations: string[] = [];
+  const animationState = {
+    /** 模拟切换采样动画。 */
+    setAnimation: (_track: number, name: string) => {
+      sampledAnimations.push(name);
+    },
+    /** 模拟推进时间。 */
+    update: () => {},
+    /** 模拟写入骨架姿势。 */
+    apply: () => {},
+    /** 记录轨道清理。 */
+    clearTracks: () => {
+      clearCount += 1;
+    },
+  };
+  const skeleton = {
+    /** 模拟附件世界顶点包围盒。 */
+    updateWorldTransform: () => {},
+    /** 返回固定测试包围盒。 */
+    getBounds: (offset: Vector2, size: Vector2) => {
+      offset.set(-10, -20);
+      size.set(30, 50);
+    },
+  };
+  assertEquals(
+    measureBlackForestEggSpineBounds(
+      runtime,
+      animationState,
+      skeleton,
+      [{duration: 1, name: "full"}, {duration: 2, name: "dead"}],
+    ),
+    {maxX: 20, maxY: 30, minX: -10, minY: -20},
+  );
+  assertEquals(sampledAnimations, ["full", "dead"]);
+  assertEquals(clearCount, 2);
 });
 
 /** 输入的两只鸟决定出场顺序，第三只是没输入的那只。 */
@@ -373,15 +450,40 @@ Deno.test("Black Forest CG text layout keeps the line inside the viewport", () =
   });
 });
 
-/** 三颗蛋必须落在三个不同页面的图标槽位上。 */
-Deno.test("Black Forest spreads the three eggs over three pages", () => {
-  const assignment = blackForestEggAssignment(() => 0);
+/** 三颗蛋从所有候选槽位随机抽取，允许同一页面出现多颗。 */
+Deno.test("Black Forest assigns eggs across all candidate slots", () => {
+  assertEquals(blackForestIconSlots.length, 43);
+  assertEquals(
+    new Set(blackForestIconSlots.map((slot) => slot.id)).size,
+    blackForestIconSlots.length,
+  );
+  assertEquals(
+    blackForestIconSlots.filter((slot) => slot.page === "nav").length,
+    5,
+  );
+  assertEquals(
+    blackForestIconSlots.filter((slot) => slot.page === "dashboard").length,
+    1,
+  );
+  assertEquals(
+    blackForestIconSlots.filter((slot) => slot.page === "settings").length,
+    36,
+  );
+  assertEquals(
+    blackForestIconSlots.filter((slot) => slot.page === "history").length,
+    1,
+  );
+  const assignment = blackForestEggAssignment(() => 0, [
+    { id: "nav.dashboard", page: "nav" },
+    { id: "nav.settings", page: "nav" },
+    { id: "nav.history", page: "nav" },
+  ]);
   const slots = Object.keys(assignment);
   assertEquals(slots.length, 3);
   const pages = slots.map((slot) =>
     blackForestIconSlots.find((entry) => entry.id === slot)?.page
   );
-  assertEquals(new Set(pages).size, 3);
+  assertEquals(pages.filter((page) => page === "nav").length, 3);
   assertEquals(new Set(Object.values(assignment)).size, 3);
   Object.values(assignment).forEach((egg) => {
     assert(egg in blackForestEggs, `${egg} 应是三颗蛋之一`);
@@ -809,7 +911,17 @@ Deno.test("Black Forest styles follow the prefab layers and gift slot", () => {
   assert(gift.includes("z-index: 0"));
   const avatar = cssRule(css, "account-avatar-risk-wrapper > .account-avatar");
   assert(avatar.includes("z-index: 1"));
-  assert(css.includes(".lobotomy-corp-black-forest-egg-spine"));
+  const egg = cssRule(css, "lobotomy-corp-black-forest-egg");
+  assert(egg.includes("overflow: visible"));
+  assert(egg.includes("position: relative"));
+  const spine = cssRule(css, "lobotomy-corp-black-forest-egg-spine");
+  assert(spine.includes("position: absolute"));
+  assert(spine.includes("transform: translate(-50%, -50%)"));
+  assert(
+    css.includes(
+      '[data-lobotomy-corp-black-forest-overflow="true"]',
+    ),
+  );
   assert(!css.includes(".lobotomy-corp-black-forest-egg-image"));
 });
 

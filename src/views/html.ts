@@ -273,7 +273,10 @@ export function renderLayout(options: {
       }">
           ${csrfHiddenInput(options.csrfToken)}
           <button class="nav-link-button" type="submit">${
-        renderNavItem(logoutIcon("nav-icon"), messages.navLogout)
+        renderNavItem(
+          logoutIcon("nav-icon", "nav.logout"),
+          messages.navLogout,
+        )
       }</button>
         </form>`
   }
@@ -316,7 +319,7 @@ function renderAccountMenu(
   }">${
     renderAvatar(account, messages)
   }</summary><div class="nav-account-dropdown"><a class="nav-account-menu-action" href="/settings">${
-    authIcon("username", "nav-account-menu-icon")
+    authIcon("username", "nav-account-menu-icon", "nav.accountSettings")
   }<span>${
     escapeHtml(messages.accountSettings)
   }</span></a><form method="post" action="/logout?locale=${
@@ -324,7 +327,7 @@ function renderAccountMenu(
   }">${
     csrfHiddenInput(csrfToken)
   }<button class="nav-account-menu-action nav-account-logout" type="submit">${
-    logoutIcon("nav-account-menu-icon")
+    logoutIcon("nav-account-menu-icon", "nav.logout")
   }<span>${
     escapeHtml(messages.navLogout)
   }</span></button></form></div></details>`;

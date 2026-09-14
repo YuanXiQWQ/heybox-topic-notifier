@@ -353,6 +353,7 @@ function renderPagination(
 ): string {
   const pageMarker = 999999999;
   const headingHash = `#${encodeURIComponent(headingId)}`;
+  const slotPrefix = path === "/history" ? "history" : "dashboard";
   const pageUrlTemplate = buildMatchTableUrl(path, table, { page: pageMarker })
     .replace(`page=${pageMarker}`, "page=__PAGE__") + headingHash;
   const pageLinks = compactPages(table.page, table.totalPages).map((page) => {
@@ -362,7 +363,9 @@ function renderPagination(
 
     const href = buildMatchTableUrl(path, table, { page }) + headingHash;
     const isCurrent = page === table.page;
-    return `<a class="${isCurrent ? "is-current" : ""}" href="${
+    return `<a class="${isCurrent ? "is-current" : ""}" data-lobotomy-corp-black-forest-slot="${
+      slotPrefix
+    }.page.${page}" href="${
       escapeHtml(href)
     }">${page}</a>`;
   }).join("");
@@ -372,7 +375,9 @@ function renderPagination(
     const label = pageSize === "all" ? messages.allRows : String(pageSize);
     return `<a class="${
       pageSize === table.pageSize ? "is-current" : ""
-    }" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
+    }" data-lobotomy-corp-black-forest-slot="${
+      slotPrefix
+    }.pageSize.${pageSize}" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
   }).join("");
 
   return `
@@ -384,6 +389,7 @@ function renderPagination(
         data-current-page="${table.page}"
         data-total-pages="${table.totalPages}"
         data-page-url-template="${escapeHtml(pageUrlTemplate)}"
+        data-lobotomy-corp-black-forest-page-prefix="${slotPrefix}"
       >${pageLinks}</nav>
       <div class="page-size-links">
         <span>${escapeHtml(messages.pageSize)}</span>
@@ -545,6 +551,11 @@ function renderPaginationScript(): string {
         link.href = pageUrl(template, page);
         link.textContent = String(page);
         link.dataset.page = String(page);
+        const slotPrefix = nav.dataset.lobotomyCorpBlackForestPagePrefix;
+        if (slotPrefix) {
+          link.dataset.lobotomyCorpBlackForestSlot =
+            slotPrefix + ".page." + page;
+        }
         if (page === currentPage) link.className = "is-current";
         return link;
       }

@@ -215,25 +215,69 @@ export const blackForestGift = Object.freeze({
   sprite: 'Resources/sprites/worker/equipment/attachment/BossBirdWing.png',
 });
 
-/**
- * 可以被鸟蛋替换的图标槽位。
- *
- * 只收录「不修改任何内容、不退出登录就能直接看到」的图标：导航栏的三个入口、
- * 工作区与历史页的筛选按钮、设置页外观分区的三个标签图标。
- * 页面侧用 `data-lobotomy-corp-black-forest-slot` 标记这些槽位。
- */
-export const blackForestIconSlots = Object.freeze([
-  Object.freeze({ id: 'nav.dashboard', page: 'nav' }),
-  Object.freeze({ id: 'nav.settings', page: 'nav' }),
-  Object.freeze({ id: 'nav.history', page: 'nav' }),
-  Object.freeze({ id: 'dashboard.filter', page: 'dashboard' }),
-  Object.freeze({ id: 'settings.theme', page: 'settings' }),
-  Object.freeze({ id: 'settings.darkMode', page: 'settings' }),
-  Object.freeze({ id: 'settings.locale', page: 'settings' }),
-  Object.freeze({ id: 'history.filter', page: 'history' }),
-]);
+/** 各候选页面中的固定图标槽位。 */
+const blackForestIconSlotIds = Object.freeze({
+  nav: Object.freeze([
+    'nav.dashboard',
+    'nav.settings',
+    'nav.history',
+    'nav.accountSettings',
+    'nav.logout',
+  ]),
+  dashboard: Object.freeze(['dashboard.filter']),
+  settings: Object.freeze([
+    'settings.account.avatar',
+    'settings.account.username',
+    'settings.account.displayName',
+    'settings.post.topic',
+    'settings.post.keywords',
+    'settings.poll.enabled',
+    'settings.poll.interval',
+    'settings.poll.postLimit',
+    'settings.poll.sort',
+    'settings.notification.provider',
+    'settings.notification.webhookService',
+    'settings.notification.token',
+    'settings.notification.spt',
+    'settings.notification.sendKey',
+    'settings.notification.webhookUrl',
+    'settings.notification.emailService',
+    'settings.notification.emailAddress',
+    'settings.notification.emailFrom',
+    'settings.notification.apiUrl',
+    'settings.notification.apiToken',
+    'settings.notification.smtpHost',
+    'settings.notification.smtpPort',
+    'settings.notification.ssl',
+    'settings.notification.smtpUsername',
+    'settings.notification.smtpPassword',
+    'settings.auth.email',
+    'settings.auth.password',
+    'settings.auth.passkey',
+    'settings.auth.google',
+    'settings.auth.twoFactor',
+    'settings.auth.preferredMethod',
+    'settings.auth.authenticator',
+    'settings.auth.recoveryCode',
+    'settings.global.theme',
+    'settings.global.darkMode',
+    'settings.global.locale',
+  ]),
+  history: Object.freeze(['history.filter']),
+});
 
-/** 页面分区；三颗蛋分别落在其中三个分区，用户必须跨页面寻找。 */
+/**
+ * 可以被鸟蛋替换的固定候选槽位。
+ *
+ * 分页页码与每页行数只在对应表格存在时由当前页面动态追加。
+ */
+export const blackForestIconSlots = Object.freeze(
+  Object.entries(blackForestIconSlotIds).flatMap(([page, ids]) =>
+    ids.map((id) => Object.freeze({ id, page }))
+  ),
+);
+
+/** 候选页面；鸟蛋可从这些页面汇总出的槽位中随机出现。 */
 export const blackForestIconPages = Object.freeze([
   'nav',
   'dashboard',
@@ -400,12 +444,16 @@ export function blackForestCgTextLayout(viewportWidth, viewportHeight) {
 }
 
 /**
- * 把三颗蛋随机分配到三个不同页面的图标槽位上。
+ * 把所有候选页面里的图标槽位统一随机分配，同一页面可以出现多颗蛋。
  *
  * @param {() => number} [random] 返回 [0, 1) 的随机源，测试可注入。
+ * @param {readonly {id: string, page: string}[]} [slots] 本次可用的候选槽位。
  * @return {Record<string, string>} 图标槽位 → 蛋。
  */
-export function blackForestEggAssignment(random = Math.random) {
+export function blackForestEggAssignment(
+  random = Math.random,
+  slots = blackForestIconSlots,
+) {
   /**
    * 洗牌一份只读列表。
    *
@@ -422,17 +470,12 @@ export function blackForestEggAssignment(random = Math.random) {
     }
     return list;
   };
-  const pages = shuffled(blackForestIconPages)
+  const selectedSlots = shuffled(slots.map((slot) => slot.id))
     .slice(0, blackForestEggOrder.length);
   const eggs = shuffled(blackForestEggOrder);
   /** @type {Record<string, string>} */
   const assignment = {};
-  pages.forEach((page, index) => {
-    const slots = blackForestIconSlots
-      .filter((slot) => slot.page === page)
-      .map((slot) => slot.id);
-    if (slots.length === 0) return;
-    const slot = slots[Math.floor(random() * slots.length) % slots.length];
+  selectedSlots.forEach((slot, index) => {
     assignment[slot] = eggs[index];
   });
   return assignment;
@@ -783,12 +826,39 @@ export function createBlackForestEvent(shared) {
   let state;
   /** @type {any} */
   let player;
-  /** @type {Array<{node: any, original: any, stage: any}>} */
-  let mountedEggs = [];
+  /** @type {Array<{node: any, original: any, overflowHost: any, stage: any, visibilityObserver: any}>} */
+  const mountedEggs = [];
 
   /** @return {any} 宿主 document。 */
   const document = () =>
     shared.document?.() ?? /** @type {any} */ (globalThis).document;
+
+  /**
+   * 汇总固定槽位与当前页面实际存在的动态槽位。
+   *
+   * @return {Array<{id: string, page: string}>} 可参与随机分配的槽位。
+   */
+  const availableSlots = () => {
+    const slots = new Map(
+      blackForestIconSlots.map((slot) => [slot.id, slot]),
+    );
+    const nodes = document()?.querySelectorAll?.(
+      '[data-lobotomy-corp-black-forest-slot]',
+    ) ?? [];
+    Array.from(nodes).forEach((node) => {
+      const id = node?.dataset?.lobotomyCorpBlackForestSlot;
+      if (typeof id !== 'string' || slots.has(id)) return;
+      const page = id.startsWith('history.')
+        ? 'history'
+        : id.startsWith('dashboard.')
+        ? 'dashboard'
+        : id.startsWith('settings.')
+        ? 'settings'
+        : 'nav';
+      slots.set(id, {id, page});
+    });
+    return [...slots.values()];
+  };
 
   /** 写入可恢复状态。 */
   const persist = () => {
@@ -989,7 +1059,10 @@ export function createBlackForestEvent(shared) {
       blackForestAbnormalityIds.apocalypseBird,
     ]);
     state.phase = 'hunt';
-    state.eggs = blackForestEggAssignment(shared.random ?? Math.random);
+    state.eggs = blackForestEggAssignment(
+      shared.random ?? Math.random,
+      availableSlots(),
+    );
     persist();
     // 原作在终末鸟出现时改写玩家身份；网页沿用既有的显示名称机制。
     shared.applyDisplayName?.(blackForestAbnormalityIds.apocalypseBird);
@@ -1004,11 +1077,12 @@ export function createBlackForestEvent(shared) {
    *
    * @param {any} node 图标槽位节点。
    * @param {string} egg 蛋的键。
-   * @return {{node: any, original: any, stage: any}} 还原所需的信息。
+   * @return {{node: any, original: any, overflowHost: any, stage: any, visibilityObserver: any}} 还原所需的信息。
    */
   const mountEgg = (node, egg) => {
     const host = document();
     const bounds = node.getBoundingClientRect?.();
+    const overflowHost = node.closest?.('.notification-option-row');
     const info = blackForestEggInfo(egg);
     const label = shared.messages?.()?.[info?.labelKey ?? ''] ?? '';
     // 用 span 承载鸟蛋：导航入口本身就是 button，不能再嵌套一层 button。
@@ -1029,13 +1103,30 @@ export function createBlackForestEvent(shared) {
       height: bounds?.height,
       width: bounds?.width,
     });
+    if (overflowHost?.dataset) {
+      overflowHost.dataset.lobotomyCorpBlackForestOverflow = 'true';
+    }
+    const visibilityObserver = typeof globalThis.MutationObserver === 'function' &&
+        overflowHost
+      ? new globalThis.MutationObserver(() => stage?.resize?.())
+      : undefined;
+    visibilityObserver?.observe(overflowHost, {
+      attributeFilter: ['class', 'hidden'],
+      attributes: true,
+    });
     if (stage?.canvas) button.append(stage.canvas);
     button.addEventListener('click', onEggClick);
     button.addEventListener('keydown', onEggKeyDown);
     // 原图标留在原处、只隐藏占位，结束后按原样恢复。
     node.style.setProperty('display', 'none');
     node.parentElement?.insertBefore(button, node);
-    return { node: button, original: node, stage };
+    return {
+      node: button,
+      original: node,
+      overflowHost,
+      stage,
+      visibilityObserver,
+    };
   };
 
   /**
@@ -1046,6 +1137,7 @@ export function createBlackForestEvent(shared) {
   const onEggClick = (event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
+    event?.stopImmediatePropagation?.();
     const host = event?.currentTarget ?? event?.target;
     const egg = host?.dataset?.lobotomyCorpBlackForestEgg;
     if (typeof egg === 'string') void activateEgg(egg);
@@ -1058,7 +1150,28 @@ export function createBlackForestEvent(shared) {
    */
   const onEggKeyDown = (event) => {
     if (event?.key !== 'Enter' && event?.key !== ' ') return;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    event?.stopImmediatePropagation?.();
     onEggClick(event);
+  };
+
+  /**
+   * 还原一个已挂载的鸟蛋节点。
+   *
+   * @param {{node: any, original: any, overflowHost: any, stage: any, visibilityObserver: any}} mounted 鸟蛋挂载记录。
+   */
+  const restoreMountedEgg = (mounted) => {
+    const index = mountedEggs.indexOf(mounted);
+    if (index < 0) return;
+    mountedEggs.splice(index, 1);
+    mounted.visibilityObserver?.disconnect?.();
+    if (mounted.overflowHost?.dataset) {
+      delete mounted.overflowHost.dataset.lobotomyCorpBlackForestOverflow;
+    }
+    mounted.stage?.dispose?.();
+    mounted.original?.style?.removeProperty?.('display');
+    mounted.node.remove?.();
   };
 
   /**
@@ -1078,18 +1191,21 @@ export function createBlackForestEvent(shared) {
         `[data-lobotomy-corp-black-forest-slot="${slot}"]`,
       );
       if (!node) return;
-      mountedEggs.push(mountEgg(node, egg));
+      const mounted = mountEgg(node, egg);
+      mountedEggs.push(mounted);
+      if (mounted.stage?.ready) {
+        void /** @type {Promise<boolean>} */ (mounted.stage.ready).then(
+          (ready) => {
+            if (!ready) restoreMountedEgg(mounted);
+          },
+        );
+      }
     });
   };
 
   /** 还原所有被鸟蛋替换掉的图标。 */
   const unmountEggs = () => {
-    mountedEggs.forEach(({ node, original, stage }) => {
-      stage?.dispose?.();
-      original?.style?.removeProperty?.('display');
-      node.remove?.();
-    });
-    mountedEggs = [];
+    [...mountedEggs].forEach(restoreMountedEgg);
   };
 
   /**

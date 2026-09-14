@@ -811,13 +811,22 @@
   display: inline-flex;
   justify-content: center;
   margin: 0;
+  overflow: visible;
   padding: 0;
+  position: relative;
 }
 
 .lobotomy-corp-black-forest-egg-spine{
   display: block;
-  height: 100%;
-  width: 100%;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+[data-lobotomy-corp-black-forest-overflow="true"]{
+  overflow: visible !important;
 }
 
 /* 事件奖励：头像框右后侧的 E.G.O 饰品「破晓」（BossBirdWing）。 */
