@@ -1771,6 +1771,8 @@ async function findOrCreateGoogleAccount(
 /**
  * 用最新 Google 声明刷新已绑定本地账号的资料。
  *
+ * 邮箱始终以 Google 声明为准，显示名称只在该账号的显示名称仍跟随 Google 时更新。
+ *
  * @param storage 应用存储。
  * @param account 本地账号。
  * @param claims Google 身份声明。
@@ -1823,6 +1825,9 @@ function googleAccountFromClaims(
 /**
  * 将 Google 声明中的可用资料写入本地账号对象。
  *
+ * 账号还没有显示名称时采用 Google 名称，并标记为跟随 Google；显示名称来自用户
+ * 时保留原有取值。
+ *
  * @param account 本地账号。
  * @param claims Google 身份声明。
  * @return 合并 Google 资料后的本地账号对象。
@@ -1833,10 +1838,14 @@ function googleAccountProfileFromClaims(
 ): UserAccount {
   const email = verifiedGoogleEmail(claims);
   const displayName = googleDisplayName(claims);
+  const followsGoogleDisplayName = account.displayName === undefined ||
+    account.displayNameFromGoogle === true;
   return {
     ...account,
     authVersion: 2,
-    ...(displayName ? { displayName } : {}),
+    ...(displayName && followsGoogleDisplayName
+      ? { displayName, displayNameFromGoogle: true }
+      : {}),
     ...(email ? { emailVerified: true, primaryEmail: email } : {}),
   };
 }

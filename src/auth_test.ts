@@ -768,6 +768,89 @@ Deno.test("auth routes sign in with Google credential and create a passwordless 
   );
 });
 
+Deno.test("auth routes keep a user-customized display name across Google sign-in", async () => {
+  const storage = createMemoryStorage();
+  const fixture = await googleTokenFixture();
+  const app = createTestApp(storage, googleAuthOptions(fixture.jwks));
+
+  await submitGoogleLogin(app, fixture.token);
+  const identity = await storage.getAuthIdentity("google", "google-subject-id");
+  const account = identity
+    ? await storage.getAccountById(identity.userId)
+    : undefined;
+  if (!account) {
+    throw new Error("测试账号创建失败。");
+  }
+  await storage.updateAccount({
+    ...account,
+    displayName: "自定义昵称",
+    displayNameFromGoogle: false,
+  });
+
+  const response = await submitGoogleLogin(app, fixture.token);
+  const relogged = await storage.getAccountById(account.id);
+
+  assertEquals(response.status, 303);
+  assertEquals(relogged?.displayName, "自定义昵称");
+  assertEquals(relogged?.primaryEmail, "alice@example.com");
+});
+
+Deno.test("auth routes follow Google display name changes until the user customizes it", async () => {
+  const storage = createMemoryStorage();
+  const fixture = await googleTokenFixture();
+  const renamedFixture = await googleTokenFixture(
+    { name: "Alice Wonderland" },
+    "renamed-key-id",
+  );
+  const app = createTestApp(
+    storage,
+    googleAuthOptions({
+      keys: [...fixture.jwks.keys, ...renamedFixture.jwks.keys],
+    }),
+  );
+
+  await submitGoogleLogin(app, fixture.token);
+  const identity = await storage.getAuthIdentity("google", "google-subject-id");
+  const created = identity
+    ? await storage.getAccountById(identity.userId)
+    : undefined;
+  assertEquals(created?.displayName, "Alice");
+  assertEquals(created?.displayNameFromGoogle, true);
+
+  await submitGoogleLogin(app, renamedFixture.token);
+  const renamed = await storage.getAccountById(created?.id ?? "");
+
+  assertEquals(renamed?.displayName, "Alice Wonderland");
+  assertEquals(renamed?.displayNameFromGoogle, true);
+});
+
+Deno.test("auth routes keep the local display name when binding a Google identity", async () => {
+  const storage = createMemoryStorage();
+  const fixture = await googleTokenFixture();
+  const app = createTestApp(storage, googleAuthOptions(fixture.jwks));
+  const registerResponse = await register(app, "alice", "correct-password");
+
+  const response = await app.request("/account/google/bind", {
+    body: testCsrfForm(
+      new URLSearchParams({ credential: fixture.token }),
+    ),
+    headers: testCsrfHeaders({
+      cookie: registerResponse.headers.get("set-cookie") ?? "",
+    }),
+    method: "POST",
+  });
+  const identity = await storage.getAuthIdentity("google", "google-subject-id");
+  const account = identity
+    ? await storage.getAccountById(identity.userId)
+    : undefined;
+
+  assertEquals(response.status, 303);
+  assertEquals(response.headers.get("location"), "/settings?google=updated");
+  assertEquals(account?.displayName, "alice");
+  assertEquals(account?.displayNameFromGoogle, undefined);
+  assertEquals(account?.primaryEmail, "alice@example.com");
+});
+
 Deno.test("auth routes do not merge Google sign-in into an existing same-email account", async () => {
   const storage = createMemoryStorage();
   const fixture = await googleTokenFixture();
@@ -2240,6 +2323,28 @@ function googleAuthOptions(jwks: { keys: JsonWebKey[] }): AuthOptions {
 }
 
 /**
+ * 提交 Google credential 主登录请求。
+ *
+ * @param {Hono} app 测试应用。
+ * @param {string} credential Google ID token。
+ * @param {string} returnTo 登录成功后的跳转路径。
+ * @return {Promise<Response>} 登录响应。
+ */
+function submitGoogleLogin(
+  app: Hono,
+  credential: string,
+  returnTo = "/",
+): Promise<Response> {
+  return Promise.resolve(
+    app.request("/auth/google", {
+      body: testCsrfForm(new URLSearchParams({ credential, returnTo })),
+      headers: testCsrfHeaders(),
+      method: "POST",
+    }),
+  );
+}
+
+/**
  * Google token 测试夹具。
  */
 type GoogleTokenFixture = {
@@ -2251,11 +2356,13 @@ type GoogleTokenFixture = {
 /**
  * 创建签名后的 Google ID token 测试夹具。
  *
- * @param payloadOverrides payload 覆盖项。
- * @return Google token 测试夹具。
+ * @param {Record<string, unknown>} payloadOverrides payload 覆盖项。
+ * @param {string} keyId 签名所用的 key ID，可让同一测试加载多组 Google 公钥。
+ * @return {GoogleTokenFixture} Google token 测试夹具。
  */
 async function googleTokenFixture(
   payloadOverrides: Record<string, unknown> = {},
+  keyId = "test-key-id",
 ): Promise<GoogleTokenFixture> {
   const keyPair = await crypto.subtle.generateKey(
     {
@@ -2271,10 +2378,10 @@ async function googleTokenFixture(
   const jwk = {
     ...publicJwk,
     alg: "RS256",
-    kid: "test-key-id",
+    kid: keyId,
     use: "sig",
   };
-  const header = { alg: "RS256", kid: "test-key-id", typ: "JWT" };
+  const header = { alg: "RS256", kid: keyId, typ: "JWT" };
   const payload = {
     aud: testGoogleClientId,
     email: "Alice@Example.COM",

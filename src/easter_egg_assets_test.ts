@@ -7,6 +7,121 @@ import {
   lobotomyCorpAssetResponse,
   lobotomyCorpWhiteNightEventResponse,
 } from "./easter_egg_assets.ts";
+import {
+  whiteNightSpineAssetPaths,
+  whiteNightSpineAssetDirectory,
+  whiteNightSpineAtlasFile,
+  whiteNightSpineRangeTexture,
+  whiteNightSpineRuntimePath,
+  whiteNightSpineSkeletonFile,
+} from "../static/fun/lobotomy-corp/Events/WhiteNightSpine.js";
+import {
+  plagueDoctorSpineAssetDirectory,
+  plagueDoctorSpineAtlasFile,
+  plagueDoctorSpinePageFiles,
+  plagueDoctorSpineSkeletonFile,
+} from "../static/fun/lobotomy-corp/Events/PlagueDoctorSpine.js";
+
+Deno.test({
+  name: "WhiteNight Spine 运行时、骨架与白圈资源都能通过彩蛋资源路由读取",
+  permissions: { read: true },
+  fn: async () => {
+    const cases: [string, string][] = [
+      ["Events/WhiteNightSpine.js", "text/javascript; charset=utf-8"],
+      [whiteNightSpineRuntimePath, "text/javascript; charset=utf-8"],
+      [
+        `Assets/${whiteNightSpineAssetDirectory}/${whiteNightSpineSkeletonFile}`,
+        "application/json; charset=utf-8",
+      ],
+      [
+        `Assets/${whiteNightSpineAssetDirectory}/${whiteNightSpineAtlasFile}`,
+        "text/plain; charset=utf-8",
+      ],
+      [
+        `Assets/${whiteNightSpineAssetDirectory}/skeleton.png`,
+        "image/png",
+      ],
+      [`Assets/${whiteNightSpineRangeTexture}`, "image/png"],
+      // 疫医骨架：JSON、Atlas 与两页贴图同样走 `Assets/Resources/spinedata` 规则。
+      [
+        `Assets/${plagueDoctorSpineAssetDirectory}/${plagueDoctorSpineSkeletonFile}`,
+        "application/json; charset=utf-8",
+      ],
+      [
+        `Assets/${plagueDoctorSpineAssetDirectory}/${plagueDoctorSpineAtlasFile}`,
+        "text/plain; charset=utf-8",
+      ],
+      ...plagueDoctorSpinePageFiles.map((page): [string, string] => [
+        `Assets/${plagueDoctorSpineAssetDirectory}/${page}`,
+        "image/png",
+      ]),
+      [
+        "Assets/Resources/sounds/creature/whitenight/WhiteNight_Atk.ogg",
+        "audio/ogg",
+      ],
+    ];
+    for (const [assetPath, contentType] of cases) {
+      const response = await lobotomyCorpAssetResponse(assetPath);
+      assertEquals(response.status, 200, assetPath);
+      assertEquals(
+        response.headers.get("content-type"),
+        contentType,
+        assetPath,
+      );
+    }
+  },
+});
+
+Deno.test({
+  name: "Spine 骨架分页贴图的解析路径不含重复斜杠且可读取",
+  permissions: { read: true },
+  fn: async () => {
+    const paths = whiteNightSpineAssetPaths("/static/fun/lobotomy-corp");
+    assertEquals(paths.assetDirectory, "Assets/Resources/spinedata/deathangel");
+    assertEquals(paths.pathPrefix, "/static/fun/lobotomy-corp/Assets/Resources/spinedata/");
+    assertEquals(paths.atlasPath, "deathangel/skeleton.atlas.txt");
+    assertEquals(paths.skeletonPath, "deathangel/skeleton_5.json");
+
+    const atlas = await Deno.readTextFile(
+      new URL(
+        `../static/fun/lobotomy-corp/${paths.assetDirectory}/${whiteNightSpineAtlasFile}`,
+        import.meta.url,
+      ),
+    );
+    const pages = atlas.split(/\r?\n/u).filter((line) =>
+      line.endsWith(".png")
+    );
+    assert(pages.length > 0);
+    // `AssetManager` 会把分页贴图拼成「目录前缀 + 父目录 + 页名」，任一段为空都会
+    // 产生重复斜杠，资源路由会判为非法路径——这里逐个走一遍真实路由。
+    for (const page of pages) {
+      const assetPath = `${paths.assetDirectory}/${page}`;
+      assert(!assetPath.includes("//"), assetPath);
+      const response = await lobotomyCorpAssetResponse(assetPath);
+      assertEquals(response.status, 200, assetPath);
+    }
+  },
+});
+
+Deno.test({
+  name: "彩蛋事件模块之间的相对导入都能从资源路由取到",
+  permissions: { read: true },
+  fn: async () => {
+    const directory = new URL(
+      "../static/fun/lobotomy-corp/Events/",
+      import.meta.url,
+    );
+    for await (const entry of Deno.readDir(directory)) {
+      if (!entry.name.endsWith(".js")) continue;
+      const source = await Deno.readTextFile(new URL(entry.name, directory));
+      for (const match of source.matchAll(/from\s+'\.\/([\w.-]+\.js)'/gu)) {
+        const assetPath = `Events/${match[1]}`;
+        const response = await lobotomyCorpAssetResponse(assetPath);
+        assertEquals(response.status, 200, `${entry.name} → ${assetPath}`);
+      }
+    }
+  },
+});
 
 Deno.test({
   name: "Easter egg asset response rejects traversal and unknown files",
@@ -250,17 +365,17 @@ Deno.test({
 });
 
 Deno.test({
-  name: "WhiteNight WebM entities support MIME and byte-range playback",
+  name: "WebM entities support MIME and byte-range playback",
   permissions: { read: true },
   fn: async () => {
     const normal = await lobotomyCorpAssetResponse(
-      "Assets/Resources/sprites/creaturesprite/deathangel/WhiteNight_Escape_Idle.webm",
+      "Assets/Resources/sprites/effect/touchwarning.webm",
     );
     const death = await lobotomyCorpAssetResponse(
-      "Assets/Resources/sprites/creaturesprite/deathangel/WhiteNight_Confess_Dead.webm",
+      "Assets/Resources/sprites/effect/touchkill.webm",
     );
     const range = await lobotomyCorpAssetResponse(
-      "Assets/Resources/sprites/creaturesprite/deathangel/WhiteNight_Confess_Dead.webm",
+      "Assets/Resources/sprites/effect/touchkill.webm",
       "bytes=0-31",
     );
 
