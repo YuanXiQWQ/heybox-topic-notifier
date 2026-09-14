@@ -411,19 +411,6 @@ function initTotpBinding(scope = document) {
   }
 
   form.dataset.totpBindingInitialized = 'true';
-  // “别碰我”需要连续点击保存按钮：按下时不让按钮抢走显示名称的焦点，否则编辑器
-  // 收起会隐藏保存按钮，用户就无法继续连点。
-  saveButton.addEventListener('pointerdown', (event) => {
-    if (
-        mode === 'displayName' &&
-        globalThis.lobotomyCorpEasterEgg?.blocksDisplayNameSave?.(
-            displayNameInput.value,
-        )
-    ) {
-      event.preventDefault();
-    }
-  });
-
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     void submitTotpBinding(section, form);
@@ -1750,6 +1737,19 @@ function initAccountSettings() {
         clearInlineStatus(confirmPasswordStatus);
       }
     });
+  });
+
+  // “别碰我”需要连续点击保存按钮：按下时不让按钮抢走显示名称的焦点，否则编辑器
+  // 收起会隐藏保存按钮，用户就无法继续连点。
+  saveButton.addEventListener('pointerdown', (event) => {
+    if (
+        mode === 'displayName' &&
+        globalThis.lobotomyCorpEasterEgg?.blocksDisplayNameSave?.(
+            displayNameInput.value,
+        )
+    ) {
+      event.preventDefault();
+    }
   });
 
   form.addEventListener('submit', (event) => {
