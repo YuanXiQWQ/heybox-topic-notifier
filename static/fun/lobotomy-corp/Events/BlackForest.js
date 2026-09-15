@@ -482,6 +482,50 @@ export function blackForestEggAssignment(
 }
 
 /**
+ * 把未找到且位于目标页之外的鸟蛋随机迁移到目标页槽位。
+ *
+ * 已找到的鸟蛋不会重新参与分配；已经位于目标页的未找到鸟蛋也保持原槽位不变，
+ * 避免白夜接管页面后无意义地改变用户已经看到的分布。
+ *
+ * @param {Record<string, string>} eggs 当前槽位到鸟蛋的分配。
+ * @param {readonly string[]} found 已找到的鸟蛋。
+ * @param {readonly {id: string, page: string}[]} slots 目标页可用的槽位。
+ * @param {() => number} [random] 返回 [0, 1) 的随机源，测试可注入。
+ * @return {Record<string, string>} 迁移后的槽位分配。
+ */
+export function relocateUnfoundBlackForestEggs(
+  eggs,
+  found,
+  slots,
+  random = Math.random,
+) {
+  const foundSet = new Set(Array.isArray(found) ? found : []);
+  const allowedSlotIds = new Set(slots.map((slot) => slot.id));
+  const entries = Object.entries(eggs ?? {});
+  const occupiedSlots = new Set(entries.map(([slot]) => slot));
+  const candidates = slots
+    .map((slot) => slot.id)
+    .filter((slot) => !occupiedSlots.has(slot));
+  for (let index = candidates.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    const current = candidates[index];
+    candidates[index] = candidates[swap];
+    candidates[swap] = current;
+  }
+  /** @type {Record<string, string>} */
+  const relocated = {};
+  entries.forEach(([slot, egg]) => {
+    if (foundSet.has(egg) || allowedSlotIds.has(slot)) {
+      relocated[slot] = egg;
+      return;
+    }
+    const nextSlot = candidates.pop();
+    relocated[nextSlot ?? slot] = egg;
+  });
+  return relocated;
+}
+
+/**
  * 判断存档是否可以恢复。
  *
  * 字段缺失按兼容处理；字段存在但取值非法时整份存档作废，避免损坏的进度进入运行期。
@@ -860,6 +904,28 @@ export function createBlackForestEvent(shared) {
     return [...slots.values()];
   };
 
+  /**
+   * 读取本次可参与鸟蛋分配的页面。
+   *
+   * @return {Set<string>|undefined} 限制页面；未限制时返回 undefined。
+   */
+  const eggSlotPages = () => {
+    const pages = shared.eggSlotPages?.();
+    return Array.isArray(pages) ? new Set(pages) : undefined;
+  };
+
+  /**
+   * 汇总当前可用于分配鸟蛋的槽位。
+   *
+   * @return {Array<{id: string, page: string}>} 过滤后的候选槽位。
+   */
+  const selectableEggSlots = () => {
+    const pages = eggSlotPages();
+    return availableSlots().filter((slot) =>
+      pages === undefined || pages.has(slot.page)
+    );
+  };
+
   /** 写入可恢复状态。 */
   const persist = () => {
     if (!state) return;
@@ -929,8 +995,6 @@ export function createBlackForestEvent(shared) {
    */
   const recordSubmission = (canonicalId) => {
     if (isActive() || typeof canonicalId !== 'string') return false;
-    // 其它特殊事件进行期间只保存名称：既不记录鸟，也不开始本事件。
-    if (shared.mutexBlocked?.()) return false;
     // 已经结束过的事件可以再次触发；「破晓」是永久奖励，不随新一轮事件消失。
     if (!state || state.phase === 'done') {
       state = {
@@ -978,7 +1042,7 @@ export function createBlackForestEvent(shared) {
    * @return {boolean} 事件已开始返回 true。
    */
   const start = ({ order, source }) => {
-    if (isActive() || shared.mutexBlocked?.()) return false;
+    if (isActive()) return false;
     state = {
       birds: state?.birds ?? [],
       eggs: {},
@@ -1061,12 +1125,37 @@ export function createBlackForestEvent(shared) {
     state.phase = 'hunt';
     state.eggs = blackForestEggAssignment(
       shared.random ?? Math.random,
-      availableSlots(),
+      selectableEggSlots(),
     );
     persist();
     // 原作在终末鸟出现时改写玩家身份；网页沿用既有的显示名称机制。
     shared.applyDisplayName?.(blackForestAbnormalityIds.apocalypseBird);
     mountEggs();
+  };
+
+  /**
+   * 把尚未找到的鸟蛋限制到设置页槽位。
+   *
+   * 白夜会锁住当前标签页，因此迁移时保留已找到记录和设置页现有分配，只随机移动
+   * 其它页面上的未找到鸟蛋。
+   *
+   * @return {boolean} 当前处于寻找阶段并执行了限制时返回 true。
+   */
+  const restrictHuntToSettings = () => {
+    if (!state || state.phase !== 'hunt') return false;
+    const settingsSlots = availableSlots().filter((slot) =>
+      slot.page === 'settings'
+    );
+    if (settingsSlots.length === 0) return false;
+    state.eggs = relocateUnfoundBlackForestEggs(
+      state.eggs,
+      state.found,
+      settingsSlots,
+      shared.random ?? Math.random,
+    );
+    persist();
+    mountEggs();
+    return true;
   };
 
   /**
@@ -1359,6 +1448,7 @@ export function createBlackForestEvent(shared) {
     isRecording: () => state?.phase === 'recording',
     persisted,
     recordSubmission,
+    restrictHuntToSettings,
     resetBirdRecord,
     restore,
     start,

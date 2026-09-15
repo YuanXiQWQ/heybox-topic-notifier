@@ -248,6 +248,7 @@ function createWhiteNightConfessRay(document, assetRoot, index, view) {
  * @typedef {object} WhiteNightHostCapabilities
  * @property {() => string[]} [apostleNames] Simple Advent 12 个名字槽位的使徒名单。
  * @property {(messageKey: string) => string} [blockMessage] 阻挡提示文本。
+ * @property {(options: object) => void} [onStarted] 白夜状态成功建立后的宿主通知。
  * @property {(source: string) => void} [playApostlesCompletion] 使徒完成演出。
  */
 
@@ -1025,6 +1026,7 @@ export function createWhiteNightEvent(shared) {
               : 'held',
     };
     persist();
+    hostCapabilities.onStarted?.(options);
     if (!isPrelude) return activateWhiteNight(options, behavior);
 
     /** 在四秒逻辑边界结算第二笔危急值，并在 Hide_21 继续时启动白夜。 */
