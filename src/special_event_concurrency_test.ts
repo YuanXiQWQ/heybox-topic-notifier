@@ -74,6 +74,117 @@ Deno.test("特殊事件：白夜进行期间可以启动终末鸟和别碰我", 
   }
 });
 
+Deno.test("特殊事件：别碰我全部出逃等待白夜转盘隐藏后再启动终末鸟", async () => {
+  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const originalRandom = Math.random;
+  try {
+    // 固定选中“所有异想体出逃”的第三支演出。
+    Math.random = () => 0.9;
+    await harness.reload();
+    const api = harness.api();
+    const clock = {value: 0};
+    const playback = api.playDontTouchMe();
+    const effectVideo = harness.createdElements().find((element) =>
+      element.className === "lobotomy-corp-dont-touch-me-effect-video"
+    );
+    assert(effectVideo);
+    effectVideo.dispatch("ended");
+    await playback;
+
+    assertStrictEquals(api.getSpecialEvent(), "white-night");
+    assertStrictEquals(api.getSpecialEventPhase(), "prelude");
+    assertStrictEquals(api.blackForestPhase(), undefined);
+    assert(
+      harness.createdElements().some((element) =>
+        element.className === "lobotomy-corp-white-night-simple-advent"
+      ),
+      "出逃分支应先显示白夜转盘",
+    );
+
+    // 四秒逻辑边界只启动 Hide_21；转盘在 500ms 隐藏动画结束前仍占着画面。
+    await advance(harness, clock, 4000);
+    assertStrictEquals(api.getSpecialEventPhase(), "active");
+    assertStrictEquals(api.blackForestPhase(), undefined);
+    assert(
+      harness.createdElements().some((element) =>
+        element.className === "lobotomy-corp-white-night-simple-advent"
+      ),
+      "Hide_21 播放期间不应启动终末鸟 CG",
+    );
+
+    await advance(harness, clock, 499);
+    assertStrictEquals(api.blackForestPhase(), undefined);
+    await advance(harness, clock, 1);
+
+    assertStrictEquals(api.blackForestPhase(), "cg");
+    assertStrictEquals(api.blackForestActive(), true);
+    assert(
+      harness.createdElements().some((element) =>
+        element.className === "lobotomy-corp-black-forest-cg"
+      ),
+      "转盘完全隐藏后才应挂载终末鸟 CG",
+    );
+
+    await advance(harness, clock, 32000);
+    assertStrictEquals(api.blackForestPhase(), "hunt");
+    const blackForest = JSON.parse(
+      harness.storage.getItem("warmnest.lobotomy-corp-black-forest") ?? "{}",
+    );
+    assertEquals(Object.keys(blackForest.eggs).length, 3);
+    assert(
+      Object.keys(blackForest.eggs).every((slot) =>
+        slot.startsWith("settings.")
+      ),
+      "白夜触发的终末鸟事件只能使用设置页蛋槽",
+    );
+  } finally {
+    Math.random = originalRandom;
+    harness.restore();
+  }
+});
+
+Deno.test("特殊事件：别碰我全部出逃不重复开启已运行事件", async () => {
+  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const originalRandom = Math.random;
+  try {
+    Math.random = () => 0.9;
+    await harness.reload();
+    const api = harness.api();
+    assertStrictEquals(
+      api.startWhiteNight({source: "direct-submission"}),
+      true,
+    );
+    await api.handleAbnormalitySubmitted("O-02-63");
+
+    const whiteNightAdventCount = () =>
+      harness.createdElements().filter((element) =>
+        element.className === "lobotomy-corp-white-night-simple-advent"
+      ).length;
+    const blackForestCgCount = () =>
+      harness.createdElements().filter((element) =>
+        element.className === "lobotomy-corp-black-forest-cg"
+      ).length;
+    assertStrictEquals(whiteNightAdventCount(), 1);
+    assertStrictEquals(blackForestCgCount(), 1);
+
+    const playback = api.playDontTouchMe();
+    const effectVideo = harness.createdElements().findLast((element) =>
+      element.className === "lobotomy-corp-dont-touch-me-effect-video"
+    );
+    assert(effectVideo);
+    effectVideo.dispatch("ended");
+    await playback;
+
+    assertStrictEquals(api.getSpecialEvent(), "white-night");
+    assertStrictEquals(api.blackForestPhase(), "cg");
+    assertStrictEquals(whiteNightAdventCount(), 1);
+    assertStrictEquals(blackForestCgCount(), 1);
+  } finally {
+    Math.random = originalRandom;
+    harness.restore();
+  }
+});
+
 Deno.test("特殊事件：终末鸟进行期间可以启动白夜", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {

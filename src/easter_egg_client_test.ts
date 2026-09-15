@@ -3360,15 +3360,16 @@ Deno.test("DontTouchMe derives escapable danger from Abnormalities.json", async 
         totalDanger: number;
       };
     };
-    // Abnormalities.json 里 canBreach 为 true 的条目：40 只，总点数 1993。
+    // 全部出逃均值排除由特殊事件自行结算的三鸟、终末鸟与白夜：
+    // 剩余 36 只普通可出逃条目，总点数 1755。
     const summary = api.escapableDangerSummary();
-    assertEquals(summary.count, 40);
-    assertEquals(summary.totalDanger, 1993);
-    assertEquals(summary.averageDanger, 1993 / 40);
+    assertEquals(summary.count, 36);
+    assertEquals(summary.totalDanger, 1755);
+    assertEquals(summary.averageDanger, 1755 / 36);
     // 3 个部门容纳 12 只：12 × 平均基值 / 部门数。
-    assertEquals(api.escapeAllDangerContribution(3), 12 * (1993 / 40) / 3);
-    // 11 个部门容纳 48 只，但可出逃只有 40 只，因此按 40 只计。
-    assertEquals(api.escapeAllDangerContribution(11), 40 * (1993 / 40) / 11);
+    assertEquals(api.escapeAllDangerContribution(3), 12 * (1755 / 36) / 3);
+    // 11 个部门容纳 48 只，但普通可出逃只有 36 只，因此按 36 只计。
+    assertEquals(api.escapeAllDangerContribution(11), 36 * (1755 / 36) / 11);
     assertEquals(api.escapeAllDangerContribution(0), 0);
   } finally {
     harness.restore();

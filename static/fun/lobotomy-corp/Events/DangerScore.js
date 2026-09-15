@@ -42,6 +42,20 @@ export const whiteNightApostleCount = 11;
 /** 白夜的 canonical 编号；它在点数表里是特例。 */
 export const whiteNightCanonicalId = 'T-03-46';
 
+/**
+ * 由特殊事件自行结算危急值的异想体编号。
+ *
+ * “异想体全部出逃”的均值基值必须排除这些条目；三鸟与终末鸟由黑森林事件
+ * 的 CG 结算点补值，白夜由自己的 Prelude / active 结算点补值。
+ */
+export const specialEventDangerAbnormalityIds = Object.freeze([
+  'O-02-40',
+  'O-02-56',
+  'O-02-62',
+  'O-02-63',
+  whiteNightCanonicalId,
+]);
+
 /** 员工事件的点数。 */
 export const employeeDangerPoints = Object.freeze({
   death: 4,
@@ -124,7 +138,7 @@ export function abnormalityEscapeDangerContribution(
 /**
  * 统计可出逃异想体的数量与平均危急值基值。
  *
- * 取 `canBreach` 为 true 的条目，按风险等级点数求和；白夜按固定点数 98 计。
+ * 取 `canBreach` 为 true 且不由特殊事件自行结算的条目，按风险等级点数求和。
  * 数量与基值都从这里现算，数据变动后调用方无需改动。
  *
  * @param {Record<string, {canBreach?: boolean, riskLevel?: string}>|undefined} abnormalities 异想体资料。
@@ -133,12 +147,11 @@ export function abnormalityEscapeDangerContribution(
 export function escapableAbnormalitySummary(abnormalities) {
   let count = 0;
   let totalDanger = 0;
+  const specialEventIds = new Set(specialEventDangerAbnormalityIds);
   Object.entries(abnormalities ?? {}).forEach(([id, data]) => {
-    if (data?.canBreach !== true) return;
+    if (data?.canBreach !== true || specialEventIds.has(id)) return;
     count += 1;
-    const points = id === whiteNightCanonicalId
-      ? whiteNightDangerPoints
-      : data.riskLevel
+    const points = data.riskLevel
       ? (abnormalityDangerPoints[data.riskLevel] ?? 0)
       : 0;
     totalDanger += points;
@@ -171,8 +184,9 @@ export function abnormalityCapacity(departmentCount) {
 /**
  * 计算“异想体全部出逃”的危急值贡献。
  *
- * 出逃数量取设施容量与可出逃异想体总数中较小者，每只按平均基值计入，最后除以
- * 当前已开放的部门数。结果可能超过上限，由 {@link clampDangerScore} 封顶。
+ * 出逃数量取设施容量与普通可出逃异想体总数中较小者，每只按平均基值计入，
+ * 最后除以当前已开放的部门数。特殊事件异想体的点数不在均值中，由对应事件结算。
+ * 结果可能超过上限，由 {@link clampDangerScore} 封顶。
  *
  * @param {Record<string, {canBreach?: boolean, riskLevel?: string}>|undefined} abnormalities 异想体资料。
  * @param {number} departmentCount 当前已开放的部门数。

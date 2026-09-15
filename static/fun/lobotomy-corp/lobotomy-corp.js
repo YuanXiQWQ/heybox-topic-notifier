@@ -19,6 +19,7 @@ import {
   escapableAbnormalitySummary,
   escapeAllDangerContribution,
   whiteNightApostleCount,
+  whiteNightCanonicalId,
   whiteNightDangerPoints,
 } from './Events/DangerScore.js';
 import {
@@ -34,6 +35,7 @@ import {
 import {
   blackForestAbnormalityIds,
   blackForestActivePhases,
+  blackForestDefaultBirdOrder,
   blackForestEggs,
   blackForestEventId,
   blackForestGift,
@@ -886,6 +888,7 @@ function ensureLobotomyCorpDayCoordinator() {
  * 结束当前 Day 中全部特殊事件。
  */
 function finishAllLobotomyCorpSpecialEvents() {
+  lobotomyCorpPendingBlackForestAfterWhiteNight = false;
   lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
   lobotomyCorpBlackForestEvent?.finish({restore: false});
   lobotomyCorpPlagueDoctorEvent?.reset();
@@ -3454,7 +3457,8 @@ function applyLobotomyCorpDontTouchMeWorkerDanger(kind) {
 /**
  * 结算“异想体全部出逃”的危急值。
  *
- * 出逃数量与平均基值都由危急值模块从异想体资料现算，本函数只负责写入。
+ * 出逃数量与平均基值都由危急值模块从异想体资料现算；这次出逃造成的危急值按整批
+ * 一次结算，随后触发白夜与终末鸟事件。
  */
 function applyLobotomyCorpDontTouchMeEscapeDanger() {
   const contribution = lobotomyCorpEscapeAllDangerContribution(
@@ -3465,6 +3469,62 @@ function applyLobotomyCorpDontTouchMeEscapeDanger() {
       undefined,
       {positiveContribution: true},
   );
+  triggerLobotomyCorpAllEscapeSpecialEvents();
+}
+
+/** 是否等待白夜 Simple Advent 转盘完全隐藏后再启动终末鸟事件。 */
+let lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+
+/**
+ * 启动由“所有异想体出逃”触发的终末鸟事件。
+ *
+ * 三鸟与终末鸟已从通用“全部出逃”的均值基值中排除，因此这里使用正常直接召唤
+ * 入口，让 CG 时间线按原有结算点补回对应危急值。
+ *
+ * @return {boolean} 新事件成功开始时返回 true。
+ */
+function startLobotomyCorpBlackForestAfterAllEscape() {
+  return lobotomyCorpBlackForestEvent.start({
+    order: [...blackForestDefaultBirdOrder],
+    source: 'direct-submission',
+  });
+}
+
+/**
+ * 结算“所有异想体出逃”同步触发的特殊事件。
+ *
+ * 白夜的 Simple Advent 有自己的四秒转盘与隐藏动画；终末鸟事件必须等转盘完全
+ * 隐藏后再播 CG，避免两个特殊事件的首段画面重叠。白夜已经 active 时没有转盘，
+ * 终末鸟事件可以立即开始。
+ */
+function triggerLobotomyCorpAllEscapeSpecialEvents() {
+  if (!lobotomyCorpWhiteNightEvent.hasEventState()) {
+    const started = startLobotomyCorpWhiteNight({source: 'direct-submission'});
+    if (started && !lobotomyCorpBreachedAbnormalitiesThisDay.has(
+        whiteNightCanonicalId,
+    )) {
+      // 白夜已从“全部出逃”的均值基值中排除，启动事件时补回 Prelude 的 44 点；
+      // active 阶段的 98 点仍由白夜自己的 Simple Advent 边界结算。
+      lobotomyCorpBreachedAbnormalitiesThisDay.add(whiteNightCanonicalId);
+      lobotomyCorpWhiteNightDangerSettlementStage = 'prelude-settled';
+      void setLobotomyCorpDangerScore(
+          clampDangerScore(
+              lobotomyCorpDangerScore +
+              lobotomyCorpWhiteNightPreludeDangerContribution,
+          ),
+          undefined,
+          {positiveContribution: true},
+      );
+    }
+  }
+  if (lobotomyCorpWhiteNightEvent.getPhase() === 'prelude') {
+    lobotomyCorpPendingBlackForestAfterWhiteNight = true;
+    return;
+  }
+  lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+  if (!lobotomyCorpBlackForestEvent.isActive()) {
+    startLobotomyCorpBlackForestAfterAllEscape();
+  }
 }
 
 /**
@@ -3544,6 +3604,11 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   onStarted: () => {
     lobotomyCorpPlagueDoctorEvent?.pauseForWhiteNight?.();
     lobotomyCorpBlackForestEvent?.restrictHuntToSettings?.();
+  },
+  onPreludeHidden: () => {
+    if (!lobotomyCorpPendingBlackForestAfterWhiteNight) return;
+    lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+    startLobotomyCorpBlackForestAfterAllEscape();
   },
   pauseDangerDecay: pauseLobotomyCorpDangerDecay,
   resumeAlertMusic: () =>
