@@ -207,15 +207,17 @@ Deno.test("auth routes render Turnstile widget when enabled", async () => {
 
   assertEquals(response.status, 200);
   assertEquals(
-    html.includes("https://challenges.cloudflare.com/turnstile/v0/api.js"),
+    html.includes("/static/turnstile.js?v=20260914-lazy-load"),
     true,
   );
-  assert(!(html.includes("onerror=")));
-  assert(html.includes('id="turnstile-api-script"'));
+  assertEquals(
+    html.includes("https://challenges.cloudflare.com/turnstile/v0/api.js"),
+    false,
+  );
   assert(html.includes('class="auth-turnstile cf-turnstile"'));
+  assert(html.includes('data-turnstile-mode="eager"'));
+  assert(html.includes("data-turnstile-widget"));
   assert(html.includes('data-sitekey="test-site-key"'));
-  assert(html.includes('data-callback="collapseTurnstileWidget"'));
-  assert(html.includes("turnstileSuccessDisplayMs = 1800"));
   assertEquals(
     html.includes('data-expired-callback="revealTurnstileWidgets"'),
     true,

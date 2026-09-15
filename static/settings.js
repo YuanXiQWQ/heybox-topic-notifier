@@ -2924,6 +2924,7 @@ function initEmailBinding() {
   const sendButton = scope.querySelector('[data-email-send-code-button]');
   const sendStatus = scope.querySelector('[data-email-send-status]');
   const verifyStatus = scope.querySelector('[data-email-verify-status]');
+  const turnstileWidget = form.querySelector('[data-turnstile-widget]');
   let emailBindingVerifyTimer;
   let emailBindingVerifyController;
   let emailBindingVerifyToken = 0;
@@ -3030,8 +3031,15 @@ function initEmailBinding() {
     }
 
     sendButton.disabled = true;
-    setInlineStatus(sendStatus, form.dataset.emailSending || '', 'pending');
     clearInlineStatus(verifyStatus);
+
+    const turnstileReady = await prepareEmailBindingTurnstile();
+    if (!turnstileReady) {
+      sendButton.disabled = false;
+      return;
+    }
+
+    setInlineStatus(sendStatus, form.dataset.emailSending || '', 'pending');
 
     try {
       const response = await fetch(
@@ -3068,6 +3076,42 @@ function initEmailBinding() {
       sendButton.disabled = false;
       resetTurnstileWidget();
     }
+  }
+
+  /**
+   * 按需加载并等待邮箱绑定所需的 Turnstile token。
+   *
+   * @return {Promise<boolean>} 人机验证准备完成时返回 true。
+   */
+  async function prepareEmailBindingTurnstile() {
+    if (!(turnstileWidget instanceof HTMLElement)) {
+      return true;
+    }
+
+    const turnstile = globalThis.WarmNestTurnstile;
+    if (!turnstile || typeof turnstile.mount !== 'function') {
+      setInlineStatus(
+          sendStatus,
+          form.dataset.humanVerification || '',
+          'error',
+      );
+      return false;
+    }
+
+    setInlineStatus(
+        sendStatus,
+        form.dataset.humanVerification || '',
+        'pending',
+    );
+    const ready = await turnstile.mount(turnstileWidget);
+    if (!ready) {
+      setInlineStatus(
+          sendStatus,
+          form.dataset.humanVerification || '',
+          'error',
+      );
+    }
+    return ready;
   }
 
   /**
@@ -4559,6 +4603,15 @@ function emailBindingErrorMessage(form, error) {
  * 重置 Turnstile widget，便于用户再次发送验证码。
  */
 function resetTurnstileWidget() {
+  const turnstileRuntime = globalThis.WarmNestTurnstile;
+  if (
+    turnstileRuntime &&
+    typeof turnstileRuntime.resetAll === 'function'
+  ) {
+    turnstileRuntime.resetAll();
+    return;
+  }
+
   if (typeof globalThis.revealTurnstileWidgets === 'function') {
     globalThis.revealTurnstileWidgets();
   }

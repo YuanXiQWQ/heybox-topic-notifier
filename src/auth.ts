@@ -3296,6 +3296,7 @@ function authConfig(options: AuthOptions): AuthConfig {
           passkeyMfaPath,
           mfaPath,
           "/static/app.css",
+          "/static/turnstile.js",
           "/static/tooltip.js",
         ],
     ),
@@ -4506,6 +4507,7 @@ function renderEmailLoginForm(options: {
       options.emailTurnstileSiteKey,
       options.altchaFallbackEnabled ?? false,
       options.messages.authHumanVerificationRequired,
+      "visible",
     )
   }
           <div
@@ -5875,66 +5877,12 @@ function turnstileScriptHtml(
   siteKey: string | undefined,
   altchaFallbackEnabled: boolean,
 ): string {
-  return siteKey
-    ? `<script>
-/**
- * 在 Turnstile 验证成功后，待成功动画展示完毕再平滑收起组件。
- */
-globalThis.collapseTurnstileWidget = () => {
-  const turnstileSuccessDisplayMs = 1800;
-  const turnstileCollapseAnimationMs = 280;
+  if (!siteKey) return "";
 
-  for (const widget of document.querySelectorAll(".cf-turnstile")) {
-    const response = widget.querySelector("input[name='${turnstileResponseFieldName}']");
-    if (response instanceof HTMLInputElement && response.value.trim()) {
-      widget.dataset.turnstileComplete = "true";
-
-      /**
-       * 在成功提示停留后启动当前组件的收起动画。
-       */
-      const startCollapse = () => {
-        if (widget.dataset.turnstileComplete !== "true") return;
-
-        widget.dataset.turnstileCollapsing = "true";
-
-        /**
-         * 在收起过渡结束后从页面布局中移除当前组件。
-         */
-        const finishCollapse = () => {
-          if (widget.dataset.turnstileComplete === "true") {
-            widget.hidden = true;
-          }
-        };
-
-        window.setTimeout(finishCollapse, turnstileCollapseAnimationMs);
-      };
-
-      window.setTimeout(startCollapse, turnstileSuccessDisplayMs);
-    }
-  }
-};
-
-/**
- * 在需要重新进行 Turnstile 验证时恢复组件显示。
- */
-globalThis.revealTurnstileWidgets = () => {
-  for (const widget of document.querySelectorAll(".cf-turnstile")) {
-    delete widget.dataset.turnstileComplete;
-    delete widget.dataset.turnstileCollapsing;
-    widget.hidden = false;
-  }
-};
-${altchaFallbackScript(altchaFallbackEnabled)}
-</script>
-<script id="turnstile-api-script" src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-<script>
-document.getElementById("turnstile-api-script")?.addEventListener(
-  "error",
-  () => globalThis.useAltchaFallback?.(),
-  { once: true },
-);
-</script>`
+  const fallbackScript = altchaFallbackEnabled
+    ? `<script>${altchaFallbackScript(true)}</script>`
     : "";
+  return `<script src="/static/turnstile.js?v=20260914-lazy-load" defer></script>${fallbackScript}`;
 }
 
 /**
@@ -5947,11 +5895,16 @@ function turnstileWidgetHtml(
   siteKey: string | undefined,
   altchaFallbackEnabled = false,
   fallbackUnavailableMessage = "",
+  mode: "eager" | "visible" = "eager",
 ): string {
   return siteKey
-    ? `<div class="auth-turnstile cf-turnstile" data-sitekey="${
+    ? `<div
+      class="auth-turnstile cf-turnstile"
+      data-turnstile-mode="${mode}"
+      data-turnstile-widget
+      data-sitekey="${
       escapeHtml(siteKey)
-    }" data-callback="collapseTurnstileWidget" data-expired-callback="revealTurnstileWidgets" data-error-callback="useAltchaFallback"></div>
+    }" data-expired-callback="revealTurnstileWidgets" data-error-callback="useAltchaFallback"></div>
 ${altchaWidgetHtml(altchaFallbackEnabled, fallbackUnavailableMessage)}`
     : "";
 }
