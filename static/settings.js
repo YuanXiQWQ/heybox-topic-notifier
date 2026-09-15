@@ -164,6 +164,9 @@ function initAvatarUpload() {
   const previewDialog = form?.querySelector('[data-avatar-preview-dialog]');
   const previewClose = form?.querySelector('[data-avatar-preview-close]');
   const previewImage = form?.querySelector('[data-avatar-preview-image]');
+  const clearDecorations = form?.querySelector(
+      '[data-avatar-clear-decorations]',
+  );
   if (
       !(form instanceof HTMLFormElement) || !(dropzone instanceof HTMLElement) ||
       !(input instanceof HTMLInputElement) ||
@@ -177,7 +180,8 @@ function initAvatarUpload() {
       !(previewButton instanceof HTMLButtonElement) ||
       !(previewDialog instanceof HTMLDialogElement) ||
       !(previewClose instanceof HTMLButtonElement) ||
-      !(previewImage instanceof HTMLImageElement)
+      !(previewImage instanceof HTMLImageElement) ||
+      !(clearDecorations instanceof HTMLButtonElement)
   ) return;
 
   let image;
@@ -302,6 +306,9 @@ function initAvatarUpload() {
     status.hidden = true;
   });
   previewButton.addEventListener('click', showAvatarPreview);
+  clearDecorations.addEventListener('click', () => {
+    globalThis.lobotomyCorpEasterEgg?.clearAvatarDecorations?.();
+  });
   previewClose.addEventListener('click', () => previewDialog.close());
   previewDialog.addEventListener('click', (event) => {
     if (event.target === previewDialog) previewDialog.close();

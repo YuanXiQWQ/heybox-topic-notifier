@@ -4,6 +4,7 @@
   "accountConfirmPassword": "নতুন password নিশ্চিত করুন",
   "accountCurrentPassword": "বর্তমান password",
   "accountDisplayName": "প্রদর্শিত নাম",
+  "accountAvatarClearDecorations": "অবতার ফ্রেমের সাজসজ্জা মুছুন",
   "accountDisplayNameInvalid": "প্রদর্শিত নাম ১–৮০ অক্ষরের হতে হবে এবং এতে নিয়ন্ত্রণ অক্ষর থাকা যাবে না।",
   "accountEdit": "সম্পাদনা",
   "accountEditPassword": "password পরিবর্তন করুন",

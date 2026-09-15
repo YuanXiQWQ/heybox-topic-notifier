@@ -1252,6 +1252,26 @@ export function createBlackForestEvent(shared) {
   };
 
   /**
+   * 清除头像框上的「破晓」以及对应的奖励存档。
+   *
+   * 事件进行期间只关闭奖励标记，保留当前事件进度；事件已经完成时，只保存奖励的
+   * `done` 存档会一并删除。
+   */
+  const clearGift = () => {
+    const host = document();
+    host?.querySelectorAll?.('.lobotomy-corp-black-forest-gift')
+      .forEach((/** @type {any} */ gift) => gift.remove?.());
+    if (!state) return;
+    if (state.phase === 'done') {
+      state = undefined;
+      clearPersisted();
+      return;
+    }
+    state.gift = false;
+    persist();
+  };
+
+  /**
    * 结束事件并清理事件产生的临时状态。
    *
    * @param {{completed?: boolean, restore?: boolean}} [options] 是否因完成而结束，以及是否恢复页面状态。
@@ -1293,7 +1313,6 @@ export function createBlackForestEvent(shared) {
   const restore = () => {
     const saved = persisted();
     if (!saved) {
-      syncGift();
       return false;
     }
     if (saved.gift === true) syncGift();
@@ -1331,6 +1350,7 @@ export function createBlackForestEvent(shared) {
 
   return Object.freeze({
     activateEgg,
+    clearGift,
     clearPersisted,
     finish,
     getId: () => state?.id,

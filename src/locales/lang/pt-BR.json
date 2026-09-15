@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Confirmar nova senha",
   "accountCurrentPassword": "Senha atual",
   "accountDisplayName": "Nome de exibição",
+  "accountAvatarClearDecorations": "Limpar decorações da moldura do avatar",
   "accountDisplayNameInvalid": "O nome de exibição deve ter entre 1 e 80 caracteres e não pode conter caracteres de controle.",
   "accountEdit": "Editar",
   "accountEditPassword": "Alterar senha",

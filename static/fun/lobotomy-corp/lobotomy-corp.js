@@ -1458,6 +1458,13 @@ function syncLobotomyCorpAbnormalityIdentity(displayName) {
 }
 
 /**
+ * 清除头像框上的全部《脑叶公司》饰品及对应奖励存档。
+ */
+function clearLobotomyCorpAvatarDecorations() {
+  lobotomyCorpBlackForestEvent.clearGift();
+}
+
+/**
  * 用后台请求把账户的显示名称保存为新的值。
  *
  * 复用设置页账户表单的字段与 CSRF 令牌，但不触发整页导航，避免打断正在进行的
@@ -3633,6 +3640,7 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
   blocksDisplayNameSave: lobotomyCorpBlocksDisplayNameSave,
   canvasScaleForViewport: lobotomyCorpCanvasScaleForViewport,
   canvasViewportForUpdate: lobotomyCorpCanvasViewportForUpdate,
+  clearAvatarDecorations: clearLobotomyCorpAvatarDecorations,
   commitDisplayName: commitLobotomyCorpDisplayName,
   escapeAllDangerContribution: lobotomyCorpEscapeAllDangerContribution,
   escapableDangerSummary: lobotomyCorpEscapableDangerSummary,

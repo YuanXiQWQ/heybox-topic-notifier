@@ -880,6 +880,49 @@ Deno.test("Black Forest restores icons and keeps the gift", () => {
   );
 });
 
+/** 清除按钮要同时移除「破晓」节点和只保存奖励的 done 存档。 */
+Deno.test("Black Forest clears the EGO gift and its reward save", () => {
+  const harness = createBlackForestHarness();
+  const avatarWrapper = new ClickableElement();
+  avatarWrapper.selectors.add('[data-lobotomy-corp-risk-host]');
+  harness.body.append(avatarWrapper);
+  harness.storage.setItem(
+    "test.black-forest",
+    JSON.stringify({
+      birds: [],
+      eggs: {},
+      found: [],
+      gift: true,
+      id: "black-forest",
+      order: [],
+      phase: "done",
+    }),
+  );
+  const restored = createBlackForestEvent(harness.shared);
+  restored.restore();
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-gift").length,
+    1,
+  );
+
+  restored.clearGift();
+
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-gift").length,
+    0,
+  );
+  assertEquals(harness.storage.getItem("test.black-forest"), null);
+  assertEquals(restored.getPhase(), undefined);
+
+  // 模拟刷新：没有奖励存档时不得重新挂载「破晓」。
+  const reloaded = createBlackForestEvent(harness.shared);
+  reloaded.restore();
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-gift").length,
+    0,
+  );
+});
+
 /** 样式表要按 prefab 的层级与几何实现 CG，并给出鸟蛋与「破晓」的样式。 */
 Deno.test("Black Forest styles follow the prefab layers and gift slot", () => {
   const css = lobotomyCorpCss();

@@ -277,7 +277,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
-    <script src="/static/settings.js?v=20260908-portrait-canvas" defer></script>
+    <script src="/static/settings.js?v=20260914-clear-avatar-decorations" defer></script>
   `;
 
   return renderLayout({
@@ -657,6 +657,11 @@ function renderAccountSection(
         <img data-avatar-preview-image alt="${
     escapeHtml(messages.accountAvatar)
   }">
+        <button
+          type="button"
+          class="avatar-preview-clear-decorations"
+          data-avatar-clear-decorations
+        >${escapeHtml(messages.accountAvatarClearDecorations)}</button>
       </dialog>
     </form>
     <form

@@ -4,6 +4,7 @@
   "accountConfirmPassword": "新規パスワード確認",
   "accountCurrentPassword": "現在のパスワード",
   "accountDisplayName": "表示名",
+  "accountAvatarClearDecorations": "アバターフレームの装飾を削除",
   "accountDisplayNameInvalid": "表示名は1～80文字、制御文字は使用不可です。",
   "accountEdit": "編集",
   "accountEditPassword": "パスワード変更",

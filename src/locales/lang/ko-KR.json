@@ -4,6 +4,7 @@
   "accountConfirmPassword": "새 비밀번호 확인",
   "accountCurrentPassword": "현재 비밀번호",
   "accountDisplayName": "표시 이름",
+  "accountAvatarClearDecorations": "아바타 프레임 장식 지우기",
   "accountDisplayNameInvalid": "표시 이름은 1~80자여야 하며 제어 문자를 포함할 수 없습니다.",
   "accountEdit": "수정",
   "accountEditPassword": "비밀번호 변경",

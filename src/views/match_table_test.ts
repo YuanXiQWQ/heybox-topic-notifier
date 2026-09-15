@@ -459,7 +459,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260908-portrait-canvas`,
+    `/static/settings.js?v=20260914-clear-avatar-decorations`,
   );
   assertIncludes(
     html,
@@ -479,7 +479,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260914-black-forest-1`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260914-avatar-decorations-2`,
   );
   assertIncludes(
     html,
@@ -650,6 +650,8 @@ Deno.test("renderSettings separates avatar preview from the upload dropzone", ()
 
   assertIncludes(html, "data-avatar-preview");
   assertIncludes(html, "data-avatar-preview-dialog");
+  assertIncludes(html, "data-avatar-clear-decorations");
+  assertIncludes(html, "清除头像框饰品");
   assertIncludes(html, "data-avatar-dropzone");
   assertNotIncludes(html, "onload=");
 });

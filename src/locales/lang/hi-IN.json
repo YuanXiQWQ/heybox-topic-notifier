@@ -4,6 +4,7 @@
   "accountConfirmPassword": "नए password की पुष्टि करें",
   "accountCurrentPassword": "वर्तमान password",
   "accountDisplayName": "प्रदर्शित नाम",
+  "accountAvatarClearDecorations": "अवतार फ़्रेम की सजावट हटाएँ",
   "accountDisplayNameInvalid": "प्रदर्शित नाम 1-80 वर्णों का होना चाहिए और उसमें नियंत्रण वर्ण नहीं हो सकते।",
   "accountEdit": "संपादित करें",
   "accountEditPassword": "password बदलें",
