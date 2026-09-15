@@ -327,6 +327,7 @@ export function installLobotomyCorpAlertHarness(
     sessionStorage?: unknown;
     lobotomyCorpEasterEgg?: {
       activate: (name: string) => Promise<boolean>;
+      blackForestActive: () => boolean;
       blackForestPhase: () => string | undefined;
       blocksDisplayNameSave: (name: string) => boolean;
       commitDisplayName: (name: string) => Promise<boolean>;
@@ -341,6 +342,7 @@ export function installLobotomyCorpAlertHarness(
       ) => { canonicalId: string } | undefined;
       plagueDoctorApostles: () => string[];
       plagueDoctorRecording: () => boolean;
+      playDontTouchMe: () => Promise<void>;
       prepareDisplayName: (name: string) => {
         commit: () => Promise<boolean>;
         dispose: () => void;

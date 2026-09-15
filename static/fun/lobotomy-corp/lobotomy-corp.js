@@ -19,6 +19,7 @@ import {
   escapableAbnormalitySummary,
   escapeAllDangerContribution,
   whiteNightApostleCount,
+  whiteNightCanonicalId,
   whiteNightDangerPoints,
 } from './Events/DangerScore.js';
 import {
@@ -34,7 +35,9 @@ import {
 import {
   blackForestAbnormalityIds,
   blackForestActivePhases,
+  blackForestDefaultBirdOrder,
   blackForestEggs,
+  blackForestEventId,
   blackForestGift,
   createBlackForestEvent,
 } from './Events/BlackForest.js';
@@ -882,13 +885,20 @@ function ensureLobotomyCorpDayCoordinator() {
 }
 
 /**
+ * 结束当前 Day 中全部特殊事件。
+ */
+function finishAllLobotomyCorpSpecialEvents() {
+  lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+  lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
+  lobotomyCorpBlackForestEvent?.finish({restore: false});
+  lobotomyCorpPlagueDoctorEvent?.reset();
+}
+
+/**
  * 被其它游戏彩蛋中断时结束当前 Day 和可能存在的 HUD。
  */
 function finishLobotomyCorpDayFromCoordinator() {
-  lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
-  lobotomyCorpBlackForestEvent?.finish({restore: false});
-  // 被其它彩蛋中断时也要收掉疫医的进行中演出（含完整降临的宿主隔离层与滚动锁）。
-  lobotomyCorpPlagueDoctorEvent?.reset();
+  finishAllLobotomyCorpSpecialEvents();
   clearLobotomyCorpDay();
   activeLobotomyCorpAlert?.finish();
 }
@@ -1287,9 +1297,7 @@ function stopLobotomyCorpAlert() {
  * @return {Promise<boolean>} 清理完成后返回 true。
  */
 function restartLobotomyCorpDay() {
-  lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
-  lobotomyCorpBlackForestEvent?.finish({restore: false});
-  lobotomyCorpPlagueDoctorEvent?.reset();
+  finishAllLobotomyCorpSpecialEvents();
   return stopLobotomyCorpAlert();
 }
 
@@ -1615,6 +1623,20 @@ function settleLobotomyCorpWhiteNightActiveDanger() {
 }
 
 /**
+ * 启动一条白夜入口；疫医转变演出期间拒绝并发启动。
+ *
+ * @param {object} options 白夜入口配置。
+ * @return {boolean} 白夜状态成功建立时返回 true。
+ */
+function startLobotomyCorpWhiteNight(options) {
+  if (lobotomyCorpPlagueDoctorEvent?.isTransforming()) {
+    options?.preparedMedia?.dispose?.();
+    return false;
+  }
+  return lobotomyCorpWhiteNightEvent.start(options);
+}
+
+/**
  * 处理一次已由服务器确认成功的 canonical 异想体提交。
  *
  * 该入口刻意将身份识别与危急值贡献分层，后续特殊事件可订阅此处而不依赖 canBreach。
@@ -1671,8 +1693,11 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     return Promise.resolve(true);
   }
   const isWhiteNightSubmission = match.canonicalId === 'T-03-46';
-  // 特殊事件互斥：终末鸟事件进行期间只保存名称，既不开始白夜也不结算它的 Prelude。
-  if (isWhiteNightSubmission && lobotomyCorpBlackForestEvent?.isActive()) {
+  // 疫医转变与白夜是直接互斥关系：转变演出期间不启动第二条白夜入口。
+  if (
+    isWhiteNightSubmission &&
+    lobotomyCorpPlagueDoctorEvent?.isTransforming()
+  ) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
@@ -1701,7 +1726,7 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
       },
   );
   if (isWhiteNightSubmission) {
-    lobotomyCorpWhiteNightEvent?.start({
+    startLobotomyCorpWhiteNight({
       preparedMedia,
       source: 'direct-submission',
     });
@@ -1718,28 +1743,19 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
  */
 function commitLobotomyCorpDisplayName(value, preparedMedia) {
   syncLobotomyCorpAbnormalityIdentity(value);
-  // 特殊事件互斥：终末鸟事件进行期间不开始疫医记录，只保存名称。
-  if (
-      lobotomyCorpBlackForestEvent?.isActive() &&
-      matchingLobotomyCorpAbnormality(value)?.canonicalId ===
-          plagueDoctorAbnormalityId
-  ) {
-    preparedMedia?.dispose?.();
-    return Promise.resolve(true);
-  }
-  // 疫医转变事件接管显示名称提交：记录期间只绑定使徒，已转变后直接进白夜，
-  // 两条路径都不产生普通异想体危急值，也不激活其它特殊事件。
-  // 白夜进行期间也要询问一次：那时只有再次提交疫医编号会被它接管（白夜已经在场
-  // 就不会重复启动），其余名称照常交给白夜 Confess 与普通异想体路径。
-  if (lobotomyCorpPlagueDoctorEvent?.claim(value)) {
-    preparedMedia?.dispose?.();
-    return Promise.resolve(true);
-  }
+  // 白夜自己的赎罪入口优先于疫医记录，避免赎罪名称在记录期间被绑定成使徒。
   if (
       lobotomyCorpWhiteNightEvent?.isActive() &&
       lobotomyCorpWhiteNightEvent.matchesConfession(value)
   ) {
     return lobotomyCorpWhiteNightEvent.confess(preparedMedia);
+  }
+  // 疫医转变事件接管显示名称提交：记录期间只绑定使徒，已转变后直接进白夜。
+  // 白夜进行期间也要询问一次：那时只有再次提交疫医编号会被它接管（白夜已经在场
+  // 就不会重复启动），其余名称照常交给普通异想体路径。
+  if (lobotomyCorpPlagueDoctorEvent?.claim(value)) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
   }
   return matchingLobotomyCorpAbnormality(value)
       ? handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia)
@@ -2190,6 +2206,19 @@ function mountLobotomyCorpRestartButton() {
   };
   activeLobotomyCorpRestartButton = button;
   return button;
+}
+
+/**
+ * 在最后一个特殊事件结束时移除独立的 RestartButton。
+ */
+function finishLobotomyCorpRestartButtonIfUnused() {
+  if (
+    lobotomyCorpWhiteNightEvent?.hasEventState?.() ||
+    lobotomyCorpBlackForestEvent?.isActive?.()
+  ) {
+    return;
+  }
+  activeLobotomyCorpRestartButton?.finish();
 }
 
 /**
@@ -3428,7 +3457,8 @@ function applyLobotomyCorpDontTouchMeWorkerDanger(kind) {
 /**
  * 结算“异想体全部出逃”的危急值。
  *
- * 出逃数量与平均基值都由危急值模块从异想体资料现算，本函数只负责写入。
+ * 出逃数量与平均基值都由危急值模块从异想体资料现算；这次出逃造成的危急值按整批
+ * 一次结算，随后触发白夜与终末鸟事件。
  */
 function applyLobotomyCorpDontTouchMeEscapeDanger() {
   const contribution = lobotomyCorpEscapeAllDangerContribution(
@@ -3439,6 +3469,62 @@ function applyLobotomyCorpDontTouchMeEscapeDanger() {
       undefined,
       {positiveContribution: true},
   );
+  triggerLobotomyCorpAllEscapeSpecialEvents();
+}
+
+/** 是否等待白夜 Simple Advent 转盘完全隐藏后再启动终末鸟事件。 */
+let lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+
+/**
+ * 启动由“所有异想体出逃”触发的终末鸟事件。
+ *
+ * 三鸟与终末鸟已从通用“全部出逃”的均值基值中排除，因此这里使用正常直接召唤
+ * 入口，让 CG 时间线按原有结算点补回对应危急值。
+ *
+ * @return {boolean} 新事件成功开始时返回 true。
+ */
+function startLobotomyCorpBlackForestAfterAllEscape() {
+  return lobotomyCorpBlackForestEvent.start({
+    order: [...blackForestDefaultBirdOrder],
+    source: 'direct-submission',
+  });
+}
+
+/**
+ * 结算“所有异想体出逃”同步触发的特殊事件。
+ *
+ * 白夜的 Simple Advent 有自己的四秒转盘与隐藏动画；终末鸟事件必须等转盘完全
+ * 隐藏后再播 CG，避免两个特殊事件的首段画面重叠。白夜已经 active 时没有转盘，
+ * 终末鸟事件可以立即开始。
+ */
+function triggerLobotomyCorpAllEscapeSpecialEvents() {
+  if (!lobotomyCorpWhiteNightEvent.hasEventState()) {
+    const started = startLobotomyCorpWhiteNight({source: 'direct-submission'});
+    if (started && !lobotomyCorpBreachedAbnormalitiesThisDay.has(
+        whiteNightCanonicalId,
+    )) {
+      // 白夜已从“全部出逃”的均值基值中排除，启动事件时补回 Prelude 的 44 点；
+      // active 阶段的 98 点仍由白夜自己的 Simple Advent 边界结算。
+      lobotomyCorpBreachedAbnormalitiesThisDay.add(whiteNightCanonicalId);
+      lobotomyCorpWhiteNightDangerSettlementStage = 'prelude-settled';
+      void setLobotomyCorpDangerScore(
+          clampDangerScore(
+              lobotomyCorpDangerScore +
+              lobotomyCorpWhiteNightPreludeDangerContribution,
+          ),
+          undefined,
+          {positiveContribution: true},
+      );
+    }
+  }
+  if (lobotomyCorpWhiteNightEvent.getPhase() === 'prelude') {
+    lobotomyCorpPendingBlackForestAfterWhiteNight = true;
+    return;
+  }
+  lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+  if (!lobotomyCorpBlackForestEvent.isActive()) {
+    startLobotomyCorpBlackForestAfterAllEscape();
+  }
 }
 
 /**
@@ -3448,6 +3534,8 @@ function applyLobotomyCorpDontTouchMeEscapeDanger() {
  * 画面播放期间不会继续响警报，随后的 404 页面也无从恢复警报音乐。
  */
 function crashLobotomyCorpDanger() {
+  // 假关服直接保存并退出这一天，因此它是所有特殊事件的直接终止规则。
+  finishAllLobotomyCorpSpecialEvents();
   void stopLobotomyCorpAlert();
   clearLobotomyCorpDay();
 }
@@ -3475,17 +3563,10 @@ const lobotomyCorpDontTouchMeShutdown = createDontTouchMeShutdown({
 /**
  * 判断待保存的显示名称是否由“别碰我”假关服接管。
  *
- * 特殊事件进行期间沿用“仅保存名称、不激活其它事件”的既有规则。
- *
  * @param {string} value 待保存的显示名称。
  * @return {boolean} 需要拦截保存并播放假关服时返回 true。
  */
 function lobotomyCorpBlocksDisplayNameSave(value) {
-  if (lobotomyCorpWhiteNightEvent.isActive()) return false;
-  // 终末鸟事件进行期间同样只保存名称：别碰我不接管这一天的保存。
-  if (lobotomyCorpBlackForestEvent?.isActive()) return false;
-  // 疫医记录期间不再压制别的异想体：别碰我拿到的编号照常由它自己接管保存，
-  // 否则它的彩蛋会被疫医的记录吞掉。
   return matchingLobotomyCorpAbnormality(value)?.canonicalId ===
       lobotomyCorpDontTouchMeId;
 }
@@ -3514,12 +3595,21 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   assetRoot: lobotomyCorpAssetRoot,
   confessionAliases: () => lobotomyCorpConfessionAliases,
   ensureCoordinator: ensureLobotomyCorpDayCoordinator,
-  finishRestartButton: () => activeLobotomyCorpRestartButton?.finish(),
+  finishRestartButton: finishLobotomyCorpRestartButtonIfUnused,
   holdAlertMusic: () => activeLobotomyCorpAlert?.holdMusicForSpecialEvent?.(),
   isReload: isLobotomyCorpAlertPageReload,
   messages: () => lobotomyCorpMessages,
   mountRestartButton: mountLobotomyCorpRestartButton,
   normalize: normalizeLobotomyCorpAbnormalityName,
+  onStarted: () => {
+    lobotomyCorpPlagueDoctorEvent?.pauseForWhiteNight?.();
+    lobotomyCorpBlackForestEvent?.restrictHuntToWhiteNightPages?.();
+  },
+  onPreludeHidden: () => {
+    if (!lobotomyCorpPendingBlackForestAfterWhiteNight) return;
+    lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+    startLobotomyCorpBlackForestAfterAllEscape();
+  },
   pauseDangerDecay: pauseLobotomyCorpDangerDecay,
   resumeAlertMusic: () =>
       activeLobotomyCorpAlert?.resumeMusicAfterSpecialEvent?.(),
@@ -3550,7 +3640,7 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
   loginSession: lobotomyCorpLoginSession,
   messages: () => lobotomyCorpMessages,
   onTransformation: (/** @type {any} */ info) => {
-    lobotomyCorpWhiteNightEvent?.start({
+    startLobotomyCorpWhiteNight({
       // 首次转变由疫医的完整降临顶替入场演出；已经转变过时没有再演一遍完整降临，
       // 白夜要按 normal 入口补上 Simple Advent（转盘 + 逐名使徒的台词）。
       source: info?.firstTime === false
@@ -3565,6 +3655,7 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
         {positiveContribution: true},
     );
   },
+  whiteNightRunning: () => lobotomyCorpWhiteNightEvent.hasEventState(),
 });
 
 /**
@@ -3616,12 +3707,14 @@ function settleLobotomyCorpBlackForestDanger(canonicalIds, preparedMedia) {
 const lobotomyCorpBlackForestEvent = createBlackForestEvent({
   applyDisplayName: applyLobotomyCorpDisplayName,
   assetRoot: lobotomyCorpAssetRoot,
+  eggSlotPages: () =>
+    lobotomyCorpWhiteNightEvent.hasEventState()
+      ? ['settings', 'nav']
+      : undefined,
   ensureCoordinator: ensureLobotomyCorpDayCoordinator,
-  finishRestartButton: () => activeLobotomyCorpRestartButton?.finish(),
+  finishRestartButton: finishLobotomyCorpRestartButtonIfUnused,
   messages: () => lobotomyCorpMessages,
   mountRestartButton: mountLobotomyCorpRestartButton,
-  // 特殊事件互斥：白夜正在进行时不开始终末鸟事件。
-  mutexBlocked: () => Boolean(lobotomyCorpWhiteNightEvent?.isActive()),
   pauseDangerDecay: pauseLobotomyCorpDangerDecay,
   resumeDangerDecay: restoreLobotomyCorpDangerDecay,
   settleBlackForestDanger: (canonicalIds, preparedMedia) =>
@@ -3667,7 +3760,7 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
   prepareDisplayName: prepareLobotomyCorpDisplayName,
   restartDay: restartLobotomyCorpDay,
   setDangerScore: setLobotomyCorpDangerScore,
-  startWhiteNight: lobotomyCorpWhiteNightEvent.start,
+  startWhiteNight: startLobotomyCorpWhiteNight,
   submitsWhileActive: true,
 });
 
@@ -3733,14 +3826,21 @@ if (
     }
   }
 }
+if (restoredLobotomyCorpBlackForest?.id === blackForestEventId) {
+  lobotomyCorpBlackForestEvent.restore();
+}
 if (restoredLobotomyCorpSpecialEvent?.id === lobotomyCorpWhiteNightEventId) {
   lobotomyCorpWhiteNightEvent.restore();
-} else {
+}
+if (
+  lobotomyCorpWhiteNightEvent.hasEventState() &&
+  lobotomyCorpBlackForestEvent.isActive()
+) {
+  lobotomyCorpBlackForestEvent.restrictHuntToWhiteNightPages();
+}
+if (!lobotomyCorpBlackForestEvent.isActive()) {
   // 终末鸟事件只在寻找鸟蛋等接管阶段冻结衰减；记录阶段照常恢复普通 Day。
-  lobotomyCorpBlackForestEvent.restore();
-  if (!lobotomyCorpBlackForestEvent.isActive()) {
-    restoreLobotomyCorpDangerDecay();
-  }
+  restoreLobotomyCorpDangerDecay();
 }
 
 /**

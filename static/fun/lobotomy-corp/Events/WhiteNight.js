@@ -248,6 +248,8 @@ function createWhiteNightConfessRay(document, assetRoot, index, view) {
  * @typedef {object} WhiteNightHostCapabilities
  * @property {() => string[]} [apostleNames] Simple Advent 12 个名字槽位的使徒名单。
  * @property {(messageKey: string) => string} [blockMessage] 阻挡提示文本。
+ * @property {(options: object) => void} [onStarted] 白夜状态成功建立后的宿主通知。
+ * @property {() => void} [onPreludeHidden] Simple Advent 转盘完全隐藏后的宿主通知。
  * @property {(source: string) => void} [playApostlesCompletion] 使徒完成演出。
  */
 
@@ -1025,6 +1027,7 @@ export function createWhiteNightEvent(shared) {
               : 'held',
     };
     persist();
+    hostCapabilities.onStarted?.(options);
     if (!isPrelude) return activateWhiteNight(options, behavior);
 
     /** 在四秒逻辑边界结算第二笔危急值，并在 Hide_21 继续时启动白夜。 */
@@ -1062,6 +1065,10 @@ export function createWhiteNightEvent(shared) {
         initialElapsedMs: whiteNightSimpleAdventDurationMs - remainingMs,
         names: shared.apostleNames?.() ?? [],
         onAdventEnd: activateFromPrelude,
+        onHidden: () => {
+          if (state?.phase !== 'active') return;
+          hostCapabilities.onPreludeHidden?.();
+        },
         // 刷新恢复只恢复视觉剩余时间，不重复播放进入钟声。
         playBell: options.restore
             ? undefined
@@ -1069,7 +1076,13 @@ export function createWhiteNightEvent(shared) {
       });
     } else {
       // 非 DOM 宿主仍需保持业务时序（例如账户脚本的最小测试环境）。
-      state.timers.add(setTimeout(activateFromPrelude, remainingMs));
+      state.timers.add(setTimeout(() => {
+        const current = state;
+        activateFromPrelude();
+        if (state === current && current.phase === 'active') {
+          hostCapabilities.onPreludeHidden?.();
+        }
+      }, remainingMs));
       if (!options.restore) playBell(options.preparedMedia);
     }
     return true;

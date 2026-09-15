@@ -40,6 +40,7 @@ import {
   createBlackForestCgPlayer,
   createBlackForestEvent,
   isValidBlackForestState,
+  relocateUnfoundBlackForestEggs,
 } from "../static/fun/lobotomy-corp/Events/BlackForest.js";
 
 /** 提取 CSS 中一个明确类选择器的规则体。 */
@@ -506,6 +507,34 @@ Deno.test("Black Forest assigns eggs across all candidate slots", () => {
   }
 });
 
+/** 白夜接管页面时只迁移未找到的鸟蛋，已找到的蛋保持原记录。 */
+Deno.test("Black Forest relocates only unfound eggs to settings", () => {
+  const settingsSlots = blackForestIconSlots.filter((slot) =>
+    slot.page === "settings"
+  );
+  const relocated = relocateUnfoundBlackForestEggs(
+    {
+      "nav.dashboard": "bigEyes",
+      "settings.account.avatar": "longArms",
+      "history.filter": "smallBeak",
+    },
+    ["bigEyes"],
+    settingsSlots,
+    () => 0,
+  );
+  const slotsByEgg = Object.fromEntries(
+    Object.entries(relocated).map(([slot, egg]) => [egg, slot]),
+  );
+  assertEquals(slotsByEgg.bigEyes, "nav.dashboard");
+  assertEquals(slotsByEgg.longArms, "settings.account.avatar");
+  assert(slotsByEgg.smallBeak?.startsWith("settings."));
+  assertEquals(Object.keys(relocated).length, 3);
+  assertEquals(new Set(Object.values(relocated)).size, 3);
+  Object.entries(relocated).forEach(([slot, egg]) => {
+    if (egg !== "bigEyes") assert(slot.startsWith("settings."));
+  });
+});
+
 /** 存档校验：合法存档可恢复，损坏存档作废。 */
 Deno.test("Black Forest validates persisted state", () => {
   assertEquals(
@@ -730,7 +759,6 @@ function createBlackForestHarness(options = {}) {
       "blackForest.egg.smallBeak.label": "小喙",
     }),
     mountRestartButton: () => events.push("mount-restart-button"),
-    mutexBlocked: () => false,
     pauseDangerDecay: () => events.push("pause"),
     resumeDangerDecay: () => events.push("resume"),
     settleBlackForestDanger: (canonicalIds: string[]) =>
@@ -790,15 +818,6 @@ Deno.test("Black Forest direct summon needs no alarm and settles bird danger", (
     ["bigBird", "longBird", "smallBird"],
   );
   event.finish();
-});
-
-/** 特殊事件互斥：白夜进行期间只保存名称。 */
-Deno.test("Black Forest refuses to start while another special event runs", () => {
-  const harness = createBlackForestHarness({ mutexBlocked: () => true });
-  const event = createBlackForestEvent(harness.shared);
-  assertStrictEquals(event.recordSubmission("O-02-63"), false);
-  assertStrictEquals(event.recordSubmission("O-02-56"), false);
-  assertStrictEquals(event.getPhase(), undefined);
 });
 
 /** 寻找鸟蛋：点击蛋播死亡 CG，三颗点完挂上「破晓」。 */

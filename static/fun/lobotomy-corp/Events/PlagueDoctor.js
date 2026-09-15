@@ -1610,10 +1610,11 @@ export function playPlagueDoctorAdvent(options) {
  * @param {(amount: number) => void} shared.settleDanger 结算固定危急值。
  * @param {(value: string) => void} [shared.applyDisplayName] 转变后把显示名称改写为白夜。
  * @param {() => string|undefined} [shared.loginSession] 当前登录会话标识；变化表示用户重新登录。
+ * @param {() => boolean} [shared.whiteNightRunning] 白夜事件是否已经建立。
  * @return {object} 疫医事件 API。
  */
 export function createPlagueDoctorEvent(shared) {
-  /** @type {{apostles: string[], loginSession?: string, recording: boolean, transformed: boolean}|undefined} */
+  /** @type {{apostles: string[], loginSession?: string, pausedByWhiteNight?: boolean, recording: boolean, transformed: boolean}|undefined} */
   let state;
   let busy = false;
   let transforming = false;
@@ -1733,7 +1734,13 @@ export function createPlagueDoctorEvent(shared) {
       recording: saved?.recording === true,
       transformed: relogged ? false : saved?.transformed === true,
     };
-    if (relogged) state.recording = false;
+    state.pausedByWhiteNight = relogged
+      ? false
+      : saved?.pausedByWhiteNight === true;
+    if (relogged) {
+      state.recording = false;
+      state.pausedByWhiteNight = false;
+    }
     persist();
   };
   restore();
@@ -1813,7 +1820,7 @@ export function createPlagueDoctorEvent(shared) {
   };
 
   /**
-   * 启动转变演出：首次走完整降临，已经转变过则直接进入白夜。
+   * 启动转变演出：首次走完整降临；已经转变过或白夜已经在场时直接完成转变。
    *
    * @return {void}
    */
@@ -1823,7 +1830,8 @@ export function createPlagueDoctorEvent(shared) {
     busy = true;
     const firstTime = state?.transformed !== true;
     if (
-      !firstTime || typeof globalThis.document?.createElement !== 'function'
+      !firstTime || shared.whiteNightRunning?.() === true ||
+      typeof globalThis.document?.createElement !== 'function'
     ) {
       completeTransformation({ firstTime: false });
       return;
@@ -1900,9 +1908,25 @@ export function createPlagueDoctorEvent(shared) {
    * @return {boolean} 本次提交由疫医事件接管时返回 true。
    */
   const claim = (value) => {
-    if (busy) return true;
     const normalized = String(value).normalize('NFKC').trim()
       .toLocaleLowerCase('en-US');
+    const submittedId = shared.submittedAbnormalityId?.(value);
+    if (shared.whiteNightRunning?.() === true) {
+      if (normalized === plagueDoctorAbnormalityId.toLowerCase()) return true;
+      if (!isRecording()) return false;
+      // 白夜期间普通名称不得继续绑定使徒；其它异想体编号仍交给自己的彩蛋。
+      return submittedId ? false : true;
+    }
+    if (state?.pausedByWhiteNight === true) {
+      if (normalized === plagueDoctorAbnormalityId.toLowerCase()) {
+        state.pausedByWhiteNight = false;
+        persist();
+        return true;
+      }
+      // 白夜结束后必须先重新输入一次疫医编号，期间不得吞掉其它异想体编号。
+      return submittedId ? false : true;
+    }
+    if (busy) return true;
     if (normalized === plagueDoctorAbnormalityId.toLowerCase()) {
       // 已经完成过一次转变后再次提交疫医：直接进入白夜。
       if (hasTransformed()) {
@@ -1923,7 +1947,6 @@ export function createPlagueDoctorEvent(shared) {
     }
     // 异想体编号（及其别名）归各自的异想体彩蛋：记录期间它们一律不计入使徒，也不播
     // 绑定动画，否则该异想体自己的彩蛋会和疫医彩蛋互相抢同一次保存。
-    const submittedId = shared.submittedAbnormalityId?.(value);
     if (submittedId) {
       // 疫医自己的编号已经由上面的分支处理；回到这里只说明记录期间又提交了一次，
       // 本事件自行吞掉，不让它落到普通异想体路径去结算危急值。
@@ -1947,6 +1970,20 @@ export function createPlagueDoctorEvent(shared) {
     stopBlockingInteraction();
   };
 
+  /**
+   * 白夜接管时暂停使徒绑定：中止当前演出并保留已绑定的使徒。
+   *
+   * 暂停标记会持久化；白夜结束后用户必须重新提交一次疫医编号，才能继续绑定后续使徒。
+   *
+   * @return {void}
+   */
+  const pauseForWhiteNight = () => {
+    reset();
+    if (!state) return;
+    state.pausedByWhiteNight = state.recording && !state.transformed;
+    persist();
+  };
+
   return Object.freeze({
     apostleCount: () => state?.apostles.length ?? 0,
     apostleNames,
@@ -1954,6 +1991,7 @@ export function createPlagueDoctorEvent(shared) {
     hasTransformed,
     isRecording,
     isTransforming,
+    pauseForWhiteNight,
     reset,
     soundPaths: plagueDoctorSoundPaths,
   });
