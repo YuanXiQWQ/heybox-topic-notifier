@@ -349,6 +349,7 @@ export function installLobotomyCorpAlertHarness(
       };
       restartDay: () => Promise<boolean>;
       setDangerScore: (score: number) => Promise<boolean>;
+      shelterActive: () => boolean;
       startWhiteNight: (options: { source: string }) => boolean;
     };
   };
