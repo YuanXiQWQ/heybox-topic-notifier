@@ -766,11 +766,15 @@ Deno.test("renderSettings renders email binding controls and verified email stat
   assertNotIncludes(html, `email-binding-code-panel`);
   assertBefore(html, `data-email-summary-row`, `data-email-code-row`);
   assertIncludes(html, `class="settings-turnstile cf-turnstile"`);
+  assertIncludes(html, `data-turnstile-mode="interaction"`);
+  assertIncludes(html, `data-turnstile-widget`);
   assertIncludes(html, `data-response-field-name="cf-turnstile-response"`);
-  assertIncludes(html, `data-callback="collapseTurnstileWidget"`);
-  assertIncludes(html, `turnstileSuccessDisplayMs = 1800`);
   assertIncludes(html, `data-expired-callback="revealTurnstileWidgets"`);
   assertIncludes(
+    html,
+    `/static/turnstile.js?v=20260914-lazy-load`,
+  );
+  assertNotIncludes(
     html,
     `https://challenges.cloudflare.com/turnstile/v0/api.js`,
   );
