@@ -41,6 +41,11 @@ import {
   blackForestGift,
   createBlackForestEvent,
 } from './Events/BlackForest.js';
+import {
+  createShelterEvent,
+  shelterAbnormalityId,
+  shelterStorageKey,
+} from './Events/Shelter.js';
 
 /**
  * 白夜被镇压后，后台 Trumpet 从 ducked 音量恢复到正常音量所需时长（毫秒）。
@@ -876,7 +881,10 @@ function pauseLobotomyCorpDangerDecay() {
  * 让没有 HUD 的低危急值 Day 也参与跨游戏互斥。
  */
 function ensureLobotomyCorpDayCoordinator() {
-  if (lobotomyCorpDangerScore > 0) {
+  if (
+    lobotomyCorpDangerScore > 0 ||
+    lobotomyCorpShelterEvent?.isActive()
+  ) {
     globalThis.easterEggCoordinator?.start(
         lobotomyCorpEasterEggGameId,
         finishLobotomyCorpDayFromCoordinator,
@@ -889,6 +897,7 @@ function ensureLobotomyCorpDayCoordinator() {
  */
 function finishAllLobotomyCorpSpecialEvents() {
   lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+  lobotomyCorpShelterEvent?.finish();
   lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
   lobotomyCorpBlackForestEvent?.finish({restore: false});
   lobotomyCorpPlagueDoctorEvent?.reset();
@@ -1420,6 +1429,7 @@ function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
     persistLobotomyCorpDay();
     ensureLobotomyCorpDayCoordinator();
   } else {
+    lobotomyCorpShelterEvent?.finish();
     clearLobotomyCorpDay();
   }
   if (!options.isDecay && options.positiveContribution === true) {
@@ -1654,6 +1664,11 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
   notifyLobotomyCorpAbnormalitySubmitted(match.canonicalId, match.abnormality, {
     displayName: value,
   });
+  if (match.canonicalId === shelterAbnormalityId) {
+    lobotomyCorpShelterEvent.start();
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
   // 终末鸟事件观察三只鸟的输入顺序；直接输入 O-02-63 时按 CG 边界逐笔结算。
   const startedBlackForestEvent =
       lobotomyCorpBlackForestEvent?.recordSubmission(match.canonicalId) === true;
@@ -3723,6 +3738,20 @@ const lobotomyCorpBlackForestEvent = createBlackForestEvent({
   storages: lobotomyCorpAlertStorages,
 });
 
+// 3月27日的避难所：首次等待 30 秒，此后每 5 秒随机释放一个可出逃异想体。
+const lobotomyCorpShelterEvent = createShelterEvent({
+  abnormalities: () => lobotomyCorpAbnormalities,
+  clearTimer: (timer) => clearTimeout(timer),
+  ensureCoordinator: ensureLobotomyCorpDayCoordinator,
+  isReload: isLobotomyCorpAlertPageReload,
+  random: () => Math.random(),
+  releaseAbnormality: (canonicalId) =>
+    void handleLobotomyCorpAbnormalitySubmitted(canonicalId),
+  setTimer: (callback, delay) => setTimeout(callback, delay),
+  storageKey: shelterStorageKey,
+  storages: lobotomyCorpAlertStorages,
+});
+
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
   blackForestActive: () => lobotomyCorpBlackForestEvent.isActive(),
@@ -3760,6 +3789,7 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
   prepareDisplayName: prepareLobotomyCorpDisplayName,
   restartDay: restartLobotomyCorpDay,
   setDangerScore: setLobotomyCorpDangerScore,
+  shelterActive: () => lobotomyCorpShelterEvent.isActive(),
   startWhiteNight: startLobotomyCorpWhiteNight,
   submitsWhileActive: true,
 });
@@ -3826,6 +3856,7 @@ if (
     }
   }
 }
+lobotomyCorpShelterEvent.restore();
 if (restoredLobotomyCorpBlackForest?.id === blackForestEventId) {
   lobotomyCorpBlackForestEvent.restore();
 }

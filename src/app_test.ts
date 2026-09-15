@@ -409,6 +409,9 @@ Deno.test({
     const dangerScoreResponse = await app.request(
       "/static/fun/lobotomy-corp/Events/DangerScore.js",
     );
+    const shelterResponse = await app.request(
+      "/static/fun/lobotomy-corp/Events/Shelter.js",
+    );
     const shutdownVideoResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/MovieTexture/DontTouchMeGameShutdown.webm",
     );
@@ -503,6 +506,12 @@ Deno.test({
       ),
       true,
     );
+    assertEquals(shelterResponse.status, 200);
+    assertEquals(
+      shelterResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assert((await shelterResponse.text()).includes("createShelterEvent"));
     assertEquals(dontTouchMeResponse.status, 200);
     assertEquals(
       dontTouchMeResponse.headers.get("content-type"),

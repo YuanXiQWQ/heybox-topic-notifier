@@ -111,6 +111,14 @@ Deno.test({
       "../static/fun/lobotomy-corp/Events/",
       import.meta.url,
     );
+    const entrySource = await Deno.readTextFile(
+      new URL("../static/fun/lobotomy-corp/lobotomy-corp.js", import.meta.url),
+    );
+    for (const match of entrySource.matchAll(/from\s+'\.\/([\w./-]+\.js)'/gu)) {
+      const assetPath = match[1];
+      const response = await lobotomyCorpAssetResponse(assetPath);
+      assertEquals(response.status, 200, `lobotomy-corp.js → ${assetPath}`);
+    }
     for await (const entry of Deno.readDir(directory)) {
       if (!entry.name.endsWith(".js")) continue;
       const source = await Deno.readTextFile(new URL(entry.name, directory));
