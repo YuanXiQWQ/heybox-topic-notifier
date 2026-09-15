@@ -93,6 +93,7 @@ export type Messages = {
   accountAvatar: string;
   accountAvatarAlt: string;
   accountAvatarChoose: string;
+  accountAvatarClearDecorations: string;
   accountAvatarConfirm: string;
   accountAvatarCrop: string;
   accountAvatarUploadFailed: string;

@@ -164,6 +164,9 @@ function initAvatarUpload() {
   const previewDialog = form?.querySelector('[data-avatar-preview-dialog]');
   const previewClose = form?.querySelector('[data-avatar-preview-close]');
   const previewImage = form?.querySelector('[data-avatar-preview-image]');
+  const clearDecorations = form?.querySelector(
+      '[data-avatar-clear-decorations]',
+  );
   if (
       !(form instanceof HTMLFormElement) || !(dropzone instanceof HTMLElement) ||
       !(input instanceof HTMLInputElement) ||
@@ -177,7 +180,8 @@ function initAvatarUpload() {
       !(previewButton instanceof HTMLButtonElement) ||
       !(previewDialog instanceof HTMLDialogElement) ||
       !(previewClose instanceof HTMLButtonElement) ||
-      !(previewImage instanceof HTMLImageElement)
+      !(previewImage instanceof HTMLImageElement) ||
+      !(clearDecorations instanceof HTMLButtonElement)
   ) return;
 
   let image;
@@ -302,6 +306,9 @@ function initAvatarUpload() {
     status.hidden = true;
   });
   previewButton.addEventListener('click', showAvatarPreview);
+  clearDecorations.addEventListener('click', () => {
+    globalThis.lobotomyCorpEasterEgg?.clearAvatarDecorations?.();
+  });
   previewClose.addEventListener('click', () => previewDialog.close());
   previewDialog.addEventListener('click', (event) => {
     if (event.target === previewDialog) previewDialog.close();
@@ -411,19 +418,6 @@ function initTotpBinding(scope = document) {
   }
 
   form.dataset.totpBindingInitialized = 'true';
-  // “别碰我”需要连续点击保存按钮：按下时不让按钮抢走显示名称的焦点，否则编辑器
-  // 收起会隐藏保存按钮，用户就无法继续连点。
-  saveButton.addEventListener('pointerdown', (event) => {
-    if (
-        mode === 'displayName' &&
-        globalThis.lobotomyCorpEasterEgg?.blocksDisplayNameSave?.(
-            displayNameInput.value,
-        )
-    ) {
-      event.preventDefault();
-    }
-  });
-
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     void submitTotpBinding(section, form);
@@ -1750,6 +1744,19 @@ function initAccountSettings() {
         clearInlineStatus(confirmPasswordStatus);
       }
     });
+  });
+
+  // “别碰我”需要连续点击保存按钮：按下时不让按钮抢走显示名称的焦点，否则编辑器
+  // 收起会隐藏保存按钮，用户就无法继续连点。
+  saveButton.addEventListener('pointerdown', (event) => {
+    if (
+        mode === 'displayName' &&
+        globalThis.lobotomyCorpEasterEgg?.blocksDisplayNameSave?.(
+            displayNameInput.value,
+        )
+    ) {
+      event.preventDefault();
+    }
   });
 
   form.addEventListener('submit', (event) => {

@@ -19,6 +19,54 @@ import { assertEquals } from "../test_helpers.ts";
  */
 const testCsrfToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
+/**
+ * 提取 HTML 中的全部鸟蛋候选槽位。
+ *
+ * @param html 页面 HTML。
+ * @return 槽位标识列表。
+ */
+function blackForestSlotIds(html: string): string[] {
+  return [
+    ...html.matchAll(
+      /data-lobotomy-corp-black-forest-slot="([^"]+)"/gu,
+    ),
+  ].map((match) => match[1]);
+}
+
+/**
+ * 渲染用于检查分页候选槽位的表格区块。
+ *
+ * @param path 页面路径。
+ * @param result 表格结果。
+ * @return 表格区块 HTML。
+ */
+function renderMatchSectionForSlots(
+  path: string,
+  result: MatchTableResult,
+): string {
+  return renderMatchRecordsSection({
+    action: {
+      bulkButtonAttribute: "data-test-bulk",
+      emptySelectionMessage: "empty",
+      icon: "",
+      label: "complete",
+      rowCheckboxAttribute: "data-test-row",
+      selectAllAttribute: "data-test-all",
+    },
+    csrfToken: testCsrfToken,
+    emptyMessage: "empty",
+    filterToggleId: "test-filter",
+    formAction: "/matches/complete",
+    heading: "heading",
+    headingId: "heading-id",
+    locale: "zh-CN",
+    messages: getMessages("zh-CN"),
+    path,
+    table: result,
+    titleLinkClass: "pending-title-link",
+  });
+}
+
 Deno.test("parseMatchTableQuery normalizes unsupported values", () => {
   const query = parseMatchTableQuery(
     new URLSearchParams("range=bad&page=-1&pageSize=777"),
@@ -272,6 +320,137 @@ Deno.test("settings and history pages keep the app tab title", () => {
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 
+Deno.test("Black Forest candidate slots match the approved fixed lists", () => {
+  const html = renderSettings({
+    account: {
+      displayName: "Alice",
+      emailVerified: true,
+      id: "user-1",
+      primaryEmail: "alice@example.com",
+      username: "alice",
+    },
+    csrfToken: testCsrfToken,
+    securitySettings: {
+      preferredSecondFactor: "email",
+      twoFactorEnabled: false,
+      userId: "user-1",
+    },
+    settings: settings(),
+  });
+  const slotIds = blackForestSlotIds(html);
+  assertEquals(
+    new Set(slotIds.filter((id) => id.startsWith("nav."))),
+    new Set([
+      "nav.dashboard",
+      "nav.settings",
+      "nav.history",
+      "nav.accountSettings",
+      "nav.logout",
+    ]),
+  );
+  assertEquals(
+    new Set(slotIds.filter((id) => id.startsWith("settings."))),
+    new Set([
+      "settings.account.avatar",
+      "settings.account.username",
+      "settings.account.displayName",
+      "settings.post.topic",
+      "settings.post.keywords",
+      "settings.poll.enabled",
+      "settings.poll.interval",
+      "settings.poll.postLimit",
+      "settings.poll.sort",
+      "settings.notification.provider",
+      "settings.notification.webhookService",
+      "settings.notification.token",
+      "settings.notification.spt",
+      "settings.notification.sendKey",
+      "settings.notification.webhookUrl",
+      "settings.notification.emailService",
+      "settings.notification.emailAddress",
+      "settings.notification.emailFrom",
+      "settings.notification.apiUrl",
+      "settings.notification.apiToken",
+      "settings.notification.smtpHost",
+      "settings.notification.smtpPort",
+      "settings.notification.ssl",
+      "settings.notification.smtpUsername",
+      "settings.notification.smtpPassword",
+      "settings.auth.email",
+      "settings.auth.password",
+      "settings.auth.passkey",
+      "settings.auth.google",
+      "settings.auth.twoFactor",
+      "settings.auth.preferredMethod",
+      "settings.auth.authenticator",
+      "settings.auth.recoveryCode",
+      "settings.global.theme",
+      "settings.global.darkMode",
+      "settings.global.locale",
+    ]),
+  );
+});
+
+Deno.test("Black Forest pagination slots exist only with their table", () => {
+  const populated = {
+    ...table([]),
+    pageSize: 10 as const,
+    totalPages: 3,
+    totalRecords: 25,
+  };
+  const dashboardIds = blackForestSlotIds(
+    renderMatchSectionForSlots("/", populated),
+  ).filter((id) => id.startsWith("dashboard."));
+  assertEquals(
+    new Set(dashboardIds),
+    new Set([
+      "dashboard.filter",
+      "dashboard.page.1",
+      "dashboard.page.2",
+      "dashboard.page.3",
+      "dashboard.pageSize.10",
+      "dashboard.pageSize.20",
+      "dashboard.pageSize.50",
+      "dashboard.pageSize.100",
+      "dashboard.pageSize.200",
+      "dashboard.pageSize.500",
+      "dashboard.pageSize.all",
+    ]),
+  );
+  assertEquals(
+    blackForestSlotIds(renderMatchSectionForSlots("/", table([]))).filter(
+      (id) => id.startsWith("dashboard."),
+    ),
+    ["dashboard.filter"],
+  );
+
+  const historyIds = blackForestSlotIds(
+    renderMatchSectionForSlots("/history", populated),
+  ).filter((id) => id.startsWith("history."));
+  assertEquals(
+    new Set(historyIds),
+    new Set([
+      "history.filter",
+      "history.page.1",
+      "history.page.2",
+      "history.page.3",
+      "history.pageSize.10",
+      "history.pageSize.20",
+      "history.pageSize.50",
+      "history.pageSize.100",
+      "history.pageSize.200",
+      "history.pageSize.500",
+      "history.pageSize.all",
+    ]),
+  );
+  assertEquals(
+    blackForestSlotIds(
+      renderMatchSectionForSlots("/history", table([])),
+    ).filter((id) => id.startsWith("history.")),
+    ["history.filter"],
+  );
+});
+
 Deno.test("settings page loads the latest settings interactions", () => {
   const html = renderSettings({
     csrfToken: testCsrfToken,
@@ -280,7 +459,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260908-portrait-canvas`,
+    `/static/settings.js?v=20260914-clear-avatar-decorations`,
   );
   assertIncludes(
     html,
@@ -300,11 +479,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260913-plague-doctor-spine-1`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260914-avatar-decorations-2`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260913-plague-doctor-spine-1`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1`,
   );
   assertIncludes(
     html,
@@ -471,6 +650,8 @@ Deno.test("renderSettings separates avatar preview from the upload dropzone", ()
 
   assertIncludes(html, "data-avatar-preview");
   assertIncludes(html, "data-avatar-preview-dialog");
+  assertIncludes(html, "data-avatar-clear-decorations");
+  assertIncludes(html, "清除头像框饰品");
   assertIncludes(html, "data-avatar-dropzone");
   assertNotIncludes(html, "onload=");
 });

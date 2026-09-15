@@ -758,7 +758,7 @@ export function createWhiteNightEvent(shared) {
     const document = globalThis.document;
     shared.pauseDangerDecay();
     shared.ensureCoordinator();
-    if (!shared.getAlert()) shared.mountRestartPanel();
+    shared.mountRestartButton();
     // WhiteNight active 不等于立即压低音量：经过 Prelude 的入口要先把阶段 BGM 完整播完。
     applyTrumpetTimeline(options, behavior);
 
@@ -1088,7 +1088,7 @@ export function createWhiteNightEvent(shared) {
     if (!current) return;
     state = undefined;
     clearPersisted();
-    shared.finishRestartPanel();
+    shared.finishRestartButton();
     current.timers.forEach(clearTimeout);
     // Restart Day / 协调器中断取消 Advent 而不 finish，避免触发 +98。
     current.advent?.dispose?.();

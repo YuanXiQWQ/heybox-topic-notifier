@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Yeni parolayı onayla",
   "accountCurrentPassword": "Geçerli parola",
   "accountDisplayName": "Görünen ad",
+  "accountAvatarClearDecorations": "Avatar çerçevesi süslemelerini temizle",
   "accountDisplayNameInvalid": "Görünen ad 1-80 karakter uzunluğunda olmalı ve denetim karakterleri içermemelidir.",
   "accountEdit": "Düzenle",
   "accountEditPassword": "Parolayı değiştir",

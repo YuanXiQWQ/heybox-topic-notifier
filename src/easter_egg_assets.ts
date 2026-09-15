@@ -160,6 +160,26 @@ export async function lobotomyCorpDangerScoreResponse(): Promise<Response> {
 }
 
 /**
+ * 创建《脑叶公司》终末鸟（黑森林）事件模块响应。
+ *
+ * @return {Promise<Response>} JavaScript 模块响应。
+ */
+export async function lobotomyCorpBlackForestEventResponse(): Promise<Response> {
+  const script = await Deno.readTextFile(
+    new URL(
+      "../static/fun/lobotomy-corp/Events/BlackForest.js",
+      import.meta.url,
+    ),
+  );
+  return new Response(script, {
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "text/javascript; charset=utf-8",
+    },
+  });
+}
+
+/**
  * 创建《脑叶公司》“别碰我”假关服模块响应。
  *
  * @return {Promise<Response>} JavaScript 模块响应。
@@ -399,7 +419,7 @@ function isLobotomyCorpAssetPath(assetPath: string): boolean {
     /^Assets\/Resources\/spinedata\/[A-Za-z0-9_]+(?:\/[A-Za-z0-9_.]+)*\.(?:json|txt)$/u
       .test(assetPath) ||
     assetPath === "Data/Abnormalities.json" ||
-    /^(?:Events\/(?:AdventLight|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|PlagueDoctorSpine|SpineRuntime|WhiteNight|WhiteNightAdvent|WhiteNightSpine))\.js$/u
+    /^(?:Events\/(?:AdventLight|BlackForest|BlackForestEggSpine|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|PlagueDoctorSpine|SpineRuntime|WhiteNight|WhiteNightAdvent|WhiteNightSpine))\.js$/u
       .test(assetPath) ||
     // 骨架运行时使用的官方 Spine WebGL 构建。
     /^vendor\/spine-webgl-[0-9.]+\.js$/u.test(assetPath) ||

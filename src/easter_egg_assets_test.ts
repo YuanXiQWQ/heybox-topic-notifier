@@ -224,6 +224,90 @@ Deno.test({
 
 Deno.test({
   name:
+    "Black Forest event module, CG images, sounds, eggs and gift are served",
+  permissions: { read: true },
+  fn: async () => {
+    const moduleResponse = await lobotomyCorpAssetResponse(
+      "Events/BlackForest.js",
+    );
+    assertEquals(moduleResponse.status, 200);
+    assertEquals(
+      moduleResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assert(
+      (await moduleResponse.text()).includes("createBlackForestEvent"),
+    );
+    // NarrationCanvas 的三张静态图层与每一句 CG 的状态图。
+    for (
+      const image of [
+        "Background_0.png",
+        "BackGroundFoward.png",
+        "FrameUpper.png",
+        "GatewayAppear.png",
+        "BigBirdArrived.png",
+        "LongBirdArrived.png",
+        "SmallBirdArrived.png",
+        "BossBirdAppear.png",
+        "BigBirdDead.png",
+        "LongBirdDead.png",
+        "SmallBirdDead.png",
+        "BossBirdDead.png",
+      ]
+    ) {
+      const response = await lobotomyCorpAssetResponse(
+        `Assets/Texture2D/${image}`,
+      );
+      assertEquals(response.status, 200, `${image} 应可下载`);
+      assertEquals(
+        response.headers.get("content-type"),
+        "image/png",
+        `${image} 应以 image/png 下发`,
+      );
+    }
+    // BossBird_stat.txt 的 appear / dead 音效。
+    for (const sound of ["BossBird_Birth.ogg", "BossBird_Dead.ogg"]) {
+      const response = await lobotomyCorpAssetResponse(
+        `Assets/Resources/sounds/creature/BossBird/${sound}`,
+      );
+      assertEquals(response.status, 200, `${sound} 应可下载`);
+      assertEquals(response.headers.get("content-type"), "audio/ogg");
+    }
+    // 三颗鸟蛋的原作 Spine 骨架、Atlas 与分页贴图。
+    for (
+      const eggPath of [
+        "Assets/Resources/spinedata/bossbird/egg/big/skeleton_24.json",
+        "Assets/Resources/spinedata/bossbird/egg/big/skeleton.atlas_13.txt",
+        "Assets/Resources/spinedata/bossbird/egg/big/skeleton.png",
+        "Assets/Resources/spinedata/bossbird/egg/long/skeleton2_1.json",
+        "Assets/Resources/spinedata/bossbird/egg/long/skeleton2.atlas_1.txt",
+        "Assets/Resources/spinedata/bossbird/egg/long/skeleton2.png",
+        "Assets/Resources/spinedata/bossbird/egg/small/skeleton2_0.json",
+        "Assets/Resources/spinedata/bossbird/egg/small/skeleton2.atlas_0.txt",
+        "Assets/Resources/spinedata/bossbird/egg/small/skeleton2.png",
+      ]
+    ) {
+      const response = await lobotomyCorpAssetResponse(
+        eggPath,
+      );
+      assertEquals(response.status, 200, `${eggPath} 应可下载`);
+      const expectedType = eggPath.endsWith(".json")
+        ? "application/json; charset=utf-8"
+        : eggPath.endsWith(".txt")
+        ? "text/plain; charset=utf-8"
+        : "image/png";
+      assertEquals(response.headers.get("content-type"), expectedType);
+    }
+    const gift = await lobotomyCorpAssetResponse(
+      "Assets/Resources/sprites/worker/equipment/attachment/BossBirdWing.png",
+    );
+    assertEquals(gift.status, 200);
+    assertEquals(gift.headers.get("content-type"), "image/png");
+  },
+});
+
+Deno.test({
+  name:
     "AdventLight module and its original Copy sprite are served to the browser",
   permissions: { read: true },
   fn: async () => {

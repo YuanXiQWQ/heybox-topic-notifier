@@ -680,6 +680,13 @@ input[readonly]::placeholder{
   object-fit: contain;
 }
 
+.avatar-preview-clear-decorations{
+  display: block;
+  margin: 12px auto 0;
+  max-width: min(100%, 320px);
+  white-space: normal;
+}
+
 .avatar-preview-close{
   background: var(--surface);
   border: 1px solid var(--theme-border);

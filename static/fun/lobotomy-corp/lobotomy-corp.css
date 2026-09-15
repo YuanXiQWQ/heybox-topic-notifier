@@ -719,6 +719,11 @@
   position: relative;
 }
 
+.account-avatar-risk-wrapper > .account-avatar{
+  position: relative;
+  z-index: 1;
+}
+
 .account-avatar-risk-wrapper .lobotomy-corp-risk-badge{
   height: auto;
   left: -18%;
@@ -735,6 +740,111 @@
 }
 
 [data-lobotomy-corp-risk-host="settings"] .lobotomy-corp-risk-badge{
+  width: 62px;
+}
+
+/*
+ * BossBirdAnim.prefab 的 NarrationCanvas：终末鸟事件 CG。
+ *
+ * 五个图层全部铺满屏幕（prefab 里都是 0~1 锚点的全屏节点），绘制顺序是
+ * Background_1 → DisplayImage → BackGroundFoward → Text → FrameUpper；
+ * 只有 DisplayImage 的不透明度随 FadeIn/FadeOut 渐变，整块画布的不透明度由
+ * --lobotomy-corp-black-forest-canvas-alpha 控制。
+ */
+.lobotomy-corp-black-forest-cg{
+  --lobotomy-corp-black-forest-canvas-alpha: 0;
+  --lobotomy-corp-black-forest-image-alpha: 0;
+  inset: 0;
+  opacity: var(--lobotomy-corp-black-forest-canvas-alpha);
+  overflow: hidden;
+  pointer-events: auto;
+  position: fixed;
+  z-index: 10015;
+}
+
+.lobotomy-corp-black-forest-cg-background,
+.lobotomy-corp-black-forest-cg-image,
+.lobotomy-corp-black-forest-cg-forward,
+.lobotomy-corp-black-forest-cg-frame{
+  height: 100%;
+  inset: 0;
+  object-fit: fill;
+  position: absolute;
+  width: 100%;
+}
+
+/* DisplayImage 的局部缩放在 prefab 里只压扁横向。 */
+.lobotomy-corp-black-forest-cg-image{
+  opacity: var(--lobotomy-corp-black-forest-image-alpha);
+  transform: scaleX(0.95);
+}
+
+/* 台词槽位用 NanumMyeongjo（ANTIQUE）与系统衬线兜底，MiddleCenter、白字、无描边。 */
+.lobotomy-corp-black-forest-cg-text{
+  align-items: center;
+  color: rgb(255 255 255);
+  display: flex;
+  font-family: LobotomyAdventDesc, "Nanum Myeongjo", "SimSun", "Songti SC",
+    "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  justify-content: center;
+  line-height: 1.2;
+  margin: 0;
+  overflow: hidden;
+  position: absolute;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  white-space: pre-line;
+}
+
+/* NanumMyeongjo 没有汉字字形，中日文整段换成系统衬线字体。 */
+.lobotomy-corp-black-forest-cg-text[data-cjk="1"]{
+  font-family: "SimSun", "Songti SC", "Noto Serif CJK SC",
+    "Source Han Serif SC", "Microsoft YaHei", LobotomyAdventDesc, serif;
+}
+
+/* 临时顶替页面图标的鸟蛋；画布尺寸沿用被替换图标的占位。 */
+.lobotomy-corp-black-forest-egg{
+  align-items: center;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  margin: 0;
+  overflow: visible;
+  padding: 0;
+  position: relative;
+}
+
+.lobotomy-corp-black-forest-egg-spine{
+  display: block;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+[data-lobotomy-corp-black-forest-overflow="true"]{
+  overflow: visible !important;
+}
+
+/* 事件奖励：头像框右后侧的 E.G.O 饰品「破晓」（BossBirdWing）。 */
+.account-avatar-risk-wrapper .lobotomy-corp-black-forest-gift{
+  bottom: -14%;
+  height: auto;
+  pointer-events: none;
+  position: absolute;
+  right: -38%;
+  transform: rotate(8deg);
+  z-index: 0;
+}
+
+[data-lobotomy-corp-risk-host="nav"] .lobotomy-corp-black-forest-gift{
+  width: 32px;
+}
+
+[data-lobotomy-corp-risk-host="settings"] .lobotomy-corp-black-forest-gift{
   width: 62px;
 }
 
