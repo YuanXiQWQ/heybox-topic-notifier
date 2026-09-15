@@ -65,9 +65,9 @@ Deno.test("特殊事件：白夜进行期间可以启动终末鸟和别碰我", 
     assertEquals(Object.keys(blackForest.eggs).length, 3);
     assert(
       Object.keys(blackForest.eggs).every((slot) =>
-        slot.startsWith("settings.")
+        slot.startsWith("settings.") || slot.startsWith("nav.")
       ),
-      "白夜进行期间启动的终末鸟事件只能使用设置页蛋槽",
+      "白夜进行期间启动的终末鸟事件只能使用设置页或导航栏蛋槽",
     );
   } finally {
     harness.restore();
@@ -133,9 +133,9 @@ Deno.test("特殊事件：别碰我全部出逃等待白夜转盘隐藏后再启
     assertEquals(Object.keys(blackForest.eggs).length, 3);
     assert(
       Object.keys(blackForest.eggs).every((slot) =>
-        slot.startsWith("settings.")
+        slot.startsWith("settings.") || slot.startsWith("nav.")
       ),
-      "白夜触发的终末鸟事件只能使用设置页蛋槽",
+      "白夜触发的终末鸟事件只能使用设置页或导航栏蛋槽",
     );
   } finally {
     Math.random = originalRandom;
@@ -242,9 +242,9 @@ Deno.test("特殊事件：疫医转变进入白夜时保留终末鸟并迁移未
     assertEquals(Object.keys(blackForest.eggs).length, 3);
     assert(
       Object.keys(blackForest.eggs).every((slot) =>
-        slot.startsWith("settings.")
+        slot.startsWith("settings.") || slot.startsWith("nav.")
       ),
-      "白夜进行期间，所有未找到的蛋都应位于设置页",
+      "白夜进行期间，所有未找到的蛋都应位于设置页或导航栏",
     );
   } finally {
     harness.restore();

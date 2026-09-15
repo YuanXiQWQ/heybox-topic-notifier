@@ -1134,23 +1134,23 @@ export function createBlackForestEvent(shared) {
   };
 
   /**
-   * 把尚未找到的鸟蛋限制到设置页槽位。
+   * 把尚未找到的鸟蛋限制到白夜可见页面的槽位。
    *
-   * 白夜会锁住当前标签页，因此迁移时保留已找到记录和设置页现有分配，只随机移动
-   * 其它页面上的未找到鸟蛋。
+   * 白夜会锁住当前标签页，因此迁移时保留已找到记录，以及设置页和导航栏的现有分配，
+   * 只随机移动其它页面上的未找到鸟蛋。
    *
    * @return {boolean} 当前处于寻找阶段并执行了限制时返回 true。
    */
-  const restrictHuntToSettings = () => {
+  const restrictHuntToWhiteNightPages = () => {
     if (!state || state.phase !== 'hunt') return false;
-    const settingsSlots = availableSlots().filter((slot) =>
-      slot.page === 'settings'
+    const visibleSlots = availableSlots().filter((slot) =>
+      slot.page === 'settings' || slot.page === 'nav'
     );
-    if (settingsSlots.length === 0) return false;
+    if (visibleSlots.length === 0) return false;
     state.eggs = relocateUnfoundBlackForestEggs(
       state.eggs,
       state.found,
-      settingsSlots,
+      visibleSlots,
       shared.random ?? Math.random,
     );
     persist();
@@ -1448,7 +1448,7 @@ export function createBlackForestEvent(shared) {
     isRecording: () => state?.phase === 'recording',
     persisted,
     recordSubmission,
-    restrictHuntToSettings,
+    restrictHuntToWhiteNightPages,
     resetBirdRecord,
     restore,
     start,

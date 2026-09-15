@@ -3603,7 +3603,7 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   normalize: normalizeLobotomyCorpAbnormalityName,
   onStarted: () => {
     lobotomyCorpPlagueDoctorEvent?.pauseForWhiteNight?.();
-    lobotomyCorpBlackForestEvent?.restrictHuntToSettings?.();
+    lobotomyCorpBlackForestEvent?.restrictHuntToWhiteNightPages?.();
   },
   onPreludeHidden: () => {
     if (!lobotomyCorpPendingBlackForestAfterWhiteNight) return;
@@ -3708,7 +3708,9 @@ const lobotomyCorpBlackForestEvent = createBlackForestEvent({
   applyDisplayName: applyLobotomyCorpDisplayName,
   assetRoot: lobotomyCorpAssetRoot,
   eggSlotPages: () =>
-    lobotomyCorpWhiteNightEvent.hasEventState() ? ['settings'] : undefined,
+    lobotomyCorpWhiteNightEvent.hasEventState()
+      ? ['settings', 'nav']
+      : undefined,
   ensureCoordinator: ensureLobotomyCorpDayCoordinator,
   finishRestartButton: finishLobotomyCorpRestartButtonIfUnused,
   messages: () => lobotomyCorpMessages,
@@ -3834,7 +3836,7 @@ if (
   lobotomyCorpWhiteNightEvent.hasEventState() &&
   lobotomyCorpBlackForestEvent.isActive()
 ) {
-  lobotomyCorpBlackForestEvent.restrictHuntToSettings();
+  lobotomyCorpBlackForestEvent.restrictHuntToWhiteNightPages();
 }
 if (!lobotomyCorpBlackForestEvent.isActive()) {
   // 终末鸟事件只在寻找鸟蛋等接管阶段冻结衰减；记录阶段照常恢复普通 Day。
