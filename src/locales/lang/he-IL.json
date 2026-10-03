@@ -4,6 +4,7 @@
   "accountConfirmPassword": "אישור סיסמה חדשה",
   "accountCurrentPassword": "סיסמה נוכחית",
   "accountDisplayName": "שם תצוגה",
+  "accountAvatarClearDecorations": "נקה קישוטי מסגרת תמונת פרופיל",
   "accountDisplayNameInvalid": "שם התצוגה חייב להכיל 1–80 תווים ואינו יכול לכלול תווי בקרה.",
   "accountEdit": "עריכה",
   "accountEditPassword": "שינוי סיסמה",

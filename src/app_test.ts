@@ -120,6 +120,24 @@ Deno.test("application login page declares the public favicon", async () => {
   );
 });
 
+Deno.test({
+  name: "application exposes the lazy Turnstile loader",
+  permissions: { env: true, read: true },
+  fn: async () => {
+    const { app } = createApplication();
+    const response = await app.request("/static/turnstile.js");
+    const script = await response.text();
+
+    assertEquals(response.status, 200);
+    assertEquals(
+      response.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assert(script.includes("?render=explicit"));
+    assert(script.includes("WarmNestTurnstile"));
+  },
+});
+
 Deno.test("application renders the styled 404 page for unmatched routes", async () => {
   const { app } = createApplication();
   // POST /healthz 是少数无需登录就能走到路由匹配的请求：该路径豁免认证，但没有
@@ -391,6 +409,9 @@ Deno.test({
     const dangerScoreResponse = await app.request(
       "/static/fun/lobotomy-corp/Events/DangerScore.js",
     );
+    const shelterResponse = await app.request(
+      "/static/fun/lobotomy-corp/Events/Shelter.js",
+    );
     const shutdownVideoResponse = await app.request(
       "/static/fun/lobotomy-corp/Assets/MovieTexture/DontTouchMeGameShutdown.webm",
     );
@@ -485,6 +506,12 @@ Deno.test({
       ),
       true,
     );
+    assertEquals(shelterResponse.status, 200);
+    assertEquals(
+      shelterResponse.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
+    assert((await shelterResponse.text()).includes("createShelterEvent"));
     assertEquals(dontTouchMeResponse.status, 200);
     assertEquals(
       dontTouchMeResponse.headers.get("content-type"),

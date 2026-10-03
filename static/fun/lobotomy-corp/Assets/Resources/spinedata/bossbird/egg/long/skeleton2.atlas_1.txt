@@ -1,0 +1,76 @@
+
+skeleton2.png
+size: 1024,1024
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+Bigbird_egg1
+  rotate: false
+  xy: 2, 148
+  size: 335, 406
+  orig: 335, 406
+  offset: 0, 0
+  index: -1
+Bigbird_egg_dead_bottom
+  rotate: true
+  xy: 658, 258
+  size: 323, 303
+  orig: 323, 303
+  offset: 0, 0
+  index: -1
+Bigbird_egg_dead_top
+  rotate: false
+  xy: 658, 40
+  size: 292, 216
+  orig: 292, 216
+  offset: 0, 0
+  index: -1
+Bigbird_egg_light
+  rotate: false
+  xy: 2, 556
+  size: 381, 433
+  orig: 381, 433
+  offset: 0, 0
+  index: -1
+Smallbird_egg1_belly
+  rotate: true
+  xy: 339, 3
+  size: 186, 224
+  orig: 186, 224
+  offset: 0, 0
+  index: -1
+Smallbird_egg1_belly_attack
+  rotate: false
+  xy: 868, 591
+  size: 81, 398
+  orig: 81, 398
+  offset: 0, 0
+  index: -1
+Smallbird_egg2
+  rotate: false
+  xy: 385, 583
+  size: 335, 406
+  orig: 335, 406
+  offset: 0, 0
+  index: -1
+Smallbird_egg2_blood
+  rotate: false
+  xy: 339, 191
+  size: 317, 363
+  orig: 317, 363
+  offset: 0, 0
+  index: -1
+Supporter
+  rotate: true
+  xy: 722, 589
+  size: 400, 144
+  orig: 400, 144
+  offset: 0, 0
+  index: -1
+Supporter_light
+  rotate: false
+  xy: 2, 2
+  size: 124, 144
+  orig: 124, 144
+  offset: 0, 0
+  index: -1

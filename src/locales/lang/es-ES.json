@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Confirmar nueva contraseña",
   "accountCurrentPassword": "Contraseña actual",
   "accountDisplayName": "Nombre para mostrar",
+  "accountAvatarClearDecorations": "Borrar decoraciones del marco de avatar",
   "accountDisplayNameInvalid": "El nombre para mostrar debe tener entre 1 y 80 caracteres y no puede contener caracteres de control.",
   "accountEdit": "Editar",
   "accountEditPassword": "Cambiar contraseña",

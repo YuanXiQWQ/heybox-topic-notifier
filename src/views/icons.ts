@@ -197,17 +197,22 @@ const authIconContents: Record<Exclude<AuthIconName, "google">, string> = {
  *
  * @param name 认证图标名称。
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
 export function authIcon(
   name: AuthIconName,
   className = "ui-icon",
+  blackForestSlot?: string,
 ): string {
+  const slotAttribute = blackForestSlot
+    ? ` data-lobotomy-corp-black-forest-slot="${blackForestSlot}"`
+    : "";
   if (name === "google") {
-    return googleAuthIcon(className);
+    return googleAuthIcon(className, slotAttribute);
   }
 
-  return `<svg class="${className}" data-auth-icon="${name}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${
+  return `<svg class="${className}"${slotAttribute} data-auth-icon="${name}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${
     authIconContents[name]
   }</svg>`;
 }
@@ -216,10 +221,11 @@ export function authIcon(
  * 渲染符合品牌配色的 Google 认证图标。
  *
  * @param className 图标 CSS 类名。
+ * @param slotAttribute 彩蛋槽位属性字符串。
  * @return Google 图标 SVG HTML。
  */
-function googleAuthIcon(className: string): string {
-  return `<svg class="${className}" data-auth-icon="google" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+function googleAuthIcon(className: string, slotAttribute = ""): string {
+  return `<svg class="${className}"${slotAttribute} data-auth-icon="google" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="12" fill="#fff"></circle>
     <path fill="#4285f4" d="M21.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.35a4.58 4.58 0 0 1-1.98 3v2.77h3.21c1.88-1.73 2.98-4.28 2.98-7.78Z"></path>
     <path fill="#34a853" d="M12 22c2.7 0 4.96-.9 6.58-1.97l-3.21-2.77c-.9.6-2.04.96-3.37.96-2.6 0-4.8-1.75-5.59-4.11H3.1v2.84A9.94 9.94 0 0 0 12 22Z"></path>
@@ -232,9 +238,13 @@ function googleAuthIcon(className: string): string {
  * 渲染仪表盘图标。
  *
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-export function dashboardIcon(className = "ui-icon"): string {
+export function dashboardIcon(
+  className = "ui-icon",
+  blackForestSlot?: string,
+): string {
   return strokedIcon(
     className,
     `
@@ -243,6 +253,7 @@ export function dashboardIcon(className = "ui-icon"): string {
     <rect x="4" y="13" width="7" height="7" rx="1.5"></rect>
     <rect x="13" y="16" width="7" height="4" rx="1.5"></rect>
   `,
+    blackForestSlot,
   );
 }
 
@@ -250,9 +261,13 @@ export function dashboardIcon(className = "ui-icon"): string {
  * 渲染设置图标。
  *
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-export function settingsIcon(className = "ui-icon"): string {
+export function settingsIcon(
+  className = "ui-icon",
+  blackForestSlot?: string,
+): string {
   return strokedIcon(
     className,
     `
@@ -263,6 +278,7 @@ export function settingsIcon(className = "ui-icon"): string {
     <circle cx="8" cy="17" r="2.5"></circle>
     <path d="M10.5 17H20"></path>
   `,
+    blackForestSlot,
   );
 }
 
@@ -270,9 +286,13 @@ export function settingsIcon(className = "ui-icon"): string {
  * 渲染历史图标。
  *
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-export function historyIcon(className = "ui-icon"): string {
+export function historyIcon(
+  className = "ui-icon",
+  blackForestSlot?: string,
+): string {
   return strokedIcon(
     className,
     `
@@ -280,6 +300,7 @@ export function historyIcon(className = "ui-icon"): string {
     <path d="M4 5v5h5"></path>
     <path d="M12 8v5l3 2"></path>
   `,
+    blackForestSlot,
   );
 }
 
@@ -287,9 +308,13 @@ export function historyIcon(className = "ui-icon"): string {
  * 渲染退出登录图标。
  *
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-export function logoutIcon(className = "ui-icon"): string {
+export function logoutIcon(
+  className = "ui-icon",
+  blackForestSlot?: string,
+): string {
   return strokedIcon(
     className,
     `
@@ -297,6 +322,7 @@ export function logoutIcon(className = "ui-icon"): string {
     <path d="M14 8l4 4-4 4"></path>
     <path d="M8 12h10"></path>
   `,
+    blackForestSlot,
   );
 }
 
@@ -331,13 +357,18 @@ export function copyIcon(className = "ui-icon"): string {
  *
  * @param name 图标名称。
  * @param className 图标 CSS 类名。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
 export function materialSymbolIcon(
   name: MaterialSymbolName,
   className = "ui-icon",
+  blackForestSlot?: string,
 ): string {
-  return `<svg class="${className}" aria-hidden="true" focusable="false" viewBox="0 -960 960 960" fill="currentColor"><path d="${
+  const slotAttribute = blackForestSlot
+    ? ` data-lobotomy-corp-black-forest-slot="${blackForestSlot}"`
+    : "";
+  return `<svg class="${className}"${slotAttribute} aria-hidden="true" focusable="false" viewBox="0 -960 960 960" fill="currentColor"><path d="${
     materialSymbolPaths[name]
   }"></path></svg>`;
 }
@@ -347,8 +378,16 @@ export function materialSymbolIcon(
  *
  * @param className 图标 CSS 类名。
  * @param content 图标路径内容。
+ * @param blackForestSlot 可选的彩蛋图标槽位标识。
  * @return SVG 图标 HTML。
  */
-function strokedIcon(className: string, content: string): string {
-  return `<svg class="${className}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${content}</svg>`;
+function strokedIcon(
+  className: string,
+  content: string,
+  blackForestSlot?: string,
+): string {
+  const slotAttribute = blackForestSlot
+    ? ` data-lobotomy-corp-black-forest-slot="${blackForestSlot}"`
+    : "";
+  return `<svg class="${className}"${slotAttribute} aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${content}</svg>`;
 }

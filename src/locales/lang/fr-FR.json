@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Confirmer le nouveau mot de passe",
   "accountCurrentPassword": "Mot de passe actuel",
   "accountDisplayName": "Nom d’affichage",
+  "accountAvatarClearDecorations": "Effacer les décorations du cadre d’avatar",
   "accountDisplayNameInvalid": "Le nom d’affichage doit comporter entre 1 et 80 caractères et ne peut pas contenir de caractères de contrôle.",
   "accountEdit": "Modifier",
   "accountEditPassword": "Modifier le mot de passe",

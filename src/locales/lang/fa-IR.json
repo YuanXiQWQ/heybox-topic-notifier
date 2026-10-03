@@ -4,6 +4,7 @@
   "accountConfirmPassword": "تأیید گذرواژهٔ جدید",
   "accountCurrentPassword": "گذرواژهٔ فعلی",
   "accountDisplayName": "نام نمایشی",
+  "accountAvatarClearDecorations": "پاک کردن تزئینات قاب نمایه",
   "accountDisplayNameInvalid": "نام نمایشی باید ۱ تا ۸۰ نویسه باشد و نباید شامل نویسه‌های کنترلی باشد.",
   "accountEdit": "ویرایش",
   "accountEditPassword": "تغییر گذرواژه",

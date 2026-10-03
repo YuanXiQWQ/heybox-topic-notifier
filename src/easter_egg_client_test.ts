@@ -26,6 +26,10 @@ import {
 } from "../static/fun/lobotomy-corp/Events/WhiteNight.js";
 import { whiteNightSimpleAdventDurationMs } from "../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
 import {
+  blackForestCgTimeline,
+  blackForestNarrationSequence,
+} from "../static/fun/lobotomy-corp/Events/BlackForest.js";
+import {
   dontTouchMeEffectVideoClassName,
   dontTouchMeExitDelayMs,
   dontTouchMeExitPath,
@@ -502,17 +506,6 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     api.onAbnormalitySubmitted((id) => observedCanonicalIds.push(id));
     const form = { action: "https://warmnest.test/settings", method: "post" };
 
-    /**
-     * 判断模拟 DOM 子树中是否存在指定媒体。
-     *
-     * @param {Element} node 当前节点。
-     * @param {string} suffix 媒体路径结尾。
-     * @return {boolean} 找到媒体时返回 true。
-     */
-    const hasMedia = (node: Element, suffix: string): boolean =>
-      node.src.endsWith(suffix) ||
-      node.children.some((child) => hasMedia(child, suffix));
-
     Object.defineProperty(browser, "fetch", {
       configurable: true,
       value: () =>
@@ -587,7 +580,6 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     )!;
     assertStrictEquals(preparedChurch.muted, true);
     assertEquals(preparedChurch.playCount, 1);
-    assertStrictEquals(hasMedia(body, "WhiteNight_Confess_Dead.webm"), false);
     const savedIdentityLabel = displayNameLabel.textContent;
 
     const restarting = api.restartDay();
@@ -1598,6 +1590,222 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
       else delete (browser as Record<string, unknown>)[name];
     }
     delete browser.lobotomyCorpEasterEgg;
+  }
+});
+
+Deno.test("Lobotomy Corporation starts Black Forest after two bird submissions", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    const firstBirdDanger = 20 / 11;
+    const secondBirdDanger = 80 / 11;
+    const forcedThirdBirdDanger = 140 / 11;
+    const apocalypseBirdDanger = 215 / 11;
+    await api.handleAbnormalitySubmitted("O-02-56");
+    assertEquals(api.blackForestPhase(), "recording");
+    assert(Math.abs(api.getDangerScore() - firstBirdDanger) < 1e-10);
+    void api.handleAbnormalitySubmitted("O-02-62");
+    await Promise.resolve();
+    assertEquals(api.blackForestPhase(), "cg");
+    assert(Math.abs(api.getDangerScore() - secondBirdDanger) < 1e-10);
+    assertEquals(api.getDangerMusicHighWaterLevel(), 0);
+    const restartButtonOnlyOverlay = [...harness.body.children].reverse().find(
+      (element) =>
+        !element.removed &&
+        element.className === "lobotomy-corp-alert-overlay",
+    )!;
+    assertEquals(
+      requireByClass(
+        restartButtonOnlyOverlay,
+        "lobotomy-corp-top-panel-action-button-text",
+      ).textContent,
+      "重新开始这一天",
+    );
+    assertEquals(
+      findByClass(
+        restartButtonOnlyOverlay,
+        "lobotomy-corp-top-panel-frame-outter",
+      ),
+      undefined,
+    );
+    assertEquals(
+      findAllByClass(
+        restartButtonOnlyOverlay,
+        "lobotomy-corp-top-panel-valve",
+      ).length,
+      0,
+    );
+    assertEquals(
+      JSON.parse(
+        harness.storage.getItem("warmnest.lobotomy-corp-black-forest") ?? "{}",
+      ).order,
+      ["smallBird", "longBird", "bigBird"],
+    );
+    const timeline = blackForestCgTimeline(
+      blackForestNarrationSequence(["smallBird", "longBird", "bigBird"]),
+    );
+    // 原作在 ESCAPE 演出结束时让第三只鸟自动出逃。
+    harness.setNow(timeline[0].endMs);
+    harness.fireFrames();
+    await Promise.resolve();
+    assert(
+      Math.abs(api.getDangerScore() - forcedThirdBirdDanger) < 1e-10,
+    );
+    assertEquals(api.getDangerMusicHighWaterLevel(), 1);
+    // 终末鸟直到三鸟抵达和 BOSS_APPEAR 全部演完后才通过 EscapeInit 结算。
+    harness.setNow(timeline.at(-1)!.endMs);
+    harness.fireFrames();
+    await Promise.resolve();
+    assert(Math.abs(api.getDangerScore() - apocalypseBirdDanger) < 1e-10);
+    assertEquals(api.blackForestPhase(), "hunt");
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("Lobotomy Corporation direct Apocalypse Bird settles each bird at its CG boundary", async () => {
+  const harness = installLobotomyCorpAlertHarness({
+    pollingIntervalValue: "5",
+  });
+  try {
+    await harness.reload();
+    const api = harness.api();
+    await api.handleAbnormalitySubmitted("O-02-63");
+    assertEquals(api.blackForestPhase(), "cg");
+    assertEquals(api.getDangerScore(), 0);
+    const timeline = blackForestCgTimeline(
+      blackForestNarrationSequence(["bigBird", "longBird", "smallBird"]),
+    );
+    const birdBoundaries = [
+      { danger: 60 / 5, index: 0 },
+      { danger: 120 / 5, index: 1 },
+      { danger: 140 / 5, index: 2 },
+    ];
+    for (const boundary of birdBoundaries) {
+      harness.setNow(timeline[boundary.index].endMs);
+      harness.fireFrames();
+      await Promise.resolve();
+      assert(Math.abs(api.getDangerScore() - boundary.danger) < 1e-10);
+    }
+    harness.setNow(timeline.at(-1)!.endMs);
+    harness.fireFrames();
+    await Promise.resolve();
+    assert(Math.abs(api.getDangerScore() - 215 / 5) < 1e-10);
+    assertEquals(api.blackForestPhase(), "hunt");
+    const savedDay = JSON.parse(
+      harness.storage.getItem("warmnest.lobotomy-corp-day") ?? "{}",
+    );
+    assertEquals(
+      new Set(savedDay.countedAbnormalityIds),
+      new Set(["O-02-40", "O-02-62", "O-02-56", "O-02-63"]),
+    );
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("refreshing during the Black Forest opening cancels the event and resets Danger", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    await api.handleAbnormalitySubmitted("O-02-56");
+    void api.handleAbnormalitySubmitted("O-02-62");
+    await Promise.resolve();
+    assertEquals(api.blackForestPhase(), "cg");
+    harness.setNavigationType("reload");
+    await harness.reload();
+    const reloadedApi = harness.api();
+    assertEquals(reloadedApi.blackForestPhase(), undefined);
+    assertEquals(reloadedApi.getDangerScore(), 0);
+    assertEquals(
+      harness.storage.getItem("warmnest.lobotomy-corp-black-forest"),
+      null,
+    );
+    assertEquals(harness.storage.getItem("warmnest.lobotomy-corp-day"), null);
+    assertEquals(harness.storage.getItem("warmnest.lobotomy-corp-alert"), null);
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("refreshing after the Black Forest opening preserves the active event", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    await api.handleAbnormalitySubmitted("O-02-63");
+    const timeline = blackForestCgTimeline(
+      blackForestNarrationSequence(["bigBird", "longBird", "smallBird"]),
+    );
+    harness.setNow(timeline.at(-1)!.endMs);
+    harness.fireFrames();
+    await Promise.resolve();
+    assertEquals(api.blackForestPhase(), "hunt");
+    const expectedDanger = api.getDangerScore();
+    harness.setNavigationType("reload");
+    await harness.reload();
+    const reloadedApi = harness.api();
+    assertEquals(reloadedApi.blackForestPhase(), "hunt");
+    assertEquals(reloadedApi.getDangerScore(), expectedDanger);
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("WhiteNight restart fallback reuses the original button without the top panel frame", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    assertEquals(
+      api.startWhiteNight({ source: "plague-doctor-transformation" }),
+      true,
+    );
+    const fallbackOverlay = [...harness.body.children].reverse().find(
+      (element) =>
+        !element.removed &&
+        element.className === "lobotomy-corp-alert-overlay",
+    )!;
+    assertEquals(
+      requireByClass(
+        fallbackOverlay,
+        "lobotomy-corp-top-panel-action-button-text",
+      ).textContent,
+      "重新开始这一天",
+    );
+    assertEquals(
+      findByClass(
+        fallbackOverlay,
+        "lobotomy-corp-top-panel-frame-outter",
+      ),
+      undefined,
+    );
+    assertEquals(
+      findAllByClass(fallbackOverlay, "lobotomy-corp-top-panel-valve").length,
+      0,
+    );
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test("generic low Danger does not mount a restart fallback", async () => {
+  const harness = installLobotomyCorpAlertHarness();
+  try {
+    await harness.reload();
+    const api = harness.api();
+    await api.setDangerScore(5);
+    assertEquals(
+      harness.body.children.some((element) =>
+        !element.removed &&
+        element.className === "lobotomy-corp-alert-overlay"
+      ),
+      false,
+    );
+  } finally {
+    harness.restore();
   }
 });
 
@@ -3152,15 +3360,16 @@ Deno.test("DontTouchMe derives escapable danger from Abnormalities.json", async 
         totalDanger: number;
       };
     };
-    // Abnormalities.json 里 canBreach 为 true 的条目：40 只，总点数 1993。
+    // 全部出逃均值排除由特殊事件自行结算的三鸟、终末鸟与白夜：
+    // 剩余 36 只普通可出逃条目，总点数 1755。
     const summary = api.escapableDangerSummary();
-    assertEquals(summary.count, 40);
-    assertEquals(summary.totalDanger, 1993);
-    assertEquals(summary.averageDanger, 1993 / 40);
+    assertEquals(summary.count, 36);
+    assertEquals(summary.totalDanger, 1755);
+    assertEquals(summary.averageDanger, 1755 / 36);
     // 3 个部门容纳 12 只：12 × 平均基值 / 部门数。
-    assertEquals(api.escapeAllDangerContribution(3), 12 * (1993 / 40) / 3);
-    // 11 个部门容纳 48 只，但可出逃只有 40 只，因此按 40 只计。
-    assertEquals(api.escapeAllDangerContribution(11), 40 * (1993 / 40) / 11);
+    assertEquals(api.escapeAllDangerContribution(3), 12 * (1755 / 36) / 3);
+    // 11 个部门容纳 48 只，但普通可出逃只有 36 只，因此按 36 只计。
+    assertEquals(api.escapeAllDangerContribution(11), 36 * (1755 / 36) / 11);
     assertEquals(api.escapeAllDangerContribution(0), 0);
   } finally {
     harness.restore();

@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Conferma nuova password",
   "accountCurrentPassword": "Password attuale",
   "accountDisplayName": "Nome visualizzato",
+  "accountAvatarClearDecorations": "Cancella le decorazioni della cornice dell'avatar",
   "accountDisplayNameInvalid": "Il nome visualizzato deve contenere da 1 a 80 caratteri e non può contenere caratteri di controllo.",
   "accountEdit": "Modifica",
   "accountEditPassword": "Modifica password",

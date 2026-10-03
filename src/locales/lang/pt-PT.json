@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Confirmar nova palavra-passe",
   "accountCurrentPassword": "Palavra-passe atual",
   "accountDisplayName": "Nome de apresentação",
+  "accountAvatarClearDecorations": "Limpar decorações da moldura do avatar",
   "accountDisplayNameInvalid": "O nome de apresentação deve ter entre 1 e 80 caracteres e não pode conter caracteres de controlo.",
   "accountEdit": "Editar",
   "accountEditPassword": "Alterar palavra-passe",

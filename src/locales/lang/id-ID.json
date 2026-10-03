@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Konfirmasi kata sandi baru",
   "accountCurrentPassword": "Kata sandi saat ini",
   "accountDisplayName": "Nama tampilan",
+  "accountAvatarClearDecorations": "Hapus dekorasi bingkai avatar",
   "accountDisplayNameInvalid": "Nama tampilan harus terdiri dari 1–80 karakter dan tidak boleh mengandung karakter kontrol.",
   "accountEdit": "Edit",
   "accountEditPassword": "Ubah kata sandi",

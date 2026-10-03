@@ -4,6 +4,7 @@
   "accountConfirmPassword": "تأكيد كلمة المرور الجديدة",
   "accountCurrentPassword": "كلمة المرور الحالية",
   "accountDisplayName": "اسم العرض",
+  "accountAvatarClearDecorations": "مسح زينة إطار الصورة الرمزية",
   "accountDisplayNameInvalid": "يجب أن يتراوح اسم العرض بين 1 و80 حرفًا وألا يحتوي على محارف تحكم.",
   "accountEdit": "تعديل",
   "accountEditPassword": "تغيير كلمة المرور",

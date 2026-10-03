@@ -164,6 +164,9 @@ function initAvatarUpload() {
   const previewDialog = form?.querySelector('[data-avatar-preview-dialog]');
   const previewClose = form?.querySelector('[data-avatar-preview-close]');
   const previewImage = form?.querySelector('[data-avatar-preview-image]');
+  const clearDecorations = form?.querySelector(
+      '[data-avatar-clear-decorations]',
+  );
   if (
       !(form instanceof HTMLFormElement) || !(dropzone instanceof HTMLElement) ||
       !(input instanceof HTMLInputElement) ||
@@ -177,7 +180,8 @@ function initAvatarUpload() {
       !(previewButton instanceof HTMLButtonElement) ||
       !(previewDialog instanceof HTMLDialogElement) ||
       !(previewClose instanceof HTMLButtonElement) ||
-      !(previewImage instanceof HTMLImageElement)
+      !(previewImage instanceof HTMLImageElement) ||
+      !(clearDecorations instanceof HTMLButtonElement)
   ) return;
 
   let image;
@@ -302,6 +306,9 @@ function initAvatarUpload() {
     status.hidden = true;
   });
   previewButton.addEventListener('click', showAvatarPreview);
+  clearDecorations.addEventListener('click', () => {
+    globalThis.lobotomyCorpEasterEgg?.clearAvatarDecorations?.();
+  });
   previewClose.addEventListener('click', () => previewDialog.close());
   previewDialog.addEventListener('click', (event) => {
     if (event.target === previewDialog) previewDialog.close();
@@ -411,19 +418,6 @@ function initTotpBinding(scope = document) {
   }
 
   form.dataset.totpBindingInitialized = 'true';
-  // “别碰我”需要连续点击保存按钮：按下时不让按钮抢走显示名称的焦点，否则编辑器
-  // 收起会隐藏保存按钮，用户就无法继续连点。
-  saveButton.addEventListener('pointerdown', (event) => {
-    if (
-        mode === 'displayName' &&
-        globalThis.lobotomyCorpEasterEgg?.blocksDisplayNameSave?.(
-            displayNameInput.value,
-        )
-    ) {
-      event.preventDefault();
-    }
-  });
-
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     void submitTotpBinding(section, form);
@@ -1752,6 +1746,19 @@ function initAccountSettings() {
     });
   });
 
+  // “别碰我”需要连续点击保存按钮：按下时不让按钮抢走显示名称的焦点，否则编辑器
+  // 收起会隐藏保存按钮，用户就无法继续连点。
+  saveButton.addEventListener('pointerdown', (event) => {
+    if (
+        mode === 'displayName' &&
+        globalThis.lobotomyCorpEasterEgg?.blocksDisplayNameSave?.(
+            displayNameInput.value,
+        )
+    ) {
+      event.preventDefault();
+    }
+  });
+
   form.addEventListener('submit', (event) => {
     if (!mode) {
       event.preventDefault();
@@ -2917,6 +2924,7 @@ function initEmailBinding() {
   const sendButton = scope.querySelector('[data-email-send-code-button]');
   const sendStatus = scope.querySelector('[data-email-send-status]');
   const verifyStatus = scope.querySelector('[data-email-verify-status]');
+  const turnstileWidget = form.querySelector('[data-turnstile-widget]');
   let emailBindingVerifyTimer;
   let emailBindingVerifyController;
   let emailBindingVerifyToken = 0;
@@ -3023,8 +3031,15 @@ function initEmailBinding() {
     }
 
     sendButton.disabled = true;
-    setInlineStatus(sendStatus, form.dataset.emailSending || '', 'pending');
     clearInlineStatus(verifyStatus);
+
+    const turnstileReady = await prepareEmailBindingTurnstile();
+    if (!turnstileReady) {
+      sendButton.disabled = false;
+      return;
+    }
+
+    setInlineStatus(sendStatus, form.dataset.emailSending || '', 'pending');
 
     try {
       const response = await fetch(
@@ -3061,6 +3076,42 @@ function initEmailBinding() {
       sendButton.disabled = false;
       resetTurnstileWidget();
     }
+  }
+
+  /**
+   * 按需加载并等待邮箱绑定所需的 Turnstile token。
+   *
+   * @return {Promise<boolean>} 人机验证准备完成时返回 true。
+   */
+  async function prepareEmailBindingTurnstile() {
+    if (!(turnstileWidget instanceof HTMLElement)) {
+      return true;
+    }
+
+    const turnstile = globalThis.WarmNestTurnstile;
+    if (!turnstile || typeof turnstile.mount !== 'function') {
+      setInlineStatus(
+          sendStatus,
+          form.dataset.humanVerification || '',
+          'error',
+      );
+      return false;
+    }
+
+    setInlineStatus(
+        sendStatus,
+        form.dataset.humanVerification || '',
+        'pending',
+    );
+    const ready = await turnstile.mount(turnstileWidget);
+    if (!ready) {
+      setInlineStatus(
+          sendStatus,
+          form.dataset.humanVerification || '',
+          'error',
+      );
+    }
+    return ready;
   }
 
   /**
@@ -4552,6 +4603,15 @@ function emailBindingErrorMessage(form, error) {
  * 重置 Turnstile widget，便于用户再次发送验证码。
  */
 function resetTurnstileWidget() {
+  const turnstileRuntime = globalThis.WarmNestTurnstile;
+  if (
+    turnstileRuntime &&
+    typeof turnstileRuntime.resetAll === 'function'
+  ) {
+    turnstileRuntime.resetAll();
+    return;
+  }
+
   if (typeof globalThis.revealTurnstileWidgets === 'function') {
     globalThis.revealTurnstileWidgets();
   }

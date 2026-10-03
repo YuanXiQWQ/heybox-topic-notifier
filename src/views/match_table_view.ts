@@ -328,7 +328,9 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
         data-tooltip="${escapeHtml(messages.filter)}"
         aria-label="${escapeHtml(messages.filter)}"
       >
-        ${filterIcon()}
+        ${
+    filterIcon(options.path === "/history" ? "history.filter" : "dashboard.filter")
+  }
       </label>
     </div>
   `;
@@ -351,6 +353,7 @@ function renderPagination(
 ): string {
   const pageMarker = 999999999;
   const headingHash = `#${encodeURIComponent(headingId)}`;
+  const slotPrefix = path === "/history" ? "history" : "dashboard";
   const pageUrlTemplate = buildMatchTableUrl(path, table, { page: pageMarker })
     .replace(`page=${pageMarker}`, "page=__PAGE__") + headingHash;
   const pageLinks = compactPages(table.page, table.totalPages).map((page) => {
@@ -360,7 +363,9 @@ function renderPagination(
 
     const href = buildMatchTableUrl(path, table, { page }) + headingHash;
     const isCurrent = page === table.page;
-    return `<a class="${isCurrent ? "is-current" : ""}" href="${
+    return `<a class="${isCurrent ? "is-current" : ""}" data-lobotomy-corp-black-forest-slot="${
+      slotPrefix
+    }.page.${page}" href="${
       escapeHtml(href)
     }">${page}</a>`;
   }).join("");
@@ -370,7 +375,9 @@ function renderPagination(
     const label = pageSize === "all" ? messages.allRows : String(pageSize);
     return `<a class="${
       pageSize === table.pageSize ? "is-current" : ""
-    }" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
+    }" data-lobotomy-corp-black-forest-slot="${
+      slotPrefix
+    }.pageSize.${pageSize}" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
   }).join("");
 
   return `
@@ -382,6 +389,7 @@ function renderPagination(
         data-current-page="${table.page}"
         data-total-pages="${table.totalPages}"
         data-page-url-template="${escapeHtml(pageUrlTemplate)}"
+        data-lobotomy-corp-black-forest-page-prefix="${slotPrefix}"
       >${pageLinks}</nav>
       <div class="page-size-links">
         <span>${escapeHtml(messages.pageSize)}</span>
@@ -543,6 +551,11 @@ function renderPaginationScript(): string {
         link.href = pageUrl(template, page);
         link.textContent = String(page);
         link.dataset.page = String(page);
+        const slotPrefix = nav.dataset.lobotomyCorpBlackForestPagePrefix;
+        if (slotPrefix) {
+          link.dataset.lobotomyCorpBlackForestSlot =
+            slotPrefix + ".page." + page;
+        }
         if (page === currentPage) link.className = "is-current";
         return link;
       }
@@ -1079,10 +1092,14 @@ function renderTableActionScript(): string {
 /**
  * 渲染筛选图标。
  *
+ * @param blackForestSlot 彩蛋图标槽位标识。
  * @return 筛选图标 SVG。
  */
-function filterIcon(): string {
-  return `<svg aria-hidden="true" viewBox="0 0 24 24">
+function filterIcon(blackForestSlot?: string): string {
+  const slotAttribute = blackForestSlot
+    ? ` data-lobotomy-corp-black-forest-slot="${blackForestSlot}"`
+    : "";
+  return `<svg${slotAttribute} aria-hidden="true" viewBox="0 0 24 24">
     <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"></path>
   </svg>`;
 }

@@ -4,6 +4,7 @@
   "accountConfirmPassword": "ยืนยันรหัสผ่านใหม่",
   "accountCurrentPassword": "รหัสผ่านปัจจุบัน",
   "accountDisplayName": "ชื่อที่แสดง",
+  "accountAvatarClearDecorations": "ล้างเครื่องประดับกรอบรูปโปรไฟล์",
   "accountDisplayNameInvalid": "ชื่อที่แสดงต้องมีความยาว 1-80 อักขระ และต้องไม่มีอักขระควบคุม",
   "accountEdit": "แก้ไข",
   "accountEditPassword": "เปลี่ยนรหัสผ่าน",

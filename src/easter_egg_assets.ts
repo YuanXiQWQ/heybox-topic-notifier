@@ -6,7 +6,7 @@
  * 彩蛋资源允许使用的相对路径格式。
  */
 const easterEggAssetPathPattern =
-  /^[a-zA-Z0-9_. -]+(?:\/[a-zA-Z0-9_. -]+)*\.(?:css|js|json|mp3|ogg|otf|png|ttf|wav|webm)$/;
+  /^[a-zA-Z0-9_. -]+(?:\/[a-zA-Z0-9_. -]+)*\.(?:css|js|json|mp3|ogg|otf|png|ttf|txt|wav|webm)$/;
 
 /**
  * 《逆转裁判》彩蛋资源根目录。
@@ -148,6 +148,26 @@ export async function lobotomyCorpDangerScoreResponse(): Promise<Response> {
   const script = await Deno.readTextFile(
     new URL(
       "../static/fun/lobotomy-corp/Events/DangerScore.js",
+      import.meta.url,
+    ),
+  );
+  return new Response(script, {
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "text/javascript; charset=utf-8",
+    },
+  });
+}
+
+/**
+ * 创建《脑叶公司》终末鸟（黑森林）事件模块响应。
+ *
+ * @return {Promise<Response>} JavaScript 模块响应。
+ */
+export async function lobotomyCorpBlackForestEventResponse(): Promise<Response> {
+  const script = await Deno.readTextFile(
+    new URL(
+      "../static/fun/lobotomy-corp/Events/BlackForest.js",
       import.meta.url,
     ),
   );
@@ -365,6 +385,9 @@ function easterEggAssetContentType(assetPath: string): string {
   if (assetPath.endsWith(".ogg")) {
     return "audio/ogg";
   }
+  if (assetPath.endsWith(".txt")) {
+    return "text/plain; charset=utf-8";
+  }
   if (assetPath.endsWith(".wav")) return "audio/wav";
   return assetPath.endsWith(".webm") ? "video/webm" : "audio/mpeg";
 }
@@ -392,9 +415,14 @@ function isAceAttorneyAssetPath(assetPath: string): boolean {
  */
 function isLobotomyCorpAssetPath(assetPath: string): boolean {
   return /^Assets\/.+\.(?:mp3|ogg|otf|png|ttf|wav|webm)$/u.test(assetPath) ||
-    assetPath === "Data/Abnormalities.json" ||
-    /^(?:Events\/(?:AdventLight|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|WhiteNight|WhiteNightAdvent))\.js$/u
+    // Spine 骨架数据：JSON 与 Atlas 文本（分页贴图沿用上面的 Assets 图片规则）。
+    /^Assets\/Resources\/spinedata\/[A-Za-z0-9_]+(?:\/[A-Za-z0-9_.]+)*\.(?:json|txt)$/u
       .test(assetPath) ||
+    assetPath === "Data/Abnormalities.json" ||
+    /^(?:Events\/(?:AdventLight|BlackForest|BlackForestEggSpine|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|PlagueDoctorSpine|Shelter|SpineRuntime|WhiteNight|WhiteNightAdvent|WhiteNightSpine))\.js$/u
+      .test(assetPath) ||
+    // 骨架运行时使用的官方 Spine WebGL 构建。
+    /^vendor\/spine-webgl-[0-9.]+\.js$/u.test(assetPath) ||
     /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u
       .test(
         assetPath,

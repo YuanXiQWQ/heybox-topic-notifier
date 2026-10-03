@@ -13,6 +13,7 @@ import {
   employeeDangerPoints,
   escapableAbnormalitySummary,
   escapeAllDangerContribution,
+  specialEventDangerAbnormalityIds,
   whiteNightApostleCount,
   whiteNightDangerPoints,
 } from "../static/fun/lobotomy-corp/Events/DangerScore.js";
@@ -65,11 +66,19 @@ Deno.test("danger score divides abnormality escapes by open departments", () => 
 });
 
 Deno.test("danger score derives escapable values from the abnormality data", () => {
-  // canBreach 为 true 的条目：40 只；白夜按 98 计，总点数 1993。
+  // 全部出逃均值排除由事件自行结算的三鸟、终末鸟与白夜。
+  assertEquals([...specialEventDangerAbnormalityIds], [
+    "O-02-40",
+    "O-02-56",
+    "O-02-62",
+    "O-02-63",
+    "T-03-46",
+  ]);
+  // 剩余普通可出逃条目：36 只，总点数 1755。
   const summary = escapableAbnormalitySummary(abnormalities);
-  assertEquals(summary.count, 40);
-  assertEquals(summary.totalDanger, 1993);
-  assertEquals(summary.averageDanger, 1993 / 40);
+  assertEquals(summary.count, 36);
+  assertEquals(summary.totalDanger, 1755);
+  assertEquals(summary.averageDanger, 1755 / 36);
 
   // 设施容量：每部门 4 只，构筑部 8 只。
   assertEquals(abnormalityCapacity(3), 12);
@@ -79,11 +88,11 @@ Deno.test("danger score derives escapable values from the abnormality data", () 
   // 出逃数量取容量与可出逃总数的较小者，再按平均基值除以部门数。
   assertEquals(
     escapeAllDangerContribution(abnormalities, 3),
-    12 * (1993 / 40) / 3,
+    12 * (1755 / 36) / 3,
   );
   assertEquals(
     escapeAllDangerContribution(abnormalities, 11),
-    40 * (1993 / 40) / 11,
+    36 * (1755 / 36) / 11,
   );
   assertEquals(escapeAllDangerContribution(undefined, 3), 0);
   assertEquals(escapeAllDangerContribution(abnormalities, 0), 0);

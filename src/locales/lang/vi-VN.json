@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Xác nhận mật khẩu mới",
   "accountCurrentPassword": "Mật khẩu hiện tại",
   "accountDisplayName": "Tên hiển thị",
+  "accountAvatarClearDecorations": "Xóa trang trí khung ảnh đại diện",
   "accountDisplayNameInvalid": "Tên hiển thị phải có từ 1 đến 80 ký tự và không được chứa ký tự điều khiển.",
   "accountEdit": "Chỉnh sửa",
   "accountEditPassword": "Đổi mật khẩu",

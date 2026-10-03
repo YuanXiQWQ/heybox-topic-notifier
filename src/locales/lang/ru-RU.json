@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Подтвердите новый пароль",
   "accountCurrentPassword": "Текущий пароль",
   "accountDisplayName": "Отображаемое имя",
+  "accountAvatarClearDecorations": "Удалить украшения рамки аватара",
   "accountDisplayNameInvalid": "Отображаемое имя должно содержать от 1 до 80 символов и не может содержать управляющие символы.",
   "accountEdit": "Редактировать",
   "accountEditPassword": "Изменить пароль",

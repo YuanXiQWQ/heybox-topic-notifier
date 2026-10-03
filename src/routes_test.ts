@@ -695,6 +695,10 @@ Deno.test("account route updates non-unique display names without reauthenticati
     "成步堂龙一",
   );
   assertEquals(
+    (await storage.getAccountByUsername("alice"))?.displayNameFromGoogle,
+    false,
+  );
+  assertEquals(
     (await storage.getAccountByUsername("bob"))?.displayName,
     "成步堂龙一",
   );

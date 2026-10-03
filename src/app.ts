@@ -14,6 +14,7 @@ import {
   aceAttorneyStyleResponse,
   easterEggCoordinatorScriptResponse,
   lobotomyCorpAssetResponse,
+  lobotomyCorpBlackForestEventResponse,
   lobotomyCorpDangerScoreResponse,
   lobotomyCorpDontTouchMeEventResponse,
   lobotomyCorpScriptResponse,
@@ -94,6 +95,10 @@ export function createApplication() {
   app.get(
     "/static/fun/lobotomy-corp/Events/DontTouchMe.js",
     () => lobotomyCorpDontTouchMeEventResponse(),
+  );
+  app.get(
+    "/static/fun/lobotomy-corp/Events/BlackForest.js",
+    () => lobotomyCorpBlackForestEventResponse(),
   );
   app.get(
     "/static/fun/lobotomy-corp/*",

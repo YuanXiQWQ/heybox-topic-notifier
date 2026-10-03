@@ -4,6 +4,7 @@
   "accountConfirmPassword": "Neues Passwort bestätigen",
   "accountCurrentPassword": "Aktuelles Passwort",
   "accountDisplayName": "Anzeigename",
+  "accountAvatarClearDecorations": "Avatar-Rahmen-Dekorationen entfernen",
   "accountDisplayNameInvalid": "Der Anzeigename muss 1–80 Zeichen lang sein und darf keine Steuerzeichen enthalten.",
   "accountEdit": "Bearbeiten",
   "accountEditPassword": "Passwort ändern",

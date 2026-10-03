@@ -19,6 +19,7 @@ import {
   escapableAbnormalitySummary,
   escapeAllDangerContribution,
   whiteNightApostleCount,
+  whiteNightCanonicalId,
   whiteNightDangerPoints,
 } from './Events/DangerScore.js';
 import {
@@ -31,6 +32,20 @@ import {
   createPlagueDoctorEvent,
   plagueDoctorAbnormalityId,
 } from './Events/PlagueDoctor.js';
+import {
+  blackForestAbnormalityIds,
+  blackForestActivePhases,
+  blackForestDefaultBirdOrder,
+  blackForestEggs,
+  blackForestEventId,
+  blackForestGift,
+  createBlackForestEvent,
+} from './Events/BlackForest.js';
+import {
+  createShelterEvent,
+  shelterAbnormalityId,
+  shelterStorageKey,
+} from './Events/Shelter.js';
 
 /**
  * 白夜被镇压后，后台 Trumpet 从 ducked 音量恢复到正常音量所需时长（毫秒）。
@@ -387,6 +402,10 @@ const lobotomyCorpSpecialEventSessionKey =
 /** 白夜特殊事件的唯一标识。 */
 const lobotomyCorpWhiteNightEventId = 'white-night';
 
+/** 终末鸟（黑森林）特殊事件的持久化键。 */
+const lobotomyCorpBlackForestSessionKey =
+    'warmnest.lobotomy-corp-black-forest';
+
 /** 模拟 11 名普通使徒对应员工死亡：11 × 4 = 44；第 12 名背叛者不走该死亡流程。 */
 const lobotomyCorpWhiteNightPreludeDangerContribution =
     employeeDangerContribution('death', whiteNightApostleCount);
@@ -399,8 +418,8 @@ const lobotomyCorpWhiteNightActiveDangerContribution = whiteNightDangerPoints;
  */
 let activeLobotomyCorpAlert;
 
-/** 当前独立于四角警报显示的 Restart Day 顶部面板。 */
-let activeLobotomyCorpRestartPanel;
+/** 白夜拦截导航且没有警报 HUD 时，单独挂载的原版 RestartButton 兜底。 */
+let activeLobotomyCorpRestartButton;
 
 /**
  * 当前脑叶公司彩蛋的危急值，始终为 0 到 100 的有限数值。
@@ -765,7 +784,9 @@ function scheduleLobotomyCorpDangerDecay(delay) {
   if (lobotomyCorpDangerDecayTimer !== undefined) {
     clearTimeout(lobotomyCorpDangerDecayTimer);
   }
-  if (lobotomyCorpDangerScore <= 0 || lobotomyCorpWhiteNightEvent?.isActive()) {
+  if (
+      lobotomyCorpDangerScore <= 0 || lobotomyCorpSpecialEventFreezesDanger()
+  ) {
     lobotomyCorpDangerDecayTimer = undefined;
     return;
   }
@@ -775,7 +796,7 @@ function scheduleLobotomyCorpDangerDecay(delay) {
   lobotomyCorpDangerDecayTimer = setTimeout(() => {
     lobotomyCorpDangerDecayTimer = undefined;
     if (
-        lobotomyCorpWhiteNightEvent?.isActive() || lobotomyCorpDangerScore <= 0
+        lobotomyCorpSpecialEventFreezesDanger() || lobotomyCorpDangerScore <= 0
     ) return;
     const remainingGrace = (lobotomyCorpDangerDecayGraceDeadline ?? 0) -
         Date.now();
@@ -793,10 +814,23 @@ function scheduleLobotomyCorpDangerDecay(delay) {
 }
 
 /**
+ * 判断当前是否存在要求冻结危急值衰减的特殊事件。
+ *
+ * 白夜与终末鸟都把整站留在事件里：警报（以及顶部的「重新开始这一天」）必须
+ * 一直可用，Danger 不能在事件进行期间自行衰减到 0。
+ *
+ * @return {boolean} 需要冻结衰减时返回 true。
+ */
+function lobotomyCorpSpecialEventFreezesDanger() {
+  return Boolean(lobotomyCorpWhiteNightEvent?.isActive()) ||
+      Boolean(lobotomyCorpBlackForestEvent?.isActive());
+}
+
+/**
  * 记录一次正向 Danger 贡献：原版规则要求重新等待 30 秒。
  */
 function resetLobotomyCorpDangerDecayGrace() {
-  if (lobotomyCorpWhiteNightEvent?.isActive()) {
+  if (lobotomyCorpSpecialEventFreezesDanger()) {
     lobotomyCorpDangerDecayGraceDeadline = undefined;
     lobotomyCorpDangerDecayPausedRemainingMs = 30000;
     persistLobotomyCorpDay();
@@ -811,7 +845,7 @@ function resetLobotomyCorpDangerDecayGrace() {
  * 从持久化 Day 状态继续未完成的 Danger 衰减。
  */
 function restoreLobotomyCorpDangerDecay() {
-  if (lobotomyCorpDangerScore <= 0 || lobotomyCorpWhiteNightEvent?.isActive()) {
+  if (lobotomyCorpDangerScore <= 0 || lobotomyCorpSpecialEventFreezesDanger()) {
     return;
   }
   if (lobotomyCorpDangerDecayPausedRemainingMs !== undefined) {
@@ -826,7 +860,7 @@ function restoreLobotomyCorpDangerDecay() {
   );
 }
 
-/** 暂停 Danger 衰减并冻结剩余时间，供 WhiteNight breach 使用。 */
+/** 暂停 Danger 衰减并冻结剩余时间，供 WhiteNight breach 与终末鸟事件使用。 */
 function pauseLobotomyCorpDangerDecay() {
   if (lobotomyCorpDangerDecayPausedRemainingMs !== undefined) return;
   if (lobotomyCorpDangerDecayGraceDeadline !== undefined) {
@@ -847,7 +881,10 @@ function pauseLobotomyCorpDangerDecay() {
  * 让没有 HUD 的低危急值 Day 也参与跨游戏互斥。
  */
 function ensureLobotomyCorpDayCoordinator() {
-  if (lobotomyCorpDangerScore > 0) {
+  if (
+    lobotomyCorpDangerScore > 0 ||
+    lobotomyCorpShelterEvent?.isActive()
+  ) {
     globalThis.easterEggCoordinator?.start(
         lobotomyCorpEasterEggGameId,
         finishLobotomyCorpDayFromCoordinator,
@@ -856,12 +893,21 @@ function ensureLobotomyCorpDayCoordinator() {
 }
 
 /**
+ * 结束当前 Day 中全部特殊事件。
+ */
+function finishAllLobotomyCorpSpecialEvents() {
+  lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+  lobotomyCorpShelterEvent?.finish();
+  lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
+  lobotomyCorpBlackForestEvent?.finish({restore: false});
+  lobotomyCorpPlagueDoctorEvent?.reset();
+}
+
+/**
  * 被其它游戏彩蛋中断时结束当前 Day 和可能存在的 HUD。
  */
 function finishLobotomyCorpDayFromCoordinator() {
-  lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
-  // 被其它彩蛋中断时也要收掉疫医的进行中演出（含完整降临的宿主隔离层与滚动锁）。
-  lobotomyCorpPlagueDoctorEvent?.reset();
+  finishAllLobotomyCorpSpecialEvents();
   clearLobotomyCorpDay();
   activeLobotomyCorpAlert?.finish();
 }
@@ -1260,8 +1306,7 @@ function stopLobotomyCorpAlert() {
  * @return {Promise<boolean>} 清理完成后返回 true。
  */
 function restartLobotomyCorpDay() {
-  lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
-  lobotomyCorpPlagueDoctorEvent?.reset();
+  finishAllLobotomyCorpSpecialEvents();
   return stopLobotomyCorpAlert();
 }
 
@@ -1384,6 +1429,7 @@ function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
     persistLobotomyCorpDay();
     ensureLobotomyCorpDayCoordinator();
   } else {
+    lobotomyCorpShelterEvent?.finish();
     clearLobotomyCorpDay();
   }
   if (!options.isDecay && options.positiveContribution === true) {
@@ -1427,6 +1473,13 @@ function syncLobotomyCorpAbnormalityIdentity(displayName) {
     riskBadge.src = `${lobotomyCorpSpriteRoot}/${riskFile}`;
     avatarWrapper.append(riskBadge);
   });
+}
+
+/**
+ * 清除头像框上的全部《脑叶公司》饰品及对应奖励存档。
+ */
+function clearLobotomyCorpAvatarDecorations() {
+  lobotomyCorpBlackForestEvent.clearGift();
 }
 
 /**
@@ -1580,6 +1633,20 @@ function settleLobotomyCorpWhiteNightActiveDanger() {
 }
 
 /**
+ * 启动一条白夜入口；疫医转变演出期间拒绝并发启动。
+ *
+ * @param {object} options 白夜入口配置。
+ * @return {boolean} 白夜状态成功建立时返回 true。
+ */
+function startLobotomyCorpWhiteNight(options) {
+  if (lobotomyCorpPlagueDoctorEvent?.isTransforming()) {
+    options?.preparedMedia?.dispose?.();
+    return false;
+  }
+  return lobotomyCorpWhiteNightEvent.start(options);
+}
+
+/**
  * 处理一次已由服务器确认成功的 canonical 异想体提交。
  *
  * 该入口刻意将身份识别与危急值贡献分层，后续特殊事件可订阅此处而不依赖 canBreach。
@@ -1597,6 +1664,41 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
   notifyLobotomyCorpAbnormalitySubmitted(match.canonicalId, match.abnormality, {
     displayName: value,
   });
+  if (match.canonicalId === shelterAbnormalityId) {
+    lobotomyCorpShelterEvent.start();
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
+  // 终末鸟事件观察三只鸟的输入顺序；直接输入 O-02-63 时按 CG 边界逐笔结算。
+  const startedBlackForestEvent =
+      lobotomyCorpBlackForestEvent?.recordSubmission(match.canonicalId) === true;
+  // 直接召唤的四笔贡献由事件 CG 时间线结算，不再经过普通异想体分支。
+  if (
+    startedBlackForestEvent &&
+    match.canonicalId === blackForestAbnormalityIds.apocalypseBird
+  ) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
+  // 终末鸟通过 EscapeWithoutIsolateRoom 进入 EmergencyController，按 ALEPH 风险点÷部门数结算。
+  if (match.canonicalId === blackForestAbnormalityIds.apocalypseBird) {
+    if (lobotomyCorpBreachedAbnormalitiesThisDay.has(match.canonicalId)) {
+      preparedMedia?.dispose?.();
+      return Promise.resolve(true);
+    }
+    lobotomyCorpBreachedAbnormalitiesThisDay.add(match.canonicalId);
+    return setLobotomyCorpDangerScore(
+        clampDangerScore(
+            lobotomyCorpDangerScore +
+            lobotomyCorpDangerContribution(
+                match.abnormality,
+                lobotomyCorpDepartmentCountForDay(),
+            ),
+        ),
+        preparedMedia,
+        {positiveContribution: true},
+    );
+  }
   if (!match.abnormality.canBreach) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
@@ -1606,6 +1708,14 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     return Promise.resolve(true);
   }
   const isWhiteNightSubmission = match.canonicalId === 'T-03-46';
+  // 疫医转变与白夜是直接互斥关系：转变演出期间不启动第二条白夜入口。
+  if (
+    isWhiteNightSubmission &&
+    lobotomyCorpPlagueDoctorEvent?.isTransforming()
+  ) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
   const contribution = isWhiteNightSubmission
       ? lobotomyCorpWhiteNightPreludeDangerContribution
       : lobotomyCorpDangerContribution(
@@ -1622,14 +1732,16 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     lobotomyCorpWhiteNightDangerSettlementStage = 'prelude-settled';
   }
   const alertLifecycle = setLobotomyCorpDangerScore(
-      clampDangerScore(lobotomyCorpDangerScore + contribution),
+      clampDangerScore(
+          lobotomyCorpDangerScore + contribution,
+      ),
       preparedMedia,
       {
         positiveContribution: true,
       },
   );
   if (isWhiteNightSubmission) {
-    lobotomyCorpWhiteNightEvent?.start({
+    startLobotomyCorpWhiteNight({
       preparedMedia,
       source: 'direct-submission',
     });
@@ -1646,19 +1758,19 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
  */
 function commitLobotomyCorpDisplayName(value, preparedMedia) {
   syncLobotomyCorpAbnormalityIdentity(value);
-  // 疫医转变事件接管显示名称提交：记录期间只绑定使徒，已转变后直接进白夜，
-  // 两条路径都不产生普通异想体危急值，也不激活其它特殊事件。
-  // 白夜进行期间也要询问一次：那时只有再次提交疫医编号会被它接管（白夜已经在场
-  // 就不会重复启动），其余名称照常交给白夜 Confess 与普通异想体路径。
-  if (lobotomyCorpPlagueDoctorEvent?.claim(value)) {
-    preparedMedia?.dispose?.();
-    return Promise.resolve(true);
-  }
+  // 白夜自己的赎罪入口优先于疫医记录，避免赎罪名称在记录期间被绑定成使徒。
   if (
       lobotomyCorpWhiteNightEvent?.isActive() &&
       lobotomyCorpWhiteNightEvent.matchesConfession(value)
   ) {
     return lobotomyCorpWhiteNightEvent.confess(preparedMedia);
+  }
+  // 疫医转变事件接管显示名称提交：记录期间只绑定使徒，已转变后直接进白夜。
+  // 白夜进行期间也要询问一次：那时只有再次提交疫医编号会被它接管（白夜已经在场
+  // 就不会重复启动），其余名称照常交给普通异想体路径。
+  if (lobotomyCorpPlagueDoctorEvent?.claim(value)) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
   }
   return matchingLobotomyCorpAbnormality(value)
       ? handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia)
@@ -1911,36 +2023,6 @@ function lobotomyCorpRestartButtonSource(state) {
 }
 
 /**
- * 在未达到普通 Trumpet 阈值时复用 Restart Day 顶部面板。
- *
- * @return {{finish: () => void}|undefined} 已挂载面板的清理操作。
- */
-function mountLobotomyCorpRestartPanel() {
-  if (activeLobotomyCorpAlert || activeLobotomyCorpRestartPanel) {
-    return activeLobotomyCorpRestartPanel;
-  }
-  const document = globalThis.document;
-  if (!document?.createElement || !document.body) return undefined;
-  const overlay = document.createElement('div');
-  const topPanelController = createLobotomyCorpTopPanel();
-  overlay.className = 'lobotomy-corp-alert-overlay';
-  topPanelController.endAlertButton.addEventListener('click', () => {
-    void restartLobotomyCorpDay();
-  });
-  overlay.append(topPanelController.element);
-  document.body.append(overlay);
-  const panel = {
-    finish: () => {
-      if (activeLobotomyCorpRestartPanel !== panel) return;
-      activeLobotomyCorpRestartPanel = undefined;
-      overlay.remove();
-    },
-  };
-  activeLobotomyCorpRestartPanel = panel;
-  return panel;
-}
-
-/**
  * 为 Unity 风格 HUD 与顶部面板写入 CanvasScaler 缩放比例。
  *
  * @param {{height: number, width: number}} viewport 用于本次缩放的稳定 viewport。
@@ -2027,36 +2109,16 @@ function createLobotomyCorpEmergencyCorner(alert, definition) {
 }
 
 /**
- * 创建复现原版“重新开始这一天”布局的顶部结束面板。
+ * 创建原版 RestartButton 本体。
  *
- * @return {{activeController: HTMLElement, element: HTMLElement, endAlertButton: HTMLButtonElement, endAlertButtonText: HTMLElement}} 顶部面板、动画节点及结束按钮的图标与文本节点。
+ * @return {{button: HTMLButtonElement, text: HTMLElement}} 按钮及其文本节点。
  */
-function createLobotomyCorpTopPanel() {
-  const topPanel = document.createElement('section');
-  const activeController = document.createElement('div');
-  const leftValve = document.createElement('img');
-  const frameOutter = document.createElement('div');
-  const frameInner = document.createElement('img');
+function createLobotomyCorpRestartButton() {
   const endAlertButton = document.createElement('button');
   const normalButtonSprite = document.createElement('img');
   const pressedButtonSprite = document.createElement('img');
   const endAlertButtonText = document.createElement('span');
-  const rightValve = document.createElement('img');
   const restartDayText = lobotomyCorpTopPanelActionText();
-
-  topPanel.className = 'lobotomy-corp-top-panel';
-  activeController.className = 'lobotomy-corp-top-panel-active-controller';
-
-  leftValve.alt = '';
-  leftValve.className = 'lobotomy-corp-top-panel-valve left';
-  leftValve.src = `${lobotomyCorpSpriteRoot}/Valve.png`;
-  leftValve.setAttribute('aria-hidden', 'true');
-
-  frameOutter.className = 'lobotomy-corp-top-panel-frame-outter';
-  frameInner.alt = '';
-  frameInner.className = 'lobotomy-corp-top-panel-frame-inner';
-  frameInner.src = `${lobotomyCorpSpriteRoot}/Risk_Frame_Inner.png`;
-  frameInner.setAttribute('aria-hidden', 'true');
 
   endAlertButton.type = 'button';
   endAlertButton.className = 'lobotomy-corp-top-panel-action-button';
@@ -2078,21 +2140,100 @@ function createLobotomyCorpTopPanel() {
       pressedButtonSprite,
       endAlertButtonText,
   );
+  return {button: endAlertButton, text: endAlertButtonText};
+}
+
+/**
+ * 创建复现原版“重新开始这一天”布局的顶部结束面板。
+ *
+ * @return {{activeController: HTMLElement, element: HTMLElement, endAlertButton: HTMLButtonElement, endAlertButtonText: HTMLElement}} 顶部面板、动画节点及结束按钮的图标与文本节点。
+ */
+function createLobotomyCorpTopPanel() {
+  const topPanel = document.createElement('section');
+  const activeController = document.createElement('div');
+  const leftValve = document.createElement('img');
+  const frameOutter = document.createElement('div');
+  const frameInner = document.createElement('img');
+  const restartButton = createLobotomyCorpRestartButton();
+  const rightValve = document.createElement('img');
+
+  topPanel.className = 'lobotomy-corp-top-panel';
+  activeController.className = 'lobotomy-corp-top-panel-active-controller';
+
+  leftValve.alt = '';
+  leftValve.className = 'lobotomy-corp-top-panel-valve left';
+  leftValve.src = `${lobotomyCorpSpriteRoot}/Valve.png`;
+  leftValve.setAttribute('aria-hidden', 'true');
+
+  frameOutter.className = 'lobotomy-corp-top-panel-frame-outter';
+  frameInner.alt = '';
+  frameInner.className = 'lobotomy-corp-top-panel-frame-inner';
+  frameInner.src = `${lobotomyCorpSpriteRoot}/Risk_Frame_Inner.png`;
+  frameInner.setAttribute('aria-hidden', 'true');
 
   rightValve.alt = '';
   rightValve.className = 'lobotomy-corp-top-panel-valve right';
   rightValve.src = `${lobotomyCorpSpriteRoot}/Valve.png`;
   rightValve.setAttribute('aria-hidden', 'true');
 
-  frameOutter.append(frameInner, endAlertButton);
+  frameOutter.append(frameInner, restartButton.button);
   activeController.append(leftValve, frameOutter, rightValve);
   topPanel.append(activeController);
   return {
     activeController,
     element: topPanel,
-    endAlertButton,
-    endAlertButtonText,
+    endAlertButton: restartButton.button,
+    endAlertButtonText: restartButton.text,
   };
+}
+
+/**
+ * 白夜拦截导航且没有警报时，单独挂载原版 RestartButton 本体。
+ *
+ * @return {{finish: () => void}|undefined} 已挂载按钮的清理操作。
+ */
+function mountLobotomyCorpRestartButton() {
+  if (activeLobotomyCorpAlert || activeLobotomyCorpRestartButton) {
+    return activeLobotomyCorpRestartButton;
+  }
+  const document = globalThis.document;
+  if (!document?.createElement || !document.body) return undefined;
+  const overlay = document.createElement('div');
+  const topPanel = document.createElement('section');
+  const activeController = document.createElement('div');
+  const restartButton = createLobotomyCorpRestartButton();
+  overlay.className = 'lobotomy-corp-alert-overlay';
+  topPanel.className = 'lobotomy-corp-top-panel';
+  activeController.className = 'lobotomy-corp-top-panel-active-controller';
+  restartButton.button.addEventListener('click', () => {
+    void restartLobotomyCorpDay();
+  });
+  activeController.append(restartButton.button);
+  topPanel.append(activeController);
+  overlay.append(topPanel);
+  document.body.append(overlay);
+  const button = {
+    finish: () => {
+      if (activeLobotomyCorpRestartButton !== button) return;
+      activeLobotomyCorpRestartButton = undefined;
+      overlay.remove();
+    },
+  };
+  activeLobotomyCorpRestartButton = button;
+  return button;
+}
+
+/**
+ * 在最后一个特殊事件结束时移除独立的 RestartButton。
+ */
+function finishLobotomyCorpRestartButtonIfUnused() {
+  if (
+    lobotomyCorpWhiteNightEvent?.hasEventState?.() ||
+    lobotomyCorpBlackForestEvent?.isActive?.()
+  ) {
+    return;
+  }
+  activeLobotomyCorpRestartButton?.finish();
 }
 
 /**
@@ -2168,7 +2309,7 @@ function startLobotomyCorpAlert({
   if (racingSessionResult !== undefined) {
     return racingSessionResult;
   }
-  activeLobotomyCorpRestartPanel?.finish();
+  activeLobotomyCorpRestartButton?.finish();
   let musicSourceState = musicSource;
   let directSessionState = directSession;
   let visualAlert = initialVisualAlert;
@@ -3331,7 +3472,8 @@ function applyLobotomyCorpDontTouchMeWorkerDanger(kind) {
 /**
  * 结算“异想体全部出逃”的危急值。
  *
- * 出逃数量与平均基值都由危急值模块从异想体资料现算，本函数只负责写入。
+ * 出逃数量与平均基值都由危急值模块从异想体资料现算；这次出逃造成的危急值按整批
+ * 一次结算，随后触发白夜与终末鸟事件。
  */
 function applyLobotomyCorpDontTouchMeEscapeDanger() {
   const contribution = lobotomyCorpEscapeAllDangerContribution(
@@ -3342,6 +3484,62 @@ function applyLobotomyCorpDontTouchMeEscapeDanger() {
       undefined,
       {positiveContribution: true},
   );
+  triggerLobotomyCorpAllEscapeSpecialEvents();
+}
+
+/** 是否等待白夜 Simple Advent 转盘完全隐藏后再启动终末鸟事件。 */
+let lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+
+/**
+ * 启动由“所有异想体出逃”触发的终末鸟事件。
+ *
+ * 三鸟与终末鸟已从通用“全部出逃”的均值基值中排除，因此这里使用正常直接召唤
+ * 入口，让 CG 时间线按原有结算点补回对应危急值。
+ *
+ * @return {boolean} 新事件成功开始时返回 true。
+ */
+function startLobotomyCorpBlackForestAfterAllEscape() {
+  return lobotomyCorpBlackForestEvent.start({
+    order: [...blackForestDefaultBirdOrder],
+    source: 'direct-submission',
+  });
+}
+
+/**
+ * 结算“所有异想体出逃”同步触发的特殊事件。
+ *
+ * 白夜的 Simple Advent 有自己的四秒转盘与隐藏动画；终末鸟事件必须等转盘完全
+ * 隐藏后再播 CG，避免两个特殊事件的首段画面重叠。白夜已经 active 时没有转盘，
+ * 终末鸟事件可以立即开始。
+ */
+function triggerLobotomyCorpAllEscapeSpecialEvents() {
+  if (!lobotomyCorpWhiteNightEvent.hasEventState()) {
+    const started = startLobotomyCorpWhiteNight({source: 'direct-submission'});
+    if (started && !lobotomyCorpBreachedAbnormalitiesThisDay.has(
+        whiteNightCanonicalId,
+    )) {
+      // 白夜已从“全部出逃”的均值基值中排除，启动事件时补回 Prelude 的 44 点；
+      // active 阶段的 98 点仍由白夜自己的 Simple Advent 边界结算。
+      lobotomyCorpBreachedAbnormalitiesThisDay.add(whiteNightCanonicalId);
+      lobotomyCorpWhiteNightDangerSettlementStage = 'prelude-settled';
+      void setLobotomyCorpDangerScore(
+          clampDangerScore(
+              lobotomyCorpDangerScore +
+              lobotomyCorpWhiteNightPreludeDangerContribution,
+          ),
+          undefined,
+          {positiveContribution: true},
+      );
+    }
+  }
+  if (lobotomyCorpWhiteNightEvent.getPhase() === 'prelude') {
+    lobotomyCorpPendingBlackForestAfterWhiteNight = true;
+    return;
+  }
+  lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+  if (!lobotomyCorpBlackForestEvent.isActive()) {
+    startLobotomyCorpBlackForestAfterAllEscape();
+  }
 }
 
 /**
@@ -3351,6 +3549,8 @@ function applyLobotomyCorpDontTouchMeEscapeDanger() {
  * 画面播放期间不会继续响警报，随后的 404 页面也无从恢复警报音乐。
  */
 function crashLobotomyCorpDanger() {
+  // 假关服直接保存并退出这一天，因此它是所有特殊事件的直接终止规则。
+  finishAllLobotomyCorpSpecialEvents();
   void stopLobotomyCorpAlert();
   clearLobotomyCorpDay();
 }
@@ -3378,15 +3578,10 @@ const lobotomyCorpDontTouchMeShutdown = createDontTouchMeShutdown({
 /**
  * 判断待保存的显示名称是否由“别碰我”假关服接管。
  *
- * 特殊事件进行期间沿用“仅保存名称、不激活其它事件”的既有规则。
- *
  * @param {string} value 待保存的显示名称。
  * @return {boolean} 需要拦截保存并播放假关服时返回 true。
  */
 function lobotomyCorpBlocksDisplayNameSave(value) {
-  if (lobotomyCorpWhiteNightEvent.isActive()) return false;
-  // 疫医记录期间不再压制别的异想体：别碰我拿到的编号照常由它自己接管保存，
-  // 否则它的彩蛋会被疫医的记录吞掉。
   return matchingLobotomyCorpAbnormality(value)?.canonicalId ===
       lobotomyCorpDontTouchMeId;
 }
@@ -3415,13 +3610,21 @@ const lobotomyCorpWhiteNightEvent = createWhiteNightEvent({
   assetRoot: lobotomyCorpAssetRoot,
   confessionAliases: () => lobotomyCorpConfessionAliases,
   ensureCoordinator: ensureLobotomyCorpDayCoordinator,
-  finishRestartPanel: () => activeLobotomyCorpRestartPanel?.finish(),
-  getAlert: () => activeLobotomyCorpAlert,
+  finishRestartButton: finishLobotomyCorpRestartButtonIfUnused,
   holdAlertMusic: () => activeLobotomyCorpAlert?.holdMusicForSpecialEvent?.(),
   isReload: isLobotomyCorpAlertPageReload,
   messages: () => lobotomyCorpMessages,
-  mountRestartPanel: mountLobotomyCorpRestartPanel,
+  mountRestartButton: mountLobotomyCorpRestartButton,
   normalize: normalizeLobotomyCorpAbnormalityName,
+  onStarted: () => {
+    lobotomyCorpPlagueDoctorEvent?.pauseForWhiteNight?.();
+    lobotomyCorpBlackForestEvent?.restrictHuntToWhiteNightPages?.();
+  },
+  onPreludeHidden: () => {
+    if (!lobotomyCorpPendingBlackForestAfterWhiteNight) return;
+    lobotomyCorpPendingBlackForestAfterWhiteNight = false;
+    startLobotomyCorpBlackForestAfterAllEscape();
+  },
   pauseDangerDecay: pauseLobotomyCorpDangerDecay,
   resumeAlertMusic: () =>
       activeLobotomyCorpAlert?.resumeMusicAfterSpecialEvent?.(),
@@ -3452,7 +3655,7 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
   loginSession: lobotomyCorpLoginSession,
   messages: () => lobotomyCorpMessages,
   onTransformation: (/** @type {any} */ info) => {
-    lobotomyCorpWhiteNightEvent?.start({
+    startLobotomyCorpWhiteNight({
       // 首次转变由疫医的完整降临顶替入场演出；已经转变过时没有再演一遍完整降临，
       // 白夜要按 normal 入口补上 Simple Advent（转盘 + 逐名使徒的台词）。
       source: info?.firstTime === false
@@ -3467,13 +3670,99 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
         {positiveContribution: true},
     );
   },
+  whiteNightRunning: () => lobotomyCorpWhiteNightEvent.hasEventState(),
+});
+
+/**
+ * 结算一组终末鸟事件异想体的出逃危急值。
+ *
+ * 每只异想体都按当前 Day 已快照的部门数计算；同一批中已经结算过的编号会跳过，
+ * 因此刷新 CG 后重放时间线不会重复加分。
+ *
+ * @param {readonly string[]} canonicalIds 要结算的异想体 canonical 编号。
+ * @param {object} [preparedMedia] 用户手势中预热的媒体。
+ * @return {Promise<boolean>} Alert 生命周期 Promise。
+ */
+function settleLobotomyCorpBlackForestDanger(canonicalIds, preparedMedia) {
+  const departmentCount = lobotomyCorpDepartmentCountForDay();
+  const pendingIds = [];
+  let contribution = 0;
+  [...new Set(canonicalIds)].forEach((canonicalId) => {
+    if (
+      typeof canonicalId !== 'string' ||
+      lobotomyCorpBreachedAbnormalitiesThisDay.has(canonicalId)
+    ) {
+      return;
+    }
+    const abnormality = lobotomyCorpAbnormalities?.[canonicalId];
+    if (!abnormality) return;
+    const amount = lobotomyCorpDangerContribution(
+        abnormality,
+        departmentCount,
+    );
+    if (amount <= 0) return;
+    pendingIds.push(canonicalId);
+    contribution += amount;
+  });
+  if (contribution <= 0) {
+    preparedMedia?.dispose?.();
+    return Promise.resolve(true);
+  }
+  pendingIds.forEach((canonicalId) =>
+    lobotomyCorpBreachedAbnormalitiesThisDay.add(canonicalId)
+  );
+  return setLobotomyCorpDangerScore(
+      clampDangerScore(lobotomyCorpDangerScore + contribution),
+      preparedMedia,
+      {positiveContribution: true},
+  );
+}
+
+// 终末鸟事件：警报期间先后输入两只鸟，或直接输入 O-02-63 时开始 CG 与寻找鸟蛋流程。
+const lobotomyCorpBlackForestEvent = createBlackForestEvent({
+  applyDisplayName: applyLobotomyCorpDisplayName,
+  assetRoot: lobotomyCorpAssetRoot,
+  eggSlotPages: () =>
+    lobotomyCorpWhiteNightEvent.hasEventState()
+      ? ['settings', 'nav']
+      : undefined,
+  ensureCoordinator: ensureLobotomyCorpDayCoordinator,
+  finishRestartButton: finishLobotomyCorpRestartButtonIfUnused,
+  messages: () => lobotomyCorpMessages,
+  mountRestartButton: mountLobotomyCorpRestartButton,
+  pauseDangerDecay: pauseLobotomyCorpDangerDecay,
+  resumeDangerDecay: restoreLobotomyCorpDangerDecay,
+  settleBlackForestDanger: (canonicalIds, preparedMedia) =>
+    settleLobotomyCorpBlackForestDanger(canonicalIds, preparedMedia),
+  storageKey: lobotomyCorpBlackForestSessionKey,
+  storages: lobotomyCorpAlertStorages,
+});
+
+// 3月27日的避难所：首次等待 30 秒，此后每 5 秒随机释放一个可出逃异想体。
+const lobotomyCorpShelterEvent = createShelterEvent({
+  abnormalities: () => lobotomyCorpAbnormalities,
+  clearTimer: (timer) => clearTimeout(timer),
+  ensureCoordinator: ensureLobotomyCorpDayCoordinator,
+  isReload: isLobotomyCorpAlertPageReload,
+  random: () => Math.random(),
+  releaseAbnormality: (canonicalId) =>
+    void handleLobotomyCorpAbnormalitySubmitted(canonicalId),
+  setTimer: (callback, delay) => setTimeout(callback, delay),
+  storageKey: shelterStorageKey,
+  storages: lobotomyCorpAlertStorages,
 });
 
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,
+  blackForestActive: () => lobotomyCorpBlackForestEvent.isActive(),
+  blackForestEggSpines: () =>
+      Object.values(blackForestEggs).map((egg) => egg.spine),
+  blackForestGiftSprite: blackForestGift.sprite,
+  blackForestPhase: () => lobotomyCorpBlackForestEvent.getPhase(),
   blocksDisplayNameSave: lobotomyCorpBlocksDisplayNameSave,
   canvasScaleForViewport: lobotomyCorpCanvasScaleForViewport,
   canvasViewportForUpdate: lobotomyCorpCanvasViewportForUpdate,
+  clearAvatarDecorations: clearLobotomyCorpAvatarDecorations,
   commitDisplayName: commitLobotomyCorpDisplayName,
   escapeAllDangerContribution: lobotomyCorpEscapeAllDangerContribution,
   escapableDangerSummary: lobotomyCorpEscapableDangerSummary,
@@ -3500,13 +3789,31 @@ globalThis.lobotomyCorpEasterEgg = Object.freeze({
   prepareDisplayName: prepareLobotomyCorpDisplayName,
   restartDay: restartLobotomyCorpDay,
   setDangerScore: setLobotomyCorpDangerScore,
-  startWhiteNight: lobotomyCorpWhiteNightEvent.start,
+  shelterActive: () => lobotomyCorpShelterEvent.isActive(),
+  startWhiteNight: startLobotomyCorpWhiteNight,
   submitsWhileActive: true,
 });
 
 const restoredLobotomyCorpSpecialEvent = lobotomyCorpWhiteNightEvent
     .persisted();
-if (isLobotomyCorpAlertPageReload() && !restoredLobotomyCorpSpecialEvent) {
+let restoredLobotomyCorpBlackForest = lobotomyCorpBlackForestEvent
+    .persisted();
+const refreshedDuringBlackForestOpening =
+    isLobotomyCorpAlertPageReload() &&
+    restoredLobotomyCorpBlackForest?.phase === 'cg';
+if (refreshedDuringBlackForestOpening) {
+  lobotomyCorpBlackForestEvent.clearPersisted();
+  restoredLobotomyCorpBlackForest = undefined;
+}
+// 终末鸟事件正式进入寻找鸟蛋或镇压阶段后，刷新同样要保留警报与 Day。
+const restoredLobotomyCorpBlackForestActive =
+    blackForestActivePhases.includes(
+        restoredLobotomyCorpBlackForest?.phase,
+    );
+if (
+    isLobotomyCorpAlertPageReload() && !restoredLobotomyCorpSpecialEvent &&
+    !restoredLobotomyCorpBlackForestActive
+) {
   clearPersistedLobotomyCorpAlert();
   clearPersistedLobotomyCorpDay();
 } else {
@@ -3549,9 +3856,21 @@ if (isLobotomyCorpAlertPageReload() && !restoredLobotomyCorpSpecialEvent) {
     }
   }
 }
+lobotomyCorpShelterEvent.restore();
+if (restoredLobotomyCorpBlackForest?.id === blackForestEventId) {
+  lobotomyCorpBlackForestEvent.restore();
+}
 if (restoredLobotomyCorpSpecialEvent?.id === lobotomyCorpWhiteNightEventId) {
   lobotomyCorpWhiteNightEvent.restore();
-} else {
+}
+if (
+  lobotomyCorpWhiteNightEvent.hasEventState() &&
+  lobotomyCorpBlackForestEvent.isActive()
+) {
+  lobotomyCorpBlackForestEvent.restrictHuntToWhiteNightPages();
+}
+if (!lobotomyCorpBlackForestEvent.isActive()) {
+  // 终末鸟事件只在寻找鸟蛋等接管阶段冻结衰减；记录阶段照常恢复普通 Day。
   restoreLobotomyCorpDangerDecay();
 }
 

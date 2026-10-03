@@ -4,6 +4,7 @@
   "accountConfirmPassword": "確認新密碼",
   "accountCurrentPassword": "目前密碼",
   "accountDisplayName": "顯示名稱",
+  "accountAvatarClearDecorations": "清除頭像框飾品",
   "accountDisplayNameInvalid": "顯示名稱須為 1-80 個字元，且不能包含控制字元。",
   "accountEdit": "編輯",
   "accountEditPassword": "修改密碼",

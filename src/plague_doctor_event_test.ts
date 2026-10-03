@@ -10,7 +10,7 @@ import {
   apostleAdventLightClip,
 } from "../static/fun/lobotomy-corp/Events/AdventLight.js";
 import {
-  plagueDoctorAdventEntityVideo,
+  plagueDoctorAdventEntityClassName,
   plagueDoctorAdventFocusClassName,
   plagueDoctorAdventFocusTimings,
   plagueDoctorAdventSchedule,
@@ -750,12 +750,14 @@ Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收
       harness,
       "lobotomy-corp-plague-doctor-advent-world-entity",
     );
-    assert(entity, "完整降临应挂载疫医实体视频");
+    assert(entity, "完整降临应挂载疫医实体节点");
+    // 本体是实时骨架：舞台就绪后画布挂在这个世界层节点里（测试宿主没有 WebGL，
+    // 因此这里只断言节点本身与舞台类名，画面由浏览器验证）。
     assertStrictEquals(
-      entity!.src,
-      `/static/fun/lobotomy-corp/Assets/Resources/sprites/creaturesprite/deathangel/${plagueDoctorAdventEntityVideo}`,
+      plagueDoctorAdventEntityClassName,
+      "lobotomy-corp-plague-doctor-advent-spine",
     );
-    // 视频属于世界层：必须排在同级的 Shader 图层之前（也就是整块原作 UI 之下）。
+    // 实体属于世界层：必须排在同级的 Shader 图层之前（也就是整块原作 UI 之下）。
     const addApostle = findByClassName(
       harness,
       "lobotomy-corp-plague-doctor-advent-add-apostle",
@@ -768,10 +770,10 @@ Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收
       `疫医实体必须画在 Shader 之下，实际顺序 ${order.join(" / ")}`,
     );
 
-    // 演出第 1 帧：镜头开始移向疫医，实体视频同步开播。
+    // 演出第 1 帧：镜头开始移向疫医，实体同步开播。
     assertStrictEquals(entity!.hidden, false);
 
-    // 睁眼结束后的那一秒是白夜换场（`OnPlagueDoctorAdventEnd()`），视频里已经包含，
+    // 睁眼结束后的那一秒是白夜换场（`OnPlagueDoctorAdventEnd()`），演出里已经包含，
     // 换场这一秒走完才撤掉。
     const entityVisibleFor = plagueDoctorAdventTimings.cameraMoveMs +
       plagueDoctorAdventTimings.plagueDoctorAdventMs +
@@ -787,7 +789,7 @@ Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收
     assertStrictEquals(
       entity!.hidden,
       true,
-      "睁眼结束后应撤掉疫医实体视频",
+      "睁眼结束后应撤掉疫医实体",
     );
   } finally {
     harness.restore();
@@ -1736,5 +1738,29 @@ Deno.test("疫医：白夜进行期间再次提交 O-01-45 不重复结算", asy
     assertStrictEquals(api.getDangerScore(), plagueDoctorTransformationDanger);
   } finally {
     harness.restore();
+  }
+});
+
+Deno.test("疫医转变：本体画面交给实时骨架，不再切换视频素材", async () => {
+  const source = await Deno.readTextFile(
+    new URL(
+      "../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
+      import.meta.url,
+    ),
+  );
+  // 注释里可以提到原来的视频，因此只在去掉注释与字符串后的代码结构里检查。
+  const code = stripJavaScriptCommentsAndStrings(source);
+  assert(code.includes("createPlagueDoctorSpineStage"));
+  assert(code.includes("layers.worldEntityStage?.play?.()"));
+  assert(code.includes("layers.worldEntityStage?.stop?.()"));
+  assert(!code.includes("createElement('video')"));
+  const assetDirectory = await Deno.readDir(
+    new URL(
+      "../static/fun/lobotomy-corp/Assets/Resources/sprites/creaturesprite/deathangel/",
+      import.meta.url,
+    ),
+  );
+  for await (const entry of assetDirectory) {
+    assert(!entry.name.endsWith(".webm"), entry.name);
   }
 });
