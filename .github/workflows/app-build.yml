@@ -1,86 +1,135 @@
-# 手动构建应用安装包；上传构建产物，不自动发布或覆盖 GitHub Release。
+# 正式 Release 发布后自动构建并上传应用；手动运行可补传至已有草稿或正式发行。
 name: Build Windows and Android applications
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
-      version:
-        description: '正式三段版本，例如 0.1.0'
+      tag:
+        description: "已有发行标签，例如 3.8.2（也支持 v3.8.2）"
         required: true
-        default: '0.1.0'
-      version_code:
-        description: 'Android 单调递增版本号'
-        required: true
-        default: '1'
+        type: string
+      upload:
+        description: "上传到该标签已有的 Release；关闭时仅保存 Actions 构建产物"
+        type: boolean
+        default: false
 permissions:
   contents: read
+concurrency:
+  group: app-release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
 jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      version_code: ${{ steps.release.outputs.version_code }}
+      commit: ${{ steps.release.outputs.commit }}
+      upload: ${{ steps.release.outputs.upload }}
+      release_id: ${{ steps.release.outputs.release_id }}
+      complete: ${{ steps.release.outputs.complete }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Resolve release tag and immutable source revision
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          UPLOAD_RELEASE: ${{ github.event_name == 'release' || inputs.upload }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          GH_TOKEN: ${{ github.token }}
+        run: deno run --allow-env --allow-read --allow-write --allow-run=git --allow-net=api.github.com scripts/app_release.ts prepare
+  check:
+    needs: prepare
+    if: needs.prepare.outputs.complete != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno task check
   windows:
+    needs: [prepare, check]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
-      - name: Validate release inputs
-        shell: pwsh
-        env:
-          APP_VERSION: ${{ inputs.version }}
-        run: |
-          if ($env:APP_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version' }
       - name: Build signed installer
         working-directory: apps/desktop
         shell: pwsh
         env:
-          APP_VERSION: ${{ inputs.version }}
+          APP_VERSION: ${{ needs.prepare.outputs.version }}
           CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
           WIN_PUBLISHER_NAME: ${{ vars.WINDOWS_PUBLISHER_NAME }}
         run: |
           if (!$env:CSC_LINK -or !$env:WIN_PUBLISHER_NAME) { throw 'Windows signing configuration is required' }
           npm ci --no-audit
-          npm version $env:APP_VERSION --no-git-tag-version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm version $env:APP_VERSION --no-git-tag-version --allow-same-version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run prepare:assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx electron-builder --win nsis --x64 --publish never --config.forceCodeSigning=true --config.win.publisherName="$env:WIN_PUBLISHER_NAME"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release
+          if-no-files-found: error
           path: |
-            apps/desktop/dist/*.exe
-            apps/desktop/dist/*.blockmap
+            apps/desktop/dist/heybox-topic-notifier-windows-x64-setup.exe
+            apps/desktop/dist/heybox-topic-notifier-windows-x64-setup.exe.blockmap
             apps/desktop/dist/latest.yml
   android:
+    needs: [prepare, check]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: "8.13"
       - name: Build signed APK
         env:
-          APP_VERSION: ${{ inputs.version }}
-          APP_VERSION_CODE: ${{ inputs.version_code }}
+          APP_VERSION: ${{ needs.prepare.outputs.version }}
+          APP_VERSION_CODE: ${{ needs.prepare.outputs.version_code }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           HONOR_PUSH_APP_ID: ${{ vars.HONOR_PUSH_APP_ID }}
         run: |
-          [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
-          [[ "$APP_VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || exit 1
-          (( APP_VERSION_CODE <= 2100000000 )) || exit 1
-          test -n "$ANDROID_KEYSTORE_BASE64"
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" && test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEYSTORE_PASSWORD" && test -n "$ANDROID_KEY_PASSWORD"
           export ANDROID_KEYSTORE="$RUNNER_TEMP/application-release.jks"
+          trap 'rm -f -- "$ANDROID_KEYSTORE"' EXIT
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE"
           node apps/scripts/prepare-assets.mjs --android
           gradle -p apps/android --no-daemon testDebugUnitTest lintRelease assembleRelease
@@ -88,4 +137,34 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: android-release
+          if-no-files-found: error
           path: heybox-topic-notifier-android-universal.apk
+  publish:
+    needs: [prepare, check, windows, android]
+    if: needs.prepare.outputs.upload == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: release-assets
+      - name: Verify and upload installers, then publish the updater manifest
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: deno run --allow-env --allow-read --allow-net=api.github.com,uploads.github.com scripts/app_release.ts publish release-assets

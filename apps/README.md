@@ -8,11 +8,39 @@
 
 - Windows：进入 `apps/desktop`，运行 `npm ci`、`npm test`、`npm run dist`。开发运行先执行 `npm run prepare:assets`，再 `npm start`。`HEYBOX_PREVIEW_ORIGIN` 只在未打包开发运行中生效，只允许 HTTPS 或 HTTP 回环地址。
 - Android：安装 JDK 17、Gradle 8.13、Android SDK 36，运行 `node apps/scripts/prepare-assets.mjs --android`，再运行 `gradle -p apps/android testDebugUnitTest lintDebug assembleDebug`。正式构建设置 `APP_VERSION`、递增的 `APP_VERSION_CODE`，以及 `ANDROID_KEYSTORE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个签名变量，运行 `assembleRelease`。Windows 下路径过长时可用临时 `subst` 盘符指向仓库和本地工具链，构建后取消映射，不移动项目。
-- `app-build.yml` 只手动运行并保存构建产物，不自动发布 Release。Windows 正式安装包必须配置 Authenticode 签名和发布者名称；Android 必须持续使用同一签名证书。
+- `app-build.yml` 在正式 Release 发布时自动运行，读取标签版本并固定源码提交，执行检查后并行构建 Windows 和 Android；只有两端都成功才上传附件。Windows 正式安装包必须配置 Authenticode 签名和发布者名称；Android 必须持续使用同一签名证书。
 
 ## Release 更新
 
-发行标签使用 `v0.1.0` 形式。将 Windows 安装包、对应 `.blockmap`、`latest.yml` 和 `heybox-topic-notifier-android-universal.apk` 一起放入同一个正式 Release。完整上传后再发布，避免目录先出现而附件仍缺失。
+沿用仓库现有的 `3.8.2` 标签格式，也兼容 `v3.8.2`。正式发布时自动生成并上传以下四个附件，无需手工下载 Actions 产物后转传：
+
+- `heybox-topic-notifier-windows-x64-setup.exe`
+- `heybox-topic-notifier-windows-x64-setup.exe.blockmap`
+- `heybox-topic-notifier-android-universal.apk`
+- `latest.yml`（核对版本、尺寸和摘要后最后上传）
+
+Android `versionCode` 自动使用 `major × 1,000,000 + minor × 1,000 + patch + 1`，例如 `3.8.2 → 3008003`。同版本重跑保持相同编码；major 上限为 2099，minor、patch 上限为 999。正式发布后不要改换编码规则或签名密钥。
+
+首次启用前，在仓库 **Settings → Secrets and variables → Actions** 配置：
+
+| 类型 | 名称 | 用途 |
+| --- | --- | --- |
+| Secret | `WINDOWS_CSC_LINK` | electron-builder 支持的 Windows 签名证书配置 |
+| Secret | `WINDOWS_CSC_KEY_PASSWORD` | Windows 证书密码 |
+| Variable | `WINDOWS_PUBLISHER_NAME` | 证书中的发布者名称 |
+| Secret | `ANDROID_KEYSTORE_BASE64` | 正式 Android keystore 的 Base64 内容 |
+| Secret | `ANDROID_KEYSTORE_PASSWORD` | keystore 密码 |
+| Secret | `ANDROID_KEY_ALIAS` | 签名密钥别名 |
+| Secret | `ANDROID_KEY_PASSWORD` | 签名密钥密码 |
+| Variable（可选） | `HONOR_PUSH_APP_ID` | 荣耀推送公开应用 ID；未设置时不初始化厂商通道 |
+
+上传使用当前任务的 `GITHUB_TOKEN`，仅上传 job 获得 `contents: write`，无需另存个人访问令牌。配置缺失、检查失败或任一平台构建失败都会阻止上传；正式流程不会降级为调试签名。
+
+标签指向的提交必须包含这套工作流与应用源码。发布正式 Release 后等待 Actions 成功，网页下载和客户端更新才具备完整附件；草稿不会触发 `published`，预发行不会进入正式更新通道。使用默认 `GITHUB_TOKEN` 在其它工作流中创建 Release 不会触发这条发布事件，此时应显式调用本工作流的 `workflow_dispatch`，传入 `tag` 和 `upload: true`。[GitHub 触发规则](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
+
+手动触发仍可用于排错：`tag` 填已有标签，`upload` 关闭时仅生成 Actions 产物，开启时上传到该标签已有的草稿或正式 Release。上传中断后优先重跑失败的上传 job，复用原构建产物；同摘要附件会跳过，空的未完成上传会清理后重试，内容不同的同名附件不会覆盖。
+
+如果仓库启用了不可变 Release，必须先创建草稿，通过手动工作流上传完整附件再发布；已锁定且附件齐全的发布事件会跳过重复构建，缺失附件则明确失败。GitHub 不允许在不可变 Release 发布后追加附件。[GitHub 不可变发行说明](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
 
 Windows 通过 `electron-updater` 校验下载摘要与签名，用户确认后下载，重启或退出时安装。Android 从 GitHub API 读取 APK 的 SHA-256，校验包名、版本号和与已安装应用相同的签名，再交给系统安装器；系统要求的安装授权与确认必须由用户完成。下载失败、取消或仍运行旧版本都不会清除项目版本红点。
 
