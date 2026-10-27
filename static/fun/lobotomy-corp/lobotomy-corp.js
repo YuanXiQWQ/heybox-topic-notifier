@@ -40,7 +40,7 @@ import {
   blackForestEventId,
   blackForestGift,
   createBlackForestEvent,
-} from './Events/BlackForest.js';
+} from './Events/BlackForest.js?v=20261026-slot-rules';
 import {
   createShelterEvent,
   shelterAbnormalityId,
