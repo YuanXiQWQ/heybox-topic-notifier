@@ -250,6 +250,8 @@ function renderLastPollScript(
       let lastDueDashboardRefreshAt = 0;
       let lastDueDashboardRefreshBaseline = "";
       let dashboardVersion = "";
+      let serverTimeAnchor = ${Date.now()};
+      let monotonicTimeAnchor = performance.now();
 
       const locale = lastPoll.dataset.lastPollLocale || "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
@@ -275,6 +277,26 @@ function renderLastPollScript(
         if (document.visibilityState !== "visible") return;
         void refreshDashboardState();
       }, dashboardStateRefreshMs);
+
+      /**
+       * 按服务端时间锚点和单调计时器计算当前时间，避免本机时钟偏差或校时影响。
+       *
+       * @return {number} 服务端时间尺度的毫秒时间戳。
+       */
+      function serverNow() {
+        return serverTimeAnchor + performance.now() - monotonicTimeAnchor;
+      }
+
+      /**
+       * 使用响应生成时间校准当前页面，收到旧格式响应时保留已有时间基准。
+       *
+       * @param {number | undefined} serverTime 响应中的服务端毫秒时间戳。
+       */
+      function synchronizeServerTime(serverTime) {
+        if (typeof serverTime !== "number" || !Number.isFinite(serverTime)) return;
+        serverTimeAnchor = serverTime;
+        monotonicTimeAnchor = performance.now();
+      }
 
       function updateLastPoll() {
         if (!Number.isFinite(timestamp)) {
@@ -308,24 +330,30 @@ function renderLastPollScript(
           if (!response.ok) return;
           const state = await response.json();
           if (query !== location.search) return;
-          if (state.unchanged === true) return;
+          synchronizeServerTime(state.serverTime);
+          if (state.unchanged === true) {
+            updateLastPoll();
+            updateNextPoll();
+            return;
+          }
           const nextTimestamp = parseTimestamp(state.lastPollAt);
-          if (Number.isFinite(nextTimestamp) && nextTimestamp !== timestamp) {
+          const didCompletePoll = Number.isFinite(nextTimestamp) && nextTimestamp !== timestamp;
+          if (didCompletePoll) {
             timestamp = nextTimestamp;
             scheduleTimestamp = latestTimestamp(scheduleTimestamp, nextTimestamp);
             lastPoll.dataset.lastPollAt = state.lastPollAt;
-            updateLastPoll();
-            if (hasSyncedDashboardState) {
-              animateNextPollReset({ preserveExistingFill: false });
-            } else {
-              updateNextPoll({ instant: true });
-            }
+          }
+          updatePollingSettings(state.polling);
+          updateLastPoll();
+          if (didCompletePoll && hasSyncedDashboardState) {
+            animateNextPollReset({ preserveExistingFill: false });
+          } else {
+            updateNextPoll({ instant: !hasSyncedDashboardState && !isAnimatingNextPollReset });
           }
           updateLatestMatch(state.latestMatch);
           if (totalMatches && Number.isInteger(state.totalMatches)) {
             totalMatches.textContent = String(state.totalMatches);
           }
-          updatePollingSettings(state.polling);
           updatePendingSection(state.pendingHtml, state.pendingSignature);
           dashboardVersion = typeof state.version === "string" ? state.version : "";
           hasSyncedDashboardState = true;
@@ -378,6 +406,11 @@ function renderLastPollScript(
         window["__matchTableOverflowUpdate"]?.();
       }
 
+      /**
+       * 同步轮询设置与时间基准，供倒计时和回填动画共同读取。
+       *
+       * @param {object | undefined} polling 服务端返回的轮询设置。
+       */
       function updatePollingSettings(polling) {
         if (!nextPollPanel || !polling) return;
         nextPollPanel.dataset.pollEnabled = polling.enabled ? "true" : "false";
@@ -388,7 +421,6 @@ function renderLastPollScript(
           timestamp,
           parseTimestamp(polling.intervalStartedAt),
         );
-        updateNextPoll({ instant: !hasSyncedDashboardState && !isAnimatingNextPollReset });
       }
 
       function updateNextPoll(options = {}) {
@@ -406,6 +438,12 @@ function renderLastPollScript(
         refreshDashboardWhenPollDue(nextState);
       }
 
+      /**
+       * 在服务端时间尺度上计算剩余时间及填充宽度。
+       *
+       * @param {object} options 动画目标相对当前时间的偏移选项。
+       * @return {object | null} 进度状态，缺少页面元素时返回 null。
+       */
       function getNextPollState(options = {}) {
         if (!nextPollPanel || !nextPollFill || !nextPollRemaining) return null;
         const enabled = nextPollPanel.dataset.pollEnabled === "true";
@@ -419,7 +457,7 @@ function renderLastPollScript(
 
         const elapsedMs = Math.max(
           0,
-          Date.now() + (options.offsetMs || 0) - scheduleTimestamp,
+          serverNow() + (options.offsetMs || 0) - scheduleTimestamp,
         );
         const remainingMs = Math.max(0, intervalMs - elapsedMs);
         const progress = Math.max(0, Math.min(1, remainingMs / intervalMs));
@@ -431,6 +469,11 @@ function renderLastPollScript(
         };
       }
 
+      /**
+       * 到期时触发检查，并用单调时间限制同一轮的重试频率。
+       *
+       * @param {object} nextState 当前倒计时状态。
+       */
       function refreshDashboardWhenPollDue(nextState) {
         if (document.visibilityState !== "visible" || nextState.remainingMs > 0) return;
         if (isDashboardStateRefreshInFlight) return;
@@ -438,7 +481,7 @@ function renderLastPollScript(
           ? String(scheduleTimestamp)
           : "";
         if (!baseline) return;
-        const now = Date.now();
+        const now = performance.now();
         const retryMs = Math.max(3000, Math.min(nextState.intervalMs, dashboardStateRefreshMs));
         if (
           lastDueDashboardRefreshBaseline === baseline &&
@@ -659,9 +702,16 @@ function renderLastPollScript(
         return timestamps.length > 0 ? Math.max(...timestamps) : NaN;
       }
 
+      /**
+       * 使用服务端时间尺度格式化上次查询的相对时间。
+       *
+       * @param {number} value 服务端记录的查询时间戳。
+       * @param {string} locale 当前语言。
+       * @return {string} 相对时间文案。
+       */
       function formatRelativeTime(value, locale) {
         const date = new Date(value);
-        const diffSeconds = Math.max(0, Math.floor((Date.now() - value) / 1000));
+        const diffSeconds = Math.max(0, Math.floor((serverNow() - value) / 1000));
 
         if (diffSeconds === 0) {
           return relativeTemplates.justNow;
@@ -693,7 +743,7 @@ function renderLastPollScript(
 
         return formatInChina(
           date,
-          sameChinaYear(date, new Date(), locale)
+          sameChinaYear(date, new Date(serverNow()), locale)
             ? { day: "2-digit", month: "2-digit" }
             : { day: "2-digit", month: "2-digit", year: "numeric" },
           locale,

@@ -253,7 +253,10 @@ export function createRoutes(context: AppContext): Hono {
       ? undefined
       : await dashboardResponseVersion(dataVersion, searchParams, csrf.token);
     if (version && c.req.header("x-dashboard-version") === version) {
-      return withCsrfCookie(c.json({ unchanged: true, version }), csrf);
+      return withCsrfCookie(
+        c.json({ unchanged: true, version, serverTime: Date.now() }),
+        csrf,
+      );
     }
     // 版本先于数据读取，期间发生的更新会在下次检查中产生不同版本。
     const { pendingMatches, settings, state } = await storage
@@ -288,6 +291,7 @@ export function createRoutes(context: AppContext): Hono {
           intervalValue: settings.polling.intervalValue,
         },
         totalMatches: state.totalMatches,
+        serverTime: Date.now(),
       }),
       csrf,
     );

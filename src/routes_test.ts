@@ -3434,11 +3434,16 @@ Deno.test("dashboard versions skip unchanged snapshots and bind filters and CSRF
     headers: testCsrfHeaders(),
   });
   const initial = await first.json();
+  assertEquals(typeof initial.serverTime, "number");
   const headers = testCsrfHeaders({ "x-dashboard-version": initial.version });
   const unchanged = await app.request("/dashboard-state?page=1", { headers });
-  assertEquals(await unchanged.json(), {
+  const unchangedState = await unchanged.json();
+  assertEquals(typeof unchangedState.serverTime, "number");
+  assertEquals(unchangedState.serverTime >= initial.serverTime, true);
+  assertEquals(unchangedState, {
     unchanged: true,
     version: initial.version,
+    serverTime: unchangedState.serverTime,
   });
   assertEquals(unchanged.headers.get("cache-control"), "no-store");
   assertEquals(snapshots, 1);
