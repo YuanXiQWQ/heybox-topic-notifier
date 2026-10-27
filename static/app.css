@@ -3222,3 +3222,7 @@ tr:last-child td{
 .matching-picker-menu [data-model-status][hidden]{ display: none; }
 .matching-without-keywords [data-action="edit-topic-keywords"]{ display: none; }
 @media (prefers-reduced-motion: reduce){ .matching-conditional-row{ transition: none; } }
+
+/* 连通测试沿用通知测试的行尾图标按钮与状态布局。 */
+.matching-test-action{ display: inline-flex; flex: 0 0 auto; margin-inline-start: auto; order: 2; }
+.matching-test-action[hidden]{ display: none; }

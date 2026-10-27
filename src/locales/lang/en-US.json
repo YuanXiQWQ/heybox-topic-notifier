@@ -370,5 +370,14 @@
   "matchingLoading": "Loading models…",
   "matchingNoModels": "No models available",
   "matchingModelsError": "Unable to load models. Check configuration and retry.",
-  "matchingModelCredentials": "Enter an API key first"
+  "matchingModelCredentials": "Enter an API key first",
+  "matchDetailAi": "AI match",
+  "matchExcerpt": "Excerpt",
+  "matchUnknown": "Unknown",
+  "matchingTestConnection": "Test connection",
+  "matchingTesting": "Testing…",
+  "matchingConnected": "Connected",
+  "matchingConnectionFailed": "Connection failed. Check endpoint, API key, model and output limit.",
+  "matchingConnectionLimit": "Daily call limit reached",
+  "matchingConnectionBusy": "Matching is in progress. Please retry shortly."
 }

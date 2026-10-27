@@ -165,6 +165,7 @@ Deno.test("poller integrates AI results with existing match records and notifica
     f.decide({
       decision: "match",
       reason: "需要帮助",
+      location: "title",
       inputTokens: 100,
       outputTokens: 20,
       usageKnown: true,
@@ -188,7 +189,10 @@ Deno.test("poller integrates AI results with existing match records and notifica
     assertEquals(notifications, 1);
     const history = await f.storage.listHistory();
     assertEquals(history.length, 1);
-    assert(history[0].keyword.startsWith("AI:"));
+    assertEquals(history[0].kind, "ai");
+    assertEquals(history[0].keyword, "");
+    assertEquals(history[0].aiReason, "需要帮助");
+    assertEquals(history[0].location, "title");
     assert(history[0].notifiedAt);
   } finally {
     f.close();
@@ -216,12 +220,43 @@ Deno.test("matching invalidates changed content and prompts but not price or bud
   }
 });
 
+Deno.test("cached AI details retain their type and missing legacy locations do not require paid reclassification", async () => {
+  const f = await fixture();
+  try {
+    f.decide({
+      decision: "match",
+      reason: "标题描述了求助",
+      location: "title",
+      inputTokens: 10,
+      outputTokens: 10,
+      usageKnown: true,
+    });
+    const first = await f.run();
+    assertEquals(await f.run(), first);
+    assertEquals(f.calls(), 1);
+    const entry = await f.store.get(await matchingHash(["topic", "p1"]));
+    assert(entry);
+    entry.result = { keyword: "AI: 标题描述了求助", location: "body" };
+    await f.store.put(entry);
+    assertEquals(await f.run(), [{
+      kind: "ai",
+      keyword: "",
+      aiReason: "标题描述了求助",
+      location: "unknown",
+    }]);
+    assertEquals(f.calls(), 1);
+  } finally {
+    f.close();
+  }
+});
+
 Deno.test("rules use no AI while hybrid evaluates rules against full details", async () => {
   const f = await fixture();
   try {
     f.app.matching!.mode = "rules";
     assertEquals(await f.run([post("p1", "求助")]), [{
       keyword: "求助",
+      kind: "keyword",
       location: "body",
     }]);
     assertEquals(f.calls(), 0);
@@ -237,12 +272,14 @@ Deno.test("rules use no AI while hybrid evaluates rules against full details", a
     f.decide({
       decision: "match",
       reason: "正在求助",
+      location: "title",
       inputTokens: 100,
       outputTokens: 20,
       usageKnown: true,
     });
     assertEquals(await f.run([post("p3", "列表没有关键词")]), [{
       keyword: "求助",
+      kind: "keyword",
       location: "body",
     }]);
     assertEquals(f.calls(), 1);

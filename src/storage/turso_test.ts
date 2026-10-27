@@ -85,6 +85,18 @@ Deno.test("Turso storage updates and deletes matches without changing records", 
   });
 });
 
+Deno.test("Turso preserves AI match metadata across updates and history reads", async () => {
+  await withStorage(async (storage) => {
+    const ai: MatchRecord = { ...record("ai-record", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z"), kind: "ai", keyword: "", aiReason: "摘要描述了求助问题", location: "excerpt" };
+    await storage.saveMatch(ai);
+    await storage.markMatchNotified(ai.id, "2026-09-01T02:00:00.000Z");
+    const stored = (await storage.listHistory())[0];
+    assertEquals(stored.kind, "ai");
+    assertEquals(stored.aiReason, ai.aiReason);
+    assertEquals(stored.location, "excerpt");
+  });
+});
+
 Deno.test("Turso match ordering preserves Deno KV key order for time ties", async () => {
   await withStorage(async (storage) => {
     const matchedAt = "2026-09-01T00:00:00.000Z";

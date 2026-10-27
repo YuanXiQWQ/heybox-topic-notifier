@@ -39,6 +39,7 @@ Deno.test("AI sends bounded isolated JSON and reads structured decisions and usa
               content: JSON.stringify({
                 decision: "match",
                 reason: "需要帮助",
+                location: "title",
               }),
             },
           }],
@@ -49,6 +50,7 @@ Deno.test("AI sends bounded isolated JSON and reads structured decisions and usa
   });
   const result = await matcher.classify(sample, settings);
   assertEquals(result.decision, "match");
+  assertEquals(result.location, "title");
   assertEquals(result.inputTokens, 500);
   assertEquals(result.outputTokens, 20);
   assertEquals(result.usageKnown, true);
@@ -65,6 +67,54 @@ Deno.test("AI sends bounded isolated JSON and reads structured decisions and usa
     }),
   );
   assertEquals(text.title.length + text.body.length + text.excerpt.length, 200);
+});
+
+Deno.test("AI reasons are single-line and bounded; locations must refer to transmitted nonempty fields", async () => {
+  const cases = [
+    { location: "title", expected: "title" },
+    { location: "body", expected: "body" },
+    { location: "excerpt", expected: "unknown" },
+    { location: "comments", expected: "unknown" },
+    { location: "replies", expected: "unknown" },
+    { location: "elsewhere", expected: "unknown" },
+    { location: undefined, expected: "unknown" },
+    { location: "comments", expected: "comments", comments: true },
+    { location: "body", expected: "excerpt", excerptOnly: true },
+    { location: "body", expected: "unknown", truncated: true },
+  ];
+  for (const item of cases) {
+    const matcher = createAiMatcher({
+      resolveDns: () => Promise.resolve(["93.184.216.34"]),
+      fetch: () =>
+        Promise.resolve(
+          Response.json({
+            choices: [{
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify({
+                  decision: "match",
+                  reason: "  作者求助\n" + "🎮".repeat(80),
+                  location: item.location,
+                }),
+              },
+            }],
+          }),
+        ),
+    });
+    const result = await matcher.classify({
+      ...sample,
+      ...(item.excerptOnly ? { body: "", excerpt: "摘要求助" } : {}),
+      ...(item.truncated ? { title: "长".repeat(200) } : {}),
+    }, {
+      ...settings,
+      includeComments: Boolean(item.comments),
+      maxInputChars: item.truncated ? 200 : 3000,
+    });
+    assertEquals(result.location, item.expected);
+    assertEquals(Array.from(result.reason!).length, 30);
+    assert(!result.reason!.includes("\n"));
+    assert(result.reason!.endsWith("…"));
+  }
 });
 
 Deno.test("AI rejects malformed and truncated output without losing reported token usage", async () => {

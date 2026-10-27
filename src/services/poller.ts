@@ -1,7 +1,7 @@
 /**
  * @file 本文件负责轮询话题帖子、执行规则或 AI 匹配并触发通知。
  */
-import type { AppSettings, MatchRecord } from "../models.ts";
+import type { AppSettings, MatchRecord, MatchResult } from "../models.ts";
 import type { MatchedPostIndexEntry, Storage } from "../storage/types.ts";
 import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
@@ -143,12 +143,13 @@ export function createPoller(
             }
 
             const detailedPost = await resolvePostDetails(source, post);
+            const result: MatchResult = match;
             const record: MatchRecord = {
               detailRefreshedAt: runAt,
               id:
-                `${topic.id}:${detailedPost.id}:${match.keyword}:${match.location}`,
-              keyword: match.keyword,
-              location: match.location,
+                `${topic.id}:${detailedPost.id}:${result.kind === "ai" ? "ai" : match.keyword}:${match.location}`,
+              ...match,
+              kind: result.kind ?? "keyword",
               matchedAt: runAt,
               post: detailedPost,
             };

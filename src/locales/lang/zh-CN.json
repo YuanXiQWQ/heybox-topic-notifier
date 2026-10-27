@@ -370,5 +370,14 @@
   "matchingLoading": "正在获取模型…",
   "matchingNoModels": "没有可选模型",
   "matchingModelsError": "获取模型失败，请检查配置后重试",
-  "matchingModelCredentials": "请先填写 API 密钥"
+  "matchingModelCredentials": "请先填写 API 密钥",
+  "matchDetailAi": "AI 匹配",
+  "matchExcerpt": "摘要",
+  "matchUnknown": "未确定",
+  "matchingTestConnection": "测试连通",
+  "matchingTesting": "正在测试…",
+  "matchingConnected": "连接成功",
+  "matchingConnectionFailed": "连接失败，请检查接口、密钥、模型及输出上限",
+  "matchingConnectionLimit": "已达到每日调用上限",
+  "matchingConnectionBusy": "正在执行匹配，请稍后重试"
 }

@@ -1,9 +1,10 @@
 /**
  * @file 本文件负责渲染命中记录表格及其筛选、分页、选择交互脚本。
  */
+import { normalizeMatchResult } from "../services/match_result.ts";
 import { getMessages } from "../locales/index.ts";
 import { type Locale, locales, type Messages } from "../locales/types.ts";
-import type { MatchLocation } from "../models.ts";
+import type { MatchResultLocation } from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { plainTextFromHeyboxContent } from "../services/heybox_topic_source.ts";
 import { escapeHtml } from "./html.ts";
@@ -207,11 +208,11 @@ function renderRelativeTimeCell(
 /**
  * 渲染命中记录详情单元格。
  *
- * @param record 命中记录。
- * @param now 当前时间。
- * @param locale 当前语言标识。
- * @param messages 当前语言文案。
- * @return 命中记录详情单元格 HTML。
+ * @param {MatchTableResult["records"][number]} record 命中记录，按记录类型展示关键词或 AI 原因。
+ * @param {Date} now 当前时间。
+ * @param {Locale} locale 当前语言标识。
+ * @param {Messages} messages 当前语言文案。
+ * @return {string} 命中记录详情单元格 HTML。
  */
 function renderMatchDetails(
   record: MatchTableResult["records"][number],
@@ -219,6 +220,7 @@ function renderMatchDetails(
   locale: Locale,
   messages: Messages,
 ): string {
+  const result = normalizeMatchResult(record);
   const details = [
     [
       messages.matchDetailPublished,
@@ -229,13 +231,13 @@ function renderMatchDetails(
       renderRelativeTimeCell(record.matchedAt, now, locale),
     ],
     [
-      messages.matchDetailKeyword,
-      `<span class="match-detail-value">${escapeHtml(record.keyword)}</span>`,
+      result.kind === "ai" ? messages.matchDetailAi : messages.matchDetailKeyword,
+      `<span class="match-detail-value">${escapeHtml(result.kind === "ai" ? result.aiReason || "—" : result.keyword)}</span>`,
     ],
     [
       messages.matchDetailLocation,
       `<span class="match-detail-value">${
-        escapeHtml(locationLabel(record.location, messages))
+        escapeHtml(locationLabel(result.location, messages))
       }</span>`,
     ],
   ];
@@ -639,15 +641,19 @@ function renderPaginationScript(): string {
 /**
  * 获取命中位置展示文案。
  *
- * @param location 命中位置。
- * @param messages 当前语言文案。
- * @return 命中位置展示文案。
+ * @param {MatchResultLocation | undefined} location 命中位置。
+ * @param {Messages} messages 当前语言文案。
+ * @return {string} 命中位置展示文案。
  */
 function locationLabel(
-  location: MatchLocation | undefined,
+  location: MatchResultLocation | undefined,
   messages: Messages,
 ): string {
   switch (location) {
+    case "excerpt":
+      return messages.matchExcerpt;
+    case "unknown":
+      return messages.matchUnknown;
     case "title":
       return messages.matchTitle;
     case "body":

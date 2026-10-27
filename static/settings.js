@@ -7107,7 +7107,73 @@ function initMatchingPicker(root) {
   return {input, list, label, menu, filter, select, setOpen};
 }
 
-/** 初始化匹配抽屉、两级搜索选择器与供应商模型列表。 */
+/**
+ * 测试当前匹配表单的连通性，并在配置变化时丢弃过期反馈。
+ * @param {HTMLElement} section 匹配设置抽屉。
+ */
+function initAiConnectionTest(section) {
+  const button = section.querySelector('[data-test-ai-button]');
+  const status = section.querySelector('[data-test-ai-status]');
+  const mode = section.querySelector('[data-matching-mode]');
+  let request;
+  let revision = 0;
+  let timer;
+  /**
+   * 清除不再对应当前配置的测试状态。
+   * @param {Event} event 配置编辑事件。
+   */
+  function invalidate(event) {
+    if (!event.target.matches('[name], [data-secret-display-input]')) return;
+    revision++;
+    request?.abort();
+    clearTimeout(timer);
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    status.hidden = true;
+  }
+  section.addEventListener('input', invalidate);
+  section.addEventListener('change', invalidate);
+  button.addEventListener('click', async () => {
+    if (button.disabled || mode.value === 'rules') return;
+    const current = ++revision;
+    request = new AbortController();
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    status.hidden = false;
+    status.dataset.state = 'sending';
+    status.textContent = button.dataset.testing;
+    const data = new FormData();
+    for (const [name, value] of new FormData(section.closest('form'))) {
+      if (name.startsWith('matching')) data.append(name, value);
+    }
+    clearTimeout(timer);
+    try {
+      const response = await fetch('/settings/test-ai', {
+        method: 'POST', body: data, headers: csrfRequestHeaders(), signal: request.signal,
+      });
+      const result = await response.json();
+      if (current !== revision) return;
+      const success = response.ok && result.ok === true;
+      status.dataset.state = success ? 'success' : 'error';
+      status.textContent = success ? button.dataset.connected
+          : result.error === 'limit' ? button.dataset.limit
+          : result.error === 'busy' ? button.dataset.busy
+          : button.dataset.failed + (result.detail ? '（' + result.detail + '）' : '');
+      if (success) timer = setTimeout(() => { if (current === revision) status.hidden = true; }, 3000);
+    } catch (error) {
+      if (current !== revision || error.name === 'AbortError') return;
+      status.dataset.state = 'error';
+      status.textContent = button.dataset.failed;
+    } finally {
+      if (current === revision) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+      }
+    }
+  });
+}
+
+/** 初始化匹配抽屉、连通测试、两级搜索选择器与供应商模型列表。 */
 function initMatchingSettings() {
   const section = document.querySelector('[data-matching-editor]');
   const advanced = document.querySelector('[data-advanced-editor]');
@@ -7121,6 +7187,7 @@ function initMatchingSettings() {
   const apiUrl = section.querySelector('[name="matchingApiUrl"]');
   const key = section.querySelector('[name="matchingApiKey"]');
   const secret = section.querySelector('[data-secret-display-input]');
+  initAiConnectionTest(section);
   const thinking = section.querySelector('[name="matchingEnableThinking"]');
   const status = section.querySelector('[data-model-status]');
   model.menu.append(status);
@@ -7135,6 +7202,7 @@ function initMatchingSettings() {
    */
   function update(animate = true) {
     const ai = mode.value !== 'rules';
+    setMatchingRowVisible(section.querySelector('[data-matching-test-action]'), ai, animate);
     section.querySelector('[data-matching-summary]').textContent = mode.selectedOptions[0].textContent;
     section.querySelectorAll('[data-matching-ai-field]').forEach((row) => setMatchingRowVisible(row, ai, animate));
     setMatchingRowVisible(section.querySelector('[data-matching-url]'), ai && provider.input.value === 'custom', animate);

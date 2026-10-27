@@ -359,6 +359,15 @@ export type Messages = {
   matchDetailLocation: string;
   matchDetailMatched: string;
   matchDetailPublished: string;
+  matchDetailAi: string;
+  matchExcerpt: string;
+  matchUnknown: string;
+  matchingTestConnection: string;
+  matchingTesting: string;
+  matchingConnected: string;
+  matchingConnectionFailed: string;
+  matchingConnectionLimit: string;
+  matchingConnectionBusy: string;
   matchDetails: string;
   matchLocationHeader: string;
   matchReplies: string;

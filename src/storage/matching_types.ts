@@ -1,6 +1,5 @@
 /** @file 定义用户隔离的轻量判定缓存、待处理队列、统计与租约契约。 */
-import type { TopicPost } from "../models.ts";
-import type { KeywordMatch } from "../services/matcher.ts";
+import type { MatchResult, TopicPost } from "../models.ts";
 
 /** 成功判定不保存正文；只有尚待处理的条目暂存有长度上限的帖子。 */
 export type MatchingEntry = {
@@ -14,7 +13,7 @@ export type MatchingEntry = {
   evaluatedAt?: number;
   detailCheckedAt?: number;
   detailFingerprint?: string;
-  result?: KeywordMatch | null;
+  result?: MatchResult | null;
   pendingPost?: TopicPost;
   attempts: number;
   retryAt: number;

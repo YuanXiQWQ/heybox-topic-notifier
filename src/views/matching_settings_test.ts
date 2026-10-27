@@ -93,11 +93,52 @@ Deno.test("matching settings stay between topics and keywords and expose only re
   assert(basic.includes("data-matching-thinking hidden"));
   assert(!basic.includes("matchingDailyLimit"));
   assert(!basic.includes("field-hint"));
+  const modeRow = basic.slice(
+    basic.indexOf('name="matchingMode"'),
+    basic.indexOf('data-matching-picker="matchingProvider"'),
+  );
+  assert(modeRow.includes("data-test-ai-button"));
+  assert(modeRow.includes('aria-label="测试连通"'));
   const advanced = renderMatchingAdvanced(settings);
   assert(advanced.includes("matchingDailyLimit"));
   assert(advanced.includes("matchingCacheMaxEntries"));
   assert(!advanced.includes("field-hint"));
   assert(!advanced.includes("话题缓存期限"));
+});
+
+Deno.test("AI connection route rejects missing CSRF and cannot use credentials from another provider", async () => {
+  const settings = {
+    ...defaultAppSettingsFromEnv(),
+    matching: normalizeMatchingSettings({
+      mode: "ai",
+      provider: "deepseek",
+      model: "deepseek-flash",
+      apiKey: "fixture-secret",
+    }),
+  };
+  const app = createRoutes(
+    {
+      storage: { getSettings: () => Promise.resolve(settings) },
+    } as unknown as AppContext,
+  );
+  const denied = await app.request("/settings/test-ai", {
+    method: "POST",
+    body: new URLSearchParams(),
+  });
+  assertEquals(denied.status, 403);
+  await denied.body?.cancel();
+  const wrongProvider = await app.request("/settings/test-ai", {
+    method: "POST",
+    headers: testCsrfHeaders(),
+    body: testCsrfForm(
+      new URLSearchParams({ matchingMode: "ai", matchingProvider: "openai" }),
+    ),
+  });
+  assertEquals(wrongProvider.status, 400);
+  assertEquals(await wrongProvider.json(), {
+    ok: false,
+    error: "configuration",
+  });
 });
 
 Deno.test("switching company or endpoint cannot reuse another service API key", () => {

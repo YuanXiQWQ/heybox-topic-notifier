@@ -131,7 +131,7 @@ export function renderMatchingSection(
     : "";
   const body = row(
     m.matchingMode,
-    `<select name="matchingMode" data-matching-mode aria-label="${
+    `<div class="notification-provider-row"><select name="matchingMode" data-matching-mode aria-label="${
       e(m.matchingMode)
     }">${
       Object.entries(modes).map(([value, label]) =>
@@ -139,7 +139,19 @@ export function renderMatchingSection(
           e(label)
         }</option>`
       ).join("")
-    }</select>`,
+    }</select><span class="matching-test-action matching-conditional-row" data-matching-test-action ${
+      s.mode === "rules" ? "hidden" : ""
+    }><button type="button" class="settings-row-action-button settings-icon-action-button" data-test-ai-button aria-label="${
+      e(m.matchingTestConnection)
+    }" data-tooltip="${e(m.matchingTestConnection)}" data-testing="${
+      e(m.matchingTesting)
+    }" data-connected="${e(m.matchingConnected)}" data-failed="${
+      e(m.matchingConnectionFailed)
+    }" data-limit="${e(m.matchingConnectionLimit)}" data-busy="${
+      e(m.matchingConnectionBusy)
+    }">${
+      materialSymbolIcon("link", "settings-row-action-icon")
+    }</button></span><span class="inline-action-status" data-test-ai-status role="status" hidden></span></div>`,
     "",
     "sort",
   ) +

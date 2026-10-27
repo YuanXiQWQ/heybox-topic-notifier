@@ -2,6 +2,7 @@
 import type {
   AppSettings,
   KeywordRule,
+  MatchResult,
   TopicPost,
   TopicRule,
 } from "../models.ts";
@@ -11,8 +12,9 @@ import type {
   MatchingStore,
 } from "../storage/matching_types.ts";
 import { aiEndpoint, aiPostText, createAiMatcher } from "./ai_matcher.ts";
-import type { createMatcher, KeywordMatch } from "./matcher.ts";
+import type { createMatcher } from "./matcher.ts";
 import { matchingDayMs, observeTopic } from "./matching_activity.ts";
+import { normalizeMatchResult, shortAiReason } from "./match_result.ts";
 import { normalizeMatchingSettings } from "./matching_settings.ts";
 import type { TopicSource } from "./topic_source.ts";
 
@@ -163,13 +165,13 @@ export async function startMatchingRun(
      * @param {TopicPost} post 列表帖子或待处理快照。
      * @param {TopicRule} topic 话题。
      * @param {KeywordRule[]} rules 当前话题的合并规则。
-     * @return {Promise<KeywordMatch | undefined>} 命中结果，未命中或待处理时无结果。
+     * @return {Promise<MatchResult | undefined>} 命中结果，未命中或待处理时无结果。
      */
     async findMatch(
       post: TopicPost,
       topic: TopicRule,
       rules: KeywordRule[],
-    ): Promise<KeywordMatch | undefined> {
+    ): Promise<MatchResult | undefined> {
       await renew();
       runtime = matchingRuntimeForDay(runtime, now());
       let config = configs.get(topic.id);
@@ -231,7 +233,7 @@ export async function startMatchingRun(
         runtime.hits++;
         if (activity) activity.hits++;
         await saveEntry(entry);
-        return entry.result ?? undefined;
+        return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;
       }
       if (
         same && live && entry.result === undefined &&
@@ -248,7 +250,7 @@ export async function startMatchingRun(
         entry.result = await rulesMatcher.findMatch(post, rules) ?? null;
         entry.evaluatedAt = timestamp;
         await saveEntry(entry);
-        return entry.result ?? undefined;
+        return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;
       }
       const limited = JSON.parse(aiPostText(post, settings));
       entry.pendingPost = {
@@ -305,7 +307,7 @@ export async function startMatchingRun(
         runtime.hits++;
         if (activity) activity.hits++;
         await saveEntry(entry);
-        return entry.result ?? undefined;
+        return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;
       }
       entry.detailFingerprint = detailedHash;
       const ruleMatch = settings.mode === "hybrid"
@@ -350,7 +352,7 @@ export async function startMatchingRun(
       } else {
         entry.result = decision.decision === "match"
           ? ruleMatch ??
-            { keyword: `AI: ${decision.reason || "求助"}`, location: "body" }
+            { kind: "ai", keyword: "", aiReason: shortAiReason(decision.reason || "符合匹配提示词"), location: decision.location ?? "unknown" }
           : null;
         entry.evaluatedAt = now();
         entry.attempts = 0;
@@ -361,7 +363,7 @@ export async function startMatchingRun(
       if (entry.attempts >= 3) entry.retryAt = entry.expiresAt;
       await saveEntry(entry);
       await store.saveRuntime(runtime);
-      return entry.result ?? undefined;
+      return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;
     },
 
     /** 保存统计、清理过期和超量缓存，并释放本次租约。 */

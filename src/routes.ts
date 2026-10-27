@@ -1,6 +1,7 @@
 /**
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
+import { testAiConnection } from "./services/ai_connection.ts";
 import { fetchAiModels } from "./services/ai_models.ts";
 import { type Context, Hono } from "@hono/hono";
 import {
@@ -1956,6 +1957,25 @@ export function createRoutes(context: AppContext): Hono {
       return new Response(null, { status: 204 });
     }
     return c.redirect("/settings?security=updated", 303);
+  });
+
+  app.post("/settings/test-ai", async (c) => {
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
+    const limited = await rateLimitResponseForRequest(c, context, {
+      scope: "test-ai", limit: 6, windowMs: 60000,
+    });
+    if (limited) return limited;
+    const storage = await storageForRequest(c, context);
+    const current = await storage.getSettings();
+    const settings = matchingSettingsFromForm(form, current.matching);
+    c.header("Cache-Control", "no-store");
+    try {
+      const result = await testAiConnection(settings, storage.matching);
+      return c.json(result, result.ok ? 200 : 400);
+    } catch {
+      return c.json({ ok: false, error: "request" }, 502);
+    }
   });
 
   app.post("/settings/matching-models", async (c) => {
