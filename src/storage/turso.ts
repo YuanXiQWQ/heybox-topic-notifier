@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供基于 Turso/libSQL 的应用数据存储实现。
  */
+import { createTursoMatchingStore } from "./matching_turso.ts";
 import type {
   InArgs,
   InStatement,
@@ -253,6 +254,7 @@ export function createTursoStorage(
    */
   function forUser(userId: string): UserStorage {
     return {
+      matching: createTursoMatchingStore(execute, userId),
       /**
        * 获取当前用户设置。
        *

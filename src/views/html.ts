@@ -187,8 +187,8 @@ export function renderAceAttorneyEasterEggData(locale: Locale): string {
 /**
  * 渲染应用基础页面布局。
  *
- * @param options 页面布局选项。
- * @return 完整 HTML 页面。
+ * @param {object} options 页面布局选项。
+ * @return {string} 完整 HTML 页面。
  */
 export function renderLayout(options: {
   account?: Pick<UserAccount, "displayName" | "username"> & { id?: string };
@@ -220,7 +220,7 @@ export function renderLayout(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20260914-avatar-decorations">
+    <link rel="stylesheet" href="/static/app.css?v=20261027-matching-settings">
     <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>

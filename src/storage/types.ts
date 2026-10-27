@@ -1,6 +1,7 @@
 /**
  * @file 本文件定义与具体数据库实现无关的应用存储契约。
  */
+import type { MatchingStore } from "./matching_types.ts";
 import type {
   AppSettings,
   AppState,
@@ -64,6 +65,8 @@ export type PollScheduleEntry = {
  * 指定用户作用域下的数据存储契约。
  */
 export type UserStorage = {
+  /** 用户隔离的判定缓存；迁移期以权威数据库中的缓存为准。 */
+  matching?: MatchingStore;
   /**
    * 获取当前用户设置。
    *

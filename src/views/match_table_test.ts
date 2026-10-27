@@ -459,7 +459,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260914-clear-avatar-decorations`,
+    `/static/settings.js?v=20261027-matching-settings`,
   );
   assertIncludes(
     html,

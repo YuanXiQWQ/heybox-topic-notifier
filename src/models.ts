@@ -2,6 +2,7 @@
  * @file 本文件定义应用共享的数据模型类型。
  */
 import type { Locale } from "./locales/types.ts";
+import type { MatchingSettings } from "./services/matching_settings.ts";
 import type {
   NotificationEmailService,
   NotificationWebhookService,
@@ -69,6 +70,8 @@ export type PollingSettings = {
  * 应用设置。
  */
 export type AppSettings = {
+  /** 省略时使用关键词规则模式，不发送 AI 请求。 */
+  matching?: MatchingSettings;
   activeKeywordTarget: KeywordTarget;
   commonKeywordRules: KeywordRule[];
   darkMode: boolean;
@@ -98,6 +101,8 @@ export type AppSettings = {
  * 小黑盒话题帖子。
  */
 export type TopicPost = {
+  /** 详情请求是否取得完整正文；失败时禁止把信息缺失作为 AI 未命中缓存。 */
+  detailsComplete?: boolean;
   body: string;
   commentReplies: string[];
   comments: string[];

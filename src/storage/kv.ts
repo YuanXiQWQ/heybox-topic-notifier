@@ -1,6 +1,8 @@
 /**
  * @file 本文件提供基于 Deno KV 的应用数据存储实现。
  */
+import { createKvMatchingStore } from "./matching_kv.ts";
+import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type {
   AppSettings,
   AppState,
@@ -131,7 +133,7 @@ type KvAtomicOperation = {
 /**
  * 应用存储依赖的 KV 能力集合。
  */
-type KvStore = {
+export type KvStore = {
   /**
    * 删除指定 KV 键。
    */
@@ -223,13 +225,14 @@ export function createKvStorage(
   }
 
   /**
-   * 创建指定用户作用域下的存储操作集合。
+   * 创建指定用户作用域下的业务存储与判定缓存操作集合。
    *
-   * @param userId 用户 ID。
-   * @return 指定用户的数据存储操作集合。
+   * @param {string} userId 用户 ID。
+   * @return {UserStorage} 指定用户的数据存储操作集合。
    */
   function forUser(userId: string): UserStorage {
     return {
+      matching: createKvMatchingStore(kv, userId),
       /**
        * 获取当前用户设置。
        *
@@ -475,6 +478,7 @@ export function createKvStorage(
 
   return {
     forUser,
+    matching: createKvMatchingStore(kv, "default"),
 
     /**
      * 按账号 ID 获取账号。
@@ -1963,9 +1967,9 @@ type LegacySettings = {
 /**
  * 将读取到的设置与默认设置合并并规范化。
  *
- * @param value KV 中读取到的设置。
- * @param defaultSettings 默认应用设置。
- * @return 规范化后的应用设置。
+ * @param {Partial<AppSettings> & LegacySettings | null} value KV 中读取到的设置。
+ * @param {AppSettings} defaultSettings 默认应用设置。
+ * @return {AppSettings} 合并默认匹配模式与限制后的应用设置。
  */
 export function normalizeSettings(
   value: (Partial<AppSettings> & LegacySettings) | null,
@@ -1984,6 +1988,9 @@ export function normalizeSettings(
   return {
     ...defaultSettings,
     ...value,
+    matching: normalizeMatchingSettings(
+      value.matching ?? defaultSettings.matching,
+    ),
     activeKeywordTarget: value.activeKeywordTarget ??
       defaultSettings.activeKeywordTarget,
     commonKeywordRules,

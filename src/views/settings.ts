@@ -2,6 +2,9 @@
  * @file 本文件负责渲染设置页面及其通知、轮询、话题和关键词配置区域。
  */
 import { getMessages } from "../locales/index.ts";
+import { normalizeMatchingSettings } from "../services/matching_settings.ts";
+import type { MatchingRuntime } from "../storage/matching_types.ts";
+import { renderMatchingSection, renderMatchingAdvanced } from "./matching_settings.ts";
 import { languageOptions } from "../locales/languages.ts";
 import { isRtlLocale, type Locale } from "../locales/types.ts";
 import type {
@@ -155,10 +158,10 @@ export type TotpSetupView = {
 };
 
 /**
- * 渲染设置页面。
+ * 渲染账户、轮询、匹配和通知设置，并以遮罩展示已保存的敏感配置。
  *
- * @param options 设置页渲染选项。
- * @return 完整设置页面 HTML。
+ * @param {object} options 设置页渲染选项。
+ * @return {string} 完整设置页面 HTML。
  */
 export function renderSettings(options: {
   account?:
@@ -185,6 +188,7 @@ export function renderSettings(options: {
   securitySettings?: UserSecuritySettings;
   securityStatus?: SecuritySettingsStatus;
   settings: AppSettings;
+  matchingRuntime?: MatchingRuntime;
   totpBindingStatus?: TotpBindingStatus;
   totpCredentials?: TotpCredential[];
   totpSetup?: TotpSetupView;
@@ -222,7 +226,18 @@ export function renderSettings(options: {
         <h2 id="post-settings-heading">${escapeHtml(messages.postSettings)}</h2>
         <dl class="settings-list" data-settings-list>
           ${renderTopicSection(options.settings)}
+          ${
+    renderMatchingSection(
+      options.settings,
+      secretInputEditor(
+        "matchingApiKey",
+        normalizeMatchingSettings(options.settings.matching).apiKey,
+        messages,
+      ),
+    )
+  }
           ${renderKeywordSection(options.settings)}
+          ${renderMatchingAdvanced(options.settings, options.matchingRuntime)}
         </dl>
       </section>
       ${renderPollingSection(options.settings)}
@@ -277,7 +292,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
-    <script src="/static/settings.js?v=20260914-clear-avatar-decorations" defer></script>
+    <script src="/static/settings.js?v=20261027-matching-settings" defer></script>
   `;
 
   return renderLayout({
@@ -3798,8 +3813,8 @@ function renderTopicSection(settings: AppSettings): string {
 /**
  * 渲染关键词设置区域。
  *
- * @param settings 应用设置。
- * @return 关键词设置区域 HTML。
+ * @param {AppSettings} settings 应用设置。
+ * @return {string} 关键词设置区域 HTML，纯 AI 模式初始隐藏。
  */
 function renderKeywordSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
@@ -3808,7 +3823,8 @@ function renderKeywordSection(settings: AppSettings): string {
 
   return `
     <div
-      class="dropdown-settings-row keyword-settings-row"
+      class="dropdown-settings-row keyword-settings-row matching-conditional-row"
+      ${normalizeMatchingSettings(settings.matching).mode === "ai" ? "hidden" : ""}
       data-keyword-editor
       data-delete-message="${escapeHtml(messages.selectKeywordToDelete)}"
     >
