@@ -136,8 +136,10 @@ jobs:
           HONOR_PUSH_APP_ID: ${{ vars.HONOR_PUSH_APP_ID }}
         run: |
           set -euo pipefail
-          test -n "$ANDROID_KEYSTORE_BASE64" && test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEYSTORE_PASSWORD" && test -n "$ANDROID_KEY_PASSWORD"
+          : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
           export ANDROID_KEYSTORE="$RUNNER_TEMP/application-release.jks"
           trap 'rm -f -- "$ANDROID_KEYSTORE"' EXIT
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE"
