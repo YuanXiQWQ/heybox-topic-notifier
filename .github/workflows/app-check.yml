@@ -58,6 +58,9 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          # 明确指定 SDK 36 与 AGP 8.13 所需工具，避免依赖隐式安装列表。
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
