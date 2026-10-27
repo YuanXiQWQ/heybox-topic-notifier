@@ -292,7 +292,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
-    <script src="/static/settings.js?v=20261027-matching-settings" defer></script>
+    <script src="/static/settings.js?v=20261026-dropdown-click-area" defer></script>
   `;
 
   return renderLayout({

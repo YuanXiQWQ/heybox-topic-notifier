@@ -1997,6 +1997,7 @@ dd{
 .dropdown-settings-row{
   align-items: center;
   column-gap: 12px;
+  cursor: pointer;
   position: relative;
   row-gap: 0;
   transition: background-color 180ms ease;
@@ -2086,6 +2087,7 @@ dd{
 
 .dropdown-panel{
   background: var(--surface);
+  cursor: default;
   display: grid;
   grid-column: 1 / -1;
   grid-template-rows: 0fr;

@@ -4709,7 +4709,7 @@ function cancelTransientStatusClear(element) {
 }
 
 /**
- * 初始化设置页下拉面板。
+ * 初始化设置页下拉面板，整行标题可切换展开状态，面板内容保持独立交互。
  *
  * @param {HTMLElement} editor 下拉面板所属编辑器。
  * @param {string} name 下拉面板名称。
@@ -4720,7 +4720,13 @@ function initDropdown(editor, name) {
   panel.hidden = false;
   setDropdownOpen(editor, name, storedDropdownOpen(name), {persist: false});
 
-  toggle.addEventListener('click', () => {
+  editor.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || panel.contains(target)) return;
+    const control = target.closest(
+        'button, a, input, select, textarea, label, [role="button"], [contenteditable]',
+    );
+    if (control && control !== toggle) return;
     const className = `is-${name.slice(0, -1)}-open`;
     const isOpen = !editor.classList.contains(className);
     setDropdownOpen(editor, name, isOpen, {persist: true});
