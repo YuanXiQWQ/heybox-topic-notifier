@@ -51,7 +51,7 @@ Deno.test("formatHeyboxRelativeTime uses localized relative messages", () => {
   );
   assertEquals(
     formatHeyboxRelativeTime("2026-06-30T13:00:00.000Z", now, "de-DE"),
-    "vor 3 Stunden",
+    "Vor 3 Stunden",
   );
 });
 
