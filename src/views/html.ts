@@ -220,7 +220,7 @@ export function renderLayout(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20261026-ai-match-details">
+    <link rel="stylesheet" href="/static/app.css?v=20261026-settings-header-key">
     <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
@@ -229,7 +229,7 @@ export function renderLayout(options: {
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
     ${renderLobotomyCorpAccountIdentityData(options.account, options.loginSession)}
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260914-avatar-decorations-2"></script>
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>

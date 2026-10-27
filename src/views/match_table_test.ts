@@ -12,6 +12,7 @@ import {
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { renderSettings } from "./settings.ts";
+import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import { assertEquals } from "../test_helpers.ts";
 
 /**
@@ -374,27 +375,10 @@ Deno.test("Black Forest candidate slots match the approved fixed lists", () => {
       "settings.account.username",
       "settings.account.displayName",
       "settings.post.topic",
-      "settings.post.keywords",
+      "settings.post.matching",
+      "settings.matching.mode",
       "settings.poll.enabled",
-      "settings.poll.interval",
-      "settings.poll.postLimit",
-      "settings.poll.sort",
       "settings.notification.provider",
-      "settings.notification.webhookService",
-      "settings.notification.token",
-      "settings.notification.spt",
-      "settings.notification.sendKey",
-      "settings.notification.webhookUrl",
-      "settings.notification.emailService",
-      "settings.notification.emailAddress",
-      "settings.notification.emailFrom",
-      "settings.notification.apiUrl",
-      "settings.notification.apiToken",
-      "settings.notification.smtpHost",
-      "settings.notification.smtpPort",
-      "settings.notification.ssl",
-      "settings.notification.smtpUsername",
-      "settings.notification.smtpPassword",
       "settings.auth.email",
       "settings.auth.password",
       "settings.auth.passkey",
@@ -408,6 +392,30 @@ Deno.test("Black Forest candidate slots match the approved fixed lists", () => {
       "settings.global.locale",
     ]),
   );
+});
+
+Deno.test("Black Forest matching candidates never depend on configuration changes", () => {
+  const baseline = new Set(blackForestSlotIds(renderSettings({
+    settings: settings(), csrfToken: testCsrfToken,
+  })));
+  for (const mode of ["rules", "ai", "hybrid"] as const) {
+    for (const provider of ["custom", "openai", "deepseek"] as const) {
+      const html = renderSettings({
+        settings: {
+          ...settings(),
+          matching: normalizeMatchingSettings({ mode, provider, model: "deepseek-reasoner" }),
+        },
+        csrfToken: testCsrfToken,
+      });
+      const slots = new Set(blackForestSlotIds(html));
+      assertEquals(slots, baseline);
+      assertEquals(slots.has("settings.post.matching"), true);
+      assertEquals(slots.has("settings.matching.mode"), true);
+      assertEquals([...slots].filter((slot) => slot.startsWith("settings.matching.")), ["settings.matching.mode"]);
+      assertEquals(slots.has("settings.post.advanced"), false);
+      assertEquals(slots.has("settings.post.keywords"), false);
+    }
+  }
 });
 
 Deno.test("Black Forest pagination slots exist only with their table", () => {
@@ -478,7 +486,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20261026-ai-match-details`,
+    `/static/settings.js?v=20261026-settings-header-key`,
   );
   assertIncludes(
     html,
@@ -498,7 +506,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260914-avatar-decorations-2`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots`,
   );
   assertIncludes(
     html,

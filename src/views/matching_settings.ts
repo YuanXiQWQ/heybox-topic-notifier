@@ -9,6 +9,7 @@ import {
   supportsThinkingToggle,
 } from "../services/ai_providers.ts";
 import { escapeHtml as e } from "./html.ts";
+import { renderDrawerHeading } from "./settings_drawer.ts";
 import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
 
 /**
@@ -18,6 +19,7 @@ import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
  * @param {string} body 设置内容。
  * @param {string} summary 收起时的摘要。
  * @param {string} attributes 条件显示属性。
+ * @param {string | undefined} blackForestSlot 无需修改配置即可访问的彩蛋槽位。
  * @return {string} 抽屉 HTML。
  */
 function drawer(
@@ -26,16 +28,10 @@ function drawer(
   body: string,
   summary = "",
   attributes = "",
+  blackForestSlot?: string,
 ): string {
   return `<div class="dropdown-settings-row matching-conditional-row" data-${name}-editor ${attributes}>
-    <dt class="settings-label-with-icon">${
-    materialSymbolIcon("sort", "settings-label-icon")
-  }<span>${e(label)}</span></dt>
-    <dd class="dropdown-summary-cell"><span data-${name}-summary>${
-    e(summary)
-  }</span><button type="button" class="dropdown-toggle" data-action="toggle-${name}s" aria-expanded="false" aria-controls="${name}-panel" aria-label="${
-    e(label)
-  }"><span class="dropdown-chevron" aria-hidden="true"></span></button></dd>
+    ${renderDrawerHeading(`${name}s`, `${name}-panel`, label, "sort", `<span data-${name}-summary>${e(summary)}</span>`, blackForestSlot)}
     <dd class="dropdown-panel" id="${name}-panel" data-${name}-panel hidden><div class="dropdown-panel-inner"><dl class="settings-list matching-settings-list">${body}</dl></div></dd>
   </div>`;
 }
@@ -46,6 +42,7 @@ function drawer(
  * @param {string} control 控件。
  * @param {string} attributes 条件属性。
  * @param {MaterialSymbolName} icon 图标。
+ * @param {string | undefined} blackForestSlot 无需修改配置即可访问的彩蛋槽位。
  * @return {string} 设置行 HTML。
  */
 function row(
@@ -53,9 +50,10 @@ function row(
   control: string,
   attributes = "",
   icon: MaterialSymbolName = "numbers",
+  blackForestSlot?: string,
 ): string {
   return `<div class="matching-conditional-row" ${attributes}><dt class="settings-label-with-icon">${
-    materialSymbolIcon(icon, "settings-label-icon")
+    materialSymbolIcon(icon, "settings-label-icon", blackForestSlot)
   }<span>${e(label)}</span></dt><dd>${control}</dd></div>`;
 }
 
@@ -154,6 +152,7 @@ export function renderMatchingSection(
     }</button></span><span class="inline-action-status" data-test-ai-status role="status" hidden></span></div>`,
     "",
     "sort",
+    "settings.matching.mode",
   ) +
     row(
       m.matchingModel,
@@ -228,6 +227,7 @@ export function renderMatchingSection(
     }" data-model-error="${e(m.matchingModelsError)}" data-model-credentials="${
       e(m.matchingModelCredentials)
     }" data-model-placeholder="${e(m.matchingModel)}"`,
+    "settings.post.matching",
   );
 }
 
