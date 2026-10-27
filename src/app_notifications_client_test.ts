@@ -115,6 +115,12 @@ Deno.test("push worker suppresses notifications for a different logged-in accoun
   );
   const shown: unknown[] = [];
   const opened: string[] = [];
+  const windows: {
+    url: string;
+    focus: () => Promise<void>;
+    navigate: () => Promise<void>;
+  }[] = [];
+  let focused = 0, navigated = 0;
   const scope = {
     self: {
       addEventListener() {},
@@ -126,7 +132,7 @@ Deno.test("push worker suppresses notifications for a different logged-in accoun
         },
       },
       clients: {
-        matchAll: () => Promise.resolve([]),
+        matchAll: () => Promise.resolve(windows),
         openWindow: (url: string) => {
           opened.push(url);
           return Promise.resolve();
@@ -134,6 +140,7 @@ Deno.test("push worker suppresses notifications for a different logged-in accoun
       },
     },
     URL,
+    AbortSignal,
     fetch: () =>
       Promise.resolve(Response.json({ userId: "alice", enabled: true })),
   };
@@ -162,8 +169,50 @@ Deno.test("push worker suppresses notifications for a different logged-in accoun
   });
   assertEquals(shown.length, 1);
   await api.openApplicationNotification({
+    userId: "alice",
+    deviceId: "device",
     path: "https://evil.example/phishing",
   });
-  await api.openApplicationNotification({ path: "/history" });
+  assertEquals(opened, []);
+  scope.fetch = () =>
+    Promise.resolve(Response.json({ userId: "alice", enabled: true }));
+  windows.push({
+    url: "https://example.com/settings",
+    focus: () => {
+      focused++;
+      return Promise.resolve();
+    },
+    navigate: () => {
+      navigated++;
+      return Promise.resolve();
+    },
+  });
+  await api.openApplicationNotification({
+    userId: "alice",
+    deviceId: "device",
+    path: "https://evil.example/phishing",
+  });
+  await api.openApplicationNotification({
+    userId: "alice",
+    deviceId: "device",
+    path: "/history",
+  });
   assertEquals(opened, ["https://example.com/", "https://example.com/history"]);
+  assertEquals(navigated, 0);
+  windows[0].url = "https://example.com/history";
+  await api.openApplicationNotification({
+    userId: "alice",
+    deviceId: "device",
+    path: "/history",
+  });
+  assertEquals(focused, 1);
+  assertEquals(opened.length, 2);
+  scope.fetch = () =>
+    Promise.resolve(Response.json({ userId: "bob", enabled: true }));
+  await api.openApplicationNotification({
+    userId: "alice",
+    deviceId: "device",
+    path: "/history",
+  });
+  assertEquals(focused, 1);
 });

@@ -33,8 +33,15 @@ async function harness() {
       querySelector: () => null,
       documentElement: { dataset: {} },
       dispatchEvent() {},
+      body: { dataset: { appUserId: "alice" } },
     },
-    location: { pathname: "/" },
+    location: {
+      pathname: "/",
+      href: "https://example.com/settings",
+      assign: (_target: string) => {},
+    },
+    history: { back() {} },
+    applicationSync: { prepareForExit: () => Promise.resolve() },
     CustomEvent: class {},
     setTimeout(fn: () => void, delay: number) {
       timers.set(++serial, { at: now + delay, fn });
@@ -47,7 +54,8 @@ async function harness() {
   const api = runInNewContext(
     await Deno.readTextFile(
       new URL("../static/app-native.js", import.meta.url),
-    ) + "\n({native:appNative,ready:applicationNativeReady})",
+    ) +
+      "\n({native:appNative,ready:applicationNativeReady,navigate:applicationNavigate})",
     context,
   );
   native.onmessage!({
@@ -56,6 +64,8 @@ async function harness() {
   await api.ready;
   return {
     api: api.native,
+    navigate: api.navigate,
+    context,
     requests,
     timers,
     failPort() {
@@ -80,9 +90,9 @@ async function harness() {
         }),
       });
     },
-    /** @param {string} id 请求编号。 */
-    respond(id: string) {
-      native.onmessage!({ data: JSON.stringify({ id, value: state }) });
+    /** @param {string} id 请求编号。 @param {unknown} value 原生回复。 */
+    respond(id: string, value: unknown = state) {
+      native.onmessage!({ data: JSON.stringify({ id, value }) });
     },
   };
 }
@@ -97,6 +107,145 @@ Deno.test("native download progress renews the idle timeout beyond two minutes",
   bridge.respond(bridge.requests.at(-1)!.id);
   assertEquals((await pending).platform, "android");
   assertEquals(bridge.timers.size, 0);
+});
+
+Deno.test("native Google login button uses the shared Android dispatcher without replacing progress listeners", async () => {
+  const bridge = await harness();
+  const dispatcher = bridge.context.HeyboxNative.onmessage;
+  let click!: () => Promise<void>;
+  const button = {
+    type: "",
+    className: "",
+    textContent: "",
+    disabled: false,
+    addEventListener: (_name: string, callback: () => Promise<void>) => {
+      click = callback;
+    },
+  };
+  const root = {
+    hidden: true,
+    dataset: { googleLabel: "Google", googleFailed: "Failed" },
+    append() {},
+  };
+  const source = await Deno.readTextFile(
+    new URL("../static/app-native-auth.js", import.meta.url),
+  );
+  runInNewContext(source, {
+    appNative: bridge.api,
+    HeyboxNative: bridge.context.HeyboxNative,
+    document: { querySelector: () => root, createElement: () => button },
+  });
+  const login = click();
+  const request = bridge.requests.at(-1)!;
+  assertEquals(request.method, "login");
+  bridge.respond(request.id, { code: "ABCD1234" });
+  await login;
+  assertEquals(button.textContent, "Google · ABCD1234");
+  assertEquals(bridge.context.HeyboxNative.onmessage, dispatcher);
+  const check = bridge.api.checkUpdate();
+  bridge.respond(bridge.requests.at(-1)!.id);
+  assertEquals((await check).platform, "android");
+});
+
+Deno.test("standalone Android login forwards unrelated messages and restores its dispatcher on failure and success", async () => {
+  let click!: () => Promise<void>, unrelated = 0, fail = true;
+  const timers = new Set<() => void>();
+  const button = {
+    textContent: "",
+    disabled: false,
+    addEventListener: (_name: string, callback: () => Promise<void>) => {
+      click = callback;
+    },
+  };
+  const receive = (_event: { data: string }) => {
+    unrelated++;
+  };
+  const native = {
+    onmessage: receive,
+    postMessage(message: string) {
+      if (fail) throw new Error("Port closed");
+      const request = JSON.parse(message);
+      native.onmessage({ data: JSON.stringify({ type: "state" }) });
+      native.onmessage({
+        data: JSON.stringify({ id: request.id, value: { code: "CODE" } }),
+      });
+    },
+  };
+  runInNewContext(
+    await Deno.readTextFile(
+      new URL("../static/app-native-auth.js", import.meta.url),
+    ),
+    {
+      HeyboxNative: native,
+      crypto,
+      setTimeout: (fn: () => void) => {
+        timers.add(fn);
+        return fn;
+      },
+      clearTimeout: (fn: () => void) => {
+        timers.delete(fn);
+      },
+      document: {
+        querySelector: () => ({
+          dataset: { googleLabel: "Google", googleFailed: "Failed" },
+          append() {},
+        }),
+        createElement: () => button,
+      },
+    },
+  );
+  await click();
+  assertEquals(button.textContent, "Failed");
+  assertEquals(button.disabled, false);
+  assertEquals(native.onmessage, receive);
+  assertEquals(timers.size, 0);
+  fail = false;
+  await click();
+  assertEquals(button.textContent, "Google · CODE");
+  assertEquals(unrelated, 1);
+  assertEquals(native.onmessage, receive);
+  assertEquals(timers.size, 0);
+});
+
+Deno.test("native back and notification navigation wait for saves, merge repeated taps and retain failed edits", async () => {
+  const bridge = await harness();
+  const visited: string[] = [];
+  bridge.context.history.back = () => {
+    visited.push("back");
+  };
+  bridge.context.location.assign = (path) => {
+    visited.push(path);
+  };
+  let saved!: () => void;
+  bridge.context.applicationSync.prepareForExit = () =>
+    new Promise<void>((resolve) => {
+      saved = resolve;
+    });
+  const first = bridge.navigate("back");
+  const second = bridge.navigate("back");
+  assertEquals(visited, []);
+  saved();
+  await Promise.all([first, second]);
+  assertEquals(visited, ["back"]);
+  bridge.context.applicationSync.prepareForExit = () =>
+    Promise.reject(new Error("Disk full"));
+  await assertRejects(
+    () => bridge.navigate("/history", "alice"),
+    Error,
+    "Disk full",
+  );
+  assertEquals(visited, ["back"]);
+  bridge.context.applicationSync.prepareForExit = () => {
+    bridge.context.document.body.dataset.appUserId = "bob";
+    return Promise.resolve();
+  };
+  await bridge.navigate("/history", "alice");
+  assertEquals(visited, ["back"]);
+  await assertRejects(
+    () => bridge.navigate("https://evil.example/"),
+    Error,
+    "Invalid application route",
+  );
 });
 
 Deno.test("native stalled request times out and late replies do not revive it", async () => {

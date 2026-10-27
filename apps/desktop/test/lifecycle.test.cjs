@@ -15,6 +15,7 @@ function harness() {
   let installs = 0;
   let cookie = "session-a";
   let read = () => Promise.resolve({ userId: "alice", cursor: "", events: [] });
+  let display = "show";
   const shown = [];
   const opened = [];
   const frame = {
@@ -60,9 +61,14 @@ function harness() {
       on(name, fn) {
         this.events.set(name, fn);
       }
+      /** @param {string} name 事件名。 @param {Function} fn 单次事件回调。 */
+      once(name, fn) {
+        this.on(name, fn);
+      }
       /** 记录真实主进程请求展示的通知。 */
       show() {
         shown.push(this);
+        if (display) this.events.get(display)?.();
       }
       /** 记录通知已经撤回。 */
       close() {
@@ -86,11 +92,13 @@ function harness() {
     console,
     URL,
     setInterval,
+    setTimeout,
+    clearTimeout,
     AbortSignal,
   };
   const setup = vm.runInNewContext(
     fs.readFileSync(filename, "utf8") +
-      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {info,prepareExit,consumeNotifications,setNotifications,disableNotifications}; })",
+      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications}; })",
     context,
   );
   const api = setup(window, device, {
@@ -112,6 +120,9 @@ function harness() {
     readWith: (fn) => {
       read = fn;
     },
+    displayWith: (event) => {
+      display = event;
+    },
   };
 }
 
@@ -129,6 +140,75 @@ test("native update markers clear independently and reject subframes", async () 
   await context.handlers.get("app:seen-update")(context.event, "about");
   assert.equal(context.api.info().update.aboutUnread, false);
   assert.equal(context.api.info().update.version, "1.1.0");
+});
+
+test("native navigation waits for local writes and stays on the editor when saving fails", async () => {
+  const context = harness();
+  let saved;
+  context.contents.executeJavaScript = () =>
+    new Promise((resolve) => {
+      saved = resolve;
+    });
+  const navigation = context.api.showWindow("/about");
+  assert.equal(context.opened.length, 0);
+  saved();
+  await navigation;
+  assert.equal(context.opened.length, 1);
+  context.contents.executeJavaScript = () => Promise.reject(new Error("Disk full"));
+  await context.api.showWindow("/history");
+  assert.equal(context.opened.length, 1);
+});
+
+test("notification cursor advances only after system display and failed events remain retryable", async () => {
+  const context = harness();
+  await context.api.setNotifications(true);
+  context.readWith(() => ({
+    userId: "alice",
+    events: [{
+      id: "one",
+      cursor: "one",
+      title: "Title",
+      body: "Body",
+      path: "/history",
+    }],
+  }));
+  context.displayWith("");
+  const pending = context.api.consumeNotifications();
+  while (!context.shown.length) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(context.device.value.notifications.cursor, "");
+  assert.equal(context.device.value.notifications.seen.length, 0);
+  context.shown[0].events.get("failed")();
+  await assert.rejects(() => pending, /Notification failed/);
+  assert.equal(context.device.value.notifications.cursor, "");
+  assert.equal(context.shown[0].closed, true);
+  context.displayWith("show");
+  await context.api.consumeNotifications();
+  assert.equal(context.device.value.notifications.cursor, "one");
+  assert.equal(context.shown.length, 2);
+});
+
+test("notification navigation rechecks the account after saving pending edits", async () => {
+  const context = harness();
+  await context.api.setNotifications(true);
+  context.readWith(() => ({
+    userId: "alice",
+    events: [{
+      id: "one",
+      cursor: "one",
+      title: "Title",
+      body: "Body",
+      path: "/history",
+    }],
+  }));
+  await context.api.consumeNotifications();
+  context.contents.executeJavaScript = () => {
+    context.changeCookie("session-b");
+    return Promise.resolve();
+  };
+  await context.shown[0].events.get("click")();
+  assert.equal(context.opened.length, 0);
 });
 
 test("notification setup cannot bind a response from an account replaced during the request", async () => {

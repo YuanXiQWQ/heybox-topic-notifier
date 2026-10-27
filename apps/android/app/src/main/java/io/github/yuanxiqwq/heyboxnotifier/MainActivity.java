@@ -47,6 +47,8 @@ public final class MainActivity extends ComponentActivity {
     private JavaScriptReplyProxy reply;
     private JSONObject pendingPermission;
     private JavaScriptReplyProxy permissionReply;
+    /** 冷启动通知等到页面桥接就绪再打开，账号仍须复核。 */
+    private String pendingNotificationPath, pendingNotificationUser;
     /** 网络、下载和加密写入在后台顺序执行。 */
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     /** 大安装包下载不占用通知补取、页面桥接和设置保存的执行队列。 */
@@ -115,7 +117,7 @@ public final class MainActivity extends ComponentActivity {
             /** @param {WebView} view 当前页面。 @param {String} url 页面地址。 @param {android.graphics.Bitmap} icon 图标。 */
             @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) { reply = null; }
             /** @param {WebView} view 当前页面。 @param {String} url 页面地址。 */
-            @Override public void onPageFinished(WebView view, String url) { CookieManager.getInstance().flush(); emit(); }
+            @Override public void onPageFinished(WebView view, String url) { CookieManager.getInstance().flush(); emit(); openPendingNotification(); }
         });
         web.setWebChromeClient(new WebChromeClient() {
             /** @param {WebView} view 页面。 @param {ValueCallback<Uri[]>} callback 文件结果。 @param {FileChooserParams} params 选择要求。 @return {boolean} 是否处理。 */
@@ -157,6 +159,7 @@ public final class MainActivity extends ComponentActivity {
                 if (method.equals("login")) { respond(proxy, id, login.start(), null); return; }
                 switch (method) {
                     case "info": break;
+                    case "background": handler.post(() -> moveTaskToBack(true)); break;
                     case "installUpdate": updates.install(); break;
                     case "notifications": if (!(request.get("value") instanceof Boolean)) throw new IllegalArgumentException(); notifications.set(request.getBoolean("value")); break;
                     case "checkUpdate": updates.check(); break;
@@ -198,8 +201,23 @@ public final class MainActivity extends ComponentActivity {
     @Override protected void onActivityResult(int code, int result, Intent data) { super.onActivityResult(code, result, data); if (code == 10 && fileCallback != null) { fileCallback.onReceiveValue(result == RESULT_OK && data != null ? new Uri[] { data.getData() } : null); fileCallback = null; } }
     /** 退出全屏视图并恢复彩蛋所在页面。 */
     private void leaveFullscreen() { if (fullscreen == null) return; root.removeView(fullscreen); fullscreen = null; web.setVisibility(View.VISIBLE); fullscreenCallback.onCustomViewHidden(); fullscreenCallback = null; }
-    /** 系统返回键优先退出视频，再返回页面，根页面退到后台。 */
-    private void navigateBack() { if (fullscreen != null) leaveFullscreen(); else if (web != null && web.canGoBack()) web.goBack(); else moveTaskToBack(true); }
+    /** 系统返回键优先退出视频；页面返回和退到后台先等待离线编辑保存。 */
+    private void navigateBack() { if (fullscreen != null) leaveFullscreen(); else if (web != null) navigateSaved(web.canGoBack() ? "back" : "background", null); }
+    /**
+     * 在当前可信页面执行保存屏障，保存失败时不离开编辑页。
+     * @param {String} target 本站路径、返回或后台操作。
+     * @param {String} user 通知所属账号，普通返回不指定。
+     */
+    private void navigateSaved(String target, String user) {
+        if (web == null || web.getUrl() == null || !web.getUrl().startsWith(BuildConfig.APP_ORIGIN + "/")) return;
+        String page = web.getUrl();
+        web.evaluateJavascript("(() => { if (typeof globalThis.applicationNavigate === 'function') { globalThis.applicationNavigate(" + JSONObject.quote(target) + "," + (user == null ? "null" : JSONObject.quote(user)) + ").catch(() => {}); return false; } return !globalThis.applicationSync && !globalThis.flushSettingsEdits; })()", result -> {
+            if (!"true".equals(result) || web == null || !page.equals(web.getUrl())) return;
+            // 认证页和尚未加载业务脚本的错误页没有离线设置编辑器，可直接执行系统返回。
+            if (target.equals("back")) { if (web.canGoBack()) web.goBack(); }
+            else if (target.equals("background")) moveTaskToBack(true);
+        });
+    }
     /** @param {Bundle} state 系统保存容器。 */
     @Override protected void onSaveInstanceState(Bundle state) { if (web != null) web.saveState(state); super.onSaveInstanceState(state); }
     /** @param {Intent} intent 通知点击带来的新 Intent。 */
@@ -208,7 +226,14 @@ public final class MainActivity extends ComponentActivity {
      * 验证通知所属账号后打开受限本站路径。
      * @param {Intent} intent 系统通知参数。
      */
-    private void consumeIntent(Intent intent) { String path = intent.getStringExtra("notificationPath"), user = intent.getStringExtra("notificationUser"); try { if (path != null && path.startsWith("/") && !path.startsWith("//") && user != null && notifications.owns(user)) web.loadUrl(BuildConfig.APP_ORIGIN + path); } catch (Exception ignored) { /* 不打开已失效账号的通知。 */ } }
+    private void consumeIntent(Intent intent) { pendingNotificationPath = intent.getStringExtra("notificationPath"); pendingNotificationUser = intent.getStringExtra("notificationUser"); if (reply != null) openPendingNotification(); }
+    /** 冷启动和已打开窗口使用同一账号检查，通知跳转不丢弃尚在保存的设置。 */
+    private void openPendingNotification() {
+        String path = pendingNotificationPath, user = pendingNotificationUser;
+        pendingNotificationPath = null; pendingNotificationUser = null;
+        try { if (Arrays.asList("/", "/history").contains(path) && user != null && notifications.owns(user)) navigateSaved(path, user); }
+        catch (Exception ignored) { /* 不打开已失效账号的通知。 */ }
+    }
     /** 释放界面任务；已持久化的队列和通知游标继续保留。 */
     @Override protected void onDestroy() { resumed = false; if (updates != null) updates.detach(this); handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
 }

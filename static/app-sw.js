@@ -181,7 +181,7 @@ async function showApplicationNotification(event) {
       tag: payload.tag,
       renotify: false,
       icon: "/favicon.ico",
-      data: { path: payload.path },
+      data: { path: payload.path, userId: payload.userId, deviceId: payload.deviceId },
     });
   } catch {
     // 无法确认会话归属时不展示缓存中的账号内容。
@@ -189,11 +189,19 @@ async function showApplicationNotification(event) {
 }
 
 /**
- * 打开通知指向的本站页面，复用已有窗口并阻止外部地址导航。
- * @param {{path?: string} | undefined} data 通知路径。
+ * 复核通知账号后打开本站页面；只聚焦已有目标页，不强制导航正在编辑的窗口。
+ * @param {{path?: string, userId?: string, deviceId?: string} | undefined} data 通知所属设备、账号及路径。
  * @return {Promise<void>} 窗口操作完成。
  */
 async function openApplicationNotification(data) {
+  if (typeof data?.userId !== "string" || typeof data?.deviceId !== "string") return;
+  try {
+    const response = await fetch(`/api/app-notifications/status?device=${encodeURIComponent(data.deviceId)}`,
+      { credentials: "include", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return;
+    const status = await response.json();
+    if (status.userId !== data.userId || !status.enabled) return;
+  } catch { return; }
   let url = new URL("/", self.location.origin);
   try {
     const requested = new URL(data?.path || "/", self.location.origin);
@@ -209,8 +217,7 @@ async function openApplicationNotification(data) {
     includeUncontrolled: true,
   });
   for (const client of windows) {
-    if (new URL(client.url).origin !== self.location.origin) continue;
-    await client.navigate(url.href);
+    if (client.url !== url.href) continue;
     await client.focus();
     return;
   }

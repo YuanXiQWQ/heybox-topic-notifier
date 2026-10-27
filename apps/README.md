@@ -9,6 +9,8 @@
 - Windows：进入 `apps/desktop`，运行 `npm ci`、`npm test`、`npm run dist`。开发运行先执行 `npm run prepare:assets`，再 `npm start`。`HEYBOX_PREVIEW_ORIGIN` 只在未打包开发运行中生效，只允许 HTTPS 或 HTTP 回环地址。
 - Android：安装 JDK 17、Gradle 8.13、Android SDK 36，运行 `node apps/scripts/prepare-assets.mjs --android`，再运行 `gradle -p apps/android testDebugUnitTest lintDebug assembleDebug`。正式构建设置 `APP_VERSION`、递增的 `APP_VERSION_CODE`，以及 `ANDROID_KEYSTORE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个签名变量，运行 `assembleRelease`。Windows 下路径过长时可用临时 `subst` 盘符指向仓库和本地工具链，构建后取消映射，不移动项目。
 - `app-build.yml` 在正式 Release 发布时自动运行，读取标签版本并固定源码提交，执行检查后并行构建 Windows 和 Android；只有两端都成功才上传附件。Windows 正式安装包必须配置 Authenticode 签名和发布者名称；Android 必须持续使用同一签名证书。
+- `app-check.yml` 在涉及应用、静态资源或原生工作流的 PR 和 `main`、`dev` 推送时自动检查，也可手动运行。不需要发行凭据：Windows 执行主进程测试并构建未签名 NSIS；Android 执行 JVM 测试、Lint 和调试 APK 构建。测试包不上传到 Release。
+- 两条工作流都会对安装产物中的全部静态资源逐文件校验 SHA-256，并核对资源清单；缺少或损坏任何彩蛋资源都会阻止成功。可本地执行 `node apps/scripts/verify-assets.mjs <解包后的 static 目录>` 重现检查。
 
 ## Release 更新
 
@@ -51,6 +53,8 @@ Android 在前台每六小时自动检查，返回前台时也执行节流检查
 Windows 在托盘驻留时补取通知；显式退出后不继续运行。Android 已接入系统通知权限、前台补取、荣耀 SDK、账号设备登记和厂商唤醒；消息由系统 JobScheduler 调度补取，网络失败保留重试。厂商消息只含事件标识，帖子正文经过本站账号和会话校验后获取。
 
 通知展示前会再次核验请求期间的账号变化。Android 一次任务连续处理分页积压，达到工作上限后申请系统续跑；权限关闭或展示失败不会确认尚未展示的事件。JVM 单元测试验证消费规则和安装文件完整性，不能替代系统通知、厂商后台唤醒及安装器实机测试。
+
+Windows 等待系统的通知展示事件后才推进消费游标，失败或超时保留重试。托盘和原生通知跳转、Android 返回及退到后台均等待设置保存；保存失败保留编辑页，通知跳转在保存后复核账号。浏览器通知点击再次核验账号和设备开关，仅聚焦已有目标页面或新开页面，不强制导航正在编辑的标签页。Android 登录请求复用统一桥接；独立认证页的登录分发器会转交其它消息并在结束后恢复。
 
 荣耀配置目前尚未提供，**不能据此承诺进程结束或锁屏后的可靠投递**。在荣耀开发者平台为固定包名和正式签名创建应用，将 `HONOR_PUSH_APP_ID` 同时设置在 Android 构建环境和服务端；`HONOR_PUSH_CLIENT_ID`、`HONOR_PUSH_CLIENT_SECRET` 只设置在服务端。SDK 从清单中的字符串资源读取公开 App ID，不把服务端密钥打入 APK。未配置时不初始化 SDK，界面会提示仅在应用打开时接收。正式启用仍须 HONOR 60 锁屏、重启、网络切换和账号切换实测。
 

@@ -60,10 +60,12 @@
     };
     globalThis.appNative = Object.freeze({
       info: () => request("info"),
+      signIn: () => request("login"),
       notifications: (enabled) => request("notifications", enabled),
       checkUpdate: () => request("checkUpdate"),
       downloadUpdate: () => request("downloadUpdate"),
       installUpdate: () => request("installUpdate"),
+      background: () => request("background"),
       seenUpdate: (section) => request("seenUpdate", section),
       onState: (listener) => listeners.add(listener),
     });
@@ -71,6 +73,36 @@
   /** 网页保留浏览器通知与安装入口；只有经过原生桥接的页面显示应用能力。 */
   const native = globalThis.appNative;
   if (!native) return;
+  /** 合并保存期间的重复返回手势，避免连续退过多个页面。 */
+  let navigating;
+  /**
+   * 原生返回、通知跳转和退到后台统一等待本地保存，账号变化后放弃旧通知。
+   * @param {string} target 返回、后台或本站路径。
+   * @param {string | undefined} userId 通知所属账号。
+   * @return {Promise<void>} 导航完成或保存失败。
+   */
+  globalThis.applicationNavigate = (target, userId) => {
+    if (navigating) return navigating;
+    const page = location.href;
+    navigating = (async () => {
+      if (userId && document.body.dataset.appUserId !== userId) return;
+      if (
+        !["back", "background"].includes(target) &&
+        !["/", "/history", "/about"].includes(target)
+      ) throw new Error("Invalid application route");
+      await globalThis.applicationSync?.prepareForExit();
+      if (
+        location.href !== page ||
+        (userId && document.body.dataset.appUserId !== userId)
+      ) return;
+      if (target === "back") history.back();
+      else if (target === "background") await native.background();
+      else location.assign(target);
+    })().finally(() => {
+      navigating = undefined;
+    });
+    return navigating;
+  };
   /** 服务端提供当前页面语言，原生桥不硬编码界面文案。 */
   const labels = JSON.parse(
     document.getElementById("application-messages")?.textContent || "{}",

@@ -89,6 +89,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx electron-builder --win nsis --x64 --publish never --config.forceCodeSigning=true --config.win.publisherName="$env:WIN_PUBLISHER_NAME"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify all packaged resources
+        run: node apps/scripts/verify-assets.mjs apps/desktop/dist/win-unpacked/resources/static
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release
@@ -134,6 +136,10 @@ jobs:
           node apps/scripts/prepare-assets.mjs --android
           gradle -p apps/android --no-daemon testDebugUnitTest lintRelease assembleRelease
           cp apps/android/app/build/outputs/apk/release/app-release.apk heybox-topic-notifier-android-universal.apk
+      - name: Verify all packaged resources
+        run: |
+          unzip -q heybox-topic-notifier-android-universal.apk 'assets/static/*' -d "$RUNNER_TEMP/android-package"
+          node apps/scripts/verify-assets.mjs "$RUNNER_TEMP/android-package/assets/static"
       - uses: actions/upload-artifact@v4
         with:
           name: android-release

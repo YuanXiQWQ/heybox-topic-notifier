@@ -328,17 +328,23 @@ function emitState() {
   }
 }
 /**
- * 打开主窗口或受限本站路径。
+ * 打开主窗口；原生跳转等待页面保存，失败时保留当前编辑页。
  * @param {string | undefined} route 可选本站路径。
+ * @param {Function | undefined} allowed 保存后再次验证通知账号。
+ * @return {Promise<void>} 窗口已显示，或保留保存失败的编辑页。
  */
-function showWindow(route) {
+async function showWindow(route, allowed) {
   if (!window || window.isDestroyed()) return;
-  if (route && route.startsWith("/") && !route.startsWith("//")) {
-    void window.loadURL(origin + route);
-  }
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
+  if (route && route.startsWith("/") && !route.startsWith("//")) {
+    try {
+      await prepareExit();
+      if (allowed && !await allowed()) return;
+      if (!window.isDestroyed()) await window.loadURL(origin + route);
+    } catch { /* 保存失败时保留编辑页，由现有保存状态反馈错误。 */ }
+  }
 }
 /**
  * 生成会话绑定摘要，不把 Cookie 明文保存到设备设置。
@@ -473,17 +479,64 @@ async function consumeNotifications() {
           if (
             device.value.notifications === binding &&
             current === binding.session
-          ) showWindow(event.path);
+          ) {
+            await showWindow(
+              event.path,
+              async () =>
+                device.value.notifications === binding &&
+                await sessionFingerprint() === binding.session,
+            );
+          }
         } catch { /* 已过期通知的点击不切换当前账号页面。 */ }
       });
       notification.on("close", () => visibleNotifications.delete(notification));
       visibleNotifications.add(notification);
-      notification.show();
+      await showNotification(notification);
+      if (device.value.notifications !== binding) {
+        notification.close();
+        return;
+      }
       binding.seen = [...binding.seen, event.id].slice(-2048);
     }
     binding.cursor = event.cursor;
     await device.save();
   }
+}
+/**
+ * 等待系统确认展示；失败或超时保留游标，下轮可重新投递。
+ * @param {Notification} notification 系统通知实例。
+ * @return {Promise<void>} 系统已接受展示。
+ */
+function showNotification(notification) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    /** @param {Error | undefined} error 展示失败原因。 */
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) {
+        visibleNotifications.delete(notification);
+        notification.close();
+        reject(error);
+      } else resolve();
+    };
+    const timer = setTimeout(
+      () => finish(new Error("Notification timed out")),
+      10000,
+    );
+    notification.once("show", () => finish());
+    notification.once("failed", () => finish(new Error("Notification failed")));
+    notification.once(
+      "close",
+      () => finish(new Error("Notification closed before display")),
+    );
+    try {
+      notification.show();
+    } catch (error) {
+      finish(error);
+    }
+  });
 }
 /**
  * 连接 Release 更新状态；下载与安装始终等待用户在应用内确认。
