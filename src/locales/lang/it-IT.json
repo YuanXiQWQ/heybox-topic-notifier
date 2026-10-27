@@ -392,5 +392,20 @@
   "applicationNotifications": "Notifiche dell’app",
   "applicationNotificationsUnsupported": "Questo browser non supporta le notifiche di sistema",
   "applicationNotificationsUnavailable": "Le notifiche non sono configurate oppure il server non è disponibile",
-  "applicationNotificationsDenied": "Consenti le notifiche nelle impostazioni del browser"
+  "applicationNotificationsDenied": "Consenti le notifiche nelle impostazioni del browser",
+  "autoSavePending": "Salvato sul dispositivo, in attesa di sincronizzazione",
+  "restoreMatch": "Riporta nell’area di lavoro",
+  "checkUpdate": "Cerca aggiornamenti",
+  "updateAvailable": "Aggiornamento disponibile",
+  "updateDownload": "Scarica e aggiorna",
+  "updateLater": "Più tardi",
+  "updateRestart": "Riavvia e aggiorna",
+  "updateCurrent": "La versione è aggiornata",
+  "updateFailed": "Aggiornamento non riuscito. Riprova",
+  "updateChecking": "Ricerca aggiornamenti…",
+  "updateDownloading": "Download in corso…",
+  "updateDevelopment": "Versione di sviluppo",
+  "nativeLoginTitle": "Accedi all’app: verifica il codice",
+  "nativeLoginApproved": "Accesso completato. Torna all’app",
+  "applicationNotificationsBackgroundUnavailable": "Notifiche in background non disponibili; ricezione con l’app aperta"
 }

@@ -1,0 +1,38 @@
+/** 定义无 GMS 的 Android 应用、固定账号来源及稳定包名。 */
+plugins { id 'com.android.application' }
+android {
+    namespace 'io.github.yuanxiqwq.heyboxnotifier'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'io.github.yuanxiqwq.heyboxnotifier'
+        minSdk 26
+        targetSdk 36
+        versionCode = (System.getenv('APP_VERSION_CODE') ?: '1').toInteger()
+        versionName = (System.getenv('APP_VERSION') ?: '0.1.0')
+        buildConfigField 'String', 'APP_ORIGIN', '"https://heybox-topic-notifier.yuanxiqwq.deno.net"'
+        def honorAppId = System.getenv('HONOR_PUSH_APP_ID') ?: ''
+        if (honorAppId && !(honorAppId ==~ /[0-9]+/)) throw new GradleException('Invalid Honor app ID')
+        buildConfigField 'String', 'HONOR_APP_ID', '"' + honorAppId + '"'
+        resValue 'string', 'honor_app_id', honorAppId
+    }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    sourceSets { main.assets.srcDirs = ['../../generated']; main.res.srcDirs += '../../generated/android-res' }
+    androidResources { noCompress += ['mp4', 'mp3', 'ogg', 'wav', 'webm'] }
+    signingConfigs {
+        release {
+            if (System.getenv('ANDROID_KEYSTORE')) {
+                storeFile file(System.getenv('ANDROID_KEYSTORE'))
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes { release { signingConfig signingConfigs.release; minifyEnabled false } }
+}
+dependencies {
+    implementation 'androidx.webkit:webkit:1.15.0'
+    implementation 'androidx.activity:activity:1.11.0'
+    implementation 'com.hihonor.mcs:push:10.0.31.302'
+}

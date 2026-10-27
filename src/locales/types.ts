@@ -81,6 +81,7 @@ export type Messages = {
   applicationNotifications: string;
   applicationNotificationsUnsupported: string;
   applicationNotificationsUnavailable: string;
+  applicationNotificationsBackgroundUnavailable: string;
   applicationNotificationsDenied: string;
   aboutProject: string;
   aboutDescription: string;
@@ -339,6 +340,20 @@ export type Messages = {
   allRows: string;
   autoSaveError: string;
   autoSaveSaved: string;
+  autoSavePending: string;
+  restoreMatch: string;
+  checkUpdate: string;
+  updateAvailable: string;
+  updateDownload: string;
+  updateLater: string;
+  updateRestart: string;
+  updateCurrent: string;
+  updateFailed: string;
+  updateChecking: string;
+  updateDownloading: string;
+  updateDevelopment: string;
+  nativeLoginTitle: string;
+  nativeLoginApproved: string;
   autoSaveSaving: string;
   completeMatch: string;
   commonTopic: string;

@@ -19,6 +19,7 @@
     "npm:@types/web-push@3.6.4": "3.6.4",
     "npm:altcha-lib@2.4.0": "2.4.0",
     "npm:altcha-lib@^2.4.0": "2.4.0",
+    "npm:fake-indexeddb@6.2.6": "6.2.6",
     "npm:qrcode@^1.5.4": "1.5.4",
     "npm:web-push@3.6.7": "3.6.7"
   },
@@ -370,6 +371,9 @@
     "emoji-regex@8.0.0": {
       "integrity": "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="
     },
+    "fake-indexeddb@6.2.6": {
+      "integrity": "sha512-ihhmr0KoET51jT8R4YhbUYuLLvr1qqO6INISygtN16i8loR8kAxtAUr4+EKHTSMjL+lggaAn4OC7DRqzrNgnuQ=="
+    },
     "find-up@4.1.0": {
       "integrity": "sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw==",
       "dependencies": [
@@ -598,6 +602,7 @@
       "jsr:@std/assert@1",
       "npm:@libsql/client@0.17.4",
       "npm:@types/web-push@3.6.4",
+      "npm:fake-indexeddb@6.2.6",
       "npm:qrcode@^1.5.4",
       "npm:web-push@3.6.7"
     ]

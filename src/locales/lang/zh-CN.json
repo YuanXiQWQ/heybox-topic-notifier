@@ -392,5 +392,20 @@
   "applicationNotifications": "应用通知",
   "applicationNotificationsUnsupported": "当前浏览器不支持系统通知",
   "applicationNotificationsUnavailable": "服务器尚未启用应用通知，或暂时无法连接",
-  "applicationNotificationsDenied": "请在浏览器设置中允许通知"
+  "applicationNotificationsDenied": "请在浏览器设置中允许通知",
+  "autoSavePending": "已保存到本机，等待同步",
+  "restoreMatch": "移回工作区",
+  "checkUpdate": "检查更新",
+  "updateAvailable": "发现新版本",
+  "updateDownload": "下载并更新",
+  "updateLater": "稍后",
+  "updateRestart": "重启并更新",
+  "updateCurrent": "已是最新版本",
+  "updateFailed": "更新失败，请重试",
+  "updateChecking": "正在检查更新…",
+  "updateDownloading": "正在下载…",
+  "updateDevelopment": "开发版本",
+  "nativeLoginTitle": "确认登录到应用，请核对配对码",
+  "nativeLoginApproved": "登录完成，请返回应用",
+  "applicationNotificationsBackgroundUnavailable": "后台推送暂不可用，仅在应用打开时接收"
 }

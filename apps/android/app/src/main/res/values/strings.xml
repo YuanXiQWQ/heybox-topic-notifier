@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 系统级名称，页面语言仍使用账号设置。 -->
+<resources>
+    <string name="app_name">小黑盒话题提醒</string>
+    <string name="notification_channel">应用通知</string>
+    <string name="webview_required">请更新系统 WebView 后重试。</string>
+    <string name="update_failed">更新失败，请重新检查更新。</string>
+</resources>

@@ -103,6 +103,9 @@ import {
 import { renderSettings } from "./views/settings.ts";
 import { renderAbout } from "./views/about.ts";
 import { projectVersion } from "./project.ts";
+import { parseEditStamp, serverEditStamp } from "./sync/protocol.ts";
+import { settingsEdits } from "./sync/settings.ts";
+import { createNativePushRoutes } from "./native_push_routes.ts";
 import { createReleaseCatalogReader, type ReleaseCatalog } from "./services/releases.ts";
 import {
   type MatchingSettings,
@@ -175,6 +178,50 @@ export function createRoutes(
   options: { releaseCatalog?: () => Promise<ReleaseCatalog> } = {},
 ): Hono {
   const app = new Hono();
+  app.route("/api/native/push", createNativePushRoutes(context.storage));
+  /**
+   * 提供共享原生桥接和应用更新界面脚本。
+   * @return {Promise<Response>} 同源脚本。
+   */
+  app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  /**
+   * 为原生应用返回当前账号的通知增量，未登录或账号切换不返回其它账号数据。
+   * @param {Context} c 请求上下文。
+   * @return {Promise<Response>} 通知批次与消费游标。
+   */
+  app.get("/api/native/notifications", async (c) => {
+    c.header("cache-control", "no-store");
+    const session = await authSessionForRequest(c, context);
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const after = c.req.query("after");
+    if (after !== undefined && after !== "" && !/^\d{16}:[A-Za-z0-9_-]{43}$/.test(after)) return c.json({ error: "invalidCursor" }, 400);
+    const inbox = context.storage.forUser(session.userId).nativeNotifications;
+    if (!inbox) return c.json({ error: "unavailable" }, 503);
+    const result = await inbox.read(after);
+    return c.json({ userId: session.userId, ...result });
+  });
+  /**
+   * 为离线队列校验当前账号，并提供当前 CSRF 令牌和时钟校准数据。
+   * @param {Context} c 请求上下文。
+   * @return {Promise<Response>} 当前会话的公开同步信息。
+   */
+  app.get("/api/sync/session", async (c) => {
+    const session = await authSessionForRequest(c, context);
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    c.header("cache-control", "no-store");
+    return withCsrfCookie(c.json({ userId: session.userId, serverTime: Date.now(), csrfToken: csrf.token }), csrf);
+  });
+  /**
+   * 提供共享离线存储与队列脚本，不允许动态路径读取。
+   * @param {Context} c 请求上下文。
+   * @return {Promise<Response>} 同源脚本或未找到响应。
+   */
+  app.get("/static/app-sync/:file", async (c) => {
+    const file = c.req.param("file");
+    if (!["store.js", "client.js"].includes(file)) return c.notFound();
+    return new Response(await Deno.readTextFile(new URL(`../static/app-sync/${file}`, import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } });
+  });
   /**
    * 提供设备通知开关的浏览器脚本。
    * @return {Promise<Response>} 同源脚本响应。
@@ -2044,8 +2091,21 @@ export function createRoutes(
     }
 
     const currentSettings = await storage.getSettings();
-    const nextSettings = settingsFromForm(form, currentSettings);
-    await storage.saveSettings(nextSettings);
+    let nextSettings = settingsFromForm(form, currentSettings);
+    let syncResult: { applied: string[]; superseded: string[] } | undefined;
+    if (c.req.header("x-settings-sync") === "1") {
+      if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
+      let stamp;
+      let base;
+      try {
+        stamp = parseEditStamp(JSON.parse(String(form.syncStamp)));
+        if (typeof form.syncBase !== "string" || form.syncBase.length > 128000) throw new Error("Invalid settings base");
+        base = settingsFromForm(Object.fromEntries(new URLSearchParams(form.syncBase)), currentSettings, new Date(stamp.editedAt));
+      } catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
+      const result = await storage.sync.applySettings(settingsEdits(base, nextSettings, stamp));
+      nextSettings = result.snapshot.settings;
+      syncResult = { applied: result.applied, superseded: result.superseded };
+    } else await storage.saveSettings(nextSettings);
     const session = await authSessionForRequest(c, context);
     logSecurityAuditEvent({
       code: "settings_changed",
@@ -2062,6 +2122,7 @@ export function createRoutes(
       userId: session?.userId,
     });
     if (c.req.header("x-autosave") === "1") {
+      if (syncResult) return c.json(syncResult);
       return new Response(null, { status: 204 });
     }
     return c.redirect("/settings");
@@ -2169,6 +2230,13 @@ export function createRoutes(
     }
 
     const ids = form.getAll("matchId").map(String);
+    if (c.req.header("x-record-sync") === "1") {
+      if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
+      let stamp;
+      try { stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp")))); }
+      catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
+      for (const id of new Set(ids)) await storage.sync.applyRecord(id, "history", stamp);
+    } else
     if (ids.length > 0) {
       await storage.completeMatches(ids);
     }
@@ -2187,6 +2255,13 @@ export function createRoutes(
     }
 
     const ids = form.getAll("matchId").map(String);
+    if (c.req.header("x-record-sync") === "1") {
+      if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
+      let stamp;
+      try { stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp")))); }
+      catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
+      for (const id of new Set(ids)) await storage.sync.applyRecord(id, "deleted", stamp);
+    } else
     if (ids.length > 0) {
       await storage.deleteMatches(ids);
     }
@@ -2194,6 +2269,25 @@ export function createRoutes(
     if (isMatchTableRefreshRequest(c)) {
       return await historyTableResponse(c, storage, returnTo);
     }
+    return c.redirect(returnTo);
+  });
+
+  /**
+   * 将已同步记录移回工作区，恢复与删除使用相同的生命周期版本。
+   * @param {Context} c 请求上下文。
+   * @return {Promise<Response>} 历史表格或重定向。
+   */
+  app.post("/matches/restore", async (c) => {
+    const storage = await storageForRequest(c, context);
+    const form = await c.req.raw.formData();
+    if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
+    if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
+    let stamp;
+    try { stamp = c.req.header("x-record-sync") === "1" ? parseEditStamp(JSON.parse(String(form.get("syncStamp")))) : serverEditStamp(); }
+    catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
+    for (const id of new Set(form.getAll("matchId").map(String))) await storage.sync.applyRecord(id, "workspace", stamp);
+    const returnTo = safeRedirectPath(form.get("returnTo"), "/history");
+    if (isMatchTableRefreshRequest(c)) return await historyTableResponse(c, storage, returnTo);
     return c.redirect(returnTo);
   });
 

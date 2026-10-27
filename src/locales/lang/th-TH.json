@@ -392,5 +392,20 @@
   "applicationNotifications": "การแจ้งเตือนของแอป",
   "applicationNotificationsUnsupported": "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนระบบ",
   "applicationNotificationsUnavailable": "ยังไม่ได้ตั้งค่าการแจ้งเตือนหรือเชื่อมต่อเซิร์ฟเวอร์ไม่ได้",
-  "applicationNotificationsDenied": "อนุญาตการแจ้งเตือนในการตั้งค่าเบราว์เซอร์"
+  "applicationNotificationsDenied": "อนุญาตการแจ้งเตือนในการตั้งค่าเบราว์เซอร์",
+  "autoSavePending": "บันทึกในอุปกรณ์นี้แล้ว รอการซิงค์",
+  "restoreMatch": "ย้ายกลับไปยังพื้นที่ทำงาน",
+  "checkUpdate": "ตรวจสอบการอัปเดต",
+  "updateAvailable": "มีเวอร์ชันใหม่",
+  "updateDownload": "ดาวน์โหลดและอัปเดต",
+  "updateLater": "ภายหลัง",
+  "updateRestart": "เริ่มใหม่และอัปเดต",
+  "updateCurrent": "เป็นเวอร์ชันล่าสุดแล้ว",
+  "updateFailed": "อัปเดตไม่สำเร็จ โปรดลองอีกครั้ง",
+  "updateChecking": "กำลังตรวจสอบการอัปเดต…",
+  "updateDownloading": "กำลังดาวน์โหลด…",
+  "updateDevelopment": "เวอร์ชันพัฒนา",
+  "nativeLoginTitle": "เข้าสู่ระบบแอป: ตรวจสอบรหัสจับคู่",
+  "nativeLoginApproved": "เข้าสู่ระบบแล้ว กลับไปที่แอป",
+  "applicationNotificationsBackgroundUnavailable": "การแจ้งเตือนเบื้องหลังไม่พร้อมใช้งาน รับได้เมื่อเปิดแอปเท่านั้น"
 }

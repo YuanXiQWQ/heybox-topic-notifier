@@ -392,5 +392,20 @@
   "applicationNotifications": "アプリ通知",
   "applicationNotificationsUnsupported": "このブラウザーはシステム通知に対応していません",
   "applicationNotificationsUnavailable": "アプリ通知が未設定、またはサーバーに接続できません",
-  "applicationNotificationsDenied": "ブラウザーの設定で通知を許可してください"
+  "applicationNotificationsDenied": "ブラウザーの設定で通知を許可してください",
+  "autoSavePending": "この端末に保存済み・同期待ち",
+  "restoreMatch": "ワークスペースに戻す",
+  "checkUpdate": "更新を確認",
+  "updateAvailable": "新しいバージョンがあります",
+  "updateDownload": "ダウンロードして更新",
+  "updateLater": "後で",
+  "updateRestart": "再起動して更新",
+  "updateCurrent": "最新バージョンです",
+  "updateFailed": "更新に失敗しました。再試行してください",
+  "updateChecking": "更新を確認中…",
+  "updateDownloading": "ダウンロード中…",
+  "updateDevelopment": "開発版",
+  "nativeLoginTitle": "アプリへのログイン：ペアリングコードを確認してください",
+  "nativeLoginApproved": "ログインしました。アプリに戻ってください",
+  "applicationNotificationsBackgroundUnavailable": "バックグラウンド通知は利用できません。アプリを開いている間のみ受信します"
 }

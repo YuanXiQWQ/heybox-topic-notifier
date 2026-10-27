@@ -392,5 +392,20 @@
   "applicationNotifications": "Notifications de l’application",
   "applicationNotificationsUnsupported": "Ce navigateur ne prend pas en charge les notifications système",
   "applicationNotificationsUnavailable": "Les notifications ne sont pas configurées ou le serveur est indisponible",
-  "applicationNotificationsDenied": "Autorisez les notifications dans les paramètres du navigateur"
+  "applicationNotificationsDenied": "Autorisez les notifications dans les paramètres du navigateur",
+  "autoSavePending": "Enregistré sur cet appareil, en attente de synchronisation",
+  "restoreMatch": "Remettre dans l’espace de travail",
+  "checkUpdate": "Rechercher des mises à jour",
+  "updateAvailable": "Mise à jour disponible",
+  "updateDownload": "Télécharger et mettre à jour",
+  "updateLater": "Plus tard",
+  "updateRestart": "Redémarrer et mettre à jour",
+  "updateCurrent": "Vous êtes à jour",
+  "updateFailed": "Échec de la mise à jour. Réessayez",
+  "updateChecking": "Recherche de mises à jour…",
+  "updateDownloading": "Téléchargement…",
+  "updateDevelopment": "Version de développement",
+  "nativeLoginTitle": "Connexion à l’application : vérifiez le code",
+  "nativeLoginApproved": "Connexion réussie. Retournez à l’application",
+  "applicationNotificationsBackgroundUnavailable": "Notifications en arrière-plan indisponibles ; réception quand l’application est ouverte"
 }

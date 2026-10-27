@@ -6,7 +6,15 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 7;
+export const TURSO_SCHEMA_VERSION = 9;
+/** 具备稳定游标和事件唯一键的原生通知收件箱。 */
+const nativeNotificationSchema = [
+  `CREATE TABLE IF NOT EXISTS native_push_devices (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, value_json TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS native_push_devices_user_idx ON native_push_devices(user_id)`,
+  `CREATE TABLE IF NOT EXISTS native_login (id TEXT PRIMARY KEY, challenge TEXT NOT NULL, expires_at INTEGER NOT NULL, user_id TEXT, consumed INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS native_notifications (user_id TEXT NOT NULL, id TEXT NOT NULL, cursor TEXT NOT NULL, created_at INTEGER NOT NULL, value_json TEXT NOT NULL, PRIMARY KEY (user_id, id))`,
+  `CREATE INDEX IF NOT EXISTS native_notifications_cursor ON native_notifications(user_id, cursor)`,
+];
 
 /**
  * 为仪表盘数据表创建版本更新触发器；版本与业务写入处于同一事务。
@@ -34,6 +42,9 @@ function dashboardVersionTriggers(table: string): string[] {
  * TTL 所需字段提升为关系列，避免把原有 KV prefix scan 原样搬到 SQL。
  */
 export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
+  `CREATE TABLE IF NOT EXISTS sync_settings (user_id TEXT PRIMARY KEY, revision TEXT NOT NULL, value_json TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS sync_records (user_id TEXT NOT NULL, id TEXT NOT NULL, value_json TEXT NOT NULL, PRIMARY KEY (user_id, id))`,
+  `CREATE TABLE IF NOT EXISTS sync_transaction_guard (id INTEGER PRIMARY KEY CONSTRAINT sync_guard_valid CHECK (id = 1))`,
   `CREATE TABLE IF NOT EXISTS web_push_devices (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, value_json TEXT NOT NULL
   )`,
@@ -208,6 +219,7 @@ export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
     ON sessions (expires_at)`,
   `CREATE INDEX IF NOT EXISTS sessions_user_idx
     ON sessions (user_id, expires_at)`,
+  ...nativeNotificationSchema,
   `CREATE TABLE IF NOT EXISTS storage_tombstones (
     entity_type TEXT NOT NULL,
     entity_key TEXT NOT NULL,

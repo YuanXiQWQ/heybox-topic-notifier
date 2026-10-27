@@ -5,6 +5,8 @@ import { projectRepository, projectRepositoryUrl } from "../project.ts";
 
 /** 支持直接安装的发行附件名称及对应平台。 */
 export const installerAssets = {
+  "heybox-topic-notifier-windows-x64-setup.exe": "Windows · x64",
+  "heybox-topic-notifier-windows-arm64-setup.exe": "Windows · ARM64",
   "heybox-topic-notifier-windows-x86_64-setup.exe": "Windows · x64",
   "heybox-topic-notifier-windows-aarch64-setup.exe": "Windows · ARM64",
   "heybox-topic-notifier-android-arm64.apk": "Android · ARM64",

@@ -392,5 +392,20 @@
   "applicationNotifications": "Notifikasi aplikasi",
   "applicationNotificationsUnsupported": "Browser ini tidak mendukung notifikasi sistem",
   "applicationNotificationsUnavailable": "Notifikasi belum dikonfigurasi atau server tidak tersedia",
-  "applicationNotificationsDenied": "Izinkan notifikasi di pengaturan browser"
+  "applicationNotificationsDenied": "Izinkan notifikasi di pengaturan browser",
+  "autoSavePending": "Disimpan di perangkat ini, menunggu sinkronisasi",
+  "restoreMatch": "Pindahkan kembali ke ruang kerja",
+  "checkUpdate": "Periksa pembaruan",
+  "updateAvailable": "Pembaruan tersedia",
+  "updateDownload": "Unduh dan perbarui",
+  "updateLater": "Nanti",
+  "updateRestart": "Mulai ulang dan perbarui",
+  "updateCurrent": "Versi sudah terbaru",
+  "updateFailed": "Pembaruan gagal. Coba lagi",
+  "updateChecking": "Memeriksa pembaruan…",
+  "updateDownloading": "Mengunduh…",
+  "updateDevelopment": "Versi pengembangan",
+  "nativeLoginTitle": "Masuk ke aplikasi: periksa kode pemasangan",
+  "nativeLoginApproved": "Berhasil masuk. Kembali ke aplikasi",
+  "applicationNotificationsBackgroundUnavailable": "Notifikasi latar belakang tidak tersedia; diterima saat aplikasi terbuka"
 }

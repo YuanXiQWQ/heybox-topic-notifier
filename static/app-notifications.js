@@ -21,6 +21,47 @@ async function initializeApplicationNotifications() {
     status.hidden = !message;
   }
 
+  if (globalThis.appNative) {
+    /**
+     * 同步本机权限和后台通道状态，未配置厂商推送时保留明确提示。
+     * @param {object} info 原生设备状态。
+     */
+    const applyNativeState = (info) => {
+      toggle.checked = info.notifications.enabled;
+      toggle.disabled = !info.notifications.supported;
+      showStatus(
+        info.notifications.enabled &&
+          info.notifications.backgroundPushConfigured === false
+          ? toggle.dataset.backgroundUnavailable
+          : "",
+      );
+    };
+    try {
+      const info = await globalThis.applicationNativeReady;
+      applyNativeState(info);
+      document.addEventListener("application-native-state", (event) => {
+        applyNativeState(event.detail);
+      });
+      toggle.addEventListener("change", async (event) => {
+        event.stopPropagation();
+        const enabled = toggle.checked;
+        toggle.disabled = true;
+        showStatus("");
+        try {
+          applyNativeState(await globalThis.appNative.notifications(enabled));
+        } catch {
+          toggle.checked = !enabled;
+          showStatus(toggle.dataset.failed);
+        } finally {
+          toggle.disabled = false;
+        }
+      });
+    } catch {
+      showStatus(toggle.dataset.unavailable);
+    }
+    return;
+  }
+
   if (
     !globalThis.isSecureContext || !("serviceWorker" in navigator) ||
     !("PushManager" in globalThis) || !("Notification" in globalThis)

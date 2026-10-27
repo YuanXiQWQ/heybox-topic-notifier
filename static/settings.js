@@ -5839,7 +5839,21 @@ function scheduleAutoSave() {
  *
  * @return {Promise<boolean>} 保存成功或无需保存时返回 true，保存失败时返回 false。
  */
-async function saveSettingsNow() {
+function saveSettingsNow() {
+  if (settingsSaveTask) return settingsSaveTask.then(() => saveSettingsNow());
+  const pending = persistSettingsNow().finally(() => { if (settingsSaveTask === pending) settingsSaveTask = undefined; });
+  settingsSaveTask = pending;
+  return pending;
+}
+
+/** 设置按本机提交顺序保存，防止并发快照使用过期基线重新修改未触碰的区域。 */
+let settingsSaveTask;
+
+/**
+ * 将当前表单保存到本地队列或服务端，成功后推进本页编辑基线。
+ * @return {Promise<boolean>} 本次快照是否已可靠保存。
+ */
+async function persistSettingsNow() {
   if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor) {
     return true;
   }
@@ -5860,7 +5874,9 @@ async function saveSettingsNow() {
   setAutoSaveStatus('saving');
 
   try {
-    const response = await fetch(autoSaveForm.action, {
+    const response = globalThis.applicationSync
+      ? await globalThis.applicationSync.submitSettings(submitted, lastSavedSignature)
+      : await fetch(autoSaveForm.action, {
       body: submitted,
       headers: csrfRequestHeaders({'x-autosave': '1'}),
       method: autoSaveForm.method || 'post',
@@ -5881,8 +5897,8 @@ async function saveSettingsNow() {
       scheduleAutoSave();
       return true;
     }
-    setAutoSaveStatus('saved');
-    if (reloadAfterSave) {
+    setAutoSaveStatus(response.headers.get('x-app-local') === '1' ? 'pending' : 'saved');
+    if (reloadAfterSave && response.headers.get('x-app-local') !== '1') {
       location.reload();
     }
     return true;
@@ -5895,6 +5911,14 @@ async function saveSettingsNow() {
     return false;
   }
 }
+
+/** 同步完成后清除本地待同步状态，语言切换在服务端接受后刷新。 */
+document.addEventListener('application-sync-complete', () => {
+  if (autoSaveForm && settingsSignature() === lastSavedSignature) {
+    setAutoSaveStatus('saved');
+    if (reloadAfterSave) location.reload();
+  }
+});
 
 /**
  * 发送测试通知并更新发送状态。

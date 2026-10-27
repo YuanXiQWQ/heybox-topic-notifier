@@ -392,5 +392,20 @@
   "applicationNotifications": "Уведомления приложения",
   "applicationNotificationsUnsupported": "Этот браузер не поддерживает системные уведомления",
   "applicationNotificationsUnavailable": "Уведомления не настроены или сервер недоступен",
-  "applicationNotificationsDenied": "Разрешите уведомления в настройках браузера"
+  "applicationNotificationsDenied": "Разрешите уведомления в настройках браузера",
+  "autoSavePending": "Сохранено на устройстве, ожидает синхронизации",
+  "restoreMatch": "Вернуть в рабочую область",
+  "checkUpdate": "Проверить обновления",
+  "updateAvailable": "Доступно обновление",
+  "updateDownload": "Скачать и обновить",
+  "updateLater": "Позже",
+  "updateRestart": "Перезапустить и обновить",
+  "updateCurrent": "Установлена последняя версия",
+  "updateFailed": "Не удалось обновить. Повторите попытку",
+  "updateChecking": "Проверка обновлений…",
+  "updateDownloading": "Скачивание…",
+  "updateDevelopment": "Версия для разработки",
+  "nativeLoginTitle": "Вход в приложение: проверьте код",
+  "nativeLoginApproved": "Вход выполнен. Вернитесь в приложение",
+  "applicationNotificationsBackgroundUnavailable": "Фоновые уведомления недоступны; получение только при открытом приложении"
 }

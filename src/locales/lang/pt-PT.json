@@ -392,5 +392,20 @@
   "applicationNotifications": "Notificações da aplicação",
   "applicationNotificationsUnsupported": "Este navegador não suporta notificações do sistema",
   "applicationNotificationsUnavailable": "As notificações não estão configuradas ou o servidor está indisponível",
-  "applicationNotificationsDenied": "Permita notificações nas definições do navegador"
+  "applicationNotificationsDenied": "Permita notificações nas definições do navegador",
+  "autoSavePending": "Guardado neste dispositivo, a aguardar sincronização",
+  "restoreMatch": "Mover de volta para a área de trabalho",
+  "checkUpdate": "Procurar atualizações",
+  "updateAvailable": "Atualização disponível",
+  "updateDownload": "Transferir e atualizar",
+  "updateLater": "Mais tarde",
+  "updateRestart": "Reiniciar e atualizar",
+  "updateCurrent": "A versão está atualizada",
+  "updateFailed": "Falha na atualização. Tente novamente",
+  "updateChecking": "A procurar atualizações…",
+  "updateDownloading": "A transferir…",
+  "updateDevelopment": "Versão de desenvolvimento",
+  "nativeLoginTitle": "Iniciar sessão na aplicação: confirme o código",
+  "nativeLoginApproved": "Sessão iniciada. Volte à aplicação",
+  "applicationNotificationsBackgroundUnavailable": "Notificações em segundo plano indisponíveis; recebidas com a aplicação aberta"
 }

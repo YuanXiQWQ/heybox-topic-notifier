@@ -392,5 +392,20 @@
   "applicationNotifications": "অ্যাপের বিজ্ঞপ্তি",
   "applicationNotificationsUnsupported": "এই ব্রাউজার সিস্টেম বিজ্ঞপ্তি সমর্থন করে না",
   "applicationNotificationsUnavailable": "অ্যাপের বিজ্ঞপ্তি কনফিগার করা নেই অথবা সার্ভার অনুপলব্ধ",
-  "applicationNotificationsDenied": "ব্রাউজার সেটিংসে বিজ্ঞপ্তির অনুমতি দিন"
+  "applicationNotificationsDenied": "ব্রাউজার সেটিংসে বিজ্ঞপ্তির অনুমতি দিন",
+  "autoSavePending": "এই ডিভাইসে সংরক্ষিত, সিঙ্কের অপেক্ষায়",
+  "restoreMatch": "কর্মক্ষেত্রে ফিরিয়ে নিন",
+  "checkUpdate": "আপডেট পরীক্ষা করুন",
+  "updateAvailable": "আপডেট উপলব্ধ",
+  "updateDownload": "ডাউনলোড ও আপডেট করুন",
+  "updateLater": "পরে",
+  "updateRestart": "পুনরায় চালু করে আপডেট করুন",
+  "updateCurrent": "সর্বশেষ সংস্করণ রয়েছে",
+  "updateFailed": "আপডেট ব্যর্থ। আবার চেষ্টা করুন",
+  "updateChecking": "আপডেট পরীক্ষা করা হচ্ছে…",
+  "updateDownloading": "ডাউনলোড হচ্ছে…",
+  "updateDevelopment": "উন্নয়ন সংস্করণ",
+  "nativeLoginTitle": "অ্যাপে সাইন ইন: পেয়ারিং কোড যাচাই করুন",
+  "nativeLoginApproved": "সাইন ইন সম্পন্ন। অ্যাপে ফিরুন",
+  "applicationNotificationsBackgroundUnavailable": "ব্যাকগ্রাউন্ড বিজ্ঞপ্তি অনুপলব্ধ; অ্যাপ খোলা থাকলেই পাওয়া যাবে"
 }

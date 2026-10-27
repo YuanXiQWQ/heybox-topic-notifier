@@ -1,6 +1,10 @@
 {
   "exclude": [
     "临时文件",
+    "apps/generated",
+    "apps/desktop/node_modules",
+    "apps/desktop/dist",
+    "apps/android",
     "static/fun/lobotomy-corp/vendor"
   ],
   "tasks": {
@@ -20,6 +24,7 @@
     "@simplewebauthn/browser": "jsr:@simplewebauthn/browser@^13.3.0",
     "@simplewebauthn/server": "jsr:@simplewebauthn/server@^13.3.2",
     "@types/web-push": "npm:@types/web-push@3.6.4",
+    "fake-indexeddb": "npm:fake-indexeddb@6.2.6",
     "qrcode": "npm:qrcode@^1.5.4",
     "web-push": "npm:web-push@3.6.7"
   },

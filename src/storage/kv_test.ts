@@ -18,12 +18,39 @@ import type {
 } from "../models.ts";
 import { createKvStorage, latestMatchByMatchedTime } from "./kv.ts";
 import { verifyWebPushStore } from "./web_push_test_helpers.ts";
+import { verifySettingsSync } from "./sync_test_helpers.ts";
+import { verifyNativeCapabilities } from "./native_test_helpers.ts";
 import { assert, assertEquals, assertStrictEquals } from "../test_helpers.ts";
 
 Deno.test("KV web push isolates and rebinds browser devices", async () => {
   const kv = new MemoryKv();
   const storage = createKvStorage(defaultSettings, { openKv: () => Promise.resolve(kv) });
   await verifyWebPushStore(storage.webPush!);
+});
+
+Deno.test("KV native events and login handoffs remain isolated and atomic", async () => {
+  const kv = await Deno.openKv(":memory:");
+  try { await verifyNativeCapabilities(createKvStorage(defaultSettings, { openKv: () => Promise.resolve(kv) })); } finally { kv.close(); }
+});
+
+Deno.test("KV settings sync resolves offline edits atomically by edit time", async () => {
+  const kv = new MemoryKv();
+  await verifySettingsSync(createKvStorage(defaultSettings, { openKv: () => Promise.resolve(kv) }));
+});
+
+Deno.test("KV sync metadata fits settings near the single-value size limit", async () => {
+  const kv = await Deno.openKv(":memory:");
+  try {
+    const storage = createKvStorage(defaultSettings, { openKv: () => Promise.resolve(kv) }).forUser("large-settings");
+    const note = Array.from({ length: 1100 }, () => crypto.randomUUID()).join("");
+    const settings = { ...defaultSettings, topics: [{ id: "large", enabled: true, note, keywordRules: [] }] };
+    await storage.saveSettings(settings);
+    assertEquals((await storage.getSettings()).topics[0].note, note);
+    assertEquals((await storage.sync!.readSettings()).settings.topics[0].note, note);
+    const raw = await kv.get<Uint8Array>(["userSync", "large-settings", "settings"]);
+    assert(raw.value instanceof Uint8Array);
+    assert(raw.value.byteLength < 65536);
+  } finally { kv.close(); }
 });
 
 Deno.test("latestMatchByMatchedTime prefers the newest match before post time", () => {

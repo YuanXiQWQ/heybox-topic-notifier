@@ -392,5 +392,20 @@
   "applicationNotifications": "اعلان‌های برنامه",
   "applicationNotificationsUnsupported": "این مرورگر از اعلان‌های سیستم پشتیبانی نمی‌کند",
   "applicationNotificationsUnavailable": "اعلان‌ها پیکربندی نشده‌اند یا سرور در دسترس نیست",
-  "applicationNotificationsDenied": "در تنظیمات مرورگر به اعلان‌ها اجازه دهید"
+  "applicationNotificationsDenied": "در تنظیمات مرورگر به اعلان‌ها اجازه دهید",
+  "autoSavePending": "روی این دستگاه ذخیره شد، در انتظار همگام‌سازی",
+  "restoreMatch": "بازگرداندن به فضای کاری",
+  "checkUpdate": "بررسی به‌روزرسانی",
+  "updateAvailable": "به‌روزرسانی موجود است",
+  "updateDownload": "دریافت و به‌روزرسانی",
+  "updateLater": "بعداً",
+  "updateRestart": "راه‌اندازی مجدد و به‌روزرسانی",
+  "updateCurrent": "آخرین نسخه نصب است",
+  "updateFailed": "به‌روزرسانی ناموفق بود. دوباره تلاش کنید",
+  "updateChecking": "در حال بررسی به‌روزرسانی…",
+  "updateDownloading": "در حال دریافت…",
+  "updateDevelopment": "نسخهٔ توسعه",
+  "nativeLoginTitle": "ورود به برنامه: کد جفت‌سازی را بررسی کنید",
+  "nativeLoginApproved": "وارد شدید. به برنامه برگردید",
+  "applicationNotificationsBackgroundUnavailable": "اعلان پس‌زمینه در دسترس نیست؛ فقط هنگام باز بودن برنامه دریافت می‌شود"
 }

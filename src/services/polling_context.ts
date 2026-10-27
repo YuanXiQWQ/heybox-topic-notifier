@@ -9,6 +9,7 @@ import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import type { createNotifier } from "./notifier.ts";
 import { createPoller } from "./poller.ts";
 import { sendIndependentNotifications } from "./application_notifier.ts";
+import { enqueueNativeNotifications } from "./native_notifications.ts";
 
 /** 供网页请求与定时任务共享的轮询依赖。 */
 export type PollingContext = ReturnType<typeof createPollingContext>;
@@ -55,9 +56,15 @@ export function createPollingContext() {
         return await sendIndependentNotifications(
           settings.notificationProvider,
           () => notifierPromise!.then((notifier) => notifier.sendMatches(records, settings)),
-          () => userId
-            ? import("./web_push.ts").then((module) => module.notifyBrowsers(storage, userId, records, settings))
-            : Promise.resolve(false),
+          async () => {
+            if (!userId) return false;
+            const results = await Promise.allSettled([
+              import("./web_push.ts").then((module) => module.notifyBrowsers(storage, userId, records, settings)),
+              enqueueNativeNotifications(storage, userId, records, settings),
+            ]);
+            for (const result of results) if (result.status === "rejected") console.warn("应用通知通道暂时不可用。");
+            return results.some((result) => result.status === "fulfilled" && result.value);
+          },
         );
       },
     },

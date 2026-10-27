@@ -3,6 +3,12 @@
  */
 import { createKvMatchingStore } from "./matching_kv.ts";
 import { createKvWebPushStore } from "./web_push_kv.ts";
+import { createKvNativePushStore } from "./native_push_kv.ts";
+import { createKvSyncStore } from "./sync_kv.ts";
+import { createKvNativeNotifications } from "./native_notifications_kv.ts";
+import { createKvNativeLogin } from "./native_login_kv.ts";
+import { serverEditStamp } from "../sync/protocol.ts";
+import { settingsEdits } from "../sync/settings.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type {
   AppSettings,
@@ -232,9 +238,12 @@ export function createKvStorage(
    * @return {UserStorage} 指定用户的数据存储操作集合。
    */
   function forUser(userId: string): UserStorage {
+    const sync = createKvSyncStore(kv, userId, defaultSettings);
     return {
+      sync,
       userId,
       matching: createKvMatchingStore(kv, userId),
+      nativeNotifications: createKvNativeNotifications(kv, userId),
       /**
        * 获取当前用户设置。
        *
@@ -249,14 +258,13 @@ export function createKvStorage(
       },
 
       /**
-       * 保存当前用户设置。
+       * 将当前在线设置保存为区域编辑，并与并发编辑原子合并。
        *
-       * @param settings 应用设置。
-       * @return 保存完成后的 Promise。
+       * @param {AppSettings} settings 应用设置。
        */
       async saveSettings(settings: AppSettings): Promise<void> {
-        const store = await kv();
-        await store.set(keys.settings(userId), settings);
+        const current = await sync.readSettings();
+        await sync.applySettings(settingsEdits(current.settings, settings, serverEditStamp()));
       },
 
       /**
@@ -363,22 +371,19 @@ export function createKvStorage(
       },
 
       /**
-       * 保存当前用户命中记录。
+       * 刷新命中内容，并保留已裁决的移动或删除状态。
        *
-       * @param record 命中记录。
-       * @return 保存完成后的 Promise。
+       * @param {MatchRecord} record 命中记录。
        */
       async saveMatch(record: MatchRecord): Promise<void> {
-        const store = await kv();
-        await store.set(keys.match(userId, record.id), record);
+        await sync.saveRecordContent(record);
       },
 
       /**
-       * 标记当前用户命中记录已经通知。
+       * 标记通知时间，同时保留并发的用户管理状态。
        *
-       * @param id 命中记录 ID。
-       * @param notifiedAt 通知时间。
-       * @return 更新完成后的 Promise。
+       * @param {string} id 命中记录 ID。
+       * @param {string} notifiedAt 通知时间。
        */
       async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
         const store = await kv();
@@ -387,49 +392,38 @@ export function createKvStorage(
           return;
         }
 
-        await store.set(keys.match(userId, id), { ...entry.value, notifiedAt });
+        await sync.saveRecordContent({ ...entry.value, notifiedAt });
       },
 
       /**
-       * 批量完成当前用户命中记录。
+       * 用同一个在线编辑版本完成指定记录。
        *
-       * @param ids 命中记录 ID 列表。
-       * @return 更新完成后的 Promise。
+       * @param {string[]} ids 命中记录 ID 列表。
        */
       async completeMatches(ids: string[]): Promise<void> {
-        const store = await kv();
-        const completedAt = new Date().toISOString();
+        const stamp = serverEditStamp();
         const uniqueIds = Array.from(
           new Set(ids.filter((id) => id.trim().length > 0)),
         );
 
         for (const id of uniqueIds) {
-          const entry = await store.get<MatchRecord>(keys.match(userId, id));
-          if (!entry.value) {
-            continue;
-          }
-
-          await store.set(keys.match(userId, id), {
-            ...entry.value,
-            completedAt,
-          });
+          await sync.applyRecord(id, "history", stamp);
         }
       },
 
       /**
-       * 批量删除当前用户命中记录。
+       * 删除可见记录并保留按编辑时间裁决的同步墓碑。
        *
-       * @param ids 命中记录 ID 列表。
-       * @return 删除完成后的 Promise。
+       * @param {string[]} ids 命中记录 ID 列表。
        */
       async deleteMatches(ids: string[]): Promise<void> {
-        const store = await kv();
+        const stamp = serverEditStamp();
         const uniqueIds = Array.from(
           new Set(ids.filter((id) => id.trim().length > 0)),
         );
 
         for (const id of uniqueIds) {
-          await store.delete(keys.match(userId, id));
+          await sync.applyRecord(id, "deleted", stamp);
         }
       },
 
@@ -482,6 +476,10 @@ export function createKvStorage(
     forUser,
     matching: createKvMatchingStore(kv, "default"),
     webPush: createKvWebPushStore(kv),
+    nativePush: createKvNativePushStore(kv),
+    nativeLogin: createKvNativeLogin(kv),
+    nativeNotifications: createKvNativeNotifications(kv, "default"),
+    sync: createKvSyncStore(kv, "default", defaultSettings),
 
     /**
      * 按账号 ID 获取账号。
@@ -2231,7 +2229,7 @@ function normalizeTopics(
   value: Partial<AppSettings> & LegacySettings,
   defaultTopics: TopicRule[],
 ): TopicRule[] {
-  if (value.topics && value.topics.length > 0) {
+  if (value.topics) {
     return value.topics.map((topic) => ({
       ...topic,
       keywordRules: normalizeKeywordRuleList(topic.keywordRules),

@@ -392,5 +392,20 @@
   "applicationNotifications": "앱 알림",
   "applicationNotificationsUnsupported": "이 브라우저는 시스템 알림을 지원하지 않습니다",
   "applicationNotificationsUnavailable": "앱 알림이 설정되지 않았거나 서버에 연결할 수 없습니다",
-  "applicationNotificationsDenied": "브라우저 설정에서 알림을 허용해 주세요"
+  "applicationNotificationsDenied": "브라우저 설정에서 알림을 허용해 주세요",
+  "autoSavePending": "이 기기에 저장됨, 동기화 대기 중",
+  "restoreMatch": "작업 공간으로 되돌리기",
+  "checkUpdate": "업데이트 확인",
+  "updateAvailable": "새 버전 사용 가능",
+  "updateDownload": "다운로드 및 업데이트",
+  "updateLater": "나중에",
+  "updateRestart": "다시 시작 및 업데이트",
+  "updateCurrent": "최신 버전입니다",
+  "updateFailed": "업데이트 실패. 다시 시도하세요",
+  "updateChecking": "업데이트 확인 중…",
+  "updateDownloading": "다운로드 중…",
+  "updateDevelopment": "개발 버전",
+  "nativeLoginTitle": "앱 로그인: 연결 코드를 확인하세요",
+  "nativeLoginApproved": "로그인되었습니다. 앱으로 돌아가세요",
+  "applicationNotificationsBackgroundUnavailable": "백그라운드 푸시를 사용할 수 없습니다. 앱이 열려 있을 때만 수신합니다"
 }

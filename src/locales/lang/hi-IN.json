@@ -392,5 +392,20 @@
   "applicationNotifications": "ऐप सूचनाएँ",
   "applicationNotificationsUnsupported": "यह ब्राउज़र सिस्टम सूचनाओं का समर्थन नहीं करता",
   "applicationNotificationsUnavailable": "ऐप सूचनाएँ कॉन्फ़िगर नहीं हैं या सर्वर उपलब्ध नहीं है",
-  "applicationNotificationsDenied": "ब्राउज़र सेटिंग में सूचनाओं की अनुमति दें"
+  "applicationNotificationsDenied": "ब्राउज़र सेटिंग में सूचनाओं की अनुमति दें",
+  "autoSavePending": "इस डिवाइस पर सहेजा गया, सिंक की प्रतीक्षा है",
+  "restoreMatch": "कार्यस्थान में वापस ले जाएँ",
+  "checkUpdate": "अपडेट जाँचें",
+  "updateAvailable": "अपडेट उपलब्ध है",
+  "updateDownload": "डाउनलोड और अपडेट करें",
+  "updateLater": "बाद में",
+  "updateRestart": "पुनः शुरू करके अपडेट करें",
+  "updateCurrent": "नवीनतम संस्करण है",
+  "updateFailed": "अपडेट विफल। फिर प्रयास करें",
+  "updateChecking": "अपडेट जाँचा जा रहा है…",
+  "updateDownloading": "डाउनलोड हो रहा है…",
+  "updateDevelopment": "विकास संस्करण",
+  "nativeLoginTitle": "ऐप में साइन इन करें: पेयरिंग कोड जाँचें",
+  "nativeLoginApproved": "साइन इन हो गया। ऐप पर लौटें",
+  "applicationNotificationsBackgroundUnavailable": "बैकग्राउंड सूचनाएँ उपलब्ध नहीं हैं; ऐप खुला होने पर ही प्राप्त होंगी"
 }

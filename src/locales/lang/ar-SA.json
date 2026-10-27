@@ -392,5 +392,20 @@
   "applicationNotifications": "إشعارات التطبيق",
   "applicationNotificationsUnsupported": "هذا المتصفح لا يدعم إشعارات النظام",
   "applicationNotificationsUnavailable": "إشعارات التطبيق غير مهيأة أو الخادم غير متاح",
-  "applicationNotificationsDenied": "اسمح بالإشعارات في إعدادات المتصفح"
+  "applicationNotificationsDenied": "اسمح بالإشعارات في إعدادات المتصفح",
+  "autoSavePending": "تم الحفظ على هذا الجهاز، بانتظار المزامنة",
+  "restoreMatch": "إعادة إلى مساحة العمل",
+  "checkUpdate": "التحقق من التحديثات",
+  "updateAvailable": "يتوفر تحديث",
+  "updateDownload": "تنزيل وتحديث",
+  "updateLater": "لاحقًا",
+  "updateRestart": "إعادة التشغيل والتحديث",
+  "updateCurrent": "الإصدار محدّث",
+  "updateFailed": "فشل التحديث. حاول مجددًا",
+  "updateChecking": "جارٍ التحقق من التحديثات…",
+  "updateDownloading": "جارٍ التنزيل…",
+  "updateDevelopment": "إصدار التطوير",
+  "nativeLoginTitle": "تسجيل الدخول إلى التطبيق: تحقق من رمز الاقتران",
+  "nativeLoginApproved": "تم تسجيل الدخول. ارجع إلى التطبيق",
+  "applicationNotificationsBackgroundUnavailable": "إشعارات الخلفية غير متاحة؛ تُستقبل عندما يكون التطبيق مفتوحًا"
 }

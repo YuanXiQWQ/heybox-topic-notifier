@@ -392,5 +392,20 @@
   "applicationNotifications": "ایپ کی اطلاعات",
   "applicationNotificationsUnsupported": "یہ براؤزر سسٹم اطلاعات کی معاونت نہیں کرتا",
   "applicationNotificationsUnavailable": "ایپ کی اطلاعات ترتیب نہیں دی گئیں یا سرور دستیاب نہیں ہے",
-  "applicationNotificationsDenied": "براؤزر کی ترتیبات میں اطلاعات کی اجازت دیں"
+  "applicationNotificationsDenied": "براؤزر کی ترتیبات میں اطلاعات کی اجازت دیں",
+  "autoSavePending": "اس آلے پر محفوظ، مطابقت پذیری کا انتظار ہے",
+  "restoreMatch": "کام کی جگہ پر واپس منتقل کریں",
+  "checkUpdate": "اپ ڈیٹس چیک کریں",
+  "updateAvailable": "اپ ڈیٹ دستیاب ہے",
+  "updateDownload": "ڈاؤن لوڈ اور اپ ڈیٹ کریں",
+  "updateLater": "بعد میں",
+  "updateRestart": "دوبارہ شروع کرکے اپ ڈیٹ کریں",
+  "updateCurrent": "تازہ ترین ورژن ہے",
+  "updateFailed": "اپ ڈیٹ ناکام۔ دوبارہ کوشش کریں",
+  "updateChecking": "اپ ڈیٹس چیک ہو رہی ہیں…",
+  "updateDownloading": "ڈاؤن لوڈ ہو رہا ہے…",
+  "updateDevelopment": "ترقیاتی ورژن",
+  "nativeLoginTitle": "ایپ میں سائن ان: جوڑا بنانے کا کوڈ چیک کریں",
+  "nativeLoginApproved": "سائن ان مکمل۔ ایپ پر واپس جائیں",
+  "applicationNotificationsBackgroundUnavailable": "پس منظر کی اطلاعات دستیاب نہیں؛ صرف ایپ کھلی ہونے پر موصول ہوں گی"
 }

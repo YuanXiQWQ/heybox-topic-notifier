@@ -220,6 +220,7 @@ export function renderSettings(options: {
       data-autosave-form
       data-autosave-saving="${escapeHtml(messages.autoSaveSaving)}"
       data-autosave-saved="${escapeHtml(messages.autoSaveSaved)}"
+      data-autosave-pending="${escapeHtml(messages.autoSavePending)}"
       data-autosave-error="${escapeHtml(messages.autoSaveError)}"
     >
       ${csrfHiddenInput(options.csrfToken)}
@@ -432,7 +433,7 @@ function renderGlobalSettingsSection(
             </dd>
           </div>
           <div class="settings-navigation-row">
-            <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about">
+            <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about" data-app-about-link>
               <span class="settings-label-with-icon">${materialSymbolIcon("info", "settings-label-icon")}<span>${escapeHtml(messages.aboutProject)}</span></span>
               <span class="settings-navigation-chevron" aria-hidden="true"></span>
             </a></dt>
@@ -3158,6 +3159,7 @@ function renderNotificationSection(settings: AppSettings): string {
                   aria-label="${escapeHtml(messages.applicationNotifications)}"
                   data-unsupported="${escapeHtml(messages.applicationNotificationsUnsupported)}"
                   data-unavailable="${escapeHtml(messages.applicationNotificationsUnavailable)}"
+                  data-background-unavailable="${escapeHtml(messages.applicationNotificationsBackgroundUnavailable)}"
                   data-denied="${escapeHtml(messages.applicationNotificationsDenied)}"
                   data-failed="${escapeHtml(messages.autoSaveError)}">
               </label>

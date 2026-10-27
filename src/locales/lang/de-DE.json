@@ -392,5 +392,20 @@
   "applicationNotifications": "App-Benachrichtigungen",
   "applicationNotificationsUnsupported": "Dieser Browser unterstützt keine Systembenachrichtigungen",
   "applicationNotificationsUnavailable": "App-Benachrichtigungen sind nicht eingerichtet oder der Server ist nicht erreichbar",
-  "applicationNotificationsDenied": "Benachrichtigungen in den Browsereinstellungen zulassen"
+  "applicationNotificationsDenied": "Benachrichtigungen in den Browsereinstellungen zulassen",
+  "autoSavePending": "Auf diesem Gerät gespeichert, Synchronisierung ausstehend",
+  "restoreMatch": "Zurück in den Arbeitsbereich",
+  "checkUpdate": "Nach Updates suchen",
+  "updateAvailable": "Update verfügbar",
+  "updateDownload": "Herunterladen und aktualisieren",
+  "updateLater": "Später",
+  "updateRestart": "Neustarten und aktualisieren",
+  "updateCurrent": "Die Version ist aktuell",
+  "updateFailed": "Update fehlgeschlagen. Erneut versuchen",
+  "updateChecking": "Updates werden gesucht…",
+  "updateDownloading": "Download läuft…",
+  "updateDevelopment": "Entwicklungsversion",
+  "nativeLoginTitle": "In der App anmelden: Kopplungscode prüfen",
+  "nativeLoginApproved": "Angemeldet. Zur App zurückkehren",
+  "applicationNotificationsBackgroundUnavailable": "Hintergrund-Push nicht verfügbar; Empfang nur bei geöffneter App"
 }

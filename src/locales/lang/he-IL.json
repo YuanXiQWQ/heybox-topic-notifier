@@ -392,5 +392,20 @@
   "applicationNotifications": "התראות האפליקציה",
   "applicationNotificationsUnsupported": "דפדפן זה אינו תומך בהתראות מערכת",
   "applicationNotificationsUnavailable": "ההתראות לא הוגדרו או שהשרת אינו זמין",
-  "applicationNotificationsDenied": "אפשרו התראות בהגדרות הדפדפן"
+  "applicationNotificationsDenied": "אפשרו התראות בהגדרות הדפדפן",
+  "autoSavePending": "נשמר במכשיר זה, ממתין לסנכרון",
+  "restoreMatch": "החזרה לסביבת העבודה",
+  "checkUpdate": "בדיקת עדכונים",
+  "updateAvailable": "קיים עדכון",
+  "updateDownload": "הורדה ועדכון",
+  "updateLater": "מאוחר יותר",
+  "updateRestart": "הפעלה מחדש ועדכון",
+  "updateCurrent": "הגרסה מעודכנת",
+  "updateFailed": "העדכון נכשל. נסו שוב",
+  "updateChecking": "בודק עדכונים…",
+  "updateDownloading": "מוריד…",
+  "updateDevelopment": "גרסת פיתוח",
+  "nativeLoginTitle": "כניסה ליישום: בדקו את קוד ההתאמה",
+  "nativeLoginApproved": "הכניסה הושלמה. חזרו ליישום",
+  "applicationNotificationsBackgroundUnavailable": "התראות ברקע אינן זמינות; מתקבלות כשהיישום פתוח"
 }

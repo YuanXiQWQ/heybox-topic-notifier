@@ -392,5 +392,20 @@
   "applicationNotifications": "App notifications",
   "applicationNotificationsUnsupported": "This browser does not support system notifications",
   "applicationNotificationsUnavailable": "App notifications are not configured or the server is unavailable",
-  "applicationNotificationsDenied": "Allow notifications in your browser settings"
+  "applicationNotificationsDenied": "Allow notifications in your browser settings",
+  "autoSavePending": "Saved on this device, waiting to sync",
+  "restoreMatch": "Move back to workspace",
+  "checkUpdate": "Check for updates",
+  "updateAvailable": "Update available",
+  "updateDownload": "Download and update",
+  "updateLater": "Later",
+  "updateRestart": "Restart and update",
+  "updateCurrent": "You're up to date",
+  "updateFailed": "Update failed. Try again",
+  "updateChecking": "Checking for updates…",
+  "updateDownloading": "Downloading…",
+  "updateDevelopment": "Development version",
+  "nativeLoginTitle": "Sign in to the app — verify the pairing code",
+  "nativeLoginApproved": "Signed in. Return to the app",
+  "applicationNotificationsBackgroundUnavailable": "Background push unavailable; received while the app is open"
 }

@@ -41,9 +41,9 @@ export function renderAbout(options: {
         <div><dt>${escapeHtml(messages.aboutDescription)}</dt><dd>${
     escapeHtml(messages.aboutSummary)
   }</dd></div>
-        <div><dt>${escapeHtml(messages.projectVersion)}</dt><dd>${
+        <div><dt>${escapeHtml(messages.projectVersion)}</dt><dd><span data-app-version>${
     escapeHtml(options.version)
-  }</dd></div>
+  }</span></dd></div>
         <div><dt>${
     escapeHtml(messages.projectRepository)
   }</dt><dd><a href="${projectRepositoryUrl}" target="_blank" rel="noopener noreferrer">GitHub</a></dd></div>
@@ -52,7 +52,7 @@ export function renderAbout(options: {
   }</dt><dd><a href="${projectRepositoryUrl}/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0</a></dd></div>
       </dl>
     </section>
-    <section class="settings-group" aria-labelledby="about-install-heading">
+    <section class="settings-group" aria-labelledby="about-install-heading" data-app-downloads>
       <h2 id="about-install-heading">${
     escapeHtml(messages.installApplication)
   }</h2>
@@ -67,6 +67,12 @@ export function renderAbout(options: {
     )
   }</dd></div>
       </dl>
+    </section>
+    <section class="settings-group" data-app-updates hidden>
+      <dl class="settings-list"><div><dt>${escapeHtml(messages.checkUpdate)}</dt><dd>
+        <button type="button" class="icon-button" data-app-check-update aria-label="${escapeHtml(messages.checkUpdate)}" data-tooltip="${escapeHtml(messages.checkUpdate)}">${materialSymbolIcon("refresh")}</button>
+        <span class="inline-action-status" data-app-update-status role="status" hidden></span>
+      </dd></div></dl>
     </section>`;
   return renderLayout({
     account: options.account,

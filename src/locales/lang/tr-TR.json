@@ -392,5 +392,20 @@
   "applicationNotifications": "Uygulama bildirimleri",
   "applicationNotificationsUnsupported": "Bu tarayıcı sistem bildirimlerini desteklemiyor",
   "applicationNotificationsUnavailable": "Bildirimler yapılandırılmamış veya sunucuya ulaşılamıyor",
-  "applicationNotificationsDenied": "Tarayıcı ayarlarından bildirimlere izin verin"
+  "applicationNotificationsDenied": "Tarayıcı ayarlarından bildirimlere izin verin",
+  "autoSavePending": "Bu cihaza kaydedildi, eşitleme bekleniyor",
+  "restoreMatch": "Çalışma alanına geri taşı",
+  "checkUpdate": "Güncellemeleri denetle",
+  "updateAvailable": "Güncelleme mevcut",
+  "updateDownload": "İndir ve güncelle",
+  "updateLater": "Daha sonra",
+  "updateRestart": "Yeniden başlat ve güncelle",
+  "updateCurrent": "En güncel sürümdesiniz",
+  "updateFailed": "Güncelleme başarısız. Tekrar deneyin",
+  "updateChecking": "Güncellemeler denetleniyor…",
+  "updateDownloading": "İndiriliyor…",
+  "updateDevelopment": "Geliştirme sürümü",
+  "nativeLoginTitle": "Uygulamaya giriş: eşleştirme kodunu doğrulayın",
+  "nativeLoginApproved": "Giriş yapıldı. Uygulamaya dönün",
+  "applicationNotificationsBackgroundUnavailable": "Arka plan bildirimleri kullanılamıyor; yalnızca uygulama açıkken alınır"
 }

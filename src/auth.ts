@@ -4353,6 +4353,8 @@ function renderGoogleLoginForm(options: {
   return `<div
           class="auth-google-method"
           data-google-login
+          data-google-label="${escapeHtml(getMessages(options.locale).accountGoogle)}"
+          data-google-failed="${escapeHtml(getMessages(options.locale).authGoogleUnavailable)}"
           data-google-client-id="${escapeHtml(options.googleClientId)}"
           hidden
         >
@@ -5812,8 +5814,9 @@ function arrayBufferToBase64Url(value) {
  */
 function authGoogleLoginScript(enabled: boolean): string {
   return enabled
-    ? `<script>
+    ? `<script src="/static/app-native-auth.js" defer></script><script>
 (() => {
+  if (globalThis.appNative || globalThis.HeyboxNative) return;
   const root = document.querySelector("[data-google-login]");
   if (!(root instanceof HTMLElement)) return;
   const form = root.querySelector("[data-google-login-form]");
