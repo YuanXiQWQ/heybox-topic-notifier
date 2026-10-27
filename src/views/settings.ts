@@ -3153,17 +3153,20 @@ function renderNotificationSection(settings: AppSettings): string {
         <dl class="settings-list">
           <div>
             ${settingLabel("notifications", messages.applicationNotifications)}
-            <dd class="settings-row-switch-cell">
+            <dd class="settings-row-switch-cell application-notifications-cell">
               <label class="switch-control">
                 <input type="checkbox" form="application-notifications-form" data-app-notifications disabled
                   aria-label="${escapeHtml(messages.applicationNotifications)}"
                   data-unsupported="${escapeHtml(messages.applicationNotificationsUnsupported)}"
                   data-unavailable="${escapeHtml(messages.applicationNotificationsUnavailable)}"
+                  data-unconfigured="${escapeHtml(messages.applicationNotificationsUnconfigured)}"
+                  data-loading="${escapeHtml(messages.applicationNotificationsLoading)}"
                   data-background-unavailable="${escapeHtml(messages.applicationNotificationsBackgroundUnavailable)}"
                   data-denied="${escapeHtml(messages.applicationNotificationsDenied)}"
                   data-failed="${escapeHtml(messages.autoSaveError)}">
               </label>
               <span class="inline-action-status" data-app-notifications-status role="status" hidden></span>
+              <button type="button" class="settings-row-action-button" data-app-notifications-retry hidden>${escapeHtml(messages.applicationNotificationsRetry)}</button>
             </dd>
           </div>
           <div>

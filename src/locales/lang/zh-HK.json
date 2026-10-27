@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "正在準備通知…",
+  "applicationNotificationsRetry": "重試",
+  "applicationNotificationsUnconfigured": "伺服器尚未設定瀏覽器推送，請管理員完成設定",
   "appName": "小黑盒話題提醒",
   "accountCancel": "取消",
   "accountAvatar": "頭像",

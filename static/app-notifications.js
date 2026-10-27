@@ -2,12 +2,13 @@
 void initializeApplicationNotifications();
 
 /**
- * 初始化通知开关，只在用户已授权的设备上恢复订阅。
+ * 初始化当前设备通知开关，展示初始化状态并允许失败后重试；权限仅由用户操作请求。
  * @return {Promise<void>} 初始化完成。
  */
 async function initializeApplicationNotifications() {
   const toggle = document.querySelector("[data-app-notifications]");
   const status = document.querySelector("[data-app-notifications-status]");
+  const retry = document.querySelector("[data-app-notifications-retry]");
   if (
     !(toggle instanceof HTMLInputElement) || !(status instanceof HTMLElement)
   ) return;
@@ -21,6 +22,42 @@ async function initializeApplicationNotifications() {
     status.hidden = !message;
   }
 
+  /**
+   * 限时加载设备能力，失败时保留可见原因和重试入口，不让迟到结果改写界面。
+   * @param {(signal: AbortSignal) => Promise<object>} load 只读取状态的初始化操作。
+   * @param {(info: object) => void} apply 成功后应用状态。
+   * @return {Promise<void>} 本次初始化完成。
+   */
+  async function prepare(load, apply) {
+    toggle.disabled = true;
+    if (retry) retry.hidden = true;
+    showStatus(toggle.dataset.loading);
+    const controller = new AbortController();
+    let timer;
+    try {
+      const info = await Promise.race([
+        load(controller.signal),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            reject(new Error("unavailable"));
+          }, 15000);
+        }),
+      ]);
+      showStatus("");
+      apply(info);
+    } catch (error) {
+      showStatus(
+        error?.message === "unconfigured"
+          ? toggle.dataset.unconfigured
+          : toggle.dataset.unavailable,
+      );
+      if (retry) retry.hidden = false;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   if (globalThis.appNative) {
     /**
      * 同步本机权限和后台通道状态，定期补取时提示系统调度可能延迟。
@@ -30,35 +67,40 @@ async function initializeApplicationNotifications() {
       toggle.checked = info.notifications.enabled;
       toggle.disabled = !info.notifications.supported;
       showStatus(
-        info.notifications.enabled &&
-          info.notifications.backgroundPushConfigured === false
+        !info.notifications.supported
+          ? toggle.dataset.unsupported
+          : info.notifications.enabled &&
+              info.notifications.backgroundPushConfigured === false
           ? toggle.dataset.backgroundUnavailable
           : "",
       );
     };
-    try {
-      const info = await globalThis.applicationNativeReady;
-      applyNativeState(info);
-      document.addEventListener("application-native-state", (event) => {
-        applyNativeState(event.detail);
-      });
-      toggle.addEventListener("change", async (event) => {
-        event.stopPropagation();
-        const enabled = toggle.checked;
-        toggle.disabled = true;
-        showStatus("");
-        try {
-          applyNativeState(await globalThis.appNative.notifications(enabled));
-        } catch {
-          toggle.checked = !enabled;
-          showStatus(toggle.dataset.failed);
-        } finally {
-          toggle.disabled = false;
-        }
-      });
-    } catch {
-      showStatus(toggle.dataset.unavailable);
-    }
+    document.addEventListener("application-native-state", (event) => {
+      if (retry) retry.hidden = true;
+      applyNativeState(event.detail);
+    });
+    toggle.addEventListener("change", async (event) => {
+      event.stopPropagation();
+      const enabled = toggle.checked;
+      toggle.disabled = true;
+      showStatus(toggle.dataset.loading);
+      let supported = true;
+      try {
+        const info = await globalThis.appNative.notifications(enabled);
+        supported = info.notifications.supported;
+        applyNativeState(info);
+      } catch {
+        toggle.checked = !enabled;
+        showStatus(toggle.dataset.failed);
+      } finally {
+        toggle.disabled = !supported;
+      }
+    });
+    retry?.addEventListener(
+      "click",
+      () => prepare(() => globalThis.appNative.info(), applyNativeState),
+    );
+    await prepare(() => globalThis.applicationNativeReady, applyNativeState);
     return;
   }
 
@@ -66,95 +108,123 @@ async function initializeApplicationNotifications() {
     !globalThis.isSecureContext || !("serviceWorker" in navigator) ||
     !("PushManager" in globalThis) || !("Notification" in globalThis)
   ) {
-    toggle.title = toggle.dataset.unsupported;
+    showStatus(toggle.dataset.unsupported);
     return;
   }
-  try {
+  let config, registration, subscription;
+
+  /**
+   * 读取服务器能力、活动 Service Worker 与当前会话的订阅；不申请权限或创建订阅。
+   * @param {AbortSignal} signal 初始化超时或取消信号。
+   * @return {Promise<object>} 完整的浏览器推送状态。
+   */
+  async function loadBrowserState(signal) {
     const response = await fetch("/api/app-notifications/status", {
       cache: "no-store",
+      redirect: "error",
+      signal,
     });
     if (!response.ok || response.redirected) throw new Error("unavailable");
     const config = await response.json();
     if (!config.publicKey) {
-      toggle.title = toggle.dataset.unavailable;
-      return;
+      throw new Error("unconfigured");
     }
-    const registration = await navigator.serviceWorker.register("/app-sw.js", {
+    await navigator.serviceWorker.register("/app-sw.js", {
       scope: "/",
     });
-    await navigator.serviceWorker.ready;
-    let subscription = await registration.pushManager.getSubscription();
-
-    /**
-     * 将当前订阅启用状态提交给服务端；成功前不宣称已保存。
-     * @param {boolean} enabled 是否启用。
-     * @return {Promise<void>} 保存结果。
-     */
-    const saveSubscription = async (enabled) => {
-      const csrf = document.querySelector('input[name="csrfToken"]')?.value;
-      const saved = await fetch("/api/app-notifications/subscription", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-csrf-token": csrf || "",
-        },
-        body: JSON.stringify({ enabled, subscription: subscription?.toJSON() }),
-      });
-      if (!saved.ok || saved.redirected) throw new Error("subscription");
-    };
+    const registration = await navigator.serviceWorker.ready;
+    signal.throwIfAborted();
+    const subscription = await registration.pushManager.getSubscription();
+    let enabled = false;
 
     if (subscription && Notification.permission === "granted") {
       const device = await browserSubscriptionId(subscription.endpoint);
       const current = await fetch(
         `/api/app-notifications/status?device=${device}`,
-        { cache: "no-store", redirect: "error" },
+        { cache: "no-store", redirect: "error", signal },
       );
       if (!current.ok) throw new Error("unavailable");
       const state = await current.json();
-      toggle.checked = state.userId === config.userId && state.enabled === true;
+      enabled = state.userId === config.userId && state.enabled === true;
     }
-    toggle.disabled = false;
-    toggle.addEventListener("change", async (event) => {
-      event.stopPropagation();
-      const enabled = toggle.checked;
-      toggle.disabled = true;
-      showStatus("");
-      try {
-        if (enabled) {
-          const permission = await Notification.requestPermission();
-          if (permission !== "granted") {
-            toggle.checked = false;
-            showStatus(toggle.dataset.denied);
-            return;
-          }
-          const publicKey = decodePushKey(config.publicKey);
-          if (
-            subscription &&
-            !samePushKey(subscription.options.applicationServerKey, publicKey)
-          ) {
-            await subscription.unsubscribe();
-            subscription = null;
-          }
-          subscription ??= await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: publicKey,
-          });
-          await saveSubscription(true);
-        } else {
-          if (subscription) {
-            await saveSubscription(false);
-          }
-        }
-      } catch {
-        toggle.checked = !enabled;
-        showStatus(toggle.dataset.failed);
-      } finally {
-        toggle.disabled = false;
-      }
-    });
-  } catch {
-    toggle.title = toggle.dataset.unavailable;
+    return { config, registration, subscription, enabled };
   }
+
+  /**
+   * 保存完整的初始化结果，允许用户开启或关闭当前浏览器通知。
+   * @param {object} info 浏览器通知状态。
+   */
+  function applyBrowserState(info) {
+    ({ config, registration, subscription } = info);
+    toggle.checked = info.enabled;
+    toggle.disabled = false;
+    if (Notification.permission === "denied") showStatus(toggle.dataset.denied);
+  }
+
+  /**
+   * 将当前订阅启用状态提交给服务端；成功前不宣称已保存。
+   * @param {boolean} enabled 是否启用。
+   * @return {Promise<void>} 保存结果。
+   */
+  const saveSubscription = async (enabled) => {
+    const csrf = document.querySelector('input[name="csrfToken"]')?.value;
+    const saved = await fetch("/api/app-notifications/subscription", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": csrf || "",
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ enabled, subscription: subscription?.toJSON() }),
+    });
+    if (!saved.ok || saved.redirected) throw new Error("subscription");
+  };
+
+  toggle.addEventListener("change", async (event) => {
+    event.stopPropagation();
+    const enabled = toggle.checked;
+    toggle.disabled = true;
+    showStatus(toggle.dataset.loading);
+    try {
+      if (enabled) {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          toggle.checked = false;
+          showStatus(toggle.dataset.denied);
+          return;
+        }
+        const publicKey = decodePushKey(config.publicKey);
+        if (
+          subscription &&
+          !samePushKey(subscription.options.applicationServerKey, publicKey)
+        ) {
+          await subscription.unsubscribe();
+          subscription = null;
+        }
+        subscription ??= await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: publicKey,
+        });
+        await saveSubscription(true);
+      } else {
+        if (subscription) {
+          await saveSubscription(false);
+        }
+      }
+      showStatus("");
+    } catch {
+      toggle.checked = !enabled;
+      showStatus(toggle.dataset.failed);
+    } finally {
+      toggle.disabled = false;
+    }
+  });
+  retry?.addEventListener(
+    "click",
+    () => prepare(loadBrowserState, applyBrowserState),
+  );
+  await prepare(loadBrowserState, applyBrowserState);
 }
 
 /**

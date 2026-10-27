@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "Préparation des notifications…",
+  "applicationNotificationsRetry": "Réessayer",
+  "applicationNotificationsUnconfigured": "Les notifications push du navigateur ne sont pas configurées sur le serveur. Contactez l’administrateur.",
   "appName": "Alertes de sujets Heybox",
   "accountCancel": "Annuler",
   "accountAvatar": "Photo de profil",

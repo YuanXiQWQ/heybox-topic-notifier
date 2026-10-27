@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "Bildirimler hazırlanıyor…",
+  "applicationNotificationsRetry": "Yeniden dene",
+  "applicationNotificationsUnconfigured": "Sunucuda tarayıcı anlık bildirimleri yapılandırılmamış. Yöneticiden yapılandırmasını isteyin.",
   "appName": "Heybox Konu Bildiricisi",
   "accountCancel": "İptal",
   "accountConfirmPassword": "Yeni parolayı onayla",
