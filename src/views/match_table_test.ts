@@ -246,7 +246,7 @@ Deno.test("renderMatchRecordsSection refreshes table actions without page naviga
     `const installedKey = "__matchTableActionScriptInstalled";`,
   );
   assertIncludes(html, `event.preventDefault();`);
-  assertIncludes(html, `const response = await fetch(form.action, {`);
+  assertIncludes(html, `await fetch(target, {`);
   assertIncludes(html, `headers: { "x-match-table-refresh": "1" },`);
   assertIncludes(html, `formData.append(submitter.name, submitter.value);`);
   assertIncludes(html, `currentSection.replaceWith(nextSection);`);

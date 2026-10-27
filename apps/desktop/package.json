@@ -1,0 +1,58 @@
+{
+  "name": "heybox-topic-notifier",
+  "productName": "小黑盒话题提醒",
+  "version": "0.1.0",
+  "private": true,
+  "description": "小黑盒话题提醒 Windows 应用",
+  "author": "YuanXiQWQ",
+  "license": "AGPL-3.0",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "prepare:assets": "node ../scripts/prepare-assets.mjs",
+    "pack": "npm run prepare:assets && electron-builder --dir --publish never",
+    "dist": "npm run prepare:assets && electron-builder --win nsis --publish never",
+    "test": "node --test test/*.test.cjs"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0",
+    "pngjs": "^7.0.0"
+  },
+  "build": {
+    "appId": "io.github.yuanxiqwq.heyboxnotifier",
+    "asar": true,
+    "forceCodeSigning": false,
+    "files": [
+      "*.cjs",
+      "config.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../generated/static",
+        "to": "static"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "verifyUpdateCodeSignature": false,
+      "icon": "../generated/app.ico",
+      "artifactName": "heybox-topic-notifier-windows-${arch}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YuanXiQWQ",
+        "repo": "heybox-topic-notifier"
+      }
+    ]
+  }
+}

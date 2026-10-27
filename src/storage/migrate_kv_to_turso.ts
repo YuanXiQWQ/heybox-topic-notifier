@@ -21,6 +21,8 @@ import type {
   UserSession,
 } from "../models.ts";
 import { defaultAppSettingsFromEnv } from "../services/app_context.ts";
+import { decodeSettingsSync, type StoredSettingsSync } from "./sync_codec.ts";
+import type { RecordSyncSnapshot } from "../sync/records.ts";
 import {
   createTursoStorage,
   isKvImportBlockedError,
@@ -60,6 +62,7 @@ export type KvMigrationReport = {
  * 需要扫描的 KV 顶层 family。
  */
 const kvFamilies = [
+  "userSync",
   "accounts",
   "authenticationEvents",
   "authIdentities",
@@ -140,6 +143,10 @@ async function migrateKvEntry(
     return "skipped";
   }
   const [family, first, second, third] = parts;
+  if (family === "userSync" && first && target.importKvSync) {
+    if (second === "settings" && !third) return await importEntity(target, "settings", first, async () => target.importKvSync!(first, "settings", await decodeSettingsSync(entry.value as StoredSettingsSync)));
+    if (second === "record" && third) return await importEntity(target, "match", entityKey(first, third), () => target.importKvSync!(first, "record", entry.value as RecordSyncSnapshot));
+  }
   if (family === "accounts" && first && !second) {
     return await importEntity(
       target,

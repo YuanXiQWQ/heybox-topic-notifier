@@ -1,6 +1,11 @@
 {
   "exclude": [
     "临时文件",
+    "apps/generated",
+    "apps/signing",
+    "apps/desktop/node_modules",
+    "apps/desktop/dist",
+    "apps/android",
     "static/fun/lobotomy-corp/vendor"
   ],
   "tasks": {
@@ -9,6 +14,7 @@
     "clear-seen": "deno run --unstable-kv src/storage/clear_seen.ts",
     "storage:migrate-kv": "deno run --allow-env --allow-net --unstable-kv src/storage/migrate_kv_to_turso.ts",
     "auth:check-legacy": "deno run --allow-env --unstable-kv src/auth/check_legacy_accounts.ts",
+    "notifications:keys": "deno run scripts/generate_web_push_keys.ts",
     "check": "deno lint && deno check src/main.ts src/deploy.ts \"static/**/*.js\" \"workers/**/*.js\" && deno test --allow-env --allow-read --unstable-kv"
   },
   "imports": {
@@ -18,7 +24,11 @@
     "@libsql/client/web": "npm:@libsql/client@0.17.4/web",
     "@simplewebauthn/browser": "jsr:@simplewebauthn/browser@^13.3.0",
     "@simplewebauthn/server": "jsr:@simplewebauthn/server@^13.3.2",
-    "qrcode": "npm:qrcode@^1.5.4"
+    "@std/yaml": "jsr:@std/yaml@^1.3.0",
+    "@types/web-push": "npm:@types/web-push@3.6.4",
+    "fake-indexeddb": "npm:fake-indexeddb@6.2.6",
+    "qrcode": "npm:qrcode@^1.5.4",
+    "web-push": "npm:web-push@3.6.7"
   },
   "lint": {
     "rules": {

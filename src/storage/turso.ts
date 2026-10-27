@@ -2,6 +2,15 @@
  * @file 本文件提供基于 Turso/libSQL 的应用数据存储实现。
  */
 import { createTursoMatchingStore } from "./matching_turso.ts";
+import { createTursoWebPushStore } from "./web_push_turso.ts";
+import { createTursoNativePushStore } from "./native_push_turso.ts";
+import { createTursoSyncStore } from "./sync_turso.ts";
+import { createTursoNativeNotifications } from "./native_notifications_turso.ts";
+import { createTursoNativeLogin } from "./native_login_turso.ts";
+import { serverEditStamp } from "../sync/protocol.ts";
+import { settingsEdits } from "../sync/settings.ts";
+import type { SettingsSyncSnapshot } from "../sync/settings.ts";
+import type { RecordSyncSnapshot } from "../sync/records.ts";
 import type {
   InArgs,
   InStatement,
@@ -75,6 +84,8 @@ export type TursoStorageOptions = {
  * Turso 存储额外提供的迁移保护能力。
  */
 export type TursoStorage = Storage & {
+  /** 原子导入同步版本及投影；存在实时变更时抛出回填保护错误。 */
+  importKvSync?(userId: string, kind: "settings" | "record", value: SettingsSyncSnapshot | RecordSyncSnapshot): Promise<void>;
   /**
    * 判断 KV 实体是否可以安全回填。
    *
@@ -253,8 +264,12 @@ export function createTursoStorage(
    * @return {UserStorage} 指定用户的数据存储操作集合。
    */
   function forUser(userId: string): UserStorage {
+    const sync = createTursoSyncStore(execute, batch, userId, defaultSettings);
     return {
+      sync,
+      userId,
       matching: createTursoMatchingStore(execute, userId),
+      nativeNotifications: createTursoNativeNotifications(execute, userId),
       /**
        * 获取当前用户设置。
        *
@@ -273,12 +288,17 @@ export function createTursoStorage(
         );
       },
       /**
-       * 保存当前用户设置。
+       * 在线设置经区域版本合并，受控回填使用迁移保护事务。
        *
        * @param {AppSettings} settings 应用设置。
        * @return {Promise<void>} 保存完成后的 Promise。
        */
       async saveSettings(settings: AppSettings): Promise<void> {
+        if (writeMode !== "kv-import") {
+          const current = await sync.readSettings();
+          await sync.applySettings(settingsEdits(current.settings, settings, serverEditStamp()));
+          return;
+        }
         await writeEntity("settings", userId, {
           sql: `INSERT INTO user_settings (user_id, value_json)
             VALUES (?, ?)
@@ -418,12 +438,16 @@ export function createTursoStorage(
         return result.rows.map((row) => parseJsonRow<MatchRecord>(row));
       },
       /**
-       * 保存当前用户的一条命中记录。
+       * 刷新内容并保留管理状态；受控回填继续受迁移保护。
        *
        * @param {MatchRecord} record 命中记录。
        * @return {Promise<void>} 保存完成后的 Promise。
        */
       async saveMatch(record: MatchRecord): Promise<void> {
+        if (writeMode !== "kv-import") {
+          await sync.saveRecordContent(record);
+          return;
+        }
         await writeEntity("match", entityKey(userId, record.id), {
           sql: `INSERT INTO matches
               (user_id, id, matched_at, post_published_at, completed_at,
@@ -447,23 +471,18 @@ export function createTursoStorage(
         });
       },
       /**
-       * 标记一条命中记录已经通知。
+       * 标记通知时间并保留并发的管理操作。
        *
        * @param {string} id 命中记录 ID。
        * @param {string} notifiedAt 通知时间。
        * @return {Promise<void>} 更新完成后的 Promise。
        */
       async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
-        await writeEntity("match", entityKey(userId, id), {
-          sql: `UPDATE matches
-            SET notified_at = ?,
-              value_json = json_set(value_json, '$.notifiedAt', ?)
-            WHERE user_id = ? AND id = ?`,
-          args: [notifiedAt, notifiedAt, userId, id],
-        });
+        const result = await execute({ sql: "SELECT value_json FROM matches WHERE user_id = ? AND id = ?", args: [userId, id] });
+        if (result.rows[0]) await sync.saveRecordContent({ ...parseJsonRow<MatchRecord>(result.rows[0]), notifiedAt });
       },
       /**
-       * 批量完成命中记录。
+       * 用同一个在线编辑版本完成指定记录。
        *
        * @param {string[]} ids 命中记录 ID 列表。
        * @return {Promise<void>} 更新完成后的 Promise。
@@ -473,21 +492,11 @@ export function createTursoStorage(
         if (uniqueIds.length === 0) {
           return;
         }
-        const completedAt = new Date().toISOString();
-        await batch(uniqueIds.flatMap((id) => [
-          {
-            sql: `UPDATE matches
-              SET completed_at = ?,
-                value_json = json_set(value_json, '$.completedAt', ?)
-              WHERE user_id = ? AND id = ?`,
-            args: [completedAt, completedAt, userId, id],
-          },
-          mutationStatement("match", entityKey(userId, id), true),
-          clearTombstoneStatement("match", entityKey(userId, id)),
-        ]));
+        const stamp = serverEditStamp();
+        for (const id of uniqueIds) await sync.applyRecord(id, "history", stamp);
       },
       /**
-       * 批量删除命中记录。
+       * 删除可见记录并保留同步及迁移墓碑。
        *
        * @param {string[]} ids 命中记录 ID 列表。
        * @return {Promise<void>} 删除完成后的 Promise。
@@ -497,21 +506,8 @@ export function createTursoStorage(
         if (uniqueIds.length === 0) {
           return;
         }
-        const deletedAt = new Date().toISOString();
-        await batch([
-          {
-            sql: `DELETE FROM matches
-              WHERE user_id = ? AND id IN (${placeholders(uniqueIds.length)})`,
-            args: [userId, ...uniqueIds],
-          },
-          ...uniqueIds.map((id) =>
-            tombstoneStatement(
-              "match",
-              entityKey(userId, id),
-              deletedAt,
-            )
-          ),
-        ]);
+        const stamp = serverEditStamp();
+        for (const id of uniqueIds) await sync.applyRecord(id, "deleted", stamp);
       },
       /**
        * 保存当前用户最后轮询时间。
@@ -534,7 +530,39 @@ export function createTursoStorage(
 
   return {
     ...defaultUserStorage,
+    webPush: createTursoWebPushStore(execute),
+    nativePush: createTursoNativePushStore(execute),
+    nativeLogin: createTursoNativeLogin(execute),
     forUser,
+
+    /**
+     * 在同一回填事务中保留编辑版本和可见内容，避免旧回填覆盖在线操作。
+     * @param {string} userId 账号 ID。
+     * @param {"settings" | "record"} kind 同步实体类型。
+     * @param {SettingsSyncSnapshot | RecordSyncSnapshot} value 源快照。
+     */
+    async importKvSync(userId, kind, value) {
+      const settings = kind === "settings" ? value as SettingsSyncSnapshot : undefined;
+      const record = kind === "record" ? value as RecordSyncSnapshot : undefined;
+      const entityType = settings ? "settings" : "match";
+      const entityKey = settings ? userId : JSON.stringify([userId, record!.id]);
+      const statements: InStatement[] = ["DELETE FROM storage_import_guard", claimKvImportStatement(entityType, entityKey), "INSERT INTO storage_import_guard (id) VALUES (CASE WHEN changes() = 1 THEN 1 ELSE 0 END)"];
+      if (settings) statements.push(
+        { sql: "INSERT INTO sync_settings (user_id, revision, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET revision = excluded.revision, value_json = excluded.value_json", args: [userId, settings.revision, JSON.stringify(settings)] },
+        { sql: "INSERT INTO user_settings (user_id, value_json) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET value_json = excluded.value_json", args: [userId, JSON.stringify(settings.settings)] },
+      );
+      if (record) {
+        statements.push({ sql: "INSERT INTO sync_records (user_id, id, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET value_json = excluded.value_json", args: [userId, record.id, JSON.stringify(record)] });
+        if (record.status === "deleted") statements.push({ sql: "DELETE FROM matches WHERE user_id = ? AND id = ?", args: [userId, record.id] });
+        else if (record.record) {
+          const visible = record.record;
+          statements.push({ sql: "INSERT INTO matches (user_id, id, matched_at, post_published_at, completed_at, notified_at, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET matched_at = excluded.matched_at, post_published_at = excluded.post_published_at, completed_at = excluded.completed_at, notified_at = excluded.notified_at, value_json = excluded.value_json", args: [userId, visible.id, visible.matchedAt, visible.post.publishedAt, visible.completedAt ?? null, visible.notifiedAt ?? null, JSON.stringify(visible)] });
+        }
+      }
+      statements.push("DELETE FROM storage_import_guard");
+      try { await batch(statements); }
+      catch (error) { if (isImportGuardConstraintError(error)) throw kvImportBlockedError(); throw error; }
+    },
 
     /**
      * 判断 KV 实体是否可以安全回填。
@@ -2175,34 +2203,6 @@ function normalizedIds(ids: string[]): string[] {
  */
 function entityKey(...parts: string[]): string {
   return JSON.stringify(parts);
-}
-
-/**
- * 创建 SQL 参数占位符。
- *
- * @param {number} count 占位符数量。
- * @return {string} 逗号分隔的占位符。
- */
-function placeholders(count: number): string {
-  return Array.from({ length: count }, () => "?").join(", ");
-}
-
-/**
- * 创建清除墓碑的 SQL 语句。
- *
- * @param {string} entityType 实体类型。
- * @param {string} entityKey 实体键。
- * @return {InStatement} SQL 语句。
- */
-function clearTombstoneStatement(
-  entityType: string,
-  entityKey: string,
-): InStatement {
-  return {
-    sql: `DELETE FROM storage_tombstones
-      WHERE entity_type = ? AND entity_key = ?`,
-    args: [entityType, entityKey],
-  };
 }
 
 /**

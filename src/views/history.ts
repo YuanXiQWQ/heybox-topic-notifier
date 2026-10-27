@@ -78,6 +78,7 @@ export function renderHistoryTable(
     emptyMessage: messages.emptyHistory,
     filterToggleId: "history-table-filter-toggle",
     formAction: "/matches/delete",
+    allowRestore: true,
     heading: messages.historyTitle,
     headingId: "history-table-heading",
     csrfToken,

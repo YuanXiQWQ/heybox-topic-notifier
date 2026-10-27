@@ -220,6 +220,7 @@ export function renderSettings(options: {
       data-autosave-form
       data-autosave-saving="${escapeHtml(messages.autoSaveSaving)}"
       data-autosave-saved="${escapeHtml(messages.autoSaveSaved)}"
+      data-autosave-pending="${escapeHtml(messages.autoSavePending)}"
       data-autosave-error="${escapeHtml(messages.autoSaveError)}"
     >
       ${csrfHiddenInput(options.csrfToken)}
@@ -354,11 +355,11 @@ function authSettingLabel(
 }
 
 /**
- * 渲染全局设置区域。
+ * 渲染全局设置区域及整行可访问的关于项目入口。
  *
- * @param settings 应用设置。
- * @param formId 自动保存表单 ID。
- * @return 全局设置区域 HTML。
+ * @param {AppSettings} settings 应用设置。
+ * @param {string} formId 自动保存表单 ID。
+ * @return {string} 全局设置区域 HTML。
  */
 function renderGlobalSettingsSection(
   settings: AppSettings,
@@ -430,6 +431,13 @@ function renderGlobalSettingsSection(
   }
               </select>
             </dd>
+          </div>
+          <div class="settings-navigation-row">
+            <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about" data-app-about-link>
+              <span class="settings-label-with-icon">${materialSymbolIcon("info", "settings-label-icon")}<span>${escapeHtml(messages.aboutProject)}</span></span>
+              <span class="settings-navigation-chevron" aria-hidden="true"></span>
+            </a></dt>
+            <dd hidden></dd>
           </div>
         </dl>
       </section>
@@ -3128,6 +3136,11 @@ function accountStatusMessage(
   }
 }
 
+/**
+ * 渲染独立的本设备应用通知开关和账号的其它通知方式。
+ * @param {AppSettings} settings 通知配置。
+ * @return {string} 通知设置 HTML。
+ */
 function renderNotificationSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
 
@@ -3136,7 +3149,23 @@ function renderNotificationSection(settings: AppSettings): string {
         <h2 id="notification-settings-heading">${
     escapeHtml(messages.notificationSettings)
   }</h2>
+        <script src="/static/app-notifications.js" defer></script>
         <dl class="settings-list">
+          <div>
+            ${settingLabel("notifications", messages.applicationNotifications)}
+            <dd class="settings-row-switch-cell">
+              <label class="switch-control">
+                <input type="checkbox" form="application-notifications-form" data-app-notifications disabled
+                  aria-label="${escapeHtml(messages.applicationNotifications)}"
+                  data-unsupported="${escapeHtml(messages.applicationNotificationsUnsupported)}"
+                  data-unavailable="${escapeHtml(messages.applicationNotificationsUnavailable)}"
+                  data-background-unavailable="${escapeHtml(messages.applicationNotificationsBackgroundUnavailable)}"
+                  data-denied="${escapeHtml(messages.applicationNotificationsDenied)}"
+                  data-failed="${escapeHtml(messages.autoSaveError)}">
+              </label>
+              <span class="inline-action-status" data-app-notifications-status role="status" hidden></span>
+            </dd>
+          </div>
           <div>
             ${
     settingLabel(

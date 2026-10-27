@@ -2,6 +2,7 @@
  * @file 本文件负责渲染命中记录表格及其筛选、分页、选择交互脚本。
  */
 import { normalizeMatchResult } from "../services/match_result.ts";
+import { materialSymbolIcon } from "./icons.ts";
 import { getMessages } from "../locales/index.ts";
 import { type Locale, locales, type Messages } from "../locales/types.ts";
 import type { MatchResultLocation } from "../models.ts";
@@ -45,6 +46,8 @@ export type MatchRecordsSectionOptions = {
   path: string;
   table: MatchTableResult;
   titleLinkClass?: string;
+  /** 历史表提供独立的移回工作区操作列。 */
+  allowRestore?: boolean;
 };
 
 /**
@@ -71,19 +74,16 @@ export function renderMatchRecordsSection(
   }</h2>
         ${renderTableFilters(options)}
       </div>
-      ${
-    options.table.totalRecords === 0
-      ? `<p>${escapeHtml(options.emptyMessage)}</p>`
-      : `
+      <p data-match-empty-message ${options.table.totalRecords === 0 ? "" : "hidden"}>${escapeHtml(options.emptyMessage)}</p>
         <form method="post" action="${
         escapeHtml(options.formAction)
-      }" data-match-table-form>
+      }" data-match-table-form ${options.table.totalRecords === 0 ? "hidden" : ""}>
           ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${
         escapeHtml(buildMatchTableUrl(options.path, options.table, {}))
       }">
           <table class="match-table">
-            ${renderMatchTableColumns()}
+            ${renderMatchTableColumns(options.allowRestore)}
             <thead>
               <tr>
                 <th>
@@ -94,6 +94,7 @@ export function renderMatchRecordsSection(
                 <th>${escapeHtml(options.messages.postTitle)}</th>
                 <th>${escapeHtml(options.messages.postContent)}</th>
                 <th>${escapeHtml(options.messages.matchDetails)}</th>
+                ${options.allowRestore ? `<th class="table-action-cell"><button type="submit" class="icon-button" formaction="/matches/restore" data-match-secondary-bulk data-tooltip="${escapeHtml(options.messages.restoreMatch)}" aria-label="${escapeHtml(options.messages.restoreMatch)}">${materialSymbolIcon("refresh")}</button></th>` : ""}
                 <th class="table-action-cell">
                   <button
                     type="submit"
@@ -108,16 +109,14 @@ export function renderMatchRecordsSection(
             <tbody>${renderRows(options)}</tbody>
           </table>
           ${
-        renderPagination(
+        options.table.totalRecords > 0 ? renderPagination(
           options.path,
           options.table,
           options.messages,
           options.headingId,
-        )
+        ) : ""
       }
         </form>
-      `
-  }
     </section>
     ${renderFilterScript()}
     ${renderPaginationScript()}
@@ -146,7 +145,7 @@ function renderRows(options: MatchRecordsSectionOptions): string {
     );
 
     return `
-    <tr>
+    <tr data-record-id="${escapeHtml(record.id)}" data-record-status="${record.completedAt ? "history" : "workspace"}">
       <td>
         <label class="checkbox-cell">
           <input
@@ -170,6 +169,7 @@ function renderRows(options: MatchRecordsSectionOptions): string {
       <td>${
       renderMatchDetails(record, now, options.locale, options.messages)
     }</td>
+      ${options.allowRestore ? `<td class="table-action-cell"><button type="submit" class="icon-button" name="matchId" value="${escapeHtml(record.id)}" formaction="/matches/restore" data-match-restore ${record.completedAt ? "" : "hidden"} data-tooltip="${escapeHtml(options.messages.restoreMatch)}" aria-label="${escapeHtml(options.messages.restoreMatch)}">${materialSymbolIcon("refresh")}</button></td>` : ""}
       <td class="table-action-cell">
         <button
           type="submit"
@@ -252,15 +252,17 @@ function renderMatchDetails(
 /**
  * 渲染命中记录表格列宽定义。
  *
- * @return 表格列定义 HTML。
+ * @param {boolean} allowRestore 是否包含恢复操作列。
+ * @return {string} 表格列定义 HTML。
  */
-function renderMatchTableColumns(): string {
+function renderMatchTableColumns(allowRestore = false): string {
   return `
             <colgroup>
               <col class="match-table-col-2">
               <col class="match-table-col-3">
               <col class="match-table-col-14">
               <col class="match-table-col-5">
+              ${allowRestore ? `<col class="match-table-col-1">` : ""}
               <col class="match-table-col-1">
             </colgroup>`;
 }
@@ -1134,13 +1136,22 @@ function renderTableActionScript(): string {
         setFormSubmitting(form, true);
         try {
           const nextLocation = tableReturnTo(form);
-          const response = await fetch(form.action, {
-            body: formDataWithSubmitter(form, submitter),
+          const target = submitter?.getAttribute("formaction") || form.action;
+          const submitted = formDataWithSubmitter(form, submitter);
+          const response = window.applicationSync
+            ? await window.applicationSync.submitRecords(target, submitted)
+            : await fetch(target, {
+            body: submitted,
             credentials: "same-origin",
             headers: { "x-match-table-refresh": "1" },
             method: form.method || "post",
           });
           if (!response.ok) throw new Error("match table action failed");
+          if (response.headers.get("x-app-local") === "1") {
+            await window.applicationSync.applyPendingRecords();
+            refreshMatchTableBehaviors();
+            return;
+          }
           const html = await response.text();
           if (!replaceMatchTableSection(form, html)) {
             navigateToResponse(response);
@@ -1188,6 +1199,7 @@ function renderTableActionScript(): string {
         window["__adaptivePaginationUpdate"]?.();
         window["__matchTableRelativeTimeUpdate"]?.();
         window["__matchTableOverflowUpdate"]?.();
+        document.dispatchEvent(new CustomEvent("application-records-rendered"));
       }
 
       function setFormSubmitting(form, isSubmitting) {
@@ -1254,7 +1266,7 @@ function filterIcon(blackForestSlot?: string): string {
 function renderSelectionScript(action: MatchTableAction): string {
   const selectAllSelector = `[${action.selectAllAttribute}]`;
   const rowCheckboxSelector = `[${action.rowCheckboxAttribute}]`;
-  const bulkButtonSelector = `[${action.bulkButtonAttribute}]`;
+  const bulkButtonSelector = `[${action.bulkButtonAttribute}], [data-match-secondary-bulk]`;
 
   return `<script>
     (() => {

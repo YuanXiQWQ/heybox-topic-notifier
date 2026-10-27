@@ -1,0 +1,5 @@
+/** Android 工程依赖仅用于构建，不要求设备安装 Google 服务。 */
+pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral(); maven { url 'https://developer.hihonor.com/repo' } } }
+rootProject.name = 'HeyboxNotifier'
+include ':app'
