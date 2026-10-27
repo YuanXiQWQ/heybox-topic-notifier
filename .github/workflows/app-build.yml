@@ -1,6 +1,8 @@
-# 正式 Release 发布后自动构建并上传应用；手动运行可补传至已有草稿或正式发行。
+# 正式版本标签自动构建完整应用发行；手动运行可补发已有标签。
 name: Build Windows and Android applications
 on:
+  push:
+    tags: ["[0-9]*.[0-9]*.[0-9]*", "v[0-9]*.[0-9]*.[0-9]*"]
   release:
     types: [published]
   workflow_dispatch:
@@ -10,18 +12,24 @@ on:
         required: true
         type: string
       upload:
-        description: "上传到该标签已有的 Release；关闭时仅保存 Actions 构建产物"
+        description: "上传到该标签的 Release（不存在则创建草稿）；关闭时仅保存构建产物"
         type: boolean
         default: false
+      publish:
+        description: "上传完成后公开草稿 Release（需要同时开启 upload）"
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
-  group: app-release-${{ github.event.release.tag_name || inputs.tag }}
+  group: app-release-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
   cancel-in-progress: false
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    if: github.event_name != 'release' || github.event.release.prerelease == false
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
@@ -40,8 +48,8 @@ jobs:
       - name: Resolve release tag and immutable source revision
         id: release
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
-          UPLOAD_RELEASE: ${{ github.event_name == 'release' || inputs.upload }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+          UPLOAD_RELEASE: ${{ github.event_name != 'workflow_dispatch' || inputs.upload }}
           RELEASE_ID: ${{ github.event.release.id }}
           GH_TOKEN: ${{ github.token }}
         run: deno run --allow-env --allow-read --allow-write --allow-run=git --allow-net=api.github.com scripts/app_release.ts prepare
@@ -128,8 +136,10 @@ jobs:
           HONOR_PUSH_APP_ID: ${{ vars.HONOR_PUSH_APP_ID }}
         run: |
           set -euo pipefail
-          test -n "$ANDROID_KEYSTORE_BASE64" && test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEYSTORE_PASSWORD" && test -n "$ANDROID_KEY_PASSWORD"
+          : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
           export ANDROID_KEYSTORE="$RUNNER_TEMP/application-release.jks"
           trap 'rm -f -- "$ANDROID_KEYSTORE"' EXIT
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE"
@@ -154,7 +164,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.prepare.outputs.commit }}
+          # 使用本次工作流的发行脚本，允许为已有标签补发安装包。
+          ref: ${{ github.workflow_sha }}
           persist-credentials: false
       - uses: denoland/setup-deno@v2
         with:
@@ -172,5 +183,6 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
           RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
           RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+          PUBLISH_DRAFT: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
           GH_TOKEN: ${{ github.token }}
         run: deno run --allow-env --allow-read --allow-net=api.github.com,uploads.github.com scripts/app_release.ts publish release-assets
