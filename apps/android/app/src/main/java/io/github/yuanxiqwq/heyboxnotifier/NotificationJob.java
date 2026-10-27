@@ -1,4 +1,4 @@
-/** @file 由 Android 系统调度厂商消息补取，网络暂不可用时保留重试任务。 */
+/** @file 用 Android 系统周期任务补取通知，厂商消息可额外唤醒，不依赖 Google 服务。 */
 package io.github.yuanxiqwq.heyboxnotifier;
 import android.app.job.JobInfo;
 import android.app.job.JobParameters;
@@ -16,6 +16,8 @@ import java.util.concurrent.FutureTask;
 public final class NotificationJob extends JobService {
     /** 同一收件箱只需一个待执行任务，事件内容保留在服务端。 */
     private static final int JOB_ID = 12099;
+    /** 通用周期任务与厂商即时任务分开，避免互相替换调度。 */
+    private static final int PERIODIC_JOB_ID = 12100;
     /** 收件箱网络访问在工作线程运行。 */
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     /** 每次系统调度单独持有取消标记，旧任务结束不会确认新任务。 */
@@ -26,6 +28,18 @@ public final class NotificationJob extends JobService {
         JobInfo.Builder job = new JobInfo.Builder(JOB_ID, new ComponentName(context, NotificationJob.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
         if (Build.VERSION.SDK_INT >= 31) job.setExpedited(true);
         if (scheduler.schedule(job.build()) != JobScheduler.RESULT_SUCCESS && Build.VERSION.SDK_INT >= 31) scheduler.schedule(job.setExpedited(false).build());
+    }
+    /**
+     * 依据设备通知开关维护跨重启周期任务；已存在时不重置下一次运行时间。
+     * @param {Context} context 应用上下文。
+     * @param {boolean} enabled 当前设备是否开启通知。
+     */
+    static void maintain(Context context, boolean enabled) {
+        JobScheduler scheduler = context.getSystemService(JobScheduler.class);
+        if (!enabled) { scheduler.cancel(PERIODIC_JOB_ID); scheduler.cancel(JOB_ID); return; }
+        if (scheduler.getPendingJob(PERIODIC_JOB_ID) != null) return;
+        scheduler.schedule(new JobInfo.Builder(PERIODIC_JOB_ID, new ComponentName(context, NotificationJob.class))
+            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPeriodic(15L * 60 * 1000).setPersisted(true).build());
     }
     /** @param {JobParameters} params 系统任务。 @return {boolean} 是否存在异步工作。 */
     @Override public boolean onStartJob(JobParameters params) {

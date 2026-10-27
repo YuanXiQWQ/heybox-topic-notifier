@@ -14,5 +14,6 @@ apps/generated/
 apps/android/.gradle/
 apps/android/**/build/
 apps/android/local.properties
+apps/signing/
 *.jks
 *.keystore

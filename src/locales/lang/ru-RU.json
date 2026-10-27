@@ -407,5 +407,5 @@
   "updateDevelopment": "Версия для разработки",
   "nativeLoginTitle": "Вход в приложение: проверьте код",
   "nativeLoginApproved": "Вход выполнен. Вернитесь в приложение",
-  "applicationNotificationsBackgroundUnavailable": "Фоновые уведомления недоступны; получение только при открытом приложении"
+  "applicationNotificationsBackgroundUnavailable": "Фоновые уведомления могут задерживаться; откройте приложение для немедленной проверки"
 }

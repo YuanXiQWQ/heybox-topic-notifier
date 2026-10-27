@@ -407,5 +407,5 @@
   "updateDevelopment": "Version de développement",
   "nativeLoginTitle": "Connexion à l’application : vérifiez le code",
   "nativeLoginApproved": "Connexion réussie. Retournez à l’application",
-  "applicationNotificationsBackgroundUnavailable": "Notifications en arrière-plan indisponibles ; réception quand l’application est ouverte"
+  "applicationNotificationsBackgroundUnavailable": "Les notifications en arrière-plan peuvent être retardées ; ouvrez l’application pour vérifier immédiatement"
 }

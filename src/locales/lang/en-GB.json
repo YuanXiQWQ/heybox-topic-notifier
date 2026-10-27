@@ -407,5 +407,5 @@
   "updateDevelopment": "Development version",
   "nativeLoginTitle": "Sign in to the app — verify the pairing code",
   "nativeLoginApproved": "Signed in. Return to the app",
-  "applicationNotificationsBackgroundUnavailable": "Background push unavailable; received while the app is open"
+  "applicationNotificationsBackgroundUnavailable": "Background notifications may be delayed; open the app to check immediately"
 }

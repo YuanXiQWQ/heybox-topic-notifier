@@ -407,5 +407,5 @@
   "updateDevelopment": "開發版本",
   "nativeLoginTitle": "確認登入應用程式，請核對配對碼",
   "nativeLoginApproved": "登入完成，請返回應用程式",
-  "applicationNotificationsBackgroundUnavailable": "背景推播暫不可用，僅在應用程式開啟時接收"
+  "applicationNotificationsBackgroundUnavailable": "背景通知可能延遲，開啟應用程式可立即檢查"
 }

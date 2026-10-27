@@ -25,6 +25,7 @@
   "build": {
     "appId": "io.github.yuanxiqwq.heyboxnotifier",
     "asar": true,
+    "forceCodeSigning": false,
     "files": [
       "*.cjs",
       "config.json"
@@ -37,6 +38,7 @@
     ],
     "win": {
       "target": "nsis",
+      "verifyUpdateCodeSignature": false,
       "icon": "../generated/app.ico",
       "artifactName": "heybox-topic-notifier-windows-${arch}-setup.${ext}"
     },

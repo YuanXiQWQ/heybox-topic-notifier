@@ -407,5 +407,5 @@
   "updateDevelopment": "Versão de desenvolvimento",
   "nativeLoginTitle": "Iniciar sessão na aplicação: confirme o código",
   "nativeLoginApproved": "Sessão iniciada. Volte à aplicação",
-  "applicationNotificationsBackgroundUnavailable": "Notificações em segundo plano indisponíveis; recebidas com a aplicação aberta"
+  "applicationNotificationsBackgroundUnavailable": "As notificações em segundo plano podem atrasar; abra a aplicação para verificar agora"
 }

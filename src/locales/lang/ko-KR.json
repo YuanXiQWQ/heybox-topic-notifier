@@ -407,5 +407,5 @@
   "updateDevelopment": "개발 버전",
   "nativeLoginTitle": "앱 로그인: 연결 코드를 확인하세요",
   "nativeLoginApproved": "로그인되었습니다. 앱으로 돌아가세요",
-  "applicationNotificationsBackgroundUnavailable": "백그라운드 푸시를 사용할 수 없습니다. 앱이 열려 있을 때만 수신합니다"
+  "applicationNotificationsBackgroundUnavailable": "백그라운드 알림이 지연될 수 있습니다. 앱을 열면 바로 확인합니다"
 }

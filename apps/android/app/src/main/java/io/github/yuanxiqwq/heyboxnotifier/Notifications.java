@@ -38,7 +38,7 @@ final class Notifications extends NotificationInbox {
         manager.createNotificationChannel(new NotificationChannel(CHANNEL, activity.getString(R.string.notification_channel), NotificationManager.IMPORTANCE_DEFAULT));
     }
     /**
-     * 返回当前设备开关及系统权限状态。
+     * 返回当前设备开关及系统权限状态，并按有效绑定维护系统周期任务。
      * @return {JSONObject} 设备状态。
      * @throws Exception JSON 构造失败。
      */
@@ -46,7 +46,9 @@ final class Notifications extends NotificationInbox {
         JSONObject binding = device.read().optJSONObject("notifications");
         boolean allowed = manager.areNotificationsEnabled() && manager.getNotificationChannel(CHANNEL).getImportance() != NotificationManager.IMPORTANCE_NONE;
         boolean current = binding != null && currentSessionHash().equals(binding.optString("session"));
-        return new JSONObject().put("supported", true).put("enabled", allowed && current && binding.optBoolean("enabled")).put("backgroundPushConfigured", current && binding.optBoolean("honorRegistered"));
+        boolean enabled = allowed && current && binding.optBoolean("enabled");
+        NotificationJob.maintain(application, enabled);
+        return new JSONObject().put("supported", true).put("enabled", enabled).put("backgroundPushConfigured", current && binding.optBoolean("honorRegistered"));
     }
     /**
      * 将设备开关绑定到当前账号会话，首次开启不补发历史通知。
@@ -55,7 +57,7 @@ final class Notifications extends NotificationInbox {
      */
     void set(boolean enabled) throws Exception {
         int revision = preferenceRevision.incrementAndGet();
-        if (!enabled) { device.put("notifications", new JSONObject().put("enabled", false)); manager.cancelAll(); HonorPush.disable(application, device); return; }
+        if (!enabled) { device.put("notifications", new JSONObject().put("enabled", false)); manager.cancelAll(); NotificationJob.maintain(application, false); HonorPush.disable(application, device); return; }
         if (!manager.areNotificationsEnabled() || manager.getNotificationChannel(CHANNEL).getImportance() == NotificationManager.IMPORTANCE_NONE) throw new IllegalStateException("Notification permission denied");
         String token = Http.session(); if (token.isEmpty()) throw new IllegalStateException("Authentication required");
         JSONObject batch = Http.api("/api/native/notifications");
@@ -63,6 +65,7 @@ final class Notifications extends NotificationInbox {
             if (!token.equals(Http.session()) || revision != preferenceRevision.get()) throw new IllegalStateException("Account or notification preference changed");
             device.put("notifications", new JSONObject().put("enabled", true).put("userId", batch.getString("userId")).put("session", digest(token)).put("generation", java.util.UUID.randomUUID().toString()).put("cursor", batch.getString("cursor")).put("seen", new JSONArray()));
         }
+        NotificationJob.maintain(application, true);
         HonorPush.register(application, device);
     }
     /** @return {JSONObject} 加密存储中的当前绑定副本。 */
@@ -92,7 +95,7 @@ final class Notifications extends NotificationInbox {
     @Override protected void disable(JSONObject expected) throws Exception {
         synchronized (device) {
             if (!sameBinding(expected, binding())) return;
-            preferenceRevision.incrementAndGet(); device.put("notifications", new JSONObject().put("enabled", false)); manager.cancelAll();
+            preferenceRevision.incrementAndGet(); device.put("notifications", new JSONObject().put("enabled", false)); manager.cancelAll(); NotificationJob.maintain(application, false);
         }
     }
     /**

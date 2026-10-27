@@ -407,5 +407,5 @@
   "updateDevelopment": "Entwicklungsversion",
   "nativeLoginTitle": "In der App anmelden: Kopplungscode prüfen",
   "nativeLoginApproved": "Angemeldet. Zur App zurückkehren",
-  "applicationNotificationsBackgroundUnavailable": "Hintergrund-Push nicht verfügbar; Empfang nur bei geöffneter App"
+  "applicationNotificationsBackgroundUnavailable": "Hintergrundbenachrichtigungen können verzögert sein; zum sofortigen Prüfen die App öffnen"
 }

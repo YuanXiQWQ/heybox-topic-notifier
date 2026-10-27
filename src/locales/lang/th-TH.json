@@ -407,5 +407,5 @@
   "updateDevelopment": "เวอร์ชันพัฒนา",
   "nativeLoginTitle": "เข้าสู่ระบบแอป: ตรวจสอบรหัสจับคู่",
   "nativeLoginApproved": "เข้าสู่ระบบแล้ว กลับไปที่แอป",
-  "applicationNotificationsBackgroundUnavailable": "การแจ้งเตือนเบื้องหลังไม่พร้อมใช้งาน รับได้เมื่อเปิดแอปเท่านั้น"
+  "applicationNotificationsBackgroundUnavailable": "การแจ้งเตือนเบื้องหลังอาจล่าช้า เปิดแอปเพื่อตรวจสอบทันที"
 }

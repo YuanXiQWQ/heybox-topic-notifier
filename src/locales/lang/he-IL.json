@@ -407,5 +407,5 @@
   "updateDevelopment": "גרסת פיתוח",
   "nativeLoginTitle": "כניסה ליישום: בדקו את קוד ההתאמה",
   "nativeLoginApproved": "הכניסה הושלמה. חזרו ליישום",
-  "applicationNotificationsBackgroundUnavailable": "התראות ברקע אינן זמינות; מתקבלות כשהיישום פתוח"
+  "applicationNotificationsBackgroundUnavailable": "ייתכן עיכוב בהתראות ברקע; יש לפתוח את האפליקציה לבדיקה מיידית"
 }

@@ -407,5 +407,5 @@
   "updateDevelopment": "Phiên bản phát triển",
   "nativeLoginTitle": "Đăng nhập ứng dụng: kiểm tra mã ghép nối",
   "nativeLoginApproved": "Đã đăng nhập. Hãy quay lại ứng dụng",
-  "applicationNotificationsBackgroundUnavailable": "Thông báo nền chưa khả dụng; chỉ nhận khi ứng dụng đang mở"
+  "applicationNotificationsBackgroundUnavailable": "Thông báo nền có thể bị chậm; mở ứng dụng để kiểm tra ngay"
 }

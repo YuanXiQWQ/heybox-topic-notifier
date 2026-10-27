@@ -38,3 +38,14 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20250517'
 }
+/** 构建时检查完整运行依赖树，避免任何传递依赖把 GMS 或 Firebase 变为应用前提。 */
+tasks.register('checkNoGoogleServices') {
+    doLast {
+        def forbidden = configurations.releaseRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
+            it.moduleVersion.id.group in ['com.google.android.gms', 'com.google.firebase']
+        }
+        if (!forbidden.isEmpty()) throw new GradleException('Google services runtime dependencies are not allowed: ' + forbidden.collect { it.moduleVersion.id }.join(', '))
+        logger.lifecycle('Android runtime dependency check passed: no Google Play Services or Firebase.')
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'checkNoGoogleServices' }

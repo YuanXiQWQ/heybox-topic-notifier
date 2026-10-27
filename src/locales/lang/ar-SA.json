@@ -407,5 +407,5 @@
   "updateDevelopment": "إصدار التطوير",
   "nativeLoginTitle": "تسجيل الدخول إلى التطبيق: تحقق من رمز الاقتران",
   "nativeLoginApproved": "تم تسجيل الدخول. ارجع إلى التطبيق",
-  "applicationNotificationsBackgroundUnavailable": "إشعارات الخلفية غير متاحة؛ تُستقبل عندما يكون التطبيق مفتوحًا"
+  "applicationNotificationsBackgroundUnavailable": "قد تتأخر إشعارات الخلفية؛ افتح التطبيق للتحقق فورًا"
 }

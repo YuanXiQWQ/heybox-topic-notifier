@@ -407,5 +407,5 @@
   "updateDevelopment": "نسخهٔ توسعه",
   "nativeLoginTitle": "ورود به برنامه: کد جفت‌سازی را بررسی کنید",
   "nativeLoginApproved": "وارد شدید. به برنامه برگردید",
-  "applicationNotificationsBackgroundUnavailable": "اعلان پس‌زمینه در دسترس نیست؛ فقط هنگام باز بودن برنامه دریافت می‌شود"
+  "applicationNotificationsBackgroundUnavailable": "اعلان‌های پس‌زمینه ممکن است با تأخیر برسند؛ برای بررسی فوری برنامه را باز کنید"
 }

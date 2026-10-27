@@ -407,5 +407,5 @@
   "updateDevelopment": "开发版本",
   "nativeLoginTitle": "确认登录到应用，请核对配对码",
   "nativeLoginApproved": "登录完成，请返回应用",
-  "applicationNotificationsBackgroundUnavailable": "后台推送暂不可用，仅在应用打开时接收"
+  "applicationNotificationsBackgroundUnavailable": "后台通知可能延迟，打开应用可立即检查"
 }
