@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "اطلاعات تیار کی جا رہی ہیں…",
+  "applicationNotificationsRetry": "دوبارہ کوشش کریں",
+  "applicationNotificationsUnconfigured": "سرور پر براؤزر پش اطلاعات ترتیب نہیں دی گئی ہیں۔ منتظم سے انہیں ترتیب دینے کو کہیں۔",
   "appName": "Heybox موضوعات کی اطلاعات",
   "accountCancel": "منسوخ کریں",
   "accountAvatar": "پروفائل تصویر",

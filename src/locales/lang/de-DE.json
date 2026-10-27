@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "Benachrichtigungen werden vorbereitet…",
+  "applicationNotificationsRetry": "Erneut versuchen",
+  "applicationNotificationsUnconfigured": "Browser-Push ist auf dem Server nicht eingerichtet. Bitten Sie die Administration um die Einrichtung.",
   "appName": "Heybox Themenbenachrichtigung",
   "accountCancel": "Abbrechen",
   "accountAvatar": "Profilbild",

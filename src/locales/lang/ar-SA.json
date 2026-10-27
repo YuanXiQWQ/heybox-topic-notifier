@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "جارٍ إعداد الإشعارات…",
+  "applicationNotificationsRetry": "إعادة المحاولة",
+  "applicationNotificationsUnconfigured": "إشعارات الدفع للمتصفح غير مهيأة على الخادم. اطلب من المسؤول تهيئتها.",
   "appName": "تنبيهات مواضيع Heybox",
   "accountCancel": "إلغاء",
   "accountAvatar": "الصورة الشخصية",

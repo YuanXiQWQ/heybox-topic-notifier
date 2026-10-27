@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "বিজ্ঞপ্তি প্রস্তুত করা হচ্ছে…",
+  "applicationNotificationsRetry": "আবার চেষ্টা করুন",
+  "applicationNotificationsUnconfigured": "সার্ভারে ব্রাউজার পুশ বিজ্ঞপ্তি কনফিগার করা হয়নি। প্রশাসককে কনফিগার করতে বলুন।",
   "appName": "Heybox বিষয় বিজ্ঞপ্তি",
   "accountCancel": "বাতিল",
   "accountAvatar": "প্রোফাইল ছবি",

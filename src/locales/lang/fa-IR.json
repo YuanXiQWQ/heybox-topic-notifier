@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "در حال آماده‌سازی اعلان‌ها…",
+  "applicationNotificationsRetry": "تلاش دوباره",
+  "applicationNotificationsUnconfigured": "اعلان‌های پوش مرورگر در سرور پیکربندی نشده‌اند. از مدیر بخواهید آن‌ها را پیکربندی کند.",
   "appName": "اعلان موضوعات Heybox",
   "accountCancel": "لغو",
   "accountAvatar": "تصویر نمایه",

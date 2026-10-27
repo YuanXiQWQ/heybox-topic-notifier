@@ -81,6 +81,9 @@ export type Messages = {
   applicationNotifications: string;
   applicationNotificationsUnsupported: string;
   applicationNotificationsUnavailable: string;
+  applicationNotificationsUnconfigured: string;
+  applicationNotificationsLoading: string;
+  applicationNotificationsRetry: string;
   applicationNotificationsBackgroundUnavailable: string;
   applicationNotificationsDenied: string;
   aboutProject: string;

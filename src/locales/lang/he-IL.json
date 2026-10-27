@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "מכין התראות…",
+  "applicationNotificationsRetry": "ניסיון חוזר",
+  "applicationNotificationsUnconfigured": "התראות דחיפה בדפדפן לא הוגדרו בשרת. יש לבקש ממנהל המערכת להגדיר אותן.",
   "appName": "התראות נושאים של Heybox",
   "accountCancel": "ביטול",
   "accountAvatar": "תמונת פרופיל",

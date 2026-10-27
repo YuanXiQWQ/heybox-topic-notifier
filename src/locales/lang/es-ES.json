@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "Preparando las notificaciones…",
+  "applicationNotificationsRetry": "Reintentar",
+  "applicationNotificationsUnconfigured": "Las notificaciones push del navegador no están configuradas en el servidor. Contacta con el administrador.",
   "appName": "Notificador de temas de Heybox",
   "accountCancel": "Cancelar",
   "accountAvatar": "Avatar",

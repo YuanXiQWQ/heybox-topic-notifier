@@ -889,6 +889,21 @@ input[readonly]::placeholder{
   justify-content: flex-end;
 }
 
+.application-notifications-cell{
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.application-notifications-cell .inline-action-status{
+  order: -2;
+  white-space: normal;
+}
+
+.application-notifications-cell [data-app-notifications-retry]{
+  order: -1;
+}
+
 .security-toggle-row{
   align-items: center;
   display: flex;
@@ -3093,6 +3108,11 @@ tr:last-child td{
 }
 
 @media (max-width: 480px){
+  /* 通知说明出现时使用整行空间，保持窄屏文字可读。 */
+  .settings-list > div:has(.application-notifications-cell .inline-action-status:not([hidden])){
+    grid-template-columns: 1fr;
+  }
+
   /* 宽输入框需要完整一行，避免把可编辑区域压缩到不可用。 */
   .settings-list > div:has(.input-action-row),
   .settings-list > div:has(.account-username-row),
