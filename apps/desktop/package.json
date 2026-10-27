@@ -44,7 +44,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
+      "include": "installer.nsh",
       "deleteAppDataOnUninstall": false
     },
     "publish": [

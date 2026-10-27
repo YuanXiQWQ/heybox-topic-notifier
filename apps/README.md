@@ -14,6 +14,8 @@ Android 的兼容目标是没有 Google Play／GMS 的设备，不限定品牌�
 - `app-check.yml` 在涉及应用、静态资源或原生工作流的 PR 和 `main`、`dev` 推送时自动检查，也可手动运行。不需要发行凭据：Windows 执行主进程测试并构建未签名 NSIS；Android 执行 JVM 测试、Lint 和调试 APK 构建。测试包不上传到 Release。
 - 两条工作流都会对安装产物中的全部静态资源逐文件校验 SHA-256，并核对资源清单；缺少或损坏任何彩蛋资源都会阻止成功。可本地执行 `node apps/scripts/verify-assets.mjs <解包后的 static 目录>` 重现检查。
 
+Windows 安装目录页直接显示实际目标目录：浏览选择父目录后自动追加 `heybox-topic-notifier`，选中同名应用目录不会重复追加。手动输入父目录并点击安装时，会先补全输入框并留在目录页，再次确认才开始安装；已有安装记录和自动更新沿用原目录。`desktop/installer.nsh` 使用原生 MUI 目录页；`allowToChangeInstallationDirectory: false` 仅关闭 electron-builder 内置的目录页与安装前追加逻辑，目录选择由自定义钩子提供。
+
 ## Release 更新
 
 沿用仓库现有的 `3.8.2` 标签格式，也兼容 `v3.8.2`。正式发布时自动生成并上传以下四个附件，无需手工下载 Actions 产物后转传：
