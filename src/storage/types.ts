@@ -2,6 +2,7 @@
  * @file 本文件定义与具体数据库实现无关的应用存储契约。
  */
 import type { MatchingStore } from "./matching_types.ts";
+import type { WebPushStore } from "./web_push_types.ts";
 import type {
   AppSettings,
   AppState,
@@ -65,6 +66,8 @@ export type PollScheduleEntry = {
  * 指定用户作用域下的数据存储契约。
  */
 export type UserStorage = {
+  /** 该存储的账号标识，用于隔离应用通知接收设备。 */
+  userId?: string;
   /** 用户隔离的判定缓存；迁移期以权威数据库中的缓存为准。 */
   matching?: MatchingStore;
   /**
@@ -168,6 +171,8 @@ export type UserStorage = {
  * 应用完整数据存储契约。
  */
 export type Storage = UserStorage & {
+  /** 浏览器设备订阅；只有权威存储参与实际投递。 */
+  webPush?: WebPushStore;
   /**
    * 批量获取调度信息，避免逐账号往返查询。
    *

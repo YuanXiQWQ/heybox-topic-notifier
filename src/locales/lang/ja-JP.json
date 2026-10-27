@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "小黑盒 話題通知：定期確認で検出した投稿",
   "notificationMoreMatches": "ほか{count}件の投稿",
-  "notificationProvider": "通知方法",
+  "notificationProvider": "その他の通知",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "接続成功",
   "matchingConnectionFailed": "接続に失敗しました。接続先、APIキー、モデル、出力上限を確認してください。",
   "matchingConnectionLimit": "1日の呼び出し上限に達しました",
-  "matchingConnectionBusy": "照合中です。少し経ってから再試行してください。"
+  "matchingConnectionBusy": "照合中です。少し経ってから再試行してください。",
+  "aboutProject": "プロジェクトについて",
+  "aboutDescription": "概要",
+  "aboutSummary": "Heyboxのトピックを監視し、条件に合う投稿を見つけて通知します。",
+  "projectVersion": "プロジェクトのバージョン",
+  "projectRepository": "リポジトリ",
+  "projectLicense": "ライセンス",
+  "installApplication": "アプリをインストール",
+  "applicationNotReleased": "アプリのインストーラーはまだ公開されていません",
+  "applicationDownloadFailed": "インストーラーを取得できません。後でもう一度お試しください",
+  "applicationNotifications": "アプリ通知",
+  "applicationNotificationsUnsupported": "このブラウザーはシステム通知に対応していません",
+  "applicationNotificationsUnavailable": "アプリ通知が未設定、またはサーバーに接続できません",
+  "applicationNotificationsDenied": "ブラウザーの設定で通知を許可してください"
 }

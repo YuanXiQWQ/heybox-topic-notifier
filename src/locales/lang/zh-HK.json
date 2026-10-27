@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "小黑盒話題提醒：輪詢命中",
   "notificationMoreMatches": "及另外 {count} 篇帖文",
-  "notificationProvider": "通知方式",
+  "notificationProvider": "其他通知",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "Server酱",
@@ -379,5 +379,18 @@
   "matchingConnected": "連接成功",
   "matchingConnectionFailed": "連線失敗，請檢查端點、金鑰、模型及輸出上限",
   "matchingConnectionLimit": "已達到每日調用上限",
-  "matchingConnectionBusy": "正在執行比對，請稍後重試"
+  "matchingConnectionBusy": "正在執行比對，請稍後重試",
+  "aboutProject": "關於項目",
+  "aboutDescription": "項目介紹",
+  "aboutSummary": "監察小黑盒話題，配對關注的帖子並發送提醒。",
+  "projectVersion": "項目版本",
+  "projectRepository": "項目儲存庫",
+  "projectLicense": "授權條款",
+  "installApplication": "安裝應用程式",
+  "applicationNotReleased": "應用程式安裝包尚未發佈",
+  "applicationDownloadFailed": "暫時無法取得安裝包，請稍後重試",
+  "applicationNotifications": "應用程式通知",
+  "applicationNotificationsUnsupported": "目前瀏覽器不支援系統通知",
+  "applicationNotificationsUnavailable": "伺服器尚未啟用應用程式通知，或暫時無法連線",
+  "applicationNotificationsDenied": "請在瀏覽器設定中允許通知"
 }

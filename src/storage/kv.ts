@@ -2,6 +2,7 @@
  * @file 本文件提供基于 Deno KV 的应用数据存储实现。
  */
 import { createKvMatchingStore } from "./matching_kv.ts";
+import { createKvWebPushStore } from "./web_push_kv.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type {
   AppSettings,
@@ -232,6 +233,7 @@ export function createKvStorage(
    */
   function forUser(userId: string): UserStorage {
     return {
+      userId,
       matching: createKvMatchingStore(kv, userId),
       /**
        * 获取当前用户设置。
@@ -479,6 +481,7 @@ export function createKvStorage(
   return {
     forUser,
     matching: createKvMatchingStore(kv, "default"),
+    webPush: createKvWebPushStore(kv),
 
     /**
      * 按账号 ID 获取账号。

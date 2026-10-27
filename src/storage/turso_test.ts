@@ -20,7 +20,12 @@ import type {
 import { createTursoStorage, type TursoClient } from "./turso.ts";
 import type { Storage } from "./types.ts";
 import { verifyMatchingStore } from "./matching_store_test_helpers.ts";
+import { verifyWebPushStore } from "./web_push_test_helpers.ts";
 import { assertEquals, assertStrictEquals } from "../test_helpers.ts";
+
+Deno.test("Turso web push isolates and rebinds browser devices", async () => {
+  await withStorage(async (storage) => await verifyWebPushStore(storage.webPush!));
+});
 
 Deno.test("Turso matching cache persists, isolates leases and bounds pending storage", async () => {
   await withStorage(async (storage, client) => {

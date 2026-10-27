@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "Heybox Themenbenachrichtigung: Treffer bei der Abfrage",
   "notificationMoreMatches": "und {count} weitere Beiträge",
-  "notificationProvider": "Benachrichtigungsmethode",
+  "notificationProvider": "Andere Benachrichtigungen",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "Verbunden",
   "matchingConnectionFailed": "Verbindung fehlgeschlagen. Endpunkt, API-Schlüssel, Modell und Ausgabelimit prüfen.",
   "matchingConnectionLimit": "Tägliches Aufruflimit erreicht",
-  "matchingConnectionBusy": "Abgleich läuft. Bitte gleich erneut versuchen."
+  "matchingConnectionBusy": "Abgleich läuft. Bitte gleich erneut versuchen.",
+  "aboutProject": "Über das Projekt",
+  "aboutDescription": "Beschreibung",
+  "aboutSummary": "Heybox-Themen überwachen, passende Beiträge finden und Benachrichtigungen erhalten.",
+  "projectVersion": "Projektversion",
+  "projectRepository": "Repository",
+  "projectLicense": "Lizenz",
+  "installApplication": "App installieren",
+  "applicationNotReleased": "Installationsdateien sind noch nicht verfügbar",
+  "applicationDownloadFailed": "Installationsdateien konnten nicht geladen werden. Bitte später erneut versuchen",
+  "applicationNotifications": "App-Benachrichtigungen",
+  "applicationNotificationsUnsupported": "Dieser Browser unterstützt keine Systembenachrichtigungen",
+  "applicationNotificationsUnavailable": "App-Benachrichtigungen sind nicht eingerichtet oder der Server ist nicht erreichbar",
+  "applicationNotificationsDenied": "Benachrichtigungen in den Browsereinstellungen zulassen"
 }

@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "Notificações de tópicos Heybox: correspondências da consulta",
   "notificationMoreMatches": "e mais {count} publicações",
-  "notificationProvider": "Método de notificação",
+  "notificationProvider": "Outras notificações",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "Ligado",
   "matchingConnectionFailed": "Falha na ligação. Verifique o ponto de acesso, a chave de API, o modelo e o limite de saída.",
   "matchingConnectionLimit": "Limite diário de chamadas atingido",
-  "matchingConnectionBusy": "Verificação de correspondências em curso. Tente novamente dentro de instantes."
+  "matchingConnectionBusy": "Verificação de correspondências em curso. Tente novamente dentro de instantes.",
+  "aboutProject": "Sobre o projeto",
+  "aboutDescription": "Descrição",
+  "aboutSummary": "Monitorize tópicos do Heybox, encontre publicações correspondentes e receba notificações.",
+  "projectVersion": "Versão do projeto",
+  "projectRepository": "Repositório",
+  "projectLicense": "Licença",
+  "installApplication": "Instalar aplicação",
+  "applicationNotReleased": "Os instaladores ainda não estão disponíveis",
+  "applicationDownloadFailed": "Não foi possível carregar os instaladores. Tente novamente mais tarde",
+  "applicationNotifications": "Notificações da aplicação",
+  "applicationNotificationsUnsupported": "Este navegador não suporta notificações do sistema",
+  "applicationNotificationsUnavailable": "As notificações não estão configuradas ou o servidor está indisponível",
+  "applicationNotificationsDenied": "Permita notificações nas definições do navegador"
 }

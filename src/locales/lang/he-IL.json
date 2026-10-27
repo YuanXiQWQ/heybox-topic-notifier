@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "התראות Heybox: פרסומים תואמים",
   "notificationMoreMatches": "ועוד {count} פרסומים",
-  "notificationProvider": "שיטת התראה",
+  "notificationProvider": "התראות אחרות",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "החיבור הצליח",
   "matchingConnectionFailed": "החיבור נכשל. בדקו את נקודת הקצה, מפתח ה-API, המודל ומגבלת הפלט.",
   "matchingConnectionLimit": "מגבלת הקריאות היומית הושגה",
-  "matchingConnectionBusy": "ההתאמה מתבצעת. נסו שוב בעוד רגע."
+  "matchingConnectionBusy": "ההתאמה מתבצעת. נסו שוב בעוד רגע.",
+  "aboutProject": "על הפרויקט",
+  "aboutDescription": "תיאור",
+  "aboutSummary": "עקבו אחר נושאים ב-Heybox, מצאו פוסטים מתאימים וקבלו התראות.",
+  "projectVersion": "גרסת הפרויקט",
+  "projectRepository": "מאגר",
+  "projectLicense": "רישיון",
+  "installApplication": "התקנת האפליקציה",
+  "applicationNotReleased": "קובצי ההתקנה עדיין אינם זמינים",
+  "applicationDownloadFailed": "לא ניתן לטעון את קובצי ההתקנה. נסו שוב מאוחר יותר",
+  "applicationNotifications": "התראות האפליקציה",
+  "applicationNotificationsUnsupported": "דפדפן זה אינו תומך בהתראות מערכת",
+  "applicationNotificationsUnavailable": "ההתראות לא הוגדרו או שהשרת אינו זמין",
+  "applicationNotificationsDenied": "אפשרו התראות בהגדרות הדפדפן"
 }

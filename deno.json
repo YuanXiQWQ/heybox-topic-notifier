@@ -9,6 +9,7 @@
     "clear-seen": "deno run --unstable-kv src/storage/clear_seen.ts",
     "storage:migrate-kv": "deno run --allow-env --allow-net --unstable-kv src/storage/migrate_kv_to_turso.ts",
     "auth:check-legacy": "deno run --allow-env --unstable-kv src/auth/check_legacy_accounts.ts",
+    "notifications:keys": "deno run scripts/generate_web_push_keys.ts",
     "check": "deno lint && deno check src/main.ts src/deploy.ts \"static/**/*.js\" \"workers/**/*.js\" && deno test --allow-env --allow-read --unstable-kv"
   },
   "imports": {
@@ -18,7 +19,9 @@
     "@libsql/client/web": "npm:@libsql/client@0.17.4/web",
     "@simplewebauthn/browser": "jsr:@simplewebauthn/browser@^13.3.0",
     "@simplewebauthn/server": "jsr:@simplewebauthn/server@^13.3.2",
-    "qrcode": "npm:qrcode@^1.5.4"
+    "@types/web-push": "npm:@types/web-push@3.6.4",
+    "qrcode": "npm:qrcode@^1.5.4",
+    "web-push": "npm:web-push@3.6.7"
   },
   "lint": {
     "rules": {

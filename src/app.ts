@@ -28,6 +28,7 @@ import { createSecurityHeadersMiddleware } from "./security/headers.ts";
 import { createAppContext } from "./services/app_context.ts";
 import type { PollingContext } from "./services/polling_context.ts";
 import { renderNotFound } from "./views/not_found.ts";
+import { createWebPushRoutes } from "./web_push_routes.ts";
 
 /**
  * 创建应用实例和运行时上下文。
@@ -55,6 +56,14 @@ export function createApplication(pollingContext?: PollingContext) {
   };
 
   app.use("*", createSecurityHeadersMiddleware());
+  /**
+   * 向浏览器提供可在登录会话外启动的通知 Service Worker。
+   * @return {Promise<Response>} 禁止长期缓存的脚本。
+   */
+  app.get("/app-sw.js", async () => new Response(
+    await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url)),
+    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache", "service-worker-allowed": "/" } },
+  ));
   app.get("/favicon.ico", () => faviconResponse());
   app.get(
     "/static/fun/coordinator.js",
@@ -129,6 +138,7 @@ export function createApplication(pollingContext?: PollingContext) {
   });
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
+  app.route("/api/app-notifications", createWebPushRoutes(context.storage));
   app.route("/", createRoutes(context));
 
   // 未匹配任何路由时给出与普通页面同风格的 404。认证中间件在此之前已把未登录

@@ -233,7 +233,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "Heybox Konu Bildiricisi: yoklama eşleşmeleri",
   "notificationMoreMatches": "ve {count} gönderi daha",
-  "notificationProvider": "Bildirim yöntemi",
+  "notificationProvider": "Diğer bildirimler",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "Bağlandı",
   "matchingConnectionFailed": "Bağlantı başarısız. Uç noktayı, API anahtarını, modeli ve çıktı sınırını kontrol edin.",
   "matchingConnectionLimit": "Günlük çağrı sınırına ulaşıldı",
-  "matchingConnectionBusy": "Eşleştirme devam ediyor. Lütfen biraz sonra tekrar deneyin."
+  "matchingConnectionBusy": "Eşleştirme devam ediyor. Lütfen biraz sonra tekrar deneyin.",
+  "aboutProject": "Proje hakkında",
+  "aboutDescription": "Açıklama",
+  "aboutSummary": "Heybox konularını izleyin, eşleşen gönderileri bulun ve bildirim alın.",
+  "projectVersion": "Proje sürümü",
+  "projectRepository": "Depo",
+  "projectLicense": "Lisans",
+  "installApplication": "Uygulamayı yükle",
+  "applicationNotReleased": "Uygulama yükleyicileri henüz yayımlanmadı",
+  "applicationDownloadFailed": "Yükleyiciler yüklenemedi. Lütfen daha sonra tekrar deneyin",
+  "applicationNotifications": "Uygulama bildirimleri",
+  "applicationNotificationsUnsupported": "Bu tarayıcı sistem bildirimlerini desteklemiyor",
+  "applicationNotificationsUnavailable": "Bildirimler yapılandırılmamış veya sunucuya ulaşılamıyor",
+  "applicationNotificationsDenied": "Tarayıcı ayarlarından bildirimlere izin verin"
 }

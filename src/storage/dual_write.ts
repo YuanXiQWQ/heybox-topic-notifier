@@ -2,6 +2,7 @@
  * @file 本文件提供以权威存储响应、向迁移目标镜像写入的双写适配器。
  */
 import type { Storage, UserStorage } from "./types.ts";
+import type { WebPushStore } from "./web_push_types.ts";
 
 /**
  * 镜像写入失败信息。
@@ -97,7 +98,7 @@ export function createDualWriteStorage(
 
   return new Proxy(storage, {
     /**
-     * 为用户作用域存储创建独立双写包装。
+     * 为用户作用域存储和浏览器订阅存储创建独立双写包装。
      *
      * @param {Storage} target 权威存储代理。
      * @param {PropertyKey} property 读取的属性名。
@@ -105,6 +106,9 @@ export function createDualWriteStorage(
      * @return {unknown} 存储属性或用户作用域双写函数。
      */
     get(target, property, receiver): unknown {
+      if (property === "webPush" && authoritative.webPush && mirror.webPush) {
+        return mirrorWrites<WebPushStore>(authoritative.webPush, mirror.webPush, new Set(["save", "remove"]), onMirrorFailure);
+      }
       if (property === "forUser") {
         return (userId: string): UserStorage =>
           mirrorWrites(

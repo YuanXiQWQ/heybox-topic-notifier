@@ -101,6 +101,9 @@ import {
   parseMatchTableQuery,
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
+import { renderAbout } from "./views/about.ts";
+import { projectVersion } from "./project.ts";
+import { createReleaseCatalogReader, type ReleaseCatalog } from "./services/releases.ts";
 import {
   type MatchingSettings,
   normalizeMatchingSettings,
@@ -149,6 +152,8 @@ const matchTableRefreshHeader = "x-match-table-refresh";
 const recoveryCodeRevealTtlMs = 10 * 60 * 1000;
 /** 单个头像允许写入数据库的最大字节数。 */
 const avatarMaxBytes = 2 * 1024 * 1024;
+/** 同一运行实例内共享缓存的应用安装包目录。 */
+const readReleaseCatalog = createReleaseCatalogReader();
 
 /**
  * Passkey 路由可注入的测试依赖。
@@ -162,10 +167,44 @@ type PasskeyRouteContext = AppContext & {
  * 创建应用业务路由。
  *
  * @param {AppContext} context 应用运行时上下文。
+ * @param {object} options 可注入的发行目录读取器。
  * @return {Hono} Hono 路由应用。
  */
-export function createRoutes(context: AppContext): Hono {
+export function createRoutes(
+  context: AppContext,
+  options: { releaseCatalog?: () => Promise<ReleaseCatalog> } = {},
+): Hono {
   const app = new Hono();
+  /**
+   * 提供设备通知开关的浏览器脚本。
+   * @return {Promise<Response>} 同源脚本响应。
+   */
+  app.get("/static/app-notifications.js", async () => new Response(
+    await Deno.readTextFile(new URL("../static/app-notifications.js", import.meta.url)),
+    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } },
+  ));
+
+  /**
+   * 使用当前账号的主题与语言显示项目信息及真实发行附件。
+   *
+   * @param {Context} c 当前 HTTP 请求。
+   * @return {Promise<Response>} 禁止共享缓存的关于页面。
+   */
+  app.get("/about", async (c) => {
+    const storage = await storageForRequest(c, context);
+    const session = await authSessionForRequest(c, context);
+    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    c.header("cache-control", "no-store");
+    return withCsrfCookie(c.html(renderAbout({
+      account,
+      csrfToken: csrf.token,
+      loginSession: session?.createdAt,
+      settings: await storage.getSettings(),
+      version: projectVersion(Deno.env.get("APP_VERSION")),
+      catalog: await (options.releaseCatalog ?? readReleaseCatalog)(),
+    })), csrf);
+  });
 
   app.get("/healthz", (c) =>
     c.json({

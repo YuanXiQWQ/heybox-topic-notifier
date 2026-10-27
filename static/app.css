@@ -1908,6 +1908,59 @@ dt{
   border-bottom: 0;
 }
 
+/* 导航行由链接覆盖全部可交互区域，与设置抽屉标题使用相同留白。 */
+.settings-list > .settings-navigation-row{
+  display: block;
+  padding: 0;
+}
+
+.settings-navigation-link{
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 14px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  text-decoration: none;
+  width: 100%;
+}
+
+.settings-navigation-link:hover{
+  background: var(--theme-soft-strong);
+  text-decoration: none;
+}
+
+.settings-navigation-link:focus-visible{
+  outline: 2px solid var(--theme-strong);
+  outline-offset: -2px;
+}
+
+.settings-navigation-chevron{
+  border-block-start: 2px solid currentColor;
+  border-inline-end: 2px solid currentColor;
+  flex: 0 0 8px;
+  height: 8px;
+  transform: rotate(45deg);
+}
+
+[dir="rtl"] .settings-navigation-chevron{
+  transform: rotate(-45deg);
+}
+
+.about-downloads{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.about-download{
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 32px;
+}
+
 .account-option-row,
 .notification-option-row,
 .polling-option-row{

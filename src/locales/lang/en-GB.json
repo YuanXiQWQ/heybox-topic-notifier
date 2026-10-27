@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "Heybox Topic Notifier: Polling matches",
   "notificationMoreMatches": "and {count} more posts",
-  "notificationProvider": "Notification method",
+  "notificationProvider": "Other notifications",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "Connected",
   "matchingConnectionFailed": "Connection failed. Check endpoint, API key, model and output limit.",
   "matchingConnectionLimit": "Daily call limit reached",
-  "matchingConnectionBusy": "Matching is in progress. Please retry shortly."
+  "matchingConnectionBusy": "Matching is in progress. Please retry shortly.",
+  "aboutProject": "About the project",
+  "aboutDescription": "Description",
+  "aboutSummary": "Monitor Heybox topics, find matching posts, and receive notifications.",
+  "projectVersion": "Project version",
+  "projectRepository": "Repository",
+  "projectLicense": "Licence",
+  "installApplication": "Install app",
+  "applicationNotReleased": "App installers are not yet available",
+  "applicationDownloadFailed": "Unable to load installers. Please try again later",
+  "applicationNotifications": "App notifications",
+  "applicationNotificationsUnsupported": "This browser does not support system notifications",
+  "applicationNotificationsUnavailable": "App notifications are not configured or the server is unavailable",
+  "applicationNotificationsDenied": "Allow notifications in your browser settings"
 }

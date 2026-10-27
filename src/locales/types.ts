@@ -78,6 +78,19 @@ export function isRtlLocale(locale: Locale): boolean {
  * 应用所有可翻译文案字段的结构。
  */
 export type Messages = {
+  applicationNotifications: string;
+  applicationNotificationsUnsupported: string;
+  applicationNotificationsUnavailable: string;
+  applicationNotificationsDenied: string;
+  aboutProject: string;
+  aboutDescription: string;
+  aboutSummary: string;
+  projectVersion: string;
+  projectRepository: string;
+  projectLicense: string;
+  installApplication: string;
+  applicationNotReleased: string;
+  applicationDownloadFailed: string;
   matchingAdvanced: string;
   matchingCompany: string;
   matchingCustom: string;

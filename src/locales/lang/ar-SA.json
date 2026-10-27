@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "تنبيهات مواضيع Heybox: نتائج الاستطلاع",
   "notificationMoreMatches": "و{count} منشورات أخرى",
-  "notificationProvider": "طريقة الإشعار",
+  "notificationProvider": "إشعارات أخرى",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "تم الاتصال",
   "matchingConnectionFailed": "فشل الاتصال. تحقق من نقطة النهاية ومفتاح API والنموذج وحد الإخراج.",
   "matchingConnectionLimit": "تم بلوغ الحد اليومي للاستدعاءات",
-  "matchingConnectionBusy": "المطابقة قيد التنفيذ. أعد المحاولة بعد قليل."
+  "matchingConnectionBusy": "المطابقة قيد التنفيذ. أعد المحاولة بعد قليل.",
+  "aboutProject": "حول المشروع",
+  "aboutDescription": "الوصف",
+  "aboutSummary": "راقب مواضيع Heybox واعثر على المنشورات المطابقة وتلقَّ الإشعارات.",
+  "projectVersion": "إصدار المشروع",
+  "projectRepository": "المستودع",
+  "projectLicense": "الترخيص",
+  "installApplication": "تثبيت التطبيق",
+  "applicationNotReleased": "ملفات تثبيت التطبيق غير متاحة بعد",
+  "applicationDownloadFailed": "تعذر تحميل ملفات التثبيت. حاول لاحقًا",
+  "applicationNotifications": "إشعارات التطبيق",
+  "applicationNotificationsUnsupported": "هذا المتصفح لا يدعم إشعارات النظام",
+  "applicationNotificationsUnavailable": "إشعارات التطبيق غير مهيأة أو الخادم غير متاح",
+  "applicationNotificationsDenied": "اسمح بالإشعارات في إعدادات المتصفح"
 }

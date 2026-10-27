@@ -233,7 +233,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "Pemberi Notifikasi Topik Heybox: kecocokan polling",
   "notificationMoreMatches": "dan {count} postingan lainnya",
-  "notificationProvider": "Metode notifikasi",
+  "notificationProvider": "Notifikasi lainnya",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "Terhubung",
   "matchingConnectionFailed": "Koneksi gagal. Periksa endpoint, kunci API, model, dan batas keluaran.",
   "matchingConnectionLimit": "Batas panggilan harian tercapai",
-  "matchingConnectionBusy": "Pencocokan sedang berlangsung. Coba lagi sebentar."
+  "matchingConnectionBusy": "Pencocokan sedang berlangsung. Coba lagi sebentar.",
+  "aboutProject": "Tentang proyek",
+  "aboutDescription": "Deskripsi",
+  "aboutSummary": "Pantau topik Heybox, temukan postingan yang cocok, dan terima notifikasi.",
+  "projectVersion": "Versi proyek",
+  "projectRepository": "Repositori",
+  "projectLicense": "Lisensi",
+  "installApplication": "Instal aplikasi",
+  "applicationNotReleased": "Berkas instalasi aplikasi belum tersedia",
+  "applicationDownloadFailed": "Tidak dapat memuat berkas instalasi. Coba lagi nanti",
+  "applicationNotifications": "Notifikasi aplikasi",
+  "applicationNotificationsUnsupported": "Browser ini tidak mendukung notifikasi sistem",
+  "applicationNotificationsUnavailable": "Notifikasi belum dikonfigurasi atau server tidak tersedia",
+  "applicationNotificationsDenied": "Izinkan notifikasi di pengaturan browser"
 }

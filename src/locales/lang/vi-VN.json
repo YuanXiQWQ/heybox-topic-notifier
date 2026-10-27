@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "Thông báo chủ đề Heybox: Bài viết khớp khi kiểm tra",
   "notificationMoreMatches": "và {count} bài viết khác",
-  "notificationProvider": "Phương thức thông báo",
+  "notificationProvider": "Thông báo khác",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "Kết nối thành công",
   "matchingConnectionFailed": "Kết nối thất bại. Hãy kiểm tra điểm cuối, khóa API, mô hình và giới hạn đầu ra.",
   "matchingConnectionLimit": "Đã đạt giới hạn lượt gọi hằng ngày",
-  "matchingConnectionBusy": "Đang đối chiếu. Vui lòng thử lại sau giây lát."
+  "matchingConnectionBusy": "Đang đối chiếu. Vui lòng thử lại sau giây lát.",
+  "aboutProject": "Giới thiệu dự án",
+  "aboutDescription": "Mô tả",
+  "aboutSummary": "Theo dõi chủ đề Heybox, tìm bài viết phù hợp và nhận thông báo.",
+  "projectVersion": "Phiên bản dự án",
+  "projectRepository": "Kho mã nguồn",
+  "projectLicense": "Giấy phép",
+  "installApplication": "Cài đặt ứng dụng",
+  "applicationNotReleased": "Chưa có bộ cài đặt ứng dụng",
+  "applicationDownloadFailed": "Không thể tải danh sách bộ cài đặt. Vui lòng thử lại sau",
+  "applicationNotifications": "Thông báo ứng dụng",
+  "applicationNotificationsUnsupported": "Trình duyệt này không hỗ trợ thông báo hệ thống",
+  "applicationNotificationsUnavailable": "Thông báo chưa được cấu hình hoặc máy chủ không khả dụng",
+  "applicationNotificationsDenied": "Cho phép thông báo trong cài đặt trình duyệt"
 }

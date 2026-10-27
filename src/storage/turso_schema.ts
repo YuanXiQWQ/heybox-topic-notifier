@@ -6,7 +6,7 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 6;
+export const TURSO_SCHEMA_VERSION = 7;
 
 /**
  * 为仪表盘数据表创建版本更新触发器；版本与业务写入处于同一事务。
@@ -34,6 +34,10 @@ function dashboardVersionTriggers(table: string): string[] {
  * TTL 所需字段提升为关系列，避免把原有 KV prefix scan 原样搬到 SQL。
  */
 export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
+  `CREATE TABLE IF NOT EXISTS web_push_devices (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, value_json TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS web_push_devices_user_idx ON web_push_devices (user_id)`,
   `CREATE TABLE IF NOT EXISTS matching_runtime (
     user_id TEXT PRIMARY KEY, value_json TEXT, lease_token TEXT, lease_until INTEGER NOT NULL DEFAULT 0
   )`,

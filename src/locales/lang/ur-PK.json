@@ -242,7 +242,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "Heybox موضوعات کی اطلاعات: جانچ میں مماثل پوسٹس",
   "notificationMoreMatches": "اور مزید {count} پوسٹس",
-  "notificationProvider": "اطلاع کا طریقہ",
+  "notificationProvider": "دیگر اطلاعات",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "رابطہ قائم ہو گیا",
   "matchingConnectionFailed": "رابطہ ناکام۔ اینڈ پوائنٹ، API کلید، ماڈل اور آؤٹ پٹ حد چیک کریں۔",
   "matchingConnectionLimit": "روزانہ کال کی حد پوری ہو گئی",
-  "matchingConnectionBusy": "مماثلت کی جانچ جاری ہے۔ کچھ دیر بعد دوبارہ کوشش کریں۔"
+  "matchingConnectionBusy": "مماثلت کی جانچ جاری ہے۔ کچھ دیر بعد دوبارہ کوشش کریں۔",
+  "aboutProject": "پروجیکٹ کے بارے میں",
+  "aboutDescription": "تعارف",
+  "aboutSummary": "Heybox کے موضوعات کی نگرانی کریں، مماثل پوسٹس تلاش کریں اور اطلاعات حاصل کریں۔",
+  "projectVersion": "پروجیکٹ کا ورژن",
+  "projectRepository": "ریپوزٹری",
+  "projectLicense": "لائسنس",
+  "installApplication": "ایپ انسٹال کریں",
+  "applicationNotReleased": "ایپ کی انسٹالیشن فائلیں ابھی دستیاب نہیں ہیں",
+  "applicationDownloadFailed": "انسٹالیشن فائلیں لوڈ نہیں ہو سکیں۔ بعد میں دوبارہ کوشش کریں",
+  "applicationNotifications": "ایپ کی اطلاعات",
+  "applicationNotificationsUnsupported": "یہ براؤزر سسٹم اطلاعات کی معاونت نہیں کرتا",
+  "applicationNotificationsUnavailable": "ایپ کی اطلاعات ترتیب نہیں دی گئیں یا سرور دستیاب نہیں ہے",
+  "applicationNotificationsDenied": "براؤزر کی ترتیبات میں اطلاعات کی اجازت دیں"
 }

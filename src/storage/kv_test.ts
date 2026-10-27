@@ -17,7 +17,14 @@ import type {
   UserSecuritySettings,
 } from "../models.ts";
 import { createKvStorage, latestMatchByMatchedTime } from "./kv.ts";
+import { verifyWebPushStore } from "./web_push_test_helpers.ts";
 import { assert, assertEquals, assertStrictEquals } from "../test_helpers.ts";
+
+Deno.test("KV web push isolates and rebinds browser devices", async () => {
+  const kv = new MemoryKv();
+  const storage = createKvStorage(defaultSettings, { openKv: () => Promise.resolve(kv) });
+  await verifyWebPushStore(storage.webPush!);
+});
 
 Deno.test("latestMatchByMatchedTime prefers the newest match before post time", () => {
   const olderMatchNewerPost = record("older-match-newer-post", {

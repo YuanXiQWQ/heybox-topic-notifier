@@ -233,7 +233,7 @@
   "notificationEmailSmtp": "SMTP",
   "notificationBatchTitle": "ตัวแจ้งเตือนหัวข้อ Heybox: พบรายการจากการตรวจสอบ",
   "notificationMoreMatches": "และโพสต์อื่นอีก {count} รายการ",
-  "notificationProvider": "วิธีแจ้งเตือน",
+  "notificationProvider": "การแจ้งเตือนอื่น",
   "notificationPushPlus": "PushPlus",
   "notificationPushPlusToken": "Token",
   "notificationServerChan": "ServerChan",
@@ -379,5 +379,18 @@
   "matchingConnected": "เชื่อมต่อแล้ว",
   "matchingConnectionFailed": "เชื่อมต่อไม่สำเร็จ โปรดตรวจสอบที่อยู่ปลายทาง คีย์ API โมเดล และขีดจำกัดเอาต์พุต",
   "matchingConnectionLimit": "ถึงขีดจำกัดการเรียกใช้รายวันแล้ว",
-  "matchingConnectionBusy": "กำลังดำเนินการจับคู่ โปรดลองอีกครั้งในอีกสักครู่"
+  "matchingConnectionBusy": "กำลังดำเนินการจับคู่ โปรดลองอีกครั้งในอีกสักครู่",
+  "aboutProject": "เกี่ยวกับโครงการ",
+  "aboutDescription": "คำอธิบาย",
+  "aboutSummary": "ติดตามหัวข้อ Heybox ค้นหาโพสต์ที่ตรงเงื่อนไข และรับการแจ้งเตือน",
+  "projectVersion": "เวอร์ชันโครงการ",
+  "projectRepository": "ที่เก็บซอร์สโค้ด",
+  "projectLicense": "ใบอนุญาต",
+  "installApplication": "ติดตั้งแอป",
+  "applicationNotReleased": "ยังไม่มีไฟล์ติดตั้งแอป",
+  "applicationDownloadFailed": "โหลดไฟล์ติดตั้งไม่ได้ โปรดลองอีกครั้งภายหลัง",
+  "applicationNotifications": "การแจ้งเตือนของแอป",
+  "applicationNotificationsUnsupported": "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนระบบ",
+  "applicationNotificationsUnavailable": "ยังไม่ได้ตั้งค่าการแจ้งเตือนหรือเชื่อมต่อเซิร์ฟเวอร์ไม่ได้",
+  "applicationNotificationsDenied": "อนุญาตการแจ้งเตือนในการตั้งค่าเบราว์เซอร์"
 }
