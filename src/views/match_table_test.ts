@@ -478,7 +478,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20261026-ai-match-details`,
+    `/static/settings.js?v=20261026-settings-header-key`,
   );
   assertIncludes(
     html,

@@ -5,6 +5,7 @@ import { getMessages } from "../locales/index.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type { MatchingRuntime } from "../storage/matching_types.ts";
 import { renderMatchingSection, renderMatchingAdvanced } from "./matching_settings.ts";
+import { renderDrawerHeading } from "./settings_drawer.ts";
 import { languageOptions } from "../locales/languages.ts";
 import { isRtlLocale, type Locale } from "../locales/types.ts";
 import type {
@@ -292,7 +293,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
-    <script src="/static/settings.js?v=20261026-ai-match-details" defer></script>
+    <script src="/static/settings.js?v=20261026-settings-header-key" defer></script>
   `;
 
   return renderLayout({
@@ -3742,10 +3743,10 @@ function isSubMinutePolling(settings: AppSettings): boolean {
 }
 
 /**
- * 渲染话题设置区域。
+ * 渲染带整行标题按钮的话题设置区域。
  *
- * @param settings 应用设置。
- * @return 话题设置区域 HTML。
+ * @param {AppSettings} settings 应用设置。
+ * @return {string} 话题设置区域 HTML。
  */
 function renderTopicSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
@@ -3761,8 +3762,9 @@ function renderTopicSection(settings: AppSettings): string {
       data-topic-editor
       data-delete-message="${escapeHtml(messages.selectTopicToDelete)}"
     >
-      ${settingLabel("topic", messages.topic, "settings.post.topic")}
-      <dd class="dropdown-summary-cell">
+      ${renderDrawerHeading("topics", "topic-rules-panel", messages.topic, "topic", `<span data-topic-summary data-common-label="${escapeHtml(messages.commonTopic)}">${escapeHtml(summary)}</span>`, "settings.post.topic")}
+      <dd class="dropdown-panel topic-rules-panel" id="topic-rules-panel" data-topic-panel hidden>
+        <div class="dropdown-panel-inner">
         <input type="hidden" name="activeKeywordTarget" value="${
     escapeHtml(settings.activeKeywordTarget)
   }" data-active-keyword-target>
@@ -3772,22 +3774,6 @@ function renderTopicSection(settings: AppSettings): string {
           value="${escapeHtml(JSON.stringify(settings.commonKeywordRules))}"
           data-common-keyword-rules
         >
-        <span data-topic-summary data-common-label="${
-    escapeHtml(messages.commonTopic)
-  }">${escapeHtml(summary)}</span>
-        <button
-          type="button"
-          class="dropdown-toggle"
-          data-action="toggle-topics"
-          aria-expanded="false"
-          aria-controls="topic-rules-panel"
-          aria-label="${escapeHtml(messages.topic)}"
-        >
-          <span class="dropdown-chevron" aria-hidden="true"></span>
-        </button>
-      </dd>
-      <dd class="dropdown-panel topic-rules-panel" id="topic-rules-panel" data-topic-panel hidden>
-        <div class="dropdown-panel-inner">
           <div class="topic-rule-grid" role="table">
             ${renderTopicRuleHeader(messages)}
             ${
@@ -3811,7 +3797,7 @@ function renderTopicSection(settings: AppSettings): string {
 }
 
 /**
- * 渲染关键词设置区域。
+ * 渲染带整行标题按钮的关键词设置区域。
  *
  * @param {AppSettings} settings 应用设置。
  * @return {string} 关键词设置区域 HTML，纯 AI 模式初始隐藏。
@@ -3828,22 +3814,7 @@ function renderKeywordSection(settings: AppSettings): string {
       data-keyword-editor
       data-delete-message="${escapeHtml(messages.selectKeywordToDelete)}"
     >
-      ${settingLabel("sell", messages.keywords, "settings.post.keywords")}
-      <dd class="dropdown-summary-cell">
-        <span class="keyword-summary" data-keyword-summary>
-          ${renderKeywordSummary(summaryKeywords)}
-        </span>
-        <button
-          type="button"
-          class="dropdown-toggle keyword-toggle"
-          data-action="toggle-keywords"
-          aria-expanded="false"
-          aria-controls="keyword-rules-panel"
-          aria-label="${escapeHtml(messages.keywords)}"
-        >
-          <span class="dropdown-chevron" aria-hidden="true"></span>
-        </button>
-      </dd>
+      ${renderDrawerHeading("keywords", "keyword-rules-panel", messages.keywords, "sell", `<span class="keyword-summary" data-keyword-summary>${renderKeywordSummary(summaryKeywords)}</span>`, "settings.post.keywords")}
       <dd class="dropdown-panel keyword-rules-panel" id="keyword-rules-panel" data-keyword-panel hidden>
         <div class="dropdown-panel-inner">
           <div class="keyword-rule-grid" role="table">

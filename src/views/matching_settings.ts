@@ -9,6 +9,7 @@ import {
   supportsThinkingToggle,
 } from "../services/ai_providers.ts";
 import { escapeHtml as e } from "./html.ts";
+import { renderDrawerHeading } from "./settings_drawer.ts";
 import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
 
 /**
@@ -28,14 +29,7 @@ function drawer(
   attributes = "",
 ): string {
   return `<div class="dropdown-settings-row matching-conditional-row" data-${name}-editor ${attributes}>
-    <dt class="settings-label-with-icon">${
-    materialSymbolIcon("sort", "settings-label-icon")
-  }<span>${e(label)}</span></dt>
-    <dd class="dropdown-summary-cell"><span data-${name}-summary>${
-    e(summary)
-  }</span><button type="button" class="dropdown-toggle" data-action="toggle-${name}s" aria-expanded="false" aria-controls="${name}-panel" aria-label="${
-    e(label)
-  }"><span class="dropdown-chevron" aria-hidden="true"></span></button></dd>
+    ${renderDrawerHeading(`${name}s`, `${name}-panel`, label, "sort", `<span data-${name}-summary>${e(summary)}</span>`)}
     <dd class="dropdown-panel" id="${name}-panel" data-${name}-panel hidden><div class="dropdown-panel-inner"><dl class="settings-list matching-settings-list">${body}</dl></div></dd>
   </div>`;
 }
