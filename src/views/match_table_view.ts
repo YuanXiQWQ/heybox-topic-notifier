@@ -754,9 +754,9 @@ type RelativeTimeTemplates = {
 };
 
 /**
- * 渲染相对时间自动刷新脚本。
+ * 渲染相对时间刷新脚本，缓存格式化结果并仅更新变化的文本及详情溢出状态。
  *
- * @return 相对时间脚本 HTML。
+ * @return {string} 相对时间脚本 HTML。
  */
 function renderRelativeTimeScript(): string {
   return `<script>
@@ -774,26 +774,72 @@ function renderRelativeTimeScript(): string {
       const relativeTemplates = ${
     JSON.stringify(relativeTimeTemplatesByLocale())
   };
+      const formatters = new Map();
+      const timeStates = new WeakMap();
+      /** 按秒检查时间边界，只写入发生变化的文案。 */
       const updateRelativeTimes = () => {
+        if (document.hidden) return;
         const nowMs = Date.now();
         const now = new Date(nowMs);
+        const calendarYears = new Map();
+        const changedDetails = new Set();
         for (const element of document.querySelectorAll('[data-relative-time]')) {
           const rawValue = element.getAttribute('data-relative-time') || '';
-          const timestamp = Date.parse(rawValue);
-          if (!Number.isFinite(timestamp)) {
-            element.textContent = rawValue || '-';
-            continue;
-          }
           const locale = element.getAttribute('data-relative-time-locale') || 'zh-CN';
-          element.textContent = formatRelativeTime(timestamp, nowMs, now, locale);
+          let state = timeStates.get(element);
+          if (!state || state.rawValue !== rawValue || state.locale !== locale) {
+            state = { rawValue, locale, timestamp: Date.parse(rawValue) };
+            timeStates.set(element, state);
+          }
+          if (!calendarYears.has(locale)) {
+            calendarYears.set(locale, formatInChina(now, { year: 'numeric' }, locale));
+          }
+          const bucket = relativeTimeBucket(state.timestamp, nowMs, calendarYears.get(locale));
+          if (state.bucket !== bucket) {
+            state.bucket = bucket;
+            state.text = Number.isFinite(state.timestamp)
+              ? formatRelativeTime(state.timestamp, nowMs, now, locale)
+              : rawValue || '-';
+          }
+          if (element.textContent === state.text) continue;
+          element.textContent = state.text;
+          const details = element.closest('.match-detail-list');
+          if (details) changedDetails.add(details);
         }
-        window[overflowUpdateKey]?.();
+        if (changedDetails.size) window[overflowUpdateKey]?.(changedDetails);
       };
 
       window[updateKey] = updateRelativeTimes;
       updateRelativeTimes();
       window.setInterval(updateRelativeTimes, 1000);
+      document.addEventListener('visibilitychange', updateRelativeTimes);
 
+      /**
+       * 为相同显示文案计算缓存键，保留各时间单位及中国时区跨年的边界。
+       * @param {number} timestamp 原始时间戳。
+       * @param {number} nowMs 当前时间戳。
+       * @param {string} chinaYear 中国时区下当前语言日历的年份。
+       * @return {string} 当前文案所属的时间段。
+       */
+      function relativeTimeBucket(timestamp, nowMs, chinaYear) {
+        if (!Number.isFinite(timestamp)) return 'invalid';
+        const seconds = Math.max(0, Math.floor((nowMs - timestamp) / 1000));
+        if (seconds < 60) return 's' + seconds;
+        if (seconds < 3600) return 'm' + Math.floor(seconds / 60);
+        if (seconds < 86400) return 'h' + Math.floor(seconds / 3600);
+        if (seconds < 172800) return 'yesterday';
+        if (seconds < 604800) return 'd' + Math.floor(seconds / 86400);
+        return 'date' + chinaYear;
+      }
+
+      /**
+       * 按当前语言生成相对时间文本。
+       * @param {number} value 原始时间戳。
+       * @param {number} nowMs 当前时间戳。
+       * @param {Date} now 当前日期。
+       * @param {string} locale 当前语言。
+       * @return {string} 相对时间文本。
+       */
       function formatRelativeTime(value, nowMs, now, locale) {
         const date = new Date(value);
         const templates = relativeTemplates[locale] || relativeTemplates['zh-CN'];
@@ -836,22 +882,45 @@ function renderRelativeTimeScript(): string {
         );
       }
 
+      /**
+       * 替换相对时间模板中的变量。
+       * @param {string} template 文案模板。
+       * @param {object} values 模板变量。
+       * @return {string} 替换后的文案。
+       */
       function formatTemplate(template, values) {
         return template.replaceAll(/\\{(\\w+)\\}/g, (placeholder, key) =>
           values[key] === undefined ? placeholder : String(values[key])
         );
       }
 
+      /**
+       * 判断两个日期在中国时区和当前语言的日历中是否同年。
+       * @param {Date} left 第一个日期。
+       * @param {Date} right 第二个日期。
+       * @param {string} locale 当前语言。
+       * @return {boolean} 是否同年。
+       */
       function sameChinaYear(left, right, locale) {
         return formatInChina(left, { year: 'numeric' }, locale) ===
           formatInChina(right, { year: 'numeric' }, locale);
       }
 
+      /**
+       * 复用相同语言和格式的日期格式化器。
+       * @param {Date} date 待格式化日期。
+       * @param {object} options 日期格式选项。
+       * @param {string} locale 当前语言。
+       * @return {string} 中国时区的日期文本。
+       */
       function formatInChina(date, options, locale) {
-        return new Intl.DateTimeFormat(locale, {
-          timeZone: 'Asia/Shanghai',
-          ...options,
-        }).format(date).replaceAll('/', '-');
+        const key = locale + JSON.stringify(options);
+        let formatter = formatters.get(key);
+        if (!formatter) {
+          formatter = new Intl.DateTimeFormat(locale, { timeZone: 'Asia/Shanghai', ...options });
+          formatters.set(key, formatter);
+        }
+        return formatter.format(date).replaceAll('/', '-');
       }
     })();
   </script>`;
@@ -891,43 +960,103 @@ function relativeTimeTemplates(messages: Messages): RelativeTimeTemplates {
 }
 
 /**
- * 渲染表格溢出检测脚本。
+ * 渲染合并调度、分批读写布局的表格溢出检测脚本。
  *
- * @return 溢出检测脚本 HTML。
+ * @return {string} 溢出检测脚本 HTML。
  */
 function renderOverflowScript(): string {
   return `<script>
     (() => {
       const clippedSelector = ".match-table-title-link, .table-clip, .match-detail-list";
-      const updateOverflowState = () => {
-        for (const element of document.querySelectorAll(clippedSelector)) {
-          if (!(element instanceof HTMLElement)) continue;
-          const wasOverflowing = element.classList.contains("is-overflowing");
-          element.classList.remove("is-overflowing");
-          const isOverflowing = isElementOverflowing(element);
-          element.classList.toggle("is-overflowing", isOverflowing);
-          if (isOverflowing && !wasOverflowing) {
-            element.setAttribute("tabindex", "0");
-          } else if (!isOverflowing) {
-            element.removeAttribute("tabindex");
+      if (window["__matchTableOverflowScriptInstalled"]) {
+        window["__matchTableOverflowUpdate"]?.();
+        return;
+      }
+      window["__matchTableOverflowScriptInstalled"] = true;
+      let framePending = false;
+      let fullUpdate = false;
+      const dirtyElements = new Set();
+      const observedTables = new Set();
+      const tableSizes = new WeakMap();
+      const observer = window.ResizeObserver ? new ResizeObserver((entries) => {
+        let sizeChanged = false;
+        for (const entry of entries) {
+          const size = entry.contentRect.width + ':' + entry.contentRect.height;
+          if (tableSizes.get(entry.target) === size) continue;
+          tableSizes.set(entry.target, size);
+          sizeChanged = true;
+        }
+        if (sizeChanged) scheduleUpdate();
+      }) : null;
+
+      /** 跟踪当前表格的尺寸，并释放局部刷新前的表格观察目标。 */
+      function observeTables() {
+        if (!observer) return;
+        for (const table of observedTables) {
+          if (table.isConnected) continue;
+          observer.unobserve(table);
+          observedTables.delete(table);
+        }
+        for (const table of document.querySelectorAll('.match-table')) {
+          if (observedTables.has(table)) continue;
+          observedTables.add(table);
+          observer.observe(table);
+        }
+      }
+
+      /** 分阶段清除展开样式、读取尺寸、测量克隆及写回结果，避免逐行强制布局。 */
+      function updateOverflowState() {
+        framePending = false;
+        if (document.hidden) return;
+        observeTables();
+        const elements = Array.from(fullUpdate
+          ? document.querySelectorAll(clippedSelector)
+          : dirtyElements).filter((element) => element instanceof HTMLElement && element.isConnected);
+        fullUpdate = false;
+        dirtyElements.clear();
+        const measurements = elements.map((element) => ({
+          element,
+          wasOverflowing: element.classList.contains('is-overflowing'),
+          overflowing: false,
+          height: 0,
+          clone: null,
+        }));
+        for (const item of measurements) item.element.classList.remove('is-overflowing');
+        for (const item of measurements) {
+          const element = item.element;
+          if (element.classList.contains('match-detail-list')) {
+            item.overflowing = Array.from(element.querySelectorAll('.match-detail-value'))
+              .some((value) => value instanceof HTMLElement && value.scrollWidth > value.clientWidth + 1);
+            continue;
           }
+          item.height = element.clientHeight;
+          item.overflowing = element.scrollWidth > element.clientWidth + 1 ||
+            element.scrollHeight > item.height + 1;
+          if (!item.overflowing) item.clone = createMeasurementClone(element);
         }
-      };
-
-      function isElementOverflowing(element) {
-        if (element.classList.contains("match-detail-list")) {
-          return Array.from(element.querySelectorAll(".match-detail-value"))
-            .some((item) =>
-              item instanceof HTMLElement &&
-              item.scrollWidth > item.clientWidth + 1
-            );
+        const fragment = document.createDocumentFragment();
+        for (const item of measurements) {
+          if (item.clone) fragment.append(item.clone);
         }
+        if (fragment.childNodes.length) document.body.append(fragment);
+        for (const item of measurements) {
+          if (item.clone) item.overflowing = item.clone.scrollHeight > item.height + 1;
+        }
+        for (const item of measurements) item.clone?.remove();
+        for (const { element, wasOverflowing, overflowing } of measurements) {
+          element.classList.toggle('is-overflowing', overflowing);
+          if (overflowing && !wasOverflowing) element.setAttribute('tabindex', '0');
+          else if (!overflowing) element.removeAttribute('tabindex');
+        }
+      }
 
-        if (element.scrollWidth > element.clientWidth + 1) return true;
-        if (element.scrollHeight > element.clientHeight + 1) return true;
-
+      /**
+       * 创建离屏测量用的无行数限制副本，插入页面前读取原元素尺寸。
+       * @param {HTMLElement} element 待测量的文本元素。
+       * @return {HTMLElement} 尚未挂载的测量副本。
+       */
+      function createMeasurementClone(element) {
         const clone = element.cloneNode(true);
-        if (!(clone instanceof HTMLElement)) return false;
         const rect = element.getBoundingClientRect();
         clone.classList.remove("is-overflowing");
         clone.style.blockSize = "auto";
@@ -945,23 +1074,29 @@ function renderOverflowScript(): string {
         clone.style.transform = "none";
         clone.style.visibility = "hidden";
         clone.style.webkitLineClamp = "unset";
-        document.body.append(clone);
-        const unclampedHeight = clone.scrollHeight;
-        clone.remove();
-        return unclampedHeight > element.clientHeight + 1;
+        return clone;
       }
 
-      const scheduleUpdate = () => requestAnimationFrame(updateOverflowState);
+      /**
+       * 合并一帧内的检测请求；省略目标时重新检测全部表格内容。
+       * @param {Iterable<HTMLElement>} [elements] 内容已变化的检测目标。
+       */
+      function scheduleUpdate(elements) {
+        if (elements) {
+          for (const element of elements) dirtyElements.add(element);
+        } else fullUpdate = true;
+        if (framePending || document.hidden) return;
+        framePending = true;
+        requestAnimationFrame(updateOverflowState);
+      }
       window["__matchTableOverflowUpdate"] = scheduleUpdate;
       scheduleUpdate();
-      if (window["__matchTableOverflowScriptInstalled"]) return;
-      window["__matchTableOverflowScriptInstalled"] = true;
-      window.addEventListener("load", scheduleUpdate);
-      window.addEventListener("resize", scheduleUpdate);
-      if (window.ResizeObserver) {
-        const observer = new ResizeObserver(scheduleUpdate);
-        for (const table of document.querySelectorAll(".match-table")) observer.observe(table);
-      }
+      window.addEventListener('load', () => scheduleUpdate());
+      window.addEventListener('resize', () => scheduleUpdate());
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) scheduleUpdate();
+      });
+      document.fonts?.addEventListener('loadingdone', () => scheduleUpdate());
     })();
   </script>`;
 }
