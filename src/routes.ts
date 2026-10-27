@@ -1,6 +1,8 @@
 /**
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
+import { testAiConnection } from "./services/ai_connection.ts";
+import { fetchAiModels } from "./services/ai_models.ts";
 import { type Context, Hono } from "@hono/hono";
 import {
   hashPassword,
@@ -99,6 +101,10 @@ import {
   parseMatchTableQuery,
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
+import {
+  type MatchingSettings,
+  normalizeMatchingSettings,
+} from "./services/matching_settings.ts";
 import {
   createRandomTestMatchRecord,
   NotificationConfigError,
@@ -461,6 +467,7 @@ export function createRoutes(context: AppContext): Hono {
         securitySettings,
         securityStatus: securitySettingsStatusFromSearch(url.searchParams),
         settings,
+        matchingRuntime: await storage.matching?.runtime(),
         totpBindingStatus: totpStatus,
         totpCredentials,
         totpSetup,
@@ -1952,6 +1959,44 @@ export function createRoutes(context: AppContext): Hono {
     return c.redirect("/settings?security=updated", 303);
   });
 
+  app.post("/settings/test-ai", async (c) => {
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
+    const limited = await rateLimitResponseForRequest(c, context, {
+      scope: "test-ai", limit: 6, windowMs: 60000,
+    });
+    if (limited) return limited;
+    const storage = await storageForRequest(c, context);
+    const current = await storage.getSettings();
+    const settings = matchingSettingsFromForm(form, current.matching);
+    c.header("Cache-Control", "no-store");
+    try {
+      const result = await testAiConnection(settings, storage.matching);
+      return c.json(result, result.ok ? 200 : 400);
+    } catch {
+      return c.json({ ok: false, error: "request" }, 502);
+    }
+  });
+
+  app.post("/settings/matching-models", async (c) => {
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
+    const limited = await rateLimitResponseForRequest(c, context, {
+      scope: "matching-models", limit: 30, windowMs: 60000,
+    });
+    if (limited) return limited;
+    const storage = await storageForRequest(c, context);
+    const current = await storage.getSettings();
+    const settings = matchingSettingsFromForm(form, current.matching);
+    c.header("Cache-Control", "no-store");
+    if (!settings.apiKey) return c.json({ error: "credentials" }, 400);
+    try {
+      return c.json({ models: await fetchAiModels(settings) });
+    } catch {
+      return c.json({ error: "models" }, 502);
+    }
+  });
+
   app.post("/settings", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await c.req.parseBody();
@@ -3391,12 +3436,12 @@ async function formDataOrEmpty(request: Request): Promise<FormData> {
 }
 
 /**
- * 从表单数据生成应用设置。
+ * 从表单数据生成应用设置，保留未重新提交的密钥并规范化匹配限制。
  *
- * @param form 表单数据。
- * @param currentSettings 当前应用设置。
- * @param now 当前时间。
- * @return 新的应用设置。
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
+ * @param {AppSettings} currentSettings 当前应用设置。
+ * @param {Date} now 当前时间。
+ * @return {AppSettings} 新的应用设置。
  */
 export function settingsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
@@ -3437,6 +3482,9 @@ export function settingsFromForm(
 
   return {
     ...currentSettings,
+    ...(form.matchingMode !== undefined
+      ? { matching: matchingSettingsFromForm(form, currentSettings.matching) }
+      : {}),
     activeKeywordTarget,
     commonKeywordRules,
     darkMode: form.darkMode === "on",
@@ -3525,6 +3573,43 @@ function secretValueFromForm(
   const submitted = String(value ?? "");
   const normalized = trim ? submitted.trim() : submitted;
   return normalized.length > 0 ? normalized : currentValue;
+}
+
+/**
+ * 读取匹配表单并限制长度和数值；仅在公司和接口一致时沿用保存的密钥。
+ *
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 设置表单。
+ * @param {MatchingSettings | undefined} current 当前匹配设置。
+ * @return {MatchingSettings} 规范化的匹配设置。
+ */
+function matchingSettingsFromForm(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  current?: MatchingSettings,
+): MatchingSettings {
+  const previous = normalizeMatchingSettings(current);
+  const target = normalizeMatchingSettings({
+    provider: String(form.matchingProvider ?? previous.provider) as MatchingSettings["provider"],
+    apiUrl: String(form.matchingApiUrl ?? previous.apiUrl),
+  });
+  const sameEndpoint = target.provider === previous.provider && target.apiUrl === previous.apiUrl;
+  return normalizeMatchingSettings({
+    provider: target.provider,
+    mode: String(form.matchingMode) as MatchingSettings["mode"],
+    apiUrl: target.apiUrl,
+    apiKey: secretValueFromForm(form.matchingApiKey, sameEndpoint ? previous.apiKey : "", true),
+    model: String(form.matchingModel ?? previous.model),
+    prompt: String(form.matchingPrompt ?? previous.prompt),
+    includeComments: form.matchingIncludeComments === "on",
+    disableThinking: form.matchingEnableThinking !== "on",
+    dailyLimit: Number(form.matchingDailyLimit ?? previous.dailyLimit),
+    maxInputChars: Number(form.matchingMaxInputChars ?? previous.maxInputChars),
+    maxOutputTokens: Number(form.matchingMaxOutputTokens ?? previous.maxOutputTokens),
+    cacheMaxEntries: Number(
+      form.matchingCacheMaxEntries ?? previous.cacheMaxEntries,
+    ),
+    inputPrice: Number(form.matchingInputPrice ?? previous.inputPrice),
+    outputPrice: Number(form.matchingOutputPrice ?? previous.outputPrice),
+  });
 }
 
 /**

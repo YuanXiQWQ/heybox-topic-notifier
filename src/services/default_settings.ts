@@ -2,6 +2,7 @@
  * @file 本文件从环境变量构建账号默认设置，不加载页面或通知发送模块。
  */
 import { normalizeLocale } from "../locales/locale.ts";
+import { normalizeMatchingSettings } from "./matching_settings.ts";
 import type { AppSettings, KeywordRule, PollSort } from "../models.ts";
 import {
   normalizeNotificationEmailService,
@@ -22,6 +23,7 @@ export function defaultAppSettingsFromEnv(): AppSettings {
       locations: ["title", "body", "comments", "replies"],
     }));
   return {
+    matching: normalizeMatchingSettings(),
     activeKeywordTarget: "common",
     commonKeywordRules: defaultKeywordRules,
     darkMode: false,

@@ -19,7 +19,16 @@ import type {
 } from "../models.ts";
 import { createTursoStorage, type TursoClient } from "./turso.ts";
 import type { Storage } from "./types.ts";
+import { verifyMatchingStore } from "./matching_store_test_helpers.ts";
 import { assertEquals, assertStrictEquals } from "../test_helpers.ts";
+
+Deno.test("Turso matching cache persists, isolates leases and bounds pending storage", async () => {
+  await withStorage(async (storage, client) => {
+    await verifyMatchingStore(storage.matching!, storage.forUser("other").matching!);
+    const reopened = createTursoStorage(defaultSettings, { client });
+    assertEquals((await reopened.matching!.get("keep"))?.result, null);
+  });
+});
 
 Deno.test("Turso storage isolates users and replaces KV match prefix scans", async () => {
   await withStorage(async (storage) => {
@@ -73,6 +82,18 @@ Deno.test("Turso storage updates and deletes matches without changing records", 
 
     await storage.deleteMatches([match.id]);
     assertEquals(await storage.listHistory(), []);
+  });
+});
+
+Deno.test("Turso preserves AI match metadata across updates and history reads", async () => {
+  await withStorage(async (storage) => {
+    const ai: MatchRecord = { ...record("ai-record", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z"), kind: "ai", keyword: "", aiReason: "摘要描述了求助问题", location: "excerpt" };
+    await storage.saveMatch(ai);
+    await storage.markMatchNotified(ai.id, "2026-09-01T02:00:00.000Z");
+    const stored = (await storage.listHistory())[0];
+    assertEquals(stored.kind, "ai");
+    assertEquals(stored.aiReason, ai.aiReason);
+    assertEquals(stored.location, "excerpt");
   });
 });
 

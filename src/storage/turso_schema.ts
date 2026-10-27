@@ -6,7 +6,7 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 5;
+export const TURSO_SCHEMA_VERSION = 6;
 
 /**
  * 为仪表盘数据表创建版本更新触发器；版本与业务写入处于同一事务。
@@ -34,6 +34,21 @@ function dashboardVersionTriggers(table: string): string[] {
  * TTL 所需字段提升为关系列，避免把原有 KV prefix scan 原样搬到 SQL。
  */
 export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
+  `CREATE TABLE IF NOT EXISTS matching_runtime (
+    user_id TEXT PRIMARY KEY, value_json TEXT, lease_token TEXT, lease_until INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS matching_activity (
+    user_id TEXT NOT NULL, topic_id TEXT NOT NULL, last_seen_at INTEGER NOT NULL,
+    value_json TEXT NOT NULL, PRIMARY KEY (user_id, topic_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS matching_cache (
+    user_id TEXT NOT NULL, cache_key TEXT NOT NULL, topic_id TEXT NOT NULL,
+    last_seen_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+    pending INTEGER NOT NULL DEFAULT 0, retry_at INTEGER NOT NULL DEFAULT 0,
+    value_json TEXT NOT NULL, PRIMARY KEY (user_id, cache_key)
+  )`,
+  `CREATE INDEX IF NOT EXISTS matching_cache_recency ON matching_cache(user_id, last_seen_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS matching_cache_pending ON matching_cache(user_id, topic_id, pending, retry_at)`,
   `CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY,
     applied_at TEXT NOT NULL

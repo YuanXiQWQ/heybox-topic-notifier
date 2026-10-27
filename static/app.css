@@ -474,6 +474,25 @@ input[readonly]::placeholder{
   max-width: var(--settings-control-width);
 }
 
+/* 匹配配置沿用设置表单的主题色、边框和控件宽度。 */
+.settings-list > div[hidden]{
+  display: none;
+}
+
+.matching-prompt{
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  box-sizing: border-box;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.6;
+  max-width: 100%;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
 .notification-provider-row{
   align-items: center;
   display: flex;
@@ -1978,6 +1997,7 @@ dd{
 .dropdown-settings-row{
   align-items: center;
   column-gap: 12px;
+  cursor: pointer;
   position: relative;
   row-gap: 0;
   transition: background-color 180ms ease;
@@ -1988,6 +2008,8 @@ dd{
 }
 
 .dropdown-settings-row.is-topic-open,
+.dropdown-settings-row.is-matching-open,
+.dropdown-settings-row.is-advanced-open,
 .dropdown-settings-row.is-keyword-open{
   background: var(--theme-soft-strong);
 }
@@ -2065,6 +2087,7 @@ dd{
 
 .dropdown-panel{
   background: var(--surface);
+  cursor: default;
   display: grid;
   grid-column: 1 / -1;
   grid-template-rows: 0fr;
@@ -2079,6 +2102,8 @@ dd{
 }
 
 .dropdown-settings-row.is-topic-open .dropdown-panel,
+.dropdown-settings-row.is-matching-open > .dropdown-panel,
+.dropdown-settings-row.is-advanced-open > .dropdown-panel,
 .dropdown-settings-row.is-keyword-open .dropdown-panel{
   border-top: 1px solid var(--border-soft);
   grid-template-rows: 1fr;
@@ -2095,6 +2120,8 @@ dd{
 }
 
 .dropdown-settings-row.is-topic-open .dropdown-panel-inner,
+.dropdown-settings-row.is-matching-open > .dropdown-panel > .dropdown-panel-inner,
+.dropdown-settings-row.is-advanced-open > .dropdown-panel > .dropdown-panel-inner,
 .dropdown-settings-row.is-keyword-open .dropdown-panel-inner{
   overflow: visible;
 }
@@ -3145,3 +3172,57 @@ tr:last-child td{
 .not-found form{
   margin-top: 6px;
 }
+
+/* 匹配选项复用设置页的抽屉动画和主题变量。 */
+.matching-conditional-row{
+  opacity: 1;
+  transform: translateY(0);
+  transition: max-height 180ms ease, opacity 140ms ease, padding 180ms ease, transform 180ms ease, background-color 180ms ease;
+}
+.matching-conditional-row[style*="max-height"],
+.matching-conditional-row.is-collapsed{ overflow: hidden; }
+.matching-conditional-row.is-collapsed{
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-color: transparent;
+  pointer-events: none;
+  transform: translateY(-4px);
+}
+.matching-settings-list{ margin: 0; border-radius: 0; overflow: visible; }
+.matching-model-control{ display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); max-width: var(--settings-control-width); }
+.matching-picker{ min-width: 0; position: relative; }
+.matching-conditional-row:has(.matching-picker-toggle[aria-expanded="true"]){ position: relative; z-index: 2; }
+.matching-picker-toggle{
+  align-items: center; background: var(--control-bg); border: 1px solid var(--control-border);
+  border-radius: 6px 0 0 6px; color: var(--ink); display: flex; font: inherit;
+  gap: 12px; justify-content: space-between; min-height: 38px; padding: 0 12px; width: 100%;
+}
+.matching-picker + .matching-picker .matching-picker-toggle{ border-radius: 0 6px 6px 0; border-inline-start: 0; }
+.matching-picker-toggle [data-picker-label]{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.matching-picker-toggle .dropdown-chevron{ flex-shrink: 0; width: 6px; height: 6px; }
+.matching-picker-menu{
+  background: var(--surface); border: 1px solid var(--control-border); border-radius: 6px;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 12%, transparent);
+  inset-inline-start: 0; margin-top: 6px; padding: 8px; position: absolute;
+  width: max(100%, 220px); max-width: calc(100vw - 52px); box-sizing: border-box; z-index: 20;
+}
+.matching-picker:last-child .matching-picker-menu{ inset-inline-start: auto; inset-inline-end: 0; }
+.matching-picker-menu[hidden], .matching-picker-options > button[hidden]{ display: none; }
+.matching-picker-options{ max-height: 240px; overflow-y: auto; margin-top: 6px; }
+.matching-picker-options > button{
+  background: transparent; border: 0; border-radius: 4px; color: var(--ink); display: block;
+  font: inherit; padding: 9px 10px; text-align: start; overflow-wrap: anywhere; width: 100%;
+}
+.matching-picker-options > button:hover,
+.matching-picker-options > button.is-active,
+.matching-picker-options > button[aria-selected="true"]{ background: var(--theme-soft-strong); color: var(--heading); }
+.matching-picker-menu [data-model-status]{ display: block; padding: 10px; color: var(--muted-strong); }
+.matching-picker-menu [data-model-status][hidden]{ display: none; }
+.matching-without-keywords [data-action="edit-topic-keywords"]{ display: none; }
+@media (prefers-reduced-motion: reduce){ .matching-conditional-row{ transition: none; } }
+
+/* 连通测试沿用通知测试的行尾图标按钮与状态布局。 */
+.matching-test-action{ display: inline-flex; flex: 0 0 auto; margin-inline-start: auto; order: 2; }
+.matching-test-action[hidden]{ display: none; }

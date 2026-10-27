@@ -1,15 +1,19 @@
 /**
- * @file 本文件负责轮询话题帖子、匹配关键词并触发通知。
+ * @file 本文件负责轮询话题帖子、执行规则或 AI 匹配并触发通知。
  */
-import type { AppSettings, MatchRecord } from "../models.ts";
+import type { AppSettings, MatchRecord, MatchResult } from "../models.ts";
 import type { MatchedPostIndexEntry, Storage } from "../storage/types.ts";
 import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import type { TopicSource } from "./topic_source.ts";
+import { startMatchingRun } from "./matching_engine.ts";
+import { normalizeMatchingSettings } from "./matching_settings.ts";
+import { createAiMatcher } from "./ai_matcher.ts";
 
 type PollStorage = Pick<
   Storage,
   | "getSettings"
+  | "matching"
   | "listMatchedPostIndex"
   | "listMatchesForPost"
   | "markMatchNotified"
@@ -25,6 +29,7 @@ export const postDetailRefreshIntervalMs = 6 * 60 * 60 * 1000;
 type PollNotifier = Pick<ReturnType<typeof createNotifier>, "sendMatches">;
 
 type PollerDependencies = {
+  ai?: ReturnType<typeof createAiMatcher>;
   matcher: ReturnType<typeof createMatcher>;
   notifier: PollNotifier;
   source: TopicSource;
@@ -38,7 +43,7 @@ type PollerDependencies = {
  * @return {object} 支持正式轮询和模拟记录的轮询器。
  */
 export function createPoller(
-  { matcher, notifier, source, storage }: PollerDependencies,
+  { matcher, notifier, source, storage, ai = createAiMatcher() }: PollerDependencies,
 ) {
   return {
     /**
@@ -59,7 +64,7 @@ export function createPoller(
     },
 
     /**
-     * 执行一次完整话题查询、匹配和通知。
+     * 执行话题查询、缓存或模型判定和通知；同一用户的缓存轮询由持久化租约串行化。
      *
      * @param {PollStorage} runStorage 本次轮询使用的用户存储。
      * @param {AppSettings} runSettings 同一次调度已读取的设置。
@@ -79,13 +84,23 @@ export function createPoller(
       const matchedPostIds = new Set<string>();
       const runAt = new Date().toISOString();
       const matching = matcher.createSession();
+      let cached: Awaited<ReturnType<typeof startMatchingRun>>;
 
       try {
+        if (runStorage.matching) {
+          cached = await startMatchingRun(
+            settings, runStorage.matching, matching, source, ai,
+          );
+          if (!cached) return;
+        } else if (normalizeMatchingSettings(settings.matching).mode !== "rules") {
+          throw new Error("AI matching requires persistent cache storage");
+        }
         for (const topic of enabledTopics) {
-          const posts = await source.listLatestPosts(topic.id, {
+          let posts = await source.listLatestPosts(topic.id, {
             limit: settings.polling.postLimit,
             sort: settings.polling.sort,
           });
+          if (cached) posts = await cached.observe(topic, posts);
           const postIds = [...new Set(posts.map((post) => post.id))]
             .filter((id) => !indexedPostIds.has(id));
           if (postIds.length > 0) {
@@ -120,18 +135,21 @@ export function createPoller(
               continue;
             }
 
-            const match = await matching.findMatch(post, keywordRules);
+            const match = cached
+              ? await cached.findMatch(post, topic, keywordRules)
+              : await matching.findMatch(post, keywordRules);
             if (!match || matchedPostIds.has(post.id)) {
               continue;
             }
 
             const detailedPost = await resolvePostDetails(source, post);
+            const result: MatchResult = match;
             const record: MatchRecord = {
               detailRefreshedAt: runAt,
               id:
-                `${topic.id}:${detailedPost.id}:${match.keyword}:${match.location}`,
-              keyword: match.keyword,
-              location: match.location,
+                `${topic.id}:${detailedPost.id}:${result.kind === "ai" ? "ai" : match.keyword}:${match.location}`,
+              ...match,
+              kind: result.kind ?? "keyword",
               matchedAt: runAt,
               post: detailedPost,
             };
@@ -159,6 +177,7 @@ export function createPoller(
         }
       } finally {
         matching.close();
+        await cached?.close();
       }
     },
   };
