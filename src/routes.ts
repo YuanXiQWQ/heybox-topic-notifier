@@ -1,6 +1,8 @@
 /**
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
+import { testAiConnection } from "./services/ai_connection.ts";
+import { fetchAiModels } from "./services/ai_models.ts";
 import { type Context, Hono } from "@hono/hono";
 import {
   hashPassword,
@@ -100,6 +102,10 @@ import {
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
 import {
+  type MatchingSettings,
+  normalizeMatchingSettings,
+} from "./services/matching_settings.ts";
+import {
   createRandomTestMatchRecord,
   NotificationConfigError,
   NotificationDeliveryError,
@@ -155,8 +161,8 @@ type PasskeyRouteContext = AppContext & {
 /**
  * 创建应用业务路由。
  *
- * @param context 应用运行时上下文。
- * @return Hono 路由应用。
+ * @param {AppContext} context 应用运行时上下文。
+ * @return {Hono} Hono 路由应用。
  */
 export function createRoutes(context: AppContext): Hono {
   const app = new Hono();
@@ -241,17 +247,35 @@ export function createRoutes(context: AppContext): Hono {
     storage: Awaited<ReturnType<typeof storageForRequest>>,
     searchParams: URLSearchParams,
   ): Promise<Response> {
+    c.header("cache-control", "no-store");
+    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+    const query = parseMatchTableQuery(searchParams);
+    // 相对时间筛选会随时间自然淘汰记录，必须重新计算表格。
+    const timeDependent = ["hour", "day", "week"].includes(query.range);
+    const dataVersion = timeDependent
+      ? undefined
+      : await storage.getDashboardVersion?.();
+    const version = dataVersion === undefined
+      ? undefined
+      : await dashboardResponseVersion(dataVersion, searchParams, csrf.token);
+    if (version && c.req.header("x-dashboard-version") === version) {
+      return withCsrfCookie(
+        c.json({ unchanged: true, version, serverTime: Date.now() }),
+        csrf,
+      );
+    }
+    // 版本先于数据读取，期间发生的更新会在下次检查中产生不同版本。
     const { pendingMatches, settings, state } = await storage
       .getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
-      parseMatchTableQuery(searchParams),
+      query,
     );
     const messages = getMessages(settings.locale);
-    const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
 
     return withCsrfCookie(
       c.json({
+        version,
         lastPollAt: state.lastPollAt ?? null,
         latestMatch: state.latestMatch
           ? {
@@ -273,6 +297,7 @@ export function createRoutes(context: AppContext): Hono {
           intervalValue: settings.polling.intervalValue,
         },
         totalMatches: state.totalMatches,
+        serverTime: Date.now(),
       }),
       csrf,
     );
@@ -442,6 +467,7 @@ export function createRoutes(context: AppContext): Hono {
         securitySettings,
         securityStatus: securitySettingsStatusFromSearch(url.searchParams),
         settings,
+        matchingRuntime: await storage.matching?.runtime(),
         totpBindingStatus: totpStatus,
         totpCredentials,
         totpSetup,
@@ -1933,6 +1959,44 @@ export function createRoutes(context: AppContext): Hono {
     return c.redirect("/settings?security=updated", 303);
   });
 
+  app.post("/settings/test-ai", async (c) => {
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
+    const limited = await rateLimitResponseForRequest(c, context, {
+      scope: "test-ai", limit: 6, windowMs: 60000,
+    });
+    if (limited) return limited;
+    const storage = await storageForRequest(c, context);
+    const current = await storage.getSettings();
+    const settings = matchingSettingsFromForm(form, current.matching);
+    c.header("Cache-Control", "no-store");
+    try {
+      const result = await testAiConnection(settings, storage.matching);
+      return c.json(result, result.ok ? 200 : 400);
+    } catch {
+      return c.json({ ok: false, error: "request" }, 502);
+    }
+  });
+
+  app.post("/settings/matching-models", async (c) => {
+    const form = await c.req.parseBody();
+    if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
+    const limited = await rateLimitResponseForRequest(c, context, {
+      scope: "matching-models", limit: 30, windowMs: 60000,
+    });
+    if (limited) return limited;
+    const storage = await storageForRequest(c, context);
+    const current = await storage.getSettings();
+    const settings = matchingSettingsFromForm(form, current.matching);
+    c.header("Cache-Control", "no-store");
+    if (!settings.apiKey) return c.json({ error: "credentials" }, 400);
+    try {
+      return c.json({ models: await fetchAiModels(settings) });
+    } catch {
+      return c.json({ error: "models" }, 502);
+    }
+  });
+
   app.post("/settings", async (c) => {
     const storage = await storageForRequest(c, context);
     const form = await c.req.parseBody();
@@ -3372,12 +3436,12 @@ async function formDataOrEmpty(request: Request): Promise<FormData> {
 }
 
 /**
- * 从表单数据生成应用设置。
+ * 从表单数据生成应用设置，保留未重新提交的密钥并规范化匹配限制。
  *
- * @param form 表单数据。
- * @param currentSettings 当前应用设置。
- * @param now 当前时间。
- * @return 新的应用设置。
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
+ * @param {AppSettings} currentSettings 当前应用设置。
+ * @param {Date} now 当前时间。
+ * @return {AppSettings} 新的应用设置。
  */
 export function settingsFromForm(
   form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
@@ -3418,6 +3482,9 @@ export function settingsFromForm(
 
   return {
     ...currentSettings,
+    ...(form.matchingMode !== undefined
+      ? { matching: matchingSettingsFromForm(form, currentSettings.matching) }
+      : {}),
     activeKeywordTarget,
     commonKeywordRules,
     darkMode: form.darkMode === "on",
@@ -3506,6 +3573,43 @@ function secretValueFromForm(
   const submitted = String(value ?? "");
   const normalized = trim ? submitted.trim() : submitted;
   return normalized.length > 0 ? normalized : currentValue;
+}
+
+/**
+ * 读取匹配表单并限制长度和数值；仅在公司和接口一致时沿用保存的密钥。
+ *
+ * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 设置表单。
+ * @param {MatchingSettings | undefined} current 当前匹配设置。
+ * @return {MatchingSettings} 规范化的匹配设置。
+ */
+function matchingSettingsFromForm(
+  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+  current?: MatchingSettings,
+): MatchingSettings {
+  const previous = normalizeMatchingSettings(current);
+  const target = normalizeMatchingSettings({
+    provider: String(form.matchingProvider ?? previous.provider) as MatchingSettings["provider"],
+    apiUrl: String(form.matchingApiUrl ?? previous.apiUrl),
+  });
+  const sameEndpoint = target.provider === previous.provider && target.apiUrl === previous.apiUrl;
+  return normalizeMatchingSettings({
+    provider: target.provider,
+    mode: String(form.matchingMode) as MatchingSettings["mode"],
+    apiUrl: target.apiUrl,
+    apiKey: secretValueFromForm(form.matchingApiKey, sameEndpoint ? previous.apiKey : "", true),
+    model: String(form.matchingModel ?? previous.model),
+    prompt: String(form.matchingPrompt ?? previous.prompt),
+    includeComments: form.matchingIncludeComments === "on",
+    disableThinking: form.matchingEnableThinking !== "on",
+    dailyLimit: Number(form.matchingDailyLimit ?? previous.dailyLimit),
+    maxInputChars: Number(form.matchingMaxInputChars ?? previous.maxInputChars),
+    maxOutputTokens: Number(form.matchingMaxOutputTokens ?? previous.maxOutputTokens),
+    cacheMaxEntries: Number(
+      form.matchingCacheMaxEntries ?? previous.cacheMaxEntries,
+    ),
+    inputPrice: Number(form.matchingInputPrice ?? previous.inputPrice),
+    outputPrice: Number(form.matchingOutputPrice ?? previous.outputPrice),
+  });
 }
 
 /**
@@ -3730,4 +3834,28 @@ function normalizeThemeColor(
 ): string {
   const color = typeof value === "string" ? value.trim() : "";
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
+}
+
+/**
+ * 将数据版本、表格查询与 CSRF 令牌绑定为响应版本，避免复用其它视图的 HTML。
+ *
+ * @param {string} dataVersion 用户持久化数据版本。
+ * @param {URLSearchParams} searchParams 当前表格查询。
+ * @param {string} csrfToken 当前 CSRF 令牌。
+ * @return {Promise<string>} 不包含原始令牌和用户标识的版本摘要。
+ */
+async function dashboardResponseVersion(
+  dataVersion: string,
+  searchParams: URLSearchParams,
+  csrfToken: string,
+): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify([
+    dataVersion,
+    searchParams.toString(),
+    csrfToken,
+  ]));
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }

@@ -446,3 +446,66 @@ function post(id: string, overrides: Partial<TopicPost>): TopicPost {
     ...overrides,
   };
 }
+
+Deno.test("poller scopes index reads and retries changed or deleted posts", async () => {
+  const records = new Map<string, MatchRecord>();
+  const queries: string[][] = [];
+  const sent: MatchRecord[][] = [];
+  let title = "no match";
+  const runSettings = {
+    ...settings,
+    topics: [settings.topics[0], { ...settings.topics[0], id: "second" }],
+  };
+  const storage = {
+    getSettings: () => {
+      throw new Error("supplied settings must be reused");
+    },
+    listMatchedPostIndex: (ids: readonly string[]) => {
+      queries.push([...ids]);
+      return Promise.resolve(
+        [...records.values()].filter((record) => ids.includes(record.post.id))
+          .map((record) => ({
+            postId: record.post.id,
+            detailRefreshedAt: record.detailRefreshedAt,
+          })),
+      );
+    },
+    listMatchesForPost: (id: string) =>
+      Promise.resolve(
+        [...records.values()].filter((record) => record.post.id === id),
+      ),
+    saveMatch: (record: MatchRecord) => {
+      records.set(record.id, record);
+      return Promise.resolve();
+    },
+    markMatchNotified: () => Promise.resolve(),
+    setLastPollAt: () => Promise.resolve(),
+  } as unknown as Storage;
+  const poller = createPoller({
+    matcher: createMatcher(),
+    storage,
+    source: {
+      listLatestPosts: () => Promise.resolve([post("changing", { title })]),
+    },
+    notifier: {
+      sendMatches: (records) => {
+        sent.push(records);
+        return Promise.resolve({ sent: true, provider: "webhook" });
+      },
+    },
+  });
+  await poller.runOnce(storage, runSettings);
+  assertEquals(queries, [["changing"]]);
+  assertEquals(records.size, 0);
+  title = "common-hit";
+  await poller.runOnce(storage, runSettings);
+  assertEquals(records.size, 1);
+  assertEquals(sent.length, 1);
+  await poller.runOnce(storage, runSettings);
+  assertEquals(sent.length, 1);
+  records.clear();
+  await poller.runOnce(storage, runSettings);
+  assertEquals(records.size, 1);
+  assertEquals(sent.length, 2);
+  assertEquals(queries.length, 4);
+});

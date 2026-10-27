@@ -1,7 +1,8 @@
 /**
  * @file 本文件负责构建并发送 Webhook、邮件和测试通知。
  */
-import type { AppSettings, MatchRecord } from "../models.ts";
+import { normalizeMatchResult } from "./match_result.ts";
+import type { AppSettings, MatchRecord, MatchResult } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
 import { truncateText } from "../views/text.ts";
 import { formatHeyboxRelativeTime } from "../views/time.ts";
@@ -27,10 +28,9 @@ type NotificationPayload = {
   title?: string;
   type: NotifyKind;
   text: string;
-  match?: {
+  match?: MatchResult & {
     id: string;
     keyword: string;
-    location: string;
     matchedAt: string;
     post: {
       id: string;
@@ -1348,15 +1348,15 @@ function serverChanUrlFromSendKey(value: string): string {
 /**
  * 将单条命中记录转换为通知载荷。
  *
- * @param record 命中记录。
- * @return 单条命中通知载荷。
+ * @param {MatchRecord} record 命中记录。
+ * @return {NotificationPayload} 含关键词或 AI 原因及实际位置的通知载荷。
  */
 function matchPayload(record: MatchRecord): NotificationPayload {
+  const result = normalizeMatchResult(record);
   return {
     match: {
       id: record.id,
-      keyword: record.keyword,
-      location: record.location,
+      ...result,
       matchedAt: record.matchedAt,
       post: {
         id: record.post.id,
@@ -1366,7 +1366,7 @@ function matchPayload(record: MatchRecord): NotificationPayload {
       },
     },
     text:
-      `New Heybox match: ${record.keyword} in ${record.location} - ${record.post.title}`,
+      `New Heybox match: ${result.kind === "ai" ? result.aiReason : result.keyword} in ${result.location} - ${record.post.title}`,
     type: "match",
   };
 }
@@ -1638,22 +1638,22 @@ function serviceLabel(
 /**
  * 生成通知标题。
  *
- * @param payload 通知载荷。
- * @return 通知标题。
+ * @param {NotificationPayload} payload 通知载荷。
+ * @return {string} 通知标题。
  */
 function notificationTitle(payload: NotificationPayload): string {
   if (payload.title) {
     return payload.title;
   }
 
-  return `小黑盒命中：${payload.match?.keyword ?? "关键词"}`;
+  return `小黑盒命中：${payload.match?.kind === "ai" ? payload.match.aiReason : payload.match?.keyword ?? "关键词"}`;
 }
 
 /**
  * 生成通知 Markdown 文本。
  *
- * @param payload 通知载荷。
- * @return 通知文本。
+ * @param {NotificationPayload} payload 通知载荷。
+ * @return {string} 按匹配类型展示的通知文本。
  */
 function notificationDescription(payload: NotificationPayload): string {
   if (payload.type === "matches") {
@@ -1666,7 +1666,7 @@ function notificationDescription(payload: NotificationPayload): string {
 
   return [
     `标题：${payload.match.post.title}`,
-    `关键词：${payload.match.keyword}`,
+    `${payload.match.kind === "ai" ? "AI 匹配" : "关键词"}：${payload.match.kind === "ai" ? payload.match.aiReason : payload.match.keyword}`,
     `位置：${payload.match.location}`,
     `时间：${payload.match.matchedAt}`,
     "",
@@ -1812,10 +1812,10 @@ function matchMarkdown(
 /**
  * 生成命中记录的元信息文本行。
  *
- * @param record 命中记录。
- * @param settings 应用设置。
- * @param now 当前时间。
- * @return 元信息文本行。
+ * @param {MatchRecord} record 命中记录。
+ * @param {AppSettings} settings 应用设置。
+ * @param {Date} now 当前时间。
+ * @return {string} 按匹配类型展示的元信息文本行。
  */
 function matchMetadataLine(
   record: MatchRecord,
@@ -1823,10 +1823,11 @@ function matchMetadataLine(
   now: Date,
 ): string {
   const messages = getMessages(settings.locale);
+  const result = normalizeMatchResult(record);
   return `${messages.publishedAt}：${
     formatHeyboxRelativeTime(record.post.publishedAt, now, settings.locale)
-  }，${messages.matchedKeyword}：${record.keyword}，${messages.matchLocationHeader}：${
-    matchLocationLabel(record.location, messages)
+  }，${result.kind === "ai" ? messages.matchDetailAi : messages.matchedKeyword}：${result.kind === "ai" ? result.aiReason : result.keyword}，${messages.matchLocationHeader}：${
+    matchLocationLabel(result.location, messages)
   }`;
 }
 
@@ -1846,15 +1847,19 @@ function escapeMarkdownLinkText(value: string): string {
 /**
  * 获取命中位置的本地化展示文本。
  *
- * @param location 命中位置。
- * @param messages 当前语言文案。
- * @return 命中位置展示文本。
+ * @param {MatchRecord["location"]} location 命中位置。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 命中位置展示文本。
  */
 function matchLocationLabel(
   location: MatchRecord["location"],
   messages: ReturnType<typeof getMessages>,
 ): string {
   switch (location) {
+    case "excerpt":
+      return messages.matchExcerpt;
+    case "unknown":
+      return messages.matchUnknown;
     case "title":
       return messages.matchTitle;
     case "body":

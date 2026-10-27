@@ -1,15 +1,19 @@
 /**
- * @file 本文件负责轮询话题帖子、匹配关键词并触发通知。
+ * @file 本文件负责轮询话题帖子、执行规则或 AI 匹配并触发通知。
  */
-import type { AppSettings, MatchRecord } from "../models.ts";
+import type { AppSettings, MatchRecord, MatchResult } from "../models.ts";
 import type { MatchedPostIndexEntry, Storage } from "../storage/types.ts";
 import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import type { TopicSource } from "./topic_source.ts";
+import { startMatchingRun } from "./matching_engine.ts";
+import { normalizeMatchingSettings } from "./matching_settings.ts";
+import { createAiMatcher } from "./ai_matcher.ts";
 
 type PollStorage = Pick<
   Storage,
   | "getSettings"
+  | "matching"
   | "listMatchedPostIndex"
   | "listMatchesForPost"
   | "markMatchNotified"
@@ -25,6 +29,7 @@ export const postDetailRefreshIntervalMs = 6 * 60 * 60 * 1000;
 type PollNotifier = Pick<ReturnType<typeof createNotifier>, "sendMatches">;
 
 type PollerDependencies = {
+  ai?: ReturnType<typeof createAiMatcher>;
   matcher: ReturnType<typeof createMatcher>;
   notifier: PollNotifier;
   source: TopicSource;
@@ -38,7 +43,7 @@ type PollerDependencies = {
  * @return {object} 支持正式轮询和模拟记录的轮询器。
  */
 export function createPoller(
-  { matcher, notifier, source, storage }: PollerDependencies,
+  { matcher, notifier, source, storage, ai = createAiMatcher() }: PollerDependencies,
 ) {
   return {
     /**
@@ -59,86 +64,120 @@ export function createPoller(
     },
 
     /**
-     * 执行一次完整话题查询、匹配和通知。
+     * 执行话题查询、缓存或模型判定和通知；同一用户的缓存轮询由持久化租约串行化。
      *
      * @param {PollStorage} runStorage 本次轮询使用的用户存储。
+     * @param {AppSettings} runSettings 同一次调度已读取的设置。
      * @return {Promise<void>} 本次轮询完成后的 Promise。
      */
-    async runOnce(runStorage: PollStorage = storage): Promise<void> {
-      const settings = await runStorage.getSettings();
+    async runOnce(
+      runStorage: PollStorage = storage,
+      runSettings?: AppSettings,
+    ): Promise<void> {
+      const settings = runSettings ?? await runStorage.getSettings();
       const enabledTopics = settings.topics.filter((topic) =>
         topic.enabled && topic.id.trim()
       );
-      const matchedPostIndex = matchedPostIndexByPostId(
-        await runStorage.listMatchedPostIndex(),
-      );
+      const matchedPostIndex = new Map<string, MatchedPostIndexEntry>();
+      const indexedPostIds = new Set<string>();
       const matchedRecords: MatchRecord[] = [];
       const matchedPostIds = new Set<string>();
       const runAt = new Date().toISOString();
-
-      for (const topic of enabledTopics) {
-        const posts = await source.listLatestPosts(topic.id, {
-          limit: settings.polling.postLimit,
-          sort: settings.polling.sort,
-        });
-        const keywordRules = [
-          ...settings.commonKeywordRules,
-          ...topic.keywordRules,
-        ];
-
-        for (const post of posts) {
-          const matchedPost = matchedPostIndex.get(post.id);
-
-          if (matchedPost) {
-            if (shouldRefreshPostDetails(matchedPost.detailRefreshedAt, runAt)) {
-              const refreshedPost = await resolvePostDetails(source, post);
-              await refreshMatchedPostRecords(
-                runStorage,
-                await runStorage.listMatchesForPost(post.id),
-                refreshedPost,
-                runAt,
-              );
-              matchedPost.detailRefreshedAt = runAt;
-            }
-            continue;
-          }
-
-          const match = await matcher.findMatch(post, keywordRules);
-          if (!match || matchedPostIds.has(post.id)) {
-            continue;
-          }
-
-          const detailedPost = await resolvePostDetails(source, post);
-          const record: MatchRecord = {
-            detailRefreshedAt: runAt,
-            id:
-              `${topic.id}:${detailedPost.id}:${match.keyword}:${match.location}`,
-            keyword: match.keyword,
-            location: match.location,
-            matchedAt: runAt,
-            post: detailedPost,
-          };
-
-          await saveMatchRecord(runStorage, record);
-          matchedRecords.push(record);
-          matchedPostIds.add(record.post.id);
-          matchedPostIndex.set(record.post.id, {
-            detailRefreshedAt: runAt,
-            postId: record.post.id,
-          });
-        }
-      }
+      const matching = matcher.createSession();
+      let cached: Awaited<ReturnType<typeof startMatchingRun>>;
 
       try {
-        await notifyMatchedRecords(
-          runStorage,
-          notifier,
-          matchedRecords,
-          settings,
-        );
+        if (runStorage.matching) {
+          cached = await startMatchingRun(
+            settings, runStorage.matching, matching, source, ai,
+          );
+          if (!cached) return;
+        } else if (normalizeMatchingSettings(settings.matching).mode !== "rules") {
+          throw new Error("AI matching requires persistent cache storage");
+        }
+        for (const topic of enabledTopics) {
+          let posts = await source.listLatestPosts(topic.id, {
+            limit: settings.polling.postLimit,
+            sort: settings.polling.sort,
+          });
+          if (cached) posts = await cached.observe(topic, posts);
+          const postIds = [...new Set(posts.map((post) => post.id))]
+            .filter((id) => !indexedPostIds.has(id));
+          if (postIds.length > 0) {
+            for (
+              const entry of await runStorage.listMatchedPostIndex(postIds)
+            ) {
+              matchedPostIndex.set(entry.postId, { ...entry });
+            }
+            for (const id of postIds) indexedPostIds.add(id);
+          }
+          const keywordRules = [
+            ...settings.commonKeywordRules,
+            ...topic.keywordRules,
+          ];
+
+          for (const post of posts) {
+            const matchedPost = matchedPostIndex.get(post.id);
+
+            if (matchedPost) {
+              if (
+                shouldRefreshPostDetails(matchedPost.detailRefreshedAt, runAt)
+              ) {
+                const refreshedPost = await resolvePostDetails(source, post);
+                await refreshMatchedPostRecords(
+                  runStorage,
+                  await runStorage.listMatchesForPost(post.id),
+                  refreshedPost,
+                  runAt,
+                );
+                matchedPost.detailRefreshedAt = runAt;
+              }
+              continue;
+            }
+
+            const match = cached
+              ? await cached.findMatch(post, topic, keywordRules)
+              : await matching.findMatch(post, keywordRules);
+            if (!match || matchedPostIds.has(post.id)) {
+              continue;
+            }
+
+            const detailedPost = await resolvePostDetails(source, post);
+            const result: MatchResult = match;
+            const record: MatchRecord = {
+              detailRefreshedAt: runAt,
+              id:
+                `${topic.id}:${detailedPost.id}:${result.kind === "ai" ? "ai" : match.keyword}:${match.location}`,
+              ...match,
+              kind: result.kind ?? "keyword",
+              matchedAt: runAt,
+              post: detailedPost,
+            };
+
+            await saveMatchRecord(runStorage, record);
+            matchedRecords.push(record);
+            matchedPostIds.add(record.post.id);
+            matchedPostIndex.set(record.post.id, {
+              detailRefreshedAt: runAt,
+              postId: record.post.id,
+            });
+          }
+        }
+
+        try {
+          await notifyMatchedRecords(
+            runStorage,
+            notifier,
+            matchedRecords,
+            settings,
+          );
+        } finally {
+          // 帖子查询和记录保存已经完成时，即使通知失败也要推进轮询倒计时。
+          await runStorage.setLastPollAt(new Date().toISOString());
+        }
       } finally {
-        // 帖子查询和记录保存已经完成时，即使通知失败也要推进轮询倒计时。
-        await runStorage.setLastPollAt(new Date().toISOString());
+        matching.close();
+        await cached?.close();
       }
     },
   };
@@ -189,18 +228,6 @@ async function resolvePostDetails(
   post: MatchRecord["post"],
 ) {
   return source.getPostDetails ? await source.getPostDetails(post) : post;
-}
-
-/**
- * 构建帖子 ID 到已命中索引的映射。
- *
- * @param index 存储返回的已命中帖子索引。
- * @return 按帖子 ID 索引的映射。
- */
-function matchedPostIndexByPostId(
-  index: MatchedPostIndexEntry[],
-): Map<string, MatchedPostIndexEntry> {
-  return new Map(index.map((entry) => [entry.postId, { ...entry }]));
 }
 
 /**

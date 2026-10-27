@@ -1,6 +1,8 @@
 /**
  * @file 本文件提供基于 Deno KV 的应用数据存储实现。
  */
+import { createKvMatchingStore } from "./matching_kv.ts";
+import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type {
   AppSettings,
   AppState,
@@ -131,7 +133,7 @@ type KvAtomicOperation = {
 /**
  * 应用存储依赖的 KV 能力集合。
  */
-type KvStore = {
+export type KvStore = {
   /**
    * 删除指定 KV 键。
    */
@@ -172,9 +174,9 @@ type KvStorageOptions = {
 /**
  * 创建基于 Deno KV 的应用存储。
  *
- * @param defaultSettings 默认应用设置。
- * @param options KV 存储创建选项。
- * @return 应用存储操作集合。
+ * @param {AppSettings} defaultSettings 默认应用设置。
+ * @param {KvStorageOptions} options KV 存储创建选项。
+ * @return {Storage} 应用存储操作集合。
  */
 export function createKvStorage(
   defaultSettings: AppSettings,
@@ -223,13 +225,14 @@ export function createKvStorage(
   }
 
   /**
-   * 创建指定用户作用域下的存储操作集合。
+   * 创建指定用户作用域下的业务存储与判定缓存操作集合。
    *
-   * @param userId 用户 ID。
-   * @return 指定用户的数据存储操作集合。
+   * @param {string} userId 用户 ID。
+   * @return {UserStorage} 指定用户的数据存储操作集合。
    */
   function forUser(userId: string): UserStorage {
     return {
+      matching: createKvMatchingStore(kv, userId),
       /**
        * 获取当前用户设置。
        *
@@ -333,10 +336,16 @@ export function createKvStorage(
       /**
        * 列出当前用户已命中帖子的精简索引。
        *
-       * @return 按帖子 ID 去重后的索引条目。
+       * @param {readonly string[]} postIds 可选的帖子 ID 范围。
+       * @return {Promise<MatchedPostIndexEntry[]>} 按帖子 ID 去重后的索引条目。
        */
-      async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
-        return matchedPostIndexFromRecords(await listMatchRecords(userId));
+      async listMatchedPostIndex(
+        postIds?: readonly string[],
+      ): Promise<MatchedPostIndexEntry[]> {
+        if (postIds?.length === 0) return [];
+        const wanted = postIds ? new Set(postIds) : undefined;
+        return matchedPostIndexFromRecords(await listMatchRecords(userId))
+          .filter((entry) => !wanted || wanted.has(entry.postId));
       },
 
       /**
@@ -469,6 +478,7 @@ export function createKvStorage(
 
   return {
     forUser,
+    matching: createKvMatchingStore(kv, "default"),
 
     /**
      * 按账号 ID 获取账号。
@@ -1492,10 +1502,13 @@ export function createKvStorage(
     /**
      * 列出默认用户已命中帖子的精简索引。
      *
-     * @return 默认用户已命中帖子的索引条目。
+     * @param {readonly string[] | undefined} postIds 可选的帖子 ID 范围。
+     * @return {Promise<MatchedPostIndexEntry[]>} 默认用户已命中帖子的索引条目。
      */
-    async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
-      return await forUser("default").listMatchedPostIndex();
+    async listMatchedPostIndex(
+      postIds?: readonly string[],
+    ): Promise<MatchedPostIndexEntry[]> {
+      return await forUser("default").listMatchedPostIndex(postIds);
     },
 
     /**
@@ -1954,9 +1967,9 @@ type LegacySettings = {
 /**
  * 将读取到的设置与默认设置合并并规范化。
  *
- * @param value KV 中读取到的设置。
- * @param defaultSettings 默认应用设置。
- * @return 规范化后的应用设置。
+ * @param {Partial<AppSettings> & LegacySettings | null} value KV 中读取到的设置。
+ * @param {AppSettings} defaultSettings 默认应用设置。
+ * @return {AppSettings} 合并默认匹配模式与限制后的应用设置。
  */
 export function normalizeSettings(
   value: (Partial<AppSettings> & LegacySettings) | null,
@@ -1975,6 +1988,9 @@ export function normalizeSettings(
   return {
     ...defaultSettings,
     ...value,
+    matching: normalizeMatchingSettings(
+      value.matching ?? defaultSettings.matching,
+    ),
     activeKeywordTarget: value.activeKeywordTarget ??
       defaultSettings.activeKeywordTarget,
     commonKeywordRules,

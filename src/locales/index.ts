@@ -1,7 +1,8 @@
 /**
  * @file 本文件负责加载、归一化并合并应用的多语言文案。
  */
-import { isLocale, type Locale, type Messages } from "./types.ts";
+import type { Locale, Messages } from "./types.ts";
+export { localeFromRequest, normalizeLocale } from "./locale.ts";
 import arSA from "./lang/ar-SA.json" with { type: "json" };
 import bnBD from "./lang/bn-BD.json" with { type: "json" };
 import deDE from "./lang/de-DE.json" with { type: "json" };
@@ -69,40 +70,6 @@ const overrides: Record<Locale, Partial<Messages>> = {
 };
 
 /**
- * 外部常见语言标签到项目语言标识的映射。
- */
-const localeAliases: Record<string, Locale> = {
-  ar: "ar-SA",
-  bn: "bn-BD",
-  de: "de-DE",
-  en: "en-US",
-  es: "es-ES",
-  fa: "fa-IR",
-  fr: "fr-FR",
-  he: "he-IL",
-  hi: "hi-IN",
-  id: "id-ID",
-  it: "it-IT",
-  ja: "ja-JP",
-  ko: "ko-KR",
-  pt: "pt-PT",
-  ru: "ru-RU",
-  th: "th-TH",
-  tr: "tr-TR",
-  ur: "ur-PK",
-  vi: "vi-VN",
-  zh: "zh-CN",
-  "zh-cn": "zh-CN",
-  "zh-hans": "zh-CN",
-  "zh-hans-cn": "zh-CN",
-  "zh-hans-sg": "zh-SG",
-  "zh-hant": "zh-TW",
-  "zh-hant-hk": "zh-HK",
-  "zh-hant-mo": "zh-MO",
-  "zh-hant-tw": "zh-TW",
-};
-
-/**
  * 未翻译完成时优先使用英文兜底的语言集合。
  */
 const englishFallbackLocales: ReadonlySet<Locale> = new Set([
@@ -131,15 +98,6 @@ const englishFallbackLocales: ReadonlySet<Locale> = new Set([
 ]);
 
 /**
- * 按语言标识小写形式建立的精确语言映射。
- */
-const normalizedLocaleMap: ReadonlyMap<string, Locale> = new Map(
-  Object.keys(overrides).map((
-    locale,
-  ) => [locale.toLowerCase(), locale as Locale]),
-);
-
-/**
  * 获取指定语言需要叠加的文案覆盖链。
  *
  * @param locale 语言标识。
@@ -154,73 +112,6 @@ function messageOverridesFor(locale: Locale): Partial<Messages>[] {
     return [enUS, localeMessages];
   }
   return [localeMessages];
-}
-
-/**
- * 将外部传入的语言值归一化为应用支持的语言标识。
- *
- * @param value 待归一化的语言值。
- * @return 应用支持的语言标识。
- */
-export function normalizeLocale(value: string | undefined): Locale {
-  const normalized = value?.trim();
-  if (!normalized) {
-    return "zh-CN";
-  }
-  if (isLocale(normalized)) {
-    return normalized;
-  }
-  const lowerCaseValue = normalized.toLowerCase();
-  return normalizedLocaleMap.get(lowerCaseValue) ??
-    localeAliases[lowerCaseValue] ?? "zh-CN";
-}
-
-/**
- * 从请求查询参数和浏览器语言头中解析应用支持的语言。
- *
- * @param request 当前 HTTP 请求。
- * @param fallback 无法识别请求语言时使用的兜底语言。
- * @return 应用支持的语言标识。
- */
-export function localeFromRequest(
-  request: Request,
-  fallback: Locale = "zh-CN",
-): Locale {
-  const url = new URL(request.url);
-  const queryLocale = supportedLocaleFromLanguageTag(
-    url.searchParams.get("locale"),
-  );
-  if (queryLocale) {
-    return queryLocale;
-  }
-
-  for (const part of request.headers.get("accept-language")?.split(",") ?? []) {
-    const locale = supportedLocaleFromLanguageTag(part.split(";")[0]?.trim());
-    if (locale) {
-      return locale;
-    }
-  }
-
-  return fallback;
-}
-
-/**
- * 将外部语言标签匹配为应用支持的语言。
- *
- * @param value 原始语言标签。
- * @return 匹配到的语言标识，无法匹配时返回 undefined。
- */
-function supportedLocaleFromLanguageTag(
-  value: string | null | undefined,
-): Locale | undefined {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) {
-    return undefined;
-  }
-
-  return normalizedLocaleMap.get(normalized) ??
-    localeAliases[normalized] ??
-    localeAliases[normalized.split("-")[0]];
 }
 
 /**

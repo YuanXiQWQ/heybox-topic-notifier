@@ -144,6 +144,25 @@ Deno.test("sendMatch posts a JSON webhook payload", async () => {
   assertEquals(body.match.post.url, "https://example.com/p1");
 });
 
+Deno.test("AI notifications preserve reasons and locations without keyword labels", async () => {
+  const requests: Request[] = [];
+  const notifier = createNotifier({ fetch: (input, init) => {
+    requests.push(new Request(input, init));
+    return Promise.resolve(new Response(null, { status: 204 }));
+  } });
+  const aiRecord: MatchRecord = { ...record, kind: "ai", keyword: "", aiReason: "评论正在求助", location: "comments" };
+  await notifier.sendMatch(aiRecord, settings);
+  const single = await requests[0].json();
+  assertEquals(single.match.kind, "ai");
+  assertEquals(single.match.aiReason, "评论正在求助");
+  assertEquals(single.match.location, "comments");
+  await notifier.sendMatches([aiRecord], settings);
+  const batch = await requests[1].json();
+  assert(batch.text.includes("AI 匹配：评论正在求助"));
+  assert(batch.text.includes("匹配位置：评论"));
+  assert(!batch.text.includes("命中关键词："));
+});
+
 Deno.test("delivery logs omit tokens, query strings, and request bodies", async () => {
   const logs: DeliveryLogEntry[] = [];
   const notifier = createNotifier({

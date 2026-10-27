@@ -78,6 +78,59 @@ export function isRtlLocale(locale: Locale): boolean {
  * 应用所有可翻译文案字段的结构。
  */
 export type Messages = {
+  matchingAdvanced: string;
+  matchingCompany: string;
+  matchingCustom: string;
+  matchingSearchCompany: string;
+  matchingSearchModel: string;
+  matchingLoading: string;
+  matchingNoModels: string;
+  matchingModelsError: string;
+  matchingModelCredentials: string;
+  matchingTitle: string;
+  matchingMode: string;
+  matchingRules: string;
+  matchingAi: string;
+  matchingHybrid: string;
+  matchingRulesHint: string;
+  matchingAiHint: string;
+  matchingHybridHint: string;
+  matchingApiUrl: string;
+  matchingApiUrlHint: string;
+  matchingApiKey: string;
+  matchingModel: string;
+  matchingPrompt: string;
+  matchingComments: string;
+  matchingThinking: string;
+  matchingThinkingHint: string;
+  matchingDailyLimit: string;
+  matchingInputLimit: string;
+  matchingOutputLimit: string;
+  matchingCacheLimit: string;
+  matchingCacheHint: string;
+  matchingInputPrice: string;
+  matchingOutputPrice: string;
+  matchingPriceHint: string;
+  matchingUsage: string;
+  matchingCalls: string;
+  matchingHits: string;
+  matchingFailures: string;
+  matchingTokens: string;
+  matchingCost: string;
+  matchingUnknown: string;
+  matchingCache: string;
+  matchingEntries: string;
+  matchingPending: string;
+  matchingDropped: string;
+  matchingQueueHint: string;
+  matchingActivity: string;
+  matchingDays: string;
+  matchingObserving: string;
+  matchingSaturated: string;
+  matchingNoActivity: string;
+  matchingLimitReached: string;
+  matchingUsageHint: string;
+
   appName: string;
   /**
    * 邮箱验证码邮件主题模板，可使用 {appName} 和 {emailCodeLabel} 占位符。
@@ -306,6 +359,15 @@ export type Messages = {
   matchDetailLocation: string;
   matchDetailMatched: string;
   matchDetailPublished: string;
+  matchDetailAi: string;
+  matchExcerpt: string;
+  matchUnknown: string;
+  matchingTestConnection: string;
+  matchingTesting: string;
+  matchingConnected: string;
+  matchingConnectionFailed: string;
+  matchingConnectionLimit: string;
+  matchingConnectionBusy: string;
   matchDetails: string;
   matchLocationHeader: string;
   matchReplies: string;

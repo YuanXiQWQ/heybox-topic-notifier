@@ -88,11 +88,11 @@ export function createHeyboxTopicSource(
     },
 
     /**
-     * 拉取指定话题的最新帖子列表。
+     * 在十秒请求期限内拉取指定话题的最新帖子列表。
      *
-     * @param topicId 小黑盒话题 ID。
-     * @param options 列表拉取选项。
-     * @return 解析后的帖子列表。
+     * @param {string} topicId 小黑盒话题 ID。
+     * @param {TopicListOptions} options 列表拉取选项。
+     * @return {Promise<TopicPost[]>} 解析后的帖子列表。
      */
     async listLatestPosts(
       topicId: string,
@@ -120,6 +120,7 @@ export function createHeyboxTopicSource(
       }
 
       const response = await fetchFn(url, {
+        signal: AbortSignal.timeout(10000),
         headers: {
           accept: "application/json,text/plain,*/*",
           referer: "http://api.maxjia.com/",
@@ -177,29 +178,31 @@ export function createHeyboxTopicSource(
   }
 
   /**
-   * 尝试通过详情接口补全帖子内容。
+   * 尝试通过详情接口补全帖子内容，并标记正文是否完整。
    *
-   * @param post 待补全帖子。
-   * @return 补全后的帖子；补全失败时返回原帖子。
+   * @param {TopicPost} post 待补全帖子。
+   * @return {Promise<TopicPost>} 补全后的帖子；失败时保留列表内容并标记详情不可用。
    */
   async function hydrateTopicPost(post: TopicPost): Promise<TopicPost> {
     if (!post.id) {
-      return post;
+      return { ...post, detailsComplete: false };
     }
 
     try {
       const detailPost = await fetchLinkDetailPost(post);
-      return detailPost ? mergeTopicPosts(post, detailPost) : post;
+      return detailPost
+        ? { ...mergeTopicPosts(post, detailPost), detailsComplete: true }
+        : { ...post, detailsComplete: false };
     } catch {
-      return post;
+      return { ...post, detailsComplete: false };
     }
   }
 
   /**
-   * 请求帖子详情接口并解析详情帖子。
+   * 在十秒请求期限内请求帖子详情并解析正文。
    *
-   * @param post 列表接口返回的帖子。
-   * @return 详情帖子，接口无可用内容时返回 undefined。
+   * @param {TopicPost} post 列表接口返回的帖子。
+   * @return {Promise<TopicPost | undefined>} 详情帖子，接口无可用内容时返回 undefined。
    */
   async function fetchLinkDetailPost(
     post: TopicPost,
@@ -215,6 +218,7 @@ export function createHeyboxTopicSource(
     }
 
     const response = await fetchFn(url, {
+      signal: AbortSignal.timeout(10000),
       headers: {
         accept: "application/json,text/plain,*/*",
         referer: "http://api.maxjia.com/",

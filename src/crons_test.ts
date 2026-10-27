@@ -251,3 +251,80 @@ Deno.test("local cron registration starts when polling is enabled", () => {
 
   assertEquals(intervals, 1);
 });
+
+Deno.test("scheduler reuses batch settings and does not read per-user configuration", async () => {
+  const settings = {
+    polling: { enabled: true, intervalUnit: "minute", intervalValue: 3 },
+  };
+  let reads = 0;
+  let runs = 0;
+  let completed: string | undefined;
+  const userStorage = {};
+  const scheduler = createPollScheduler(
+    {
+      storage: {
+        listPollSchedule: () => {
+          reads++;
+          return Promise.resolve([{
+            userId: "alice",
+            settings,
+            lastPollAt: completed,
+          }]);
+        },
+        forUser: () => userStorage,
+        listAccounts: () => {
+          throw new Error("must use batch schedule");
+        },
+      },
+      poller: {
+        runOnce: (storage: unknown, snapshot: unknown) => {
+          assertStrictEquals(storage, userStorage);
+          assertStrictEquals(snapshot, settings);
+          runs++;
+          completed = new Date().toISOString();
+          return Promise.resolve();
+        },
+      },
+    } as unknown as Parameters<typeof createPollScheduler>[0],
+  );
+  assertEquals(await scheduler.tick(), true);
+  assertEquals(await scheduler.tick(), false);
+  settings.polling.enabled = false;
+  assertEquals(await scheduler.tick(), false);
+  assertEquals([reads, runs], [3, 1]);
+});
+
+Deno.test("scheduler locks a user before asynchronous settings reads", async () => {
+  const gate = Promise.withResolvers<void>();
+  let reads = 0;
+  let runs = 0;
+  const scheduler = createPollScheduler(
+    {
+      storage: {
+        getSettings: async () => {
+          reads++;
+          await gate.promise;
+          return {
+            polling: {
+              enabled: true,
+              intervalUnit: "minute",
+              intervalValue: 3,
+            },
+          };
+        },
+        getLastPollAt: () => Promise.resolve(undefined),
+      },
+      poller: {
+        runOnce: () => {
+          runs++;
+          return Promise.resolve();
+        },
+      },
+    } as unknown as Parameters<typeof createPollScheduler>[0],
+  );
+  const first = scheduler.tickUser("alice");
+  assertEquals(await scheduler.tickUser("alice"), false);
+  gate.resolve();
+  assertEquals(await first, true);
+  assertEquals([reads, runs], [1, 1]);
+});

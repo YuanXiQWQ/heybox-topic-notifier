@@ -122,6 +122,7 @@ function initSettingsEditors() {
   initNotificationSettings();
   initSecretEditors();
   initPollingSettings();
+  initMatchingSettings();
   initAccountSettings();
   initAvatarUpload();
   initAuthMethodPanels();
@@ -4708,7 +4709,7 @@ function cancelTransientStatusClear(element) {
 }
 
 /**
- * 初始化设置页下拉面板。
+ * 初始化设置页下拉面板，整行标题可切换展开状态，面板内容保持独立交互。
  *
  * @param {HTMLElement} editor 下拉面板所属编辑器。
  * @param {string} name 下拉面板名称。
@@ -4719,7 +4720,13 @@ function initDropdown(editor, name) {
   panel.hidden = false;
   setDropdownOpen(editor, name, storedDropdownOpen(name), {persist: false});
 
-  toggle.addEventListener('click', () => {
+  editor.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || panel.contains(target)) return;
+    const control = target.closest(
+        'button, a, input, select, textarea, label, [role="button"], [contenteditable]',
+    );
+    if (control && control !== toggle) return;
     const className = `is-${name.slice(0, -1)}-open`;
     const isOpen = !editor.classList.contains(className);
     setDropdownOpen(editor, name, isOpen, {persist: true});
@@ -6968,6 +6975,331 @@ function showToast(editor, message) {
   setTimeout(() => {
     toast.remove();
   }, 2200);
+}
+
+/**
+ * 使用设置页的抽屉节奏显示或隐藏条件行，快速切换时以最后状态为准。
+ * @param {HTMLElement} row 设置行。
+ * @param {boolean} visible 是否显示。
+ * @param {boolean} animate 是否播放动画。
+ */
+function setMatchingRowVisible(row, visible, animate) {
+  if (!row) return;
+  if (row.dataset.matchingVisible === String(visible)) return;
+  row.dataset.matchingVisible = String(visible);
+  const token = String(Number(row.dataset.matchingTransition || 0) + 1);
+  row.dataset.matchingTransition = token;
+  row.inert = !visible;
+  if (!animate) {
+    row.hidden = !visible;
+    row.classList.toggle('is-collapsed', !visible);
+    return;
+  }
+  const height = row.scrollHeight;
+  row.hidden = false;
+  row.style.maxHeight = visible ? '0px' : `${height}px`;
+  row.classList.toggle('is-collapsed', visible);
+  row.getBoundingClientRect();
+  row.classList.toggle('is-collapsed', !visible);
+  row.style.maxHeight = visible ? `${row.scrollHeight}px` : '0px';
+  setTimeout(() => {
+    if (row.dataset.matchingTransition !== token) return;
+    row.hidden = !visible;
+    row.style.removeProperty('max-height');
+  }, notificationTransitionMs);
+}
+
+/**
+ * 初始化可搜索选择器的鼠标、键盘和焦点交互。
+ * @param {HTMLElement} root 选择器元素。
+ * @return {Object} 选择器状态和更新方法。
+ */
+function initMatchingPicker(root) {
+  const input = root.querySelector('input[type="hidden"]');
+  const toggle = root.querySelector('[data-picker-toggle]');
+  const label = root.querySelector('[data-picker-label]');
+  const menu = root.querySelector('[data-picker-menu]');
+  const search = root.querySelector('[data-picker-search]');
+  const list = root.querySelector('[role="listbox"]');
+  let active = -1;
+  /**
+   * 获取当前过滤后的选项。
+   * @return {HTMLButtonElement[]} 可见选项。
+   */
+  function options() {
+    return [...list.querySelectorAll('[role="option"]')].filter((item) => !item.hidden);
+  }
+  /**
+   * 应用搜索词并重置键盘选中项。
+   */
+  function filter() {
+    const query = search.value.trim().toLocaleLowerCase();
+    list.querySelectorAll('[role="option"]').forEach((item, index) => {
+      item.id = `${input.name}-option-${index}`;
+      item.hidden = !item.textContent.toLocaleLowerCase().includes(query);
+      item.classList.remove('is-active');
+    });
+    active = -1;
+    search.removeAttribute('aria-activedescendant');
+  }
+  /**
+   * 展开或收起选择菜单。
+   * @param {boolean} open 是否展开。
+   * @param {boolean} restore 是否恢复按钮焦点。
+   */
+  function setOpen(open, restore = false) {
+    menu.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    search.setAttribute('aria-expanded', String(open));
+    toggle.classList.toggle('is-open', open);
+    if (open) {
+      search.value = '';
+      filter();
+      search.focus();
+      root.dispatchEvent(new Event('picker-open'));
+    } else if (restore) toggle.focus();
+  }
+  /**
+   * 更新提交值及按钮文本，不将搜索词作为配置值。
+   * @param {string} value 配置值。
+   * @param {string} display 显示名称。
+   * @param {boolean} notify 是否触发保存。
+   */
+  function select(value, display, notify = true) {
+    input.value = value;
+    label.textContent = display;
+    list.querySelectorAll('[role="option"]').forEach((item) => {
+      item.setAttribute('aria-selected', String(item.dataset.value === value));
+    });
+    if (notify) input.dispatchEvent(new Event('change', {bubbles: true}));
+  }
+  toggle.addEventListener('click', () => setOpen(menu.hidden));
+  search.addEventListener('input', (event) => { event.stopPropagation(); filter(); });
+  search.addEventListener('change', (event) => event.stopPropagation());
+  list.addEventListener('click', (event) => {
+    const option = event.target.closest('[role="option"]');
+    if (!option) return;
+    select(option.dataset.value, option.textContent);
+    setOpen(false, true);
+  });
+  root.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { event.preventDefault(); setOpen(false, true); }
+    if (event.key === 'Tab') { setOpen(false); return; }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (menu.hidden) setOpen(true);
+      const items = options();
+      if (!items.length) return;
+      active = (active + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items.forEach((item, index) => item.classList.toggle('is-active', index === active));
+      search.setAttribute('aria-activedescendant', items[active].id);
+      items[active].scrollIntoView({block: 'nearest'});
+    }
+    if (event.key === 'Enter' && event.target === search) {
+      event.preventDefault();
+      const option = options()[active < 0 ? 0 : active];
+      if (option) { select(option.dataset.value, option.textContent); setOpen(false, true); }
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (!root.contains(event.target)) setOpen(false);
+  });
+  return {input, list, label, menu, filter, select, setOpen};
+}
+
+/**
+ * 测试当前匹配表单的连通性，并在配置变化时丢弃过期反馈。
+ * @param {HTMLElement} section 匹配设置抽屉。
+ */
+function initAiConnectionTest(section) {
+  const button = section.querySelector('[data-test-ai-button]');
+  const status = section.querySelector('[data-test-ai-status]');
+  const mode = section.querySelector('[data-matching-mode]');
+  let request;
+  let revision = 0;
+  let timer;
+  /**
+   * 清除不再对应当前配置的测试状态。
+   * @param {Event} event 配置编辑事件。
+   */
+  function invalidate(event) {
+    if (!event.target.matches('[name], [data-secret-display-input]')) return;
+    revision++;
+    request?.abort();
+    clearTimeout(timer);
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    status.hidden = true;
+  }
+  section.addEventListener('input', invalidate);
+  section.addEventListener('change', invalidate);
+  button.addEventListener('click', async () => {
+    if (button.disabled || mode.value === 'rules') return;
+    const current = ++revision;
+    request = new AbortController();
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    status.hidden = false;
+    status.dataset.state = 'sending';
+    status.textContent = button.dataset.testing;
+    const data = new FormData();
+    for (const [name, value] of new FormData(section.closest('form'))) {
+      if (name.startsWith('matching')) data.append(name, value);
+    }
+    clearTimeout(timer);
+    try {
+      const response = await fetch('/settings/test-ai', {
+        method: 'POST', body: data, headers: csrfRequestHeaders(), signal: request.signal,
+      });
+      const result = await response.json();
+      if (current !== revision) return;
+      const success = response.ok && result.ok === true;
+      status.dataset.state = success ? 'success' : 'error';
+      status.textContent = success ? button.dataset.connected
+          : result.error === 'limit' ? button.dataset.limit
+          : result.error === 'busy' ? button.dataset.busy
+          : button.dataset.failed + (result.detail ? '（' + result.detail + '）' : '');
+      if (success) timer = setTimeout(() => { if (current === revision) status.hidden = true; }, 3000);
+    } catch (error) {
+      if (current !== revision || error.name === 'AbortError') return;
+      status.dataset.state = 'error';
+      status.textContent = button.dataset.failed;
+    } finally {
+      if (current === revision) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+      }
+    }
+  });
+}
+
+/** 初始化匹配抽屉、连通测试、两级搜索选择器与供应商模型列表。 */
+function initMatchingSettings() {
+  const section = document.querySelector('[data-matching-editor]');
+  const advanced = document.querySelector('[data-advanced-editor]');
+  const mode = section?.querySelector('[data-matching-mode]');
+  if (!section || !advanced || !mode) return;
+  initDropdown(section, 'matchings');
+  initDropdown(advanced, 'advanceds');
+  const provider = initMatchingPicker(section.querySelector('[data-matching-picker="matchingProvider"]'));
+  const modelRoot = section.querySelector('[data-matching-picker="matchingModel"]');
+  const model = initMatchingPicker(modelRoot);
+  const apiUrl = section.querySelector('[name="matchingApiUrl"]');
+  const key = section.querySelector('[name="matchingApiKey"]');
+  const secret = section.querySelector('[data-secret-display-input]');
+  initAiConnectionTest(section);
+  const thinking = section.querySelector('[name="matchingEnableThinking"]');
+  const status = section.querySelector('[data-model-status]');
+  model.menu.append(status);
+  let request;
+  let revision = 0;
+  let loaded = false;
+  let previousProvider = provider.input.value;
+  let previousUrl = apiUrl.value;
+  /**
+   * 根据模式、公司和模型能力同步条件抽屉。
+   * @param {boolean} animate 是否播放动画。
+   */
+  function update(animate = true) {
+    const ai = mode.value !== 'rules';
+    setMatchingRowVisible(section.querySelector('[data-matching-test-action]'), ai, animate);
+    section.querySelector('[data-matching-summary]').textContent = mode.selectedOptions[0].textContent;
+    section.querySelectorAll('[data-matching-ai-field]').forEach((row) => setMatchingRowVisible(row, ai, animate));
+    setMatchingRowVisible(section.querySelector('[data-matching-url]'), ai && provider.input.value === 'custom', animate);
+    const choice = [...model.list.querySelectorAll('[role="option"]')].find((item) => item.dataset.value === model.input.value);
+    const canThink = choice?.dataset.thinking === 'true';
+    setMatchingRowVisible(section.querySelector('[data-matching-thinking]'), ai && canThink, animate);
+    if (!canThink) thinking.checked = false;
+    setMatchingRowVisible(document.querySelector('[data-keyword-editor]'), mode.value !== 'ai', animate);
+    setMatchingRowVisible(advanced, ai, animate);
+    document.querySelector('[data-topic-editor]')?.classList.toggle('matching-without-keywords', mode.value === 'ai');
+    if (!ai) { provider.setOpen(false); model.setOpen(false); request?.abort(); }
+  }
+  /** 清理与供应商或接口绑定的密钥、模型和未完成请求。 */
+  function resetConnection() {
+    revision++;
+    request?.abort();
+    loaded = false;
+    key.value = '';
+    secret.dataset.secretConfigured = 'false';
+    lockSecretDisplay(secret, 0);
+    model.list.replaceChildren();
+    model.select('', section.dataset.modelPlaceholder, false);
+    thinking.checked = false;
+    status.hidden = true;
+  }
+  /**
+   * 查询模型元数据；旧请求和已切换公司的响应不会覆盖当前选择。
+   * @return {Promise<void>} 查询完成后更新列表。
+   */
+  async function loadModels() {
+    if (loaded || mode.value === 'rules') return;
+    if (!key.value && secret.dataset.secretConfigured !== 'true') {
+      status.textContent = section.dataset.modelCredentials;
+      status.hidden = false;
+      return;
+    }
+    request?.abort();
+    request = new AbortController();
+    const current = ++revision;
+    const data = new FormData();
+    data.set('matchingProvider', provider.input.value);
+    data.set('matchingApiUrl', apiUrl.value);
+    data.set('matchingApiKey', key.value);
+    status.textContent = section.dataset.modelLoading;
+    status.hidden = false;
+    try {
+      const response = await fetch('/settings/matching-models', {
+        method: 'POST', body: data, headers: csrfRequestHeaders(), signal: request.signal,
+      });
+      if (!response.ok) throw new Error('models');
+      const payload = await response.json();
+      if (current !== revision) return;
+      if (!Array.isArray(payload.models)) throw new Error('models');
+      const savedChoice = [...model.list.children].find((item) => item.dataset.value === model.input.value);
+      model.list.replaceChildren();
+      payload.models.forEach((entry) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.role = 'option';
+        option.dataset.value = entry.id;
+        option.dataset.thinking = String(entry.thinking === true);
+        option.textContent = entry.id;
+        option.setAttribute('aria-selected', String(entry.id === model.input.value));
+        model.list.append(option);
+      });
+      // 暂时不可用的已存模型仍可显示，避免列表刷新静默修改用户配置。
+      if (savedChoice && !payload.models.some((entry) => entry.id === model.input.value)) model.list.prepend(savedChoice);
+      loaded = true;
+      model.filter();
+      status.textContent = section.dataset.modelEmpty;
+      status.hidden = model.list.children.length > 0;
+      update();
+    } catch (error) {
+      if (current !== revision || error.name === 'AbortError') return;
+      status.textContent = section.dataset.modelError;
+      status.hidden = false;
+    }
+  }
+  mode.addEventListener('change', () => update());
+  provider.input.addEventListener('change', () => {
+    if (provider.input.value === previousProvider) return;
+    previousProvider = provider.input.value;
+    resetConnection();
+    apiUrl.value = '';
+    previousUrl = '';
+    update();
+  });
+  apiUrl.addEventListener('change', () => {
+    if (apiUrl.value === previousUrl) return;
+    previousUrl = apiUrl.value;
+    resetConnection();
+    update();
+  });
+  model.input.addEventListener('change', () => { thinking.checked = false; update(); });
+  secret.addEventListener('blur', () => { loaded = false; void loadModels(); });
+  modelRoot.addEventListener('picker-open', () => { void loadModels(); });
+  update(false);
 }
 
 document.addEventListener('DOMContentLoaded', initSettingsEditors);

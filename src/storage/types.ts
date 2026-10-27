@@ -1,6 +1,7 @@
 /**
  * @file 本文件定义与具体数据库实现无关的应用存储契约。
  */
+import type { MatchingStore } from "./matching_types.ts";
 import type {
   AppSettings,
   AppState,
@@ -53,10 +54,19 @@ export type MatchedPostIndexEntry = {
   postId: string;
 };
 
+/** 一次调度读取的账号设置与最近轮询时间。 */
+export type PollScheduleEntry = {
+  userId: string;
+  settings: AppSettings;
+  lastPollAt?: string;
+};
+
 /**
  * 指定用户作用域下的数据存储契约。
  */
 export type UserStorage = {
+  /** 用户隔离的判定缓存；迁移期以权威数据库中的缓存为准。 */
+  matching?: MatchingStore;
   /**
    * 获取当前用户设置。
    *
@@ -88,6 +98,12 @@ export type UserStorage = {
    */
   getDashboardSnapshot(): Promise<DashboardSnapshot>;
   /**
+   * 获取持久化仪表盘版本，供客户端跳过未变化的快照。
+   *
+   * @return {Promise<string>} 当前用户的设置、状态和命中记录版本。
+   */
+  getDashboardVersion?(): Promise<string>;
+  /**
    * 列出当前用户历史命中记录。
    *
    * @return {Promise<MatchRecord[]>} 历史命中记录。
@@ -102,9 +118,12 @@ export type UserStorage = {
   /**
    * 列出当前用户已命中帖子的精简索引。
    *
+   * @param {readonly string[]} postIds 可选的帖子 ID 范围；空数组不返回记录。
    * @return {Promise<MatchedPostIndexEntry[]>} 按帖子 ID 去重后的索引条目。
    */
-  listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]>;
+  listMatchedPostIndex(
+    postIds?: readonly string[],
+  ): Promise<MatchedPostIndexEntry[]>;
   /**
    * 列出当前用户指定帖子的命中记录。
    *
@@ -149,6 +168,12 @@ export type UserStorage = {
  * 应用完整数据存储契约。
  */
 export type Storage = UserStorage & {
+  /**
+   * 批量获取调度信息，避免逐账号往返查询。
+   *
+   * @return {Promise<PollScheduleEntry[]>} 账号设置与轮询状态快照。
+   */
+  listPollSchedule?(): Promise<PollScheduleEntry[]>;
   /**
    * 创建指定用户作用域的存储操作集合。
    *

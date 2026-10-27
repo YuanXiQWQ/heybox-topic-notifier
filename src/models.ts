@@ -2,6 +2,7 @@
  * @file 本文件定义应用共享的数据模型类型。
  */
 import type { Locale } from "./locales/types.ts";
+import type { MatchingSettings } from "./services/matching_settings.ts";
 import type {
   NotificationEmailService,
   NotificationWebhookService,
@@ -69,6 +70,8 @@ export type PollingSettings = {
  * 应用设置。
  */
 export type AppSettings = {
+  /** 省略时使用关键词规则模式，不发送 AI 请求。 */
+  matching?: MatchingSettings;
   activeKeywordTarget: KeywordTarget;
   commonKeywordRules: KeywordRule[];
   darkMode: boolean;
@@ -98,6 +101,8 @@ export type AppSettings = {
  * 小黑盒话题帖子。
  */
 export type TopicPost = {
+  /** 详情请求是否取得完整正文；失败时禁止把信息缺失作为 AI 未命中缓存。 */
+  detailsComplete?: boolean;
   body: string;
   commentReplies: string[];
   comments: string[];
@@ -109,15 +114,29 @@ export type TopicPost = {
 };
 
 /**
- * 关键词命中记录。
+ * 命中结果的位置；AI 可依据摘要判断，无法确认位置时使用 unknown。
  */
-export type MatchRecord = {
+export type MatchResultLocation = MatchLocation | "excerpt" | "unknown";
+
+/**
+ * 匹配结果；纯 AI 原因单独保存，关键词模式保留实际规则及位置。
+ */
+export type MatchResult = {
+  /** 未带类型的持久化记录由展示兼容逻辑读取。 */
+  kind?: "keyword" | "ai";
+  aiReason?: string;
+  keyword: string;
+  location: MatchResultLocation;
+};
+
+/**
+ * 关键词或 AI 命中记录。
+ */
+export type MatchRecord = MatchResult & {
   completedAt?: string;
   /** 帖子详情最近一次刷新时间；用于限制已命中帖子重抓详情的频率。 */
   detailRefreshedAt?: string;
   id: string;
-  keyword: string;
-  location: MatchLocation;
   matchedAt: string;
   notifiedAt?: string;
   post: TopicPost;

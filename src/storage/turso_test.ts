@@ -19,7 +19,16 @@ import type {
 } from "../models.ts";
 import { createTursoStorage, type TursoClient } from "./turso.ts";
 import type { Storage } from "./types.ts";
+import { verifyMatchingStore } from "./matching_store_test_helpers.ts";
 import { assertEquals, assertStrictEquals } from "../test_helpers.ts";
+
+Deno.test("Turso matching cache persists, isolates leases and bounds pending storage", async () => {
+  await withStorage(async (storage, client) => {
+    await verifyMatchingStore(storage.matching!, storage.forUser("other").matching!);
+    const reopened = createTursoStorage(defaultSettings, { client });
+    assertEquals((await reopened.matching!.get("keep"))?.result, null);
+  });
+});
 
 Deno.test("Turso storage isolates users and replaces KV match prefix scans", async () => {
   await withStorage(async (storage) => {
@@ -73,6 +82,18 @@ Deno.test("Turso storage updates and deletes matches without changing records", 
 
     await storage.deleteMatches([match.id]);
     assertEquals(await storage.listHistory(), []);
+  });
+});
+
+Deno.test("Turso preserves AI match metadata across updates and history reads", async () => {
+  await withStorage(async (storage) => {
+    const ai: MatchRecord = { ...record("ai-record", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z"), kind: "ai", keyword: "", aiReason: "摘要描述了求助问题", location: "excerpt" };
+    await storage.saveMatch(ai);
+    await storage.markMatchNotified(ai.id, "2026-09-01T02:00:00.000Z");
+    const stored = (await storage.listHistory())[0];
+    assertEquals(stored.kind, "ai");
+    assertEquals(stored.aiReason, ai.aiReason);
+    assertEquals(stored.location, "excerpt");
   });
 });
 
@@ -418,17 +439,17 @@ Deno.test("Turso KV import cannot restore a consumed authentication event", asyn
 });
 
 /**
- * 使用独立内存 libSQL 数据库运行测试。
+ * 使用独立内存 SQLite 数据库运行存储 SQL 测试。
  *
- * @param {(storage: Storage) => Promise<void>} run 测试逻辑。
+ * @param {(storage: Storage, client: MemorySqlClient) => Promise<void>} run 测试逻辑与查询观测客户端。
  * @return {Promise<void>} 测试完成后的 Promise。
  */
 async function withStorage(
-  run: (storage: Storage) => Promise<void>,
+  run: (storage: Storage, client: MemorySqlClient) => Promise<void>,
 ): Promise<void> {
   const client = new MemorySqlClient();
   try {
-    await run(createTursoStorage(defaultSettings, { client }));
+    await run(createTursoStorage(defaultSettings, { client }), client);
   } finally {
     client.close();
   }
@@ -438,6 +459,8 @@ async function withStorage(
  * 使用 Deno 内置 SQLite 执行 Turso 适配器 SQL 的测试客户端。
  */
 class MemorySqlClient implements TursoClient {
+  /** 已执行的 SQL，用于验证查询数量和访问路径。 */
+  readonly statements: string[] = [];
   /**
    * 内存 SQLite 数据库。
    */
@@ -500,6 +523,7 @@ class MemorySqlClient implements TursoClient {
     statement: Parameters<TursoClient["execute"]>[0],
   ): Awaited<ReturnType<TursoClient["execute"]>> {
     const sql = typeof statement === "string" ? statement : statement.sql;
+    this.statements.push(sql);
     const args = typeof statement === "string" ? undefined : statement.args;
     const prepared = this.#database.prepare(sql);
     prepared.setAllowBareNamedParameters(true);
@@ -746,3 +770,149 @@ const defaultSettings: AppSettings = {
   themeColor: "#bd7fff",
   topics: [],
 };
+
+Deno.test("Turso concurrent startup reads share a single schema initialization", async () => {
+  await withStorage(async (storage, client) => {
+    await Promise.all([
+      storage.getSettings(),
+      storage.getLastPollAt(),
+      storage.listPollSchedule!(),
+    ]);
+    assertEquals(
+      client.statements.filter((sql) => sql.includes("SELECT MAX(version)"))
+        .length,
+      1,
+    );
+    assertEquals(
+      client.statements.filter((sql) =>
+        sql.startsWith("CREATE TABLE IF NOT EXISTS schema_migrations")
+      ).length,
+      1,
+    );
+  });
+});
+
+Deno.test("Turso schedule uses one joined query and preserves missing settings defaults", async () => {
+  await withStorage(async (storage, client) => {
+    await storage.saveAccount(account("alice", "alice"));
+    await storage.saveAccount(account("bob", "bob"));
+    await storage.forUser("alice").saveSettings({
+      ...defaultSettings,
+      polling: { ...defaultSettings.polling, enabled: false },
+    });
+    await storage.forUser("bob").setLastPollAt("2026-10-26T00:00:00.000Z");
+    client.statements.length = 0;
+    const schedule = await storage.listPollSchedule!();
+    assertEquals(client.statements.length, 1);
+    assertEquals(
+      schedule.map((
+        entry,
+      ) => [entry.userId, entry.settings.polling.enabled, entry.lastPollAt]),
+      [
+        ["alice", false, undefined],
+        ["bob", true, "2026-10-26T00:00:00.000Z"],
+      ],
+    );
+  });
+});
+
+Deno.test("Turso post lookup reads only requested IDs through the post index", async () => {
+  await withStorage(async (storage, client) => {
+    for (let i = 0; i < 1000; i++) {
+      await storage.saveMatch(
+        record(`p${i}`, "2026-09-01T00:00:00.000Z", "2026-09-01T00:00:00.000Z"),
+      );
+    }
+    const ids = Array.from({ length: 20 }, (_, i) => `p${i}`);
+    client.statements.length = 0;
+    assertEquals((await storage.listMatchedPostIndex(ids)).length, 20);
+    assertEquals(client.statements.length, 1);
+    const query = client.statements[0];
+    const plan = await client.execute({
+      sql: `EXPLAIN QUERY PLAN ${query}`,
+      args: ["default", ...ids],
+    });
+    assertEquals(
+      plan.rows.some((row) =>
+        String(row.detail).includes("matches_user_post_idx")
+      ),
+      true,
+    );
+    assertEquals(await storage.listMatchedPostIndex([]), []);
+    assertEquals(await storage.forUser("other").listMatchedPostIndex(ids), []);
+    await storage.deleteMatches(["p0"]);
+    assertEquals(await storage.listMatchedPostIndex(["p0"]), []);
+    const manyIds = Array.from({ length: 205 }, (_, i) => `p${i + 1}`);
+    client.statements.length = 0;
+    assertEquals(
+      (await storage.listMatchedPostIndex([...manyIds, manyIds[0]])).length,
+      205,
+    );
+    assertEquals(client.statements.length, 3);
+  });
+});
+
+Deno.test("Turso dashboard versions cover changes and remain isolated by user", async () => {
+  await withStorage(async (storage) => {
+    const alice = storage.forUser("alice");
+    const bob = storage.forUser("bob");
+    const initialBob = await bob.getDashboardVersion!();
+    let previous = await alice.getDashboardVersion!();
+    const match = record(
+      "p1",
+      "2026-09-01T00:00:00.000Z",
+      "2026-09-01T00:00:00.000Z",
+    );
+    const changes = [
+      () => alice.saveSettings(defaultSettings),
+      () => alice.setLastPollAt("2026-10-26T00:00:00.000Z"),
+      () => alice.saveMatch(match),
+      () => alice.markMatchNotified("p1", "2026-10-26T00:00:00.000Z"),
+      () => alice.completeMatches(["p1"]),
+      () =>
+        alice.saveMatch({
+          ...match,
+          post: { ...match.post, title: "changed" },
+        }),
+      () => alice.deleteMatches(["p1"]),
+    ];
+    for (const change of changes) {
+      await change();
+      const current = await alice.getDashboardVersion!();
+      assertEquals(current !== previous, true);
+      assertEquals(await bob.getDashboardVersion!(), initialBob);
+      previous = current;
+    }
+    assertEquals(await alice.getDashboardVersion!(), previous);
+  });
+});
+
+Deno.test("Turso schema upgrade preserves records and installs version triggers", async () => {
+  await withStorage(async (storage, client) => {
+    await storage.saveMatch(
+      record("kept", "2026-09-01T00:00:00.000Z", "2026-09-01T00:00:00.000Z"),
+    );
+    for (const table of ["matches", "user_settings", "app_states"]) {
+      for (const operation of ["insert", "update", "delete"]) {
+        await client.execute(`DROP TRIGGER ${table}_dashboard_${operation}`);
+      }
+    }
+    await client.execute("DROP TABLE dashboard_versions");
+    await client.execute("DROP INDEX matches_user_post_idx");
+    await client.execute("DELETE FROM schema_migrations");
+    await client.execute(
+      "INSERT INTO schema_migrations VALUES (4, '2026-01-01')",
+    );
+    const upgraded = createTursoStorage(defaultSettings, { client });
+    assertEquals((await upgraded.listMatchedPostIndex(["kept"])).length, 1);
+    const version = await upgraded.getDashboardVersion!();
+    await upgraded.completeMatches(["kept"]);
+    assertEquals(await upgraded.getDashboardVersion!() !== version, true);
+    const reopened = createTursoStorage(defaultSettings, { client });
+    assertEquals((await reopened.listHistory()).length, 1);
+    assertEquals(
+      await reopened.getDashboardVersion!(),
+      await upgraded.getDashboardVersion!(),
+    );
+  });
+});

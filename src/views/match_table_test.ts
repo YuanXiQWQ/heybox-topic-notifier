@@ -302,6 +302,25 @@ Deno.test("renderHistory keeps history post titles emphasized", () => {
   );
 });
 
+Deno.test("match details distinguish AI reasons from all keyword matches and preserve actual locations", () => {
+  const base = record("details", "2026-06-30T12:00:00.000Z");
+  const ai = renderMatchSectionForSlots("/", table([{ ...base, kind: "ai", keyword: "", aiReason: "标题明确寻求帮助", location: "title" }]));
+  assertIncludes(ai, "<dt>AI 匹配：</dt>");
+  assertIncludes(ai, "标题明确寻求帮助");
+  assertIncludes(ai, '<span class="match-detail-value">标题</span>');
+  assertNotIncludes(ai, "<dt>关键词：</dt>");
+  assertNotIncludes(ai, '<span class="match-detail-value">正文</span>');
+  const keyword = renderMatchSectionForSlots("/", table([{ ...base, kind: "keyword", keyword: "AI: 求助", aiReason: "不应显示此原因", location: "comments" }]));
+  assertIncludes(keyword, "<dt>关键词：</dt>");
+  assertIncludes(keyword, "AI: 求助");
+  assertNotIncludes(keyword, "<dt>AI 匹配：</dt>");
+  assertNotIncludes(keyword, "不应显示此原因");
+  const legacy = renderMatchSectionForSlots("/", table([{ ...base, keyword: "AI: " + "旧原因".repeat(30), location: "body" }]));
+  assertIncludes(legacy, "<dt>AI 匹配：</dt>");
+  assertIncludes(legacy, '<span class="match-detail-value">未确定</span>');
+  assertNotIncludes(legacy, '<span class="match-detail-value">正文</span>');
+});
+
 Deno.test("settings and history pages keep the app tab title", () => {
   const appSettings = settings();
   const historyHtml = renderHistory({
@@ -459,7 +478,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20260914-clear-avatar-decorations`,
+    `/static/settings.js?v=20261026-ai-match-details`,
   );
   assertIncludes(
     html,

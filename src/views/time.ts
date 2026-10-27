@@ -9,6 +9,9 @@ import type { Locale } from "../locales/types.ts";
  */
 const chinaTimeZone = "Asia/Shanghai";
 
+/** 按语言和内部日期格式复用格式化器，供同一页面中的所有记录共享。 */
+const chinaDateFormatters = new Map<string, Intl.DateTimeFormat>();
+
 /**
  * 将时间格式化为小黑盒风格的相对时间。
  *
@@ -101,20 +104,26 @@ function sameChinaYear(left: Date, right: Date, locale: Locale): boolean {
 }
 
 /**
- * 按中国时区格式化日期。
+ * 复用相同语言和格式的格式化器，按中国时区格式化日期。
  *
- * @param date 待格式化日期。
- * @param options 日期格式化选项。
- * @param locale 文案语言。
- * @return 格式化后的日期字符串。
+ * @param {Date} date 待格式化日期。
+ * @param {Intl.DateTimeFormatOptions} options 日期格式化选项。
+ * @param {Locale} locale 文案语言。
+ * @return {string} 格式化后的日期字符串。
  */
 function formatInChina(
   date: Date,
   options: Intl.DateTimeFormatOptions,
   locale: Locale = "zh-CN",
 ): string {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: chinaTimeZone,
-    ...options,
-  }).format(date).replaceAll("/", "-");
+  const key = locale + JSON.stringify(options);
+  let formatter = chinaDateFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, {
+      timeZone: chinaTimeZone,
+      ...options,
+    });
+    chinaDateFormatters.set(key, formatter);
+  }
+  return formatter.format(date).replaceAll("/", "-");
 }

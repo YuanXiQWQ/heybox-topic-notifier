@@ -3,6 +3,14 @@
  */
 import type { AppContext } from "./services/app_context.ts";
 import type { PollingSettings } from "./models.ts";
+import type { PollScheduleEntry, Storage } from "./storage/types.ts";
+import type { createPoller } from "./services/poller.ts";
+
+/** 调度器依赖的存储与轮询执行能力。 */
+type SchedulerContext = {
+  storage: Storage;
+  poller: Pick<ReturnType<typeof createPoller>, "runOnce">;
+};
 
 /**
  * 本地环境轮询调度器检查间隔。
@@ -28,11 +36,11 @@ type CronRegistrationOptions = {
 /**
  * 创建轮询调度器。
  *
- * @param context 调度器依赖的轮询器和存储。
- * @return 轮询调度器。
+ * @param {SchedulerContext} context 调度器依赖的轮询器和存储。
+ * @return {object} 轮询调度器。
  */
 export function createPollScheduler(
-  context: Pick<AppContext, "poller" | "storage">,
+  context: SchedulerContext,
 ) {
   /**
    * 当前正在轮询的用户 ID 集合。
@@ -42,29 +50,40 @@ export function createPollScheduler(
    * 各用户最近一次调度开始时间。
    */
   const lastPollStartedAtByUserId = new Map<string, number>();
+  let scheduling = false;
 
   return {
     /**
      * 执行一次调度检查。
      *
-     * @return 本次检查是否触发过轮询。
+     * @return {Promise<boolean>} 本次检查是否触发过轮询。
      */
     async tick(): Promise<boolean> {
-      const userIds = await pollableUserIds(context.storage);
-      let didPoll = false;
-
-      for (const userId of userIds) {
-        didPoll = await tickUser(userId) || didPoll;
+      if (scheduling) return false;
+      scheduling = true;
+      try {
+        const schedule = await context.storage.listPollSchedule?.();
+        let didPoll = false;
+        if (schedule) {
+          for (const entry of schedule) {
+            didPoll = await tickUser(entry.userId, entry) || didPoll;
+          }
+        } else {
+          for (const userId of await pollableUserIds(context.storage)) {
+            didPoll = await tickUser(userId) || didPoll;
+          }
+        }
+        return didPoll;
+      } finally {
+        scheduling = false;
       }
-
-      return didPoll;
     },
 
     /**
      * 执行指定用户的一次调度检查。
      *
-     * @param userId 用户 ID。
-     * @return 该用户是否执行了轮询。
+     * @param {string} userId 用户 ID。
+     * @return {Promise<boolean>} 该用户是否执行了轮询。
      */
     tickUser,
   };
@@ -72,36 +91,42 @@ export function createPollScheduler(
   /**
    * 对指定用户执行一次调度检查。
    *
-   * @param userId 用户 ID。
-   * @return 该用户是否执行了轮询。
+   * @param {string} userId 用户 ID。
+   * @param {PollScheduleEntry | undefined} snapshot 同一次调度已读取的账号快照。
+   * @return {Promise<boolean>} 该用户是否执行了轮询。
    */
-  async function tickUser(userId: string): Promise<boolean> {
+  async function tickUser(
+    userId: string,
+    snapshot?: PollScheduleEntry,
+  ): Promise<boolean> {
     if (pollingUserIds.has(userId)) {
       return false;
     }
 
-    const storage = storageForUser(context.storage, userId);
-    const settings = await storage.getSettings();
-    if (!settings.polling.enabled) {
-      lastPollStartedAtByUserId.delete(userId);
-      return false;
-    }
-
-    const lastPollAt = await storage.getLastPollAt();
-    if (
-      !shouldPollFromLastStart(
-        lastPollStartedAtByUserId.get(userId),
-        lastPollAt,
-        settings.polling,
-      )
-    ) {
-      return false;
-    }
-
     pollingUserIds.add(userId);
-    lastPollStartedAtByUserId.set(userId, Date.now());
     try {
-      await context.poller.runOnce(storage);
+      const storage = storageForUser(context.storage, userId);
+      const settings = snapshot?.settings ?? await storage.getSettings();
+      if (!settings.polling.enabled) {
+        lastPollStartedAtByUserId.delete(userId);
+        return false;
+      }
+
+      const lastPollAt = snapshot
+        ? snapshot.lastPollAt
+        : await storage.getLastPollAt();
+      if (
+        !shouldPollFromLastStart(
+          lastPollStartedAtByUserId.get(userId),
+          lastPollAt,
+          settings.polling,
+        )
+      ) {
+        return false;
+      }
+
+      lastPollStartedAtByUserId.set(userId, Date.now());
+      await context.poller.runOnce(storage, settings);
       return true;
     } catch (error) {
       console.error(`Scheduled poll failed for user ${userId}`, error);
@@ -132,7 +157,7 @@ async function pollableUserIds(
  * 获取指定用户作用域的存储。
  *
  * @param storage 应用存储。
- * @param userId 用户 ID。
+ * @param {string} userId 用户 ID。
  * @return 用户作用域存储。
  */
 function storageForUser(storage: AppContext["storage"], userId: string) {
