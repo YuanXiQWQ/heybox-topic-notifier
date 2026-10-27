@@ -3239,7 +3239,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "webhook",
       messages.notificationWebhookService,
-      "settings.notification.webhookService",
     )
   }
             <dd>
@@ -3267,7 +3266,7 @@ function renderNotificationSection(settings: AppSettings): string {
       "key",
       messages.notificationServerChanSendKey,
       "https://sct.ftqq.com/sendkey",
-      "settings.notification.sendKey",
+      undefined,
       messages,
     )
   }
@@ -3292,7 +3291,7 @@ function renderNotificationSection(settings: AppSettings): string {
       "key",
       messages.notificationPushPlusToken,
       "https://www.pushplus.plus/uc-dev.html",
-      "settings.notification.token",
+      undefined,
       messages,
     )
   }
@@ -3317,7 +3316,7 @@ function renderNotificationSection(settings: AppSettings): string {
       "key",
       messages.notificationWxPusherSpt,
       "https://wxpusher.zjiecode.com/docs/spt.html",
-      "settings.notification.spt",
+      undefined,
       messages,
     )
   }
@@ -3342,7 +3341,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "link",
       messages.notificationWebhookUrl,
-      "settings.notification.webhookUrl",
     )
   }
             <dd>
@@ -3367,7 +3365,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "mail",
       messages.notificationEmailService,
-      "settings.notification.emailService",
     )
   }
             <dd>
@@ -3393,7 +3390,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "alternate_email",
       messages.notificationEmailAddress,
-      "settings.notification.emailAddress",
     )
   }
             <dd>
@@ -3415,7 +3411,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "mail",
       messages.notificationEmailFrom,
-      "settings.notification.emailFrom",
     )
   }
             <dd>
@@ -3439,7 +3434,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "api",
       messages.notificationEmailApiUrl,
-      "settings.notification.apiUrl",
     )
   }
             <dd>
@@ -3463,7 +3457,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "key",
       messages.notificationEmailApiToken,
-      "settings.notification.apiToken",
     )
   }
             <dd>
@@ -3488,7 +3481,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "dns",
       messages.notificationSmtpHost,
-      "settings.notification.smtpHost",
     )
   }
             <dd>
@@ -3510,7 +3502,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "numbers",
       messages.notificationSmtpPort,
-      "settings.notification.smtpPort",
     )
   }
             <dd>
@@ -3533,7 +3524,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "lock",
       messages.notificationSmtpSecure,
-      "settings.notification.ssl",
     )
   }
             <dd>
@@ -3555,7 +3545,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "badge",
       messages.notificationSmtpUsername,
-      "settings.notification.smtpUsername",
     )
   }
             <dd>
@@ -3576,7 +3565,6 @@ function renderNotificationSection(settings: AppSettings): string {
     settingLabel(
       "password",
       messages.notificationSmtpPassword,
-      "settings.notification.smtpPassword",
     )
   }
             <dd>
@@ -3643,7 +3631,6 @@ function renderPollingSection(settings: AppSettings): string {
     settingLabel(
       "timer",
       messages.pollInterval,
-      "settings.poll.interval",
     )
   }
             <dd>
@@ -3691,7 +3678,6 @@ function renderPollingSection(settings: AppSettings): string {
     settingLabel(
       "format_list_numbered",
       messages.pollPostLimit,
-      "settings.poll.postLimit",
     )
   }
             <dd>
@@ -3709,7 +3695,6 @@ function renderPollingSection(settings: AppSettings): string {
     settingLabel(
       "sort",
       messages.pollSort,
-      "settings.poll.sort",
     )
   }
             <dd>
@@ -3814,7 +3799,7 @@ function renderKeywordSection(settings: AppSettings): string {
       data-keyword-editor
       data-delete-message="${escapeHtml(messages.selectKeywordToDelete)}"
     >
-      ${renderDrawerHeading("keywords", "keyword-rules-panel", messages.keywords, "sell", `<span class="keyword-summary" data-keyword-summary>${renderKeywordSummary(summaryKeywords)}</span>`, "settings.post.keywords")}
+      ${renderDrawerHeading("keywords", "keyword-rules-panel", messages.keywords, "sell", `<span class="keyword-summary" data-keyword-summary>${renderKeywordSummary(summaryKeywords)}</span>`)}
       <dd class="dropdown-panel keyword-rules-panel" id="keyword-rules-panel" data-keyword-panel hidden>
         <div class="dropdown-panel-inner">
           <div class="keyword-rule-grid" role="table">

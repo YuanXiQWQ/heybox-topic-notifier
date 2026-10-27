@@ -215,7 +215,30 @@ export const blackForestGift = Object.freeze({
   sprite: 'Resources/sprites/worker/equipment/attachment/BossBirdWing.png',
 });
 
-/** 各候选页面中的固定图标槽位。 */
+/** 仅用于读取旧进度的条件槽位，不参与鸟蛋分配。 */
+const blackForestLegacyConditionalSlots = new Set([
+  'settings.post.keywords',
+  'settings.poll.interval',
+  'settings.poll.postLimit',
+  'settings.poll.sort',
+  'settings.notification.webhookService',
+  'settings.notification.token',
+  'settings.notification.spt',
+  'settings.notification.sendKey',
+  'settings.notification.webhookUrl',
+  'settings.notification.emailService',
+  'settings.notification.emailAddress',
+  'settings.notification.emailFrom',
+  'settings.notification.apiUrl',
+  'settings.notification.apiToken',
+  'settings.notification.smtpHost',
+  'settings.notification.smtpPort',
+  'settings.notification.ssl',
+  'settings.notification.smtpUsername',
+  'settings.notification.smtpPassword',
+]);
+
+/** 无需修改配置即可访问的固定图标槽位；允许展开抽屉。 */
 const blackForestIconSlotIds = Object.freeze({
   nav: Object.freeze([
     'nav.dashboard',
@@ -230,27 +253,10 @@ const blackForestIconSlotIds = Object.freeze({
     'settings.account.username',
     'settings.account.displayName',
     'settings.post.topic',
-    'settings.post.keywords',
+    'settings.post.matching',
+    'settings.matching.mode',
     'settings.poll.enabled',
-    'settings.poll.interval',
-    'settings.poll.postLimit',
-    'settings.poll.sort',
     'settings.notification.provider',
-    'settings.notification.webhookService',
-    'settings.notification.token',
-    'settings.notification.spt',
-    'settings.notification.sendKey',
-    'settings.notification.webhookUrl',
-    'settings.notification.emailService',
-    'settings.notification.emailAddress',
-    'settings.notification.emailFrom',
-    'settings.notification.apiUrl',
-    'settings.notification.apiToken',
-    'settings.notification.smtpHost',
-    'settings.notification.smtpPort',
-    'settings.notification.ssl',
-    'settings.notification.smtpUsername',
-    'settings.notification.smtpPassword',
     'settings.auth.email',
     'settings.auth.password',
     'settings.auth.passkey',
@@ -528,7 +534,7 @@ export function relocateUnfoundBlackForestEggs(
 /**
  * 判断存档是否可以恢复。
  *
- * 字段缺失按兼容处理；字段存在但取值非法时整份存档作废，避免损坏的进度进入运行期。
+ * 字段缺失按兼容处理；旧条件槽位可读取并迁移，其余非法字段使存档作废。
  *
  * @param {Record<string, any>} saved 已解析的存档。
  * @return {boolean} 所有已存在字段都合法时返回 true。
@@ -543,7 +549,8 @@ export function isValidBlackForestState(saved) {
     order.every((bird) => bird in blackForestBirds) &&
     found.every((egg) => egg in blackForestEggs) &&
     Object.entries(eggs).every(([slot, egg]) =>
-      blackForestIconSlots.some((entry) => entry.id === slot) &&
+      (blackForestIconSlots.some((entry) => entry.id === slot) ||
+        blackForestLegacyConditionalSlots.has(slot)) &&
       egg in blackForestEggs
     );
 }
@@ -878,7 +885,7 @@ export function createBlackForestEvent(shared) {
     shared.document?.() ?? /** @type {any} */ (globalThis).document;
 
   /**
-   * 汇总固定槽位与当前页面实际存在的动态槽位。
+   * 汇总固定槽位与页面动态槽位，排除需要修改配置才能显示的旧槽位。
    *
    * @return {Array<{id: string, page: string}>} 可参与随机分配的槽位。
    */
@@ -891,7 +898,7 @@ export function createBlackForestEvent(shared) {
     ) ?? [];
     Array.from(nodes).forEach((node) => {
       const id = node?.dataset?.lobotomyCorpBlackForestSlot;
-      if (typeof id !== 'string' || slots.has(id)) return;
+      if (typeof id !== 'string' || slots.has(id) || blackForestLegacyConditionalSlots.has(id)) return;
       const page = id.startsWith('history.')
         ? 'history'
         : id.startsWith('dashboard.')
@@ -1395,7 +1402,7 @@ export function createBlackForestEvent(shared) {
   /**
    * 恢复存档。
    *
-   * 开场 CG 阶段重播 CG，寻找阶段重新摆蛋，镇压阶段重播终末鸟死亡 CG，记录阶段只恢复输入记录。
+   * 未找到的旧条件槽位鸟蛋迁移到可访问位置，已找到的进度保留；各阶段继续对应动画或交互。
    *
    * @return {boolean} 恢复出任何状态时返回 true。
    */
@@ -1415,6 +1422,10 @@ export function createBlackForestEvent(shared) {
       phase: saved.phase,
       source: saved.source,
     };
+    if (Object.keys(state.eggs).some((slot) => blackForestLegacyConditionalSlots.has(slot))) {
+      state.eggs = relocateUnfoundBlackForestEggs(state.eggs, state.found, selectableEggSlots());
+      persist();
+    }
     if (state.phase === 'done') {
       // 只保留「破晓」奖励，不占用任何页面资源。
       return true;

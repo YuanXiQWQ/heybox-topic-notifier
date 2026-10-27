@@ -453,7 +453,7 @@ Deno.test("Black Forest CG text layout keeps the line inside the viewport", () =
 
 /** 三颗蛋从所有候选槽位随机抽取，允许同一页面出现多颗。 */
 Deno.test("Black Forest assigns eggs across all candidate slots", () => {
-  assertEquals(blackForestIconSlots.length, 43);
+  assertEquals(blackForestIconSlots.length, 26);
   assertEquals(
     new Set(blackForestIconSlots.map((slot) => slot.id)).size,
     blackForestIconSlots.length,
@@ -468,7 +468,7 @@ Deno.test("Black Forest assigns eggs across all candidate slots", () => {
   );
   assertEquals(
     blackForestIconSlots.filter((slot) => slot.page === "settings").length,
-    36,
+    19,
   );
   assertEquals(
     blackForestIconSlots.filter((slot) => slot.page === "history").length,
@@ -860,6 +860,45 @@ Deno.test("Black Forest hunts the eggs and ends with the EGO gift", () => {
   assertEquals(finished.phase, "done");
   assertEquals(finished.gift, true);
   assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-gift").length, 0);
+});
+
+/** 匹配标题和模式行可挂蛋；旧条件槽位中的未发现鸟蛋迁移，已发现进度保留。 */
+Deno.test("Black Forest restores accessible matching slots and migrates conditional slots", () => {
+  const harness = createBlackForestHarness();
+  harness.storage.setItem("test.black-forest", JSON.stringify({
+    id: "black-forest",
+    phase: "hunt",
+    eggs: {
+      "settings.post.matching": "bigEyes",
+      "settings.matching.mode": "longArms",
+      "settings.notification.smtpPassword": "smallBeak",
+    },
+    found: [],
+  }));
+  const event = createBlackForestEvent(harness.shared);
+  assertEquals(event.restore(), true);
+  const migrated = JSON.parse(harness.storage.getItem("test.black-forest")!);
+  assertEquals(migrated.eggs["settings.post.matching"], "bigEyes");
+  assertEquals(migrated.eggs["settings.matching.mode"], "longArms");
+  assertEquals(migrated.eggs["settings.notification.smtpPassword"], undefined);
+  assertEquals(Object.values(migrated.eggs).sort(), ["bigEyes", "longArms", "smallBeak"]);
+  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 3);
+  event.finish();
+
+  harness.storage.setItem("test.black-forest", JSON.stringify({
+    ...migrated,
+    eggs: { "settings.post.keywords": "bigEyes", "settings.poll.interval": "longArms", "nav.history": "smallBeak" },
+    found: ["bigEyes"],
+  }));
+  const continued = createBlackForestEvent(harness.shared);
+  assertEquals(continued.restore(), true);
+  const progress = JSON.parse(harness.storage.getItem("test.black-forest")!);
+  assertEquals(progress.found, ["bigEyes"]);
+  assertEquals(progress.eggs["settings.post.keywords"], "bigEyes");
+  assertEquals(progress.eggs["settings.poll.interval"], undefined);
+  assertEquals(progress.eggs["nav.history"], "smallBeak");
+  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 2);
+  continued.finish();
 });
 
 /** 重新开始这一天要还原所有被改过的图标，并保留已经拿到的「破晓」。 */

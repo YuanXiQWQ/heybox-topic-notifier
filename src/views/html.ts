@@ -229,7 +229,7 @@ export function renderLayout(options: {
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
     ${renderLobotomyCorpAccountIdentityData(options.account, options.loginSession)}
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20260914-avatar-decorations-2"></script>
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body>
