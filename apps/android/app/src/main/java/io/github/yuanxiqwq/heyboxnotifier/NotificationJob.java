@@ -9,6 +9,8 @@ import android.content.Context;
 import android.os.Build;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.FutureTask;
 
 /** 不依赖 Google 服务，系统权限保证只有调度器可以调用任务。 */
 public final class NotificationJob extends JobService {
@@ -16,6 +18,8 @@ public final class NotificationJob extends JobService {
     private static final int JOB_ID = 12099;
     /** 收件箱网络访问在工作线程运行。 */
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    /** 每次系统调度单独持有取消标记，旧任务结束不会确认新任务。 */
+    private final ConcurrentHashMap<JobParameters, FutureTask<Void>> jobs = new ConcurrentHashMap<>();
     /** @param {Context} context 应用上下文。 */
     static void schedule(Context context) {
         JobScheduler scheduler = context.getSystemService(JobScheduler.class);
@@ -25,7 +29,7 @@ public final class NotificationJob extends JobService {
     }
     /** @param {JobParameters} params 系统任务。 @return {boolean} 是否存在异步工作。 */
     @Override public boolean onStartJob(JobParameters params) {
-        worker.execute(() -> {
+        FutureTask<Void> task = new FutureTask<>(() -> {
             boolean retry = false;
             try {
                 DeviceState device = DeviceState.get(this);
@@ -34,14 +38,16 @@ public final class NotificationJob extends JobService {
                 if (binding != null && binding.optBoolean("enabled") && !binding.optBoolean("honorRegistered") && !token.isEmpty()) {
                     try { HonorPush.saveToken(device, token); } catch (Exception ignored) { retry = true; }
                 }
-                Notifications.get(this, device).poll();
+                retry |= Notifications.get(this, device).poll();
             } catch (Exception ignored) { retry = true; }
-            jobFinished(params, retry);
+            if (jobs.remove(params) != null) jobFinished(params, retry);
+            return null;
         });
+        jobs.put(params, task); worker.execute(task);
         return true;
     }
     /** @param {JobParameters} params 被系统中止的任务。 @return {boolean} 保留重试以补取尚未确认的事件。 */
-    @Override public boolean onStopJob(JobParameters params) { return true; }
+    @Override public boolean onStopJob(JobParameters params) { FutureTask<Void> task = jobs.remove(params); if (task != null) task.cancel(true); return true; }
     /** 释放执行器，账号游标已由加密存储持久保存。 */
-    @Override public void onDestroy() { worker.shutdown(); super.onDestroy(); }
+    @Override public void onDestroy() { for (FutureTask<Void> task : jobs.values()) task.cancel(true); jobs.clear(); worker.shutdownNow(); super.onDestroy(); }
 }

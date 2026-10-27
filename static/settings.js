@@ -5846,6 +5846,37 @@ function saveSettingsNow() {
   return pending;
 }
 
+/**
+ * 等待保存期间新增的编辑也持久化，供页面导航和应用退出复用。
+ * @return {Promise<boolean>} 当前表单全部编辑均已保存。
+ */
+async function flushSettingsEdits() {
+  do {
+    if (!await saveSettingsNow()) return false;
+  } while (autoSaveForm && autoSaveTopicEditor && autoSaveKeywordEditor && settingsSignature() !== lastSavedSignature);
+  return true;
+}
+
+/** 导航请求序号使较早的保存完成回调不会覆盖用户最后点击的页面。 */
+let settingsNavigationRevision = 0;
+
+/**
+ * 内部页面跳转前保存防抖窗口中的设置，落盘失败时保留当前编辑页。
+ * @param {MouseEvent} event 页面链接点击。
+ * @return {Promise<void>} 保存完成并进入目标页，或保留当前页。
+ */
+async function guardSettingsNavigation(event) {
+  if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+  if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+  const target = new URL(link.href, location.href);
+  if (target.origin !== location.origin || (target.pathname === location.pathname && target.search === location.search)) return;
+  if (!settingsSaveTask && settingsSignature() === lastSavedSignature) return;
+  event.preventDefault();
+  const revision = ++settingsNavigationRevision;
+  if (await flushSettingsEdits() && revision === settingsNavigationRevision) location.assign(target.href);
+}
+
 /** 设置按本机提交顺序保存，防止并发快照使用过期基线重新修改未触碰的区域。 */
 let settingsSaveTask;
 
@@ -7332,3 +7363,4 @@ function initMatchingSettings() {
 }
 
 document.addEventListener('DOMContentLoaded', initSettingsEditors);
+document.addEventListener('click', (event) => { void guardSettingsNavigation(event).catch(() => setAutoSaveStatus('error')); });

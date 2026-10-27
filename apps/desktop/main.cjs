@@ -47,6 +47,8 @@ let preparingExit;
 /** 通知轮询与更新检查各自合并并发触发。 */
 let polling;
 let checking;
+/** 设备开关变更序号使旧的开启请求不能覆盖较新的关闭操作。 */
+let notificationRevision = 0;
 /** 当前会话展示的通知，退出登录时撤回。 */
 const visibleNotifications = new Set();
 /** 原生更新进度不依赖服务器部署版本。 */
@@ -387,9 +389,14 @@ async function setNotifications(enabled) {
     return info();
   }
   if (!Notification.isSupported()) throw new Error("Notifications unsupported");
+  const revision = ++notificationRevision;
+  const before = await sessionFingerprint();
   const batch = await readNotifications();
   const fingerprint = await sessionFingerprint();
-  if (!fingerprint || typeof batch.userId !== "string") {
+  if (
+    !fingerprint || fingerprint !== before ||
+    revision !== notificationRevision || typeof batch.userId !== "string"
+  ) {
     throw new Error("Authentication required");
   }
   device.value.notifications = {
@@ -409,6 +416,7 @@ async function setNotifications(enabled) {
  */
 async function disableNotifications() {
   if (!device) return;
+  notificationRevision++;
   device.value.notifications = { enabled: false };
   for (const notification of visibleNotifications) notification.close();
   visibleNotifications.clear();
@@ -432,26 +440,41 @@ function pollNotifications() {
 async function consumeNotifications() {
   const binding = device.value.notifications;
   if (!binding?.enabled) return;
-  if (await sessionFingerprint() !== binding.session) {
+  const initialSession = await sessionFingerprint();
+  if (device.value.notifications !== binding) return;
+  if (initialSession !== binding.session) {
     await disableNotifications();
     return;
   }
   const batch = await readNotifications(binding.cursor);
   if (device.value.notifications !== binding) return;
-  if (batch.userId !== binding.userId) {
+  const fingerprint = await sessionFingerprint();
+  if (device.value.notifications !== binding) return;
+  if (batch.userId !== binding.userId || fingerprint !== binding.session) {
     await disableNotifications();
     return;
   }
   for (const event of batch.events) {
+    const current = await sessionFingerprint();
     if (device.value.notifications !== binding) return;
+    if (current !== binding.session) {
+      await disableNotifications();
+      return;
+    }
     if (!binding.seen.includes(event.id)) {
       const notification = new Notification({
         title: String(event.title).slice(0, 120),
         body: String(event.body).slice(0, 300),
         silent: false,
       });
-      notification.on("click", () => {
-        if (device.value.notifications === binding) showWindow(event.path);
+      notification.on("click", async () => {
+        try {
+          const current = await sessionFingerprint();
+          if (
+            device.value.notifications === binding &&
+            current === binding.session
+          ) showWindow(event.path);
+        } catch { /* 已过期通知的点击不切换当前账号页面。 */ }
       });
       notification.on("close", () => visibleNotifications.delete(notification));
       visibleNotifications.add(notification);

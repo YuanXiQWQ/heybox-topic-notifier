@@ -13,6 +13,10 @@ const { createRequire } = require("node:module");
 function harness() {
   const handlers = new Map(), events = new Map();
   let installs = 0;
+  let cookie = "session-a";
+  let read = () => Promise.resolve({ userId: "alice", cursor: "", events: [] });
+  const shown = [];
+  const opened = [];
   const frame = {
     url: "https://heybox-topic-notifier.yuanxiqwq.deno.net/settings",
   };
@@ -22,7 +26,14 @@ function harness() {
     executeJavaScript: async () => {},
     send: () => {},
   };
-  const window = { webContents: contents, isDestroyed: () => false };
+  const window = {
+    webContents: contents,
+    isDestroyed: () => false,
+    loadURL: (url) => opened.push(url),
+    isMinimized: () => false,
+    show() {},
+    focus() {},
+  };
   const device = { value: {}, save: async () => {} };
   const app = {
     isPackaged: true,
@@ -35,7 +46,29 @@ function harness() {
   };
   const electron = {
     app,
-    Notification: { isSupported: () => true },
+    Notification: class {
+      /** @param {object} data 系统通知载荷。 */
+      constructor(data) {
+        this.data = data;
+        this.events = new Map();
+      }
+      /** @return {boolean} 测试环境支持系统通知。 */
+      static isSupported() {
+        return true;
+      }
+      /** @param {string} name 事件名。 @param {Function} fn 处理器。 */
+      on(name, fn) {
+        this.events.set(name, fn);
+      }
+      /** 记录真实主进程请求展示的通知。 */
+      show() {
+        shown.push(this);
+      }
+      /** 记录通知已经撤回。 */
+      close() {
+        this.closed = true;
+      }
+    },
     ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
     shell: {},
   };
@@ -57,10 +90,13 @@ function harness() {
   };
   const setup = vm.runInNewContext(
     fs.readFileSync(filename, "utf8") +
-      "\n((w,d) => { window=w; device=d; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {info,prepareExit}; })",
+      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {info,prepareExit,consumeNotifications,setNotifications,disableNotifications}; })",
     context,
   );
-  const api = setup(window, device);
+  const api = setup(window, device, {
+    cookies: { get: () => Promise.resolve(cookie ? [{ value: cookie }] : []) },
+    fetch: () => Promise.resolve({ ok: true, json: () => read() }),
+  });
   return {
     api,
     contents,
@@ -68,6 +104,14 @@ function harness() {
     handlers,
     event: { sender: contents, senderFrame: frame },
     installs: () => installs,
+    shown,
+    opened,
+    changeCookie: (value) => {
+      cookie = value;
+    },
+    readWith: (fn) => {
+      read = fn;
+    },
   };
 }
 
@@ -85,6 +129,59 @@ test("native update markers clear independently and reject subframes", async () 
   await context.handlers.get("app:seen-update")(context.event, "about");
   assert.equal(context.api.info().update.aboutUnread, false);
   assert.equal(context.api.info().update.version, "1.1.0");
+});
+
+test("notification setup cannot bind a response from an account replaced during the request", async () => {
+  const context = harness();
+  context.readWith(() => {
+    context.changeCookie("session-b");
+    return { userId: "alice", cursor: "" };
+  });
+  await assert.rejects(
+    () => context.api.setNotifications(true),
+    /Authentication/,
+  );
+  assert.equal(context.api.info().notifications.enabled, false);
+});
+
+test("a delayed enable request cannot undo a newer disable action", async () => {
+  const context = harness();
+  context.readWith(async () => {
+    await context.api.disableNotifications();
+    return { userId: "alice", cursor: "" };
+  });
+  await assert.rejects(
+    () => context.api.setNotifications(true),
+    /Authentication/,
+  );
+  assert.equal(context.api.info().notifications.enabled, false);
+});
+
+test("notifications recheck the account after a pending request and before opening a clicked alert", async () => {
+  const context = harness();
+  await context.api.setNotifications(true);
+  const event = {
+    id: "event",
+    cursor: "0000000000000001:event",
+    title: "Private title",
+    body: "Private body",
+    path: "/history",
+  };
+  context.readWith(() => Promise.resolve({ userId: "alice", events: [event] }));
+  await context.api.consumeNotifications();
+  assert.equal(context.shown.length, 1);
+  context.changeCookie("session-b");
+  await context.shown[0].events.get("click")();
+  assert.equal(context.opened.length, 0);
+
+  context.changeCookie("session-a");
+  context.readWith(() => {
+    context.changeCookie("session-b");
+    return { userId: "alice", events: [{ ...event, id: "second" }] };
+  });
+  await context.api.consumeNotifications();
+  assert.equal(context.shown.length, 1);
+  assert.equal(context.shown[0].closed, true);
 });
 
 test("installation waits for durable edits and aborts on storage failure", async () => {

@@ -14,19 +14,40 @@
     const request = (method, value) => {
       return new Promise((resolve, reject) => {
         const id = String(++serial);
-        const timer = setTimeout(() => {
+        /** 只计算没有原生进度的等待时间，大安装包正常下载可以超过两分钟。 */
+        const timeout = () => {
           pending.delete(id);
           reject(new Error("Native request timed out"));
-        }, 120000);
-        pending.set(id, { resolve, reject, timer });
-        globalThis.HeyboxNative.postMessage(
-          JSON.stringify({ id, method, value }),
-        );
+        };
+        const item = {
+          resolve,
+          reject,
+          method,
+          timeout,
+          timer: setTimeout(timeout, 120000),
+        };
+        pending.set(id, item);
+        try {
+          globalThis.HeyboxNative.postMessage(
+            JSON.stringify({ id, method, value }),
+          );
+        } catch (error) {
+          clearTimeout(item.timer);
+          pending.delete(id);
+          reject(error);
+        }
       });
     };
     globalThis.HeyboxNative.onmessage = (message) => {
       const reply = JSON.parse(message.data);
       if (reply.type === "state") {
+        if (reply.value?.update?.status === "downloading") {
+          for (const item of pending.values()) {
+            if (item.method !== "downloadUpdate") continue;
+            clearTimeout(item.timer);
+            item.timer = setTimeout(item.timeout, 120000);
+          }
+        }
         listeners.forEach((listener) => listener(reply.value));
         return;
       }
@@ -136,7 +157,7 @@
       );
     }
     if (
-      update.status === "available" && update.prompt &&
+      ["available", "downloaded"].includes(update.status) && update.prompt &&
       prompted !== update.version
     ) {
       prompted = update.version;

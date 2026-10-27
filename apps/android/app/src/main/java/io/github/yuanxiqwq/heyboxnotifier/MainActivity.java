@@ -49,11 +49,21 @@ public final class MainActivity extends ComponentActivity {
     private JavaScriptReplyProxy permissionReply;
     /** 网络、下载和加密写入在后台顺序执行。 */
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    /** 大安装包下载不占用通知补取、页面桥接和设置保存的执行队列。 */
+    private final ExecutorService downloadWorker = Executors.newSingleThreadExecutor();
+    /** 通知网络请求独立执行，用户关闭开关不必等待积压消息全部处理完。 */
+    private final ExecutorService notificationWorker = Executors.newSingleThreadExecutor();
     /** 页面事件和原生消息端口必须在主线程访问。 */
     private final Handler handler = new Handler(Looper.getMainLooper());
+    /** 当前窗口持有更新回调，进程协调器只保留弱引用。 */
+    private final Runnable updateListener = this::emit;
     private boolean resumed;
+    /** 网络较慢时只保留一轮前台补取，避免每十五秒积压一个后台任务。 */
+    private volatile boolean pollInFlight;
     /** 前台轮询使用单一回调，重复返回应用不会叠加定时器。 */
     private final Runnable pollTask = this::poll;
+    /** 自动检查只在可显示确认窗口的前台运行，恢复时由更新协调器节流。 */
+    private final Runnable updateTask = this::checkForUpdates;
 
     /**
      * 初始化保持完整网页能力的 WebView，并限制桥接来源和子框架。
@@ -61,7 +71,7 @@ public final class MainActivity extends ComponentActivity {
      */
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        try { device = DeviceState.get(this); notifications = Notifications.get(this, device); updates = new Updates(this, device, this::emit); }
+        try { device = DeviceState.get(this); notifications = Notifications.get(this, device); updates = Updates.get(this, device, updateListener); }
         catch (Exception error) { finish(); return; }
         root = new FrameLayout(this); web = new WebView(this); root.addView(web); setContentView(root);
         login = new BrowserLogin(this, device, () -> web.loadUrl(BuildConfig.APP_ORIGIN + "/"));
@@ -132,7 +142,7 @@ public final class MainActivity extends ComponentActivity {
         if (saved == null || web.restoreState(saved) == null) web.loadUrl(BuildConfig.APP_ORIGIN + "/");
         consumeIntent(getIntent());
         worker.execute(() -> { HonorPush.register(getApplicationContext(), device); emit(); });
-        worker.execute(() -> { try { updates.check(); } catch (Exception error) { /* 下次联网或手动检查可重试。 */ } });
+        worker.execute(() -> { try { updates.restore(); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
     }
     /**
      * 分派有限能力请求，网络操作不阻塞网页或彩蛋。
@@ -141,7 +151,8 @@ public final class MainActivity extends ComponentActivity {
      */
     private void dispatch(JavaScriptReplyProxy proxy, JSONObject request) {
         String method = request.optString("method"), id = request.optString("id");
-        worker.execute(() -> {
+        ExecutorService executor = method.equals("downloadUpdate") ? downloadWorker : worker;
+        executor.execute(() -> {
             try {
                 if (method.equals("login")) { respond(proxy, id, login.start(), null); return; }
                 switch (method) {
@@ -174,11 +185,13 @@ public final class MainActivity extends ComponentActivity {
     /** 广播原生进度，已离开的页面不会收到更新。 */
     private void emit() { handler.post(() -> { if (reply != null) try { reply.postMessage(new JSONObject().put("type", "state").put("value", state()).toString()); } catch (Exception ignored) { /* 页面可在下次加载重新读取状态。 */ } }); }
     /** 恢复界面时补取通知；后台厂商推送与前台补取保持相同事件 ID。 */
-    @Override public void onResume() { super.onResume(); resumed = true; if (updates != null) updates.resume(worker); handler.removeCallbacks(pollTask); handler.post(pollTask); }
+    @Override public void onResume() { super.onResume(); resumed = true; if (updates != null) updates.resume(worker); handler.removeCallbacks(pollTask); handler.post(pollTask); handler.removeCallbacks(updateTask); handler.post(updateTask); }
     /** 页面暂停后停止前台轮询，后台事件由厂商消息调度。 */
-    @Override public void onPause() { resumed = false; handler.removeCallbacks(pollTask); CookieManager.getInstance().flush(); super.onPause(); }
+    @Override public void onPause() { resumed = false; handler.removeCallbacks(pollTask); handler.removeCallbacks(updateTask); CookieManager.getInstance().flush(); super.onPause(); }
     /** 前台按固定周期补取，网络错误不重置游标。 */
-    private void poll() { if (!resumed || notifications == null) return; worker.execute(() -> { try { notifications.poll(); emit(); } catch (Exception ignored) { /* 网络恢复后重试。 */ } }); handler.postDelayed(pollTask, 15000); }
+    private void poll() { if (!resumed || notifications == null) return; if (!pollInFlight) { pollInFlight = true; notificationWorker.execute(() -> { try { notifications.poll(); emit(); } catch (Exception ignored) { /* 网络恢复后重试。 */ } finally { pollInFlight = false; } }); } handler.postDelayed(pollTask, 15000); }
+    /** 定期检查更新，应用返回前台时也能发现后台期间发布的新版本。 */
+    private void checkForUpdates() { if (!resumed || updates == null) return; worker.execute(() -> { try { updates.checkAutomatically(); } catch (Exception ignored) { /* 手动检查可立即重试。 */ } }); handler.postDelayed(updateTask, 6L * 60 * 60 * 1000); }
     /** @param {int} code 权限请求编号。 @param {String[]} permissions 权限名称。 @param {int[]} results 结果。 */
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) { super.onRequestPermissionsResult(code, permissions, results); if (code == 20 && pendingPermission != null) { JSONObject request = pendingPermission; JavaScriptReplyProxy target = permissionReply; pendingPermission = null; permissionReply = null; if (target != reply) return; if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) dispatch(target, request); else respond(target, request.optString("id"), null, "Permission denied"); } }
     /** @param {int} code 文件选择请求。 @param {int} result 系统结果。 @param {Intent} data 选中文件。 */
@@ -197,5 +210,5 @@ public final class MainActivity extends ComponentActivity {
      */
     private void consumeIntent(Intent intent) { String path = intent.getStringExtra("notificationPath"), user = intent.getStringExtra("notificationUser"); try { if (path != null && path.startsWith("/") && !path.startsWith("//") && user != null && notifications.owns(user)) web.loadUrl(BuildConfig.APP_ORIGIN + path); } catch (Exception ignored) { /* 不打开已失效账号的通知。 */ } }
     /** 释放界面任务；已持久化的队列和通知游标继续保留。 */
-    @Override protected void onDestroy() { resumed = false; handler.removeCallbacksAndMessages(null); worker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
+    @Override protected void onDestroy() { resumed = false; if (updates != null) updates.detach(this); handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
 }

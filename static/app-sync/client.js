@@ -494,7 +494,8 @@
    */
   async function prepareForExit() {
     await ready;
-    if (globalThis.saveSettingsNow && !await globalThis.saveSettingsNow()) {
+    const saveSettings = globalThis.flushSettingsEdits ?? globalThis.saveSettingsNow;
+    if (saveSettings && !await saveSettings()) {
       throw new Error("Settings are not saved");
     }
     while (writes.size) await Promise.all([...writes]);

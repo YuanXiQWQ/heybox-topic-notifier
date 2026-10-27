@@ -13,14 +13,16 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /** 前台补取与厂商消息共用账号校验和串行去重入口。 */
-final class Notifications {
-    private final Context activity;
+final class Notifications extends NotificationInbox {
+    private final android.app.Application application;
     /** 服务与界面串行消费同一收件箱，避免重复弹窗。 */
     private static Notifications instance;
     /** @param {Context} context 应用上下文。 @param {DeviceState} device 共享存储。 @return {Notifications} 共享通知入口。 */
     static synchronized Notifications get(Context context, DeviceState device) { if (instance == null) instance = new Notifications(context.getApplicationContext(), device); return instance; }
     private final DeviceState device;
     private final NotificationManager manager;
+    /** 开关请求序号防止较早的网络响应重新开启已关闭的通知。 */
+    private final java.util.concurrent.atomic.AtomicInteger preferenceRevision = new java.util.concurrent.atomic.AtomicInteger();
     /** 应用通知的系统渠道，关闭后不伪装为已授权。 */
     private static final String CHANNEL = "matches";
     /** @return {String} 当前会话摘要。 @throws Exception 摘要不可用。 */
@@ -32,7 +34,7 @@ final class Notifications {
      * @param {DeviceState} device 设备存储。
      */
     private Notifications(Context activity, DeviceState device) {
-        this.activity = activity; this.device = device; manager = activity.getSystemService(NotificationManager.class);
+        this.application = (android.app.Application) activity.getApplicationContext(); this.device = device; manager = application.getSystemService(NotificationManager.class);
         manager.createNotificationChannel(new NotificationChannel(CHANNEL, activity.getString(R.string.notification_channel), NotificationManager.IMPORTANCE_DEFAULT));
     }
     /**
@@ -51,39 +53,46 @@ final class Notifications {
      * @param {boolean} enabled 开关状态。
      * @throws Exception 身份或权限不可用。
      */
-    synchronized void set(boolean enabled) throws Exception {
-        if (!enabled) { device.put("notifications", new JSONObject().put("enabled", false)); manager.cancelAll(); HonorPush.disable(activity, device); return; }
+    void set(boolean enabled) throws Exception {
+        int revision = preferenceRevision.incrementAndGet();
+        if (!enabled) { device.put("notifications", new JSONObject().put("enabled", false)); manager.cancelAll(); HonorPush.disable(application, device); return; }
         if (!manager.areNotificationsEnabled() || manager.getNotificationChannel(CHANNEL).getImportance() == NotificationManager.IMPORTANCE_NONE) throw new IllegalStateException("Notification permission denied");
-        JSONObject batch = Http.api("/api/native/notifications");
         String token = Http.session(); if (token.isEmpty()) throw new IllegalStateException("Authentication required");
-        device.put("notifications", new JSONObject().put("enabled", true).put("userId", batch.getString("userId")).put("session", digest(token)).put("cursor", batch.getString("cursor")).put("seen", new JSONArray()));
-        HonorPush.register(activity, device);
+        JSONObject batch = Http.api("/api/native/notifications");
+        synchronized (device) {
+            if (!token.equals(Http.session()) || revision != preferenceRevision.get()) throw new IllegalStateException("Account or notification preference changed");
+            device.put("notifications", new JSONObject().put("enabled", true).put("userId", batch.getString("userId")).put("session", digest(token)).put("generation", java.util.UUID.randomUUID().toString()).put("cursor", batch.getString("cursor")).put("seen", new JSONArray()));
+        }
+        HonorPush.register(application, device);
     }
-    /**
-     * 补取未消费事件并验证账号会话，系统通知 ID 保证重复事件更新同一提示。
-     * @throws Exception 网络或设备状态失败。
-     */
-    synchronized void poll() throws Exception {
-        JSONObject binding = device.read().optJSONObject("notifications");
-        if (binding == null || !binding.optBoolean("enabled")) return;
-        if (!digest(Http.session()).equals(binding.optString("session"))) { set(false); return; }
-        JSONObject batch = Http.api("/api/native/notifications?after=" + URLEncoder.encode(binding.optString("cursor"), StandardCharsets.UTF_8.name()));
-        if (!batch.getString("userId").equals(binding.optString("userId"))) { set(false); return; }
-        JSONArray events = batch.getJSONArray("events"), seen = binding.getJSONArray("seen");
-        for (int index = 0; index < events.length(); index++) {
-            JSONObject event = events.getJSONObject(index); String id = event.getString("id"); boolean duplicate = false;
-            for (int item = 0; item < seen.length(); item++) if (id.equals(seen.getString(item))) duplicate = true;
-            if (!duplicate) {
-                Intent intent = new Intent(activity, MainActivity.class).putExtra("notificationPath", event.getString("path")).putExtra("notificationUser", binding.getString("userId"));
-                PendingIntent click = PendingIntent.getActivity(activity, id.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-                manager.notify(id, 0, new Notification.Builder(activity, CHANNEL).setSmallIcon(R.drawable.app_icon).setContentTitle(event.getString("title")).setContentText(event.getString("body")).setAutoCancel(true).setContentIntent(click).build());
-                seen.put(id); if (seen.length() > 2048) seen.remove(0);
-            }
-            synchronized (device) {
-                JSONObject current = device.read().optJSONObject("notifications");
-                if (current == null || !current.optBoolean("enabled") || !current.optString("session").equals(binding.optString("session"))) return;
-                current.put("cursor", event.getString("cursor")).put("seen", seen); device.put("notifications", current);
-            }
+    /** @return {JSONObject} 加密存储中的当前绑定副本。 */
+    @Override protected JSONObject binding() { return device.read().optJSONObject("notifications"); }
+    /** @return {String} 当前会话摘要。 @throws Exception 摘要计算失败。 */
+    @Override protected String session() throws Exception { return currentSessionHash(); }
+    /** @param {String} cursor 已处理游标。 @return {JSONObject} 本站通知批次。 @throws Exception 请求失败。 */
+    @Override protected JSONObject read(String cursor) throws Exception { return Http.api("/api/native/notifications?after=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8.name())); }
+    /** @return {boolean} 应用及渠道均允许通知。 */
+    @Override protected boolean allowed() { return manager.areNotificationsEnabled() && manager.getNotificationChannel(CHANNEL).getImportance() != NotificationManager.IMPORTANCE_NONE; }
+    /** @param {JSONObject} event 已校验账号的事件。 @param {String} userId 所属账号。 @throws Exception 通知构造失败。 */
+    @Override protected void show(JSONObject event, String userId) throws Exception {
+        String id = event.getString("id");
+        Intent intent = new Intent(application, MainActivity.class).setData(android.net.Uri.parse("heybox-notification:" + id)).putExtra("notificationPath", event.getString("path")).putExtra("notificationUser", userId);
+        PendingIntent click = PendingIntent.getActivity(application, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        manager.notify(id, 0, new Notification.Builder(application, CHANNEL).setSmallIcon(R.drawable.app_icon).setContentTitle(event.getString("title")).setContentText(event.getString("body")).setOnlyAlertOnce(true).setAutoCancel(true).setContentIntent(click).build());
+    }
+    /** @param {JSONObject} expected 原绑定。 @param {String} cursor 已处理游标。 @param {JSONArray} seen 去重标记。 @return {boolean} 是否已保存。 @throws Exception 加密落盘失败。 */
+    @Override protected boolean commit(JSONObject expected, String cursor, JSONArray seen) throws Exception {
+        synchronized (device) {
+            JSONObject current = binding();
+            if (!sameBinding(expected, current)) return false;
+            current.put("cursor", cursor).put("seen", seen); device.put("notifications", current); return true;
+        }
+    }
+    /** @param {JSONObject} expected 失效请求的原绑定，不覆盖已经开启的新账号。 @throws Exception 本地状态保存失败。 */
+    @Override protected void disable(JSONObject expected) throws Exception {
+        synchronized (device) {
+            if (!sameBinding(expected, binding())) return;
+            preferenceRevision.incrementAndGet(); device.put("notifications", new JSONObject().put("enabled", false)); manager.cancelAll();
         }
     }
     /**
