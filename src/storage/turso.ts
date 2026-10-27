@@ -43,6 +43,7 @@ import {
 import type {
   LoginFailure,
   MatchedPostIndexEntry,
+  PollScheduleEntry,
   RateLimitHit,
   Storage,
   UserStorage,
@@ -119,7 +120,10 @@ export function createTursoStorage(
    * @return {Promise<void>} schema 就绪后的 Promise。
    */
   async function ready(): Promise<void> {
-    readyPromise ??= ensureTursoSchema(await resolveClient());
+    readyPromise ??= resolveClient().then(ensureTursoSchema).catch((error) => {
+      readyPromise = undefined;
+      throw error;
+    });
     await readyPromise;
   }
 
@@ -328,6 +332,18 @@ export function createTursoStorage(
         return { pendingMatches, settings, state };
       },
       /**
+       * 获取由数据库触发器维护的用户仪表盘版本。
+       *
+       * @return {Promise<string>} 用户隔离的版本标识，初始版本为零。
+       */
+      async getDashboardVersion(): Promise<string> {
+        const result = await execute({
+          sql: "SELECT version FROM dashboard_versions WHERE user_id = ?",
+          args: [userId],
+        });
+        return `${userId}:${String(result.rows[0]?.version ?? "0")}`;
+      },
+      /**
        * 列出当前用户历史命中记录。
        *
        * @return {Promise<MatchRecord[]>} 按既有 KV 规则排序的历史记录。
@@ -346,27 +362,43 @@ export function createTursoStorage(
       /**
        * 列出当前用户已命中帖子的精简索引。
        *
+       * @param {readonly string[]} postIds 可选的帖子 ID 范围；分批查询以限制 SQL 参数数。
        * @return {Promise<MatchedPostIndexEntry[]>} 按帖子 ID 去重后的索引条目。
        */
-      async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
-        const result = await execute({
-          sql: `SELECT json_extract(value_json, '$.post.id') AS post_id,
+      async listMatchedPostIndex(
+        postIds?: readonly string[],
+      ): Promise<MatchedPostIndexEntry[]> {
+        const ids = postIds ? [...new Set(postIds)] : undefined;
+        if (ids?.length === 0) return [];
+        const entries: MatchedPostIndexEntry[] = [];
+        const batches = ids ? Math.ceil(ids.length / 100) : 1;
+        for (let batch = 0; batch < batches; batch++) {
+          const selected = ids?.slice(batch * 100, (batch + 1) * 100);
+          const scope = selected
+            ? ` AND json_extract(value_json, '$.post.id') IN (${
+              selected.map(() => "?").join(",")
+            })`
+            : "";
+          const result = await execute({
+            sql: `SELECT json_extract(value_json, '$.post.id') AS post_id,
               MAX(json_extract(value_json, '$.detailRefreshedAt'))
                 AS detail_refreshed_at
             FROM matches
-            WHERE user_id = ?
+            WHERE user_id = ?${scope}
             GROUP BY post_id`,
-          args: [userId],
-        });
-        return result.rows.flatMap((row) => {
-          const postId = stringValue(row.post_id);
-          return postId
-            ? [{
-              detailRefreshedAt: stringValue(row.detail_refreshed_at),
-              postId,
-            }]
-            : [];
-        });
+            args: [userId, ...selected ?? []],
+          });
+          entries.push(...result.rows.flatMap((row) => {
+            const postId = stringValue(row.post_id);
+            return postId
+              ? [{
+                detailRefreshedAt: stringValue(row.detail_refreshed_at),
+                postId,
+              }]
+              : [];
+          }));
+        }
+        return entries;
       },
       /**
        * 列出当前用户指定帖子的命中记录。
@@ -565,6 +597,30 @@ export function createTursoStorage(
         "SELECT value_json FROM user_accounts ORDER BY id",
       );
       return result.rows.map((row) => parseJsonRow<UserAccount>(row));
+    },
+
+    /**
+     * 一次读取全部账号的调度设置与完成时间，不读取账号凭证或历史记录。
+     *
+     * @return {Promise<PollScheduleEntry[]>} 用户调度快照。
+     */
+    async listPollSchedule(): Promise<PollScheduleEntry[]> {
+      const result = await execute(`SELECT a.id AS user_id,
+        s.value_json AS settings_json, p.last_poll_at
+        FROM user_accounts a
+        LEFT JOIN user_settings s ON s.user_id = a.id
+        LEFT JOIN app_states p ON p.user_id = a.id
+        ORDER BY a.id`);
+      return result.rows.map((row) => ({
+        userId: String(row.user_id),
+        settings: normalizeSettings(
+          row.settings_json == null
+            ? null
+            : JSON.parse(String(row.settings_json)),
+          defaultSettings,
+        ),
+        lastPollAt: stringValue(row.last_poll_at),
+      }));
     },
 
     /**

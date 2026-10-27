@@ -3413,3 +3413,80 @@ function assertNotIncludes(actual: string, expected: string): void {
     throw new Error(`Expected output not to include ${expected}`);
   }
 }
+
+Deno.test("dashboard versions skip unchanged snapshots and bind filters and CSRF", async () => {
+  let snapshots = 0;
+  let version = "alice:1";
+  const app = createRoutes({
+    storage: {
+      getDashboardVersion: () => Promise.resolve(version),
+      getDashboardSnapshot: () => {
+        snapshots++;
+        return Promise.resolve({
+          pendingMatches: [],
+          settings: currentSettings,
+          state: { totalMatches: 0 },
+        });
+      },
+    },
+  } as unknown as AppContext);
+  const first = await app.request("/dashboard-state?page=1", {
+    headers: testCsrfHeaders(),
+  });
+  const initial = await first.json();
+  const headers = testCsrfHeaders({ "x-dashboard-version": initial.version });
+  const unchanged = await app.request("/dashboard-state?page=1", { headers });
+  assertEquals(await unchanged.json(), {
+    unchanged: true,
+    version: initial.version,
+  });
+  assertEquals(unchanged.headers.get("cache-control"), "no-store");
+  assertEquals(snapshots, 1);
+  const filtered = await app.request("/dashboard-state?page=2", { headers });
+  assertEquals(typeof (await filtered.json()).pendingHtml, "string");
+  assertEquals(snapshots, 2);
+  await app.request("/dashboard-state?page=1", {
+    headers: { "x-dashboard-version": initial.version },
+  });
+  assertEquals(snapshots, 3);
+  version = "bob:1";
+  await app.request("/dashboard-state?page=1", { headers });
+  assertEquals(snapshots, 4);
+  for (const range of ["hour", "day", "week"]) {
+    const path = `/dashboard-state?range=${range}`;
+    const timed = await (await app.request(path, { headers })).json();
+    assertEquals(timed.version, undefined);
+    const refreshed = await (await app.request(path, {
+      headers: testCsrfHeaders({ "x-dashboard-version": timed.version ?? "" }),
+    })).json();
+    assertEquals(typeof refreshed.pendingHtml, "string");
+  }
+  assertEquals(snapshots, 10);
+});
+
+Deno.test("dashboard mutations during snapshot reads remain visible on the next refresh", async () => {
+  let version = "v1";
+  let snapshots = 0;
+  const app = createRoutes({
+    storage: {
+      getDashboardVersion: () => Promise.resolve(version),
+      getDashboardSnapshot: () => {
+        snapshots++;
+        version = "v2";
+        return Promise.resolve({
+          pendingMatches: [],
+          settings: currentSettings,
+          state: { totalMatches: 0 },
+        });
+      },
+    },
+  } as unknown as AppContext);
+  const first = await (await app.request("/dashboard-state", {
+    headers: testCsrfHeaders(),
+  })).json();
+  const second = await (await app.request("/dashboard-state", {
+    headers: testCsrfHeaders({ "x-dashboard-version": first.version }),
+  })).json();
+  assertEquals(second.version !== first.version, true);
+  assertEquals(snapshots, 2);
+});

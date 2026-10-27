@@ -26,16 +26,18 @@ import { createRoutes } from "./routes.ts";
 import { csrfTokenForRequest, withCsrfCookie } from "./security/csrf.ts";
 import { createSecurityHeadersMiddleware } from "./security/headers.ts";
 import { createAppContext } from "./services/app_context.ts";
+import type { PollingContext } from "./services/polling_context.ts";
 import { renderNotFound } from "./views/not_found.ts";
 
 /**
  * 创建应用实例和运行时上下文。
  *
- * @return 应用实例和运行时上下文。
+ * @param {PollingContext} pollingContext 可选的共享轮询上下文。
+ * @return {object} 应用实例和运行时上下文。
  */
-export function createApplication() {
+export function createApplication(pollingContext?: PollingContext) {
   const app = new Hono();
-  const context = createAppContext();
+  const context = createAppContext(pollingContext);
   const authOptions: AuthOptions = {
     defaultLocale: context.config.defaultSettings.locale,
     emailVerification: context.config.emailVerification,

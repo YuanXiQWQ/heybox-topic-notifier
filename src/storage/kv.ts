@@ -172,9 +172,9 @@ type KvStorageOptions = {
 /**
  * 创建基于 Deno KV 的应用存储。
  *
- * @param defaultSettings 默认应用设置。
- * @param options KV 存储创建选项。
- * @return 应用存储操作集合。
+ * @param {AppSettings} defaultSettings 默认应用设置。
+ * @param {KvStorageOptions} options KV 存储创建选项。
+ * @return {Storage} 应用存储操作集合。
  */
 export function createKvStorage(
   defaultSettings: AppSettings,
@@ -333,10 +333,16 @@ export function createKvStorage(
       /**
        * 列出当前用户已命中帖子的精简索引。
        *
-       * @return 按帖子 ID 去重后的索引条目。
+       * @param {readonly string[]} postIds 可选的帖子 ID 范围。
+       * @return {Promise<MatchedPostIndexEntry[]>} 按帖子 ID 去重后的索引条目。
        */
-      async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
-        return matchedPostIndexFromRecords(await listMatchRecords(userId));
+      async listMatchedPostIndex(
+        postIds?: readonly string[],
+      ): Promise<MatchedPostIndexEntry[]> {
+        if (postIds?.length === 0) return [];
+        const wanted = postIds ? new Set(postIds) : undefined;
+        return matchedPostIndexFromRecords(await listMatchRecords(userId))
+          .filter((entry) => !wanted || wanted.has(entry.postId));
       },
 
       /**
@@ -1492,10 +1498,13 @@ export function createKvStorage(
     /**
      * 列出默认用户已命中帖子的精简索引。
      *
-     * @return 默认用户已命中帖子的索引条目。
+     * @param {readonly string[] | undefined} postIds 可选的帖子 ID 范围。
+     * @return {Promise<MatchedPostIndexEntry[]>} 默认用户已命中帖子的索引条目。
      */
-    async listMatchedPostIndex(): Promise<MatchedPostIndexEntry[]> {
-      return await forUser("default").listMatchedPostIndex();
+    async listMatchedPostIndex(
+      postIds?: readonly string[],
+    ): Promise<MatchedPostIndexEntry[]> {
+      return await forUser("default").listMatchedPostIndex(postIds);
     },
 
     /**

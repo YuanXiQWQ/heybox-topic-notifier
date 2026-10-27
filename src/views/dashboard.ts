@@ -199,8 +199,8 @@ export function renderPendingMatches(
 /**
  * 渲染仪表盘最后轮询时间和下次轮询进度脚本。
  *
- * @param messages 当前语言文案。
- * @return 仪表盘交互脚本 HTML。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 仪表盘交互脚本 HTML。
  */
 function renderLastPollScript(
   messages: ReturnType<typeof getMessages>,
@@ -249,6 +249,7 @@ function renderLastPollScript(
       let isDashboardStateRefreshInFlight = false;
       let lastDueDashboardRefreshAt = 0;
       let lastDueDashboardRefreshBaseline = "";
+      let dashboardVersion = "";
 
       const locale = lastPoll.dataset.lastPollLocale || "zh-CN";
       const relativeTemplates = ${JSON.stringify(relativeTemplates)};
@@ -283,18 +284,31 @@ function renderLastPollScript(
         lastPoll.textContent = formatRelativeTime(timestamp, locale);
       }
 
+      /**
+       * 查询仪表盘变更，只在数据变化且查询条件仍一致时更新页面。
+       *
+       * @param {object} options 是否触发当前账号到期检查。
+       * @return {Promise<void>} 状态检查完成后的 Promise。
+       */
       async function refreshDashboardState(options = {}) {
         if (isDashboardStateRefreshInFlight) return;
         isDashboardStateRefreshInFlight = true;
         try {
+          const query = location.search;
+          const headers = {
+            ...csrfRequestHeaders(),
+            ...(dashboardVersion ? { "x-dashboard-version": dashboardVersion } : {}),
+          };
           const response = await fetch(
             dashboardStateUrl(options.tick ? "/dashboard-state/tick" : "/dashboard-state"),
             options.tick
-              ? { cache: "no-store", headers: csrfRequestHeaders(), method: "POST" }
-              : { cache: "no-store" },
+              ? { cache: "no-store", headers, method: "POST" }
+              : { cache: "no-store", headers },
           );
           if (!response.ok) return;
           const state = await response.json();
+          if (query !== location.search) return;
+          if (state.unchanged === true) return;
           const nextTimestamp = parseTimestamp(state.lastPollAt);
           if (Number.isFinite(nextTimestamp) && nextTimestamp !== timestamp) {
             timestamp = nextTimestamp;
@@ -313,6 +327,7 @@ function renderLastPollScript(
           }
           updatePollingSettings(state.polling);
           updatePendingSection(state.pendingHtml, state.pendingSignature);
+          dashboardVersion = typeof state.version === "string" ? state.version : "";
           hasSyncedDashboardState = true;
         } catch {
           // Keep the last rendered state when the status request is transiently unavailable.
