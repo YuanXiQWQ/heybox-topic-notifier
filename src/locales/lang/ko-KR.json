@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "알림 준비 중…",
+  "applicationNotificationsRetry": "다시 시도",
+  "applicationNotificationsUnconfigured": "서버에 브라우저 푸시가 설정되지 않았습니다. 관리자에게 설정을 요청하세요.",
   "appName": "Heybox 주제 알림",
   "accountCancel": "취소",
   "accountAvatar": "프로필 사진",

@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "सूचनाएँ तैयार की जा रही हैं…",
+  "applicationNotificationsRetry": "फिर कोशिश करें",
+  "applicationNotificationsUnconfigured": "सर्वर पर ब्राउज़र पुश सूचनाएँ कॉन्फ़िगर नहीं की गई हैं। व्यवस्थापक से उन्हें कॉन्फ़िगर करने को कहें।",
   "appName": "Heybox विषय सूचना सेवा",
   "accountCancel": "रद्द करें",
   "accountAvatar": "प्रोफ़ाइल चित्र",

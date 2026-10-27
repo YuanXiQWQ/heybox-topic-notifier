@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "Preparing notifications…",
+  "applicationNotificationsRetry": "Retry",
+  "applicationNotificationsUnconfigured": "Browser push is not configured on the server. Ask the administrator to configure it.",
   "appName": "Heybox Topic Notifier",
   "accountCancel": "Cancel",
   "accountAvatar": "Avatar",

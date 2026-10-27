@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "Подготовка уведомлений…",
+  "applicationNotificationsRetry": "Повторить",
+  "applicationNotificationsUnconfigured": "Push-уведомления браузера не настроены на сервере. Обратитесь к администратору.",
   "appName": "Уведомления о темах Heybox",
   "accountCancel": "Отмена",
   "accountAvatar": "Аватар",

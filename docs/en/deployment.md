@@ -97,6 +97,10 @@ the email/Webhook selector. HTTPS and `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_K
 and `WEB_PUSH_SUBJECT` (for example, `mailto:admin@example.com`) are required.
 Run `deno task notifications:keys` once in a trusted terminal and store the private
 key in deployment environment variables. This does not configure native Honor push.
+If configuration is missing, the disabled switch shows an explanation in the notification row.
+Initialization failures or a fifteen-second timeout show a retry button. Retry after
+configuration or connectivity is restored. Initialization and retries only read state;
+enabling the switch requests browser permission and creates the subscription.
 
 Keep the VAPID key pair stable. After rotation, enable browser notifications again.
 Subscriptions are bound to the account and login session; logout, revocation, and

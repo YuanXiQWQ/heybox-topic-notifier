@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "Đang chuẩn bị thông báo…",
+  "applicationNotificationsRetry": "Thử lại",
+  "applicationNotificationsUnconfigured": "Máy chủ chưa cấu hình thông báo đẩy của trình duyệt. Hãy yêu cầu quản trị viên cấu hình.",
   "appName": "Thông báo chủ đề Heybox",
   "accountCancel": "Hủy",
   "accountAvatar": "Ảnh đại diện",

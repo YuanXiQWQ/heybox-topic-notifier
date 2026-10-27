@@ -1,4 +1,4 @@
-/** @file 验证通知 Service Worker 的账号检查与安全跳转。 */
+/** @file 验证通知开关的初始化反馈、失败重试、权限请求和 Service Worker 的账号隔离。 */
 import { runInNewContext } from "node:vm";
 import { assertEquals } from "./test_helpers.ts";
 
@@ -15,6 +15,8 @@ class NotificationControl {
     unavailable: "unavailable",
     denied: "denied",
     failed: "failed",
+    loading: "loading",
+    unconfigured: "unconfigured",
   };
   listener?: (event: { stopPropagation(): void }) => Promise<void>;
   /**
@@ -37,6 +39,7 @@ Deno.test("browser notification switch reflects server state and preserves state
     .replace("void initializeApplicationNotifications();", "");
   const toggle = new NotificationControl();
   const status = new NotificationControl();
+  const retry = new NotificationControl();
   let saveAllowed = false;
   let saves = 0;
   const subscription = {
@@ -63,13 +66,21 @@ Deno.test("browser notification switch reflects server state and preserves state
     },
     document: {
       querySelector: (selector: string) =>
-        selector === "[data-app-notifications-status]" ? status : toggle,
+        selector === "[data-app-notifications-status]"
+          ? status
+          : selector === "[data-app-notifications-retry]"
+          ? retry
+          : toggle,
     },
     crypto,
     TextEncoder,
     Uint8Array,
     btoa,
     atob,
+    AbortController,
+    AbortSignal,
+    setTimeout,
+    clearTimeout,
     fetch: (url: string, init?: RequestInit) => {
       if (init?.method === "POST") {
         saves++;
@@ -107,6 +118,217 @@ Deno.test("browser notification switch reflects server state and preserves state
   assertEquals(toggle.checked, false);
   assertEquals(status.textContent, "denied");
   assertEquals(saves, 2);
+});
+
+/**
+ * 提供独立的浏览器通知环境，记录权限、订阅和提交；初始化超时由测试显式触发。
+ * @param {Record<string, unknown>} overrides 替换的浏览器能力或原生桥。
+ * @return {Promise<object>} 可操控的页面控件、环境与初始化入口。
+ */
+async function notificationFixture(overrides: Record<string, unknown> = {}) {
+  const source = (await Deno.readTextFile(
+    new URL("../static/app-notifications.js", import.meta.url),
+  )).replace("void initializeApplicationNotifications();", "");
+  const toggle = new NotificationControl();
+  const status = new NotificationControl();
+  const retry = new NotificationControl();
+  const calls = { permissions: 0, subscriptions: 0, saves: 0, reads: 0 };
+  const timers = new Set<() => void>();
+  const config = { publicKey: "AQID", userId: "alice", enabled: false };
+  const subscription = {
+    endpoint: "https://fcm.googleapis.com/push/test",
+    toJSON: () => ({ endpoint: "test" }),
+  };
+  const registration = {
+    pushManager: {
+      getSubscription: () => Promise.resolve(null),
+      subscribe: () => {
+        calls.subscriptions++;
+        return Promise.resolve(subscription);
+      },
+    },
+  };
+  const scope = {
+    HTMLInputElement: NotificationControl,
+    HTMLElement: NotificationControl,
+    isSecureContext: true,
+    PushManager: {},
+    Notification: {
+      permission: "default",
+      requestPermission: () => {
+        calls.permissions++;
+        return Promise.resolve("granted");
+      },
+    },
+    navigator: {
+      serviceWorker: {
+        register: () => Promise.resolve(registration),
+        ready: Promise.resolve(registration),
+      },
+    },
+    document: {
+      querySelector: (selector: string) =>
+        selector === "[data-app-notifications-status]"
+          ? status
+          : selector === "[data-app-notifications-retry]"
+          ? retry
+          : toggle,
+      addEventListener() {},
+    },
+    fetch: (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") calls.saves++;
+      else calls.reads++;
+      return Promise.resolve(Response.json(config));
+    },
+    crypto,
+    TextEncoder,
+    Uint8Array,
+    btoa,
+    atob,
+    AbortController,
+    AbortSignal,
+    setTimeout: (callback: () => void) => {
+      timers.add(callback);
+      return callback;
+    },
+    clearTimeout: (callback: () => void) => timers.delete(callback),
+    ...overrides,
+  };
+  const initialize = runInNewContext(
+    source + "\ninitializeApplicationNotifications",
+    scope,
+  );
+  return {
+    toggle,
+    status,
+    retry,
+    calls,
+    config,
+    registration,
+    scope,
+    timers,
+    initialize,
+  };
+}
+
+Deno.test("missing push configuration is visible and retry restores a working switch without prompting", async () => {
+  const f = await notificationFixture();
+  f.config.publicKey = "";
+  await f.initialize();
+  assertEquals(f.status.textContent, "unconfigured");
+  assertEquals(f.status.hidden, false);
+  assertEquals(f.toggle.disabled, true);
+  assertEquals(f.retry.hidden, false);
+  assertEquals(f.calls.permissions, 0);
+  f.config.publicKey = "AQID";
+  await f.retry.listener!({ stopPropagation() {} });
+  assertEquals(f.toggle.disabled, false);
+  assertEquals(f.retry.hidden, true);
+  assertEquals(f.status.hidden, true);
+  assertEquals(f.calls.permissions, 0);
+  f.toggle.checked = true;
+  const change = f.toggle.listener!({ stopPropagation() {} });
+  // 权限调用必须发生在点击事件同步阶段，不能排在初始化网络等待之后。
+  assertEquals(f.calls.permissions, 1);
+  await change;
+  assertEquals(f.calls.subscriptions, 1);
+  assertEquals(f.calls.saves, 1);
+  assertEquals(f.toggle.checked, true);
+  assertEquals(f.toggle.disabled, false);
+  assertEquals(f.status.hidden, true);
+  assertEquals(f.timers.size, 0);
+});
+
+Deno.test("unsupported browsers show a visible explanation without offering an ineffective retry", async () => {
+  for (
+    const overrides of [
+      { isSecureContext: false },
+      { navigator: {} },
+    ]
+  ) {
+    const f = await notificationFixture(overrides);
+    await f.initialize();
+    assertEquals(f.status.textContent, "unsupported");
+    assertEquals(f.status.hidden, false);
+    assertEquals(f.toggle.disabled, true);
+    assertEquals(f.retry.hidden, true);
+    assertEquals(f.calls.reads, 0);
+  }
+});
+
+Deno.test("configuration requests and service worker failures remain visible and retryable", async () => {
+  for (const failure of ["network", "http", "registration"]) {
+    const f = await notificationFixture();
+    const fetcher = f.scope.fetch;
+    const register = f.scope.navigator.serviceWorker.register;
+    if (failure === "network") {
+      f.scope.fetch = () => Promise.reject(new Error("offline"));
+    }
+    if (failure === "http") {
+      f.scope.fetch = () =>
+        Promise.resolve(new Response(null, { status: 503 }));
+    }
+    if (failure === "registration") {
+      f.scope.navigator.serviceWorker.register = () =>
+        Promise.reject(new Error("worker"));
+    }
+    await f.initialize();
+    assertEquals(f.status.textContent, "unavailable");
+    assertEquals(f.status.hidden, false);
+    assertEquals(f.retry.hidden, false);
+    f.scope.fetch = fetcher;
+    f.scope.navigator.serviceWorker.register = register;
+    await f.retry.listener!({ stopPropagation() {} });
+    assertEquals(f.toggle.disabled, false);
+    assertEquals(f.status.hidden, true);
+  }
+});
+
+Deno.test("worker activation timeout releases the UI and a late result cannot overwrite retry state", async () => {
+  const f = await notificationFixture();
+  let release!: (value: typeof f.registration) => void;
+  f.scope.navigator.serviceWorker.ready = new Promise((resolve) => {
+    release = resolve;
+  });
+  const initializing = f.initialize();
+  assertEquals(f.status.textContent, "loading");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  for (const timeout of f.timers) timeout();
+  await initializing;
+  assertEquals(f.status.textContent, "unavailable");
+  assertEquals(f.retry.hidden, false);
+  f.config.publicKey = "";
+  await f.retry.listener!({ stopPropagation() {} });
+  release(f.registration);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assertEquals(f.status.textContent, "unconfigured");
+  assertEquals(f.toggle.disabled, true);
+  assertEquals(f.calls.permissions, 0);
+  assertEquals(f.timers.size, 0);
+});
+
+Deno.test("native initialization failure can retry through the native bridge without browser push", async () => {
+  const ready = Promise.reject(new Error("bridge"));
+  void ready.catch(() => {});
+  const f = await notificationFixture({
+    applicationNativeReady: ready,
+    appNative: {
+      info: () =>
+        Promise.resolve({ notifications: { enabled: false, supported: true } }),
+      notifications: (enabled: boolean) =>
+        Promise.resolve({ notifications: { enabled, supported: true } }),
+    },
+  });
+  await f.initialize();
+  assertEquals(f.status.textContent, "unavailable");
+  assertEquals(f.retry.hidden, false);
+  await f.retry.listener!({ stopPropagation() {} });
+  assertEquals(f.toggle.disabled, false);
+  f.toggle.checked = true;
+  await f.toggle.listener!({ stopPropagation() {} });
+  assertEquals(f.toggle.checked, true);
+  assertEquals(f.calls.reads, 0);
+  assertEquals(f.calls.permissions, 0);
 });
 
 Deno.test("push worker suppresses notifications for a different logged-in account", async () => {

@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "กำลังเตรียมการแจ้งเตือน…",
+  "applicationNotificationsRetry": "ลองอีกครั้ง",
+  "applicationNotificationsUnconfigured": "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่าการแจ้งเตือนแบบพุชของเบราว์เซอร์ โปรดขอให้ผู้ดูแลระบบตั้งค่า",
   "appName": "ตัวแจ้งเตือนหัวข้อ Heybox",
   "accountCancel": "ยกเลิก",
   "accountConfirmPassword": "ยืนยันรหัสผ่านใหม่",

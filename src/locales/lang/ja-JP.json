@@ -1,4 +1,7 @@
 {
+  "applicationNotificationsLoading": "通知を準備しています…",
+  "applicationNotificationsRetry": "再試行",
+  "applicationNotificationsUnconfigured": "サーバーにブラウザーのプッシュ通知が設定されていません。管理者に設定を依頼してください。",
   "appName": "小黑盒 話題通知",
   "accountCancel": "キャンセル",
   "accountAvatar": "アバター",
