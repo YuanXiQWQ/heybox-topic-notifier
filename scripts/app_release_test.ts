@@ -2,8 +2,10 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { parse, stringify } from "@std/yaml";
 import {
+  ensureRelease,
   githubClient,
   type GitHubRequest,
+  publishRelease,
   type ReleaseAsset,
   releaseAssetNames,
   releaseVersion,
@@ -39,10 +41,45 @@ function harness() {
     { id?: number; name: string; size: number; state: string; digest?: string }
   >();
   const writes: string[] = [];
-  const state = { commit, fail: "", badDigest: false, annotated: false };
+  const state = {
+    commit,
+    fail: "",
+    badDigest: false,
+    annotated: false,
+    exists: true,
+    readStatus: 0,
+  };
   /** @param {string} path API 路径。 @param {RequestInit} init 请求数据。 @return {Promise<unknown>} 虚构 GitHub 响应。 */
   const request: GitHubRequest = (path, init) => {
-    if (path.startsWith("/releases/tags/")) return Promise.resolve(release);
+    if (path === "/releases" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body));
+      assertEquals(body.draft, true);
+      assertEquals(body.target_commitish, commit);
+      state.exists = true;
+      release.draft = true;
+      writes.push("CREATE");
+      return Promise.resolve(release);
+    }
+    if (path === "/releases/42" && init?.method === "PATCH") {
+      assertEquals(remote.size, releaseAssetNames.length);
+      release.draft = false;
+      writes.push("PUBLISH");
+      return Promise.resolve(release);
+    }
+    if (path.startsWith("/releases/tags/") || path === "/releases/42") {
+      if (
+        state.readStatus || !state.exists ||
+        (path.startsWith("/releases/tags/") && release.draft)
+      ) {
+        return Promise.reject(
+          new Error("API failure", { cause: state.readStatus || 404 }),
+        );
+      }
+      return Promise.resolve(release);
+    }
+    if (path.startsWith("/releases?")) {
+      return Promise.resolve(state.exists ? [release] : []);
+    }
     if (path.startsWith("/git/ref/")) {
       return Promise.resolve({
         object: { type: state.annotated ? "tag" : "commit", sha: state.commit },
@@ -84,6 +121,18 @@ function harness() {
     remote,
     writes,
     state,
+    /** @param {number} id 目标发行 ID。 @return {Promise<object>} 已验证的草稿或发行。 */
+    ensure: (id?: number) => ensureRelease(request, "3.8.2", commit, id),
+    /** @param {boolean} publishDraft 是否公开草稿。 @return {Promise<void>} 上传与公开流程完成。 */
+    publish: (publishDraft = true) =>
+      publishRelease({
+        request,
+        tag: "3.8.2",
+        commit,
+        releaseId: 42,
+        assets,
+        openBody: () => Promise.resolve("fixture"),
+      }, publishDraft),
     upload: (files = assets) =>
       uploadRelease({
         request,
@@ -124,6 +173,66 @@ Deno.test("release versions follow existing bare tags and preserve monotonic And
       "1.0.1000",
     ]
   ) assertThrows(() => releaseVersion(tag));
+});
+
+Deno.test("a tag without a release creates a draft and publishes only after all assets", async () => {
+  const context = harness();
+  context.state.exists = false;
+  await context.ensure();
+  assertEquals(context.release.draft, true);
+  assertEquals(context.writes, ["CREATE"]);
+  await context.publish();
+  assertEquals(context.writes, ["CREATE", ...releaseAssetNames, "PUBLISH"]);
+  assertEquals(context.release.draft, false);
+});
+
+Deno.test("release preparation reuses existing drafts without creating duplicates", async () => {
+  const context = harness();
+  context.release.draft = true;
+  await context.ensure();
+  await context.ensure(42);
+  assertEquals(context.writes, []);
+});
+
+Deno.test("release preparation does not create on permission failures, missing event IDs or moved tags", async () => {
+  for (const status of [401, 403, 500]) {
+    const context = harness();
+    context.state.readStatus = status;
+    await assertRejects(() => context.ensure());
+    assertEquals(context.writes, []);
+  }
+  const missing = harness();
+  missing.state.exists = false;
+  await assertRejects(() => missing.ensure(42));
+  assertEquals(missing.writes, []);
+  const moved = harness();
+  moved.state.exists = false;
+  moved.state.commit = "b".repeat(40);
+  await assertRejects(() => moved.ensure());
+  assertEquals(moved.writes, []);
+});
+
+Deno.test("failed uploads stay private and can finish with the original artifacts", async () => {
+  const context = harness();
+  context.release.draft = true;
+  context.state.fail = releaseAssetNames[2];
+  await assertRejects(() => context.publish());
+  assertEquals(context.release.draft, true);
+  assert(!context.writes.includes("PUBLISH"));
+  context.state.fail = "";
+  await context.publish();
+  assertEquals(context.release.draft, false);
+  assertEquals(context.writes.at(-1), "PUBLISH");
+});
+
+Deno.test("upload-only mode preserves draft and repeated published releases are not republished", async () => {
+  const context = harness();
+  context.release.draft = true;
+  await context.publish(false);
+  assertEquals(context.release.draft, true);
+  context.release.draft = false;
+  await context.publish();
+  assertEquals(context.writes, [...releaseAssetNames]);
 });
 
 Deno.test("updater manifest must match the installer version, name, size and digest", () => {
@@ -238,7 +347,7 @@ Deno.test("release workflow pins both build jobs to the validated commit and gat
       new URL("../.github/workflows/app-build.yml", import.meta.url),
     ),
   ) as {
-    on: { release: { types: string[] } };
+    on: { release: { types: string[] }; push: { tags: string[] } };
     permissions: object;
     jobs: Record<
       string,
@@ -250,6 +359,10 @@ Deno.test("release workflow pins both build jobs to the validated commit and gat
     >;
   };
   assertEquals(workflow.on.release.types, ["published"]);
+  assertEquals(workflow.on.push.tags, [
+    "[0-9]*.[0-9]*.[0-9]*",
+    "v[0-9]*.[0-9]*.[0-9]*",
+  ]);
   assertEquals(workflow.permissions, { contents: "read" });
   for (const name of ["windows", "android"]) {
     assert(workflow.jobs[name].needs.includes("check"));
@@ -265,6 +378,11 @@ Deno.test("release workflow pins both build jobs to the validated commit and gat
     "android",
   ]);
   assertEquals(workflow.jobs.publish.permissions, { contents: "write" });
+  assertEquals(workflow.jobs.prepare.permissions, { contents: "write" });
+  assertEquals(
+    workflow.jobs.publish.steps[0].with?.ref,
+    "${{ github.workflow_sha }}",
+  );
 });
 
 Deno.test("release transport keeps credentials on official hosts and handles empty deletion responses", async () => {
@@ -287,6 +405,7 @@ Deno.test("release transport keeps credentials on official hosts and handles emp
     },
   );
   await client("/releases/tags/3.8.2");
+  await client("/releases", { method: "POST", body: "{}" });
   await client("/releases/42/assets?name=fixture", {
     method: "POST",
     body: "fixture",
@@ -294,8 +413,21 @@ Deno.test("release transport keeps credentials on official hosts and handles emp
   assertEquals(await client("/releases/assets/42", { method: "DELETE" }), null);
   assertEquals(visited.map((url) => new URL(url).hostname), [
     "api.github.com",
+    "api.github.com",
     "uploads.github.com",
     "api.github.com",
   ]);
   await assertRejects(() => client("//untrusted.example"), Error, "路径");
+});
+
+Deno.test("GitHub transport retains HTTP status without exposing response contents", async () => {
+  const client = githubClient(
+    "owner/repository",
+    "fixture-token",
+    () => Promise.resolve(new Response("private-response", { status: 404 })),
+  );
+  const error = await assertRejects(() => client("/releases/tags/3.8.2"));
+  assert(error instanceof Error);
+  assertEquals(error.cause, 404);
+  assert(!error.message.includes("private-response"));
 });

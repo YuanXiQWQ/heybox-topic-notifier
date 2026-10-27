@@ -10,7 +10,7 @@ Android 的兼容目标是没有 Google Play／GMS 的设备，不限定品牌�
 
 - Windows：进入 `apps/desktop`，运行 `npm ci`、`npm test`、`npm run dist`。开发运行先执行 `npm run prepare:assets`，再 `npm start`。`HEYBOX_PREVIEW_ORIGIN` 只在未打包开发运行中生效，只允许 HTTPS 或 HTTP 回环地址。
 - Android：安装 JDK 17、Gradle 8.13、Android SDK 36，运行 `node apps/scripts/prepare-assets.mjs --android`，再运行 `gradle -p apps/android testDebugUnitTest lintDebug assembleDebug`。正式构建设置 `APP_VERSION`、递增的 `APP_VERSION_CODE`，以及 `ANDROID_KEYSTORE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个签名变量，运行 `assembleRelease`。Windows 下路径过长时可用临时 `subst` 盘符指向仓库和本地工具链，构建后取消映射，不移动项目。
-- `app-build.yml` 在正式 Release 发布时自动运行，读取标签版本并固定源码提交，执行检查后并行构建 Windows 和 Android；只有两端都成功才上传附件。Windows 默认发布未签名 NSIS 安装包，不需要购买证书或配置 Windows 签名 Secrets；Android 使用本机可自行生成的稳定签名证书。
+- `app-build.yml` 在推送正式版本标签时自动运行，读取标签版本并固定源码提交，执行检查后并行构建 Windows 和 Android；自动创建或复用 Release 草稿，只有两端都成功且全部附件上传后才公开发行。也支持已有 Release 的发布事件。Windows 默认发布未签名 NSIS 安装包，不需要购买证书或配置 Windows 签名 Secrets；Android 使用本机可自行生成的稳定签名证书。
 - `app-check.yml` 在涉及应用、静态资源或原生工作流的 PR 和 `main`、`dev` 推送时自动检查，也可手动运行。不需要发行凭据：Windows 执行主进程测试并构建未签名 NSIS；Android 执行 JVM 测试、Lint 和调试 APK 构建。测试包不上传到 Release。
 - 两条工作流都会对安装产物中的全部静态资源逐文件校验 SHA-256，并核对资源清单；缺少或损坏任何彩蛋资源都会阻止成功。可本地执行 `node apps/scripts/verify-assets.mjs <解包后的 static 目录>` 重现检查。
 
@@ -35,15 +35,15 @@ Android `versionCode` 自动使用 `major × 1,000,000 + minor × 1,000 + patch 
 | Secret | `ANDROID_KEY_PASSWORD` | 签名密钥密码 |
 | Variable（可选） | `HONOR_PUSH_APP_ID` | 荣耀推送公开应用 ID；未设置时不初始化厂商通道 |
 
-上传使用当前任务的 `GITHUB_TOKEN`，仅上传 job 获得 `contents: write`，无需另存个人访问令牌。Android 签名配置缺失、检查失败或任一平台构建失败都会阻止上传；Android 不降级为调试签名。Windows 没有证书不会阻止构建或发布。
+发行使用当前任务的 `GITHUB_TOKEN`，准备草稿与上传 job 获得 `contents: write`，构建 job 保持只读，无需另存个人访问令牌。Android 签名配置缺失、检查失败或任一平台构建失败都会阻止上传和公开草稿；Android 不降级为调试签名。Windows 没有证书不会阻止构建或发布。
 
 本机可运行 `deno run --allow-env --allow-read --allow-write=apps/signing --allow-run scripts/prepare_app_credentials.ts <JDK keytool 路径>`，一次性生成 Android 发行证书及 VAPID 密钥，重跑复用已有凭据。私密文件位于 Git 忽略的 `apps/signing/`，应另行安全备份。`credentials.json` 保存 keystore 密码、别名和 VAPID；Android key 密码与 keystore 密码相同。上传到 Actions 时将 keystore 文件转为 Base64 配置 `ANDROID_KEYSTORE_BASE64`，密码分别填入两个密码 Secret。本地文件生成不等于 GitHub Secrets 或远程部署已经配置。
 
-标签指向的提交必须包含这套工作流与应用源码。发布正式 Release 后等待 Actions 成功，网页下载和客户端更新才具备完整附件；草稿不会触发 `published`，预发行不会进入正式更新通道。使用默认 `GITHUB_TOKEN` 在其它工作流中创建 Release 不会触发这条发布事件，此时应显式调用本工作流的 `workflow_dispatch`，传入 `tag` 和 `upload: true`。[GitHub 触发规则](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
+新版本标签指向的提交必须包含这套工作流与应用源码。推送 `3.9.2` 或 `v3.9.2` 形式的正式标签后，等待 Actions 完成构建、上传和公开 Release，网页下载和客户端更新即可读取完整附件。草稿不会触发 `published`，预发行不会进入正式更新通道；版本解析也拒绝带 beta 等后缀的标签。工作流通过默认 `GITHUB_TOKEN` 公开草稿不会递归触发发布事件。[GitHub 触发规则](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
 
-手动触发仍可用于排错：`tag` 填已有标签，`upload` 关闭时仅生成 Actions 产物，开启时上传到该标签已有的草稿或正式 Release。上传中断后优先重跑失败的上传 job，复用原构建产物；同摘要附件会跳过，空的未完成上传会清理后重试，内容不同的同名附件不会覆盖。
+手动触发可为已有标签补发：选择包含最新发布流程的分支，`tag` 填已有标签（例如 `3.9.1`），开启 `upload` 和 `publish`，便会创建草稿、按该标签的源码构建、上传并公开。`upload` 关闭时仅生成 Actions 产物；关闭 `publish` 可以只上传而保留草稿。已有标签不会因为工作流变更自动重放推送事件，无需删除或移动标签。发行脚本使用所选工作流的提交，两个安装包始终使用标签锁定的源码提交。上传中断后优先重跑失败的上传 job，复用原构建产物；同摘要附件会跳过，空的未完成上传会清理后重试，内容不同的同名附件不会覆盖。
 
-如果仓库启用了不可变 Release，必须先创建草稿，通过手动工作流上传完整附件再发布；已锁定且附件齐全的发布事件会跳过重复构建，缺失附件则明确失败。GitHub 不允许在不可变 Release 发布后追加附件。[GitHub 不可变发行说明](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+如果仓库启用了不可变 Release，标签触发流程会先上传完整附件再公开草稿；也可使用手动工作流执行相同流程。已锁定且附件齐全的发布事件会跳过重复构建，缺失附件则明确失败。GitHub 不允许在不可变 Release 发布后追加附件。[GitHub 不可变发行说明](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
 
 Windows 通过固定 GitHub 仓库的 HTTPS 更新源和 `electron-updater` 校验下载的 SHA-512 摘要，用户确认后下载，重启或退出时安装。不要求 Authenticode 证书；摘要校验验证文件与发行清单一致，不代表受信任的发布者身份认证。未签名安装包可能显示 Windows 安全提示或受设备策略限制。Android 从 GitHub API 读取 APK 的 SHA-256，校验包名、版本号和与已安装应用相同的签名，再交给系统安装器；系统要求的安装授权与确认必须由用户完成。下载失败、取消或仍运行旧版本都不会清除项目版本红点。
 

@@ -141,9 +141,10 @@ export function githubClient(
     if (!path.startsWith("/") || path.startsWith("//")) {
       throw new Error("无效的 GitHub API 路径。");
     }
-    const host = init.method === "POST"
-      ? "uploads.github.com"
-      : "api.github.com";
+    const host =
+      init.method === "POST" && /^\/releases\/\d+\/assets\?/.test(path)
+        ? "uploads.github.com"
+        : "api.github.com";
     const response = await fetcher(
       `https://${host}/repos/${repository}${path}`,
       {
@@ -161,7 +162,9 @@ export function githubClient(
       },
     );
     if (!response.ok) {
-      throw new Error(`GitHub 请求失败（HTTP ${response.status}）。`);
+      throw new Error(`GitHub 请求失败（HTTP ${response.status}）。`, {
+        cause: response.status,
+      });
     }
     return response.status === 204 ? null : response.json();
   };
@@ -180,7 +183,9 @@ export async function readRelease(
   id?: number,
 ): Promise<Release> {
   const release = await request(
-    `/releases/tags/${encodeURIComponent(tag)}`,
+    id === undefined
+      ? `/releases/tags/${encodeURIComponent(tag)}`
+      : `/releases/${id}`,
   ) as Release;
   if (
     !Number.isSafeInteger(release.id) || release.id <= 0 ||
@@ -188,6 +193,58 @@ export async function readRelease(
     (id !== undefined && release.id !== id)
   ) throw new Error("Release 身份或正式发行状态不匹配。");
   return release;
+}
+
+/**
+ * 复用目标发行，仅在标签没有 Release 时创建草稿，供完整附件上传后公开。
+ * @param {GitHubRequest} request 官方 API。
+ * @param {string} tag 已验证的正式版本标签。
+ * @param {string} commit 标签对应的构建提交。
+ * @param {number | undefined} id 事件指定的发行 ID。
+ * @return {Promise<Release>} 已验证的发行或草稿。
+ */
+export async function ensureRelease(
+  request: GitHubRequest,
+  tag: string,
+  commit: string,
+  id?: number,
+): Promise<Release> {
+  releaseVersion(tag);
+  if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error("构建提交无效。");
+  await verifyTag(request, tag, commit);
+  try {
+    return await readRelease(request, tag, id);
+  } catch (error) {
+    if (id !== undefined || !(error instanceof Error) || error.cause !== 404) {
+      throw error;
+    }
+  }
+  // 标签接口只保证返回已公开发行；草稿通过有写入权限的发行列表查找。
+  for (let page = 1;; page++) {
+    if (page > 100) throw new Error("发行列表超出检查上限，拒绝创建重复草稿。");
+    const batch = await request(
+      `/releases?per_page=100&page=${page}`,
+    ) as Release[];
+    const existing = batch.find((release) => release.tag_name === tag);
+    if (existing) return await readRelease(request, tag, existing.id);
+    if (batch.length < 100) break;
+  }
+  const created = await request("/releases", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      tag_name: tag,
+      target_commitish: commit,
+      name: tag,
+      draft: true,
+      prerelease: false,
+      generate_release_notes: true,
+    }),
+  }) as Release;
+  if (!Number.isSafeInteger(created.id) || created.id <= 0) {
+    throw new Error("GitHub 未确认草稿创建。");
+  }
+  return await readRelease(request, tag, created.id);
 }
 
 /**
@@ -297,6 +354,31 @@ export async function uploadRelease(
   }
 }
 
+/**
+ * 上传完整附件后按需公开草稿；任何上传失败都会保留草稿状态。
+ * @param {Parameters<typeof uploadRelease>[0]} options 发行身份和构建产物。
+ * @param {boolean} publishDraft 是否在完整上传后公开草稿。
+ * @return {Promise<void>} 附件上传及请求的公开操作完成。
+ */
+export async function publishRelease(
+  options: Parameters<typeof uploadRelease>[0],
+  publishDraft: boolean,
+): Promise<void> {
+  await uploadRelease(options);
+  if (!publishDraft) return;
+  const { request, tag, commit, releaseId } = options;
+  await verifyTag(request, tag, commit);
+  const release = await readRelease(request, tag, releaseId);
+  if (!release.draft) return;
+  await request(`/releases/${releaseId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ draft: false }),
+  });
+  const published = await readRelease(request, tag, releaseId);
+  if (published.draft) throw new Error("GitHub 未确认 Release 已公开。");
+}
+
 /** 执行 Actions 阶段；测试导入时不读取环境或访问网络。 @return {Promise<void>} 阶段完成。 */
 async function main(): Promise<void> {
   const version = releaseVersion(Deno.env.get("RELEASE_TAG") ?? "");
@@ -319,9 +401,10 @@ async function main(): Promise<void> {
         Deno.env.get("GH_TOKEN") ?? "",
       );
       const expected = Deno.env.get("RELEASE_ID");
-      const release = await readRelease(
+      const release = await ensureRelease(
         request,
         version.tag,
+        commit,
         expected ? Number(expected) : undefined,
       );
       if (release.immutable) {
@@ -363,7 +446,7 @@ async function main(): Promise<void> {
       console.log(`已验证 ${assets.length} 个发行附件及 Windows 更新清单。`);
       return;
     }
-    await uploadRelease({
+    await publishRelease({
       request: githubClient(
         Deno.env.get("GITHUB_REPOSITORY") ?? "",
         Deno.env.get("GH_TOKEN") ?? "",
@@ -372,8 +455,9 @@ async function main(): Promise<void> {
       commit: Deno.env.get("RELEASE_COMMIT") ?? "",
       releaseId: Number(Deno.env.get("RELEASE_ID")),
       assets,
-      openBody: async (asset) => (await Deno.open(asset.path)).readable,
-    });
+      // GitHub 附件接口要求确定的 Content-Length；Deno 对流式请求使用分块传输。
+      openBody: (asset) => Deno.readFile(asset.path),
+    }, Deno.env.get("PUBLISH_DRAFT") === "true");
   } else throw new Error("阶段必须是 prepare、verify 或 publish。");
 }
 
