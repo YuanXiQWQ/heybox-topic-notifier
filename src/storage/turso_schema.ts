@@ -6,10 +6,29 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 4;
+export const TURSO_SCHEMA_VERSION = 5;
 
 /**
- * 首版 Turso schema 迁移语句。
+ * 为仪表盘数据表创建版本更新触发器；版本与业务写入处于同一事务。
+ *
+ * @param {string} table 受监控的内部表名。
+ * @return {string[]} 插入、更新和删除触发器语句。
+ */
+function dashboardVersionTriggers(table: string): string[] {
+  return ["INSERT", "UPDATE", "DELETE"].map((operation) => {
+    const row = operation === "DELETE" ? "OLD" : "NEW";
+    return `CREATE TRIGGER IF NOT EXISTS ${table}_dashboard_${operation.toLowerCase()}
+      AFTER ${operation} ON ${table}
+      BEGIN
+        INSERT INTO dashboard_versions (user_id, version)
+          VALUES (${row}.user_id, lower(hex(randomblob(16))))
+          ON CONFLICT(user_id) DO UPDATE SET version = excluded.version;
+      END`;
+  });
+}
+
+/**
+ * 当前 Turso schema 的可重复执行迁移语句。
  *
  * 业务对象保留 JSON 原文以兼容当前 TypeScript 数据结构，同时将查询、唯一性和
  * TTL 所需字段提升为关系列，避免把原有 KV prefix scan 原样搬到 SQL。
@@ -56,6 +75,15 @@ export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
   "DROP INDEX IF EXISTS matches_user_pending_idx",
   `CREATE INDEX matches_user_pending_idx
     ON matches (user_id, completed_at, post_published_at DESC, matched_at DESC, id ASC)`,
+  `CREATE INDEX IF NOT EXISTS matches_user_post_idx
+    ON matches (user_id, json_extract(value_json, '$.post.id'))`,
+  `CREATE TABLE IF NOT EXISTS dashboard_versions (
+    user_id TEXT PRIMARY KEY,
+    version TEXT NOT NULL
+  )`,
+  ...dashboardVersionTriggers("matches"),
+  ...dashboardVersionTriggers("user_settings"),
+  ...dashboardVersionTriggers("app_states"),
   `CREATE TABLE IF NOT EXISTS password_credentials (
     user_id TEXT PRIMARY KEY,
     updated_at TEXT NOT NULL,

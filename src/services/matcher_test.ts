@@ -133,7 +133,9 @@ Deno.test("findMatch supports negative lookahead regex rules", async () => {
     throw new Error(`Expected lookahead/title, got ${JSON.stringify(matched)}`);
   }
   if (excluded !== undefined) {
-    throw new Error(`Expected excluded text not to match, got ${JSON.stringify(excluded)}`);
+    throw new Error(
+      `Expected excluded text not to match, got ${JSON.stringify(excluded)}`,
+    );
   }
 });
 
@@ -145,7 +147,9 @@ Deno.test("findMatch supports backreferences", async () => {
   }, [{ keyword, locations: ["title"], useRegex: true }]);
 
   if (match?.keyword !== keyword) {
-    throw new Error(`Expected backreference match, got ${JSON.stringify(match)}`);
+    throw new Error(
+      `Expected backreference match, got ${JSON.stringify(match)}`,
+    );
   }
 });
 
@@ -160,7 +164,9 @@ Deno.test("findMatch times out catastrophic regex and continues", async () => {
   ]);
 
   if (match?.keyword !== "safe" || match.location !== "title") {
-    throw new Error(`Expected safe/title after timeout, got ${JSON.stringify(match)}`);
+    throw new Error(
+      `Expected safe/title after timeout, got ${JSON.stringify(match)}`,
+    );
   }
 });
 
@@ -187,9 +193,88 @@ Deno.test("findMatch can match comments independently", async () => {
 });
 
 Deno.test("findMatch returns undefined when nothing matches", async () => {
-  const match = await createMatcher().findMatch(basePost, settings.commonKeywordRules);
+  const match = await createMatcher().findMatch(
+    basePost,
+    settings.commonKeywordRules,
+  );
 
   if (match !== undefined) {
     throw new Error(`Expected undefined, got ${JSON.stringify(match)}`);
+  }
+});
+
+Deno.test("matching session reuses one worker for many posts and concurrent callers", async () => {
+  let workers = 0;
+  const matcher = createMatcher({
+    createWorker: (url) => {
+      workers++;
+      return new Worker(url, { type: "module" });
+    },
+  });
+  const session = matcher.createSession();
+  try {
+    const rules = [
+      {
+        keyword: "not-present",
+        locations: ["title", "body", "comments", "replies"] as const,
+        useRegex: true,
+      },
+      { keyword: "^普通", locations: ["title"] as const, useRegex: true },
+    ].map((rule) => ({ ...rule, locations: [...rule.locations] }));
+    const matches = await Promise.all(
+      Array.from({ length: 20 }, () => session.findMatch(basePost, rules)),
+    );
+    if (workers !== 1 || matches.some((match) => match?.keyword !== "^普通")) {
+      throw new Error(
+        `Expected one worker and 20 ordered matches, got ${workers}`,
+      );
+    }
+  } finally {
+    session.close();
+  }
+});
+
+Deno.test("matching session replaces a timed-out worker and preserves later regex rules", async () => {
+  let workers = 0;
+  const session = createMatcher({
+    createWorker: (url) => {
+      workers++;
+      return new Worker(url, { type: "module" });
+    },
+  }).createSession();
+  try {
+    const result = await session.findMatch({
+      ...basePost,
+      title: `${"a".repeat(20000)}! safe`,
+    }, [
+      { keyword: "^(a+)+$", locations: ["title"], useRegex: true },
+      { keyword: "safe$", locations: ["title"], useRegex: true },
+    ]);
+    if (workers !== 2 || result?.keyword !== "safe$") {
+      throw new Error("Timeout recovery failed");
+    }
+    const next = await session.findMatch(basePost, [{
+      keyword: "^普通",
+      locations: ["title"],
+      useRegex: true,
+    }]);
+    if (workers !== 2 || !next) {
+      throw new Error("Recovered worker was not reused");
+    }
+  } finally {
+    session.close();
+  }
+});
+
+Deno.test("plain matching sessions never start regex workers", async () => {
+  const session = createMatcher({
+    createWorker: () => {
+      throw new Error("Unexpected worker");
+    },
+  }).createSession();
+  try {
+    await session.findMatch(basePost, settings.commonKeywordRules);
+  } finally {
+    session.close();
   }
 });
