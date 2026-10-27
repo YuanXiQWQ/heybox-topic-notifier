@@ -1202,11 +1202,12 @@ function unlockSecretEditor(input) {
 }
 
 /**
- * 在输入框失焦后锁定敏感令牌。
+ * 在编辑完成后锁定敏感令牌；只读遮罩不参与提交，空白编辑保留待保存值。
  *
  * @param {HTMLInputElement} input 敏感令牌展示输入框。
  */
 function lockSecretEditorAfterEdit(input) {
+  if (input.readOnly) return;
   const editor = input.closest('[data-secret-editor]');
   const hiddenInput = editor?.querySelector('[data-secret-hidden-input]');
   if (!(hiddenInput instanceof HTMLInputElement)) {
@@ -1223,7 +1224,6 @@ function lockSecretEditorAfterEdit(input) {
     return;
   }
 
-  hiddenInput.value = '';
   lockSecretDisplay(
       input,
       input.dataset.secretConfigured === 'true'
@@ -1300,11 +1300,13 @@ function normalizedSecretMaskLength(length) {
 }
 
 /**
- * 清除已成功提交的令牌明文。
+ * 仅清除本次已成功提交且未被再次编辑的令牌明文。
+ *
+ * @param {FormData} submitted 本次请求的表单快照。
  */
-function clearSecretSubmissionValues() {
+function clearSecretSubmissionValues(submitted) {
   document.querySelectorAll('[data-secret-hidden-input]').forEach((input) => {
-    if (input instanceof HTMLInputElement) {
+    if (input instanceof HTMLInputElement && input.value === submitted.get(input.name)) {
       input.value = '';
     }
   });
@@ -4709,7 +4711,7 @@ function cancelTransientStatusClear(element) {
 }
 
 /**
- * 初始化设置页下拉面板，整行标题可切换展开状态，面板内容保持独立交互。
+ * 初始化设置页下拉面板，由整行标题按钮切换展开状态。
  *
  * @param {HTMLElement} editor 下拉面板所属编辑器。
  * @param {string} name 下拉面板名称。
@@ -4720,13 +4722,7 @@ function initDropdown(editor, name) {
   panel.hidden = false;
   setDropdownOpen(editor, name, storedDropdownOpen(name), {persist: false});
 
-  editor.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof Element) || panel.contains(target)) return;
-    const control = target.closest(
-        'button, a, input, select, textarea, label, [role="button"], [contenteditable]',
-    );
-    if (control && control !== toggle) return;
+  toggle.addEventListener('click', () => {
     const className = `is-${name.slice(0, -1)}-open`;
     const isOpen = !editor.classList.contains(className);
     setDropdownOpen(editor, name, isOpen, {persist: true});
@@ -5839,7 +5835,7 @@ function scheduleAutoSave() {
 }
 
 /**
- * 立即保存当前设置表单。
+ * 保存当前设置快照；请求期间的新编辑保留并另行保存。
  *
  * @return {Promise<boolean>} 保存成功或无需保存时返回 true，保存失败时返回 false。
  */
@@ -5858,24 +5854,33 @@ async function saveSettingsNow() {
   }
 
   autoSaveController?.abort();
-  autoSaveController = new AbortController();
+  const controller = new AbortController();
+  autoSaveController = controller;
+  const submitted = formDataFromForm(autoSaveForm);
   setAutoSaveStatus('saving');
 
   try {
     const response = await fetch(autoSaveForm.action, {
-      body: formDataFromForm(autoSaveForm),
+      body: submitted,
       headers: csrfRequestHeaders({'x-autosave': '1'}),
       method: autoSaveForm.method || 'post',
-      signal: autoSaveController.signal,
+      signal: controller.signal,
     });
+
+    if (controller !== autoSaveController || controller.signal.aborted) return false;
 
     if (!response.ok) {
       setAutoSaveStatus('error');
       return false;
     }
 
-    clearSecretSubmissionValues();
-    lastSavedSignature = settingsSignature();
+    const changed = settingsSignature() !== signature;
+    clearSecretSubmissionValues(submitted);
+    lastSavedSignature = changed ? signature : settingsSignature();
+    if (changed) {
+      scheduleAutoSave();
+      return true;
+    }
     setAutoSaveStatus('saved');
     if (reloadAfterSave) {
       location.reload();

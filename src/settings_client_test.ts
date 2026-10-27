@@ -1,7 +1,103 @@
 /**
- * @file 本文件验证设置页客户端脚本的独立初始化入口。
+ * @file 验证设置页客户端初始化、密钥编辑和自动保存快照。
  */
 import { assertEquals } from "./test_helpers.ts";
+
+/** 密钥编辑测试使用的输入框替身。 */
+class SecretInputMock {
+  /** 提交字段名称。 */
+  name = "matchingApiKey";
+  /** 输入值。 */
+  value = "";
+  /** 是否为只读遮罩。 */
+  readOnly = false;
+  /** 控件类型。 */
+  type = "password";
+  /** 遮罩元数据。 */
+  dataset: Record<string, string> = {};
+  /** 编辑器内的实际提交控件。 */
+  hidden: SecretInputMock | null = null;
+
+  /**
+   * 提供密钥编辑器的隐藏提交控件。
+   * @return {{querySelector: () => SecretInputMock | null}} 编辑器替身。
+   */
+  closest() {
+    return { querySelector: () => this.hidden };
+  }
+}
+
+Deno.test("secret blur preserves pending keys and never submits the readonly mask", () => {
+  const hidden = new SecretInputMock();
+  const input = new SecretInputMock();
+  input.hidden = hidden;
+  const source = Deno.readTextFileSync(new URL("../static/settings.js", import.meta.url));
+  const client = new Function("document", "HTMLInputElement", "HTMLButtonElement", `${source}
+    return {lockSecretEditorAfterEdit, clearSecretSubmissionValues};
+  `)(
+    { addEventListener() {}, querySelectorAll: () => [hidden] },
+    SecretInputMock,
+    ElementMock,
+  );
+  input.value = "fixture-key";
+  client.lockSecretEditorAfterEdit(input);
+  assertEquals(hidden.value, "fixture-key");
+  assertEquals(input.readOnly, true);
+  client.lockSecretEditorAfterEdit(input);
+  assertEquals(hidden.value, "fixture-key");
+  input.readOnly = false;
+  input.value = "";
+  client.lockSecretEditorAfterEdit(input);
+  assertEquals(hidden.value, "fixture-key");
+  const submitted = new FormData();
+  submitted.set(hidden.name, "earlier-key");
+  client.clearSecretSubmissionValues(submitted);
+  assertEquals(hidden.value, "fixture-key");
+  submitted.set(hidden.name, "fixture-key");
+  client.clearSecretSubmissionValues(submitted);
+  assertEquals(hidden.value, "");
+});
+
+Deno.test("autosave responses preserve newer model and key edits for the next save", async () => {
+  const key = new SecretInputMock();
+  const form = { model: "" };
+  let complete!: (value: Response) => void;
+  let scheduled = 0;
+  const source = Deno.readTextFileSync(new URL("../static/settings.js", import.meta.url));
+  const client = new Function("document", "HTMLInputElement", "fetch", "form", "key", "schedule", `${source}
+    autoSaveForm = autoSaveTopicEditor = autoSaveKeywordEditor = form;
+    pruneIncompleteDraftRows = persistCurrentKeywordRows = setAutoSaveStatus = () => {};
+    csrfRequestHeaders = () => ({});
+    scheduleAutoSave = schedule;
+    formDataFromForm = () => {
+      const data = new FormData();
+      data.set('matchingModel', form.model);
+      data.set(key.name, key.value);
+      return data;
+    };
+    return {saveSettingsNow, saved: () => lastSavedSignature};
+  `)(
+    { addEventListener() {}, querySelectorAll: () => [key] },
+    SecretInputMock,
+    () => new Promise<Response>((resolve) => { complete = resolve; }),
+    form,
+    key,
+    () => { scheduled++; },
+  );
+  const first = client.saveSettingsNow();
+  key.value = "new-fixture-key";
+  form.model = "selected-model";
+  complete(new Response("ok"));
+  await first;
+  assertEquals(key.value, "new-fixture-key");
+  assertEquals(scheduled, 1);
+  assertEquals(client.saved().includes("selected-model"), false);
+  const second = client.saveSettingsNow();
+  complete(new Response("ok"));
+  await second;
+  assertEquals(key.value, "");
+  assertEquals(client.saved().includes("selected-model"), true);
+});
 
 /**
  * 设置页脚本测试使用的最小 HTML 元素替身。
