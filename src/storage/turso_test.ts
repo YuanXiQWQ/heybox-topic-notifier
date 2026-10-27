@@ -20,7 +20,48 @@ import type {
 import { createTursoStorage, type TursoClient } from "./turso.ts";
 import type { Storage } from "./types.ts";
 import { verifyMatchingStore } from "./matching_store_test_helpers.ts";
+import { verifyWebPushStore } from "./web_push_test_helpers.ts";
+import { verifySettingsSync } from "./sync_test_helpers.ts";
+import { verifyNativeCapabilities } from "./native_test_helpers.ts";
+import { initialSettingsSnapshot } from "../sync/settings.ts";
 import { assertEquals, assertStrictEquals } from "../test_helpers.ts";
+
+Deno.test("Turso web push isolates and rebinds browser devices", async () => {
+  await withStorage(async (storage) => await verifyWebPushStore(storage.webPush!));
+});
+
+Deno.test("Turso native events and login handoffs remain isolated and atomic", async () => {
+  await withStorage(verifyNativeCapabilities);
+});
+
+Deno.test("Turso imports sync metadata and projection together and rejects stale backfills", async () => {
+  await withStorage(async (storage, client) => {
+    const importer = createTursoStorage(defaultSettings, { client, writeMode: "kv-import" });
+    const snapshot = initialSettingsSnapshot({ ...defaultSettings, themeColor: "#123456" });
+    snapshot.revision = "migrated";
+    snapshot.sequence = 1;
+    await importer.importKvSync!("imported-sync", "settings", snapshot);
+    const user = storage.forUser("imported-sync");
+    assertEquals((await user.getSettings()).themeColor, "#123456");
+    assertEquals(await user.sync!.readSettings(), snapshot);
+    await assertRejects(() => importer.forUser("imported-sync").saveSettings(defaultSettings));
+    await user.saveSettings({ ...snapshot.settings, themeColor: "#654321" });
+    const live = await user.sync!.readSettings();
+    await assertRejects(() => importer.importKvSync!("imported-sync", "settings", snapshot));
+    assertEquals(await user.sync!.readSettings(), live);
+    assertEquals((await user.getSettings()).themeColor, "#654321");
+    const entry = record("deleted-sync", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z");
+    await importer.importKvSync!("imported-sync", "record", { id: entry.id, status: "deleted", stamp: { editedAt: 1000, counter: 0, deviceId: "phone", operationId: "delete" }, record: entry });
+    await assertRejects(() => importer.forUser("imported-sync").saveMatch(entry));
+    assertEquals(await user.listHistory(), []);
+    await user.sync!.applyRecord(entry.id, "workspace", { editedAt: 2000, counter: 0, deviceId: "phone", operationId: "restore" });
+    assertEquals((await user.listPendingMatches()).map((item) => item.id), [entry.id]);
+  });
+});
+
+Deno.test("Turso settings sync resolves offline edits atomically by edit time", async () => {
+  await withStorage(async (storage) => await verifySettingsSync(storage));
+});
 
 Deno.test("Turso matching cache persists, isolates leases and bounds pending storage", async () => {
   await withStorage(async (storage, client) => {

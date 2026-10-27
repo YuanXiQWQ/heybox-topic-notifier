@@ -185,10 +185,10 @@ function createSessionToken(): string {
 /**
  * 计算会话令牌哈希。
  *
- * @param token 会话令牌。
- * @return Base64URL 编码的令牌哈希。
+ * @param {string} token 会话令牌。
+ * @return {Promise<string>} Base64URL 编码的令牌哈希。
  */
-async function sessionTokenHash(token: string): Promise<string> {
+export async function sessionTokenHash(token: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(token),

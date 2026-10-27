@@ -8,3 +8,12 @@ coverage/
 .idea/
 临时文件/
 reset_password.ts
+apps/desktop/node_modules/
+apps/desktop/dist/
+apps/generated/
+apps/android/.gradle/
+apps/android/**/build/
+apps/android/local.properties
+apps/signing/
+*.jks
+*.keystore

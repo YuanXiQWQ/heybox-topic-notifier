@@ -19,6 +19,7 @@ type PollStorage = Pick<
   | "markMatchNotified"
   | "saveMatch"
   | "setLastPollAt"
+  | "userId"
 >;
 
 /**
@@ -26,7 +27,17 @@ type PollStorage = Pick<
  */
 export const postDetailRefreshIntervalMs = 6 * 60 * 60 * 1000;
 
-type PollNotifier = Pick<ReturnType<typeof createNotifier>, "sendMatches">;
+/** 支持按账号选择应用通知设备的通知器契约。 */
+type PollNotifier = {
+  /**
+   * 发送新命中，并使用所属账号选择应用通知设备。
+   * @param {MatchRecord[]} records 新命中。
+   * @param {AppSettings} settings 用户设置。
+   * @param {string | undefined} userId 账号 ID。
+   * @return {ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>} 投递结果。
+   */
+  sendMatches(records: MatchRecord[], settings: AppSettings, userId?: string): ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>;
+};
 
 type PollerDependencies = {
   ai?: ReturnType<typeof createAiMatcher>;
@@ -183,8 +194,15 @@ export function createPoller(
   };
 }
 
+/**
+ * 保存新命中并交给该账号的通知通道。
+ * @param {PollStorage} storage 用户存储。
+ * @param {PollNotifier} notifier 通知器。
+ * @param {MatchRecord[]} records 新命中。
+ * @param {AppSettings} settings 用户配置。
+ */
 async function saveAndNotifyMatches(
-  storage: Pick<PollStorage, "markMatchNotified" | "saveMatch">,
+  storage: PollStorage,
   notifier: PollNotifier,
   records: MatchRecord[],
   settings: AppSettings,
@@ -203,8 +221,15 @@ async function saveMatchRecord(
   await storage.saveMatch(record);
 }
 
+/**
+ * 向所属账号发送新命中，并记录至少一个通道受理通知的时间。
+ * @param {Pick<PollStorage, "markMatchNotified" | "userId">} storage 用户存储。
+ * @param {PollNotifier} notifier 通知器。
+ * @param {MatchRecord[]} records 新命中。
+ * @param {AppSettings} settings 通知设置。
+ */
 async function notifyMatchedRecords(
-  storage: Pick<PollStorage, "markMatchNotified">,
+  storage: Pick<PollStorage, "markMatchNotified" | "userId">,
   notifier: PollNotifier,
   records: MatchRecord[],
   settings: AppSettings,
@@ -213,7 +238,7 @@ async function notifyMatchedRecords(
     return;
   }
 
-  const result = await notifier.sendMatches(records, settings);
+  const result = await notifier.sendMatches(records, settings, storage.userId);
   const notifiedAt = new Date().toISOString();
 
   for (const record of records) {

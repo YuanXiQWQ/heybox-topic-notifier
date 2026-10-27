@@ -90,6 +90,29 @@ turns on the "enable polling" setting on its settings page.
 
 ## Notification Relay
 
+### Browser notifications
+
+The application notification switch controls the current browser independently of
+the email/Webhook selector. HTTPS and `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`,
+and `WEB_PUSH_SUBJECT` (for example, `mailto:admin@example.com`) are required.
+Run `deno task notifications:keys` once in a trusted terminal and store the private
+key in deployment environment variables. This does not configure native Honor push.
+
+Keep the VAPID key pair stable. After rotation, enable browser notifications again.
+Subscriptions are bound to the account and login session; logout, revocation, and
+expiry stop delivery. Enable notifications again after signing in as needed.
+Disabling notifications also suppresses queued messages. Push service acceptance
+does not prove display on the device; browser policy, permissions, and network
+reachability still apply. Failed deliveries currently have no persistent retry
+queue. Verify background reception in target browsers before relying on it.
+
+The About page uses `APP_VERSION` for the deployed web version, defaulting to `dev`.
+Its download catalog lists only recognized uploaded installers in the official
+latest stable GitHub Release. The catalog alone does not provide native installers
+or automatic updates.
+
+### Webhook relay
+
 If Deno Deploy cannot directly access PushPlus, WxPusher, or ServerChan, you can deploy the free
 Cloudflare Worker relays first. The repository's `workers/notification-relay.js` provides fixed
 `/pushplus`, `/wxpusher`, and `/serverchan` forwarding endpoints and authenticates requests with

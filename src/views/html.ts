@@ -218,12 +218,16 @@ export function renderLayout(options: {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    ${renderEasterEggJsonData("application-messages", Object.fromEntries(Object.entries(messages).filter(([name]) => name.startsWith("update") || name === "checkUpdate")))}
+    <script src="/static/app-native.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20261026-settings-header-key">
     <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
+    <script src="/static/app-sync/store.js" defer></script>
+    <script src="/static/app-sync/client.js" defer></script>
     <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
     ${renderLobotomyCorpConfessionAliasesData()}
@@ -232,7 +236,7 @@ export function renderLayout(options: {
     <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>
     ${renderMatchTableRowLinkStyle()}
   </head>
-  <body>
+  <body data-app-user-id="${escapeHtml(options.account?.id ?? "")}">
     <header class="topbar">
       <a class="brand" href="/">${escapeHtml(messages.appName)}</a>
       <nav class="primary-nav" aria-label="Primary">
@@ -245,7 +249,7 @@ export function renderLayout(options: {
   }</button>
         </form>
         <form class="nav-item" method="get" action="/settings">
-          <button class="nav-link-button" type="submit">${
+          <button class="nav-link-button" type="submit" data-app-settings-link>${
     renderNavItem(
       settingsIcon("nav-icon", "nav.settings"),
       messages.navSettings,

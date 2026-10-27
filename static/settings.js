@@ -5839,7 +5839,52 @@ function scheduleAutoSave() {
  *
  * @return {Promise<boolean>} 保存成功或无需保存时返回 true，保存失败时返回 false。
  */
-async function saveSettingsNow() {
+function saveSettingsNow() {
+  if (settingsSaveTask) return settingsSaveTask.then(() => saveSettingsNow());
+  const pending = persistSettingsNow().finally(() => { if (settingsSaveTask === pending) settingsSaveTask = undefined; });
+  settingsSaveTask = pending;
+  return pending;
+}
+
+/**
+ * 等待保存期间新增的编辑也持久化，供页面导航和应用退出复用。
+ * @return {Promise<boolean>} 当前表单全部编辑均已保存。
+ */
+async function flushSettingsEdits() {
+  do {
+    if (!await saveSettingsNow()) return false;
+  } while (autoSaveForm && autoSaveTopicEditor && autoSaveKeywordEditor && settingsSignature() !== lastSavedSignature);
+  return true;
+}
+
+/** 导航请求序号使较早的保存完成回调不会覆盖用户最后点击的页面。 */
+let settingsNavigationRevision = 0;
+
+/**
+ * 内部页面跳转前保存防抖窗口中的设置，落盘失败时保留当前编辑页。
+ * @param {MouseEvent} event 页面链接点击。
+ * @return {Promise<void>} 保存完成并进入目标页，或保留当前页。
+ */
+async function guardSettingsNavigation(event) {
+  if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+  if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+  const target = new URL(link.href, location.href);
+  if (target.origin !== location.origin || (target.pathname === location.pathname && target.search === location.search)) return;
+  if (!settingsSaveTask && settingsSignature() === lastSavedSignature) return;
+  event.preventDefault();
+  const revision = ++settingsNavigationRevision;
+  if (await flushSettingsEdits() && revision === settingsNavigationRevision) location.assign(target.href);
+}
+
+/** 设置按本机提交顺序保存，防止并发快照使用过期基线重新修改未触碰的区域。 */
+let settingsSaveTask;
+
+/**
+ * 将当前表单保存到本地队列或服务端，成功后推进本页编辑基线。
+ * @return {Promise<boolean>} 本次快照是否已可靠保存。
+ */
+async function persistSettingsNow() {
   if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor) {
     return true;
   }
@@ -5860,7 +5905,9 @@ async function saveSettingsNow() {
   setAutoSaveStatus('saving');
 
   try {
-    const response = await fetch(autoSaveForm.action, {
+    const response = globalThis.applicationSync
+      ? await globalThis.applicationSync.submitSettings(submitted, lastSavedSignature)
+      : await fetch(autoSaveForm.action, {
       body: submitted,
       headers: csrfRequestHeaders({'x-autosave': '1'}),
       method: autoSaveForm.method || 'post',
@@ -5881,8 +5928,8 @@ async function saveSettingsNow() {
       scheduleAutoSave();
       return true;
     }
-    setAutoSaveStatus('saved');
-    if (reloadAfterSave) {
+    setAutoSaveStatus(response.headers.get('x-app-local') === '1' ? 'pending' : 'saved');
+    if (reloadAfterSave && response.headers.get('x-app-local') !== '1') {
       location.reload();
     }
     return true;
@@ -5895,6 +5942,14 @@ async function saveSettingsNow() {
     return false;
   }
 }
+
+/** 同步完成后清除本地待同步状态，语言切换在服务端接受后刷新。 */
+document.addEventListener('application-sync-complete', () => {
+  if (autoSaveForm && settingsSignature() === lastSavedSignature) {
+    setAutoSaveStatus('saved');
+    if (reloadAfterSave) location.reload();
+  }
+});
 
 /**
  * 发送测试通知并更新发送状态。
@@ -7308,3 +7363,4 @@ function initMatchingSettings() {
 }
 
 document.addEventListener('DOMContentLoaded', initSettingsEditors);
+document.addEventListener('click', (event) => { void guardSettingsNavigation(event).catch(() => setAutoSaveStatus('error')); });

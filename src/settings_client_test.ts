@@ -99,6 +99,36 @@ Deno.test("autosave responses preserve newer model and key edits for the next sa
   assertEquals(client.saved().includes("selected-model"), true);
 });
 
+Deno.test("overlapping offline saves advance the edit baseline in durable order", async () => {
+  const key = new SecretInputMock();
+  const form = { model: "first" };
+  const calls: Array<{ body: FormData; base: string }> = [];
+  let complete!: (value: Response) => void;
+  const source = Deno.readTextFileSync(new URL("../static/settings.js", import.meta.url));
+  const client = new Function("document", "HTMLInputElement", "globalThis", "form", `${source}
+    autoSaveForm = autoSaveTopicEditor = autoSaveKeywordEditor = form;
+    pruneIncompleteDraftRows = persistCurrentKeywordRows = setAutoSaveStatus = scheduleAutoSave = () => {};
+    formDataFromForm = () => { const value = new FormData(); value.set('matchingModel', form.model); return value; };
+    return {saveSettingsNow};
+  `)(
+    { addEventListener() {}, querySelectorAll: () => [key] }, SecretInputMock,
+    { applicationSync: { submitSettings: (body: FormData, base: string) => {
+      calls.push({ body, base });
+      if (calls.length === 1) return new Promise<Response>((resolve) => { complete = resolve; });
+      return Promise.resolve(new Response(null, { status: 202, headers: { "x-app-local": "1" } }));
+    } } }, form,
+  );
+  const first = client.saveSettingsNow();
+  form.model = "second";
+  const second = client.saveSettingsNow();
+  assertEquals(calls.length, 1);
+  complete(new Response(null, { status: 202, headers: { "x-app-local": "1" } }));
+  await Promise.all([first, second]);
+  assertEquals(calls.length, 2);
+  assertEquals(new URLSearchParams(calls[1].base).get("matchingModel"), "first");
+  assertEquals(calls[1].body.get("matchingModel"), "second");
+});
+
 /**
  * 设置页脚本测试使用的最小 HTML 元素替身。
  */

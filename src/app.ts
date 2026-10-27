@@ -28,6 +28,8 @@ import { createSecurityHeadersMiddleware } from "./security/headers.ts";
 import { createAppContext } from "./services/app_context.ts";
 import type { PollingContext } from "./services/polling_context.ts";
 import { renderNotFound } from "./views/not_found.ts";
+import { createWebPushRoutes } from "./web_push_routes.ts";
+import { createNativeAuthRoutes } from "./native_auth_routes.ts";
 
 /**
  * 创建应用实例和运行时上下文。
@@ -55,6 +57,19 @@ export function createApplication(pollingContext?: PollingContext) {
   };
 
   app.use("*", createSecurityHeadersMiddleware());
+  /**
+   * 公开提供无用户数据的离线存储脚本，供 Service Worker 启动时加载。
+   * @return {Promise<Response>} 同源脚本。
+   */
+  app.get("/static/app-sync/store.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-sync/store.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  /**
+   * 向浏览器提供可在登录会话外启动的通知 Service Worker。
+   * @return {Promise<Response>} 禁止长期缓存的脚本。
+   */
+  app.get("/app-sw.js", async () => new Response(
+    await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url)),
+    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache", "service-worker-allowed": "/" } },
+  ));
   app.get("/favicon.ico", () => faviconResponse());
   app.get(
     "/static/fun/coordinator.js",
@@ -127,8 +142,27 @@ export function createApplication(pollingContext?: PollingContext) {
       },
     });
   });
+  app.route("/auth/native", createNativeAuthRoutes(context.storage));
+  /**
+   * 登录页原生入口脚本不包含账号内容，可在认证前读取。
+   * @return {Promise<Response>} 同源登录桥脚本。
+   */
+  app.get("/static/app-native-auth.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native-auth.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
+  /**
+   * 将 HTML 响应的账号标识提供给离线缓存，避免跨账号复用页面。
+   * @param {import("@hono/hono").Context} c 请求上下文。
+   * @param {() => Promise<void>} next 下一个处理器。
+   */
+  app.use("*", async (c, next) => {
+    await next();
+    if (c.res.headers.get("content-type")?.includes("text/html")) {
+      const session = await readAuthSession(c.req.header("cookie"), context.storage);
+      if (session) c.header("x-app-user", session.userId);
+    }
+  });
+  app.route("/api/app-notifications", createWebPushRoutes(context.storage));
   app.route("/", createRoutes(context));
 
   // 未匹配任何路由时给出与普通页面同风格的 404。认证中间件在此之前已把未登录

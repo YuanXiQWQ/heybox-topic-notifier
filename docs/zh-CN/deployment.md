@@ -81,6 +81,25 @@ Deno KV 中，并按用户 ID 隔离。浏览器 Cookie 只保存随机 session 
 
 ## 通知中转
 
+### 浏览器系统通知
+
+设置中的“应用通知”只控制当前浏览器，与“其它通知”的邮件、Webhook 单选相互独立。
+部署必须使用 HTTPS，并配置 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY` 和
+`WEB_PUSH_SUBJECT`（例如 `mailto:admin@example.com`）。在可信终端执行
+`deno task notifications:keys` 生成一次密钥对，将私钥保存在部署环境变量中。
+未配置时开关不可用；此配置不包含荣耀原生推送接入。
+
+同一部署保持 VAPID 密钥稳定。轮换后需要重新开启浏览器通知。订阅绑定账号和登录会话，
+退出、撤销或会话到期后停止投递；重新登录后按需再次开启。关闭开关后，已排队的消息也不会展示。
+浏览器推送服务受理不等于设备已显示；系统权限、浏览器策略及推送服务的网络可达性都会影响接收。
+当前失败投递只记录状态，不提供持久重试队列。真实后台接收仍需在目标浏览器验证。
+
+“关于项目”的网页版本由 `APP_VERSION` 指定，未配置显示 `dev`。安装目录读取官方
+GitHub 最新正式 Release，仅展示已上传的约定安装附件；无附件时显示尚未发布，
+不能把它视为已具备 Windows/Android 安装包或自动更新能力。
+
+### Webhook 中转
+
 如果 Deno Deploy 不能直接访问 PushPlus、WxPusher 或 Server酱，可以先部署免费的 Cloudflare Worker
 中转。仓库中的 `workers/notification-relay.js` 固定提供 `/pushplus`、`/wxpusher` 和 `/serverchan`
 三个转发入口，并使用 `Authorization: Bearer <token>` 鉴权；完整步骤见 [worker.md](worker.md)。

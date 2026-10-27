@@ -2,6 +2,11 @@
  * @file 本文件定义与具体数据库实现无关的应用存储契约。
  */
 import type { MatchingStore } from "./matching_types.ts";
+import type { WebPushStore } from "./web_push_types.ts";
+import type { UserSyncStore } from "./sync_types.ts";
+import type { NativeNotificationStore } from "./native_notifications.ts";
+import type { NativeLoginStore } from "./native_login.ts";
+import type { NativePushStore } from "./native_push_types.ts";
 import type {
   AppSettings,
   AppState,
@@ -65,6 +70,12 @@ export type PollScheduleEntry = {
  * 指定用户作用域下的数据存储契约。
  */
 export type UserStorage = {
+  /** 可在应用恢复联网后继续消费的通知收件箱。 */
+  nativeNotifications?: NativeNotificationStore;
+  /** 区域版本和业务数据在同一事务内保存的同步接口。 */
+  sync?: UserSyncStore;
+  /** 该存储的账号标识，用于隔离应用通知接收设备。 */
+  userId?: string;
   /** 用户隔离的判定缓存；迁移期以权威数据库中的缓存为准。 */
   matching?: MatchingStore;
   /**
@@ -168,6 +179,12 @@ export type UserStorage = {
  * 应用完整数据存储契约。
  */
 export type Storage = UserStorage & {
+  /** 无 GMS 厂商推送设备，由当前账号会话约束。 */
+  nativePush?: NativePushStore;
+  /** 系统浏览器授权后由原生应用单次兑换的 PKCE 登录交接。 */
+  nativeLogin?: NativeLoginStore;
+  /** 浏览器设备订阅；只有权威存储参与实际投递。 */
+  webPush?: WebPushStore;
   /**
    * 批量获取调度信息，避免逐账号往返查询。
    *

@@ -1,0 +1,2 @@
+/** 固定 Android 构建插件版本，保证发行包可重复构建。 */
+plugins { id 'com.android.application' version '8.13.2' apply false }
