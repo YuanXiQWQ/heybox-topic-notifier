@@ -455,7 +455,8 @@ async function main(): Promise<void> {
       commit: Deno.env.get("RELEASE_COMMIT") ?? "",
       releaseId: Number(Deno.env.get("RELEASE_ID")),
       assets,
-      openBody: async (asset) => (await Deno.open(asset.path)).readable,
+      // GitHub 附件接口要求确定的 Content-Length；Deno 对流式请求使用分块传输。
+      openBody: (asset) => Deno.readFile(asset.path),
     }, Deno.env.get("PUBLISH_DRAFT") === "true");
   } else throw new Error("阶段必须是 prepare、verify 或 publish。");
 }
