@@ -7,7 +7,7 @@
    * @return {Promise<IDBDatabase>} 数据库连接。
    */
   function open() {
-    database ??= new Promise((resolve, reject) => {
+    database = database ?? new Promise((resolve, reject) => {
       const request = indexedDB.open("heybox-app-local", 1);
       request.onupgradeneeded = () => {
         const db = request.result;

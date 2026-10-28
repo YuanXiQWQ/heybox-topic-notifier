@@ -26,6 +26,36 @@ Deno.test("cached scripts survive service failures without hiding missing resour
   assertEquals(saved, "online-resource");
 });
 
+Deno.test("worker navigation fetches online pages without AbortSignal.timeout", async () => {
+  const timers: { callback: () => void; delay: number }[] = [];
+  const requests: AbortSignal[] = [];
+  const api = runInNewContext(
+    await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url)) + "\n({applicationPage})",
+    {
+      URL, Request, Response, Headers, AbortController,
+      AbortSignal: {},
+      setTimeout(callback: () => void, delay: number) { timers.push({ callback, delay }); },
+      self: { addEventListener() {}, AppLocalStore: {
+        readState: () => Promise.resolve(undefined),
+        writeState: () => Promise.resolve(),
+        pending: () => Promise.resolve([]),
+      } },
+      fetch(input: string | Request, options?: RequestInit) {
+        requests.push(input instanceof Request ? input.signal : options!.signal as AbortSignal);
+        return Promise.resolve(input === "/api/sync/session"
+          ? Response.json({ userId: "alice" })
+          : new Response("online-workspace"));
+      },
+    },
+  );
+  const response = await api.applicationPage(new Request("https://example.com/"));
+  assertEquals(await response.text(), "online-workspace");
+  assertEquals(timers.map((timer) => timer.delay), [5000, 10000]);
+  assertEquals(requests.every((signal) => !signal.aborted), true);
+  timers.forEach((timer) => timer.callback());
+  assertEquals(requests.every((signal) => signal.aborted), true);
+});
+
 Deno.test("local sync queue encrypts snapshots and atomically survives reloads", async () => {
   const source = await Deno.readTextFile(
     new URL("../static/app-sync/store.js", import.meta.url),

@@ -750,8 +750,9 @@ function renderLastPollScript(
         );
       }
 
+      /** @param {string} template 文案模板。 @param {object} values 模板变量。 @return {string} 替换变量后的文案。 */
       function formatTemplate(template, values) {
-        return template.replaceAll(/\\{(\\w+)\\}/g, (placeholder, key) =>
+        return template.replace(/\\{(\\w+)\\}/g, (placeholder, key) =>
           values[key] === undefined ? placeholder : String(values[key])
         );
       }
@@ -761,11 +762,12 @@ function renderLastPollScript(
           formatInChina(right, { year: "numeric" }, locale);
       }
 
+      /** @param {Date} date 日期。 @param {object} options 格式选项。 @param {string} locale 语言。 @return {string} 中国时区日期文本。 */
       function formatInChina(date, options, locale) {
         return new Intl.DateTimeFormat(locale, {
           timeZone: "Asia/Shanghai",
           ...options,
-        }).format(date).replaceAll("/", "-");
+        }).format(date).split("/").join("-");
       }
     })();
   </script>`;

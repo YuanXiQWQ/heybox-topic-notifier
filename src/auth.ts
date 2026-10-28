@@ -3873,6 +3873,7 @@ function renderAuthPage(options: {
   }</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
+    <script src="/static/app-compat.js" defer></script>
     <script src="/static/theme-compat.js" defer></script>
     <script src="/static/tooltip.js" defer></script>
     ${
@@ -3911,7 +3912,7 @@ function renderAuthPage(options: {
         display: none;
       }
 
-      .auth-google-method {
+      .auth-google-method[hidden] {
         display: none;
       }
 
@@ -4732,6 +4733,7 @@ function renderMfaPage(options: {
     <title>${escapeHtml(options.messages.authMfaTitle)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
+    <script src="/static/app-compat.js" defer></script>
     <script src="/static/theme-compat.js" defer></script>
     <script src="/static/tooltip.js" defer></script>
     <style>
@@ -5784,8 +5786,9 @@ function assertionCredentialToJson(credential) {
   };
 }
 
+/** @param {string} value Base64URL 编码。 @return {ArrayBuffer} 凭据原始字节。 */
 function base64UrlToArrayBuffer(value) {
-  const normalized = String(value).replaceAll("-", "+").replaceAll("_", "/");
+  const normalized = String(value).split("-").join("+").split("_").join("/");
   const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, "=");
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
@@ -5799,11 +5802,12 @@ function optionalArrayBufferToBase64Url(value) {
   return value instanceof ArrayBuffer ? arrayBufferToBase64Url(value) : undefined;
 }
 
+/** @param {ArrayBuffer} value 凭据原始字节。 @return {string} 不带填充的 Base64URL 编码。 */
 function arrayBufferToBase64Url(value) {
   const bytes = new Uint8Array(value);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  return btoa(binary).split("+").join("-").split("/").join("_").split("=").join("");
 }
 </script>`
     : "";

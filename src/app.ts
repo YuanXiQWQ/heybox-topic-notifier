@@ -57,6 +57,11 @@ export function createApplication(pollingContext?: PollingContext) {
   };
 
   app.use("*", createSecurityHeadersMiddleware());
+  /** @return {Promise<Response>} 应用页面在认证前可加载的兼容脚本。 */
+  app.get("/static/app-compat.js", async () => new Response(
+    await Deno.readTextFile(new URL("../static/app-compat.js", import.meta.url)),
+    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } },
+  ));
   /**
    * 公开提供无用户数据的离线存储脚本，供 Service Worker 启动时加载。
    * @return {Promise<Response>} 同源脚本。
