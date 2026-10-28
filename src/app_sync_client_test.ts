@@ -3,6 +3,29 @@ import { runInNewContext } from "node:vm";
 import { IDBFactory } from "fake-indexeddb";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 
+Deno.test("cached scripts survive service failures without hiding missing resources", async () => {
+  const source = await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url));
+  let status = 503;
+  let saved = "cached-script";
+  const api = runInNewContext(source + "\n({applicationResource})", {
+    URL, Request, Response, Headers,
+    self: { addEventListener() {} },
+    fetch: () => Promise.resolve(new Response("online-resource", { status })),
+    caches: { open: () => Promise.resolve({
+      match: () => Promise.resolve(new Response(saved)),
+      put: async (_request: Request, response: Response) => { saved = await response.text(); },
+    }) },
+  });
+  const request = new Request("https://example.com/static/settings.js?v=1");
+  assertEquals(await (await api.applicationResource(request)).text(), "cached-script");
+  assertEquals(saved, "cached-script");
+  status = 404;
+  assertEquals((await api.applicationResource(request)).status, 404);
+  status = 200;
+  assertEquals(await (await api.applicationResource(request)).text(), "online-resource");
+  assertEquals(saved, "online-resource");
+});
+
 Deno.test("local sync queue encrypts snapshots and atomically survives reloads", async () => {
   const source = await Deno.readTextFile(
     new URL("../static/app-sync/store.js", import.meta.url),

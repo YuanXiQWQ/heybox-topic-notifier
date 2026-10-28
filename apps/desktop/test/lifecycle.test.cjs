@@ -139,6 +139,37 @@ function harness() {
   };
 }
 
+test("a rolled-back release cannot auto-install again or hide its update warning", async () => {
+  const context = harness();
+  context.device.value.autoUpdate = true;
+  context.device.value.failedUpdateVersion = "1.1.0";
+  context.api.installUpdater();
+  context.updaterEvents.get("update-available")({version:"1.1.0"});
+  assert.equal(context.updater.autoDownload, false);
+  assert.equal(context.updater.autoInstallOnAppQuit, false);
+  assert.equal(context.api.info().update.status, "error");
+  assert.equal(context.api.info().update.silent, false);
+  assert.equal(context.api.info().update.prompt, true);
+  await context.api.setPreferences({autoUpdate:true});
+  assert.equal(context.downloads(), 0);
+  context.updaterEvents.get("update-available")({version:"1.2.0"});
+  assert.equal(context.updater.autoDownload, true);
+  assert.equal(context.updater.autoInstallOnAppQuit, true);
+});
+
+test("explicit retry re-enables download after a rollback without changing the auto-update preference", async () => {
+  const context = harness();
+  context.device.value.autoUpdate = false;
+  context.device.value.failedUpdateVersion = "1.1.0";
+  context.api.installUpdater();
+  context.updaterEvents.get("update-available")({version:"1.1.0"});
+  await context.handlers.get("app:download-update")(context.event);
+  assert.equal(context.device.value.failedUpdateVersion, undefined);
+  assert.equal(context.device.value.autoUpdate, false);
+  assert.equal(context.downloads(), 1);
+  assert.equal(context.updater.autoInstallOnAppQuit, true);
+});
+
 test("native update markers clear independently and reject subframes", async () => {
   const context = harness();
   assert.throws(() =>

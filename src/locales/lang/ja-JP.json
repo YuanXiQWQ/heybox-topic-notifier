@@ -419,6 +419,5 @@
   "desktopResetWindow": "ウィンドウサイズ",
   "desktopResetWindowAction": "既定のサイズに戻す",
   "desktopAutoUpdate": "自動更新",
-  "desktopAutoUpdateHint": "バックグラウンドでダウンロードし、終了時にインストールします。",
   "applicationBadge": "アプリアイコンのバッジ"
 }

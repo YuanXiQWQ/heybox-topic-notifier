@@ -419,6 +419,5 @@
   "desktopResetWindow": "Window size",
   "desktopResetWindowAction": "Restore default size",
   "desktopAutoUpdate": "Automatic updates",
-  "desktopAutoUpdateHint": "Download in the background and install when you quit.",
   "applicationBadge": "App icon badge"
 }

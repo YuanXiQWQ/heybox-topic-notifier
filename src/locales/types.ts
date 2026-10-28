@@ -353,7 +353,6 @@ export type Messages = {
   desktopResetWindow: string;
   desktopResetWindowAction: string;
   desktopAutoUpdate: string;
-  desktopAutoUpdateHint: string;
   applicationBadge: string;
   checkUpdate: string;
   updateAvailable: string;

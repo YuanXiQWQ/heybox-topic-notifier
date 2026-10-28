@@ -52,7 +52,7 @@ async function handleApplicationMessage(event) {
 }
 
 /**
- * 优先获取最新公共资源，网络失败时读取已缓存版本。
+ * 优先获取最新公共资源，网络失败或服务暂不可用时读取已缓存版本。
  * @param {Request} request 同源资源请求。
  * @return {Promise<Response>} 在线或已缓存的资源。
  */
@@ -62,6 +62,7 @@ async function applicationResource(request) {
   if (cached && !/\.(?:js|css)(?:\?|$)/.test(request.url)) return rangeResponse(request, cached);
   try {
     const response = await fetch(request);
+    if (response.status >= 500 && cached) return rangeResponse(request, cached);
     if (response.ok && !response.redirected && response.status === 200) await cache.put(request, response.clone());
     return response;
   } catch (error) {

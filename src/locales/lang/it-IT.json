@@ -419,6 +419,5 @@
   "desktopResetWindow": "Dimensioni della finestra",
   "desktopResetWindowAction": "Ripristina dimensioni predefinite",
   "desktopAutoUpdate": "Aggiornamenti automatici",
-  "desktopAutoUpdateHint": "Scarica in background e installa all’uscita.",
   "applicationBadge": "Badge sull’icona dell’app"
 }

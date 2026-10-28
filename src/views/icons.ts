@@ -9,6 +9,7 @@ export type MaterialSymbolName =
   | "add"
   | "alternate_email"
   | "api"
+  | "app_window"
   | "badge"
   | "check"
   | "check_circle"
@@ -58,9 +59,11 @@ export type AuthIconName =
   | "verification-code";
 
 /**
- * Material Symbols Outlined 24px 图标路径。
+ * Material Symbols Outlined 与同规格应用图标的 24px 路径。
  */
 const materialSymbolPaths: Record<MaterialSymbolName, string> = {
+  // 应用窗口采用圆角外框、标题栏和右上角三个窗口控件，与页面图标共用填色和比例。
+  app_window: "M160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800Zm0 80v480h640v-480H160Zm0 100h640v60H160v-60Zm400-80h40v40h-40v-40Zm80 0h40v40h-40v-40Zm80 0h40v40h-40v-40Z",
   info: "M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Z",
   add: "M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z",
   alternate_email:

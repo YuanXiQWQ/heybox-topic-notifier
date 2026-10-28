@@ -2,6 +2,7 @@
  * @file 本文件验证命中记录表格查询、分页和页面渲染行为。
  */
 import { getMessages } from "../locales/index.ts";
+import { runInNewContext } from "node:vm";
 import type { AppSettings, MatchRecord } from "../models.ts";
 import { renderHistory } from "./history.ts";
 import {
@@ -418,6 +419,43 @@ Deno.test("Black Forest matching candidates never depend on configuration change
   }
 });
 
+Deno.test("adaptive pagination renders links with their own Black Forest slots", () => {
+  const html = renderMatchSectionForSlots("/", {
+    ...table([]), pageSize: 10, totalPages: 30, totalRecords: 300,
+  });
+  const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/gu)]
+    .map((match) => match[1]).find((source) => source.includes("__adaptivePaginationInstalled"))!;
+  /** 分页重绘所需的最小元素模型。 */
+  class Element {
+    dataset: Record<string, string> = {};
+    clientWidth = 0;
+    children: Element[] = [];
+    /** @param {Element[]} nodes 渲染生成的分页控件。 */
+    replaceChildren(...nodes: Element[]) { this.children = nodes; }
+  }
+  for (const width of [1600, 250]) {
+    const nav = new Element();
+    nav.clientWidth = width;
+    nav.dataset = { currentPage: "15", totalPages: "30", pageUrlTemplate: "/?page=__PAGE__", lobotomyCorpBlackForestPagePrefix: "dashboard" };
+    runInNewContext(script, {
+      HTMLElement: Element,
+      window: { addEventListener() {} },
+      requestAnimationFrame: (callback: () => void) => callback(),
+      document: {
+        querySelectorAll: () => [nav],
+        createElement: () => new Element(),
+        addEventListener() {},
+      },
+    });
+    const links = nav.children.filter((element) => element.dataset.page);
+    assertEquals(links.length > 0, true);
+    for (const link of links) {
+      assertEquals(link.dataset.lobotomyCorpBlackForestSlot, `dashboard.page.${link.dataset.page}`);
+    }
+    assertEquals(nav.children.length < 30, width < 1600);
+  }
+});
+
 Deno.test("Black Forest pagination slots exist only with their table", () => {
   const populated = {
     ...table([]),
@@ -579,7 +617,7 @@ Deno.test("renderSettings keeps settings row actions compact", () => {
     html,
     `aria-label="${getMessages(settings().locale).testNotify}"`,
   );
-  assertIncludes(
+  assertNotIncludes(
     html,
     `data-tooltip="${getMessages(settings().locale).testNotify}"`,
   );
