@@ -417,5 +417,7 @@
   "desktopCloseQuit": "アプリを終了",
   "desktopLaunchAtLogin": "Windows 起動時に実行",
   "desktopResetWindow": "ウィンドウサイズ",
-  "desktopResetWindowAction": "既定のサイズに戻す"
+  "desktopResetWindowAction": "既定のサイズに戻す",
+  "desktopAutoUpdate": "自動更新",
+  "desktopAutoUpdateHint": "バックグラウンドでダウンロードし、終了時にインストールします。"
 }

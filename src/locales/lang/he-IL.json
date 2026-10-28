@@ -417,5 +417,7 @@
   "desktopCloseQuit": "יציאה מהיישום",
   "desktopLaunchAtLogin": "הפעלה עם Windows",
   "desktopResetWindow": "גודל החלון",
-  "desktopResetWindowAction": "שחזור גודל ברירת המחדל"
+  "desktopResetWindowAction": "שחזור גודל ברירת המחדל",
+  "desktopAutoUpdate": "עדכונים אוטומטיים",
+  "desktopAutoUpdateHint": "הורדה ברקע והתקנה בעת היציאה."
 }

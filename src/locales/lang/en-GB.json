@@ -417,5 +417,7 @@
   "desktopCloseQuit": "Quit application",
   "desktopLaunchAtLogin": "Start with Windows",
   "desktopResetWindow": "Window size",
-  "desktopResetWindowAction": "Restore default size"
+  "desktopResetWindowAction": "Restore default size",
+  "desktopAutoUpdate": "Automatic updates",
+  "desktopAutoUpdateHint": "Download in the background and install when you quit."
 }

@@ -417,5 +417,7 @@
   "desktopCloseQuit": "Uygulamadan çık",
   "desktopLaunchAtLogin": "Windows ile başlat",
   "desktopResetWindow": "Pencere boyutu",
-  "desktopResetWindowAction": "Varsayılan boyuta dön"
+  "desktopResetWindowAction": "Varsayılan boyuta dön",
+  "desktopAutoUpdate": "Otomatik güncellemeler",
+  "desktopAutoUpdateHint": "Arka planda indir ve çıkışta yükle."
 }

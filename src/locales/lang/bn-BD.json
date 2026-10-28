@@ -417,5 +417,7 @@
   "desktopCloseQuit": "অ্যাপ থেকে বের হন",
   "desktopLaunchAtLogin": "Windows-এর সঙ্গে চালু করুন",
   "desktopResetWindow": "উইন্ডোর আকার",
-  "desktopResetWindowAction": "ডিফল্ট আকার ফিরিয়ে আনুন"
+  "desktopResetWindowAction": "ডিফল্ট আকার ফিরিয়ে আনুন",
+  "desktopAutoUpdate": "স্বয়ংক্রিয় আপডেট",
+  "desktopAutoUpdateHint": "পটভূমিতে ডাউনলোড করে বের হওয়ার সময় ইনস্টল করুন।"
 }

@@ -417,5 +417,7 @@
   "desktopCloseQuit": "Keluar dari aplikasi",
   "desktopLaunchAtLogin": "Jalankan saat Windows dimulai",
   "desktopResetWindow": "Ukuran jendela",
-  "desktopResetWindowAction": "Pulihkan ukuran bawaan"
+  "desktopResetWindowAction": "Pulihkan ukuran bawaan",
+  "desktopAutoUpdate": "Pembaruan otomatis",
+  "desktopAutoUpdateHint": "Unduh di latar belakang dan instal saat keluar."
 }

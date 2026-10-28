@@ -417,5 +417,7 @@
   "desktopCloseQuit": "Выйти из приложения",
   "desktopLaunchAtLogin": "Запускать вместе с Windows",
   "desktopResetWindow": "Размер окна",
-  "desktopResetWindowAction": "Восстановить размер по умолчанию"
+  "desktopResetWindowAction": "Восстановить размер по умолчанию",
+  "desktopAutoUpdate": "Автоматические обновления",
+  "desktopAutoUpdateHint": "Загружать в фоне и устанавливать при выходе."
 }

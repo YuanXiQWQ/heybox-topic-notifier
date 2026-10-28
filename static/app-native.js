@@ -173,7 +173,7 @@
     const update = state.update;
     dot("[data-app-settings-link]", update.settingsUnread);
     dot("[data-app-about-link]", update.aboutUnread);
-    dot("[data-app-version]", Boolean(update.version));
+    dot("[data-app-version]", Boolean(update.version && !update.silent));
     const messages = {
       checking: labels.updateChecking,
       current: labels.updateCurrent,

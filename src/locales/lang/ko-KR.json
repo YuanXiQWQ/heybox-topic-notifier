@@ -417,5 +417,7 @@
   "desktopCloseQuit": "앱 종료",
   "desktopLaunchAtLogin": "Windows 시작 시 실행",
   "desktopResetWindow": "창 크기",
-  "desktopResetWindowAction": "기본 크기로 복원"
+  "desktopResetWindowAction": "기본 크기로 복원",
+  "desktopAutoUpdate": "자동 업데이트",
+  "desktopAutoUpdateHint": "백그라운드에서 다운로드하고 종료할 때 설치합니다."
 }

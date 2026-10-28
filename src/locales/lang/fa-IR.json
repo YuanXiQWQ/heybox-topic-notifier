@@ -417,5 +417,7 @@
   "desktopCloseQuit": "خروج از برنامه",
   "desktopLaunchAtLogin": "اجرا هنگام شروع Windows",
   "desktopResetWindow": "اندازهٔ پنجره",
-  "desktopResetWindowAction": "بازیابی اندازهٔ پیش‌فرض"
+  "desktopResetWindowAction": "بازیابی اندازهٔ پیش‌فرض",
+  "desktopAutoUpdate": "به‌روزرسانی خودکار",
+  "desktopAutoUpdateHint": "دریافت در پس‌زمینه و نصب هنگام خروج."
 }

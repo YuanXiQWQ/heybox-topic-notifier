@@ -106,7 +106,7 @@ function harness() {
   };
   const setup = vm.runInNewContext(
     fs.readFileSync(filename, "utf8") +
-      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications,setPreferences,handleWindowClose,resetWindow,installUpdater,installJumpList,handleLaunchAction}; })",
+      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {markCachedUpdate:()=>{installCachedUpdateOnStart=true;},info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications,setPreferences,handleWindowClose,resetWindow,installUpdater,installJumpList,handleLaunchAction}; })",
     context,
   );
   const api = setup(window, device, {
@@ -323,6 +323,29 @@ test("window reset fits the active monitor and taskbar tasks restrict navigation
   assert.equal(context.quitting(), 1);
 });
 
+test("automatic downloads suppress reminders and failures restore manual recovery", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  await context.api.setPreferences({autoUpdate: true});
+  context.updaterEvents.get("update-available")({version: "1.2.0"});
+  assert.equal(context.updater.autoDownload, true);
+  assert.equal(context.api.info().update.silent, true);
+  assert.equal(context.api.info().update.settingsUnread, false);
+  await context.updaterEvents.get("update-downloaded")();
+  assert.equal(context.device.value.autoUpdateReady, "1.2.0");
+  assert.equal(context.installs(), 0);
+  assert.equal(context.updater.autoInstallOnAppQuit, true);
+  await context.api.setPreferences({autoUpdate:false});
+  assert.equal(context.updater.autoInstallOnAppQuit,false);
+  await context.api.setPreferences({autoUpdate:true});
+  context.updaterEvents.get("error")();
+  assert.equal(context.api.info().update.silent, false);
+  assert.equal(context.api.info().update.prompt, true);
+  context.device.save = () => Promise.reject(new Error("disk full"));
+  await context.updaterEvents.get("update-downloaded")();
+  assert.equal(context.api.info().update.status, "error");
+});
+
 
 test("closing uses the chosen action and failed preference writes restore the prior value", async () => {
   const context = harness();
@@ -338,4 +361,21 @@ test("closing uses the chosen action and failed preference writes restore the pr
   context.device.save=()=>Promise.reject(new Error("disk full"));
   await assert.rejects(context.api.setPreferences({closeAction:"minimize"}));
   assert.equal(context.api.info().preferences.closeAction,"quit");
+});
+
+
+test("cached automatic update waits for local writes before restarting on the next launch", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  await context.api.setPreferences({autoUpdate:true});
+  context.api.markCachedUpdate();
+  let release;
+  context.contents.executeJavaScript=()=>new Promise(resolve=>{release=resolve;});
+  context.updaterEvents.get("update-available")({version:"1.2.0"});
+  const downloaded=context.updaterEvents.get("update-downloaded")();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(context.installs(),0);
+  release();
+  await downloaded;
+  assert.equal(context.installs(),1);
 });

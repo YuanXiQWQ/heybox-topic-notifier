@@ -417,5 +417,7 @@
   "desktopCloseQuit": "ایپ سے باہر نکلیں",
   "desktopLaunchAtLogin": "Windows کے ساتھ شروع کریں",
   "desktopResetWindow": "ونڈو کا سائز",
-  "desktopResetWindowAction": "پہلے سے طے شدہ سائز بحال کریں"
+  "desktopResetWindowAction": "پہلے سے طے شدہ سائز بحال کریں",
+  "desktopAutoUpdate": "خودکار اپ ڈیٹس",
+  "desktopAutoUpdateHint": "پس منظر میں ڈاؤن لوڈ کریں اور بند کرتے وقت انسٹال کریں۔"
 }

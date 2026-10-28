@@ -417,5 +417,7 @@
   "desktopCloseQuit": "退出程序",
   "desktopLaunchAtLogin": "开机自启",
   "desktopResetWindow": "窗口大小",
-  "desktopResetWindowAction": "恢复默认大小"
+  "desktopResetWindowAction": "恢复默认大小",
+  "desktopAutoUpdate": "自动更新",
+  "desktopAutoUpdateHint": "在后台下载，正常退出时安装，下次打开使用新版本。"
 }

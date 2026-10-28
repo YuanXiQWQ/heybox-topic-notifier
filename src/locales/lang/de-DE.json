@@ -417,5 +417,7 @@
   "desktopCloseQuit": "Anwendung beenden",
   "desktopLaunchAtLogin": "Mit Windows starten",
   "desktopResetWindow": "Fenstergröße",
-  "desktopResetWindowAction": "Standardgröße wiederherstellen"
+  "desktopResetWindowAction": "Standardgröße wiederherstellen",
+  "desktopAutoUpdate": "Automatische Updates",
+  "desktopAutoUpdateHint": "Im Hintergrund herunterladen und beim Beenden installieren."
 }

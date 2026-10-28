@@ -48,6 +48,10 @@ let preparingExit;
 /** 通知轮询与更新检查各自合并并发触发。 */
 let polling;
 let checking;
+/** 启动前已完整下载的自动更新，只在再次启动并校验缓存后安装。 */
+let installCachedUpdateOnStart = false;
+/** 用户主动下载的更新可在退出时安装，不受后续自动下载偏好影响。 */
+let manualUpdateDownload = false;
 /** 设备开关变更序号使旧的开启请求不能覆盖较新的关闭操作。 */
 let notificationRevision = 0;
 /** 当前会话展示的通知，退出登录时撤回。 */
@@ -99,12 +103,15 @@ async function prepareExit() {
  */
 async function start() {
   device = await deviceState(app.getPath("userData"), safeStorage);
+  installCachedUpdateOnStart = device.value.autoUpdate === true &&
+    typeof device.value.autoUpdateReady === "string" && newerVersion(device.value.autoUpdateReady, app.getVersion());
   if (
     device.value.updateVersion &&
     newerVersion(device.value.updateVersion, app.getVersion())
   ) update.version = device.value.updateVersion;
   else {
     delete device.value.updateVersion;
+    delete device.value.autoUpdateReady;
     await device.save();
   }
   webSession = session.fromPartition("persist:heybox-app");
@@ -224,17 +231,24 @@ function installJumpList() {
  */
 async function setPreferences(values) {
   if (!values || typeof values !== "object" || Array.isArray(values) ||
-    Object.keys(values).some((key) => !["closeAction", "launchAtLogin"].includes(key))) throw new Error("Invalid preferences");
+    Object.keys(values).some((key) => !["closeAction", "launchAtLogin", "autoUpdate"].includes(key))) throw new Error("Invalid preferences");
   if ("closeAction" in values && !["minimize", "quit"].includes(values.closeAction)) throw new Error("Invalid close action");
-  for (const key of ["launchAtLogin"]) if (key in values && typeof values[key] !== "boolean") throw new Error("Invalid preference");
+  for (const key of ["launchAtLogin", "autoUpdate"]) if (key in values && typeof values[key] !== "boolean") throw new Error("Invalid preference");
   if ("launchAtLogin" in values) {
     if (!app.isPackaged) throw new Error("Installed application required");
     app.setLoginItemSettings({openAtLogin: values.launchAtLogin, path: app.getPath("exe")});
   }
-  const previous = {closeAction: device.value.closeAction};
+  const previous = {closeAction: device.value.closeAction, autoUpdate: device.value.autoUpdate};
   if ("closeAction" in values) device.value.closeAction = values.closeAction;
+  if ("autoUpdate" in values) device.value.autoUpdate = values.autoUpdate;
   try { await device.save(); }
   catch (error) { Object.assign(device.value, previous); throw error; }
+  autoUpdater.autoDownload = device.value.autoUpdate === true;
+  autoUpdater.autoInstallOnAppQuit = device.value.autoUpdate === true || manualUpdateDownload;
+  if (autoUpdater.autoDownload && update.status === "available") {
+    update.status = "downloading";
+    void autoUpdater.downloadUpdate().catch(() => { update.status = "error"; emitState(); });
+  }
   emitState();
   return info();
 }
@@ -325,6 +339,8 @@ function installBridge() {
     if (update.status !== "available" && update.status !== "error") {
       throw new Error("No update available");
     }
+    manualUpdateDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
     update.status = "downloading";
     emitState();
     try {
@@ -358,12 +374,14 @@ function installBridge() {
  * @return {object} 页面可见状态。
  */
 function info() {
+  const silent = device.value.autoUpdate === true && ["available", "downloading", "downloaded"].includes(update.status);
   return {
     platform: "windows",
     version: app.getVersion(),
     preferences: {
       closeAction: device.value.closeAction === "quit" ? "quit" : "minimize",
       launchAtLogin: app.isPackaged && app.getLoginItemSettings().openAtLogin,
+      autoUpdate: device.value.autoUpdate === true,
     },
     notifications: {
       supported: Notification.isSupported(),
@@ -371,14 +389,15 @@ function info() {
     },
     update: {
       ...update,
+      silent,
       settingsUnread: Boolean(
-        update.version && device.value.updateSeen_settings !== update.version,
+        !silent && update.version && device.value.updateSeen_settings !== update.version,
       ),
       aboutUnread: Boolean(
-        update.version && device.value.updateSeen_about !== update.version,
+        !silent && update.version && device.value.updateSeen_about !== update.version,
       ),
       prompt: Boolean(
-        update.version && device.value.updateSeen_dismissed !== update.version,
+        !silent && update.version && device.value.updateSeen_dismissed !== update.version,
       ),
     },
   };
@@ -603,17 +622,16 @@ function showNotification(notification) {
   });
 }
 /**
- * 连接 Release 更新状态；下载与安装始终等待用户在应用内确认。
+ * 按本设备偏好后台下载，正常退出时安装；自动处理失败时恢复人工提示。
  */
 function installUpdater() {
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoDownload = device.value.autoUpdate === true;
   autoUpdater.allowPrerelease = false;
   autoUpdater.allowDowngrade = false;
   autoUpdater.on("update-available", (release) => {
     update = { status: "available", version: release.version, progress: 0 };
     device.value.updateVersion = release.version;
-    void device.save();
+    void device.save().catch(() => { update.status = "error"; emitState(); });
     emitState();
   });
   autoUpdater.on("update-not-available", () => {
@@ -625,10 +643,24 @@ function installUpdater() {
     update.progress = progress.percent;
     emitState();
   });
-  autoUpdater.on("update-downloaded", () => {
-    update.status = "downloaded";
-    update.progress = 100;
-    emitState();
+  autoUpdater.on("update-downloaded", async () => {
+    try {
+      update.status = "downloaded";
+      update.progress = 100;
+      if (device.value.autoUpdate) device.value.autoUpdateReady = update.version;
+      await device.save();
+      emitState();
+      if (installCachedUpdateOnStart && device.value.autoUpdate) {
+        installCachedUpdateOnStart = false;
+        await prepareExit();
+        quitting = true;
+        autoUpdater.quitAndInstall(true, true);
+      }
+    } catch {
+      quitting = false;
+      update.status = "error";
+      emitState();
+    }
   });
   autoUpdater.on("error", () => {
     update.status = "error";
@@ -664,7 +696,8 @@ function checkUpdate() {
     update.status = "checking";
     emitState();
     try {
-      await autoUpdater.checkForUpdates();
+      const result = await autoUpdater.checkForUpdates();
+      void result?.downloadPromise?.catch(() => { update.status = "error"; emitState(); });
     } catch {
       update.status = "error";
       emitState();

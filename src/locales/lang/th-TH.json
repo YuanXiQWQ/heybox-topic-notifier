@@ -417,5 +417,7 @@
   "desktopCloseQuit": "ออกจากแอป",
   "desktopLaunchAtLogin": "เริ่มพร้อม Windows",
   "desktopResetWindow": "ขนาดหน้าต่าง",
-  "desktopResetWindowAction": "คืนค่าขนาดเริ่มต้น"
+  "desktopResetWindowAction": "คืนค่าขนาดเริ่มต้น",
+  "desktopAutoUpdate": "อัปเดตอัตโนมัติ",
+  "desktopAutoUpdateHint": "ดาวน์โหลดในพื้นหลังและติดตั้งเมื่อออกจากแอป"
 }

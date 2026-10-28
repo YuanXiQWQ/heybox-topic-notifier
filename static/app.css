@@ -3408,3 +3408,5 @@ tr:last-child td{
   width: 16px;
   height: 16px;
 }
+
+.settings-hint{ display: block; margin-block-start: 6px; color: var(--muted); font-size: 14px; }

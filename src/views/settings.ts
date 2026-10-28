@@ -445,6 +445,10 @@ function renderGlobalSettingsSection(
             <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="launchAtLogin" aria-label="${escapeHtml(messages.desktopLaunchAtLogin)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
           <div data-app-device-platform="windows" hidden>
+            ${settingLabel("download", messages.desktopAutoUpdate)}
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="autoUpdate" aria-label="${escapeHtml(messages.desktopAutoUpdate)}"></label><span class="settings-hint">${escapeHtml(messages.desktopAutoUpdateHint)}</span><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+          </div>
+          <div data-app-device-platform="windows" hidden>
             ${settingLabel("numbers", messages.desktopResetWindow)}
             <dd><button type="button" class="text-action-button" data-app-reset-window>${escapeHtml(messages.desktopResetWindowAction)}</button><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
