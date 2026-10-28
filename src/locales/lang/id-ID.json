@@ -410,5 +410,6 @@
   "updateDevelopment": "Versi pengembangan",
   "nativeLoginTitle": "Masuk ke aplikasi: periksa kode pemasangan",
   "nativeLoginApproved": "Berhasil masuk. Kembali ke aplikasi",
-  "applicationNotificationsBackgroundUnavailable": "Notifikasi latar belakang mungkin tertunda; buka aplikasi untuk langsung memeriksa"
+  "applicationNotificationsBackgroundUnavailable": "Notifikasi latar belakang mungkin tertunda; buka aplikasi untuk langsung memeriksa",
+  "notificationTestNoChannels": "Aktifkan setidaknya satu metode notifikasi terlebih dahulu."
 }

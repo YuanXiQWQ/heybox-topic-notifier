@@ -534,6 +534,45 @@ input[readonly]::placeholder{
   order: 1;
 }
 
+.settings-list > .notification-test-drawer{
+  display: block;
+  padding: 0;
+  background: var(--theme-soft-strong);
+  border-block-start: 1px solid var(--theme-border);
+}
+.notification-test-drawer > dd{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+}
+.notification-test-drawer .notification-test-button{
+  grid-column: 1 / -1;
+  grid-row: 1;
+  width: 100%;
+  min-height: 46px;
+  border-radius: 0;
+  font: inherit;
+  text-align: center;
+}
+.notification-test-drawer .inline-action-status{
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  margin-inline: 8px 20px;
+  max-width: 100%;
+  flex-wrap: wrap;
+  white-space: normal;
+  position: relative;
+}
+@media (max-width: 620px){
+  .notification-test-drawer .inline-action-status{
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-block-end: 10px;
+  }
+}
+
 .inline-action-status{
   align-items: center;
   color: var(--muted);

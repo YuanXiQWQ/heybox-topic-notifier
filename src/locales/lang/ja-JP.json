@@ -410,5 +410,6 @@
   "updateDevelopment": "開発版",
   "nativeLoginTitle": "アプリへのログイン：ペアリングコードを確認してください",
   "nativeLoginApproved": "ログインしました。アプリに戻ってください",
-  "applicationNotificationsBackgroundUnavailable": "バックグラウンド通知が遅れる場合があります。アプリを開くとすぐに確認できます"
+  "applicationNotificationsBackgroundUnavailable": "バックグラウンド通知が遅れる場合があります。アプリを開くとすぐに確認できます",
+  "notificationTestNoChannels": "通知方法を少なくとも1つ有効にしてください。"
 }

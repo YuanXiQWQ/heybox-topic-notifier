@@ -410,5 +410,6 @@
   "updateDevelopment": "Entwicklungsversion",
   "nativeLoginTitle": "In der App anmelden: Kopplungscode prüfen",
   "nativeLoginApproved": "Angemeldet. Zur App zurückkehren",
-  "applicationNotificationsBackgroundUnavailable": "Hintergrundbenachrichtigungen können verzögert sein; zum sofortigen Prüfen die App öffnen"
+  "applicationNotificationsBackgroundUnavailable": "Hintergrundbenachrichtigungen können verzögert sein; zum sofortigen Prüfen die App öffnen",
+  "notificationTestNoChannels": "Aktivieren Sie zuerst mindestens eine Benachrichtigungsmethode."
 }

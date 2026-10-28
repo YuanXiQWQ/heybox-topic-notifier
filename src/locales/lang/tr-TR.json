@@ -410,5 +410,6 @@
   "updateDevelopment": "Geliştirme sürümü",
   "nativeLoginTitle": "Uygulamaya giriş: eşleştirme kodunu doğrulayın",
   "nativeLoginApproved": "Giriş yapıldı. Uygulamaya dönün",
-  "applicationNotificationsBackgroundUnavailable": "Arka plan bildirimleri gecikebilir; hemen kontrol etmek için uygulamayı açın"
+  "applicationNotificationsBackgroundUnavailable": "Arka plan bildirimleri gecikebilir; hemen kontrol etmek için uygulamayı açın",
+  "notificationTestNoChannels": "Önce en az bir bildirim yöntemini etkinleştirin."
 }

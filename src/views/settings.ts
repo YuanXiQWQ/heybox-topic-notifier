@@ -3198,67 +3198,6 @@ function renderNotificationSection(settings: AppSettings): string {
     )
   }
                 </select>
-                <button
-                  type="button"
-                  class="settings-row-action-button settings-icon-action-button"
-                  aria-label="${escapeHtml(messages.testNotify)}"
-                  data-tooltip="${escapeHtml(messages.testNotify)}"
-                  data-test-notify-button
-                  data-test-notify-sending="${
-    escapeHtml(messages.testNotifySending)
-  }"
-                  data-test-notify-failed="${
-    escapeHtml(messages.testNotifyFailed)
-  }"
-                  ${
-    settings.notificationProvider === "disabled" ? "hidden" : ""
-  }
-                >${
-    materialSymbolIcon(
-      "notifications",
-      "settings-row-action-icon",
-    )
-  }</button>
-                <span
-                  class="inline-action-status"
-                  data-test-notify-status
-                  role="status"
-                  hidden
-                >
-                  <span data-test-notify-status-text></span>
-                  <a
-                    class="inline-action-link"
-                    data-test-notify-error-link
-                    data-error-app-name="${escapeHtml(messages.appName)}"
-                    data-error-dark-mode="${
-    settings.darkMode ? "true" : "false"
-  }"
-                    data-error-direction="${
-    isRtlLocale(settings.locale) ? "rtl" : "ltr"
-  }"
-                    data-error-locale="${escapeHtml(settings.locale)}"
-                    data-error-nav-dashboard="${
-    escapeHtml(messages.navDashboard)
-  }"
-                    data-error-nav-history="${escapeHtml(messages.navHistory)}"
-                    data-error-nav-settings="${
-    escapeHtml(messages.navSettings)
-  }"
-                    data-error-return-label="${
-    escapeHtml(messages.testNotifyBackToSettings)
-  }"
-                    data-error-summary="${
-    escapeHtml(messages.testNotifyFailed)
-  }"
-                    data-error-theme-color="${escapeHtml(settings.themeColor)}"
-                    data-error-title="${
-    escapeHtml(messages.testNotifyErrorTitle)
-  }"
-                    hidden
-                  >${externalLinkIcon()}${
-    escapeHtml(messages.testNotifyViewError)
-  }</a>
-                </span>
               </div>
             </dd>
           </div>
@@ -3612,6 +3551,61 @@ function renderNotificationSection(settings: AppSettings): string {
               >
             </dd>
           </div>
+          <div class="notification-test-drawer"><dt hidden></dt><dd>
+                <button
+                  type="button"
+                  class="text-action-button notification-test-button"
+                  aria-label="${escapeHtml(messages.testNotify)}"
+                  data-tooltip="${escapeHtml(messages.testNotify)}"
+                  data-test-notify-button
+                  data-test-notify-sending="${
+    escapeHtml(messages.testNotifySending)
+  }"
+                  data-test-notify-failed="${
+    escapeHtml(messages.testNotifyFailed)
+  }"
+                >${escapeHtml(messages.testNotify)}</button>
+                <span
+                  class="inline-action-status"
+                  data-test-notify-status
+                  role="status"
+                  hidden
+                >
+                  <span data-test-notify-status-text></span>
+                  <a
+                    class="inline-action-link"
+                    data-test-notify-error-link
+                    data-error-app-name="${escapeHtml(messages.appName)}"
+                    data-error-dark-mode="${
+    settings.darkMode ? "true" : "false"
+  }"
+                    data-error-direction="${
+    isRtlLocale(settings.locale) ? "rtl" : "ltr"
+  }"
+                    data-error-locale="${escapeHtml(settings.locale)}"
+                    data-error-nav-dashboard="${
+    escapeHtml(messages.navDashboard)
+  }"
+                    data-error-nav-history="${escapeHtml(messages.navHistory)}"
+                    data-error-nav-settings="${
+    escapeHtml(messages.navSettings)
+  }"
+                    data-error-return-label="${
+    escapeHtml(messages.testNotifyBackToSettings)
+  }"
+                    data-error-summary="${
+    escapeHtml(messages.testNotifyFailed)
+  }"
+                    data-error-theme-color="${escapeHtml(settings.themeColor)}"
+                    data-error-title="${
+    escapeHtml(messages.testNotifyErrorTitle)
+  }"
+                    hidden
+                  >${externalLinkIcon()}${
+    escapeHtml(messages.testNotifyViewError)
+  }</a>
+                </span>
+          </dd></div>
         </dl>
       </section>
   `;

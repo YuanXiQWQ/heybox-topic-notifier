@@ -410,5 +410,6 @@
   "updateDevelopment": "Version de développement",
   "nativeLoginTitle": "Connexion à l’application : vérifiez le code",
   "nativeLoginApproved": "Connexion réussie. Retournez à l’application",
-  "applicationNotificationsBackgroundUnavailable": "Les notifications en arrière-plan peuvent être retardées ; ouvrez l’application pour vérifier immédiatement"
+  "applicationNotificationsBackgroundUnavailable": "Les notifications en arrière-plan peuvent être retardées ; ouvrez l’application pour vérifier immédiatement",
+  "notificationTestNoChannels": "Activez d’abord au moins un mode de notification."
 }

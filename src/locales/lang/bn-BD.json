@@ -410,5 +410,6 @@
   "updateDevelopment": "উন্নয়ন সংস্করণ",
   "nativeLoginTitle": "অ্যাপে সাইন ইন: পেয়ারিং কোড যাচাই করুন",
   "nativeLoginApproved": "সাইন ইন সম্পন্ন। অ্যাপে ফিরুন",
-  "applicationNotificationsBackgroundUnavailable": "পটভূমির বিজ্ঞপ্তি দেরিতে আসতে পারে; এখনই দেখতে অ্যাপ খুলুন"
+  "applicationNotificationsBackgroundUnavailable": "পটভূমির বিজ্ঞপ্তি দেরিতে আসতে পারে; এখনই দেখতে অ্যাপ খুলুন",
+  "notificationTestNoChannels": "প্রথমে অন্তত একটি বিজ্ঞপ্তির পদ্ধতি চালু করুন।"
 }

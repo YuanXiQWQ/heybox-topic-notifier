@@ -102,6 +102,9 @@ import {
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
 import { renderAbout } from "./views/about.ts";
+import { sendNotificationTest } from "./services/notification_test.ts";
+import { enqueueNativeNotifications } from "./services/native_notifications.ts";
+import { notifyBrowsers } from "./services/web_push.ts";
 import { projectVersion } from "./project.ts";
 import { parseEditStamp, serverEditStamp } from "./sync/protocol.ts";
 import { settingsEdits } from "./sync/settings.ts";
@@ -2209,10 +2212,27 @@ export function createRoutes(
       return debugRequest.response;
     }
 
-    const { storage } = debugRequest;
+    const { storage, form } = debugRequest;
     const settings = await storage.getSettings();
     try {
-      await context.notifier.sendTest(settings);
+      const channels: Array<() => Promise<unknown>> = [];
+      if (settings.notificationProvider !== "disabled") channels.push(() => context.notifier.sendTest(settings));
+      if (form.get("applicationNotifications") === "true" && storage.userId) {
+        const userId = storage.userId;
+        const record = createRandomTestMatchRecord(settings, 1, "simulation");
+        record.post.title = getMessages(settings.locale).notificationTestTitle;
+        const nativePlatform = ["windows", "android"].includes(String(form.get("applicationPlatform")));
+        channels.push(async () => {
+          const sent = await notifyBrowsers(context.storage, userId, [record], settings, { strict: true });
+          if (!nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
+        });
+        channels.push(async () => {
+          const sent = await enqueueNativeNotifications(context.storage, userId, [record], settings);
+          if (nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
+        });
+      }
+      if (!channels.length) return c.text(getMessages(settings.locale).notificationTestNoChannels, 400);
+      await sendNotificationTest(channels);
       if (c.req.header("x-test-notify") === "1") {
         return c.text(getMessages(settings.locale).testNotifySent);
       }

@@ -410,5 +410,6 @@
   "updateDevelopment": "विकास संस्करण",
   "nativeLoginTitle": "ऐप में साइन इन करें: पेयरिंग कोड जाँचें",
   "nativeLoginApproved": "साइन इन हो गया। ऐप पर लौटें",
-  "applicationNotificationsBackgroundUnavailable": "बैकग्राउंड सूचनाओं में देरी हो सकती है; तुरंत जाँचने के लिए ऐप खोलें"
+  "applicationNotificationsBackgroundUnavailable": "बैकग्राउंड सूचनाओं में देरी हो सकती है; तुरंत जाँचने के लिए ऐप खोलें",
+  "notificationTestNoChannels": "पहले कम से कम एक सूचना तरीका चालू करें।"
 }

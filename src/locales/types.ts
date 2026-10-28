@@ -78,6 +78,7 @@ export function isRtlLocale(locale: Locale): boolean {
  * 应用所有可翻译文案字段的结构。
  */
 export type Messages = {
+  notificationTestNoChannels: string;
   applicationNotifications: string;
   applicationNotificationsUnsupported: string;
   applicationNotificationsUnavailable: string;

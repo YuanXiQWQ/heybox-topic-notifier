@@ -410,5 +410,6 @@
   "updateDevelopment": "ترقیاتی ورژن",
   "nativeLoginTitle": "ایپ میں سائن ان: جوڑا بنانے کا کوڈ چیک کریں",
   "nativeLoginApproved": "سائن ان مکمل۔ ایپ پر واپس جائیں",
-  "applicationNotificationsBackgroundUnavailable": "پس منظر کی اطلاعات میں تاخیر ہو سکتی ہے؛ فوراً جانچنے کے لیے ایپ کھولیں"
+  "applicationNotificationsBackgroundUnavailable": "پس منظر کی اطلاعات میں تاخیر ہو سکتی ہے؛ فوراً جانچنے کے لیے ایپ کھولیں",
+  "notificationTestNoChannels": "پہلے اطلاع کا کم از کم ایک طریقہ فعال کریں۔"
 }

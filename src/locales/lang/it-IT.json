@@ -410,5 +410,6 @@
   "updateDevelopment": "Versione di sviluppo",
   "nativeLoginTitle": "Accedi all’app: verifica il codice",
   "nativeLoginApproved": "Accesso completato. Torna all’app",
-  "applicationNotificationsBackgroundUnavailable": "Le notifiche in background possono arrivare in ritardo; apri l’app per controllare subito"
+  "applicationNotificationsBackgroundUnavailable": "Le notifiche in background possono arrivare in ritardo; apri l’app per controllare subito",
+  "notificationTestNoChannels": "Attiva prima almeno un metodo di notifica."
 }
