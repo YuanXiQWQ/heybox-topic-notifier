@@ -93,6 +93,19 @@ Windows 普通检查与发布 CI 均在构建安装包后运行隔离 NSIS 集�
 
 Android 图标角标使用工作区未确认帖子的去重数量，账号切换立即清空旧计数，网络失败保留同账号最近值。独立的角标开关不启用新命中提醒；常驻低优先级通知承载角标数量，新命中渠道不累加角标。系统桌面决定数字或圆点的呈现，并受系统角标和通知权限控制。离线确认、恢复和删除记录会立即投影到本机角标，按帖子去重；加密快照支持断网重启。联网后使用服务器工作区重新校准，较早网络响应不会覆盖更新的本机操作。
 
+## Android 系统集成检查
+
+`NativeSmokeRunner` 使用真实 Android 前台服务、通知管理器和 Keystore，检查退到桌面后离线轮询存活、帖子去重、离线确认计数、系统通知与角标分离、关闭角标以及结束时的清理。它只接受明确指定的无 GMS、断网、可丢弃的 Android 模拟器和 Debug 包；使用合成会话并清除测试状态，不可用于日常账号或真机。它不证明生产通知送达、厂商锁屏保活、启动器数字展示或系统安装升级通过。
+
+构建 `gradle -p apps/android assembleDebug assembleDebugAndroidTest` 后，在独立 AOSP 模拟器安装两个 APK，授予测试目标通知权限并关闭该模拟器的数据与 Wi-Fi。使用其明确设备序号运行：
+
+```sh
+adb -s emulator-5556 shell am force-stop io.github.yuanxiqwq.heyboxnotifier
+adb -s emulator-5556 shell am instrument -r -w -e isolatedOfflineEmulator true io.github.yuanxiqwq.heyboxnotifier.test/io.github.yuanxiqwq.heyboxnotifier.NativeSmokeRunner
+```
+
+成功要求所有 `PASS` 检查均出现、没有 `error` 或 `cleanupError`，并返回 `INSTRUMENTATION_CODE: -1`。检查后恢复该模拟器原先的网络状态。普通 CI 编译测试 APK；运行系统检查需要独立模拟器，不能把仅编译通过计为系统测试通过。
+
 ## 下载中断与缓存
 
 完整下载会验证摘要；Android 还验证尺寸、包名、版本和已安装应用的签名。重新启动时检查残留缓存，安装前再次校验完整包。无有效检查点的孤立文件、截断包和损坏包会清理；通过摘要验证的下载前缀与完整包保留。强制中断中尚未提交的尾部会截去；清理只涉及应用专属更新缓存。
