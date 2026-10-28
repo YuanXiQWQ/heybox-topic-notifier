@@ -55,6 +55,8 @@ public final class MainActivity extends ComponentActivity {
     private final ExecutorService downloadWorker = Executors.newSingleThreadExecutor();
     /** 通知网络请求独立执行，用户关闭开关不必等待积压消息全部处理完。 */
     private final ExecutorService notificationWorker = Executors.newSingleThreadExecutor();
+    /** 本地角标投影不等待任何网络请求，断网时仍可立即保存。 */
+    private final ExecutorService localWorker = Executors.newSingleThreadExecutor();
     /** 页面事件和原生消息端口必须在主线程访问。 */
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** 当前窗口持有更新回调，进程协调器只保留弱引用。 */
@@ -93,7 +95,9 @@ public final class MainActivity extends ComponentActivity {
             reply = proxy;
             try {
                 JSONObject request = new JSONObject(message.getData());
-                if ("notifications".equals(request.optString("method")) && request.optBoolean("value") && Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                boolean requestsNotifications = "notifications".equals(request.optString("method")) && request.optBoolean("value");
+                boolean requestsBadge = "preferences".equals(request.optString("method")) && request.optJSONObject("value") != null && request.getJSONObject("value").optBoolean("badgeEnabled");
+                if ((requestsNotifications || requestsBadge) && Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     if (pendingPermission != null) { respond(proxy, request.optString("id"), null, "Permission request pending"); return; }
                     pendingPermission = request; permissionReply = proxy; requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 20); return;
                 }
@@ -117,7 +121,7 @@ public final class MainActivity extends ComponentActivity {
             /** @param {WebView} view 当前页面。 @param {String} url 页面地址。 @param {android.graphics.Bitmap} icon 图标。 */
             @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) { reply = null; }
             /** @param {WebView} view 当前页面。 @param {String} url 页面地址。 */
-            @Override public void onPageFinished(WebView view, String url) { CookieManager.getInstance().flush(); emit(); openPendingNotification(); }
+            @Override public void onPageFinished(WebView view, String url) { CookieManager.getInstance().flush(); emit(); openPendingNotification(); if (resumed) NotificationService.maintainFromVisible(MainActivity.this, device); }
         });
         web.setWebChromeClient(new WebChromeClient() {
             /** @param {WebView} view 页面。 @param {ValueCallback<Uri[]>} callback 文件结果。 @param {FileChooserParams} params 选择要求。 @return {boolean} 是否处理。 */
@@ -144,7 +148,7 @@ public final class MainActivity extends ComponentActivity {
         if (saved == null || web.restoreState(saved) == null) web.loadUrl(BuildConfig.APP_ORIGIN + "/");
         consumeIntent(getIntent());
         worker.execute(() -> { HonorPush.register(getApplicationContext(), device); emit(); });
-        worker.execute(() -> { try { updates.restore(); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
+        worker.execute(() -> { try { updates.restore(); if (updates.hasPendingResume()) downloadWorker.execute(() -> { try { updates.download(); } catch (Exception error) { /* 检查点保留，用户可再次继续。 */ } }); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
     }
     /**
      * 分派有限能力请求，网络操作不阻塞网页或彩蛋。
@@ -153,7 +157,7 @@ public final class MainActivity extends ComponentActivity {
      */
     private void dispatch(JavaScriptReplyProxy proxy, JSONObject request) {
         String method = request.optString("method"), id = request.optString("id");
-        ExecutorService executor = method.equals("downloadUpdate") ? downloadWorker : worker;
+        ExecutorService executor = method.equals("downloadUpdate") ? downloadWorker : method.equals("localBadge") ? localWorker : method.equals("refreshBadge") ? notificationWorker : worker;
         executor.execute(() -> {
             try {
                 if (method.equals("login")) { respond(proxy, id, login.start(), null); return; }
@@ -161,7 +165,15 @@ public final class MainActivity extends ComponentActivity {
                     case "info": break;
                     case "background": handler.post(() -> moveTaskToBack(true)); break;
                     case "installUpdate": updates.install(); break;
-                    case "notifications": if (!(request.get("value") instanceof Boolean)) throw new IllegalArgumentException(); notifications.set(request.getBoolean("value")); break;
+                    case "notifications": if (!(request.get("value") instanceof Boolean)) throw new IllegalArgumentException(); notifications.set(request.getBoolean("value")); handler.post(() -> { if (resumed) NotificationService.maintainFromVisible(this, device); }); break;
+                    case "preferences":
+                        JSONObject values = request.getJSONObject("value");
+                        if (values.length() != 1 || !(values.get("badgeEnabled") instanceof Boolean)) throw new IllegalArgumentException("Invalid preference");
+                        device.put("badgeEnabled", values.getBoolean("badgeEnabled"));
+                        handler.post(() -> { if (resumed) NotificationService.maintainFromVisible(this, device); });
+                        NotificationService.publishBadge(); break;
+                    case "refreshBadge": Badges.refresh(device); NotificationService.publishBadge(); break;
+                    case "localBadge": Badges.local(device,request.getJSONObject("value")); NotificationService.publishBadge(); break;
                     case "checkUpdate": updates.check(); break;
                     case "downloadUpdate": updates.download(); break;
                     case "seenUpdate": updates.seen(request.getString("value")); break;
@@ -176,7 +188,7 @@ public final class MainActivity extends ComponentActivity {
      * @return {JSONObject} 页面可见信息。
      * @throws Exception 状态不可用。
      */
-    private JSONObject state() throws Exception { return new JSONObject().put("platform", "android").put("version", BuildConfig.VERSION_NAME).put("notifications", notifications.state()).put("update", updates.state()); }
+    private JSONObject state() throws Exception { return new JSONObject().put("platform", "android").put("version", BuildConfig.VERSION_NAME).put("preferences", new JSONObject().put("badgeEnabled", device.read().optBoolean("badgeEnabled", true))).put("notifications", notifications.state()).put("update", updates.state()); }
     /**
      * 仅向提出请求的页面端口发送结果，跨页面后丢弃回复。
      * @param {JavaScriptReplyProxy} target 页面端口。
@@ -188,11 +200,11 @@ public final class MainActivity extends ComponentActivity {
     /** 广播原生进度，已离开的页面不会收到更新。 */
     private void emit() { handler.post(() -> { if (reply != null) try { reply.postMessage(new JSONObject().put("type", "state").put("value", state()).toString()); } catch (Exception ignored) { /* 页面可在下次加载重新读取状态。 */ } }); }
     /** 恢复界面时补取通知；后台厂商推送与前台补取保持相同事件 ID。 */
-    @Override public void onResume() { super.onResume(); resumed = true; if (updates != null) updates.resume(worker); handler.removeCallbacks(pollTask); handler.post(pollTask); handler.removeCallbacks(updateTask); handler.post(updateTask); }
-    /** 页面暂停后停止前台轮询，后台事件由厂商消息调度。 */
+    @Override public void onResume() { super.onResume(); resumed = true; if (device != null) NotificationService.maintainFromVisible(this, device); if (updates != null) updates.resume(worker); handler.removeCallbacks(pollTask); handler.post(pollTask); handler.removeCallbacks(updateTask); handler.post(updateTask); }
+    /** 页面暂停后停止界面轮询，常驻服务和系统任务继续处理后台事件。 */
     @Override public void onPause() { resumed = false; handler.removeCallbacks(pollTask); handler.removeCallbacks(updateTask); CookieManager.getInstance().flush(); super.onPause(); }
     /** 前台按固定周期补取，网络错误不重置游标。 */
-    private void poll() { if (!resumed || notifications == null) return; if (!pollInFlight) { pollInFlight = true; notificationWorker.execute(() -> { try { notifications.poll(); emit(); } catch (Exception ignored) { /* 网络恢复后重试。 */ } finally { pollInFlight = false; } }); } handler.postDelayed(pollTask, 15000); }
+    private void poll() { if (!resumed || notifications == null) return; if (NotificationService.isRunning()) emit(); if (!pollInFlight && !NotificationService.isRunning()) { pollInFlight = true; notificationWorker.execute(() -> { try { Badges.refresh(device); notifications.poll(); emit(); } catch (Exception ignored) { /* 网络恢复后重试。 */ } finally { pollInFlight = false; } }); } handler.postDelayed(pollTask, 15000); }
     /** 定期检查更新，应用返回前台时也能发现后台期间发布的新版本。 */
     private void checkForUpdates() { if (!resumed || updates == null) return; worker.execute(() -> { try { updates.checkAutomatically(); } catch (Exception ignored) { /* 手动检查可立即重试。 */ } }); handler.postDelayed(updateTask, 6L * 60 * 60 * 1000); }
     /** @param {int} code 权限请求编号。 @param {String[]} permissions 权限名称。 @param {int[]} results 结果。 */
@@ -234,6 +246,6 @@ public final class MainActivity extends ComponentActivity {
         try { if (Arrays.asList("/", "/history").contains(path) && user != null && notifications.owns(user)) navigateSaved(path, user); }
         catch (Exception ignored) { /* 不打开已失效账号的通知。 */ }
     }
-    /** 释放界面任务；已持久化的队列和通知游标继续保留。 */
-    @Override protected void onDestroy() { resumed = false; if (updates != null) updates.detach(this); handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
+    /** 释放界面任务，主动退出时暂停下载并保留检查点、持久化队列和通知游标。 */
+    @Override protected void onDestroy() { resumed = false; if (updates != null) { if (isFinishing()) updates.cancelDownload(); updates.detach(this); } handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); localWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
 }

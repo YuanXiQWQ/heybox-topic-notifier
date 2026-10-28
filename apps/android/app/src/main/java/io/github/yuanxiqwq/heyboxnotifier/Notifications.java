@@ -24,7 +24,7 @@ final class Notifications extends NotificationInbox {
     /** 开关请求序号防止较早的网络响应重新开启已关闭的通知。 */
     private final java.util.concurrent.atomic.AtomicInteger preferenceRevision = new java.util.concurrent.atomic.AtomicInteger();
     /** 应用通知的系统渠道，关闭后不伪装为已授权。 */
-    private static final String CHANNEL = "matches";
+    private static final String CHANNEL = "match-alerts";
     /** @return {String} 当前会话摘要。 @throws Exception 摘要不可用。 */
     static String currentSessionHash() throws Exception { return digest(Http.session()); }
 
@@ -35,7 +35,12 @@ final class Notifications extends NotificationInbox {
      */
     private Notifications(Context activity, DeviceState device) {
         this.application = (android.app.Application) activity.getApplicationContext(); this.device = device; manager = application.getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(new NotificationChannel(CHANNEL, activity.getString(R.string.notification_channel), NotificationManager.IMPORTANCE_DEFAULT));
+        // matches 渠道保留用户已设置的通知重要性，新命中由独立渠道展示，角标由工作区状态渠道提供。
+        NotificationChannel saved = manager.getNotificationChannel("matches");
+        NotificationChannel channel = new NotificationChannel(CHANNEL, activity.getString(R.string.notification_channel), saved == null ? NotificationManager.IMPORTANCE_DEFAULT : saved.getImportance());
+        channel.setShowBadge(false);
+        if (saved != null) { channel.setSound(saved.getSound(), saved.getAudioAttributes()); channel.enableVibration(saved.shouldVibrate()); }
+        manager.createNotificationChannel(channel);
     }
     /**
      * 返回当前设备开关及系统权限状态，并按有效绑定维护系统周期任务。
@@ -48,7 +53,7 @@ final class Notifications extends NotificationInbox {
         boolean current = binding != null && currentSessionHash().equals(binding.optString("session"));
         boolean enabled = allowed && current && binding.optBoolean("enabled");
         NotificationJob.maintain(application, enabled);
-        return new JSONObject().put("supported", true).put("enabled", enabled).put("backgroundPushConfigured", current && binding.optBoolean("honorRegistered"));
+        return new JSONObject().put("supported", true).put("enabled", enabled).put("backgroundPushConfigured", current && (binding.optBoolean("honorRegistered") || NotificationService.isRunning()));
     }
     /**
      * 将设备开关绑定到当前账号会话，首次开启不补发历史通知。

@@ -410,5 +410,15 @@
   "updateDevelopment": "Version de développement",
   "nativeLoginTitle": "Connexion à l’application : vérifiez le code",
   "nativeLoginApproved": "Connexion réussie. Retournez à l’application",
-  "applicationNotificationsBackgroundUnavailable": "Les notifications en arrière-plan peuvent être retardées ; ouvrez l’application pour vérifier immédiatement"
+  "applicationNotificationsBackgroundUnavailable": "Les notifications en arrière-plan peuvent être retardées ; ouvrez l’application pour vérifier immédiatement",
+  "notificationTestNoChannels": "Activez d’abord au moins un mode de notification.",
+  "desktopCloseWindow": "À la fermeture de la fenêtre",
+  "desktopCloseMinimize": "Réduire dans la barre des tâches",
+  "desktopCloseQuit": "Quitter l’application",
+  "desktopLaunchAtLogin": "Démarrer avec Windows",
+  "desktopResetWindow": "Taille de la fenêtre",
+  "desktopResetWindowAction": "Rétablir la taille par défaut",
+  "desktopAutoUpdate": "Mises à jour automatiques",
+  "desktopAutoUpdateHint": "Télécharger en arrière-plan et installer à la fermeture.",
+  "applicationBadge": "Badge de l’icône de l’application"
 }

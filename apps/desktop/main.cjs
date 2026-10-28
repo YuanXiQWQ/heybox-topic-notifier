@@ -12,8 +12,12 @@ const {
   safeStorage,
   session,
   shell,
+  screen,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const { CancellationToken } = require("builder-util-runtime");
+const { repairUpdateCache } = require("./update-cache.cjs");
+const { installResumableDownload, restoreResume } = require("./resumable-download.cjs");
 const { createHash } = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -47,6 +51,15 @@ let preparingExit;
 /** 通知轮询与更新检查各自合并并发触发。 */
 let polling;
 let checking;
+/** 启动前已完整下载的自动更新，只在再次启动并校验缓存后安装。 */
+let installCachedUpdateOnStart = false;
+/** 用户主动下载的更新可在退出时安装，不受后续自动下载偏好影响。 */
+let manualUpdateDownload = false;
+/** 只自动续传用户已确认且仍与官方清单摘要一致的安装包。 */
+let confirmedResumeDigest;
+/** 退出期间不允许开始新下载，正在传输的任务持有可取消令牌。 */
+let stoppingUpdates = false;
+let updateTransfer;
 /** 设备开关变更序号使旧的开启请求不能覆盖较新的关闭操作。 */
 let notificationRevision = 0;
 /** 当前会话展示的通知，退出登录时撤回。 */
@@ -58,7 +71,7 @@ app.setAppUserModelId("io.github.yuanxiqwq.heyboxnotifier");
 app.enableSandbox();
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on("second-instance", () => showWindow());
+  app.on("second-instance", (_event, argv) => handleLaunchAction(argv));
   app.on("before-quit", (event) => {
     if (quitting || !window || window.isDestroyed()) return;
     event.preventDefault();
@@ -80,30 +93,57 @@ else {
 
 /**
  * 等待页面本地事务，保存失败时保持窗口以便用户重试。
- * @return {Promise<void>} 可以退出或安装更新。
+ * @param {boolean} installing 是否必须保留有效安装包。
+ * @return {Promise<void>} 下载已停止且缓存已处理，可以退出或安装更新。
  */
-async function prepareExit() {
-  if (!window || window.isDestroyed() || window.webContents.isDestroyed()) {
-    return;
+async function prepareExit(installing = false) {
+  if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
+    await window.webContents.executeJavaScript("globalThis.applicationSync?.prepareForExit()", true);
   }
-  await window.webContents.executeJavaScript(
-    "globalThis.applicationSync?.prepareForExit()",
-    true,
-  );
+  stoppingUpdates = true;
+  try {
+    await checking;
+    if (updateTransfer) {
+      if (update.status !== "downloaded") updateTransfer.token.cancel();
+      await updateTransfer.promise.catch(() => {});
+    }
+    if (app.isPackaged && !await repairUpdateCache(autoUpdater)) {
+      autoUpdater.autoInstallOnAppQuit = false;
+      delete device.value.autoUpdateReady;
+      await device.save();
+      if (installing) throw new Error("Update cache is incomplete");
+    }
+  } catch (error) {
+    stoppingUpdates = false;
+    update.status = "error";
+    emitState();
+    throw error;
+  }
 }
 
 /**
- * 启动受隔离的应用会话和托盘，不向渲染页面开放 Node 权限。
+ * 启动受隔离的会话与托盘，并在加载页面前自动检查更新。
  * @return {Promise<void>} 初始化完成。
  */
 async function start() {
   device = await deviceState(app.getPath("userData"), safeStorage);
+  installResumableDownload(autoUpdater, () => manualUpdateDownload);
+  try { if (app.isPackaged) {
+    const helper = await autoUpdater.getOrCreateDownloadHelper();
+    const partial = await restoreResume(path.join(helper.cacheDir,"resume"));
+    if (partial?.manual) confirmedResumeDigest = partial.sha512;
+  } } catch { update.status = "error"; }
+  try { if (app.isPackaged && !await repairUpdateCache(autoUpdater)) delete device.value.autoUpdateReady; }
+  catch { delete device.value.autoUpdateReady; update.status = "error"; }
+  installCachedUpdateOnStart = device.value.autoUpdate === true &&
+    typeof device.value.autoUpdateReady === "string" && newerVersion(device.value.autoUpdateReady, app.getVersion());
   if (
     device.value.updateVersion &&
     newerVersion(device.value.updateVersion, app.getVersion())
   ) update.version = device.value.updateVersion;
   else {
     delete device.value.updateVersion;
+    delete device.value.autoUpdateReady;
     await device.save();
   }
   webSession = session.fromPartition("persist:heybox-app");
@@ -137,12 +177,7 @@ async function start() {
     },
   });
   window.removeMenu();
-  window.on("close", (event) => {
-    if (!quitting) {
-      event.preventDefault();
-      window.hide();
-    }
-  });
+  window.on("close", handleWindowClose);
   window.once("ready-to-show", () => window.show());
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (externalUrl(url)) void shell.openExternal(url);
@@ -164,24 +199,18 @@ async function start() {
   tray.setToolTip("小黑盒话题提醒");
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      {
-        label: "打开",
-        click: () => showWindow(),
-      },
-      {
-        label: "检查更新",
-        click: () => {
-          showWindow("/about");
-          void checkUpdate();
-        },
-      },
+      { label: "工作区", click: () => showWindow("/") },
+      { label: "设置", click: () => showWindow("/settings") },
+      { label: "历史", click: () => showWindow("/history") },
       { type: "separator" },
       { label: "退出", click: () => app.quit() },
     ]),
   );
   tray.on("double-click", () => showWindow());
+  installJumpList();
   installBridge();
   installUpdater();
+  void checkUpdate();
   powerMonitor.on("resume", () => {
     void pollNotifications();
     void checkUpdate();
@@ -189,8 +218,85 @@ async function start() {
   setInterval(() => void pollNotifications(), 15000).unref();
   setInterval(() => void checkUpdate(), 6 * 60 * 60 * 1000).unref();
   await window.loadURL(origin + "/").catch(() => {});
+  handleLaunchAction(process.argv);
   void pollNotifications();
-  void checkUpdate();
+}
+
+/**
+ * 根据设备偏好最小化到任务栏或经过保存屏障退出。
+ * @param {Event} event 窗口关闭事件。
+ */
+function handleWindowClose(event) {
+  if (quitting) return;
+  event.preventDefault();
+  if (device.value.closeAction === "quit") app.quit();
+  else window.minimize();
+}
+
+/**
+ * 处理已列入白名单的任务栏启动动作，退出始终经过本地保存屏障。
+ * @param {string[]} argv 操作系统传入的启动参数。
+ */
+function handleLaunchAction(argv = []) {
+  if (argv.includes("--app-quit")) { app.quit(); return; }
+  const route = ["/", "/settings", "/history"].find((path) => argv.includes("--app-open=" + path));
+  void showWindow(route);
+}
+
+/** 为 Windows 任务栏注册工作区、设置、历史及退出动作。 */
+function installJumpList() {
+  if (!app.isPackaged) return;
+  const program = app.getPath("exe");
+  app.setJumpList([{type: "tasks", items: [
+    ...[["工作区", "/"], ["设置", "/settings"], ["历史", "/history"]].map(([title, route]) => ({
+      type: "task", title, description: title, program, args: "--app-open=" + route, iconPath: program, iconIndex: 0,
+    })),
+    {type: "separator"},
+    {type: "task", title: "退出", description: "退出小黑盒话题提醒", program, args: "--app-quit", iconPath: program, iconIndex: 0},
+  ]}]);
+}
+
+/**
+ * 保存设备专属选项，操作系统自启动状态由系统读取，禁止任意键和路径。
+ * @param {object} values 修改的选项。
+ * @return {Promise<object>} 生效后的设备状态。
+ */
+async function setPreferences(values) {
+  if (!values || typeof values !== "object" || Array.isArray(values) ||
+    Object.keys(values).some((key) => !["closeAction", "launchAtLogin", "autoUpdate"].includes(key))) throw new Error("Invalid preferences");
+  if ("closeAction" in values && !["minimize", "quit"].includes(values.closeAction)) throw new Error("Invalid close action");
+  for (const key of ["launchAtLogin", "autoUpdate"]) if (key in values && typeof values[key] !== "boolean") throw new Error("Invalid preference");
+  if ("launchAtLogin" in values) {
+    if (!app.isPackaged) throw new Error("Installed application required");
+    app.setLoginItemSettings({openAtLogin: values.launchAtLogin, path: app.getPath("exe")});
+  }
+  const previous = {closeAction: device.value.closeAction, autoUpdate: device.value.autoUpdate};
+  if ("closeAction" in values) device.value.closeAction = values.closeAction;
+  if ("autoUpdate" in values) device.value.autoUpdate = values.autoUpdate;
+  try { await device.save(); }
+  catch (error) { Object.assign(device.value, previous); throw error; }
+  autoUpdater.autoDownload = device.value.autoUpdate === true;
+  autoUpdater.autoInstallOnAppQuit = device.value.autoUpdate === true || manualUpdateDownload;
+  if (autoUpdater.autoDownload && (update.status === "available" ||
+    (values.autoUpdate === true && previous.autoUpdate !== true && update.status === "downloaded"))) {
+    // 完整包通过下载器重新校验后注册退出安装，与当前开关保持一致。
+    update.status = "downloading";
+    void downloadUpdate().catch(() => { update.status = "error"; emitState(); });
+  }
+  emitState();
+  return info();
+}
+
+/**
+ * 将窗口恢复为默认大小，在较小显示器上限制在可用工作区内。
+ * @return {object} 当前设备状态。
+ */
+function resetWindow() {
+  if (window.isMaximized()) window.unmaximize();
+  const area = screen.getDisplayMatching(window.getBounds()).workAreaSize;
+  window.setSize(Math.min(1200, area.width), Math.min(840, area.height));
+  window.center();
+  return info();
 }
 
 /**
@@ -260,15 +366,19 @@ function installBridge() {
     }),
   );
   handle("app:notifications", setNotifications);
+  handle("app:preferences", setPreferences);
+  handle("app:reset-window", resetWindow);
   handle("app:check-update", checkUpdate);
   handle("app:download-update", async () => {
     if (update.status !== "available" && update.status !== "error") {
       throw new Error("No update available");
     }
+    manualUpdateDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
     update.status = "downloading";
     emitState();
     try {
-      await autoUpdater.downloadUpdate();
+      await downloadUpdate();
     } catch {
       update.status = "error";
       emitState();
@@ -277,7 +387,7 @@ function installBridge() {
   });
   handle("app:install-update", async () => {
     if (update.status !== "downloaded") throw new Error("Update not ready");
-    await prepareExit();
+    await prepareExit(true);
     quitting = true;
     autoUpdater.quitAndInstall(false, true);
   });
@@ -298,23 +408,30 @@ function installBridge() {
  * @return {object} 页面可见状态。
  */
 function info() {
+  const silent = device.value.autoUpdate === true && ["available", "downloading", "downloaded"].includes(update.status);
   return {
     platform: "windows",
     version: app.getVersion(),
+    preferences: {
+      closeAction: device.value.closeAction === "quit" ? "quit" : "minimize",
+      launchAtLogin: app.isPackaged && app.getLoginItemSettings().openAtLogin,
+      autoUpdate: device.value.autoUpdate === true,
+    },
     notifications: {
       supported: Notification.isSupported(),
       enabled: device.value.notifications?.enabled === true,
     },
     update: {
       ...update,
+      silent,
       settingsUnread: Boolean(
-        update.version && device.value.updateSeen_settings !== update.version,
+        !silent && update.version && device.value.updateSeen_settings !== update.version,
       ),
       aboutUnread: Boolean(
-        update.version && device.value.updateSeen_about !== update.version,
+        !silent && update.version && device.value.updateSeen_about !== update.version,
       ),
       prompt: Boolean(
-        update.version && device.value.updateSeen_dismissed !== update.version,
+        !silent && update.version && device.value.updateSeen_dismissed !== update.version,
       ),
     },
   };
@@ -539,17 +656,17 @@ function showNotification(notification) {
   });
 }
 /**
- * 连接 Release 更新状态；下载与安装始终等待用户在应用内确认。
+ * 按本设备偏好后台下载，正常退出时安装；自动处理失败时恢复人工提示。
  */
 function installUpdater() {
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoDownload = device.value.autoUpdate === true;
+  autoUpdater.autoInstallOnAppQuit = device.value.autoUpdate === true || manualUpdateDownload;
   autoUpdater.allowPrerelease = false;
   autoUpdater.allowDowngrade = false;
   autoUpdater.on("update-available", (release) => {
     update = { status: "available", version: release.version, progress: 0 };
     device.value.updateVersion = release.version;
-    void device.save();
+    void device.save().catch(() => { update.status = "error"; emitState(); });
     emitState();
   });
   autoUpdater.on("update-not-available", () => {
@@ -561,12 +678,27 @@ function installUpdater() {
     update.progress = progress.percent;
     emitState();
   });
-  autoUpdater.on("update-downloaded", () => {
-    update.status = "downloaded";
-    update.progress = 100;
-    emitState();
+  autoUpdater.on("update-downloaded", async () => {
+    try {
+      update.status = "downloaded";
+      update.progress = 100;
+      if (device.value.autoUpdate) device.value.autoUpdateReady = update.version;
+      await device.save();
+      emitState();
+      if (installCachedUpdateOnStart && device.value.autoUpdate) {
+        installCachedUpdateOnStart = false;
+        await prepareExit(true);
+        quitting = true;
+        autoUpdater.quitAndInstall(true, true);
+      }
+    } catch {
+      quitting = false;
+      update.status = "error";
+      emitState();
+    }
   });
   autoUpdater.on("error", () => {
+    if (quitting) { quitting = false; stoppingUpdates = false; }
     update.status = "error";
     emitState();
   });
@@ -591,6 +723,7 @@ function newerVersion(candidate, installed) {
  * @return {Promise<object>} 检查后的状态。
  */
 function checkUpdate() {
+  if (stoppingUpdates) return Promise.resolve(info());
   checking ??= (async () => {
     if (!app.isPackaged) {
       update.status = "development";
@@ -600,7 +733,18 @@ function checkUpdate() {
     update.status = "checking";
     emitState();
     try {
-      await autoUpdater.checkForUpdates();
+      const result = await autoUpdater.checkForUpdates();
+      if (result?.isUpdateAvailable === true && !result.downloadPromise && !stoppingUpdates && confirmedResumeDigest &&
+        result?.updateInfo?.files?.some(file => file.sha512 === confirmedResumeDigest)) {
+        confirmedResumeDigest = undefined;
+        manualUpdateDownload = true;
+        autoUpdater.autoInstallOnAppQuit = true;
+        void downloadUpdate().catch(() => {});
+      }
+      if (result?.downloadPromise) {
+        trackDownload(result.cancellationToken, result.downloadPromise);
+        if (stoppingUpdates) result.cancellationToken.cancel();
+      }
     } catch {
       update.status = "error";
       emitState();
@@ -610,4 +754,26 @@ function checkUpdate() {
     checking = undefined;
   });
   return checking;
+}
+
+/**
+ * 跟踪自动或手动下载，失败时保留人工重试入口。
+ * @param {CancellationToken} token 下载取消令牌。
+ * @param {Promise<unknown>} promise 下载任务。
+ */
+function trackDownload(token, promise) {
+  const transfer = {token, promise};
+  updateTransfer = transfer;
+  void promise.catch(() => { update.status = "error"; emitState(); }).finally(() => {
+    if (updateTransfer === transfer) updateTransfer = undefined;
+  });
+}
+/** @return {Promise<unknown>} 可取消的手动下载完成结果。 */
+function downloadUpdate() {
+  if (stoppingUpdates) return Promise.reject(new Error("Application is closing"));
+  update.status = "downloading";
+  const token = new CancellationToken();
+  const promise = autoUpdater.downloadUpdate(token);
+  trackDownload(token, promise);
+  return promise;
 }

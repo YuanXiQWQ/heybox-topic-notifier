@@ -43,6 +43,7 @@ public final class NotificationJob extends JobService {
     }
     /** @param {JobParameters} params 系统任务。 @return {boolean} 是否存在异步工作。 */
     @Override public boolean onStartJob(JobParameters params) {
+        if (NotificationService.isRunning()) return false;
         FutureTask<Void> task = new FutureTask<>(() -> {
             boolean retry = false;
             try {

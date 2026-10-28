@@ -410,5 +410,15 @@
   "updateDevelopment": "ترقیاتی ورژن",
   "nativeLoginTitle": "ایپ میں سائن ان: جوڑا بنانے کا کوڈ چیک کریں",
   "nativeLoginApproved": "سائن ان مکمل۔ ایپ پر واپس جائیں",
-  "applicationNotificationsBackgroundUnavailable": "پس منظر کی اطلاعات میں تاخیر ہو سکتی ہے؛ فوراً جانچنے کے لیے ایپ کھولیں"
+  "applicationNotificationsBackgroundUnavailable": "پس منظر کی اطلاعات میں تاخیر ہو سکتی ہے؛ فوراً جانچنے کے لیے ایپ کھولیں",
+  "notificationTestNoChannels": "پہلے اطلاع کا کم از کم ایک طریقہ فعال کریں۔",
+  "desktopCloseWindow": "ونڈو بند کرتے وقت",
+  "desktopCloseMinimize": "ٹاسک بار میں چھوٹا کریں",
+  "desktopCloseQuit": "ایپ سے باہر نکلیں",
+  "desktopLaunchAtLogin": "Windows کے ساتھ شروع کریں",
+  "desktopResetWindow": "ونڈو کا سائز",
+  "desktopResetWindowAction": "پہلے سے طے شدہ سائز بحال کریں",
+  "desktopAutoUpdate": "خودکار اپ ڈیٹس",
+  "desktopAutoUpdateHint": "پس منظر میں ڈاؤن لوڈ کریں اور بند کرتے وقت انسٹال کریں۔",
+  "applicationBadge": "ایپ آئیکن بیج"
 }

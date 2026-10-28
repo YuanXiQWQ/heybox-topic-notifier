@@ -410,5 +410,15 @@
   "updateDevelopment": "개발 버전",
   "nativeLoginTitle": "앱 로그인: 연결 코드를 확인하세요",
   "nativeLoginApproved": "로그인되었습니다. 앱으로 돌아가세요",
-  "applicationNotificationsBackgroundUnavailable": "백그라운드 알림이 지연될 수 있습니다. 앱을 열면 바로 확인합니다"
+  "applicationNotificationsBackgroundUnavailable": "백그라운드 알림이 지연될 수 있습니다. 앱을 열면 바로 확인합니다",
+  "notificationTestNoChannels": "먼저 알림 방식을 하나 이상 켜세요.",
+  "desktopCloseWindow": "창을 닫을 때",
+  "desktopCloseMinimize": "작업 표시줄로 최소화",
+  "desktopCloseQuit": "앱 종료",
+  "desktopLaunchAtLogin": "Windows 시작 시 실행",
+  "desktopResetWindow": "창 크기",
+  "desktopResetWindowAction": "기본 크기로 복원",
+  "desktopAutoUpdate": "자동 업데이트",
+  "desktopAutoUpdateHint": "백그라운드에서 다운로드하고 종료할 때 설치합니다.",
+  "applicationBadge": "앱 아이콘 배지"
 }

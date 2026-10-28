@@ -37,6 +37,9 @@
       ]
     }
   },
+  "test": {
+    "exclude": ["apps/desktop/test"]
+  },
   "compilerOptions": {
     "lib": [
       "deno.window",

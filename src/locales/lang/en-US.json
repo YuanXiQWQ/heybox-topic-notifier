@@ -410,5 +410,15 @@
   "updateDevelopment": "Development version",
   "nativeLoginTitle": "Sign in to the app — verify the pairing code",
   "nativeLoginApproved": "Signed in. Return to the app",
-  "applicationNotificationsBackgroundUnavailable": "Background notifications may be delayed; open the app to check immediately"
+  "applicationNotificationsBackgroundUnavailable": "Background notifications may be delayed; open the app to check immediately",
+  "notificationTestNoChannels": "Enable at least one notification method first.",
+  "desktopCloseWindow": "When closing the window",
+  "desktopCloseMinimize": "Minimize to taskbar",
+  "desktopCloseQuit": "Quit application",
+  "desktopLaunchAtLogin": "Start with Windows",
+  "desktopResetWindow": "Window size",
+  "desktopResetWindowAction": "Restore default size",
+  "desktopAutoUpdate": "Automatic updates",
+  "desktopAutoUpdateHint": "Download in the background and install when you quit.",
+  "applicationBadge": "App icon badge"
 }

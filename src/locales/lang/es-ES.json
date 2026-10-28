@@ -410,5 +410,15 @@
   "updateDevelopment": "Versión de desarrollo",
   "nativeLoginTitle": "Iniciar sesión en la aplicación: verifica el código",
   "nativeLoginApproved": "Sesión iniciada. Vuelve a la aplicación",
-  "applicationNotificationsBackgroundUnavailable": "Las notificaciones en segundo plano pueden retrasarse; abre la aplicación para comprobarlas ahora"
+  "applicationNotificationsBackgroundUnavailable": "Las notificaciones en segundo plano pueden retrasarse; abre la aplicación para comprobarlas ahora",
+  "notificationTestNoChannels": "Activa primero al menos un método de notificación.",
+  "desktopCloseWindow": "Al cerrar la ventana",
+  "desktopCloseMinimize": "Minimizar en la barra de tareas",
+  "desktopCloseQuit": "Salir de la aplicación",
+  "desktopLaunchAtLogin": "Iniciar con Windows",
+  "desktopResetWindow": "Tamaño de la ventana",
+  "desktopResetWindowAction": "Restaurar tamaño predeterminado",
+  "desktopAutoUpdate": "Actualizaciones automáticas",
+  "desktopAutoUpdateHint": "Descargar en segundo plano e instalar al salir.",
+  "applicationBadge": "Insignia del icono de la aplicación"
 }

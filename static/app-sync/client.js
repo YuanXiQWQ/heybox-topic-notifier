@@ -258,6 +258,8 @@
       target: path,
       body: serialize(form),
       rows,
+      records: [...document.querySelectorAll("tr[data-record-id]")].filter(row => selected.has(row.dataset.recordId))
+        .map(row => ({id:row.dataset.recordId,postId:row.dataset.recordPostId})),
       stamp: editStamp(),
     };
     const existing = await store.readState(
@@ -276,6 +278,7 @@
     );
     metadata.previous = previous;
     await store.writeState(userId, "device", metadata);
+    document.dispatchEvent(new CustomEvent("application-local-records"));
     await flush("submit");
     const response = responses.get(operation.stamp.operationId);
     responses.delete(operation.stamp.operationId);
@@ -325,6 +328,7 @@
         }
         if (!saved.ok) return;
         await store.acknowledge(userId, operation.stamp.operationId);
+        if (operation.kind === "record") document.dispatchEvent(new CustomEvent("application-local-records"));
       }
       if (
         pending.length && reason !== "submit" &&

@@ -1,6 +1,7 @@
 /** @file 验证浏览器推送加密、固定目标、会话隔离和失效设备清理。 */
 // @deno-types="npm:@types/web-push@3.6.4"
 import webPush from "web-push";
+import { assertRejects } from "@std/assert";
 import { createECDH } from "node:crypto";
 import { assert, assertEquals } from "../test_helpers.ts";
 import { defaultAppSettingsFromEnv } from "./default_settings.ts";
@@ -139,6 +140,7 @@ Deno.test("browser delivery skips revoked sessions without depending on other no
       await notifyBrowsers(storage, "alice", [record], settings, options),
       true,
     );
+    await assertRejects(() => notifyBrowsers(storage, "alice", [record], settings, {config, strict: true, deliver: () => Promise.reject(new Error("provider unavailable"))}), Error, "Web Push delivery failed");
     await storage.deleteSession("session");
     assertEquals(
       await notifyBrowsers(storage, "alice", [record], settings, options),

@@ -145,7 +145,7 @@ function renderRows(options: MatchRecordsSectionOptions): string {
     );
 
     return `
-    <tr data-record-id="${escapeHtml(record.id)}" data-record-status="${record.completedAt ? "history" : "workspace"}">
+    <tr data-record-id="${escapeHtml(record.id)}" data-record-post-id="${escapeHtml(record.post.id)}" data-record-status="${record.completedAt ? "history" : "workspace"}">
       <td>
         <label class="checkbox-cell">
           <input

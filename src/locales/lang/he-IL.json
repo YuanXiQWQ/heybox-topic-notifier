@@ -410,5 +410,15 @@
   "updateDevelopment": "גרסת פיתוח",
   "nativeLoginTitle": "כניסה ליישום: בדקו את קוד ההתאמה",
   "nativeLoginApproved": "הכניסה הושלמה. חזרו ליישום",
-  "applicationNotificationsBackgroundUnavailable": "ייתכן עיכוב בהתראות ברקע; יש לפתוח את האפליקציה לבדיקה מיידית"
+  "applicationNotificationsBackgroundUnavailable": "ייתכן עיכוב בהתראות ברקע; יש לפתוח את האפליקציה לבדיקה מיידית",
+  "notificationTestNoChannels": "יש להפעיל תחילה לפחות שיטת התראה אחת.",
+  "desktopCloseWindow": "בעת סגירת החלון",
+  "desktopCloseMinimize": "מזעור לשורת המשימות",
+  "desktopCloseQuit": "יציאה מהיישום",
+  "desktopLaunchAtLogin": "הפעלה עם Windows",
+  "desktopResetWindow": "גודל החלון",
+  "desktopResetWindowAction": "שחזור גודל ברירת המחדל",
+  "desktopAutoUpdate": "עדכונים אוטומטיים",
+  "desktopAutoUpdateHint": "הורדה ברקע והתקנה בעת היציאה.",
+  "applicationBadge": "תג על סמל היישום"
 }

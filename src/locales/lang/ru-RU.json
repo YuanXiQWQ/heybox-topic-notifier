@@ -410,5 +410,15 @@
   "updateDevelopment": "Версия для разработки",
   "nativeLoginTitle": "Вход в приложение: проверьте код",
   "nativeLoginApproved": "Вход выполнен. Вернитесь в приложение",
-  "applicationNotificationsBackgroundUnavailable": "Фоновые уведомления могут задерживаться; откройте приложение для немедленной проверки"
+  "applicationNotificationsBackgroundUnavailable": "Фоновые уведомления могут задерживаться; откройте приложение для немедленной проверки",
+  "notificationTestNoChannels": "Сначала включите хотя бы один способ уведомления.",
+  "desktopCloseWindow": "При закрытии окна",
+  "desktopCloseMinimize": "Свернуть на панель задач",
+  "desktopCloseQuit": "Выйти из приложения",
+  "desktopLaunchAtLogin": "Запускать вместе с Windows",
+  "desktopResetWindow": "Размер окна",
+  "desktopResetWindowAction": "Восстановить размер по умолчанию",
+  "desktopAutoUpdate": "Автоматические обновления",
+  "desktopAutoUpdateHint": "Загружать в фоне и устанавливать при выходе.",
+  "applicationBadge": "Значок уведомлений на иконке"
 }

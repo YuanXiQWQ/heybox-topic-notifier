@@ -1084,12 +1084,7 @@ function initNotificationSettings() {
       }
     }
 
-    if (testNotifyButton instanceof HTMLButtonElement) {
-      testNotifyButton.hidden = providerSelect.value === 'disabled';
-      if (testNotifyButton.hidden) {
-        setTestNotifyStatus('');
-      }
-    }
+
   }
 
   /**
@@ -5963,6 +5958,10 @@ async function sendTestNotification(testNotifyButton) {
     const response = await fetch('/test-notify', {
       headers: csrfRequestHeaders({'x-test-notify': '1'}),
       method: 'POST',
+      body: new URLSearchParams({
+        applicationNotifications: String(document.querySelector('[data-app-notifications]')?.checked === true),
+        applicationPlatform: document.documentElement.dataset.applicationPlatform || 'web',
+      }),
     });
     const text = await response.text();
     if (response.ok) {

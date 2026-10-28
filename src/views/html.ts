@@ -218,8 +218,9 @@ export function renderLayout(options: {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    ${renderEasterEggJsonData("application-messages", Object.fromEntries(Object.entries(messages).filter(([name]) => name.startsWith("update") || name === "checkUpdate")))}
+    ${renderEasterEggJsonData("application-messages", Object.fromEntries(Object.entries(messages).filter(([name]) => name.startsWith("update") || name === "checkUpdate" || name === "autoSaveError")))}
     <script src="/static/app-native.js" defer></script>
+    <script src="/static/app-device-settings.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20261026-settings-header-key">

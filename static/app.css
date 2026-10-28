@@ -534,6 +534,45 @@ input[readonly]::placeholder{
   order: 1;
 }
 
+.settings-list > .notification-test-drawer{
+  display: block;
+  padding: 0;
+  background: var(--theme-soft-strong);
+  border-block-start: 1px solid var(--theme-border);
+}
+.notification-test-drawer > dd{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+}
+.notification-test-drawer .notification-test-button{
+  grid-column: 1 / -1;
+  grid-row: 1;
+  width: 100%;
+  min-height: 46px;
+  border-radius: 0;
+  font: inherit;
+  text-align: center;
+}
+.notification-test-drawer .inline-action-status{
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  margin-inline: 8px 20px;
+  max-width: 100%;
+  flex-wrap: wrap;
+  white-space: normal;
+  position: relative;
+}
+@media (max-width: 620px){
+  .notification-test-drawer .inline-action-status{
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-block-end: 10px;
+  }
+}
+
 .inline-action-status{
   align-items: center;
   color: var(--muted);
@@ -1977,6 +2016,31 @@ dt{
   gap: 12px 20px;
 }
 
+.about-version,
+.about-version-updates{
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.about-version-updates .about-update-link{
+  font: inherit;
+  padding: 0;
+}
+
+.about-version-updates .about-update-link:hover,
+.about-version-updates .about-update-link:focus-visible{
+  background: transparent;
+  text-decoration: underline;
+}
+
+.about-version-updates .inline-action-status{
+  flex: 0 1 auto;
+  margin: 0;
+  white-space: normal;
+}
+
 .about-download{
   align-items: center;
   display: inline-flex;
@@ -3328,3 +3392,38 @@ tr:last-child td{
 /* 连通测试沿用通知测试的行尾图标按钮与状态布局。 */
 .matching-test-action{ display: inline-flex; flex: 0 0 auto; margin-inline-start: auto; order: 2; }
 .matching-test-action[hidden]{ display: none; }
+
+.desktop-close-options{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.desktop-close-options label{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.desktop-close-options input[type="radio"]{
+  accent-color: var(--theme-strong);
+  width: 16px;
+  height: 16px;
+}
+
+.settings-hint{ display: block; margin-block-start: 6px; color: var(--muted); font-size: 14px; }
+
+/* 桌面滚动条使用页面主题色和圆角，不影响网页与移动端的原生滚动。 */
+:root[data-application-platform="windows"],
+:root[data-application-platform="windows"] *{
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+:root[data-application-platform="windows"]::-webkit-scrollbar,
+:root[data-application-platform="windows"] *::-webkit-scrollbar{ width: 10px; height: 10px; }
+:root[data-application-platform="windows"]::-webkit-scrollbar-thumb,
+:root[data-application-platform="windows"] *::-webkit-scrollbar-thumb{
+  background: color-mix(in srgb, var(--theme-color) 42%, var(--muted) 58%);
+  border: 3px solid var(--bg);
+  border-radius: 10px;
+}
+:root[data-application-platform="windows"]::-webkit-scrollbar-track,
+:root[data-application-platform="windows"] *::-webkit-scrollbar-track{ background: var(--bg); }
