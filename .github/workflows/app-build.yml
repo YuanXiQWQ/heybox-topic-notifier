@@ -94,6 +94,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx electron-builder --win nsis --x64 --publish never
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:installer
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify all packaged resources
         run: node apps/scripts/verify-assets.mjs apps/desktop/dist/win-unpacked/resources/static
       - uses: actions/upload-artifact@v4

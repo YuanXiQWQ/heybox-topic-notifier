@@ -17,6 +17,7 @@ const {
 const { autoUpdater } = require("electron-updater");
 const { CancellationToken } = require("builder-util-runtime");
 const { repairUpdateCache } = require("./update-cache.cjs");
+const { readInstallFailure, clearInstallFailure } = require("./update-recovery.cjs");
 const { installResumableDownload, restoreResume } = require("./resumable-download.cjs");
 const { createHash } = require("node:crypto");
 const fs = require("node:fs/promises");
@@ -59,6 +60,8 @@ let manualUpdateDownload = false;
 let confirmedResumeDigest;
 /** 退出期间不允许开始新下载，正在传输的任务持有可取消令牌。 */
 let stoppingUpdates = false;
+/** 恢复标记不可读取时暂停自动安装，防止反复覆盖未恢复完整的安装。 */
+let recoveryReadFailed = false;
 let updateTransfer;
 /** 设备开关变更序号使旧的开启请求不能覆盖较新的关闭操作。 */
 let notificationRevision = 0;
@@ -127,6 +130,19 @@ async function prepareExit(installing = false) {
  */
 async function start() {
   device = await deviceState(app.getPath("userData"), safeStorage);
+  if (app.isPackaged) {
+    try {
+      const failedVersion = await readInstallFailure(app.getPath("exe"));
+      if (failedVersion && newerVersion(failedVersion, app.getVersion())) {
+        device.value.failedUpdateVersion = failedVersion;
+        delete device.value.autoUpdateReady;
+        update = {status: "error", version: failedVersion, progress: 0};
+      } else if (device.value.failedUpdateVersion && !newerVersion(device.value.failedUpdateVersion, app.getVersion())) {
+        delete device.value.failedUpdateVersion;
+      }
+      await device.save();
+    } catch { recoveryReadFailed = true; update.status = "error"; }
+  }
   installResumableDownload(autoUpdater, () => manualUpdateDownload);
   try { if (app.isPackaged) {
     const helper = await autoUpdater.getOrCreateDownloadHelper();
@@ -135,7 +151,7 @@ async function start() {
   } } catch { update.status = "error"; }
   try { if (app.isPackaged && !await repairUpdateCache(autoUpdater)) delete device.value.autoUpdateReady; }
   catch { delete device.value.autoUpdateReady; update.status = "error"; }
-  installCachedUpdateOnStart = device.value.autoUpdate === true &&
+  installCachedUpdateOnStart = autoUpdateAllowed(device.value.autoUpdateReady) &&
     typeof device.value.autoUpdateReady === "string" && newerVersion(device.value.autoUpdateReady, app.getVersion());
   if (
     device.value.updateVersion &&
@@ -275,8 +291,8 @@ async function setPreferences(values) {
   if ("autoUpdate" in values) device.value.autoUpdate = values.autoUpdate;
   try { await device.save(); }
   catch (error) { Object.assign(device.value, previous); throw error; }
-  autoUpdater.autoDownload = device.value.autoUpdate === true;
-  autoUpdater.autoInstallOnAppQuit = device.value.autoUpdate === true || manualUpdateDownload;
+  autoUpdater.autoDownload = autoUpdateAllowed();
+  autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed() || manualUpdateDownload;
   if (autoUpdater.autoDownload && (update.status === "available" ||
     (values.autoUpdate === true && previous.autoUpdate !== true && update.status === "downloaded"))) {
     // 完整包通过下载器重新校验后注册退出安装，与当前开关保持一致。
@@ -374,6 +390,10 @@ function installBridge() {
     if (update.status !== "available" && update.status !== "error") {
       throw new Error("No update available");
     }
+    await clearInstallFailure(app.getPath("exe"));
+    recoveryReadFailed = false;
+    delete device.value.failedUpdateVersion;
+    await device.save();
     manualUpdateDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
     update.status = "downloading";
@@ -409,7 +429,7 @@ function installBridge() {
  * @return {object} 页面可见状态。
  */
 function info() {
-  const silent = device.value.autoUpdate === true && ["available", "downloading", "downloaded"].includes(update.status);
+  const silent = autoUpdateAllowed() && ["available", "downloading", "downloaded"].includes(update.status);
   return {
     platform: "windows",
     version: app.getVersion(),
@@ -660,12 +680,15 @@ function showNotification(notification) {
  * 按本设备偏好后台下载，正常退出时安装；自动处理失败时恢复人工提示。
  */
 function installUpdater() {
-  autoUpdater.autoDownload = device.value.autoUpdate === true;
-  autoUpdater.autoInstallOnAppQuit = device.value.autoUpdate === true || manualUpdateDownload;
+  autoUpdater.autoDownload = autoUpdateAllowed();
+  autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed() || manualUpdateDownload;
   autoUpdater.allowPrerelease = false;
   autoUpdater.allowDowngrade = false;
   autoUpdater.on("update-available", (release) => {
-    update = { status: "available", version: release.version, progress: 0 };
+    const failed = recoveryReadFailed || device.value.failedUpdateVersion === release.version;
+    update = { status: failed ? "error" : "available", version: release.version, progress: 0 };
+    autoUpdater.autoDownload = autoUpdateAllowed(release.version);
+    autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed(release.version) || manualUpdateDownload;
     device.value.updateVersion = release.version;
     void device.save().catch(() => { update.status = "error"; emitState(); });
     emitState();
@@ -683,10 +706,10 @@ function installUpdater() {
     try {
       update.status = "downloaded";
       update.progress = 100;
-      if (device.value.autoUpdate) device.value.autoUpdateReady = update.version;
+      if (autoUpdateAllowed()) device.value.autoUpdateReady = update.version;
       await device.save();
       emitState();
-      if (installCachedUpdateOnStart && device.value.autoUpdate) {
+      if (installCachedUpdateOnStart && autoUpdateAllowed()) {
         installCachedUpdateOnStart = false;
         await prepareExit(true);
         quitting = true;
@@ -703,6 +726,16 @@ function installUpdater() {
     update.status = "error";
     emitState();
   });
+}
+
+/**
+ * 仅允许自动处理未失败的发行；失败版本保留人工确认入口与红点。
+ * @param {string|undefined} version 本次目标版本，默认使用当前检查结果。
+ * @return {boolean} 当前目标是否可自动下载和安装。
+ */
+function autoUpdateAllowed(version = update.version) {
+  return device.value.autoUpdate === true && !recoveryReadFailed &&
+    (!device.value.failedUpdateVersion || Boolean(version && device.value.failedUpdateVersion !== version));
 }
 
 /**
@@ -736,6 +769,7 @@ function checkUpdate() {
     try {
       const result = await autoUpdater.checkForUpdates();
       if (result?.isUpdateAvailable === true && !result.downloadPromise && !stoppingUpdates && confirmedResumeDigest &&
+        !recoveryReadFailed && (!device.value.failedUpdateVersion || device.value.failedUpdateVersion !== result.updateInfo?.version) &&
         result?.updateInfo?.files?.some(file => file.sha512 === confirmedResumeDigest)) {
         confirmedResumeDigest = undefined;
         manualUpdateDownload = true;

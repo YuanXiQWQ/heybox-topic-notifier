@@ -44,6 +44,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run dist
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:installer
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify all packaged resources
         run: node apps/scripts/verify-assets.mjs apps/desktop/dist/win-unpacked/resources/static
   android:

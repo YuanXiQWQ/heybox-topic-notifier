@@ -12,7 +12,8 @@
     "prepare:assets": "node ../scripts/prepare-assets.mjs",
     "pack": "npm run prepare:assets && electron-builder --dir --publish never",
     "dist": "npm run prepare:assets && electron-builder --win nsis --publish never",
-    "test": "node --test test/*.test.cjs"
+    "test": "node --test test/*.test.cjs",
+    "test:installer": "node test/run-installer-integration.cjs"
   },
   "dependencies": {
     "builder-util-runtime": "9.7.0",
@@ -29,6 +30,7 @@
     "forceCodeSigning": false,
     "files": [
       "*.cjs",
+      "!installer-payload.cjs",
       "config.json"
     ],
     "extraResources": [
