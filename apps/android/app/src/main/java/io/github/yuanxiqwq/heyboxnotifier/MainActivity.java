@@ -146,7 +146,7 @@ public final class MainActivity extends ComponentActivity {
         if (saved == null || web.restoreState(saved) == null) web.loadUrl(BuildConfig.APP_ORIGIN + "/");
         consumeIntent(getIntent());
         worker.execute(() -> { HonorPush.register(getApplicationContext(), device); emit(); });
-        worker.execute(() -> { try { updates.restore(); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
+        worker.execute(() -> { try { updates.restore(); if (updates.hasPendingResume()) downloadWorker.execute(() -> { try { updates.download(); } catch (Exception error) { /* 检查点保留，用户可再次继续。 */ } }); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
     }
     /**
      * 分派有限能力请求，网络操作不阻塞网页或彩蛋。
@@ -243,6 +243,6 @@ public final class MainActivity extends ComponentActivity {
         try { if (Arrays.asList("/", "/history").contains(path) && user != null && notifications.owns(user)) navigateSaved(path, user); }
         catch (Exception ignored) { /* 不打开已失效账号的通知。 */ }
     }
-    /** 释放界面任务，主动退出时取消未完成下载；持久化队列和通知游标继续保留。 */
+    /** 释放界面任务，主动退出时暂停下载并保留检查点、持久化队列和通知游标。 */
     @Override protected void onDestroy() { resumed = false; if (updates != null) { if (isFinishing()) updates.cancelDownload(); updates.detach(this); } handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
 }

@@ -17,6 +17,7 @@ const {
 const { autoUpdater } = require("electron-updater");
 const { CancellationToken } = require("builder-util-runtime");
 const { repairUpdateCache } = require("./update-cache.cjs");
+const { installResumableDownload, restoreResume } = require("./resumable-download.cjs");
 const { createHash } = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -54,6 +55,8 @@ let checking;
 let installCachedUpdateOnStart = false;
 /** 用户主动下载的更新可在退出时安装，不受后续自动下载偏好影响。 */
 let manualUpdateDownload = false;
+/** 只自动续传用户已确认且仍与官方清单摘要一致的安装包。 */
+let confirmedResumeDigest;
 /** 退出期间不允许开始新下载，正在传输的任务持有可取消令牌。 */
 let stoppingUpdates = false;
 let updateTransfer;
@@ -124,6 +127,12 @@ async function prepareExit(installing = false) {
  */
 async function start() {
   device = await deviceState(app.getPath("userData"), safeStorage);
+  installResumableDownload(autoUpdater, () => manualUpdateDownload);
+  try { if (app.isPackaged) {
+    const helper = await autoUpdater.getOrCreateDownloadHelper();
+    const partial = await restoreResume(path.join(helper.cacheDir,"resume"));
+    if (partial?.manual) confirmedResumeDigest = partial.sha512;
+  } } catch { update.status = "error"; }
   try { if (app.isPackaged && !await repairUpdateCache(autoUpdater)) delete device.value.autoUpdateReady; }
   catch { delete device.value.autoUpdateReady; update.status = "error"; }
   installCachedUpdateOnStart = device.value.autoUpdate === true &&
@@ -725,6 +734,13 @@ function checkUpdate() {
     emitState();
     try {
       const result = await autoUpdater.checkForUpdates();
+      if (result?.isUpdateAvailable === true && !result.downloadPromise && !stoppingUpdates && confirmedResumeDigest &&
+        result?.updateInfo?.files?.some(file => file.sha512 === confirmedResumeDigest)) {
+        confirmedResumeDigest = undefined;
+        manualUpdateDownload = true;
+        autoUpdater.autoInstallOnAppQuit = true;
+        void downloadUpdate().catch(() => {});
+      }
       if (result?.downloadPromise) {
         trackDownload(result.cancellationToken, result.downloadPromise);
         if (stoppingUpdates) result.cancellationToken.cancel();

@@ -1,8 +1,9 @@
-/** @file 校验更新缓存并清理中断下载，仅操作更新器自己的 pending 目录。 */
+/** @file 校验完整更新与可续传前缀，仅清理更新器专属目录中的无效残留。 */
 const fs = require("node:fs/promises");
 const { createReadStream } = require("node:fs");
 const { createHash } = require("node:crypto");
 const path = require("node:path");
+const {restoreResume, discardResume} = require("./resumable-download.cjs");
 
 /**
  * 流式验证完整安装包，避免将大文件一次载入内存。
@@ -16,12 +17,14 @@ async function digest(file) {
 }
 
 /**
- * 在下载尚未开始或已经停止后清理临时包，完整缓存仍由更新器比对官方发行摘要。
+ * 在下载停止后验证续传检查点并清理无效临时包，完整缓存仍比对官方发行摘要。
  * @param {object} updater 固定版本的 electron-updater 实例。
  * @return {Promise<boolean>} 是否保留了校验通过的完整安装包。
  */
 async function repairUpdateCache(updater) {
   const helper = await updater.getOrCreateDownloadHelper();
+  const resume = path.join(helper.cacheDir,"resume");
+  await restoreResume(resume);
   const directory = path.resolve(helper.cacheDirForPendingUpdate);
   if (directory !== path.join(path.resolve(helper.cacheDir), "pending")) throw new Error("Invalid update cache directory");
   let entries;
@@ -46,6 +49,7 @@ async function repairUpdateCache(updater) {
     // 只删除本目录的普通文件与链接，不递归进入任何目录或链接目标。
     if (entry.isFile() || entry.isSymbolicLink()) await fs.unlink(path.join(directory, entry.name));
   }
+  if (keep) await discardResume(resume);
   return Boolean(keep);
 }
 module.exports = {repairUpdateCache};

@@ -109,7 +109,7 @@ function harness() {
   };
   const setup = vm.runInNewContext(
     fs.readFileSync(filename, "utf8") +
-      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {downloadUpdate,markCachedUpdate:()=>{installCachedUpdateOnStart=true;},info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications,setPreferences,handleWindowClose,resetWindow,installUpdater,installJumpList,handleLaunchAction}; })",
+      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {checkUpdate,markConfirmedResume:(value)=>{confirmedResumeDigest=value;update.status='idle';},downloadUpdate,markCachedUpdate:()=>{installCachedUpdateOnStart=true;},info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications,setPreferences,handleWindowClose,resetWindow,installUpdater,installJumpList,handleLaunchAction}; })",
     context,
   );
   const api = setup(window, device, {
@@ -435,4 +435,15 @@ test("enabling automatic updates after download registers quit installation usin
   assert.equal(context.api.info().update.silent, true);
   await context.api.setPreferences({closeAction:"quit"});
   assert.equal(reused, 1);
+});
+
+test("startup resumes confirmed downloads only when the official newer release has the same digest", async () => {
+  for (const [available, digest, downloads] of [[false,"confirmed",0],[true,"different",0],[true,"confirmed",1]]) {
+    const context=harness();
+    context.api.markConfirmedResume("confirmed");
+    context.updater.checkForUpdates=()=>Promise.resolve({isUpdateAvailable:available,updateInfo:{files:[{sha512:digest}]}});
+    await context.api.checkUpdate();
+    assert.equal(context.downloads(),downloads);
+    if (downloads) assert.equal(context.updater.autoInstallOnAppQuit,true);
+  }
 });
