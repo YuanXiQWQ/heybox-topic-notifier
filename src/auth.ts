@@ -3296,6 +3296,7 @@ function authConfig(options: AuthOptions): AuthConfig {
           passkeyMfaPath,
           mfaPath,
           "/static/app.css",
+          "/static/theme-compat.js",
           "/static/turnstile.js",
           "/static/tooltip.js",
         ],
@@ -3871,7 +3872,8 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.appName)
   }</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
+    <script src="/static/theme-compat.js" defer></script>
     <script src="/static/tooltip.js" defer></script>
     ${
     turnstileScriptHtml(
@@ -4729,7 +4731,8 @@ function renderMfaPage(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.messages.authMfaTitle)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20260904-game-polish">
+    <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
+    <script src="/static/theme-compat.js" defer></script>
     <script src="/static/tooltip.js" defer></script>
     <style>
       body {

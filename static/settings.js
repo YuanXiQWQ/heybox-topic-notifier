@@ -6141,6 +6141,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   <title>${escapeHtml(appName)}</title>
   <link rel="icon" href="${escapeHtml(appOrigin)}/favicon.ico" type="image/png">
   <link rel="stylesheet" href="${escapeHtml(appOrigin)}/static/app.css">
+  <script src="${escapeHtml(appOrigin)}/static/theme-compat.js" defer></script>
   <style>
     .error-detail-content {
       background: var(--control-bg);

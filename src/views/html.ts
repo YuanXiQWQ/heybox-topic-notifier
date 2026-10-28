@@ -223,7 +223,8 @@ export function renderLayout(options: {
     <script src="/static/app-device-settings.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20261026-settings-header-key">
+    <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
+    <script src="/static/theme-compat.js" defer></script>
     <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
