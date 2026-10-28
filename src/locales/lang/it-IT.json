@@ -411,5 +411,11 @@
   "nativeLoginTitle": "Accedi all’app: verifica il codice",
   "nativeLoginApproved": "Accesso completato. Torna all’app",
   "applicationNotificationsBackgroundUnavailable": "Le notifiche in background possono arrivare in ritardo; apri l’app per controllare subito",
-  "notificationTestNoChannels": "Attiva prima almeno un metodo di notifica."
+  "notificationTestNoChannels": "Attiva prima almeno un metodo di notifica.",
+  "desktopCloseWindow": "Alla chiusura della finestra",
+  "desktopCloseMinimize": "Riduci nella barra delle applicazioni",
+  "desktopCloseQuit": "Esci dall’applicazione",
+  "desktopLaunchAtLogin": "Avvia con Windows",
+  "desktopResetWindow": "Dimensioni della finestra",
+  "desktopResetWindowAction": "Ripristina dimensioni predefinite"
 }

@@ -411,5 +411,11 @@
   "nativeLoginTitle": "تسجيل الدخول إلى التطبيق: تحقق من رمز الاقتران",
   "nativeLoginApproved": "تم تسجيل الدخول. ارجع إلى التطبيق",
   "applicationNotificationsBackgroundUnavailable": "قد تتأخر إشعارات الخلفية؛ افتح التطبيق للتحقق فورًا",
-  "notificationTestNoChannels": "فعّل طريقة إشعار واحدة على الأقل أولاً."
+  "notificationTestNoChannels": "فعّل طريقة إشعار واحدة على الأقل أولاً.",
+  "desktopCloseWindow": "عند إغلاق النافذة",
+  "desktopCloseMinimize": "تصغير إلى شريط المهام",
+  "desktopCloseQuit": "إنهاء التطبيق",
+  "desktopLaunchAtLogin": "التشغيل مع Windows",
+  "desktopResetWindow": "حجم النافذة",
+  "desktopResetWindowAction": "استعادة الحجم الافتراضي"
 }

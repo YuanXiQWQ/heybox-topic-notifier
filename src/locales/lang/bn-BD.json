@@ -411,5 +411,11 @@
   "nativeLoginTitle": "অ্যাপে সাইন ইন: পেয়ারিং কোড যাচাই করুন",
   "nativeLoginApproved": "সাইন ইন সম্পন্ন। অ্যাপে ফিরুন",
   "applicationNotificationsBackgroundUnavailable": "পটভূমির বিজ্ঞপ্তি দেরিতে আসতে পারে; এখনই দেখতে অ্যাপ খুলুন",
-  "notificationTestNoChannels": "প্রথমে অন্তত একটি বিজ্ঞপ্তির পদ্ধতি চালু করুন।"
+  "notificationTestNoChannels": "প্রথমে অন্তত একটি বিজ্ঞপ্তির পদ্ধতি চালু করুন।",
+  "desktopCloseWindow": "উইন্ডো বন্ধ করার সময়",
+  "desktopCloseMinimize": "টাস্কবারে ছোট করুন",
+  "desktopCloseQuit": "অ্যাপ থেকে বের হন",
+  "desktopLaunchAtLogin": "Windows-এর সঙ্গে চালু করুন",
+  "desktopResetWindow": "উইন্ডোর আকার",
+  "desktopResetWindowAction": "ডিফল্ট আকার ফিরিয়ে আনুন"
 }

@@ -411,5 +411,11 @@
   "nativeLoginTitle": "Masuk ke aplikasi: periksa kode pemasangan",
   "nativeLoginApproved": "Berhasil masuk. Kembali ke aplikasi",
   "applicationNotificationsBackgroundUnavailable": "Notifikasi latar belakang mungkin tertunda; buka aplikasi untuk langsung memeriksa",
-  "notificationTestNoChannels": "Aktifkan setidaknya satu metode notifikasi terlebih dahulu."
+  "notificationTestNoChannels": "Aktifkan setidaknya satu metode notifikasi terlebih dahulu.",
+  "desktopCloseWindow": "Saat menutup jendela",
+  "desktopCloseMinimize": "Minimalkan ke bilah tugas",
+  "desktopCloseQuit": "Keluar dari aplikasi",
+  "desktopLaunchAtLogin": "Jalankan saat Windows dimulai",
+  "desktopResetWindow": "Ukuran jendela",
+  "desktopResetWindowAction": "Pulihkan ukuran bawaan"
 }

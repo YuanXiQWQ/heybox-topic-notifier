@@ -346,6 +346,12 @@ export type Messages = {
   autoSaveSaved: string;
   autoSavePending: string;
   restoreMatch: string;
+  desktopCloseWindow: string;
+  desktopCloseMinimize: string;
+  desktopCloseQuit: string;
+  desktopLaunchAtLogin: string;
+  desktopResetWindow: string;
+  desktopResetWindowAction: string;
   checkUpdate: string;
   updateAvailable: string;
   updateDownload: string;

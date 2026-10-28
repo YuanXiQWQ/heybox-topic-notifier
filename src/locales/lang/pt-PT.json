@@ -411,5 +411,11 @@
   "nativeLoginTitle": "Iniciar sessão na aplicação: confirme o código",
   "nativeLoginApproved": "Sessão iniciada. Volte à aplicação",
   "applicationNotificationsBackgroundUnavailable": "As notificações em segundo plano podem atrasar; abra a aplicação para verificar agora",
-  "notificationTestNoChannels": "Ative primeiro pelo menos um método de notificação."
+  "notificationTestNoChannels": "Ative primeiro pelo menos um método de notificação.",
+  "desktopCloseWindow": "Ao fechar a janela",
+  "desktopCloseMinimize": "Minimizar na barra de tarefas",
+  "desktopCloseQuit": "Sair da aplicação",
+  "desktopLaunchAtLogin": "Iniciar com o Windows",
+  "desktopResetWindow": "Tamanho da janela",
+  "desktopResetWindowAction": "Restaurar tamanho predefinido"
 }

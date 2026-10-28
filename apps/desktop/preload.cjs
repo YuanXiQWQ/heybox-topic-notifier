@@ -8,6 +8,10 @@ const api = Object.freeze({
   signIn: () => ipcRenderer.invoke("app:sign-in"),
   /** @param {boolean} enabled 通知开关。 @return {Promise<object>} 实际启用状态。 */
   notifications: (enabled) => ipcRenderer.invoke("app:notifications", enabled),
+  /** @param {object} values 本设备设置。 @return {Promise<object>} 保存后的设备状态。 */
+  preferences: (values) => ipcRenderer.invoke("app:preferences", values),
+  /** @return {Promise<object>} 窗口恢复后的设备状态。 */
+  resetWindow: () => ipcRenderer.invoke("app:reset-window"),
   /** @return {Promise<object>} 发行检查状态。 */
   checkUpdate: () => ipcRenderer.invoke("app:check-update"),
   /** @return {Promise<object>} 下载状态。 */

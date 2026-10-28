@@ -411,5 +411,11 @@
   "nativeLoginTitle": "Entrar no aplicativo: confira o código",
   "nativeLoginApproved": "Login concluído. Volte ao aplicativo",
   "applicationNotificationsBackgroundUnavailable": "As notificações em segundo plano podem atrasar; abra o aplicativo para verificar agora",
-  "notificationTestNoChannels": "Ative primeiro pelo menos um método de notificação."
+  "notificationTestNoChannels": "Ative primeiro pelo menos um método de notificação.",
+  "desktopCloseWindow": "Ao fechar a janela",
+  "desktopCloseMinimize": "Minimizar na barra de tarefas",
+  "desktopCloseQuit": "Sair do aplicativo",
+  "desktopLaunchAtLogin": "Iniciar com o Windows",
+  "desktopResetWindow": "Tamanho da janela",
+  "desktopResetWindowAction": "Restaurar tamanho padrão"
 }

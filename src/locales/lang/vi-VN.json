@@ -411,5 +411,11 @@
   "nativeLoginTitle": "Đăng nhập ứng dụng: kiểm tra mã ghép nối",
   "nativeLoginApproved": "Đã đăng nhập. Hãy quay lại ứng dụng",
   "applicationNotificationsBackgroundUnavailable": "Thông báo nền có thể bị chậm; mở ứng dụng để kiểm tra ngay",
-  "notificationTestNoChannels": "Trước tiên hãy bật ít nhất một phương thức thông báo."
+  "notificationTestNoChannels": "Trước tiên hãy bật ít nhất một phương thức thông báo.",
+  "desktopCloseWindow": "Khi đóng cửa sổ",
+  "desktopCloseMinimize": "Thu nhỏ xuống thanh tác vụ",
+  "desktopCloseQuit": "Thoát ứng dụng",
+  "desktopLaunchAtLogin": "Khởi động cùng Windows",
+  "desktopResetWindow": "Kích thước cửa sổ",
+  "desktopResetWindowAction": "Khôi phục kích thước mặc định"
 }

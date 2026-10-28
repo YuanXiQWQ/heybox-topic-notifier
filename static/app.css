@@ -3392,3 +3392,19 @@ tr:last-child td{
 /* 连通测试沿用通知测试的行尾图标按钮与状态布局。 */
 .matching-test-action{ display: inline-flex; flex: 0 0 auto; margin-inline-start: auto; order: 2; }
 .matching-test-action[hidden]{ display: none; }
+
+.desktop-close-options{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.desktop-close-options label{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.desktop-close-options input[type="radio"]{
+  accent-color: var(--theme-strong);
+  width: 16px;
+  height: 16px;
+}

@@ -432,6 +432,22 @@ function renderGlobalSettingsSection(
               </select>
             </dd>
           </div>
+          <div data-app-device-platform="windows" hidden>
+            ${settingLabel("toggle_on", messages.desktopCloseWindow)}
+            <dd class="desktop-close-options">
+              <label><input type="radio" name="desktopCloseAction" value="minimize" form="application-device-form" data-app-preference="closeAction">${escapeHtml(messages.desktopCloseMinimize)}</label>
+              <label><input type="radio" name="desktopCloseAction" value="quit" form="application-device-form" data-app-preference="closeAction">${escapeHtml(messages.desktopCloseQuit)}</label>
+              <span class="inline-action-status" data-app-preference-status role="status" hidden></span>
+            </dd>
+          </div>
+          <div data-app-device-platform="windows" hidden>
+            ${settingLabel("timer", messages.desktopLaunchAtLogin)}
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="launchAtLogin" aria-label="${escapeHtml(messages.desktopLaunchAtLogin)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+          </div>
+          <div data-app-device-platform="windows" hidden>
+            ${settingLabel("numbers", messages.desktopResetWindow)}
+            <dd><button type="button" class="text-action-button" data-app-reset-window>${escapeHtml(messages.desktopResetWindowAction)}</button><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+          </div>
           <div class="settings-navigation-row">
             <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about" data-app-about-link>
               <span class="settings-label-with-icon">${materialSymbolIcon("info", "settings-label-icon")}<span>${escapeHtml(messages.aboutProject)}</span></span>

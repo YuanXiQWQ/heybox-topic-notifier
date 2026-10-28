@@ -187,6 +187,8 @@ export function createRoutes(
    * @return {Promise<Response>} 同源脚本。
    */
   app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
+  app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
   /**
    * 为原生应用返回当前账号的通知增量，未登录或账号切换不返回其它账号数据。
    * @param {Context} c 请求上下文。

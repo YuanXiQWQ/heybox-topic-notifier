@@ -12,6 +12,7 @@ const {
   safeStorage,
   session,
   shell,
+  screen,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { createHash } = require("node:crypto");
@@ -58,7 +59,7 @@ app.setAppUserModelId("io.github.yuanxiqwq.heyboxnotifier");
 app.enableSandbox();
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on("second-instance", () => showWindow());
+  app.on("second-instance", (_event, argv) => handleLaunchAction(argv));
   app.on("before-quit", (event) => {
     if (quitting || !window || window.isDestroyed()) return;
     event.preventDefault();
@@ -137,12 +138,7 @@ async function start() {
     },
   });
   window.removeMenu();
-  window.on("close", (event) => {
-    if (!quitting) {
-      event.preventDefault();
-      window.hide();
-    }
-  });
+  window.on("close", handleWindowClose);
   window.once("ready-to-show", () => window.show());
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (externalUrl(url)) void shell.openExternal(url);
@@ -164,22 +160,15 @@ async function start() {
   tray.setToolTip("小黑盒话题提醒");
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      {
-        label: "打开",
-        click: () => showWindow(),
-      },
-      {
-        label: "检查更新",
-        click: () => {
-          showWindow("/about");
-          void checkUpdate();
-        },
-      },
+      { label: "工作区", click: () => showWindow("/") },
+      { label: "设置", click: () => showWindow("/settings") },
+      { label: "历史", click: () => showWindow("/history") },
       { type: "separator" },
       { label: "退出", click: () => app.quit() },
     ]),
   );
   tray.on("double-click", () => showWindow());
+  installJumpList();
   installBridge();
   installUpdater();
   void checkUpdate();
@@ -190,7 +179,76 @@ async function start() {
   setInterval(() => void pollNotifications(), 15000).unref();
   setInterval(() => void checkUpdate(), 6 * 60 * 60 * 1000).unref();
   await window.loadURL(origin + "/").catch(() => {});
+  handleLaunchAction(process.argv);
   void pollNotifications();
+}
+
+/**
+ * 根据设备偏好最小化到任务栏或经过保存屏障退出。
+ * @param {Event} event 窗口关闭事件。
+ */
+function handleWindowClose(event) {
+  if (quitting) return;
+  event.preventDefault();
+  if (device.value.closeAction === "quit") app.quit();
+  else window.minimize();
+}
+
+/**
+ * 处理已列入白名单的任务栏启动动作，退出始终经过本地保存屏障。
+ * @param {string[]} argv 操作系统传入的启动参数。
+ */
+function handleLaunchAction(argv = []) {
+  if (argv.includes("--app-quit")) { app.quit(); return; }
+  const route = ["/", "/settings", "/history"].find((path) => argv.includes("--app-open=" + path));
+  void showWindow(route);
+}
+
+/** 为 Windows 任务栏注册工作区、设置、历史及退出动作。 */
+function installJumpList() {
+  if (!app.isPackaged) return;
+  const program = app.getPath("exe");
+  app.setJumpList([{type: "tasks", items: [
+    ...[["工作区", "/"], ["设置", "/settings"], ["历史", "/history"]].map(([title, route]) => ({
+      type: "task", title, description: title, program, args: "--app-open=" + route, iconPath: program, iconIndex: 0,
+    })),
+    {type: "separator"},
+    {type: "task", title: "退出", description: "退出小黑盒话题提醒", program, args: "--app-quit", iconPath: program, iconIndex: 0},
+  ]}]);
+}
+
+/**
+ * 保存设备专属选项，操作系统自启动状态由系统读取，禁止任意键和路径。
+ * @param {object} values 修改的选项。
+ * @return {Promise<object>} 生效后的设备状态。
+ */
+async function setPreferences(values) {
+  if (!values || typeof values !== "object" || Array.isArray(values) ||
+    Object.keys(values).some((key) => !["closeAction", "launchAtLogin"].includes(key))) throw new Error("Invalid preferences");
+  if ("closeAction" in values && !["minimize", "quit"].includes(values.closeAction)) throw new Error("Invalid close action");
+  for (const key of ["launchAtLogin"]) if (key in values && typeof values[key] !== "boolean") throw new Error("Invalid preference");
+  if ("launchAtLogin" in values) {
+    if (!app.isPackaged) throw new Error("Installed application required");
+    app.setLoginItemSettings({openAtLogin: values.launchAtLogin, path: app.getPath("exe")});
+  }
+  const previous = {closeAction: device.value.closeAction};
+  if ("closeAction" in values) device.value.closeAction = values.closeAction;
+  try { await device.save(); }
+  catch (error) { Object.assign(device.value, previous); throw error; }
+  emitState();
+  return info();
+}
+
+/**
+ * 将窗口恢复为默认大小，在较小显示器上限制在可用工作区内。
+ * @return {object} 当前设备状态。
+ */
+function resetWindow() {
+  if (window.isMaximized()) window.unmaximize();
+  const area = screen.getDisplayMatching(window.getBounds()).workAreaSize;
+  window.setSize(Math.min(1200, area.width), Math.min(840, area.height));
+  window.center();
+  return info();
 }
 
 /**
@@ -260,6 +318,8 @@ function installBridge() {
     }),
   );
   handle("app:notifications", setNotifications);
+  handle("app:preferences", setPreferences);
+  handle("app:reset-window", resetWindow);
   handle("app:check-update", checkUpdate);
   handle("app:download-update", async () => {
     if (update.status !== "available" && update.status !== "error") {
@@ -301,6 +361,10 @@ function info() {
   return {
     platform: "windows",
     version: app.getVersion(),
+    preferences: {
+      closeAction: device.value.closeAction === "quit" ? "quit" : "minimize",
+      launchAtLogin: app.isPackaged && app.getLoginItemSettings().openAtLogin,
+    },
     notifications: {
       supported: Notification.isSupported(),
       enabled: device.value.notifications?.enabled === true,
