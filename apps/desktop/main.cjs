@@ -268,7 +268,9 @@ async function setPreferences(values) {
   catch (error) { Object.assign(device.value, previous); throw error; }
   autoUpdater.autoDownload = device.value.autoUpdate === true;
   autoUpdater.autoInstallOnAppQuit = device.value.autoUpdate === true || manualUpdateDownload;
-  if (autoUpdater.autoDownload && update.status === "available") {
+  if (autoUpdater.autoDownload && (update.status === "available" ||
+    (values.autoUpdate === true && previous.autoUpdate !== true && update.status === "downloaded"))) {
+    // 完整包通过下载器重新校验后注册退出安装，与当前开关保持一致。
     update.status = "downloading";
     void downloadUpdate().catch(() => { update.status = "error"; emitState(); });
   }
@@ -649,6 +651,7 @@ function showNotification(notification) {
  */
 function installUpdater() {
   autoUpdater.autoDownload = device.value.autoUpdate === true;
+  autoUpdater.autoInstallOnAppQuit = device.value.autoUpdate === true || manualUpdateDownload;
   autoUpdater.allowPrerelease = false;
   autoUpdater.allowDowngrade = false;
   autoUpdater.on("update-available", (release) => {

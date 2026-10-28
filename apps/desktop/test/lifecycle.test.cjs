@@ -403,3 +403,36 @@ test("installation refuses a corrupt cache and disables automatic installation",
   assert.equal(context.installs(),0);
   assert.equal(context.updater.autoInstallOnAppQuit,false);
 });
+
+test("startup restores both automatic download and installation preferences", () => {
+  for (const enabled of [false, true]) {
+    const context = harness();
+    context.device.value.autoUpdate = enabled;
+    context.updater.autoInstallOnAppQuit = !enabled;
+    context.api.installUpdater();
+    assert.equal(context.updater.autoDownload, enabled);
+    assert.equal(context.updater.autoInstallOnAppQuit, enabled);
+  }
+});
+
+test("enabling automatic updates after download registers quit installation using the complete cache", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  await context.updaterEvents.get("update-downloaded")();
+  assert.equal(context.device.value.autoUpdateReady, undefined);
+  let registered = false, reused = 0;
+  context.updater.downloadUpdate = async () => {
+    reused++;
+    await context.updaterEvents.get("update-downloaded")();
+    registered = context.updater.autoInstallOnAppQuit;
+  };
+  await context.api.setPreferences({autoUpdate:true});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reused, 1);
+  assert.equal(registered, true);
+  assert.equal(context.device.value.autoUpdateReady, "1.1.0");
+  assert.equal(context.api.info().update.status, "downloaded");
+  assert.equal(context.api.info().update.silent, true);
+  await context.api.setPreferences({closeAction:"quit"});
+  assert.equal(reused, 1);
+});
