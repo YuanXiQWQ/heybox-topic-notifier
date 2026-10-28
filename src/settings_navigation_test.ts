@@ -23,6 +23,14 @@ function harness() {
       return false;
     }
   }
+  /** 真实导航栏使用的 GET 表单替身。 */
+  class NavigationForm {
+    method = "get";
+    /** @return {boolean} 属于导航栏表单。 */
+    matches() { return true; }
+    /** 保存后恢复原生提交。 */
+    requestSubmit() { visited.push("form:/history"); }
+  }
   const source = Deno.readTextFileSync(
     new URL("../static/settings.js", import.meta.url),
   );
@@ -32,12 +40,13 @@ function harness() {
     "location",
     "state",
     "pending",
+    "HTMLFormElement",
     `${source}
     autoSaveForm = autoSaveTopicEditor = autoSaveKeywordEditor = {};
     lastSavedSignature = 'original';
     settingsSignature = () => state.current;
     saveSettingsNow = () => { const snapshot = state.current; return new Promise(resolve => pending.push(() => { if (!state.fail) lastSavedSignature = snapshot; resolve(!state.fail); })); };
-    return {guardSettingsNavigation, flushSettingsEdits};
+    return {guardSettingsNavigation, guardSettingsFormNavigation, flushSettingsEdits};
   `,
   )(
     { addEventListener() {} },
@@ -51,6 +60,7 @@ function harness() {
     },
     state,
     saved,
+    NavigationForm,
   );
   const event = {
     target: new Link(),
@@ -60,8 +70,31 @@ function harness() {
       this.defaultPrevented = true;
     },
   };
-  return { api, state, saved, visited, event };
+  const formEvent = { ...event, target: new NavigationForm() };
+  return { api, state, saved, visited, event, formEvent };
 }
+
+Deno.test("settings navbar form waits for debounce persistence and resumes once", async () => {
+  const context = harness();
+  const navigation = context.api.guardSettingsFormNavigation(context.formEvent);
+  assertEquals(context.formEvent.defaultPrevented, true);
+  assertEquals(context.visited, []);
+  context.saved.shift()!();
+  await navigation;
+  assertEquals(context.visited, ["form:/history"]);
+  const resumed = { ...context.formEvent, defaultPrevented: false };
+  await context.api.guardSettingsFormNavigation(resumed);
+  assertEquals(resumed.defaultPrevented, false);
+});
+
+Deno.test("settings navbar form stays put when persistence fails", async () => {
+  const context = harness();
+  context.state.fail = true;
+  const navigation = context.api.guardSettingsFormNavigation(context.formEvent);
+  context.saved.shift()!();
+  await navigation;
+  assertEquals(context.visited, []);
+});
 
 Deno.test("settings navigation waits for pending edits and newer edits made during persistence", async () => {
   const context = harness();

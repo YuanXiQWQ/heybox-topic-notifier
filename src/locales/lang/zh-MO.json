@@ -419,6 +419,5 @@
   "desktopResetWindow": "視窗大小",
   "desktopResetWindowAction": "恢復預設大小",
   "desktopAutoUpdate": "自動更新",
-  "desktopAutoUpdateHint": "在背景下載，正常退出時安裝，下次開啟使用新版本。",
   "applicationBadge": "應用程式圖示標記"
 }

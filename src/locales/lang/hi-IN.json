@@ -419,6 +419,5 @@
   "desktopResetWindow": "विंडो का आकार",
   "desktopResetWindowAction": "डिफ़ॉल्ट आकार बहाल करें",
   "desktopAutoUpdate": "स्वचालित अपडेट",
-  "desktopAutoUpdateHint": "बैकग्राउंड में डाउनलोड करें और बंद करते समय इंस्टॉल करें।",
   "applicationBadge": "ऐप आइकन बैज"
 }

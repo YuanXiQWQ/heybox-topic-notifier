@@ -419,6 +419,5 @@
   "desktopResetWindow": "Tamanho da janela",
   "desktopResetWindowAction": "Restaurar tamanho predefinido",
   "desktopAutoUpdate": "Atualizações automáticas",
-  "desktopAutoUpdateHint": "Transferir em segundo plano e instalar ao sair.",
   "applicationBadge": "Indicador no ícone da aplicação"
 }

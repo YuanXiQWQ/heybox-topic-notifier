@@ -419,6 +419,5 @@
   "desktopResetWindow": "ขนาดหน้าต่าง",
   "desktopResetWindowAction": "คืนค่าขนาดเริ่มต้น",
   "desktopAutoUpdate": "อัปเดตอัตโนมัติ",
-  "desktopAutoUpdateHint": "ดาวน์โหลดในพื้นหลังและติดตั้งเมื่อออกจากแอป",
   "applicationBadge": "ป้ายบนไอคอนแอป"
 }

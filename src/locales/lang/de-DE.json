@@ -419,6 +419,5 @@
   "desktopResetWindow": "Fenstergröße",
   "desktopResetWindowAction": "Standardgröße wiederherstellen",
   "desktopAutoUpdate": "Automatische Updates",
-  "desktopAutoUpdateHint": "Im Hintergrund herunterladen und beim Beenden installieren.",
   "applicationBadge": "App-Symbolindikator"
 }

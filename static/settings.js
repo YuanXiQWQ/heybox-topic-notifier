@@ -5854,6 +5854,27 @@ async function flushSettingsEdits() {
 
 /** 导航请求序号使较早的保存完成回调不会覆盖用户最后点击的页面。 */
 let settingsNavigationRevision = 0;
+/** 已完成落盘、允许执行一次原生导航提交的表单。 */
+const savedSettingsNavigationForms = new WeakSet();
+
+/**
+ * 导航栏表单提交前等待防抖编辑落盘，保留原生 GET 参数和提交行为。
+ * @param {SubmitEvent} event 导航表单提交事件。
+ * @return {Promise<void>} 保存后继续提交，失败时留在当前页面。
+ */
+async function guardSettingsFormNavigation(event) {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.matches('form.nav-item') || form.method.toLowerCase() !== 'get') return;
+  if (savedSettingsNavigationForms.delete(form)) return;
+  if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor || event.defaultPrevented) return;
+  if (!settingsSaveTask && settingsSignature() === lastSavedSignature) return;
+  event.preventDefault();
+  const revision = ++settingsNavigationRevision;
+  if (await flushSettingsEdits() && revision === settingsNavigationRevision) {
+    savedSettingsNavigationForms.add(form);
+    form.requestSubmit(event.submitter ?? undefined);
+  }
+}
 
 /**
  * 内部页面跳转前保存防抖窗口中的设置，落盘失败时保留当前编辑页。
@@ -7363,3 +7384,4 @@ function initMatchingSettings() {
 
 document.addEventListener('DOMContentLoaded', initSettingsEditors);
 document.addEventListener('click', (event) => { void guardSettingsNavigation(event).catch(() => setAutoSaveStatus('error')); });
+document.addEventListener('submit', (event) => { void guardSettingsFormNavigation(event).catch(() => setAutoSaveStatus('error')); });

@@ -8,6 +8,8 @@ Android 的兼容目标是没有 Google Play／GMS 的设备，不限定品牌�
 
 先部署支持 `/api/sync`、`/api/native/notifications` 和 `/auth/native` 的服务端。应用来源固定在 `desktop/config.json` 与 `android/app/build.gradle`；正式构建应使用同一个 HTTPS 站点。
 
+构建环境使用 Node.js 26.13.0 LTS；Windows 客户端锁定 Electron 45.1.0，内置 Node.js 24.22.1，达到 [2026 年 10 月安全公告](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)的修复版本。更新开发电脑的 Node.js 不会替换已安装客户端内置的运行时，客户端仍需重新构建和发布。两条应用 CI 均会实际运行打包程序的 Node 模式，核对 Electron 与锁定版本一致，并检查内置 Node.js 的安全版本下限。可用 `node apps/scripts/verify-desktop-runtime.cjs <打包程序路径>` 重现检查；该模式不打开页面或读取应用账号。
+
 - Windows：进入 `apps/desktop`，运行 `npm ci`、`npm test`、`npm run dist`。开发运行先执行 `npm run prepare:assets`，再 `npm start`。`HEYBOX_PREVIEW_ORIGIN` 只在未打包开发运行中生效，只允许 HTTPS 或 HTTP 回环地址。
 - Android：安装 JDK 17、Gradle 8.13、Android SDK 36，运行 `node apps/scripts/prepare-assets.mjs --android`，再运行 `gradle -p apps/android testDebugUnitTest lintDebug assembleDebug`。正式构建设置 `APP_VERSION`、递增的 `APP_VERSION_CODE`，以及 `ANDROID_KEYSTORE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个签名变量，运行 `assembleRelease`。Windows 下路径过长时可用临时 `subst` 盘符指向仓库和本地工具链，构建后取消映射，不移动项目。
 - `app-build.yml` 在推送正式版本标签时自动运行，读取标签版本并固定源码提交，执行检查后并行构建 Windows 和 Android；自动创建或复用 Release 草稿，只有两端都成功且全部附件上传后才公开发行。也支持已有 Release 的发布事件。Windows 默认发布未签名 NSIS 安装包，不需要购买证书或配置 Windows 签名 Secrets；Android 使用本机可自行生成的稳定签名证书。
@@ -77,11 +79,32 @@ PKCE 交接只在当前权威数据库消费，不复制临时授权状态；数
 
 Windows 全局设置提供关闭窗口时的圆形单选项（默认最小化到任务栏，可改为退出）、开机自启、自动更新及恢复默认窗口大小。任务栏快捷任务和托盘菜单均包含工作区、设置、历史及退出。设备偏好保存在本机，不同步到其他设备；旧安装包未提供对应能力时隐藏新控件。
 
-Windows 点击「重启并更新」会在保存本地编辑后静默升级并重新打开应用，沿用已有安装目录和安装范围，不重复显示安装向导。安装到所有用户时，Windows 仍可能要求管理员授权。
+Windows 点击「重启并更新」会在保存本地编辑后静默升级并重新打开应用，沿用已有安装目录和安装范围，不重复显示安装向导。安装包也会识别应用更新标记，即使发起更新的旧版应用没有传递静默参数，也会跳过向导；首次手动安装仍保留选择流程。安装到所有用户时，Windows 仍可能要求管理员授权。
+
+首次安装的原生完成页保留打开应用选项，新增「创建桌面快捷方式」「添加开机启动项」，两项默认不勾选。开机启动写入当前交互用户的 Run 项，与应用设置页控制同一项。更新不显示这些首次安装选项，不创建或补建任何快捷方式，也不重置开机启动；用户未选择或后来删除的入口均不恢复。开始菜单入口只在首次安装时创建。
+
+安装完成前，安装器按编译期从实际发行归档生成的 SHA-256 清单核对全部应用文件及卸载器，包含 DLL 和静态资源；不能核对则返回失败，不继续启动新版本。更新运行旧卸载器之前，先在安装目录旁的 `.heybox-update-backup` 专用目录保存旧文件、摘要和安装登记，备份不完整则不开始替换。安装失败时恢复旧版和登记；恢复写入也被系统阻止时明确报告失败并保留备份。后续安装会先处理未完成的恢复，不能将它当成无用缓存删除。不会备份或删除安装目录外的账号、离线数据与设备偏好，也不会在回滚时重新创建快捷方式。
+
+应用读取安装失败标记后暂停同一失败版本的自动下载和安装，恢复错误提示与红点；用户明确重试后解除，新发行版本仍可按原自动更新偏好处理。这个防重复安装能力随新版应用提供，回滚到尚不识别失败标记的旧版时不能承诺同样生效。安装阶段记录位于当前用户临时目录的 `heybox-topic-notifier-install.log`，不包含账号或通知令牌。
+
+Windows 普通检查与发布 CI 均在构建安装包后运行隔离 NSIS 集成测试，覆盖主程序缺失与文件损坏、备份损坏、目标文件占用、恢复中断四种场景；失败阻止检查通过或上传发布。本地可在构建器下载好 NSIS 工具后运行 `npm run test:installer`，只操作独立临时目录和独立测试注册表键，不覆盖真实应用。安全软件阻止测试程序运行时必须记为未验证，不关闭防护来冒充测试通过。
 
 通知卡片底部的测试条按当前页面的应用通知开关与其它通知选择独立发送，等待所有已开启通道完成后反馈；失败详情仍可查看。测试通知不创建业务帖子、不增加工作区数量。该操作需要联网。
 
 Android 图标角标使用工作区未确认帖子的去重数量，账号切换立即清空旧计数，网络失败保留同账号最近值。独立的角标开关不启用新命中提醒；常驻低优先级通知承载角标数量，新命中渠道不累加角标。系统桌面决定数字或圆点的呈现，并受系统角标和通知权限控制。离线确认、恢复和删除记录会立即投影到本机角标，按帖子去重；加密快照支持断网重启。联网后使用服务器工作区重新校准，较早网络响应不会覆盖更新的本机操作。
+
+## Android 系统集成检查
+
+`NativeSmokeRunner` 使用真实 Android 前台服务、通知管理器和 Keystore，检查退到桌面后离线轮询存活、帖子去重、离线确认计数、系统通知与角标分离、关闭角标以及结束时的清理。它只接受明确指定的无 GMS、断网、可丢弃的 Android 模拟器和 Debug 包；使用合成会话并清除测试状态，不可用于日常账号或真机。它不证明生产通知送达、厂商锁屏保活、启动器数字展示或系统安装升级通过。
+
+构建 `gradle -p apps/android assembleDebug assembleDebugAndroidTest` 后，在独立 AOSP 模拟器安装两个 APK，授予测试目标通知权限并关闭该模拟器的数据与 Wi-Fi。使用其明确设备序号运行：
+
+```sh
+adb -s emulator-5556 shell am force-stop io.github.yuanxiqwq.heyboxnotifier
+adb -s emulator-5556 shell am instrument -r -w -e isolatedOfflineEmulator true io.github.yuanxiqwq.heyboxnotifier.test/io.github.yuanxiqwq.heyboxnotifier.NativeSmokeRunner
+```
+
+成功要求所有 `PASS` 检查均出现、没有 `error` 或 `cleanupError`，并返回 `INSTRUMENTATION_CODE: -1`。检查后恢复该模拟器原先的网络状态。普通 CI 编译测试 APK；运行系统检查需要独立模拟器，不能把仅编译通过计为系统测试通过。
 
 ## 下载中断与缓存
 
