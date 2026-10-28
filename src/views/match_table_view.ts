@@ -461,7 +461,7 @@ function renderPaginationScript(): string {
         const width = nav.parentElement?.clientWidth || nav.clientWidth || 0;
         const fullWidth = totalPages * linkWidth + Math.max(0, totalPages - 1) * gap;
         if (fullWidth <= width) {
-          return pages(1, totalPages).map((page) => pageLink(page, currentPage, template));
+          return pages(1, totalPages).map((page) => pageLink(nav, page, currentPage, template));
         }
 
         const maxControls = Math.max(5, Math.floor((width + gap) / (linkWidth + gap)));
@@ -501,7 +501,7 @@ function renderPaginationScript(): string {
             inputInserted = true;
           }
           if (lastPage > 0 && page - lastPage > 1) items.push(ellipsis());
-          items.push(pageLink(page, currentPage, template));
+          items.push(pageLink(nav, page, currentPage, template));
           lastPage = page;
         }
 
@@ -545,12 +545,13 @@ function renderPaginationScript(): string {
       /**
        * 创建分页链接元素。
        *
+       * @param {HTMLElement} nav 提供彩蛋槽位前缀的分页导航容器。
        * @param {number} page 页码。
        * @param {number} currentPage 当前页码。
        * @param {string} template 页码链接模板。
        * @return {HTMLAnchorElement} 分页链接元素。
        */
-      function pageLink(page, currentPage, template) {
+      function pageLink(nav, page, currentPage, template) {
         const link = document.createElement("a");
         link.href = pageUrl(template, page);
         link.textContent = String(page);

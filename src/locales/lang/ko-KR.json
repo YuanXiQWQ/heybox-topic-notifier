@@ -419,6 +419,5 @@
   "desktopResetWindow": "창 크기",
   "desktopResetWindowAction": "기본 크기로 복원",
   "desktopAutoUpdate": "자동 업데이트",
-  "desktopAutoUpdateHint": "백그라운드에서 다운로드하고 종료할 때 설치합니다.",
   "applicationBadge": "앱 아이콘 배지"
 }

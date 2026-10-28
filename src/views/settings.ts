@@ -446,10 +446,10 @@ function renderGlobalSettingsSection(
           </div>
           <div data-app-device-platform="windows" hidden>
             ${settingLabel("download", messages.desktopAutoUpdate)}
-            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="autoUpdate" aria-label="${escapeHtml(messages.desktopAutoUpdate)}"></label><span class="settings-hint">${escapeHtml(messages.desktopAutoUpdateHint)}</span><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="autoUpdate" aria-label="${escapeHtml(messages.desktopAutoUpdate)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
           <div data-app-device-platform="windows" hidden>
-            ${settingLabel("numbers", messages.desktopResetWindow)}
+            ${settingLabel("app_window", messages.desktopResetWindow)}
             <dd><button type="button" class="text-action-button" data-app-reset-window>${escapeHtml(messages.desktopResetWindowAction)}</button><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
           <div data-app-device-platform="android" hidden>
@@ -3580,7 +3580,6 @@ function renderNotificationSection(settings: AppSettings): string {
                   type="button"
                   class="text-action-button notification-test-button"
                   aria-label="${escapeHtml(messages.testNotify)}"
-                  data-tooltip="${escapeHtml(messages.testNotify)}"
                   data-test-notify-button
                   data-test-notify-sending="${
     escapeHtml(messages.testNotifySending)
