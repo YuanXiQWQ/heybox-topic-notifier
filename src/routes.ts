@@ -199,6 +199,10 @@ export function createRoutes(
     const session = await authSessionForRequest(c, context);
     if (!session) return c.json({error:"unauthorized"},401);
     const storage = context.storage.forUser(session.userId);
+    if (c.req.query("records") === "1") {
+      const records = (await storage.listPendingMatches()).map(record => ({id:record.id,postId:record.post.id}));
+      return c.json({userId:session.userId,count:new Set(records.map(record => record.postId)).size,records});
+    }
     const count = storage.countPendingPosts ? await storage.countPendingPosts() : new Set((await storage.listPendingMatches()).map((record) => record.post.id)).size;
     return c.json({userId:session.userId,count});
   });

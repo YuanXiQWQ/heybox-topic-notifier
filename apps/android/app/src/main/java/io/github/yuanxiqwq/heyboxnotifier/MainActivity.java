@@ -55,6 +55,8 @@ public final class MainActivity extends ComponentActivity {
     private final ExecutorService downloadWorker = Executors.newSingleThreadExecutor();
     /** 通知网络请求独立执行，用户关闭开关不必等待积压消息全部处理完。 */
     private final ExecutorService notificationWorker = Executors.newSingleThreadExecutor();
+    /** 本地角标投影不等待任何网络请求，断网时仍可立即保存。 */
+    private final ExecutorService localWorker = Executors.newSingleThreadExecutor();
     /** 页面事件和原生消息端口必须在主线程访问。 */
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** 当前窗口持有更新回调，进程协调器只保留弱引用。 */
@@ -155,7 +157,7 @@ public final class MainActivity extends ComponentActivity {
      */
     private void dispatch(JavaScriptReplyProxy proxy, JSONObject request) {
         String method = request.optString("method"), id = request.optString("id");
-        ExecutorService executor = method.equals("downloadUpdate") ? downloadWorker : worker;
+        ExecutorService executor = method.equals("downloadUpdate") ? downloadWorker : method.equals("localBadge") ? localWorker : method.equals("refreshBadge") ? notificationWorker : worker;
         executor.execute(() -> {
             try {
                 if (method.equals("login")) { respond(proxy, id, login.start(), null); return; }
@@ -171,6 +173,7 @@ public final class MainActivity extends ComponentActivity {
                         handler.post(() -> { if (resumed) NotificationService.maintainFromVisible(this, device); });
                         NotificationService.publishBadge(); break;
                     case "refreshBadge": Badges.refresh(device); NotificationService.publishBadge(); break;
+                    case "localBadge": Badges.local(device,request.getJSONObject("value")); NotificationService.publishBadge(); break;
                     case "checkUpdate": updates.check(); break;
                     case "downloadUpdate": updates.download(); break;
                     case "seenUpdate": updates.seen(request.getString("value")); break;
@@ -244,5 +247,5 @@ public final class MainActivity extends ComponentActivity {
         catch (Exception ignored) { /* 不打开已失效账号的通知。 */ }
     }
     /** 释放界面任务，主动退出时暂停下载并保留检查点、持久化队列和通知游标。 */
-    @Override protected void onDestroy() { resumed = false; if (updates != null) { if (isFinishing()) updates.cancelDownload(); updates.detach(this); } handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
+    @Override protected void onDestroy() { resumed = false; if (updates != null) { if (isFinishing()) updates.cancelDownload(); updates.detach(this); } handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); localWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
 }

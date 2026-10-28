@@ -58,10 +58,39 @@
   /** 在本地记录提交后请求新的工作区计数，不产生新命中通知。 */
   function refreshBadge() {
     if (!native.refreshBadge || refreshingBadge) return;
-    refreshingBadge = native.refreshBadge().catch(() => {}).finally(() => { refreshingBadge = undefined; });
+    refreshingBadge = native.refreshBadge().then(localBadge).catch(() => {}).finally(() => { refreshingBadge = undefined; });
   }
   for (const event of ["application-sync-complete", "application-records-rendered"]) {
     document.addEventListener(event, refreshBadge);
   }
+  /** 串行发送最新离线记录快照，后续事件不会被正在执行的原生请求丢弃。 */
+  let badgeChanges = Promise.resolve();
+  /** 按原编辑顺序提交待同步记录，网络不可达也立即更新本机角标。 */
+  function localBadge() {
+    if (!native.localBadge || !globalThis.applicationSync) return;
+    badgeChanges = badgeChanges.catch(() => {}).then(async () => {
+      const sync = globalThis.applicationSync;
+      await sync.ready;
+      const pending = await globalThis.AppLocalStore.pending(sync.userId);
+      const records = new Map();
+      pending.filter(operation => operation.kind === "record").sort((left,right) => {
+        for (const key of ["editedAt","counter","deviceId","operationId"]) {
+          if (left.stamp[key] !== right.stamp[key]) return left.stamp[key] > right.stamp[key] ? 1 : -1;
+        }
+        return 0;
+      }).forEach(operation => {
+        for (const record of operation.records || []) {
+          if (record.id && record.postId) records.set(record.id,{...record,workspace:operation.target === "/matches/restore"});
+        }
+      });
+      await native.localBadge({userId:sync.userId,records:[...records.values()]});
+    });
+    void badgeChanges.catch(() => {});
+  }
+  document.addEventListener("application-local-records", localBadge);
+  document.addEventListener("application-records-rendered", localBadge);
+  document.addEventListener("DOMContentLoaded", localBadge);
+  globalThis.addEventListener("online", refreshBadge);
+  document.addEventListener("DOMContentLoaded", refreshBadge);
   void globalThis.applicationNativeReady?.then(render).catch(() => {});
 })();

@@ -2,8 +2,44 @@
 package io.github.yuanxiqwq.heyboxnotifier;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import org.json.JSONObject;
+import org.json.JSONArray;
 
 public class BadgeCounterTest {
+    /** @param {String} id 记录。 @param {String} postId 帖子。 @return {JSONObject} 工作区记录。 @throws Exception JSON 构造失败。 */
+    private JSONObject record(String id,String postId) throws Exception { return new JSONObject().put("id",id).put("postId",postId); }
+    /** 离线操作按帖子去重、允许恢复，并在重启后保留；服务器同步后重新裁决。 @throws Exception 测试失败。 */
+    @Test public void offlineEditsDeduplicateAndSurviveRestart() throws Exception {
+        BadgeCounter counter=new BadgeCounter();
+        int request=counter.begin("session",true);
+        counter.acceptRecords(request,"session","session",new JSONObject().put("userId","alice").put("records",new JSONArray().put(record("a","post")).put(record("b","post"))));
+        assertEquals(1,counter.read("session",true));
+        JSONArray edits=new JSONArray().put(record("a","post").put("workspace",false));
+        counter.setLocal("session",new JSONObject().put("userId","alice").put("records",edits));
+        assertEquals(1,counter.read("session",true));
+        edits.put(record("b","post").put("workspace",false)).put(record("c","restored").put("workspace",true));
+        counter.setLocal("session",new JSONObject().put("userId","alice").put("records",edits));
+        assertEquals(1,counter.read("session",true));
+        BadgeCounter reopened=new BadgeCounter(); reopened.restore(counter.snapshot());
+        assertEquals(1,reopened.read("session",true)); assertEquals(0,reopened.read("session",false)); assertEquals(1,reopened.read("session",true));
+        reopened.setLocal("session",new JSONObject().put("userId","alice").put("records",new JSONArray()));
+        assertEquals(1,reopened.read("session",true));
+        request=reopened.begin("session",true);
+        reopened.acceptRecords(request,"session","session",new JSONObject().put("userId","alice").put("records",new JSONArray()));
+        assertEquals(0,reopened.read("session",true));
+    }
+    /** 旧网络响应和另一个账号的离线队列均不能覆盖当前本机操作。 @throws Exception 测试失败。 */
+    @Test public void staleNetworkAndForeignEditsCannotOverrideLocalState() throws Exception {
+        BadgeCounter counter=new BadgeCounter(); int first=counter.begin("session",true);
+        JSONObject data=new JSONObject().put("userId","alice").put("records",new JSONArray().put(record("a","post")));
+        counter.acceptRecords(first,"session","session",data);
+        int stale=counter.begin("session",true);
+        counter.setLocal("session",new JSONObject().put("userId","alice").put("records",new JSONArray().put(record("a","post").put("workspace",false))));
+        counter.acceptRecords(stale,"session","session",data);
+        assertEquals(0,counter.read("session",true));
+        counter.setLocal("session",new JSONObject().put("userId","bob").put("records",new JSONArray().put(record("x","other").put("workspace",true))));
+        assertEquals(0,counter.read("session",true)); assertEquals(0,counter.read("other-session",true));
+    }
     /** 账号变化会立即清空，先前账号的延迟响应不会显示在新账号上。 */
     @Test public void accountChangeInvalidatesPendingCount() {
         BadgeCounter counter = new BadgeCounter();

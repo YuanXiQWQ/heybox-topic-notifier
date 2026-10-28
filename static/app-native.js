@@ -69,6 +69,7 @@
       seenUpdate: (section) => request("seenUpdate", section),
       preferences: (values) => request("preferences", values),
       refreshBadge: () => request("refreshBadge"),
+      localBadge: (value) => request("localBadge", value),
       onState: (listener) => listeners.add(listener),
     });
   }
