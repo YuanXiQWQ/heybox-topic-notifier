@@ -354,6 +354,7 @@ export type Messages = {
   desktopResetWindowAction: string;
   desktopAutoUpdate: string;
   desktopAutoUpdateHint: string;
+  applicationBadge: string;
   checkUpdate: string;
   updateAvailable: string;
   updateDownload: string;

@@ -190,6 +190,19 @@ export function createRoutes(
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
   /**
+   * 返回当前账号工作区未确认数量，不包含通知测试事件或历史记录。
+   * @param {Context} c 请求上下文。
+   * @return {Promise<Response>} 角标计数或未登录响应。
+   */
+  app.get("/api/native/badge", async (c) => {
+    c.header("cache-control", "no-store");
+    const session = await authSessionForRequest(c, context);
+    if (!session) return c.json({error:"unauthorized"},401);
+    const storage = context.storage.forUser(session.userId);
+    const count = storage.countPendingPosts ? await storage.countPendingPosts() : new Set((await storage.listPendingMatches()).map((record) => record.post.id)).size;
+    return c.json({userId:session.userId,count});
+  });
+  /**
    * 为原生应用返回当前账号的通知增量，未登录或账号切换不返回其它账号数据。
    * @param {Context} c 请求上下文。
    * @return {Promise<Response>} 通知批次与消费游标。

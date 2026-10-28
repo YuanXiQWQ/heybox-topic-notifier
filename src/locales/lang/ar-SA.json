@@ -419,5 +419,6 @@
   "desktopResetWindow": "حجم النافذة",
   "desktopResetWindowAction": "استعادة الحجم الافتراضي",
   "desktopAutoUpdate": "التحديثات التلقائية",
-  "desktopAutoUpdateHint": "تنزيل في الخلفية وتثبيت عند الخروج."
+  "desktopAutoUpdateHint": "تنزيل في الخلفية وتثبيت عند الخروج.",
+  "applicationBadge": "شارة أيقونة التطبيق"
 }

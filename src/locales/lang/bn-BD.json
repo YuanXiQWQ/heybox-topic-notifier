@@ -419,5 +419,6 @@
   "desktopResetWindow": "উইন্ডোর আকার",
   "desktopResetWindowAction": "ডিফল্ট আকার ফিরিয়ে আনুন",
   "desktopAutoUpdate": "স্বয়ংক্রিয় আপডেট",
-  "desktopAutoUpdateHint": "পটভূমিতে ডাউনলোড করে বের হওয়ার সময় ইনস্টল করুন।"
+  "desktopAutoUpdateHint": "পটভূমিতে ডাউনলোড করে বের হওয়ার সময় ইনস্টল করুন।",
+  "applicationBadge": "অ্যাপ আইকন ব্যাজ"
 }

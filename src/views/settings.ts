@@ -452,6 +452,10 @@ function renderGlobalSettingsSection(
             ${settingLabel("numbers", messages.desktopResetWindow)}
             <dd><button type="button" class="text-action-button" data-app-reset-window>${escapeHtml(messages.desktopResetWindowAction)}</button><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
+          <div data-app-device-platform="android" hidden>
+            ${settingLabel("notifications", messages.applicationBadge)}
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="badgeEnabled" aria-label="${escapeHtml(messages.applicationBadge)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+          </div>
           <div class="settings-navigation-row">
             <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about" data-app-about-link>
               <span class="settings-label-with-icon">${materialSymbolIcon("info", "settings-label-icon")}<span>${escapeHtml(messages.aboutProject)}</span></span>

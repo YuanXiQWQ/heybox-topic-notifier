@@ -53,5 +53,15 @@
     row.querySelector("[data-app-reset-window]")?.addEventListener("click", () => void save(row, () => native.resetWindow()));
   }
   document.addEventListener("application-native-state", (event) => render(event.detail));
+  /** 合并页面记录刷新事件，网络异常由常驻服务继续重试。 */
+  let refreshingBadge;
+  /** 在本地记录提交后请求新的工作区计数，不产生新命中通知。 */
+  function refreshBadge() {
+    if (!native.refreshBadge || refreshingBadge) return;
+    refreshingBadge = native.refreshBadge().catch(() => {}).finally(() => { refreshingBadge = undefined; });
+  }
+  for (const event of ["application-sync-complete", "application-records-rendered"]) {
+    document.addEventListener(event, refreshBadge);
+  }
   void globalThis.applicationNativeReady?.then(render).catch(() => {});
 })();

@@ -419,5 +419,6 @@
   "desktopResetWindow": "גודל החלון",
   "desktopResetWindowAction": "שחזור גודל ברירת המחדל",
   "desktopAutoUpdate": "עדכונים אוטומטיים",
-  "desktopAutoUpdateHint": "הורדה ברקע והתקנה בעת היציאה."
+  "desktopAutoUpdateHint": "הורדה ברקע והתקנה בעת היציאה.",
+  "applicationBadge": "תג על סמל היישום"
 }

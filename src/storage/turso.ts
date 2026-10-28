@@ -381,6 +381,11 @@ export function createTursoStorage(
       async listPendingMatches(): Promise<MatchRecord[]> {
         return await listMatches(userId, "pending");
       },
+      /** 按用户与完成状态统计不重复的帖子数量，不向客户端传输帖子正文。 @return {Promise<number>} 未确认数量。 */
+      async countPendingPosts(): Promise<number> {
+        const result = await execute({sql:"SELECT COUNT(DISTINCT json_extract(value_json, '$.post.id')) AS count FROM matches WHERE user_id = ? AND completed_at IS NULL", args:[userId]});
+        return Number(result.rows[0]?.count ?? 0);
+      },
       /**
        * 列出当前用户已命中帖子的精简索引。
        *

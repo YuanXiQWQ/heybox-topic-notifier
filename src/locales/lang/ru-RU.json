@@ -419,5 +419,6 @@
   "desktopResetWindow": "Размер окна",
   "desktopResetWindowAction": "Восстановить размер по умолчанию",
   "desktopAutoUpdate": "Автоматические обновления",
-  "desktopAutoUpdateHint": "Загружать в фоне и устанавливать при выходе."
+  "desktopAutoUpdateHint": "Загружать в фоне и устанавливать при выходе.",
+  "applicationBadge": "Значок уведомлений на иконке"
 }

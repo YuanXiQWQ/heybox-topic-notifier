@@ -126,6 +126,8 @@ export type UserStorage = {
    * @return {Promise<MatchRecord[]>} 未完成的命中记录。
    */
   listPendingMatches(): Promise<MatchRecord[]>;
+  /** 统计当前账号工作区未确认记录，供角标使用。 @return {Promise<number>} 未确认数量。 */
+  countPendingPosts?(): Promise<number>;
   /**
    * 列出当前用户已命中帖子的精简索引。
    *

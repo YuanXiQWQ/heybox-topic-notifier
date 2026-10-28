@@ -419,5 +419,6 @@
   "desktopResetWindow": "Pencere boyutu",
   "desktopResetWindowAction": "Varsayılan boyuta dön",
   "desktopAutoUpdate": "Otomatik güncellemeler",
-  "desktopAutoUpdateHint": "Arka planda indir ve çıkışta yükle."
+  "desktopAutoUpdateHint": "Arka planda indir ve çıkışta yükle.",
+  "applicationBadge": "Uygulama simgesi rozeti"
 }

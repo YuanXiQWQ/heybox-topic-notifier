@@ -67,6 +67,8 @@
       installUpdate: () => request("installUpdate"),
       background: () => request("background"),
       seenUpdate: (section) => request("seenUpdate", section),
+      preferences: (values) => request("preferences", values),
+      refreshBadge: () => request("refreshBadge"),
       onState: (listener) => listeners.add(listener),
     });
   }

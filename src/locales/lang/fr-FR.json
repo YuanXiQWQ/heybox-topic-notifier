@@ -419,5 +419,6 @@
   "desktopResetWindow": "Taille de la fenêtre",
   "desktopResetWindowAction": "Rétablir la taille par défaut",
   "desktopAutoUpdate": "Mises à jour automatiques",
-  "desktopAutoUpdateHint": "Télécharger en arrière-plan et installer à la fermeture."
+  "desktopAutoUpdateHint": "Télécharger en arrière-plan et installer à la fermeture.",
+  "applicationBadge": "Badge de l’icône de l’application"
 }
