@@ -410,5 +410,15 @@
   "updateDevelopment": "نسخهٔ توسعه",
   "nativeLoginTitle": "ورود به برنامه: کد جفت‌سازی را بررسی کنید",
   "nativeLoginApproved": "وارد شدید. به برنامه برگردید",
-  "applicationNotificationsBackgroundUnavailable": "اعلان‌های پس‌زمینه ممکن است با تأخیر برسند؛ برای بررسی فوری برنامه را باز کنید"
+  "applicationNotificationsBackgroundUnavailable": "اعلان‌های پس‌زمینه ممکن است با تأخیر برسند؛ برای بررسی فوری برنامه را باز کنید",
+  "notificationTestNoChannels": "ابتدا دست‌کم یک روش اعلان را فعال کنید.",
+  "desktopCloseWindow": "هنگام بستن پنجره",
+  "desktopCloseMinimize": "کوچک‌سازی در نوار وظیفه",
+  "desktopCloseQuit": "خروج از برنامه",
+  "desktopLaunchAtLogin": "اجرا هنگام شروع Windows",
+  "desktopResetWindow": "اندازهٔ پنجره",
+  "desktopResetWindowAction": "بازیابی اندازهٔ پیش‌فرض",
+  "desktopAutoUpdate": "به‌روزرسانی خودکار",
+  "desktopAutoUpdateHint": "دریافت در پس‌زمینه و نصب هنگام خروج.",
+  "applicationBadge": "نشان روی نماد برنامه"
 }

@@ -102,6 +102,9 @@ import {
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
 import { renderAbout } from "./views/about.ts";
+import { sendNotificationTest } from "./services/notification_test.ts";
+import { enqueueNativeNotifications } from "./services/native_notifications.ts";
+import { notifyBrowsers } from "./services/web_push.ts";
 import { projectVersion } from "./project.ts";
 import { parseEditStamp, serverEditStamp } from "./sync/protocol.ts";
 import { settingsEdits } from "./sync/settings.ts";
@@ -184,6 +187,25 @@ export function createRoutes(
    * @return {Promise<Response>} 同源脚本。
    */
   app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
+  app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  /**
+   * 返回当前账号工作区未确认数量，不包含通知测试事件或历史记录。
+   * @param {Context} c 请求上下文。
+   * @return {Promise<Response>} 角标计数或未登录响应。
+   */
+  app.get("/api/native/badge", async (c) => {
+    c.header("cache-control", "no-store");
+    const session = await authSessionForRequest(c, context);
+    if (!session) return c.json({error:"unauthorized"},401);
+    const storage = context.storage.forUser(session.userId);
+    if (c.req.query("records") === "1") {
+      const records = (await storage.listPendingMatches()).map(record => ({id:record.id,postId:record.post.id}));
+      return c.json({userId:session.userId,count:new Set(records.map(record => record.postId)).size,records});
+    }
+    const count = storage.countPendingPosts ? await storage.countPendingPosts() : new Set((await storage.listPendingMatches()).map((record) => record.post.id)).size;
+    return c.json({userId:session.userId,count});
+  });
   /**
    * 为原生应用返回当前账号的通知增量，未登录或账号切换不返回其它账号数据。
    * @param {Context} c 请求上下文。
@@ -2209,10 +2231,27 @@ export function createRoutes(
       return debugRequest.response;
     }
 
-    const { storage } = debugRequest;
+    const { storage, form } = debugRequest;
     const settings = await storage.getSettings();
     try {
-      await context.notifier.sendTest(settings);
+      const channels: Array<() => Promise<unknown>> = [];
+      if (settings.notificationProvider !== "disabled") channels.push(() => context.notifier.sendTest(settings));
+      if (form.get("applicationNotifications") === "true" && storage.userId) {
+        const userId = storage.userId;
+        const record = createRandomTestMatchRecord(settings, 1, "simulation");
+        record.post.title = getMessages(settings.locale).notificationTestTitle;
+        const nativePlatform = ["windows", "android"].includes(String(form.get("applicationPlatform")));
+        channels.push(async () => {
+          const sent = await notifyBrowsers(context.storage, userId, [record], settings, { strict: true });
+          if (!nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
+        });
+        channels.push(async () => {
+          const sent = await enqueueNativeNotifications(context.storage, userId, [record], settings);
+          if (nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
+        });
+      }
+      if (!channels.length) return c.text(getMessages(settings.locale).notificationTestNoChannels, 400);
+      await sendNotificationTest(channels);
       if (c.req.header("x-test-notify") === "1") {
         return c.text(getMessages(settings.locale).testNotifySent);
       }

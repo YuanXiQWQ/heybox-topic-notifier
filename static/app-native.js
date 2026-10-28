@@ -67,6 +67,9 @@
       installUpdate: () => request("installUpdate"),
       background: () => request("background"),
       seenUpdate: (section) => request("seenUpdate", section),
+      preferences: (values) => request("preferences", values),
+      refreshBadge: () => request("refreshBadge"),
+      localBadge: (value) => request("localBadge", value),
       onState: (listener) => listeners.add(listener),
     });
   }
@@ -112,6 +115,8 @@
   let marked;
   let prompted;
   let dialog;
+  /** 手动检查后才展示行内检查结果，启动检查通过红点和确认窗口提示更新。 */
+  let updateRequested = false;
   const check = document.querySelector("[data-app-check-update]");
   const status = document.querySelector("[data-app-update-status]");
   document.querySelector("[data-app-downloads]")?.setAttribute("hidden", "");
@@ -125,10 +130,16 @@
     showStatus(labels.updateFailed)
   );
   check?.addEventListener("click", async () => {
+    updateRequested = true;
+    check.disabled = true;
+    showStatus(labels.updateChecking);
     try {
       render(await native.checkUpdate());
-      if (state.update.version) showConfirmation();
+      if (["available", "downloaded"].includes(state.update.status)) {
+        showConfirmation();
+      }
     } catch {
+      check.disabled = false;
       showStatus(labels.updateFailed);
     }
   });
@@ -154,7 +165,7 @@
     target.classList.toggle("app-update-unread", visible);
   }
   /**
-   * 显示本机版本和更新状态；进入页面只清除对应入口红点。
+   * 显示本机版本、手动检查结果和下载进度；进入页面只清除对应入口红点。
    * @param {object} next 原生状态。
    */
   function render(next) {
@@ -165,17 +176,23 @@
     const update = state.update;
     dot("[data-app-settings-link]", update.settingsUnread);
     dot("[data-app-about-link]", update.aboutUnread);
-    dot("[data-app-version]", Boolean(update.version));
+    dot("[data-app-version]", Boolean(update.version && !update.silent));
     const messages = {
       checking: labels.updateChecking,
       current: labels.updateCurrent,
       error: labels.updateFailed,
       development: labels.updateDevelopment,
+      available: `${labels.updateAvailable} ${update.version ?? ""}`,
+      downloaded: `${labels.updateAvailable} ${update.version ?? ""}`,
       downloading: `${labels.updateDownloading} ${
         Math.floor(update.progress ?? 0)
       }%`,
     };
-    showStatus(messages[update.status] ?? "");
+    showStatus(
+      updateRequested || update.status === "downloading"
+        ? messages[update.status] ?? ""
+        : "",
+    );
     if (check) {
       check.disabled = ["checking", "downloading"].includes(update.status);
     }

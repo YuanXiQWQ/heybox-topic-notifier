@@ -12,7 +12,10 @@ const { createRequire } = require("node:module");
  */
 function harness() {
   const handlers = new Map(), events = new Map();
-  let installs = 0;
+  let cacheReady = true;
+  let installs = 0, downloads = 0, quitting = 0;
+  const updaterEvents = new Map();
+  const updater = { quitAndInstall: () => installs++, downloadUpdate: () => { downloads++; return Promise.resolve(); }, on: (name, fn) => updaterEvents.set(name, fn) };
   let cookie = "session-a";
   let read = () => Promise.resolve({ userId: "alice", cursor: "", events: [] });
   let display = "show";
@@ -44,6 +47,11 @@ function harness() {
     on: (name, fn) => events.set(name, fn),
     whenReady: () => new Promise(() => {}),
     getVersion: () => "1.0.0",
+    getLoginItemSettings: () => ({openAtLogin: app.login === true}),
+    setLoginItemSettings: (value) => { app.login = value.openAtLogin; },
+    getPath: () => "C:/App/notifier.exe",
+    setJumpList: (value) => { app.jumpList = value; },
+    quit: () => quitting++,
   };
   const electron = {
     app,
@@ -77,6 +85,7 @@ function harness() {
     },
     ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
     shell: {},
+    screen: {getDisplayMatching: () => ({workAreaSize: {width: 1024, height: 768}})},
   };
   const filename = path.join(__dirname, "../main.cjs"),
     localRequire = createRequire(filename);
@@ -84,8 +93,10 @@ function harness() {
     require: (name) =>
       name === "electron"
         ? electron
+        : name === "./update-cache.cjs"
+        ? {repairUpdateCache: () => Promise.resolve(cacheReady)}
         : name === "electron-updater"
-        ? { autoUpdater: { quitAndInstall: () => installs++ } }
+        ? { autoUpdater: updater }
         : localRequire(name),
     process: { resourcesPath: "resources", env: {} },
     __dirname: path.dirname(filename),
@@ -98,7 +109,7 @@ function harness() {
   };
   const setup = vm.runInNewContext(
     fs.readFileSync(filename, "utf8") +
-      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications}; })",
+      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {checkUpdate,markConfirmedResume:(value)=>{confirmedResumeDigest=value;update.status='idle';},downloadUpdate,markCachedUpdate:()=>{installCachedUpdateOnStart=true;},info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications,setPreferences,handleWindowClose,resetWindow,installUpdater,installJumpList,handleLaunchAction}; })",
     context,
   );
   const api = setup(window, device, {
@@ -106,7 +117,7 @@ function harness() {
     fetch: () => Promise.resolve({ ok: true, json: () => read() }),
   });
   return {
-    api,
+    api, app, window, updater, updaterEvents, setCacheReady: value => { cacheReady=value; }, downloads: () => downloads, quitting: () => quitting,
     contents,
     device,
     handlers,
@@ -284,4 +295,155 @@ test("installation waits for durable edits and aborts on storage failure", async
     /Disk full/,
   );
   assert.equal(failing.installs(), 0);
+});
+
+
+test("device preferences validate input and use the Windows startup state", async () => {
+  const context = harness();
+  await assert.rejects(context.api.setPreferences({path: "untrusted"}));
+  await assert.rejects(context.api.setPreferences({closeAction: "hide"}));
+  await assert.rejects(context.api.setPreferences({launchAtLogin: "yes"}));
+  await context.api.setPreferences({closeAction: "quit", launchAtLogin: true});
+  assert.equal(context.api.info().preferences.closeAction, "quit");
+  assert.equal(context.api.info().preferences.launchAtLogin, true);
+  context.app.login = false;
+  assert.equal(context.api.info().preferences.launchAtLogin, false);
+});
+
+test("window reset fits the active monitor and taskbar tasks restrict navigation", async () => {
+  const context = harness(), calls = [];
+  Object.assign(context.window, {isMaximized: () => true, unmaximize: () => calls.push("unmaximize"), getBounds: () => ({}), setSize: (...size) => calls.push(size), center: () => calls.push("center")});
+  context.api.resetWindow();
+  assert.deepEqual(calls, ["unmaximize", [1024, 768], "center"]);
+  context.api.installJumpList();
+  assert.deepEqual(Array.from(context.app.jumpList[0].items, item => item.args || item.type), ["--app-open=/", "--app-open=/settings", "--app-open=/history", "separator", "--app-quit"]);
+  context.api.handleLaunchAction(["--app-open=https://untrusted.example"]);
+  assert.equal(context.opened.length, 0);
+  context.api.handleLaunchAction(["--app-open=/settings"]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(context.opened[0], /\/settings$/);
+  context.api.handleLaunchAction(["--app-quit"]);
+  assert.equal(context.quitting(), 1);
+});
+
+test("automatic downloads suppress reminders and failures restore manual recovery", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  await context.api.setPreferences({autoUpdate: true});
+  context.updaterEvents.get("update-available")({version: "1.2.0"});
+  assert.equal(context.updater.autoDownload, true);
+  assert.equal(context.api.info().update.silent, true);
+  assert.equal(context.api.info().update.settingsUnread, false);
+  await context.updaterEvents.get("update-downloaded")();
+  assert.equal(context.device.value.autoUpdateReady, "1.2.0");
+  assert.equal(context.installs(), 0);
+  assert.equal(context.updater.autoInstallOnAppQuit, true);
+  await context.api.setPreferences({autoUpdate:false});
+  assert.equal(context.updater.autoInstallOnAppQuit,false);
+  await context.api.setPreferences({autoUpdate:true});
+  context.updaterEvents.get("error")();
+  assert.equal(context.api.info().update.silent, false);
+  assert.equal(context.api.info().update.prompt, true);
+  context.device.save = () => Promise.reject(new Error("disk full"));
+  await context.updaterEvents.get("update-downloaded")();
+  assert.equal(context.api.info().update.status, "error");
+});
+
+
+test("closing uses the chosen action and failed preference writes restore the prior value", async () => {
+  const context = harness();
+  let minimized=0, prevented=0;
+  context.window.minimize=()=>minimized++;
+  const event={preventDefault:()=>prevented++};
+  context.api.handleWindowClose(event);
+  assert.equal(minimized,1);
+  await context.api.setPreferences({closeAction:"quit"});
+  context.api.handleWindowClose(event);
+  assert.equal(context.quitting(),1);
+  assert.equal(prevented,2);
+  context.device.save=()=>Promise.reject(new Error("disk full"));
+  await assert.rejects(context.api.setPreferences({closeAction:"minimize"}));
+  assert.equal(context.api.info().preferences.closeAction,"quit");
+});
+
+
+test("cached automatic update waits for local writes before restarting on the next launch", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  await context.api.setPreferences({autoUpdate:true});
+  context.api.markCachedUpdate();
+  let release;
+  context.contents.executeJavaScript=()=>new Promise(resolve=>{release=resolve;});
+  context.updaterEvents.get("update-available")({version:"1.2.0"});
+  const downloaded=context.updaterEvents.get("update-downloaded")();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(context.installs(),0);
+  release();
+  await downloaded;
+  assert.equal(context.installs(),1);
+});
+
+
+test("normal exit cancels and awaits an unfinished download before cleaning the cache", async () => {
+  const context=harness();
+  let cancelled=false, cleaned=false;
+  context.updater.downloadUpdate=token=>new Promise((_resolve,reject)=>{token.onCancel(()=>{cancelled=true;setImmediate(()=>{cleaned=true;reject(new Error("cancelled"));});});});
+  const transfer=context.api.downloadUpdate().catch(()=>{});
+  await context.api.prepareExit();
+  await transfer;
+  assert.equal(cancelled,true);
+  assert.equal(cleaned,true);
+  await assert.rejects(context.api.downloadUpdate(),/closing/);
+});
+
+test("installation refuses a corrupt cache and disables automatic installation", async () => {
+  const context=harness();
+  context.setCacheReady(false);
+  await assert.rejects(context.handlers.get("app:install-update")(context.event),/incomplete/);
+  assert.equal(context.installs(),0);
+  assert.equal(context.updater.autoInstallOnAppQuit,false);
+});
+
+test("startup restores both automatic download and installation preferences", () => {
+  for (const enabled of [false, true]) {
+    const context = harness();
+    context.device.value.autoUpdate = enabled;
+    context.updater.autoInstallOnAppQuit = !enabled;
+    context.api.installUpdater();
+    assert.equal(context.updater.autoDownload, enabled);
+    assert.equal(context.updater.autoInstallOnAppQuit, enabled);
+  }
+});
+
+test("enabling automatic updates after download registers quit installation using the complete cache", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  await context.updaterEvents.get("update-downloaded")();
+  assert.equal(context.device.value.autoUpdateReady, undefined);
+  let registered = false, reused = 0;
+  context.updater.downloadUpdate = async () => {
+    reused++;
+    await context.updaterEvents.get("update-downloaded")();
+    registered = context.updater.autoInstallOnAppQuit;
+  };
+  await context.api.setPreferences({autoUpdate:true});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reused, 1);
+  assert.equal(registered, true);
+  assert.equal(context.device.value.autoUpdateReady, "1.1.0");
+  assert.equal(context.api.info().update.status, "downloaded");
+  assert.equal(context.api.info().update.silent, true);
+  await context.api.setPreferences({closeAction:"quit"});
+  assert.equal(reused, 1);
+});
+
+test("startup resumes confirmed downloads only when the official newer release has the same digest", async () => {
+  for (const [available, digest, downloads] of [[false,"confirmed",0],[true,"different",0],[true,"confirmed",1]]) {
+    const context=harness();
+    context.api.markConfirmedResume("confirmed");
+    context.updater.checkForUpdates=()=>Promise.resolve({isUpdateAvailable:available,updateInfo:{files:[{sha512:digest}]}});
+    await context.api.checkUpdate();
+    assert.equal(context.downloads(),downloads);
+    if (downloads) assert.equal(context.updater.autoInstallOnAppQuit,true);
+  }
 });

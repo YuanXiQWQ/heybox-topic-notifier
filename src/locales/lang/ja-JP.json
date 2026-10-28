@@ -410,5 +410,15 @@
   "updateDevelopment": "開発版",
   "nativeLoginTitle": "アプリへのログイン：ペアリングコードを確認してください",
   "nativeLoginApproved": "ログインしました。アプリに戻ってください",
-  "applicationNotificationsBackgroundUnavailable": "バックグラウンド通知が遅れる場合があります。アプリを開くとすぐに確認できます"
+  "applicationNotificationsBackgroundUnavailable": "バックグラウンド通知が遅れる場合があります。アプリを開くとすぐに確認できます",
+  "notificationTestNoChannels": "通知方法を少なくとも1つ有効にしてください。",
+  "desktopCloseWindow": "ウィンドウを閉じるとき",
+  "desktopCloseMinimize": "タスクバーに最小化",
+  "desktopCloseQuit": "アプリを終了",
+  "desktopLaunchAtLogin": "Windows 起動時に実行",
+  "desktopResetWindow": "ウィンドウサイズ",
+  "desktopResetWindowAction": "既定のサイズに戻す",
+  "desktopAutoUpdate": "自動更新",
+  "desktopAutoUpdateHint": "バックグラウンドでダウンロードし、終了時にインストールします。",
+  "applicationBadge": "アプリアイコンのバッジ"
 }

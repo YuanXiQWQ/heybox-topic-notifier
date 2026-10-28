@@ -3,6 +3,10 @@
 <resources>
     <string name="app_name">小黑盒话题提醒</string>
     <string name="notification_channel">应用通知</string>
+    <string name="background_channel">后台运行</string>
+    <string name="badge_channel">工作区角标</string>
+    <string name="background_running">后台运行中</string>
+    <string name="background_monitoring">正在同步工作区并接收已开启的通知</string>
     <string name="webview_required">请更新系统 WebView 后重试。</string>
     <string name="update_failed">更新失败，请重新检查更新。</string>
 </resources>

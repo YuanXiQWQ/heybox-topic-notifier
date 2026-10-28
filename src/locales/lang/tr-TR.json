@@ -410,5 +410,15 @@
   "updateDevelopment": "Geliştirme sürümü",
   "nativeLoginTitle": "Uygulamaya giriş: eşleştirme kodunu doğrulayın",
   "nativeLoginApproved": "Giriş yapıldı. Uygulamaya dönün",
-  "applicationNotificationsBackgroundUnavailable": "Arka plan bildirimleri gecikebilir; hemen kontrol etmek için uygulamayı açın"
+  "applicationNotificationsBackgroundUnavailable": "Arka plan bildirimleri gecikebilir; hemen kontrol etmek için uygulamayı açın",
+  "notificationTestNoChannels": "Önce en az bir bildirim yöntemini etkinleştirin.",
+  "desktopCloseWindow": "Pencere kapatıldığında",
+  "desktopCloseMinimize": "Görev çubuğuna küçült",
+  "desktopCloseQuit": "Uygulamadan çık",
+  "desktopLaunchAtLogin": "Windows ile başlat",
+  "desktopResetWindow": "Pencere boyutu",
+  "desktopResetWindowAction": "Varsayılan boyuta dön",
+  "desktopAutoUpdate": "Otomatik güncellemeler",
+  "desktopAutoUpdateHint": "Arka planda indir ve çıkışta yükle.",
+  "applicationBadge": "Uygulama simgesi rozeti"
 }

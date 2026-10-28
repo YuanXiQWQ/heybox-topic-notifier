@@ -140,7 +140,7 @@ export async function notifyBrowsers(
   userId: string,
   records: MatchRecord[],
   settings: AppSettings,
-  options: { config?: WebPushConfig; deliver?: typeof deliverWebPush } = {},
+  options: { config?: WebPushConfig; deliver?: typeof deliverWebPush; strict?: boolean } = {},
 ): Promise<boolean> {
   const config = options.config ?? webPushConfig();
   if (!config || !storage.webPush || records.length === 0) return false;
@@ -157,6 +157,7 @@ export async function notifyBrowsers(
     path: "/",
   };
   let sent = false;
+  let failed = false;
   for (const device of await storage.webPush.list(userId)) {
     try {
       const session = await storage.getSession(device.sessionHash);
@@ -175,9 +176,11 @@ export async function notifyBrowsers(
         await storage.webPush.remove(device.id, userId, device.sessionHash);
       } else sent = true;
     } catch {
+      failed = true;
       // 仅记录不可识别订阅的状态，避免日志泄露 endpoint 和加密密钥。
       console.warn("浏览器通知投递失败。");
     }
   }
+  if (failed && options.strict) throw new Error("Web Push delivery failed");
   return sent;
 }

@@ -957,3 +957,19 @@ Deno.test("Turso schema upgrade preserves records and installs version triggers"
     );
   });
 });
+
+Deno.test("Turso badge counts distinct pending posts within one account", async () => {
+  await withStorage(async (storage) => {
+    const user = storage.forUser("badge-user"), other = storage.forUser("badge-other");
+    const match = record("badge-a", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z");
+    await user.saveMatch(match);
+    await user.saveMatch({...match, id:"badge-b"});
+    await other.saveMatch({...match, id:"other-post"});
+    assertEquals(await user.countPendingPosts!(),1);
+    await user.completeMatches(["badge-a"]);
+    assertEquals(await user.countPendingPosts!(),1);
+    await user.completeMatches(["badge-b"]);
+    assertEquals(await user.countPendingPosts!(),0);
+    assertEquals(await other.countPendingPosts!(),1);
+  });
+});

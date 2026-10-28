@@ -432,6 +432,30 @@ function renderGlobalSettingsSection(
               </select>
             </dd>
           </div>
+          <div data-app-device-platform="windows" hidden>
+            ${settingLabel("toggle_on", messages.desktopCloseWindow)}
+            <dd class="desktop-close-options">
+              <label><input type="radio" name="desktopCloseAction" value="minimize" form="application-device-form" data-app-preference="closeAction">${escapeHtml(messages.desktopCloseMinimize)}</label>
+              <label><input type="radio" name="desktopCloseAction" value="quit" form="application-device-form" data-app-preference="closeAction">${escapeHtml(messages.desktopCloseQuit)}</label>
+              <span class="inline-action-status" data-app-preference-status role="status" hidden></span>
+            </dd>
+          </div>
+          <div data-app-device-platform="windows" hidden>
+            ${settingLabel("timer", messages.desktopLaunchAtLogin)}
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="launchAtLogin" aria-label="${escapeHtml(messages.desktopLaunchAtLogin)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+          </div>
+          <div data-app-device-platform="windows" hidden>
+            ${settingLabel("download", messages.desktopAutoUpdate)}
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="autoUpdate" aria-label="${escapeHtml(messages.desktopAutoUpdate)}"></label><span class="settings-hint">${escapeHtml(messages.desktopAutoUpdateHint)}</span><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+          </div>
+          <div data-app-device-platform="windows" hidden>
+            ${settingLabel("numbers", messages.desktopResetWindow)}
+            <dd><button type="button" class="text-action-button" data-app-reset-window>${escapeHtml(messages.desktopResetWindowAction)}</button><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+          </div>
+          <div data-app-device-platform="android" hidden>
+            ${settingLabel("notifications", messages.applicationBadge)}
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="badgeEnabled" aria-label="${escapeHtml(messages.applicationBadge)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+          </div>
           <div class="settings-navigation-row">
             <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about" data-app-about-link>
               <span class="settings-label-with-icon">${materialSymbolIcon("info", "settings-label-icon")}<span>${escapeHtml(messages.aboutProject)}</span></span>
@@ -3198,67 +3222,6 @@ function renderNotificationSection(settings: AppSettings): string {
     )
   }
                 </select>
-                <button
-                  type="button"
-                  class="settings-row-action-button settings-icon-action-button"
-                  aria-label="${escapeHtml(messages.testNotify)}"
-                  data-tooltip="${escapeHtml(messages.testNotify)}"
-                  data-test-notify-button
-                  data-test-notify-sending="${
-    escapeHtml(messages.testNotifySending)
-  }"
-                  data-test-notify-failed="${
-    escapeHtml(messages.testNotifyFailed)
-  }"
-                  ${
-    settings.notificationProvider === "disabled" ? "hidden" : ""
-  }
-                >${
-    materialSymbolIcon(
-      "notifications",
-      "settings-row-action-icon",
-    )
-  }</button>
-                <span
-                  class="inline-action-status"
-                  data-test-notify-status
-                  role="status"
-                  hidden
-                >
-                  <span data-test-notify-status-text></span>
-                  <a
-                    class="inline-action-link"
-                    data-test-notify-error-link
-                    data-error-app-name="${escapeHtml(messages.appName)}"
-                    data-error-dark-mode="${
-    settings.darkMode ? "true" : "false"
-  }"
-                    data-error-direction="${
-    isRtlLocale(settings.locale) ? "rtl" : "ltr"
-  }"
-                    data-error-locale="${escapeHtml(settings.locale)}"
-                    data-error-nav-dashboard="${
-    escapeHtml(messages.navDashboard)
-  }"
-                    data-error-nav-history="${escapeHtml(messages.navHistory)}"
-                    data-error-nav-settings="${
-    escapeHtml(messages.navSettings)
-  }"
-                    data-error-return-label="${
-    escapeHtml(messages.testNotifyBackToSettings)
-  }"
-                    data-error-summary="${
-    escapeHtml(messages.testNotifyFailed)
-  }"
-                    data-error-theme-color="${escapeHtml(settings.themeColor)}"
-                    data-error-title="${
-    escapeHtml(messages.testNotifyErrorTitle)
-  }"
-                    hidden
-                  >${externalLinkIcon()}${
-    escapeHtml(messages.testNotifyViewError)
-  }</a>
-                </span>
               </div>
             </dd>
           </div>
@@ -3612,6 +3575,61 @@ function renderNotificationSection(settings: AppSettings): string {
               >
             </dd>
           </div>
+          <div class="notification-test-drawer"><dt hidden></dt><dd>
+                <button
+                  type="button"
+                  class="text-action-button notification-test-button"
+                  aria-label="${escapeHtml(messages.testNotify)}"
+                  data-tooltip="${escapeHtml(messages.testNotify)}"
+                  data-test-notify-button
+                  data-test-notify-sending="${
+    escapeHtml(messages.testNotifySending)
+  }"
+                  data-test-notify-failed="${
+    escapeHtml(messages.testNotifyFailed)
+  }"
+                >${escapeHtml(messages.testNotify)}</button>
+                <span
+                  class="inline-action-status"
+                  data-test-notify-status
+                  role="status"
+                  hidden
+                >
+                  <span data-test-notify-status-text></span>
+                  <a
+                    class="inline-action-link"
+                    data-test-notify-error-link
+                    data-error-app-name="${escapeHtml(messages.appName)}"
+                    data-error-dark-mode="${
+    settings.darkMode ? "true" : "false"
+  }"
+                    data-error-direction="${
+    isRtlLocale(settings.locale) ? "rtl" : "ltr"
+  }"
+                    data-error-locale="${escapeHtml(settings.locale)}"
+                    data-error-nav-dashboard="${
+    escapeHtml(messages.navDashboard)
+  }"
+                    data-error-nav-history="${escapeHtml(messages.navHistory)}"
+                    data-error-nav-settings="${
+    escapeHtml(messages.navSettings)
+  }"
+                    data-error-return-label="${
+    escapeHtml(messages.testNotifyBackToSettings)
+  }"
+                    data-error-summary="${
+    escapeHtml(messages.testNotifyFailed)
+  }"
+                    data-error-theme-color="${escapeHtml(settings.themeColor)}"
+                    data-error-title="${
+    escapeHtml(messages.testNotifyErrorTitle)
+  }"
+                    hidden
+                  >${externalLinkIcon()}${
+    escapeHtml(messages.testNotifyViewError)
+  }</a>
+                </span>
+          </dd></div>
         </dl>
       </section>
   `;

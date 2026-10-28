@@ -22,7 +22,7 @@ final class Http {
         HttpURLConnection connection = connect(BuildConfig.APP_ORIGIN + path);
         String cookie = CookieManager.getInstance().getCookie(BuildConfig.APP_ORIGIN);
         if (cookie != null) connection.setRequestProperty("Cookie", cookie);
-        try { if (connection.getResponseCode() != 200) throw new IllegalStateException("API unavailable"); saveCookies(connection); return json(connection.getInputStream()); }
+        try { int status = connection.getResponseCode(); if (status == 401 || status == 403 || status == 303) throw new SecurityException("Authentication required"); if (status != 200) throw new IllegalStateException("API unavailable"); saveCookies(connection); return json(connection.getInputStream()); }
         finally { connection.disconnect(); }
     }
     /**

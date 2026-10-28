@@ -9,7 +9,7 @@ import { escapeHtml, renderLayout } from "./html.ts";
 import { materialSymbolIcon } from "./icons.ts";
 
 /**
- * 渲染项目介绍、当前部署版本和已发布安装包，不展示尚不存在的下载链接。
+ * 渲染项目信息、版本旁的应用更新入口和已发布安装包。
  *
  * @param {object} options 页面设置、账号、发行目录和部署版本。
  * @return {string} 关于项目页面的完整 HTML。
@@ -41,9 +41,16 @@ export function renderAbout(options: {
         <div><dt>${escapeHtml(messages.aboutDescription)}</dt><dd>${
     escapeHtml(messages.aboutSummary)
   }</dd></div>
-        <div><dt>${escapeHtml(messages.projectVersion)}</dt><dd><span data-app-version>${
+        <div><dt>${
+    escapeHtml(messages.projectVersion)
+  }</dt><dd class="about-version"><span data-app-version>${
     escapeHtml(options.version)
-  }</span></dd></div>
+  }</span><span class="about-version-updates" data-app-updates hidden>
+          <button type="button" class="text-action-button about-update-link" data-app-check-update>${
+    escapeHtml(messages.checkUpdate)
+  }</button>
+          <span class="inline-action-status" data-app-update-status role="status" hidden></span>
+        </span></dd></div>
         <div><dt>${
     escapeHtml(messages.projectRepository)
   }</dt><dd><a href="${projectRepositoryUrl}" target="_blank" rel="noopener noreferrer">GitHub</a></dd></div>
@@ -67,12 +74,6 @@ export function renderAbout(options: {
     )
   }</dd></div>
       </dl>
-    </section>
-    <section class="settings-group" data-app-updates hidden>
-      <dl class="settings-list"><div><dt>${escapeHtml(messages.checkUpdate)}</dt><dd>
-        <button type="button" class="icon-button" data-app-check-update aria-label="${escapeHtml(messages.checkUpdate)}" data-tooltip="${escapeHtml(messages.checkUpdate)}">${materialSymbolIcon("refresh")}</button>
-        <span class="inline-action-status" data-app-update-status role="status" hidden></span>
-      </dd></div></dl>
     </section>`;
   return renderLayout({
     account: options.account,
