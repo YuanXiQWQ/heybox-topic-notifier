@@ -1977,6 +1977,31 @@ dt{
   gap: 12px 20px;
 }
 
+.about-version,
+.about-version-updates{
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.about-version-updates .about-update-link{
+  font: inherit;
+  padding: 0;
+}
+
+.about-version-updates .about-update-link:hover,
+.about-version-updates .about-update-link:focus-visible{
+  background: transparent;
+  text-decoration: underline;
+}
+
+.about-version-updates .inline-action-status{
+  flex: 0 1 auto;
+  margin: 0;
+  white-space: normal;
+}
+
 .about-download{
   align-items: center;
   display: inline-flex;

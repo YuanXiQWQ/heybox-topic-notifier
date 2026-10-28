@@ -1,12 +1,13 @@
-/** @file 验证 Android 桥接在长下载、失联及消息发送失败时的 Promise 生命周期。 */
+/** @file 验证原生桥的请求生命周期、更新反馈和导航保存屏障。 */
 import { runInNewContext } from "node:vm";
 import { assertEquals, assertRejects } from "@std/assert";
 
 /**
  * 在受控时钟和最小页面中运行真实桥接脚本，不请求安装或真实下载。
+ * @param {boolean} updateControls 是否提供关于页的手动更新控件。
  * @return {Promise<object>} 原生请求、时钟及响应入口。
  */
-async function harness() {
+async function harness(updateControls = false) {
   let now = 0, serial = 0, fail = false;
   const timers = new Map<number, { at: number; fn: () => void }>();
   const requests: { id: string; method: string }[] = [];
@@ -25,12 +26,33 @@ async function harness() {
     notifications: { enabled: false },
     update: { status: "idle", version: null },
   };
+  let checkClick!: () => Promise<void>;
+  const check = {
+    disabled: false,
+    addEventListener: (_event: string, listener: () => Promise<void>) => {
+      checkClick = listener;
+    },
+  };
+  const status = { textContent: "", hidden: true };
   const context = {
     Error,
     HeyboxNative: native,
     document: {
-      getElementById: () => null,
-      querySelector: () => null,
+      getElementById: () => ({
+        textContent: JSON.stringify({
+          updateChecking: "正在检查更新",
+          updateCurrent: "已是最新版本",
+          updateFailed: "检查失败",
+        }),
+      }),
+      querySelector: (selector: string) =>
+        updateControls
+          ? selector === "[data-app-check-update]"
+            ? check
+            : selector === "[data-app-update-status]"
+            ? status
+            : null
+          : null,
       documentElement: { dataset: {} },
       dispatchEvent() {},
       body: { dataset: { appUserId: "alice" } },
@@ -68,6 +90,9 @@ async function harness() {
     context,
     requests,
     timers,
+    check,
+    status,
+    clickCheck: () => checkClick(),
     failPort() {
       fail = true;
     },
@@ -96,6 +121,36 @@ async function harness() {
     },
   };
 }
+
+Deno.test("native update results stay quiet until a manual check and show progress immediately", async () => {
+  const bridge = await harness(true);
+  bridge.progress("current");
+  assertEquals(bridge.status.hidden, true);
+  const pending = bridge.clickCheck();
+  assertEquals(bridge.check.disabled, true);
+  assertEquals(bridge.status.textContent, "正在检查更新");
+  assertEquals(bridge.status.hidden, false);
+  const request = bridge.requests.at(-1)!;
+  assertEquals(request.method, "checkUpdate");
+  bridge.respond(request.id, {
+    platform: "android",
+    version: "0.1.0",
+    update: { status: "current", version: null },
+  });
+  await pending;
+  assertEquals(bridge.check.disabled, false);
+  assertEquals(bridge.status.textContent, "已是最新版本");
+});
+
+Deno.test("native manual update check can be retried after bridge failure", async () => {
+  const bridge = await harness(true);
+  bridge.failPort();
+  await bridge.clickCheck();
+  assertEquals(bridge.status.textContent, "检查失败");
+  assertEquals(bridge.status.hidden, false);
+  assertEquals(bridge.check.disabled, false);
+  assertEquals(bridge.timers.size, 0);
+});
 
 Deno.test("native download progress renews the idle timeout beyond two minutes", async () => {
   const bridge = await harness();

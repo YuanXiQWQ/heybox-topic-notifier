@@ -93,7 +93,7 @@ async function prepareExit() {
 }
 
 /**
- * 启动受隔离的应用会话和托盘，不向渲染页面开放 Node 权限。
+ * 启动受隔离的会话与托盘，并在加载页面前自动检查更新。
  * @return {Promise<void>} 初始化完成。
  */
 async function start() {
@@ -182,6 +182,7 @@ async function start() {
   tray.on("double-click", () => showWindow());
   installBridge();
   installUpdater();
+  void checkUpdate();
   powerMonitor.on("resume", () => {
     void pollNotifications();
     void checkUpdate();
@@ -190,7 +191,6 @@ async function start() {
   setInterval(() => void checkUpdate(), 6 * 60 * 60 * 1000).unref();
   await window.loadURL(origin + "/").catch(() => {});
   void pollNotifications();
-  void checkUpdate();
 }
 
 /**
