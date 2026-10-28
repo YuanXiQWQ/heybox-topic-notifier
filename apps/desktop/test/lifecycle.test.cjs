@@ -12,6 +12,7 @@ const { createRequire } = require("node:module");
  */
 function harness() {
   const handlers = new Map(), events = new Map();
+  let cacheReady = true;
   let installs = 0, downloads = 0, quitting = 0;
   const updaterEvents = new Map();
   const updater = { quitAndInstall: () => installs++, downloadUpdate: () => { downloads++; return Promise.resolve(); }, on: (name, fn) => updaterEvents.set(name, fn) };
@@ -92,6 +93,8 @@ function harness() {
     require: (name) =>
       name === "electron"
         ? electron
+        : name === "./update-cache.cjs"
+        ? {repairUpdateCache: () => Promise.resolve(cacheReady)}
         : name === "electron-updater"
         ? { autoUpdater: updater }
         : localRequire(name),
@@ -106,7 +109,7 @@ function harness() {
   };
   const setup = vm.runInNewContext(
     fs.readFileSync(filename, "utf8") +
-      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {markCachedUpdate:()=>{installCachedUpdateOnStart=true;},info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications,setPreferences,handleWindowClose,resetWindow,installUpdater,installJumpList,handleLaunchAction}; })",
+      "\n((w,d,s) => { window=w; device=d; webSession=s; update={status:'downloaded',version:'1.1.0'}; installBridge(); return {downloadUpdate,markCachedUpdate:()=>{installCachedUpdateOnStart=true;},info,prepareExit,showWindow,consumeNotifications,setNotifications,disableNotifications,setPreferences,handleWindowClose,resetWindow,installUpdater,installJumpList,handleLaunchAction}; })",
     context,
   );
   const api = setup(window, device, {
@@ -114,7 +117,7 @@ function harness() {
     fetch: () => Promise.resolve({ ok: true, json: () => read() }),
   });
   return {
-    api, app, window, updater, updaterEvents, downloads: () => downloads, quitting: () => quitting,
+    api, app, window, updater, updaterEvents, setCacheReady: value => { cacheReady=value; }, downloads: () => downloads, quitting: () => quitting,
     contents,
     device,
     handlers,
@@ -378,4 +381,25 @@ test("cached automatic update waits for local writes before restarting on the ne
   release();
   await downloaded;
   assert.equal(context.installs(),1);
+});
+
+
+test("normal exit cancels and awaits an unfinished download before cleaning the cache", async () => {
+  const context=harness();
+  let cancelled=false, cleaned=false;
+  context.updater.downloadUpdate=token=>new Promise((_resolve,reject)=>{token.onCancel(()=>{cancelled=true;setImmediate(()=>{cleaned=true;reject(new Error("cancelled"));});});});
+  const transfer=context.api.downloadUpdate().catch(()=>{});
+  await context.api.prepareExit();
+  await transfer;
+  assert.equal(cancelled,true);
+  assert.equal(cleaned,true);
+  await assert.rejects(context.api.downloadUpdate(),/closing/);
+});
+
+test("installation refuses a corrupt cache and disables automatic installation", async () => {
+  const context=harness();
+  context.setCacheReady(false);
+  await assert.rejects(context.handlers.get("app:install-update")(context.event),/incomplete/);
+  assert.equal(context.installs(),0);
+  assert.equal(context.updater.autoInstallOnAppQuit,false);
 });

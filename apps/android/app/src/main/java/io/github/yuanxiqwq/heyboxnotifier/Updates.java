@@ -38,6 +38,9 @@ final class Updates {
     private volatile String status = "idle";
     private volatile int progress = 0;
     private volatile boolean installAfterPermission;
+    /** 取消只影响未完成下载，完整校验包可跨进程保留。 */
+    private volatile boolean downloadCancelled;
+    private volatile HttpURLConnection downloadConnection;
     /** 自动检查使用进程单调时钟，不因页面重建或系统校时重复发请求。 */
     private long lastAutomaticCheck = -1;
     /** 检查与下载互斥，界面状态读取不等待网络。 */
@@ -65,6 +68,8 @@ final class Updates {
     }
     /** @param {Activity} owner 已销毁窗口，后台下载不再持有其回调或上下文。 */
     synchronized void detach(Activity owner) { if (activity.get() == owner) { activity.clear(); changed.clear(); } }
+    /** 中止网络读取，下载线程关闭输出流后删除临时文件，不阻塞界面等待网络。 */
+    synchronized void cancelDownload() { downloadCancelled = true; HttpURLConnection connection = downloadConnection; if (connection != null) connection.disconnect(); }
     /** 仅通知仍然存活的窗口，进程协调器不强引用页面及其回调。 */
     private void notifyChanged() { Runnable listener = changed.get(); if (listener != null) listener.run(); }
     /**
@@ -136,7 +141,12 @@ final class Updates {
      * @throws Exception 下载、校验或存储失败。
      */
     void download() throws Exception {
-        if (!transferring.compareAndSet(false, true)) throw new IllegalStateException("Update operation in progress");
+        synchronized (this) {
+            Activity owner = activity.get();
+            if (owner == null || owner.isFinishing() || owner.isDestroyed()) throw new IllegalStateException("Activity unavailable");
+            if (!transferring.compareAndSet(false, true)) throw new IllegalStateException("Update operation in progress");
+            downloadCancelled = false;
+        }
         try { downloadAvailable(); } finally { transferring.set(false); }
     }
     /** 下载当前已确认的发行包，并在成功后保存可恢复的校验元数据。 @throws Exception 下载或校验失败。 */
@@ -151,7 +161,8 @@ final class Updates {
             for (int redirects = 0; redirects < 6; redirects++) {
                 URI uri = URI.create(address);
                 if (!Arrays.asList("github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com").contains(uri.getHost())) throw new SecurityException("Invalid download host");
-                connection = Http.connect(address);
+                if (downloadCancelled) throw new java.io.InterruptedIOException("Download cancelled");
+                connection = Http.connect(address); downloadConnection = connection;
                 int code = connection.getResponseCode();
                 if (code == 200) break;
                 if (code < 300 || code >= 400) throw new IllegalStateException("Download unavailable");
@@ -162,6 +173,7 @@ final class Updates {
             try (InputStream input = connection.getInputStream(); FileOutputStream output = new FileOutputStream(temporary)) {
                 byte[] buffer = new byte[65536]; int count;
                 while ((count = input.read(buffer)) != -1) {
+                    if (downloadCancelled) throw new java.io.InterruptedIOException("Download cancelled");
                     total += count; if (total > expected) throw new SecurityException("Unexpected download size");
                     output.write(buffer, 0, count); digest.update(buffer, 0, count);
                     int next = (int) (total * 100 / expected); long now = android.os.SystemClock.elapsedRealtime();
@@ -169,13 +181,19 @@ final class Updates {
                 }
                 output.getFD().sync();
             }
+            if (downloadCancelled) throw new java.io.InterruptedIOException("Download cancelled");
             if (total != expected || !hex(digest.digest()).equals(release.getString("digest").substring(7))) throw new SecurityException("Update digest mismatch");
             verifyPackage(temporary, device.read().getString("updateVersion"));
+            java.nio.file.Files.deleteIfExists(apk.toPath());
             if (!temporary.renameTo(apk)) throw new IllegalStateException("Cannot prepare update");
             device.put("downloadedUpdate", new JSONObject().put("version", device.read().optString("updateVersion")).put("asset", release));
             status = "downloaded"; notifyChanged();
         } catch (Exception error) { status = "error"; notifyChanged(); throw error; }
-        finally { if (connection != null) connection.disconnect(); }
+        finally {
+            if (connection != null) connection.disconnect();
+            downloadConnection = null;
+            if (!status.equals("downloaded")) { discardDownload(apk, temporary); device.put("downloadedUpdate", JSONObject.NULL); }
+        }
     }
     /**
      * 在后台重新核验已下载包，应用重启后可以继续安装而无需重新下载。
@@ -187,14 +205,26 @@ final class Updates {
     }
     /** 重新核验已下载包元数据，调用方负责与正在进行的下载互斥。 @throws Exception 状态写入失败。 */
     private void restoreDownloaded() throws Exception {
+        File temporary = new File(context.getFilesDir(), "application-update.part");
+        java.nio.file.Files.deleteIfExists(temporary.toPath());
         JSONObject saved = device.read().optJSONObject("downloadedUpdate");
-        if (saved == null) return;
+        if (saved == null) { java.nio.file.Files.deleteIfExists(apk.toPath()); return; }
         try {
-            if (!newer(saved.optString("version"), BuildConfig.VERSION_NAME)) { device.put("downloadedUpdate", JSONObject.NULL); return; }
+            if (!newer(saved.optString("version"), BuildConfig.VERSION_NAME)) { discardDownload(apk, temporary); device.put("downloadedUpdate", JSONObject.NULL); return; }
             JSONObject asset = saved.getJSONObject("asset");
             verifyDownload(apk, asset); verifyPackage(apk, saved.getString("version"));
             release = asset; device.put("updateVersion", saved.getString("version")); status = "downloaded"; progress = 100; notifyChanged();
-        } catch (Exception invalid) { device.put("downloadedUpdate", JSONObject.NULL); }
+        } catch (Exception invalid) { discardDownload(apk, temporary); device.put("downloadedUpdate", JSONObject.NULL); status = "idle"; progress = 0; notifyChanged(); }
+    }
+    /**
+     * 删除失效完整包与中断临时包，不触碰其它应用文件。
+     * @param {File} apk 本应用的缓存安装包。
+     * @param {File} temporary 本应用的临时下载文件。
+     * @throws Exception 清理失败，不能宣称缓存已处理。
+     */
+    static void discardDownload(File apk, File temporary) throws Exception {
+        java.nio.file.Files.deleteIfExists(temporary.toPath());
+        java.nio.file.Files.deleteIfExists(apk.toPath());
     }
     /**
      * 依据已保存的官方摘要与尺寸验证完整安装包，不信任文件存在这一事实。
@@ -239,7 +269,9 @@ final class Updates {
             installAfterPermission = true;
             owner.runOnUiThread(() -> owner.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.getPackageName())))); return;
         }
-        verifyPackage(apk, device.read().getJSONObject("downloadedUpdate").getString("version"));
+        JSONObject cached = device.read().getJSONObject("downloadedUpdate");
+        try { verifyDownload(apk, cached.getJSONObject("asset")); verifyPackage(apk, cached.getString("version")); }
+        catch (Exception invalid) { discardDownload(apk, new File(context.getFilesDir(), "application-update.part")); device.put("downloadedUpdate", JSONObject.NULL); status = "error"; notifyChanged(); throw invalid; }
         PackageInstaller installer = context.getPackageManager().getPackageInstaller();
         PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
         params.setAppPackageName(context.getPackageName()); params.setSize(apk.length());

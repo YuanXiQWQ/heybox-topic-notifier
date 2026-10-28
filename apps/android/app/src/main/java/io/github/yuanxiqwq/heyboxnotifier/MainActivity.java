@@ -243,6 +243,6 @@ public final class MainActivity extends ComponentActivity {
         try { if (Arrays.asList("/", "/history").contains(path) && user != null && notifications.owns(user)) navigateSaved(path, user); }
         catch (Exception ignored) { /* 不打开已失效账号的通知。 */ }
     }
-    /** 释放界面任务；已持久化的队列和通知游标继续保留。 */
-    @Override protected void onDestroy() { resumed = false; if (updates != null) updates.detach(this); handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
+    /** 释放界面任务，主动退出时取消未完成下载；持久化队列和通知游标继续保留。 */
+    @Override protected void onDestroy() { resumed = false; if (updates != null) { if (isFinishing()) updates.cancelDownload(); updates.detach(this); } handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
 }

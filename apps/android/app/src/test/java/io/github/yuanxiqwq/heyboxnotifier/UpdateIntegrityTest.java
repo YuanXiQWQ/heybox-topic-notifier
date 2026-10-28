@@ -30,6 +30,14 @@ public class UpdateIntegrityTest {
         JSONObject asset = new JSONObject().put("size", 1).put("digest", "sha256:invalid");
         assertThrows(SecurityException.class, () -> Updates.verifyDownload(apk, asset));
     }
+    /** 清理中断文件与损坏包时保留目录中的其它文件。 @throws Exception 测试失败。 */
+    @Test public void discardsOnlyOwnedUpdateFiles() throws Exception {
+        File apk = files.newFile("application-update.apk"), partial = files.newFile("application-update.part"), other = files.newFile("keep.dat");
+        Files.write(partial.toPath(), new byte[] {1,2});
+        Updates.discardDownload(apk, partial);
+        assertFalse(apk.exists()); assertFalse(partial.exists()); assertTrue(other.exists());
+        Updates.discardDownload(apk, partial);
+    }
     /** 大版本数字不会溢出；旧版、预发行和异常文本不被当成正式更新。 */
     @Test public void comparesStableVersionsWithoutNumericOverflow() {
         assertTrue(Updates.newer("999999999999999999999.0.0", "1.0.0"));

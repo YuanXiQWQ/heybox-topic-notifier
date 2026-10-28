@@ -15,6 +15,8 @@ const {
   screen,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const { CancellationToken } = require("builder-util-runtime");
+const { repairUpdateCache } = require("./update-cache.cjs");
 const { createHash } = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -52,6 +54,9 @@ let checking;
 let installCachedUpdateOnStart = false;
 /** 用户主动下载的更新可在退出时安装，不受后续自动下载偏好影响。 */
 let manualUpdateDownload = false;
+/** 退出期间不允许开始新下载，正在传输的任务持有可取消令牌。 */
+let stoppingUpdates = false;
+let updateTransfer;
 /** 设备开关变更序号使旧的开启请求不能覆盖较新的关闭操作。 */
 let notificationRevision = 0;
 /** 当前会话展示的通知，退出登录时撤回。 */
@@ -85,16 +90,32 @@ else {
 
 /**
  * 等待页面本地事务，保存失败时保持窗口以便用户重试。
- * @return {Promise<void>} 可以退出或安装更新。
+ * @param {boolean} installing 是否必须保留有效安装包。
+ * @return {Promise<void>} 下载已停止且缓存已处理，可以退出或安装更新。
  */
-async function prepareExit() {
-  if (!window || window.isDestroyed() || window.webContents.isDestroyed()) {
-    return;
+async function prepareExit(installing = false) {
+  if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
+    await window.webContents.executeJavaScript("globalThis.applicationSync?.prepareForExit()", true);
   }
-  await window.webContents.executeJavaScript(
-    "globalThis.applicationSync?.prepareForExit()",
-    true,
-  );
+  stoppingUpdates = true;
+  try {
+    await checking;
+    if (updateTransfer) {
+      if (update.status !== "downloaded") updateTransfer.token.cancel();
+      await updateTransfer.promise.catch(() => {});
+    }
+    if (app.isPackaged && !await repairUpdateCache(autoUpdater)) {
+      autoUpdater.autoInstallOnAppQuit = false;
+      delete device.value.autoUpdateReady;
+      await device.save();
+      if (installing) throw new Error("Update cache is incomplete");
+    }
+  } catch (error) {
+    stoppingUpdates = false;
+    update.status = "error";
+    emitState();
+    throw error;
+  }
 }
 
 /**
@@ -103,6 +124,8 @@ async function prepareExit() {
  */
 async function start() {
   device = await deviceState(app.getPath("userData"), safeStorage);
+  try { if (app.isPackaged && !await repairUpdateCache(autoUpdater)) delete device.value.autoUpdateReady; }
+  catch { delete device.value.autoUpdateReady; update.status = "error"; }
   installCachedUpdateOnStart = device.value.autoUpdate === true &&
     typeof device.value.autoUpdateReady === "string" && newerVersion(device.value.autoUpdateReady, app.getVersion());
   if (
@@ -247,7 +270,7 @@ async function setPreferences(values) {
   autoUpdater.autoInstallOnAppQuit = device.value.autoUpdate === true || manualUpdateDownload;
   if (autoUpdater.autoDownload && update.status === "available") {
     update.status = "downloading";
-    void autoUpdater.downloadUpdate().catch(() => { update.status = "error"; emitState(); });
+    void downloadUpdate().catch(() => { update.status = "error"; emitState(); });
   }
   emitState();
   return info();
@@ -344,7 +367,7 @@ function installBridge() {
     update.status = "downloading";
     emitState();
     try {
-      await autoUpdater.downloadUpdate();
+      await downloadUpdate();
     } catch {
       update.status = "error";
       emitState();
@@ -353,7 +376,7 @@ function installBridge() {
   });
   handle("app:install-update", async () => {
     if (update.status !== "downloaded") throw new Error("Update not ready");
-    await prepareExit();
+    await prepareExit(true);
     quitting = true;
     autoUpdater.quitAndInstall(false, true);
   });
@@ -652,7 +675,7 @@ function installUpdater() {
       emitState();
       if (installCachedUpdateOnStart && device.value.autoUpdate) {
         installCachedUpdateOnStart = false;
-        await prepareExit();
+        await prepareExit(true);
         quitting = true;
         autoUpdater.quitAndInstall(true, true);
       }
@@ -663,6 +686,7 @@ function installUpdater() {
     }
   });
   autoUpdater.on("error", () => {
+    if (quitting) { quitting = false; stoppingUpdates = false; }
     update.status = "error";
     emitState();
   });
@@ -687,6 +711,7 @@ function newerVersion(candidate, installed) {
  * @return {Promise<object>} 检查后的状态。
  */
 function checkUpdate() {
+  if (stoppingUpdates) return Promise.resolve(info());
   checking ??= (async () => {
     if (!app.isPackaged) {
       update.status = "development";
@@ -697,7 +722,10 @@ function checkUpdate() {
     emitState();
     try {
       const result = await autoUpdater.checkForUpdates();
-      void result?.downloadPromise?.catch(() => { update.status = "error"; emitState(); });
+      if (result?.downloadPromise) {
+        trackDownload(result.cancellationToken, result.downloadPromise);
+        if (stoppingUpdates) result.cancellationToken.cancel();
+      }
     } catch {
       update.status = "error";
       emitState();
@@ -707,4 +735,26 @@ function checkUpdate() {
     checking = undefined;
   });
   return checking;
+}
+
+/**
+ * 跟踪自动或手动下载，失败时保留人工重试入口。
+ * @param {CancellationToken} token 下载取消令牌。
+ * @param {Promise<unknown>} promise 下载任务。
+ */
+function trackDownload(token, promise) {
+  const transfer = {token, promise};
+  updateTransfer = transfer;
+  void promise.catch(() => { update.status = "error"; emitState(); }).finally(() => {
+    if (updateTransfer === transfer) updateTransfer = undefined;
+  });
+}
+/** @return {Promise<unknown>} 可取消的手动下载完成结果。 */
+function downloadUpdate() {
+  if (stoppingUpdates) return Promise.reject(new Error("Application is closing"));
+  update.status = "downloading";
+  const token = new CancellationToken();
+  const promise = autoUpdater.downloadUpdate(token);
+  trackDownload(token, promise);
+  return promise;
 }
