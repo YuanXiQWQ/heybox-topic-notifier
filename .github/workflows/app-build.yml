@@ -74,7 +74,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "26.13.0"
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
       - name: Build Windows installer without a certificate requirement
@@ -93,6 +93,8 @@ jobs:
           npm run prepare:assets
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx electron-builder --win nsis --x64 --publish never
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node ../scripts/verify-desktop-runtime.cjs "dist/win-unpacked/小黑盒话题提醒.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:installer
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -115,7 +117,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "26.13.0"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

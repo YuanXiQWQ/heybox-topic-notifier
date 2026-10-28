@@ -8,6 +8,8 @@ Android 的兼容目标是没有 Google Play／GMS 的设备，不限定品牌�
 
 先部署支持 `/api/sync`、`/api/native/notifications` 和 `/auth/native` 的服务端。应用来源固定在 `desktop/config.json` 与 `android/app/build.gradle`；正式构建应使用同一个 HTTPS 站点。
 
+构建环境使用 Node.js 26.13.0 LTS；Windows 客户端锁定 Electron 45.1.0，内置 Node.js 24.22.1，达到 [2026 年 10 月安全公告](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)的修复版本。更新开发电脑的 Node.js 不会替换已安装客户端内置的运行时，客户端仍需重新构建和发布。两条应用 CI 均会实际运行打包程序的 Node 模式，核对 Electron 与锁定版本一致，并检查内置 Node.js 的安全版本下限。可用 `node apps/scripts/verify-desktop-runtime.cjs <打包程序路径>` 重现检查；该模式不打开页面或读取应用账号。
+
 - Windows：进入 `apps/desktop`，运行 `npm ci`、`npm test`、`npm run dist`。开发运行先执行 `npm run prepare:assets`，再 `npm start`。`HEYBOX_PREVIEW_ORIGIN` 只在未打包开发运行中生效，只允许 HTTPS 或 HTTP 回环地址。
 - Android：安装 JDK 17、Gradle 8.13、Android SDK 36，运行 `node apps/scripts/prepare-assets.mjs --android`，再运行 `gradle -p apps/android testDebugUnitTest lintDebug assembleDebug`。正式构建设置 `APP_VERSION`、递增的 `APP_VERSION_CODE`，以及 `ANDROID_KEYSTORE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个签名变量，运行 `assembleRelease`。Windows 下路径过长时可用临时 `subst` 盘符指向仓库和本地工具链，构建后取消映射，不移动项目。
 - `app-build.yml` 在推送正式版本标签时自动运行，读取标签版本并固定源码提交，执行检查后并行构建 Windows 和 Android；自动创建或复用 Release 草稿，只有两端都成功且全部附件上传后才公开发行。也支持已有 Release 的发布事件。Windows 默认发布未签名 NSIS 安装包，不需要购买证书或配置 Windows 签名 Secrets；Android 使用本机可自行生成的稳定签名证书。
@@ -85,7 +87,7 @@ Windows 点击「重启并更新」会在保存本地编辑后静默升级并重
 
 应用读取安装失败标记后暂停同一失败版本的自动下载和安装，恢复错误提示与红点；用户明确重试后解除，新发行版本仍可按原自动更新偏好处理。这个防重复安装能力随新版应用提供，回滚到尚不识别失败标记的旧版时不能承诺同样生效。安装阶段记录位于当前用户临时目录的 `heybox-topic-notifier-install.log`，不包含账号或通知令牌。
 
-Windows 发布 CI 在构建安装包后运行隔离 NSIS 集成测试，覆盖主程序缺失与文件损坏、备份损坏、目标文件占用、恢复中断四种场景；失败阻止上传发布。本地可在构建器下载好 NSIS 工具后运行 `npm run test:installer`，只操作独立临时目录和独立测试注册表键，不覆盖真实应用。安全软件阻止测试程序运行时必须记为未验证，不关闭防护来冒充测试通过。
+Windows 普通检查与发布 CI 均在构建安装包后运行隔离 NSIS 集成测试，覆盖主程序缺失与文件损坏、备份损坏、目标文件占用、恢复中断四种场景；失败阻止检查通过或上传发布。本地可在构建器下载好 NSIS 工具后运行 `npm run test:installer`，只操作独立临时目录和独立测试注册表键，不覆盖真实应用。安全软件阻止测试程序运行时必须记为未验证，不关闭防护来冒充测试通过。
 
 通知卡片底部的测试条按当前页面的应用通知开关与其它通知选择独立发送，等待所有已开启通道完成后反馈；失败详情仍可查看。测试通知不创建业务帖子、不增加工作区数量。该操作需要联网。
 
