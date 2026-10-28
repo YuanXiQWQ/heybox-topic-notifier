@@ -14,8 +14,9 @@ function harness() {
   const handlers = new Map(), events = new Map();
   let cacheReady = true;
   let installs = 0, downloads = 0, quitting = 0;
+  const installOptions = [];
   const updaterEvents = new Map();
-  const updater = { quitAndInstall: () => installs++, downloadUpdate: () => { downloads++; return Promise.resolve(); }, on: (name, fn) => updaterEvents.set(name, fn) };
+  const updater = { quitAndInstall: (...options) => { installs++; installOptions.push(options); }, downloadUpdate: () => { downloads++; return Promise.resolve(); }, on: (name, fn) => updaterEvents.set(name, fn) };
   let cookie = "session-a";
   let read = () => Promise.resolve({ userId: "alice", cursor: "", events: [] });
   let display = "show";
@@ -123,6 +124,7 @@ function harness() {
     handlers,
     event: { sender: contents, senderFrame: frame },
     installs: () => installs,
+    installOptions,
     shown,
     opened,
     changeCookie: (value) => {
@@ -275,7 +277,7 @@ test("notifications recheck the account after a pending request and before openi
   assert.equal(context.shown[0].closed, true);
 });
 
-test("installation waits for durable edits and aborts on storage failure", async () => {
+test("restart update waits for durable edits, skips the wizard and relaunches; storage failure aborts", async () => {
   const context = harness();
   let release;
   context.contents.executeJavaScript = () =>
@@ -287,6 +289,7 @@ test("installation waits for durable edits and aborts on storage failure", async
   release();
   await pending;
   assert.equal(context.installs(), 1);
+  assert.deepEqual(context.installOptions, [[true, true]]);
   const failing = harness();
   failing.contents.executeJavaScript = () =>
     Promise.reject(new Error("Disk full"));
@@ -381,6 +384,7 @@ test("cached automatic update waits for local writes before restarting on the ne
   release();
   await downloaded;
   assert.equal(context.installs(),1);
+  assert.deepEqual(context.installOptions, [[true, true]]);
 });
 
 
