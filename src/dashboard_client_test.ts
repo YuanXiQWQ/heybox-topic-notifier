@@ -169,16 +169,24 @@ function progressHarness(clockSkew: number) {
       return epoch + elapsed + clockSkew + wallClockJump;
     }
   }
-  const html = renderDashboard({
-    csrfToken: "test",
-    returnTo: "/",
-    settings,
-    state: { totalMatches: 0, lastPollAt: lastPoll.dataset.lastPollAt },
-    pendingTable: applyMatchTableQuery(
-      [],
-      parseMatchTableQuery(new URLSearchParams()),
-    ),
-  });
+  // 服务端渲染与浏览器模拟共享固定时刻，页面生成耗时不推进测试时钟。
+  const systemNow = Date.now;
+  let html: string;
+  try {
+    Date.now = () => epoch;
+    html = renderDashboard({
+      csrfToken: "test",
+      returnTo: "/",
+      settings,
+      state: { totalMatches: 0, lastPollAt: lastPoll.dataset.lastPollAt },
+      pendingTable: applyMatchTableQuery(
+        [],
+        parseMatchTableQuery(new URLSearchParams()),
+      ),
+    });
+  } finally {
+    Date.now = systemNow;
+  }
   const script = Array.from(html.matchAll(/<script>([\s\S]*?)<\/script>/g))
     .find((match) => match[1].includes("isDashboardStateRefreshInFlight"))?.[1];
   if (!script) throw new Error("Dashboard script missing");
