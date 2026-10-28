@@ -342,6 +342,7 @@ function authorize(event) {
 }
 /**
  * 注册固定原生功能，页面只能调用有限的业务能力。
+ * 重启更新先保存本地编辑，再静默安装并重新启动应用。
  */
 function installBridge() {
   /**
@@ -389,7 +390,7 @@ function installBridge() {
     if (update.status !== "downloaded") throw new Error("Update not ready");
     await prepareExit(true);
     quitting = true;
-    autoUpdater.quitAndInstall(false, true);
+    autoUpdater.quitAndInstall(true, true);
   });
   handle("app:seen-update", async (section) => {
     if (!["settings", "about", "dismissed"].includes(section)) {
