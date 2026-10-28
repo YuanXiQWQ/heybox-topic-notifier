@@ -3410,3 +3410,20 @@ tr:last-child td{
 }
 
 .settings-hint{ display: block; margin-block-start: 6px; color: var(--muted); font-size: 14px; }
+
+/* 桌面滚动条使用页面主题色和圆角，不影响网页与移动端的原生滚动。 */
+:root[data-application-platform="windows"],
+:root[data-application-platform="windows"] *{
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+:root[data-application-platform="windows"]::-webkit-scrollbar,
+:root[data-application-platform="windows"] *::-webkit-scrollbar{ width: 10px; height: 10px; }
+:root[data-application-platform="windows"]::-webkit-scrollbar-thumb,
+:root[data-application-platform="windows"] *::-webkit-scrollbar-thumb{
+  background: color-mix(in srgb, var(--theme-color) 42%, var(--muted) 58%);
+  border: 3px solid var(--bg);
+  border-radius: 10px;
+}
+:root[data-application-platform="windows"]::-webkit-scrollbar-track,
+:root[data-application-platform="windows"] *::-webkit-scrollbar-track{ background: var(--bg); }
