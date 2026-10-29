@@ -5,19 +5,19 @@
   /* 主题主色。 */
   --theme-color: #BD7FFF;
   /* 强调态主题色。 */
-  --theme-strong: color-mix(in srgb, var(--theme-color) 82%, var(--ink) 18%);
+  --theme-strong: #a06ed9;
   /* 链接使用的主题色。 */
-  --theme-link: color-mix(in srgb, var(--theme-color) 76%, var(--link-base) 24%);
+  --theme-link: #9273e2;
   /* 轻量主题背景色。 */
-  --theme-soft: color-mix(in srgb, var(--theme-color) 8%, var(--surface-soft-base));
+  --theme-soft: #f1edf9;
   /* 较强的轻量主题背景色。 */
-  --theme-soft-strong: color-mix(in srgb, var(--theme-color) 14%, var(--surface-soft-base));
+  --theme-soft-strong: #eee6f9;
   /* 白底操作区域悬浮背景色。 */
   --surface-action-hover: var(--theme-soft-strong);
   /* 主题边框色。 */
-  --theme-border: color-mix(in srgb, var(--theme-color) 22%, var(--border));
+  --theme-border: #d8ceef;
   /* 页面背景色。 */
-  --bg: color-mix(in srgb, var(--theme-color) 5%, #f6f7f8);
+  --bg: #f3f1f8;
   /* 默认边框色。 */
   --border: #DFE4EA;
   /* 弱化边框色。 */
@@ -39,7 +39,7 @@
   /* 占位文本颜色。 */
   --placeholder: #9AA7B4;
   /* 次级按钮背景色。 */
-  --secondary-button: color-mix(in srgb, var(--theme-color) 54%, var(--muted-strong) 46%);
+  --secondary-button: #8469b6;
   /* 强投影颜色。 */
   --shadow-strong: rgba(23, 32, 42, 0.18);
   /* 主内容表面色。 */
@@ -67,7 +67,13 @@
 
 :root[data-color-mode="dark"]{
   /* 暗色模式页面背景色。 */
-  --bg: color-mix(in srgb, var(--theme-color) 7%, #101317);
+  --bg: #1c1b27;
+  /* 不支持颜色混合时，仍提供完整的暗色主题。 */
+  --theme-strong: #c592fc;
+  --theme-link: #bc95ff;
+  --theme-soft: #2c2c3e;
+  --theme-soft-strong: #35324a;
+  --theme-border: #50486c;
   /* 暗色模式默认边框色。 */
   --border: #313842;
   /* 暗色模式弱化边框色。 */
@@ -89,7 +95,7 @@
   /* 暗色模式占位文本颜色。 */
   --placeholder: #778390;
   /* 暗色模式次级按钮背景色。 */
-  --secondary-button: color-mix(in srgb, var(--theme-color) 48%, var(--muted-strong) 52%);
+  --secondary-button: #c1a7e8;
   /* 暗色模式强投影颜色。 */
   --shadow-strong: rgba(0, 0, 0, 0.36);
   /* 暗色模式主内容表面色。 */
@@ -99,6 +105,24 @@
   /* 暗色模式 Toast 背景色。 */
   --toast-bg: #F2F5F8;
   color-scheme: dark;
+}
+
+/* 自定义属性会保留未知函数，必须先检测混色支持，避免使用时整条颜色失效。 */
+@supports (color: color-mix(in srgb, #000, #fff)){
+  :root,
+  :root[data-color-mode="dark"]{
+    --theme-strong: color-mix(in srgb, var(--theme-color) 82%, var(--ink) 18%);
+    --theme-link: color-mix(in srgb, var(--theme-color) 76%, var(--link-base) 24%);
+    --theme-soft: color-mix(in srgb, var(--theme-color) 8%, var(--surface-soft-base));
+    --theme-soft-strong: color-mix(in srgb, var(--theme-color) 14%, var(--surface-soft-base));
+    --theme-border: color-mix(in srgb, var(--theme-color) 22%, var(--border));
+    --bg: color-mix(in srgb, var(--theme-color) 5%, #f6f7f8);
+    --secondary-button: color-mix(in srgb, var(--theme-color) 54%, var(--muted-strong) 46%);
+  }
+  :root[data-color-mode="dark"]{
+    --bg: color-mix(in srgb, var(--theme-color) 7%, #101317);
+    --secondary-button: color-mix(in srgb, var(--theme-color) 48%, var(--muted-strong) 52%);
+  }
 }
 
 body{

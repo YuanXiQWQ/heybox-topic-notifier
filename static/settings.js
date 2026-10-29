@@ -4514,7 +4514,7 @@ function registrationCredentialToJson(credential) {
  * @return {ArrayBuffer} 解码后的 ArrayBuffer。
  */
 function base64UrlToArrayBuffer(value) {
-  const normalized = String(value).replaceAll('-', '+').replaceAll('_', '/');
+  const normalized = String(value).replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized.padEnd(
       normalized.length + (4 - normalized.length % 4) % 4,
       '=',
@@ -4551,9 +4551,9 @@ function arrayBufferToBase64Url(value) {
     binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
   }
   return btoa(binary)
-      .replaceAll('+', '-')
-      .replaceAll('/', '_')
-      .replaceAll('=', '');
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
 }
 
 /**
@@ -6141,6 +6141,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   <title>${escapeHtml(appName)}</title>
   <link rel="icon" href="${escapeHtml(appOrigin)}/favicon.ico" type="image/png">
   <link rel="stylesheet" href="${escapeHtml(appOrigin)}/static/app.css">
+  <script src="${escapeHtml(appOrigin)}/static/theme-compat.js" defer></script>
   <style>
     .error-detail-content {
       background: var(--control-bg);
@@ -6963,7 +6964,7 @@ function fitKeywordSummary(summary) {
   const items = Array.from(
       summary.querySelectorAll('[data-keyword-summary-item]'),
   );
-  for (const item of items.toReversed()) {
+  for (const item of items.slice().reverse()) {
     if (summary.scrollWidth <= summary.clientWidth) {
       return;
     }

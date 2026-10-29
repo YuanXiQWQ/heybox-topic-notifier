@@ -579,9 +579,9 @@ export function createWhiteNightEvent(shared) {
     const host = button.parentElement;
     const icon = host?.querySelector?.('.lobotomy-corp-confession-work-icon');
     if (active) {
-      button.dataset.lobotomyCorpOriginalAriaLabel ??=
-          button.getAttribute('aria-label') ?? '';
-      button.dataset.lobotomyCorpOriginalText ??= button.textContent ?? '';
+      button.dataset.lobotomyCorpOriginalAriaLabel =
+          button.dataset.lobotomyCorpOriginalAriaLabel ?? button.getAttribute('aria-label') ?? '';
+      button.dataset.lobotomyCorpOriginalText = button.dataset.lobotomyCorpOriginalText ?? button.textContent ?? '';
       const label = shared.messages()?.['oneSin.specialWork.confession'] ??
           button.dataset.lobotomyCorpOriginalText;
       button.textContent = label;
@@ -1208,7 +1208,10 @@ export function createWhiteNightEvent(shared) {
         const timer = setTimeout(() => {
           if (state !== current) return;
           const audio = playAudio(path, preparedMedia);
-          if (audio) (current.deathAudios ??= []).push(audio);
+          if (audio) {
+            current.deathAudios = current.deathAudios ?? [];
+            current.deathAudios.push(audio);
+          }
         }, Math.round(at * 1000));
         current.timers.add(timer);
       });

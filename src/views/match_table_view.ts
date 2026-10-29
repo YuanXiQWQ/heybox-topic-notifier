@@ -898,7 +898,7 @@ function renderRelativeTimeScript(): string {
        * @return {string} 替换后的文案。
        */
       function formatTemplate(template, values) {
-        return template.replaceAll(/\\{(\\w+)\\}/g, (placeholder, key) =>
+        return template.replace(/\\{(\\w+)\\}/g, (placeholder, key) =>
           values[key] === undefined ? placeholder : String(values[key])
         );
       }
@@ -929,7 +929,7 @@ function renderRelativeTimeScript(): string {
           formatter = new Intl.DateTimeFormat(locale, { timeZone: 'Asia/Shanghai', ...options });
           formatters.set(key, formatter);
         }
-        return formatter.format(date).replaceAll('/', '-');
+        return formatter.format(date).split('/').join('-');
       }
     })();
   </script>`;

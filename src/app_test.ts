@@ -82,6 +82,21 @@ Deno.test("application adds baseline security headers", async () => {
   );
 });
 
+Deno.test("login theme compatibility script is available without a session", async () => {
+  const { app } = createApplication();
+  const response = await app.request("/static/theme-compat.js");
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get("content-type"), "text/javascript; charset=utf-8");
+  assertEquals(response.headers.get("location"), null);
+  assert((await response.text()).includes("updateTheme"));
+  const compatibility = await app.request("/static/app-compat.js");
+  assertEquals(compatibility.status, 200);
+  assertEquals(compatibility.headers.get("content-type"), "text/javascript; charset=utf-8");
+  assert((await compatibility.text()).includes("crypto.randomUUID"));
+  const login = await (await app.request("/login")).text();
+  assert(login.includes('/static/theme-compat.js'));
+});
+
 Deno.test("application omits HSTS for non-HTTPS requests", async () => {
   const { app } = createApplication();
 

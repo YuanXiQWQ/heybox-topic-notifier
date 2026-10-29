@@ -202,7 +202,7 @@ async function initializeApplicationNotifications() {
           await subscription.unsubscribe();
           subscription = null;
         }
-        subscription ??= await registration.pushManager.subscribe({
+        subscription = subscription ?? await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: publicKey,
         });
@@ -236,10 +236,7 @@ async function browserSubscriptionId(endpoint) {
   const bytes = new Uint8Array(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint)),
   );
-  return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll(
-    "/",
-    "_",
-  ).replaceAll("=", "");
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
 /**
@@ -261,7 +258,7 @@ function samePushKey(existing, expected) {
  * @return {Uint8Array} 公钥字节。
  */
 function decodePushKey(value) {
-  const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   return Uint8Array.from(
     atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")),
     (char) => char.charCodeAt(0),

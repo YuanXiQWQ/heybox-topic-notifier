@@ -35,7 +35,7 @@
       pending.filter((operation) =>
         operation.stamp.deviceId === metadata.deviceId
       )
-        .map((operation) => operation.stamp).sort(compareStamp).at(-1) ??
+        .map((operation) => operation.stamp).sort(compareStamp).slice(-1)[0] ??
         metadata.previous;
     await store.writeState(userId, "device", metadata);
     if ("serviceWorker" in navigator) {
@@ -344,7 +344,7 @@
    * @return {Promise<void>} 同步尝试结束。
    */
   function flush(reason = "background") {
-    flushing ??= Promise.resolve().then(() =>
+    flushing = flushing ?? Promise.resolve().then(() =>
       navigator.locks
         ? navigator.locks.request(`heybox-sync:${userId}`, () => drain(reason))
         : drain(reason)

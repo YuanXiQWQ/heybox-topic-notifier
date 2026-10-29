@@ -186,6 +186,8 @@ Deno.test("auth routes render Google Identity Services when configured", async (
     true,
   );
   assert(html.includes("data-google-login"));
+  assert(html.includes(".auth-google-method[hidden]"));
+  assert(!html.includes(".auth-google-method {"));
   assert(!(html.includes('class="auth-google-button"')));
   assertEquals(
     html.includes(`data-google-client-id="${testGoogleClientId}"`),
@@ -1427,7 +1429,7 @@ Deno.test("auth routes require MFA after password login when enabled", async () 
   );
   assert(pageHtml.includes("双重验证"));
   assertEquals(
-    pageHtml.includes('href="/static/app.css?v=20260904-game-polish"'),
+    pageHtml.includes('href="/static/app.css?v=20261028-theme-compat"'),
     true,
   );
   assert(!(pageHtml.includes("box-shadow: 0 20px 50px")));
