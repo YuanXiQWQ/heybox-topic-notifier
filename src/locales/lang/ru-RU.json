@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "Фоновые уведомления могут задерживаться; откройте приложение для немедленной проверки",
   "notificationTestNoChannels": "Сначала включите хотя бы один способ уведомления.",
   "desktopCloseWindow": "При закрытии окна",
-  "desktopCloseMinimize": "Свернуть на панель задач",
+  "desktopCloseMinimize": "Скрыть в системном трее",
   "desktopCloseQuit": "Выйти из приложения",
   "desktopLaunchAtLogin": "Запускать вместе с Windows",
   "desktopResetWindow": "Размер окна",

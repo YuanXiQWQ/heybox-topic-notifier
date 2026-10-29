@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "バックグラウンド通知が遅れる場合があります。アプリを開くとすぐに確認できます",
   "notificationTestNoChannels": "通知方法を少なくとも1つ有効にしてください。",
   "desktopCloseWindow": "ウィンドウを閉じるとき",
-  "desktopCloseMinimize": "タスクバーに最小化",
+  "desktopCloseMinimize": "システムトレイに隠す",
   "desktopCloseQuit": "アプリを終了",
   "desktopLaunchAtLogin": "Windows 起動時に実行",
   "desktopResetWindow": "ウィンドウサイズ",

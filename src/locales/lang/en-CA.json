@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "Background notifications may be delayed; open the app to check immediately",
   "notificationTestNoChannels": "Enable at least one notification method first.",
   "desktopCloseWindow": "When closing the window",
-  "desktopCloseMinimize": "Minimize to taskbar",
+  "desktopCloseMinimize": "Hide in system tray",
   "desktopCloseQuit": "Quit application",
   "desktopLaunchAtLogin": "Start with Windows",
   "desktopResetWindow": "Window size",

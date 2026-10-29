@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "การแจ้งเตือนเบื้องหลังอาจล่าช้า เปิดแอปเพื่อตรวจสอบทันที",
   "notificationTestNoChannels": "โปรดเปิดวิธีแจ้งเตือนอย่างน้อยหนึ่งวิธีก่อน",
   "desktopCloseWindow": "เมื่อปิดหน้าต่าง",
-  "desktopCloseMinimize": "ย่อไปยังแถบงาน",
+  "desktopCloseMinimize": "ซ่อนในถาดระบบ",
   "desktopCloseQuit": "ออกจากแอป",
   "desktopLaunchAtLogin": "เริ่มพร้อม Windows",
   "desktopResetWindow": "ขนาดหน้าต่าง",

@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "Hintergrundbenachrichtigungen können verzögert sein; zum sofortigen Prüfen die App öffnen",
   "notificationTestNoChannels": "Aktivieren Sie zuerst mindestens eine Benachrichtigungsmethode.",
   "desktopCloseWindow": "Beim Schließen des Fensters",
-  "desktopCloseMinimize": "In die Taskleiste minimieren",
+  "desktopCloseMinimize": "Im Infobereich ausblenden",
   "desktopCloseQuit": "Anwendung beenden",
   "desktopLaunchAtLogin": "Mit Windows starten",
   "desktopResetWindow": "Fenstergröße",

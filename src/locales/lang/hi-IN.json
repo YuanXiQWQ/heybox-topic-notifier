@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "बैकग्राउंड सूचनाओं में देरी हो सकती है; तुरंत जाँचने के लिए ऐप खोलें",
   "notificationTestNoChannels": "पहले कम से कम एक सूचना तरीका चालू करें।",
   "desktopCloseWindow": "विंडो बंद करने पर",
-  "desktopCloseMinimize": "टास्कबार में छोटा करें",
+  "desktopCloseMinimize": "सिस्टम ट्रे में छिपाएँ",
   "desktopCloseQuit": "ऐप से बाहर निकलें",
   "desktopLaunchAtLogin": "Windows के साथ शुरू करें",
   "desktopResetWindow": "विंडो का आकार",
