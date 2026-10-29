@@ -7,6 +7,7 @@
   "accountAvatar": "アバター",
   "accountAvatarAlt": "{name}のアバター",
   "accountAvatarChoose": "画像を選択するか、ここにドラッグ＆ドロップしてください",
+  "accountAvatarSelect": "画像を選択",
   "accountAvatarConfirm": "画像を確認してアップロード",
   "accountAvatarCrop": "画像の位置・大きさを調整",
   "accountAvatarUploadFailed": "画像のアップロードに失敗しました。再度お試しください。",

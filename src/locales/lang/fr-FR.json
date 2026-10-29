@@ -7,6 +7,7 @@
   "accountAvatar": "Photo de profil",
   "accountAvatarAlt": "Photo de profil de {name}",
   "accountAvatarChoose": "Cliquez ici pour choisir une image ou déposez-la ici",
+  "accountAvatarSelect": "Choisir une image",
   "accountAvatarConfirm": "Confirmer et importer la photo",
   "accountAvatarCrop": "Ajuster la photo",
   "accountAvatarUploadFailed": "Échec de l'importation de la photo. Réessayez.",

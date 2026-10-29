@@ -316,6 +316,7 @@
   "accountAvatar": "รูปโปรไฟล์",
   "accountAvatarAlt": "รูปโปรไฟล์ของ {name}",
   "accountAvatarChoose": "คลิกที่นี่เพื่อเลือกรูปภาพ หรือลากรูปภาพมาวาง",
+  "accountAvatarSelect": "เลือกรูปภาพ",
   "accountAvatarConfirm": "ยืนยันและอัปโหลดรูปโปรไฟล์",
   "accountAvatarCrop": "ปรับรูปโปรไฟล์",
   "accountAvatarUploadFailed": "อัปโหลดรูปโปรไฟล์ไม่สำเร็จ โปรดลองอีกครั้ง",

@@ -7,6 +7,7 @@
   "accountAvatar": "الصورة الشخصية",
   "accountAvatarAlt": "الصورة الشخصية لـ {name}",
   "accountAvatarChoose": "انقر هنا لاختيار صورة أو اسحب صورة إلى هنا",
+  "accountAvatarSelect": "اختيار صورة",
   "accountAvatarConfirm": "تأكيد الصورة الشخصية ورفعها",
   "accountAvatarCrop": "تعديل الصورة الشخصية",
   "accountAvatarUploadFailed": "فشل رفع الصورة الشخصية. حاول مرة أخرى.",

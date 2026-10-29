@@ -7,6 +7,7 @@
   "accountAvatar": "প্রোফাইল ছবি",
   "accountAvatarAlt": "{name}-এর প্রোফাইল ছবি",
   "accountAvatarChoose": "ছবি বেছে নিতে এখানে ক্লিক করুন অথবা এখানে টেনে আনুন",
+  "accountAvatarSelect": "ছবি বেছে নিন",
   "accountAvatarConfirm": "নিশ্চিত করে প্রোফাইল ছবি আপলোড করুন",
   "accountAvatarCrop": "প্রোফাইল ছবি সমন্বয় করুন",
   "accountAvatarUploadFailed": "প্রোফাইল ছবি আপলোড করা যায়নি। আবার চেষ্টা করুন।",

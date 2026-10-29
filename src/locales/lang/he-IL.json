@@ -7,6 +7,7 @@
   "accountAvatar": "תמונת פרופיל",
   "accountAvatarAlt": "תמונת הפרופיל של {name}",
   "accountAvatarChoose": "לחצו כאן לבחירת תמונה או גררו תמונה לכאן",
+  "accountAvatarSelect": "בחירת תמונה",
   "accountAvatarConfirm": "אישור והעלאת תמונת פרופיל",
   "accountAvatarCrop": "התאמת תמונת פרופיל",
   "accountAvatarUploadFailed": "העלאת תמונת הפרופיל נכשלה. נסו שוב.",

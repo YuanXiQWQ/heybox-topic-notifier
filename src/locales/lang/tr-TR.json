@@ -316,6 +316,7 @@
   "accountAvatar": "Avatar",
   "accountAvatarAlt": "{name} için avatar",
   "accountAvatarChoose": "Görsel seçmek için buraya tıklayın veya görseli buraya sürükleyin",
+  "accountAvatarSelect": "Resim seç",
   "accountAvatarConfirm": "Avatarı onayla ve yükle",
   "accountAvatarCrop": "Avatarı ayarla",
   "accountAvatarUploadFailed": "Avatar yüklenemedi. Tekrar deneyin.",
