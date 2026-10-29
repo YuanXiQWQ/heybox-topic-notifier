@@ -285,7 +285,7 @@ final class Updates {
         if (!Arrays.equals(left, right)) throw new SecurityException("Publisher signature mismatch");
     }
     /**
-     * 申请系统安装授权，并将已校验包交给系统签名验证和安装。
+     * 申请系统安装授权，完成写入并关闭流后提交已校验安装包。
      * @throws Exception 安装器无法启动。
      */
     void install() throws Exception {
@@ -303,10 +303,12 @@ final class Updates {
         PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
         params.setAppPackageName(context.getPackageName()); params.setSize(apk.length());
         int id = installer.createSession(params);
-        try (PackageInstaller.Session session = installer.openSession(id); InputStream input = new FileInputStream(apk); OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
-            byte[] buffer = new byte[65536]; int count;
-            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-            session.fsync(output); output.close();
+        try (PackageInstaller.Session session = installer.openSession(id)) {
+            try (InputStream input = new FileInputStream(apk); OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
+                byte[] buffer = new byte[65536]; int count;
+                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                session.fsync(output);
+            }
             Intent result = new Intent(context, InstallReceiver.class);
             int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
             session.commit(PendingIntent.getBroadcast(context, id, result, flags).getIntentSender());
