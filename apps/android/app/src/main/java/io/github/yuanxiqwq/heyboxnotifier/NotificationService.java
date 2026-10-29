@@ -59,7 +59,7 @@ public final class NotificationService extends Service {
         startForeground(STATUS_ID, status());
         active = this;
     }
-    /** @param {Intent} intent 启动意图。 @param {int} flags 系统标志。 @param {int} id 启动序号。 @return {int} 系统回收后允许恢复，用户清理任务时停止。 */
+    /** @param {Intent} intent 启动意图。 @param {int} flags 系统标志。 @param {int} id 启动序号。 @return {int} 有效会话下允许系统回收后恢复，清理最近任务不终止收取。 */
     @Override public int onStartCommand(Intent intent, int flags, int id) {
         if (device == null || !needed(device)) { stopSelf(); return START_NOT_STICKY; }
         publishBadge();
@@ -84,8 +84,8 @@ public final class NotificationService extends Service {
     }
     /** @param {Intent} intent 绑定意图。 @return {IBinder} 不向其它组件开放绑定。 */
     @Override public IBinder onBind(Intent intent) { return null; }
-    /** 用户清理任务时终止常驻线程。 @param {Intent} rootIntent 原任务入口。 */
-    @Override public void onTaskRemoved(Intent rootIntent) { stopSelf(); }
+    /** 清理最近任务只关闭界面；会话或后台功能关闭后才停止服务。 @param {Intent} rootIntent 原任务入口。 */
+    @Override public void onTaskRemoved(Intent rootIntent) { if (device == null || !needed(device)) stopSelf(); }
     /** 释放轮询线程及前台状态通知。 */
     @Override public void onDestroy() { active = null; worker.shutdownNow(); stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy(); }
 }

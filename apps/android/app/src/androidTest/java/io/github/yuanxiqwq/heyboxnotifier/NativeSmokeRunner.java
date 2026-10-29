@@ -68,6 +68,11 @@ public final class NativeSmokeRunner extends Instrumentation {
             require(NotificationService.isRunning(), "service survives leaving activity and a polling interval");
             awaitStatus(2);
             pass("background service survives offline polling");
+            runOnMainSync(() -> activity.finishAndRemoveTask());
+            SystemClock.sleep(17000);
+            require(NotificationService.isRunning(), "service survives removing the recent task and a polling interval");
+            awaitStatus(2);
+            pass("removing recent task preserves foreground service and status notification");
             Badges.local(device, new JSONObject("{\"userId\":\"smoke-user\",\"records\":[{\"id\":\"c\",\"postId\":\"p2\",\"workspace\":false}]}"));
             runOnMainSync(NotificationService::publishBadge);
             awaitStatus(1);
@@ -75,7 +80,7 @@ public final class NativeSmokeRunner extends Instrumentation {
             Notifications.get(getTargetContext(), device).show(new JSONObject("{\"id\":\"isolated-smoke-notification\",\"path\":\"/\",\"title\":\"Native smoke test\",\"body\":\"Isolated emulator only\"}"), "smoke-user");
             SystemClock.sleep(500);
             require(manager.getActiveNotifications().length == 2 && Badges.count(device) == 1, "test notification does not change workspace count");
-            pass("Android accepts native notification independently of badge count");
+            pass("Android accepts native notification after task removal independently of badge count");
             device.put("badgeEnabled", false);
             runOnMainSync(NotificationService::publishBadge);
             awaitStatus(0);
