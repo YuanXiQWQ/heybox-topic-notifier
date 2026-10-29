@@ -2366,6 +2366,19 @@ export function createRoutes(
     });
   });
 
+  /** @return {Promise<Response>} 登录前及离线页面共用的主题兼容脚本。 */
+  app.get("/static/theme-compat.js", async () => {
+    const script = await Deno.readTextFile(
+      new URL("../static/theme-compat.js", import.meta.url),
+    );
+    return new Response(script, {
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "text/javascript; charset=utf-8",
+      },
+    });
+  });
+
   app.get("/static/tooltip.js", async () => {
     const script = await Deno.readTextFile(
       new URL("../static/tooltip.js", import.meta.url),

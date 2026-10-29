@@ -104,7 +104,7 @@ async function applicationPage(request) {
   const store = self.AppLocalStore;
   let active = await store.readState("__device", "active-user");
   try {
-    const identity = await fetch("/api/sync/session", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const identity = await fetch("/api/sync/session", { cache: "no-store", signal: applicationTimeout(5000) });
     if (identity.redirected || identity.status === 401 || identity.status === 403) {
       await clearApplicationSession();
       active = null;
@@ -116,7 +116,7 @@ async function applicationPage(request) {
   const local = active ? await store.readState(active, name) : undefined;
   if (local?.html && url.pathname === "/settings" && (await store.pending(active)).some((operation) => operation.kind === "settings")) return localPageResponse(local);
   try {
-    const response = await fetch(new Request(request, { signal: AbortSignal.timeout(10000) }));
+    const response = await fetch(new Request(request, { signal: applicationTimeout(10000) }));
     if (response.status >= 500 && local?.html) return localPageResponse(local);
     const userId = response.headers.get("x-app-user");
     if (response.ok && userId && !response.redirected) {
@@ -128,6 +128,18 @@ async function applicationPage(request) {
     if (local?.html) return localPageResponse(local);
     throw error;
   }
+}
+
+/**
+ * 为页面与通知请求设置超时，兼容缺少 AbortSignal.timeout 的 WebView。
+ * @param {number} milliseconds 超时毫秒数。
+ * @return {AbortSignal} 超时后取消网络读取的信号。
+ */
+function applicationTimeout(milliseconds) {
+  if (typeof AbortSignal.timeout === "function") return AbortSignal.timeout(milliseconds);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), milliseconds);
+  return controller.signal;
 }
 
 /**
@@ -198,7 +210,7 @@ async function openApplicationNotification(data) {
   if (typeof data?.userId !== "string" || typeof data?.deviceId !== "string") return;
   try {
     const response = await fetch(`/api/app-notifications/status?device=${encodeURIComponent(data.deviceId)}`,
-      { credentials: "include", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000) });
+      { credentials: "include", cache: "no-store", redirect: "error", signal: applicationTimeout(8000) });
     if (!response.ok) return;
     const status = await response.json();
     if (status.userId !== data.userId || !status.enabled) return;

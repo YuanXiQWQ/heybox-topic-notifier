@@ -1100,7 +1100,7 @@ export function createBlackForestEvent(shared) {
     const source = state?.source;
     const keys = blackForestNarrationSequence(order);
     const forcedBirdId = source === 'two-birds'
-      ? blackForestBirdInfo(order.at(-1) ?? '')?.id
+      ? blackForestBirdInfo(order[order.length - 1] ?? '')?.id
       : undefined;
     /** @type {Array<(() => void)|undefined>} */
     const callbacks = keys.map(() => undefined);

@@ -190,6 +190,7 @@ Deno.test("native Google login button uses the shared Android dispatcher without
     HeyboxNative: bridge.context.HeyboxNative,
     document: { querySelector: () => root, createElement: () => button },
   });
+  assertEquals(root.hidden, false);
   const login = click();
   const request = bridge.requests.at(-1)!;
   assertEquals(request.method, "login");
