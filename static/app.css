@@ -846,8 +846,8 @@ input[readonly]::placeholder{
 
 /* 应用更新提示沿用现有弹窗与设置行，红点不改变点击区域。 */
 .app-update-dialog{ width: min(92vw, 460px); }
-.app-update-dialog > p{ padding: 0 20px; overflow-wrap: anywhere; }
-.app-update-actions{ display: flex; justify-content: flex-end; gap: 12px; padding: 16px 20px; flex-wrap: wrap; }
+.app-update-dialog > p{ margin: 0; padding: 16px 20px; overflow-wrap: anywhere; }
+.app-update-actions{ display: flex; justify-content: flex-end; gap: 12px; padding: 0 20px 16px; flex-wrap: wrap; }
 :root[data-application-platform="android"] .app-update-actions > button{ width: 100%; }
 .app-update-unread::after{ background: #df3946; border-radius: 50%; content: ""; display: inline-block; width: 7px; height: 7px; margin-inline-start: 7px; vertical-align: super; flex: 0 0 7px; }
 :root[data-application-platform="android"] .topbar{ padding-top: max(12px, env(safe-area-inset-top)); }
