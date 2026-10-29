@@ -239,14 +239,14 @@ async function start() {
 }
 
 /**
- * 根据设备偏好最小化到任务栏或经过保存屏障退出。
+ * 根据设备偏好隐藏到系统托盘或经过保存屏障退出。
  * @param {Event} event 窗口关闭事件。
  */
 function handleWindowClose(event) {
   if (quitting) return;
   event.preventDefault();
   if (device.value.closeAction === "quit") app.quit();
-  else window.minimize();
+  else window.hide();
 }
 
 /**
