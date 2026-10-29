@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "اعلان‌های پس‌زمینه ممکن است با تأخیر برسند؛ برای بررسی فوری برنامه را باز کنید",
   "notificationTestNoChannels": "ابتدا دست‌کم یک روش اعلان را فعال کنید.",
   "desktopCloseWindow": "هنگام بستن پنجره",
-  "desktopCloseMinimize": "کوچک‌سازی در نوار وظیفه",
+  "desktopCloseMinimize": "پنهان کردن در سینی سیستم",
   "desktopCloseQuit": "خروج از برنامه",
   "desktopLaunchAtLogin": "اجرا هنگام شروع Windows",
   "desktopResetWindow": "اندازهٔ پنجره",

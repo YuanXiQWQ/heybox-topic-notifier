@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "As notificações em segundo plano podem atrasar; abra o aplicativo para verificar agora",
   "notificationTestNoChannels": "Ative primeiro pelo menos um método de notificação.",
   "desktopCloseWindow": "Ao fechar a janela",
-  "desktopCloseMinimize": "Minimizar na barra de tarefas",
+  "desktopCloseMinimize": "Ocultar na bandeja do sistema",
   "desktopCloseQuit": "Sair do aplicativo",
   "desktopLaunchAtLogin": "Iniciar com o Windows",
   "desktopResetWindow": "Tamanho da janela",

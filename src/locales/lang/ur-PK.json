@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "پس منظر کی اطلاعات میں تاخیر ہو سکتی ہے؛ فوراً جانچنے کے لیے ایپ کھولیں",
   "notificationTestNoChannels": "پہلے اطلاع کا کم از کم ایک طریقہ فعال کریں۔",
   "desktopCloseWindow": "ونڈو بند کرتے وقت",
-  "desktopCloseMinimize": "ٹاسک بار میں چھوٹا کریں",
+  "desktopCloseMinimize": "سسٹم ٹرے میں چھپائیں",
   "desktopCloseQuit": "ایپ سے باہر نکلیں",
   "desktopLaunchAtLogin": "Windows کے ساتھ شروع کریں",
   "desktopResetWindow": "ونڈو کا سائز",

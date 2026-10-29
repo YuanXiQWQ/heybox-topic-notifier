@@ -384,17 +384,26 @@ test("automatic downloads suppress reminders and failures restore manual recover
 });
 
 
-test("closing uses the chosen action and failed preference writes restore the prior value", async () => {
+test("closing hides to tray, restores the window, and preserves the chosen exit action", async () => {
   const context = harness();
-  let minimized=0, prevented=0;
-  context.window.minimize=()=>minimized++;
+  let hidden=0, shown=0, prevented=0;
+  context.window.hide=()=>hidden++;
+  context.window.show=()=>shown++;
+  context.window.minimize=()=>assert.fail("Closing must hide the window instead of minimizing it");
   const event={preventDefault:()=>prevented++};
   context.api.handleWindowClose(event);
-  assert.equal(minimized,1);
+  assert.equal(hidden,1);
+  assert.equal(context.quitting(),0);
+  await context.api.showWindow();
+  assert.equal(shown,1);
+  await context.api.setPreferences({closeAction:"minimize"});
+  context.api.handleWindowClose(event);
+  assert.equal(hidden,2);
   await context.api.setPreferences({closeAction:"quit"});
   context.api.handleWindowClose(event);
   assert.equal(context.quitting(),1);
-  assert.equal(prevented,2);
+  assert.equal(hidden,2);
+  assert.equal(prevented,3);
   context.device.save=()=>Promise.reject(new Error("disk full"));
   await assert.rejects(context.api.setPreferences({closeAction:"minimize"}));
   assert.equal(context.api.info().preferences.closeAction,"quit");

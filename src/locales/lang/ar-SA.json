@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "قد تتأخر إشعارات الخلفية؛ افتح التطبيق للتحقق فورًا",
   "notificationTestNoChannels": "فعّل طريقة إشعار واحدة على الأقل أولاً.",
   "desktopCloseWindow": "عند إغلاق النافذة",
-  "desktopCloseMinimize": "تصغير إلى شريط المهام",
+  "desktopCloseMinimize": "إخفاء في علبة النظام",
   "desktopCloseQuit": "إنهاء التطبيق",
   "desktopLaunchAtLogin": "التشغيل مع Windows",
   "desktopResetWindow": "حجم النافذة",

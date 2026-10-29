@@ -414,7 +414,7 @@
   "applicationNotificationsBackgroundUnavailable": "Thông báo nền có thể bị chậm; mở ứng dụng để kiểm tra ngay",
   "notificationTestNoChannels": "Trước tiên hãy bật ít nhất một phương thức thông báo.",
   "desktopCloseWindow": "Khi đóng cửa sổ",
-  "desktopCloseMinimize": "Thu nhỏ xuống thanh tác vụ",
+  "desktopCloseMinimize": "Ẩn vào khay hệ thống",
   "desktopCloseQuit": "Thoát ứng dụng",
   "desktopLaunchAtLogin": "Khởi động cùng Windows",
   "desktopResetWindow": "Kích thước cửa sổ",
