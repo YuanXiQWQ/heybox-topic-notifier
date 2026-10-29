@@ -4160,7 +4160,6 @@ function renderAuthPage(options: {
       ? `<div class="auth-error">${escapeHtml(options.error)}</div>`
       : ""
   }
-        ${options.mode === "login" ? renderGoogleLoginForm(options) : ""}
         <form
           method="post"
           action="${escapeHtml(options.action)}"
@@ -4300,13 +4299,14 @@ function renderRegisterButton(href: string, messages: Messages): string {
 }
 
 /**
- * 渲染其它登录方式弹窗。
+ * 将 Google、通行密钥和邮箱验证码入口集中在其它登录方式弹窗内。
  *
- * @param options 认证页面渲染选项。
- * @return 其它登录方式弹窗 HTML。
+ * @param {object} options 认证页面渲染选项。
+ * @return {string} 其它登录方式弹窗 HTML。
  */
 function renderOtherLoginMethodsDialog(options: {
   csrfToken: string;
+  googleClientId?: string;
   locale: Locale;
   messages: Messages;
   returnTo: string;
@@ -4318,6 +4318,7 @@ function renderOtherLoginMethodsDialog(options: {
           aria-label="${escapeHtml(options.messages.authOtherLoginMethods)}"
         >
           <div class="auth-method-dialog-actions">
+            ${renderGoogleLoginForm(options)}
             ${renderPasskeyLoginForm(options)}
             <button
               type="button"

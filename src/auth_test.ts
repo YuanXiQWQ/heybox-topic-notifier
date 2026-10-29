@@ -188,6 +188,11 @@ Deno.test("auth routes render Google Identity Services when configured", async (
   assert(html.includes("data-google-login"));
   assert(html.includes(".auth-google-method[hidden]"));
   assert(!html.includes(".auth-google-method {"));
+  const dialogStart = html.indexOf("<dialog");
+  const dialogEnd = html.indexOf("</dialog>", dialogStart);
+  const googleEntry = html.indexOf('class="auth-google-method"');
+  assert(googleEntry > dialogStart && googleEntry < dialogEnd);
+  assertEquals(html.split('class="auth-google-method"').length - 1, 1);
   assert(!(html.includes('class="auth-google-button"')));
   assertEquals(
     html.includes(`data-google-client-id="${testGoogleClientId}"`),
