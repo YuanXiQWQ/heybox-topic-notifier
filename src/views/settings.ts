@@ -374,7 +374,7 @@ function renderGlobalSettingsSection(
     escapeHtml(messages.globalSettings)
   }</h2>
         <dl class="settings-list">
-          <div>
+          <div class="settings-compact-row">
             ${
     settingLabel(
       "palette",
@@ -394,7 +394,7 @@ function renderGlobalSettingsSection(
               >
             </dd>
           </div>
-          <div>
+          <div class="settings-compact-row">
             ${
     settingLabel(
       "dark_mode",
@@ -440,11 +440,11 @@ function renderGlobalSettingsSection(
               <span class="inline-action-status" data-app-preference-status role="status" hidden></span>
             </dd>
           </div>
-          <div data-app-device-platform="windows" hidden>
+          <div class="settings-compact-row" data-app-device-platform="windows" hidden>
             ${settingLabel("timer", messages.desktopLaunchAtLogin)}
             <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="launchAtLogin" aria-label="${escapeHtml(messages.desktopLaunchAtLogin)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
-          <div data-app-device-platform="windows" hidden>
+          <div class="settings-compact-row" data-app-device-platform="windows" hidden>
             ${settingLabel("download", messages.desktopAutoUpdate)}
             <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="autoUpdate" aria-label="${escapeHtml(messages.desktopAutoUpdate)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
@@ -452,7 +452,7 @@ function renderGlobalSettingsSection(
             ${settingLabel("app_window", messages.desktopResetWindow)}
             <dd><button type="button" class="text-action-button" data-app-reset-window>${escapeHtml(messages.desktopResetWindowAction)}</button><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
-          <div data-app-device-platform="android" hidden>
+          <div class="settings-compact-row" data-app-device-platform="android" hidden>
             ${settingLabel("notifications", messages.applicationBadge)}
             <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="badgeEnabled" aria-label="${escapeHtml(messages.applicationBadge)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
@@ -593,14 +593,14 @@ function transientSuccessStatusAttribute(
 /**
  * 渲染账户设置区域。
  *
- * @param settings 应用设置。
- * @param account 当前登录账户，未登录时为 undefined。
- * @param status 账户操作后的状态信息，未发生操作时为 undefined。
- * @param csrfToken CSRF 令牌。
- * @param passkeyAvailable 当前账户是否已经绑定 Passkey。
- * @param passwordAvailable 当前账户是否已经配置密码。
- * @param recentlyVerified 当前账户是否已在有效窗口内完成强再认证。
- * @return 账户设置区域 HTML。
+ * @param {AppSettings} settings 应用设置。
+ * @param {object | undefined} account 当前登录账户，未登录时为 undefined。
+ * @param {AccountStatus | undefined} status 账户操作后的状态信息，未发生操作时为 undefined。
+ * @param {string} csrfToken CSRF 令牌。
+ * @param {boolean} passkeyAvailable 当前账户是否已经绑定 Passkey。
+ * @param {boolean} passwordAvailable 当前账户是否已经配置密码。
+ * @param {boolean} recentlyVerified 当前账户是否已在有效窗口内完成强再认证。
+ * @return {string} 账户设置区域 HTML。
  */
 function renderAccountSection(
   settings: AppSettings,
@@ -668,13 +668,12 @@ function renderAccountSection(
     escapeHtml(messages.accountAvatar)
   }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>
             </button>
-            <label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button" aria-label="${
-    escapeHtml(messages.accountAvatarChoose)
-  }">
+            <label class="account-avatar-picker" data-avatar-dropzone tabindex="0" role="button">
               <input class="account-avatar-file-input" type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" data-avatar-file-input tabindex="-1">
               <span class="account-avatar-picker-text">${
     escapeHtml(messages.accountAvatarChoose)
   }</span>
+              <span class="account-avatar-picker-touch">${escapeHtml(messages.accountAvatarSelect)}</span>
             </label>
             <span class="inline-action-status" data-avatar-upload-status hidden role="status"></span>
           </div></dd>
@@ -2385,8 +2384,8 @@ function renderEmailReauthMethod(
 /**
  * 渲染两步验证设置区域。
  *
- * @param options 两步验证渲染选项。
- * @return 两步验证设置区域 HTML。
+ * @param {object} options 两步验证渲染选项。
+ * @return {string} 两步验证设置区域 HTML。
  */
 function renderTwoStepVerificationSection(options: {
   csrfToken: string;
@@ -2483,7 +2482,7 @@ function renderTwoStepVerificationSection(options: {
     escapeHtml(messages.accountTwoStepSettings)
   }</h2>
       <dl class="settings-list">
-        <div class="auth-method-row ${securityReauthOpen ? "is-open" : ""}">
+        <div class="auth-method-row settings-compact-row ${securityReauthOpen ? "is-open" : ""}">
           ${
     authSettingLabel(
       "two-factor",
@@ -3175,7 +3174,7 @@ function renderNotificationSection(settings: AppSettings): string {
   }</h2>
         <script src="/static/app-notifications.js" defer></script>
         <dl class="settings-list">
-          <div>
+          <div class="settings-compact-row">
             ${settingLabel("notifications", messages.applicationNotifications)}
             <dd class="settings-row-switch-cell application-notifications-cell">
               <label class="switch-control">
@@ -3637,8 +3636,8 @@ function renderNotificationSection(settings: AppSettings): string {
 /**
  * 渲染轮询设置区域。
  *
- * @param settings 应用设置。
- * @return 轮询设置区域 HTML。
+ * @param {AppSettings} settings 应用设置。
+ * @return {string} 轮询设置区域 HTML。
  */
 function renderPollingSection(settings: AppSettings): string {
   const messages = getMessages(settings.locale);
@@ -3656,7 +3655,7 @@ function renderPollingSection(settings: AppSettings): string {
     escapeHtml(messages.pollingSettings)
   }</h2>
         <dl class="settings-list">
-          <div>
+          <div class="settings-compact-row">
             ${
     settingLabel(
       "toggle_on",

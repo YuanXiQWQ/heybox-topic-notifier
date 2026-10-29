@@ -7,6 +7,7 @@
   "accountAvatar": "Fotografia de perfil",
   "accountAvatarAlt": "Fotografia de perfil de {name}",
   "accountAvatarChoose": "Clique aqui para escolher uma imagem ou arraste-a para esta área",
+  "accountAvatarSelect": "Escolher imagem",
   "accountAvatarConfirm": "Confirmar e carregar fotografia de perfil",
   "accountAvatarCrop": "Ajustar fotografia de perfil",
   "accountAvatarUploadFailed": "Não foi possível carregar a fotografia. Tente novamente.",

@@ -7,6 +7,7 @@
   "accountAvatar": "프로필 사진",
   "accountAvatarAlt": "{name}님의 프로필 사진",
   "accountAvatarChoose": "여기를 클릭해 이미지를 선택하거나 이미지를 끌어다 놓으세요",
+  "accountAvatarSelect": "이미지 선택",
   "accountAvatarConfirm": "확인 후 프로필 사진 업로드",
   "accountAvatarCrop": "프로필 사진 조정",
   "accountAvatarUploadFailed": "프로필 사진 업로드에 실패했습니다. 다시 시도하세요.",

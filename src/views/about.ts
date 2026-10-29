@@ -51,10 +51,10 @@ export function renderAbout(options: {
   }</button>
           <span class="inline-action-status" data-app-update-status role="status" hidden></span>
         </span></dd></div>
-        <div><dt>${
+        <div class="settings-compact-row"><dt>${
     escapeHtml(messages.projectRepository)
   }</dt><dd><a href="${projectRepositoryUrl}" target="_blank" rel="noopener noreferrer">GitHub</a></dd></div>
-        <div><dt>${
+        <div class="settings-compact-row"><dt>${
     escapeHtml(messages.projectLicense)
   }</dt><dd><a href="${projectRepositoryUrl}/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0</a></dd></div>
       </dl>

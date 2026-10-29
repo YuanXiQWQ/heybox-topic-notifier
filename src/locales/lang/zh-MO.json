@@ -7,6 +7,7 @@
   "accountAvatar": "頭像",
   "accountAvatarAlt": "{name} 的頭像",
   "accountAvatarChoose": "按此選擇圖片，或將圖片拖放至此",
+  "accountAvatarSelect": "選擇圖片",
   "accountAvatarConfirm": "確認並上傳頭像",
   "accountAvatarCrop": "調整頭像",
   "accountAvatarUploadFailed": "頭像上傳失敗，請重試。",

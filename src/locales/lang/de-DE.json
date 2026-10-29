@@ -7,6 +7,7 @@
   "accountAvatar": "Profilbild",
   "accountAvatarAlt": "Profilbild von {name}",
   "accountAvatarChoose": "Hier klicken, um ein Bild auszuwählen, oder Bild hierher ziehen",
+  "accountAvatarSelect": "Bild auswählen",
   "accountAvatarConfirm": "Profilbild bestätigen und hochladen",
   "accountAvatarCrop": "Profilbild anpassen",
   "accountAvatarUploadFailed": "Profilbild konnte nicht hochgeladen werden. Erneut versuchen.",
