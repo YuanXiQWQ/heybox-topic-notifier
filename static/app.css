@@ -225,8 +225,14 @@ a:hover{
 
 .nav-avatar-button:focus-visible{
   background: var(--theme-soft);
-  outline: 3px solid color-mix(in srgb, var(--theme-color) 34%, transparent);
+  outline: 3px solid var(--theme-border);
   outline-offset: -3px;
+}
+
+@supports (color: color-mix(in srgb, #000, #fff)){
+  .nav-avatar-button:focus-visible{
+    outline: 3px solid color-mix(in srgb, var(--theme-color) 34%, transparent);
+  }
 }
 
 .nav-account-menu[open] .nav-avatar-button{
@@ -382,16 +388,32 @@ button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel
 button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button, .nav-link-button):focus-visible:not(:disabled),
 .button-link:hover,
 .button-link:focus-visible{
-  background: color-mix(in srgb, var(--theme-strong) 88%, #ffffff 12%);
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--theme-color) 24%,
-  transparent);
+  background: var(--theme-strong);
+  box-shadow: 0 8px 18px var(--theme-border);
   text-decoration: none;
   transform: translateY(-1px);
 }
 
+@supports (color: color-mix(in srgb, #000, #fff)){
+  button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button, .nav-link-button):hover:not(:disabled),
+  button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button, .nav-link-button):focus-visible:not(:disabled),
+  .button-link:hover,
+  .button-link:focus-visible{
+    background: color-mix(in srgb, var(--theme-strong) 88%, #ffffff 12%);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--theme-color) 24%, transparent);
+  }
+}
+
 button.secondary:hover:not(:disabled),
 button.secondary:focus-visible:not(:disabled){
-  background: color-mix(in srgb, var(--secondary-button) 88%, #ffffff 12%);
+  background: var(--secondary-button);
+}
+
+@supports (color: color-mix(in srgb, #000, #fff)){
+  button.secondary:hover:not(:disabled),
+  button.secondary:focus-visible:not(:disabled){
+    background: color-mix(in srgb, var(--secondary-button) 88%, #ffffff 12%);
+  }
 }
 
 button:not(.dropdown-toggle, .icon-button, .keyword-option-button, .metric-panel-control, .text-action-button, .nav-link-button):active:not(:disabled),
@@ -478,10 +500,19 @@ select{
 input:disabled,
 input[readonly],
 select:disabled{
-  background: color-mix(in srgb, var(--control-bg) 45%, var(--border-soft) 55%);
-  border-color: color-mix(in srgb, var(--control-border) 60%, var(--border-soft) 40%);
+  background: var(--control-bg);
+  border-color: var(--control-border);
   color: var(--muted);
   cursor: not-allowed;
+}
+
+@supports (color: color-mix(in srgb, #000, #fff)){
+  input:disabled,
+  input[readonly],
+  select:disabled{
+    background: color-mix(in srgb, var(--control-bg) 45%, var(--border-soft) 55%);
+    border-color: color-mix(in srgb, var(--control-border) 60%, var(--border-soft) 40%);
+  }
 }
 
 input[readonly]{
@@ -752,7 +783,13 @@ input[readonly]::placeholder{
 
 .avatar-preview-dialog::backdrop{
   backdrop-filter: blur(10px);
-  background: color-mix(in srgb, var(--ink) 52%, transparent);
+  background: rgba(31, 41, 55, 0.52);
+}
+
+@supports (color: color-mix(in srgb, #000, #fff)){
+  .avatar-preview-dialog::backdrop{
+    background: color-mix(in srgb, var(--ink) 52%, transparent);
+  }
 }
 
 .avatar-preview-dialog img{
@@ -791,13 +828,20 @@ input[readonly]::placeholder{
 }
 
 .avatar-crop-dialog::backdrop{
-  background: color-mix(in srgb, var(--ink) 66%, transparent);
+  background: rgba(31, 41, 55, 0.66);
+}
+
+@supports (color: color-mix(in srgb, #000, #fff)){
+  .avatar-crop-dialog::backdrop{
+    background: color-mix(in srgb, var(--ink) 66%, transparent);
+  }
 }
 
 /* 应用更新提示沿用现有弹窗与设置行，红点不改变点击区域。 */
 .app-update-dialog{ width: min(92vw, 460px); }
 .app-update-dialog > p{ padding: 0 20px; overflow-wrap: anywhere; }
 .app-update-actions{ display: flex; justify-content: flex-end; gap: 12px; padding: 16px 20px; flex-wrap: wrap; }
+:root[data-application-platform="android"] .app-update-actions > button{ width: 100%; }
 .app-update-unread::after{ background: #df3946; border-radius: 50%; content: ""; display: inline-block; width: 7px; height: 7px; margin-inline-start: 7px; vertical-align: super; flex: 0 0 7px; }
 :root[data-application-platform="android"] .topbar{ padding-top: max(12px, env(safe-area-inset-top)); }
 :root[data-application-platform="android"] .shell{ padding-bottom: max(24px, env(safe-area-inset-bottom)); }
@@ -1131,7 +1175,13 @@ input[readonly]::placeholder{
 }
 
 .reauth-method-button[aria-pressed="true"]{
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, #fff 62%, transparent);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.62);
+}
+
+@supports (color: color-mix(in srgb, #000, #fff)){
+  .reauth-method-button[aria-pressed="true"]{
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, #fff 62%, transparent);
+  }
 }
 
 .reauth-method-details{
@@ -3394,9 +3444,15 @@ tr:last-child td{
 .matching-picker-toggle .dropdown-chevron{ flex-shrink: 0; width: 6px; height: 6px; }
 .matching-picker-menu{
   background: var(--surface); border: 1px solid var(--control-border); border-radius: 6px;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 12%, transparent);
+  box-shadow: 0 4px 16px rgba(31, 41, 55, 0.12);
   inset-inline-start: 0; margin-top: 6px; padding: 8px; position: absolute;
   width: max(100%, 220px); max-width: calc(100vw - 52px); box-sizing: border-box; z-index: 20;
+}
+
+@supports (color: color-mix(in srgb, #000, #fff)){
+  .matching-picker-menu{
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 12%, transparent);
+  }
 }
 .matching-picker:last-child .matching-picker-menu{ inset-inline-start: auto; inset-inline-end: 0; }
 .matching-picker-menu[hidden], .matching-picker-options > button[hidden]{ display: none; }
@@ -3445,9 +3501,16 @@ tr:last-child td{
 :root[data-application-platform="windows"] *::-webkit-scrollbar{ width: 10px; height: 10px; }
 :root[data-application-platform="windows"]::-webkit-scrollbar-thumb,
 :root[data-application-platform="windows"] *::-webkit-scrollbar-thumb{
-  background: color-mix(in srgb, var(--theme-color) 42%, var(--muted) 58%);
+  background: var(--theme-link);
   border: 3px solid var(--bg);
   border-radius: 10px;
+}
+
+@supports (color: color-mix(in srgb, #000, #fff)){
+  :root[data-application-platform="windows"]::-webkit-scrollbar-thumb,
+  :root[data-application-platform="windows"] *::-webkit-scrollbar-thumb{
+    background: color-mix(in srgb, var(--theme-color) 42%, var(--muted) 58%);
+  }
 }
 :root[data-application-platform="windows"]::-webkit-scrollbar-track,
 :root[data-application-platform="windows"] *::-webkit-scrollbar-track{ background: var(--bg); }

@@ -218,7 +218,7 @@
     );
   }
   /**
-   * 创建使用现有弹窗、按钮和间距的更新确认窗口。
+   * 创建更新确认窗口；Android 使用标题关闭按钮与整行更新按钮。
    */
   function showConfirmation() {
     if (!dialog) {
@@ -236,8 +236,10 @@
       actions.className = "app-update-actions";
       const later = document.createElement("button");
       later.type = "button";
-      later.className = "secondary";
-      later.textContent = labels.updateLater;
+      const mobile = state.platform === "android";
+      later.className = mobile ? "icon-button" : "secondary";
+      later.textContent = mobile ? "×" : labels.updateLater;
+      if (mobile) later.setAttribute("aria-label", labels.accountCancel);
       later.addEventListener("click", () => dialog.close());
       const confirm = document.createElement("button");
       confirm.type = "button";
@@ -264,7 +266,9 @@
           updateDialog();
         }
       });
-      actions.append(later, confirm);
+      if (mobile) header.append(later);
+      else actions.append(later);
+      actions.append(confirm);
       dialog.append(header, version, actions);
       dialog.setAttribute("aria-labelledby", heading.id);
       dialog.addEventListener("close", () => {
