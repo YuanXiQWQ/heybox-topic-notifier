@@ -7,6 +7,7 @@
   "accountAvatar": "Ảnh đại diện",
   "accountAvatarAlt": "Ảnh đại diện của {name}",
   "accountAvatarChoose": "Nhấp vào đây để chọn ảnh hoặc kéo thả ảnh vào đây",
+  "accountAvatarSelect": "Chọn ảnh",
   "accountAvatarConfirm": "Xác nhận và tải ảnh đại diện lên",
   "accountAvatarCrop": "Điều chỉnh ảnh đại diện",
   "accountAvatarUploadFailed": "Không thể tải ảnh đại diện lên. Vui lòng thử lại.",

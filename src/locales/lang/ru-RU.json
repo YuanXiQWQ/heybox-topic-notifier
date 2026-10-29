@@ -7,6 +7,7 @@
   "accountAvatar": "Аватар",
   "accountAvatarAlt": "Аватар пользователя {name}",
   "accountAvatarChoose": "Нажмите, чтобы выбрать изображение, или перетащите его сюда",
+  "accountAvatarSelect": "Выбрать изображение",
   "accountAvatarConfirm": "Подтвердить и загрузить аватар",
   "accountAvatarCrop": "Настроить аватар",
   "accountAvatarUploadFailed": "Не удалось загрузить аватар. Повторите попытку.",

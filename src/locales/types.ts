@@ -164,6 +164,7 @@ export type Messages = {
   accountAvatar: string;
   accountAvatarAlt: string;
   accountAvatarChoose: string;
+  accountAvatarSelect: string;
   accountAvatarClearDecorations: string;
   accountAvatarConfirm: string;
   accountAvatarCrop: string;

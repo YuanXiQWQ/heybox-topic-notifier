@@ -767,6 +767,13 @@ input[readonly]::placeholder{
   width: 1px;
 }
 
+.account-avatar-picker-touch{ display: none; }
+
+@media (hover: none) and (pointer: coarse){
+  .account-avatar-picker-text{ display: none; }
+  .account-avatar-picker-touch{ display: inline; }
+}
+
 .account-avatar-picker-text{
   color: var(--muted);
   font-size: 14px;
@@ -1575,6 +1582,7 @@ input[type="checkbox"]{
 }
 
 .switch-control input{
+  -webkit-appearance: none;
   appearance: none;
   background: var(--control-border);
   border: 0;
@@ -1593,7 +1601,7 @@ input[type="checkbox"]{
   border-radius: 50%;
   content: "";
   height: 18px;
-  inset-inline-start: 3px;
+  left: 3px;
   position: absolute;
   top: 3px;
   transition: transform 160ms ease;
@@ -1608,11 +1616,17 @@ input[type="checkbox"]{
   transform: translateX(20px);
 }
 
+:root[dir="rtl"] .switch-control input::before{
+  left: auto;
+  right: 3px;
+}
+
 :root[dir="rtl"] .switch-control input:checked::before{
   transform: translateX(-20px);
 }
 
 input[type="color"]{
+  -webkit-appearance: none;
   appearance: none;
   background: transparent;
   border: 0;
@@ -3245,33 +3259,147 @@ tr:last-child td{
   }
 }
 
-@media (max-width: 480px){
-  /* 通知说明出现时使用整行空间，保持窄屏文字可读。 */
-  .settings-list > div:has(.application-notifications-cell .inline-action-status:not([hidden])){
-    grid-template-columns: 1fr;
+/* 窄屏按控件类型分配空间，不依赖旧 WebView 缺失的 :has 选择器。 */
+@media (max-width: 620px){
+  .settings-list > div:not(.dropdown-settings-row):not(.settings-navigation-row):not(.notification-test-drawer){
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 
-  /* 宽输入框需要完整一行，避免把可编辑区域压缩到不可用。 */
-  .settings-list > div:has(.input-action-row),
-  .settings-list > div:has(.account-username-row),
-  .settings-list > div:has(.account-single-input-row),
-  .settings-list > div:has(.email-binding-row){
-    grid-template-columns: 1fr;
+  .settings-list > div:not(.dropdown-settings-row):not(.settings-navigation-row):not(.notification-test-drawer):not(.is-collapsed){
+    padding: 14px 16px;
   }
-}
 
-@media (max-width: 400px){
-  /* 其余复杂控件在此宽度以下使用完整内容区；轻量开关仍保留两列。 */
-  .settings-list > div:not(.dropdown-settings-row):not(:has(.settings-row-switch-cell)):not(:has(.auth-method-summary-row .switch-control)){
-    grid-template-columns: 1fr;
+  .settings-list > .settings-compact-row:not(.is-open){
+    box-sizing: border-box;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    column-gap: 12px;
+    min-height: 64px;
   }
-}
 
-@media (max-width: 320px){
-  /* 极窄屏无法容纳标签列与开关时，才让所有常规设置项单列。 */
-  .settings-list > div:not(.dropdown-settings-row){
-    grid-template-columns: 1fr;
+  .settings-compact-row > dd{
+    justify-self: end;
+    max-inline-size: 55vw;
   }
+
+  .settings-compact-row.is-open > dd{
+    justify-self: stretch;
+    max-inline-size: none;
+  }
+
+  .settings-list > div > dt,
+  .settings-list > div > dd{
+    overflow-wrap: anywhere;
+  }
+
+  .settings-label-with-icon{ column-gap: 0; }
+  .settings-label-with-icon > * + *{ margin-inline-start: 6px; }
+
+  .settings-list > div > dd > input,
+  .settings-list > div > dd > select,
+  .poll-interval-control{
+    max-width: none;
+    width: 100%;
+  }
+
+  .settings-compact-row > dd > .theme-color-input{
+    width: 54px;
+  }
+
+  .poll-interval-control{
+    grid-template-columns: minmax(0, 1fr) minmax(88px, 0.7fr);
+  }
+
+  .input-action-row input,
+  .account-username-row input,
+  .account-single-input-row input,
+  .email-binding-row input[type="email"],
+  .email-binding-row input[type="text"],
+  .auth-method-summary-row > .email-binding-row{
+    flex: 1 1 0;
+    min-inline-size: 0;
+    max-width: none;
+  }
+
+  .auth-method-summary-row{
+    flex-wrap: nowrap;
+    column-gap: 0;
+  }
+
+  /* 操作间距使用逻辑边距，兼容没有 flex gap 的 WebView 和 RTL。 */
+  .input-action-row,
+  .account-username-row,
+  .account-single-input-row,
+  .email-binding-row{
+    column-gap: 0;
+  }
+
+  .input-action-row > button,
+  .account-username-row > .account-mode-buttons,
+  .account-single-input-row > .account-mode-buttons,
+  .email-binding-row > button,
+  .auth-method-summary-row > .auth-method-actions{
+    margin-inline-start: 10px;
+  }
+
+  .auth-method-summary{
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .account-field-status,
+  .input-action-row > .inline-action-status,
+  .email-binding-row > .inline-action-status{
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .settings-list input:not([type="checkbox"]):not([type="radio"]),
+  .settings-list select,
+  .settings-icon-action-button,
+  .auth-method-toggle-button{
+    min-height: 44px;
+  }
+
+  .settings-icon-action-button,
+  .auth-method-toggle-button{
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .account-avatar-setting{
+    flex-wrap: wrap;
+  }
+
+  .account-avatar-setting > .inline-action-status{
+    flex-basis: 100%;
+  }
+
+  .account-avatar-preview{
+    flex-basis: 56px;
+    height: 56px;
+    width: 56px;
+  }
+
+  .account-avatar-picker{
+    border: 0;
+    color: var(--theme-link);
+    cursor: pointer;
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  .account-avatar-picker-text{ display: none; }
+  .account-avatar-picker-touch{ display: inline; }
+
+  .settings-navigation-link{ padding: 16px; }
+
+  .about-version,
+  .about-version-updates{ gap: 6px 0; }
+
+  .about-version > * + *,
+  .about-version-updates > * + *{ margin-inline-start: 12px; }
 }
 
 @media (max-width: 620px){
@@ -3294,11 +3422,16 @@ tr:last-child td{
   }
 
   .shell{
-    padding-inline: 8px;
+    padding: 20px 12px;
   }
 
+  .topbar{ gap: 12px; }
+  .primary-nav .nav-link-button{ font-size: 14px; min-height: 56px; padding-inline: 4px; }
+  .page-heading{ margin-bottom: 20px; }
+  .page-heading h1{ font-size: 26px; }
+
   .topbar > .brand{
-    margin-inline: 8px;
+    margin-inline: 12px;
   }
 
   .pagination-row{
