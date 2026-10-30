@@ -11,6 +11,9 @@ import { matchingDayMs, observeTopic } from "./matching_activity.ts";
 import type { TopicSource } from "./topic_source.ts";
 import { createPoller } from "./poller.ts";
 import { normalizeMatchResult } from "./match_result.ts";
+import { createPollingNotifier } from "./polling_notifier.ts";
+import { createNotifier } from "./notifier.ts";
+import { getMessages } from "../locales/index.ts";
 
 /**
  * 构造包含指定标识和正文的测试帖子。
@@ -97,6 +100,7 @@ async function fixture(notifyAiFailure: (id: string) => Promise<boolean> = () =>
           await session.findMatch(item, app.topics[0], app.commonKeywordRules),
         );
       }
+      await session.completeNotifications();
       return results;
     } finally {
       await session.close();
@@ -474,7 +478,7 @@ Deno.test("failed alert delivery does not block fallback and retries once in a l
   } finally { f.close(); }
 });
 
-Deno.test("poller sends fault notices without fake matches and prefixes fallback records only", async () => {
+Deno.test("poller merges failure notices into fallback matches without sending an extra fault message", async () => {
   const f = await fixture();
   try {
     let posts = [post("p1", "求助"), post("p2", "没有关键词")];
@@ -491,7 +495,7 @@ Deno.test("poller sends fault notices without fake matches and prefixes fallback
     });
     await poller.runOnce();
     await poller.runOnce();
-    assertEquals(alerts.length, 1);
+    assertEquals(alerts.length, 0);
     assertEquals(batches.length, 1);
     assertEquals(batches[0].length, 1);
     assertEquals(batches[0][0].aiFallback, true);
@@ -505,6 +509,100 @@ Deno.test("poller sends fault notices without fake matches and prefixes fallback
     assertEquals(batches[1][0].kind, "ai");
     assertEquals(batches[1][0].aiFallback, undefined);
     assertEquals((await f.store.runtime())?.aiFailure, undefined);
+  } finally { f.close(); }
+});
+
+Deno.test("polling sends one complete PushPlus match message and one native match event with fallback text", async () => {
+  const f = await fixture();
+  try {
+    f.app.locale = "zh-CN";
+    f.app.notificationProvider = "webhook";
+    f.app.notificationWebhookService = "pushPlus";
+    f.app.notificationPushPlusToken = "fixture-token";
+    let posts = [post("miss", "无关正文"), post("p1", "求助：请问这一关应该怎么打？")];
+    f.source.listLatestPosts = () => Promise.resolve(posts);
+    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    const requests: { title: string; content: string }[] = [];
+    const account = f.storage.forUser("alice");
+    const messages = getMessages(f.app.locale);
+    let browserCalls = 0;
+    const notifier = createPollingNotifier(f.storage, {
+      other: () => Promise.resolve(createNotifier({
+        deliveryLogger: () => {},
+        resolveDns: () => Promise.resolve(["93.184.216.34"]),
+        fetch: (_input, init) => {
+          requests.push(JSON.parse(String(init?.body)));
+          return Promise.resolve(new Response(JSON.stringify({ code: 200 })));
+        },
+      })),
+      browsers: (_storage, _userId, content) => {
+        browserCalls++;
+        assert(Array.isArray(content));
+        assertEquals(content.length, 1);
+        assertEquals(content[0].aiFallback, true);
+        return Promise.resolve(true);
+      },
+    });
+    const poller = createPoller({ ...f, matcher: createMatcher(), notifier });
+    await poller.runOnce(account, f.app);
+    assertEquals(requests.length, 1);
+    assertEquals(requests[0].title, messages.notificationBatchTitle);
+    assert(requests[0].content.startsWith(messages.notificationAiFallback + "\n\n"));
+    assert(requests[0].content.includes("[需要帮助](https://www.xiaoheihe.cn/app/bbs/link/p1)"));
+    assert(requests[0].content.includes("请问这一关应该怎么打？"));
+    assert(requests[0].content.includes("命中关键词：求助"));
+    assert(requests[0].content.includes("匹配位置：正文"));
+    assert(requests[0].content.includes("发帖时间："));
+    const events = (await account.nativeNotifications!.read("")).events;
+    assertEquals(events.length, 1);
+    assertEquals(events[0].title, messages.appName);
+    assertEquals(events[0].body, messages.notificationAiFallback + "\n需要帮助");
+    assertEquals(events[0].path, "/history");
+    assertEquals((await account.matching!.runtime())?.aiFailure?.notified, true);
+    posts = [post("p2", "求助：第二条帖子")];
+    await poller.runOnce(account, f.app);
+    assertEquals(requests.length, 2);
+    assertEquals(browserCalls, 2);
+    assert(requests[1].content.startsWith(messages.notificationAiFallback + "\n\n"));
+    assert(requests[1].content.includes("第二条帖子"));
+    assertEquals((await account.nativeNotifications!.read("")).events.length, 2);
+  } finally { f.close(); }
+});
+
+Deno.test("poller only sends standalone failure reminders when no fallback matches exist", async () => {
+  const f = await fixture();
+  try {
+    f.source.listLatestPosts = () => Promise.resolve([post("miss", "无关正文")]);
+    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    let alerts = 0, batches = 0;
+    const poller = createPoller({ ...f, matcher: createMatcher(), notifier: {
+      sendService: () => { alerts++; return Promise.resolve({ provider: "webhook", sent: true }); },
+      sendMatches: () => { batches++; return Promise.resolve({ provider: "webhook", sent: true }); },
+    } });
+    await poller.runOnce();
+    await poller.runOnce();
+    assertEquals([alerts, batches], [1, 0]);
+    const runtime = (await f.store.runtime())!;
+    await f.store.saveRuntime({ ...runtime, day: "2000-01-01" });
+    await poller.runOnce();
+    assertEquals([alerts, batches], [2, 0]);
+    assertEquals(await f.storage.listMatchesForPost("miss"), []);
+  } finally { f.close(); }
+});
+
+Deno.test("failed merged match delivery never sends a body-only fault message in its place", async () => {
+  const f = await fixture();
+  try {
+    f.source.listLatestPosts = () => Promise.resolve([post("p1", "求助")]);
+    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    let alerts = 0;
+    const poller = createPoller({ ...f, matcher: createMatcher(), notifier: {
+      sendService: () => { alerts++; return Promise.resolve({ provider: "webhook", sent: true }); },
+      sendMatches: () => Promise.resolve({ provider: "webhook", sent: false }),
+    } });
+    await poller.runOnce();
+    assertEquals(alerts, 0);
+    assertEquals((await f.store.runtime())?.aiFailure?.notified, false);
   } finally { f.close(); }
 });
 

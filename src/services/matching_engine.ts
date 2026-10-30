@@ -75,7 +75,7 @@ export function matchingRuntimeForDay(
  * @param {TopicSource} source 帖子数据源。
  * @param {ReturnType<typeof createAiMatcher>} ai AI 分类器。
  * @param {() => number} now 可注入时钟。
- * @param {(id: string) => Promise<boolean>} notifyAiFailure 发送故障通知并返回是否受理。
+ * @param {(id: string) => Promise<boolean>} sendAiFailure 无回退命中可合并时发送故障通知。
  * @return {Promise<object | undefined>} 已获得租约的会话，忙碌时返回 undefined。
  */
 export async function startMatchingRun(
@@ -85,7 +85,7 @@ export async function startMatchingRun(
   source: TopicSource,
   ai = createAiMatcher(),
   now = Date.now,
-  notifyAiFailure: (id: string) => Promise<boolean> = () => Promise.resolve(false),
+  sendAiFailure: (id: string) => Promise<boolean> = () => Promise.resolve(false),
 ) {
   const token = crypto.randomUUID();
   if (!await store.acquire(token, now())) return undefined;
@@ -100,7 +100,7 @@ export async function startMatchingRun(
   const startedAt = now();
   const configs = new Map<string, string>();
   const visibleIds = new Map<string, Set<string>>();
-  const attemptedAlerts = new Set<string>();
+  let failedThisRun = false;
   const savedEntries = new Map<string, MatchingEntry | undefined>();
   /**
    * 持久化条目并同步缓存与待处理数量。
@@ -132,7 +132,7 @@ export async function startMatchingRun(
   }
 
   /**
-   * 为当前帖子执行正则回退，并在连续失败首次发生时独立投递故障通知。
+   * 为当前帖子执行正则回退，记录故障状态供轮询结束后与命中通知合并。
    * @param {MatchingEntry} entry 待处理缓存。
    * @param {TopicPost} post 实际可用的帖子内容。
    * @param {KeywordRule[]} rules 当前话题规则。
@@ -146,6 +146,7 @@ export async function startMatchingRun(
     error: string,
   ): Promise<MatchResult | undefined> {
     runtime.failures++;
+    failedThisRun = true;
     runtime.lastError = error;
     runtime.aiFailure ??= {
       id: `ai-failure:${crypto.randomUUID()}`,
@@ -158,21 +159,29 @@ export async function startMatchingRun(
     if (match) delete entry.pendingPost;
     await saveEntry(entry);
     await store.saveRuntime(runtime);
-    const failure = runtime.aiFailure;
-    if (!failure.notified && !attemptedAlerts.has(failure.id)) {
-      attemptedAlerts.add(failure.id);
-      try {
-        await renew();
-        failure.notified = await notifyAiFailure(failure.id);
-      } catch {
-        console.warn("AI 故障通知投递失败，后续轮询将重试。");
-      }
-      await store.saveRuntime(runtime);
-    }
     return match ? { ...match, kind: "keyword", aiFallback: true } : undefined;
   }
 
   return {
+    /**
+     * 在命中通知完成后确认故障已告知；只有没有回退命中通知时才单独提醒。
+     * @param {boolean | undefined} fallbackSent 回退通知是否受理；undefined 表示没有回退命中。
+     */
+    async completeNotifications(fallbackSent?: boolean): Promise<void> {
+      const failure = runtime.aiFailure;
+      if (!failedThisRun || !failure || failure.notified) return;
+      await renew();
+      if (fallbackSent !== undefined) {
+        failure.notified = fallbackSent;
+      } else {
+        try {
+          failure.notified = await sendAiFailure(failure.id);
+        } catch {
+          console.warn("AI 故障通知投递失败，后续轮询将重试。");
+        }
+      }
+      await store.saveRuntime(runtime);
+    },
     /**
      * 记录成功拉取的列表并追加离开窗口但尚未完成的待处理帖子。
      * @param {TopicRule} topic 话题。
