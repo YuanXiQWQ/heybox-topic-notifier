@@ -50,6 +50,8 @@ export type MatchingRuntime = {
   dropped: number;
   lastPrunedAt?: number;
   lastError?: string;
+  /** 连续 AI 失败的通知状态，跨轮询保留，成功判定或 UTC 日期变化后清除。 */
+  aiFailure?: { id: string; notified: boolean };
   topics: Record<string, TopicActivity>;
 };
 

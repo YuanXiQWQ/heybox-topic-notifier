@@ -1,4 +1,4 @@
-/** @file 验证三种匹配模式的缓存复用、配置失效、限额、重试和用户租约。 */
+/** @file 验证三种匹配模式、AI 故障回退与通知去重、缓存限额和用户租约。 */
 import { assert, assertEquals } from "../test_helpers.ts";
 import type { AppSettings, TopicPost } from "../models.ts";
 import { createKvStorage } from "../storage/kv.ts";
@@ -10,6 +10,7 @@ import type { AiDecision } from "./ai_matcher.ts";
 import { matchingDayMs, observeTopic } from "./matching_activity.ts";
 import type { TopicSource } from "./topic_source.ts";
 import { createPoller } from "./poller.ts";
+import { normalizeMatchResult } from "./match_result.ts";
 
 /**
  * 构造包含指定标识和正文的测试帖子。
@@ -33,9 +34,10 @@ function post(id = "p1", body = "关卡问题"): TopicPost {
 
 /**
  * 创建真实内存 KV 与可控 AI、时钟，关闭时释放全部资源。
+ * @param {(id: string) => Promise<boolean>} notifyAiFailure 故障投递器。
  * @return {Promise<object>} 测试上下文。
  */
-async function fixture() {
+async function fixture(notifyAiFailure: (id: string) => Promise<boolean> = () => Promise.resolve(false)) {
   const kv = await Deno.openKv(":memory:");
   const app: AppSettings = {
     ...defaultAppSettingsFromEnv(),
@@ -85,6 +87,7 @@ async function fixture() {
       source,
       ai,
       () => time,
+      notifyAiFailure,
     );
     assert(session);
     try {
@@ -307,7 +310,7 @@ Deno.test("daily limit reserves attempts and keeps posts queued after they leave
   }
 });
 
-Deno.test("failed calls never become negative results and stop after three attempts", async () => {
+Deno.test("failed calls never become negative results and keep trying AI beyond three attempts", async () => {
   const f = await fixture();
   try {
     f.decide({
@@ -318,24 +321,24 @@ Deno.test("failed calls never become negative results and stop after three attem
     });
     await f.run();
     await f.run();
-    assertEquals(f.calls(), 1);
+    assertEquals(f.calls(), 2);
     f.advance(600000);
     await f.run();
     f.advance(1200000);
     await f.run();
     f.advance(3600000);
     await f.run();
-    assertEquals(f.calls(), 3);
+    assertEquals(f.calls(), 5);
     const state = await f.store.runtime();
-    assertEquals(state?.unknownUsage, 3);
-    assertEquals(state?.failures, 3);
+    assertEquals(state?.unknownUsage, 5);
+    assertEquals(state?.failures, 5);
     assertEquals(
       (await f.store.get(await matchingHash(["topic", "p1"])))?.result,
       undefined,
     );
     f.app.matching!.apiKey = "replacement";
     await f.run();
-    assertEquals(f.calls(), 4);
+    assertEquals(f.calls(), 6);
   } finally {
     f.close();
   }
@@ -354,10 +357,11 @@ Deno.test("incomplete details do not call AI or cache a negative result", async 
   }
 });
 
-Deno.test("queued hybrid snapshots keep original fingerprints and retry limits after truncation", async () => {
+Deno.test("queued AI snapshots keep original fingerprints while continuing AI attempts after truncation", async () => {
   const f = await fixture();
   try {
-    f.app.matching!.mode = "hybrid";
+    f.app.matching!.mode = "ai";
+    f.app.commonKeywordRules = [{ keyword: "不存在的关键词", locations: ["body"] }];
     f.app.matching!.maxInputChars = 200;
     f.decide({
       error: "AI HTTP 503",
@@ -378,12 +382,130 @@ Deno.test("queued hybrid snapshots keep original fingerprints and retry limits a
       await f.run([]);
     }
     const final = await f.store.get(await matchingHash(["topic", "p1"]));
-    assertEquals(f.calls(), 3);
+    assertEquals(f.calls(), 5);
     assertEquals(final?.fingerprint, original?.fingerprint);
     assertEquals(final?.lastSeenAt, original?.lastSeenAt);
   } finally {
     f.close();
   }
+});
+
+Deno.test("AI errors fall back per post without a circuit, preserve mode, and resume AI decisions", async () => {
+  for (const mode of ["ai", "hybrid"] as const) {
+    const notices: string[] = [];
+    const f = await fixture((id) => { notices.push(id); return Promise.resolve(true); });
+    try {
+      f.app.matching!.mode = mode;
+      f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+      const results = await f.run([post("p1", "求助"), post("p2", "求助")]);
+      assertEquals(results, [
+        { keyword: "求助", location: "body", kind: "keyword", aiFallback: true },
+        { keyword: "求助", location: "body", kind: "keyword", aiFallback: true },
+      ]);
+      assertEquals(f.calls(), 2);
+      assertEquals(notices.length, 1);
+      assertEquals((await f.store.runtime())?.pendingCount, 0);
+      assertEquals(f.app.matching!.mode, mode);
+      assertEquals(normalizeMatchResult(results[0] as import("../models.ts").MatchResult, mode), results[0]);
+      f.decide({ decision: "no_match", inputTokens: 1, outputTokens: 1, usageKnown: true });
+      assertEquals(await f.run([post("p1", "求助"), post("p2", "求助")]), [undefined, undefined]);
+      assertEquals(f.calls(), 4);
+      assertEquals((await f.store.runtime())?.aiFailure, undefined);
+      assertEquals((await f.store.get(await matchingHash(["topic", "p1"])))?.result, null);
+    } finally { f.close(); }
+  }
+});
+
+Deno.test("AI outage notices survive new sessions, reset daily and reset after a successful AI call", async () => {
+  const notices: string[] = [];
+  const f = await fixture((id) => { notices.push(id); return Promise.resolve(true); });
+  const failure = { error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false };
+  try {
+    f.decide(failure);
+    for (let i = 0; i < 4; i++) await f.run();
+    assertEquals(f.calls(), 4);
+    assertEquals(notices.length, 1);
+    assertEquals((await f.store.runtime())?.aiFailure?.notified, true);
+    f.advance(matchingDayMs);
+    await f.run();
+    await f.run();
+    assertEquals(notices.length, 2);
+    assert(notices[0] !== notices[1]);
+    f.decide({ decision: "no_match", inputTokens: 1, outputTokens: 1, usageKnown: true });
+    await f.run();
+    f.decide(failure);
+    await f.run([post("p2")]);
+    assertEquals(notices.length, 3);
+    assertEquals(new Set(notices).size, 3);
+  } finally { f.close(); }
+});
+
+Deno.test("AI retries frozen pending posts even after they leave the feed", async () => {
+  const f = await fixture();
+  try {
+    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    await f.run();
+    const key = await matchingHash(["topic", "p1"]);
+    const entry = (await f.store.get(key))!;
+    await f.store.put({ ...entry, attempts: 3, retryAt: entry.expiresAt });
+    await f.run([]);
+    assertEquals(f.calls(), 2);
+    assertEquals((await f.store.get(key))?.attempts, 0);
+  } finally { f.close(); }
+});
+
+Deno.test("failed alert delivery does not block fallback and retries once in a later run", async () => {
+  const notices: string[] = [];
+  const f = await fixture((id) => {
+    notices.push(id);
+    if (notices.length === 1) return Promise.reject(new Error("offline"));
+    return Promise.resolve(true);
+  });
+  try {
+    f.decide({ error: "AI HTTP 503", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    const posts = [post("p1", "求助"), post("p2", "求助")];
+    assert((await f.run(posts)).every(Boolean));
+    assertEquals(notices.length, 1);
+    assertEquals((await f.store.runtime())?.aiFailure?.notified, false);
+    await f.run(posts);
+    await f.run(posts);
+    assertEquals(notices.length, 2);
+    assertEquals(notices[0], notices[1]);
+  } finally { f.close(); }
+});
+
+Deno.test("poller sends fault notices without fake matches and prefixes fallback records only", async () => {
+  const f = await fixture();
+  try {
+    let posts = [post("p1", "求助"), post("p2", "没有关键词")];
+    f.source.listLatestPosts = () => Promise.resolve(posts);
+    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    const batches: import("../models.ts").MatchRecord[][] = [];
+    const alerts: import("./service_notification.ts").ServiceNotification[] = [];
+    const poller = createPoller({
+      ...f, matcher: createMatcher(),
+      notifier: {
+        sendService: (notice) => { alerts.push(notice); return Promise.resolve({ provider: "webhook", sent: true }); },
+        sendMatches: (records) => { batches.push(records); return Promise.resolve({ provider: "webhook", sent: true }); },
+      },
+    });
+    await poller.runOnce();
+    await poller.runOnce();
+    assertEquals(alerts.length, 1);
+    assertEquals(batches.length, 1);
+    assertEquals(batches[0].length, 1);
+    assertEquals(batches[0][0].aiFallback, true);
+    assertEquals(batches[0][0].kind, "keyword");
+    assertEquals((await f.storage.listMatchesForPost("p1"))[0].aiFallback, true);
+    assertEquals(await f.storage.listMatchesForPost("p2"), []);
+    f.decide({ decision: "match", reason: "符合提示词", inputTokens: 1, outputTokens: 1, usageKnown: true });
+    posts = [post("p2", "没有关键词")];
+    await poller.runOnce();
+    assertEquals(batches.length, 2);
+    assertEquals(batches[1][0].kind, "ai");
+    assertEquals(batches[1][0].aiFallback, undefined);
+    assertEquals((await f.store.runtime())?.aiFailure, undefined);
+  } finally { f.close(); }
 });
 
 Deno.test("persisted user leases prevent concurrent matching and isolate users", async () => {

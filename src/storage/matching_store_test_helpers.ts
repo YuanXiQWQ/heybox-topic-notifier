@@ -1,6 +1,7 @@
 /** @file 为 KV 与 Turso 判定缓存提供相同的持久化、隔离及淘汰契约检查。 */
 import { assert, assertEquals } from "../test_helpers.ts";
 import type { MatchingEntry, MatchingStore } from "./matching_types.ts";
+import { matchingRuntimeForDay } from "../services/matching_engine.ts";
 
 /**
  * 验证两个独立用户缓存的持久化租约、过期及数量边界。
@@ -65,4 +66,12 @@ export async function verifyMatchingStore(
   const limited = await store.prune(now, 10);
   assertEquals(limited.count, 10);
   assertEquals((await store.get("keep"))?.result, null);
+  const runtime = matchingRuntimeForDay(undefined, now);
+  runtime.aiFailure = { id: "outage", notified: true };
+  await store.saveRuntime(runtime);
+  assertEquals((await store.runtime())?.aiFailure, runtime.aiFailure);
+  assertEquals((await other.runtime())?.aiFailure, undefined);
+  await store.put({ ...base, key: "frozen", topicId: "frozen-topic", result: undefined, pendingPost: queued, attempts: 3, retryAt: base.expiresAt });
+  assertEquals((await store.pending("frozen-topic", now)).map((entry) => entry.key), ["frozen"]);
+  assertEquals(await store.pending("frozen-topic", base.expiresAt), []);
 }

@@ -1,6 +1,7 @@
 /** @file 验证浏览器订阅并通过标准 Web Push 发送与账号会话绑定的系统通知。 */
 // @deno-types="npm:@types/web-push@3.6.4"
 import webPush from "web-push";
+import { aiFallbackNotice, type ServiceNotification } from "./service_notification.ts";
 import { createECDH } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { getMessages } from "../locales/index.ts";
@@ -127,10 +128,10 @@ export async function deliverWebPush(
 }
 
 /**
- * 独立向账号的有效浏览器会话发送命中通知，失效设备不会阻塞其它设备。
+ * 独立向账号的有效浏览器会话发送命中或服务通知，失效设备不会阻塞其它设备。
  * @param {Storage} storage 权威存储。
  * @param {string} userId 命中所属账号。
- * @param {MatchRecord[]} records 本轮新增命中。
+ * @param {MatchRecord[] | ServiceNotification} records 本轮新增命中或服务通知。
  * @param {AppSettings} settings 用户语言设置。
  * @param {object} options 可注入的配置与投递器。
  * @return {Promise<boolean>} 是否至少被一个推送服务受理。
@@ -138,23 +139,22 @@ export async function deliverWebPush(
 export async function notifyBrowsers(
   storage: Storage,
   userId: string,
-  records: MatchRecord[],
+  records: MatchRecord[] | ServiceNotification,
   settings: AppSettings,
   options: { config?: WebPushConfig; deliver?: typeof deliverWebPush; strict?: boolean } = {},
 ): Promise<boolean> {
   const config = options.config ?? webPushConfig();
-  if (!config || !storage.webPush || records.length === 0) return false;
+  if (!config || !storage.webPush || (Array.isArray(records) && records.length === 0)) return false;
   const tag = await sessionTokenHash(
-    `${userId}:${records.map((record) => record.id).sort().join("\n")}`,
+    `${userId}:${Array.isArray(records) ? records.map((record) => record.id).sort().join("\n") : records.id}`,
   );
   const messages = getMessages(settings.locale);
   const notification: AppNotification = {
     userId,
     tag,
-    title: messages.appName,
-    body: records.slice(0, 3).map((record) => record.post.title.slice(0, 160))
-      .join("\n"),
-    path: "/",
+    title: Array.isArray(records) ? messages.appName : records.title,
+    body: Array.isArray(records) ? [aiFallbackNotice(records, settings), ...records.slice(0, 3).map((record) => record.post.title.slice(0, 160))].filter(Boolean).join("\n") : records.body,
+    path: Array.isArray(records) ? "/" : records.path,
   };
   let sent = false;
   let failed = false;
