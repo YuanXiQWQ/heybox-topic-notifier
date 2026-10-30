@@ -3024,8 +3024,12 @@ tr:last-child td{
   }
 
   .primary-nav .nav-link-button{
-    flex-direction: column;
+    align-content: center;
+    display: grid;
     gap: 4px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 18px auto;
+    justify-items: center;
     line-height: 1.15;
     min-height: 48px;
     padding-inline: 10px;
@@ -3036,6 +3040,23 @@ tr:last-child td{
 
   .primary-nav .nav-label{
     overflow-wrap: anywhere;
+  }
+
+  /* 红点叠放在图标的逻辑末端角，不占据纵向导航中的额外一行。 */
+  .primary-nav .nav-link-button > .nav-icon,
+  .primary-nav .nav-link-button > .lobotomy-corp-black-forest-egg{
+    grid-area: 1 / 1;
+  }
+
+  .primary-nav .nav-link-button > .nav-label{
+    grid-area: 2 / 1;
+  }
+
+  .primary-nav .app-update-unread::after{
+    align-self: start;
+    grid-area: 1 / 1;
+    margin-top: -3px;
+    margin-inline-start: 18px;
   }
 
   .metrics{
