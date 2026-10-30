@@ -155,6 +155,7 @@ export async function startMatchingRun(
     // 回退结果不充当 AI 缓存；下一轮仍先尝试模型。
     entry.attempts = 0;
     entry.retryAt = 0;
+    delete entry.insufficient;
     const match = await rulesMatcher.findMatch(post, rules);
     if (match) delete entry.pendingPost;
     await saveEntry(entry);
@@ -213,7 +214,7 @@ export async function startMatchingRun(
     },
 
     /**
-     * 复用成功判定，必要时尝试 AI；失败或信息不足时对当前帖子回退正则。
+     * 复用成功判定，AI 故障时回退正则；模型正常返回信息不足时保留待判断。
      * @param {TopicPost} post 列表帖子或待处理快照。
      * @param {TopicRule} topic 话题。
      * @param {KeywordRule[]} rules 当前话题的合并规则。
@@ -276,11 +277,14 @@ export async function startMatchingRun(
       if (visibleIds.get(topic.id)?.has(post.id)) entry.lastSeenAt = timestamp;
       const live = old && old.expiresAt > timestamp;
       // 兼容把三次失败冻结至过期时间的条目，使仍有效的帖子恢复 AI 尝试。
-      if (entry.attempts >= 3 && entry.retryAt === entry.expiresAt) {
+      if (!entry.insufficient && entry.attempts >= 3 && entry.retryAt === entry.expiresAt) {
         entry.attempts = 0;
         entry.retryAt = 0;
       }
       entry.expiresAt = entry.lastSeenAt + ttl;
+      if (live && entry.insufficient && entry.attempts >= 3) {
+        entry.retryAt = entry.expiresAt;
+      }
       if (activity) activity.checked++;
       if (
         same && live && entry.result !== undefined &&
@@ -294,7 +298,7 @@ export async function startMatchingRun(
       }
       if (
         same && live && entry.result === undefined &&
-        entry.retryAt > timestamp
+        (entry.retryAt > timestamp || (entry.insufficient && entry.attempts >= 3))
       ) {
         await saveEntry(entry);
         return undefined;
@@ -400,14 +404,23 @@ export async function startMatchingRun(
       runtime.inputTokens += decision.inputTokens;
       runtime.outputTokens += decision.outputTokens;
       if (decision.usageKnown) runtime.unknownUsage--;
-      if (
-        decision.error || !decision.decision || decision.decision === "insufficient"
-      ) {
+      if (decision.error || !decision.decision) {
         return await fallback(
           entry, detailed, rules,
-          decision.error ?? "AI 判断信息不足，当前帖子使用正则匹配。",
+          decision.error ?? "AI 返回的分类格式无效。",
         );
+      }
+      // 合法的分类响应说明接口可用；信息不足不是服务故障，也不是未命中。
+      runtime.lastError = undefined;
+      delete runtime.aiFailure;
+      if (decision.decision === "insufficient") {
+        entry.insufficient = true;
+        if (entry.attempts >= 3) entry.retryAt = entry.expiresAt;
+        await saveEntry(entry);
+        await store.saveRuntime(runtime);
+        return undefined;
       } else {
+        delete entry.insufficient;
         entry.result = decision.decision === "match"
           ? ruleMatch ??
             { kind: "ai", keyword: "", aiReason: shortAiReason(decision.reason || "符合匹配提示词"), location: decision.location ?? "unknown" }
@@ -416,8 +429,6 @@ export async function startMatchingRun(
         entry.attempts = 0;
         entry.retryAt = 0;
         delete entry.pendingPost;
-        runtime.lastError = undefined;
-        delete runtime.aiFailure;
       }
       await saveEntry(entry);
       await store.saveRuntime(runtime);

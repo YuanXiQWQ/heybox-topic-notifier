@@ -444,6 +444,64 @@ Deno.test("AI outage notices survive new sessions, reset daily and reset after a
   } finally { f.close(); }
 });
 
+Deno.test("valid insufficient decisions neither report service faults nor fall back to keyword matches", async () => {
+  const notices: string[] = [];
+  const f = await fixture((id) => { notices.push(id); return Promise.resolve(true); });
+  try {
+    f.decide({ decision: "insufficient", reason: "信息不足", inputTokens: 714, outputTokens: 23, usageKnown: true });
+    const sample = post("p1", "求助");
+    assertEquals(await f.run([sample]), [undefined]);
+    await f.run([sample]);
+    assertEquals(f.calls(), 1);
+    const runtime = (await f.store.runtime())!;
+    assertEquals(runtime.failures, 0);
+    assertEquals(runtime.lastError, undefined);
+    assertEquals(runtime.aiFailure, undefined);
+    assertEquals(runtime.pendingCount, 1);
+    assertEquals(runtime.unknownUsage, 0);
+    assertEquals(notices, []);
+    f.advance(300000);
+    await f.run([sample]);
+    f.advance(600000);
+    await f.run([sample]);
+    f.advance(1200000);
+    await f.run([sample]);
+    assertEquals(f.calls(), 3);
+    const key = await matchingHash(["topic", "p1"]);
+    const cached = (await f.store.get(key))!;
+    assertEquals(cached.insufficient, true);
+    assertEquals(cached.result, undefined);
+    assertEquals(await f.store.pending("topic", f.now()), []);
+    f.advance(matchingDayMs);
+    await f.run([sample]);
+    assertEquals(f.calls(), 3);
+    assertEquals(notices, []);
+    await f.run([post("p1", "求助，补充了内容")]);
+    assertEquals(f.calls(), 4);
+  } finally { f.close(); }
+});
+
+Deno.test("a valid insufficient response clears service outage state and actual HTTP failures still notify", async () => {
+  const notices: string[] = [];
+  const f = await fixture((id) => { notices.push(id); return Promise.resolve(true); });
+  try {
+    const failure = { error: "AI HTTP 503", inputTokens: 0, outputTokens: 0, usageKnown: false };
+    f.decide(failure);
+    await f.run();
+    assertEquals(notices.length, 1);
+    f.decide({ decision: "insufficient", inputTokens: 2, outputTokens: 2, usageKnown: true });
+    await f.run();
+    assertEquals((await f.store.runtime())?.aiFailure, undefined);
+    assertEquals((await f.store.runtime())?.lastError, undefined);
+    assertEquals((await f.store.runtime())?.failures, 1);
+    f.advance(300000);
+    f.decide(failure);
+    await f.run();
+    assertEquals(notices.length, 2);
+    assertEquals((await f.store.get(await matchingHash(["topic", "p1"])))?.insufficient, undefined);
+  } finally { f.close(); }
+});
+
 Deno.test("AI retries frozen pending posts even after they leave the feed", async () => {
   const f = await fixture();
   try {
