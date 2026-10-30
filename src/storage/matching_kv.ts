@@ -183,7 +183,7 @@ export function createKvMatchingStore(
       ) candidates.push(item.value);
       return candidates.filter((entry) =>
         entry.topicId === topicId && entry.pendingPost &&
-        (entry.retryAt <= now || (entry.attempts >= 3 && entry.retryAt === entry.expiresAt)) && entry.expiresAt > now
+        (entry.retryAt <= now || (!entry.insufficient && entry.attempts >= 3 && entry.retryAt === entry.expiresAt)) && entry.expiresAt > now
       )
         .sort((a, b) => a.retryAt - b.retryAt || a.lastSeenAt - b.lastSeenAt)
         .slice(0, 20);

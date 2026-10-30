@@ -169,7 +169,8 @@ export function createTursoMatchingStore(
       const result = await execute({
         sql:
           `SELECT value_json FROM matching_cache WHERE user_id = ? AND topic_id = ? AND pending = 1
-        AND (retry_at <= ? OR (retry_at = expires_at AND json_extract(value_json, '$.attempts') >= 3))
+        AND (retry_at <= ? OR (retry_at = expires_at AND json_extract(value_json, '$.attempts') >= 3
+          AND COALESCE(json_extract(value_json, '$.insufficient'), 0) = 0))
         AND expires_at > ? ORDER BY retry_at, last_seen_at LIMIT 20`,
         args: [userId, topicId, now, now],
       });

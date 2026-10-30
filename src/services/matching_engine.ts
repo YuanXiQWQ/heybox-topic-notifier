@@ -75,7 +75,7 @@ export function matchingRuntimeForDay(
  * @param {TopicSource} source 帖子数据源。
  * @param {ReturnType<typeof createAiMatcher>} ai AI 分类器。
  * @param {() => number} now 可注入时钟。
- * @param {(id: string) => Promise<boolean>} notifyAiFailure 发送故障通知并返回是否受理。
+ * @param {(id: string) => Promise<boolean>} sendAiFailure 无回退命中可合并时发送故障通知。
  * @return {Promise<object | undefined>} 已获得租约的会话，忙碌时返回 undefined。
  */
 export async function startMatchingRun(
@@ -85,7 +85,7 @@ export async function startMatchingRun(
   source: TopicSource,
   ai = createAiMatcher(),
   now = Date.now,
-  notifyAiFailure: (id: string) => Promise<boolean> = () => Promise.resolve(false),
+  sendAiFailure: (id: string) => Promise<boolean> = () => Promise.resolve(false),
 ) {
   const token = crypto.randomUUID();
   if (!await store.acquire(token, now())) return undefined;
@@ -100,7 +100,7 @@ export async function startMatchingRun(
   const startedAt = now();
   const configs = new Map<string, string>();
   const visibleIds = new Map<string, Set<string>>();
-  const attemptedAlerts = new Set<string>();
+  let failedThisRun = false;
   const savedEntries = new Map<string, MatchingEntry | undefined>();
   /**
    * 持久化条目并同步缓存与待处理数量。
@@ -132,7 +132,7 @@ export async function startMatchingRun(
   }
 
   /**
-   * 为当前帖子执行正则回退，并在连续失败首次发生时独立投递故障通知。
+   * 为当前帖子执行正则回退，记录故障状态供轮询结束后与命中通知合并。
    * @param {MatchingEntry} entry 待处理缓存。
    * @param {TopicPost} post 实际可用的帖子内容。
    * @param {KeywordRule[]} rules 当前话题规则。
@@ -146,6 +146,7 @@ export async function startMatchingRun(
     error: string,
   ): Promise<MatchResult | undefined> {
     runtime.failures++;
+    failedThisRun = true;
     runtime.lastError = error;
     runtime.aiFailure ??= {
       id: `ai-failure:${crypto.randomUUID()}`,
@@ -154,25 +155,34 @@ export async function startMatchingRun(
     // 回退结果不充当 AI 缓存；下一轮仍先尝试模型。
     entry.attempts = 0;
     entry.retryAt = 0;
+    delete entry.insufficient;
     const match = await rulesMatcher.findMatch(post, rules);
     if (match) delete entry.pendingPost;
     await saveEntry(entry);
     await store.saveRuntime(runtime);
-    const failure = runtime.aiFailure;
-    if (!failure.notified && !attemptedAlerts.has(failure.id)) {
-      attemptedAlerts.add(failure.id);
-      try {
-        await renew();
-        failure.notified = await notifyAiFailure(failure.id);
-      } catch {
-        console.warn("AI 故障通知投递失败，后续轮询将重试。");
-      }
-      await store.saveRuntime(runtime);
-    }
     return match ? { ...match, kind: "keyword", aiFallback: true } : undefined;
   }
 
   return {
+    /**
+     * 在命中通知完成后确认故障已告知；只有没有回退命中通知时才单独提醒。
+     * @param {boolean | undefined} fallbackSent 回退通知是否受理；undefined 表示没有回退命中。
+     */
+    async completeNotifications(fallbackSent?: boolean): Promise<void> {
+      const failure = runtime.aiFailure;
+      if (!failedThisRun || !failure || failure.notified) return;
+      await renew();
+      if (fallbackSent !== undefined) {
+        failure.notified = fallbackSent;
+      } else {
+        try {
+          failure.notified = await sendAiFailure(failure.id);
+        } catch {
+          console.warn("AI 故障通知投递失败，后续轮询将重试。");
+        }
+      }
+      await store.saveRuntime(runtime);
+    },
     /**
      * 记录成功拉取的列表并追加离开窗口但尚未完成的待处理帖子。
      * @param {TopicRule} topic 话题。
@@ -204,7 +214,7 @@ export async function startMatchingRun(
     },
 
     /**
-     * 复用成功判定，必要时尝试 AI；失败或信息不足时对当前帖子回退正则。
+     * 复用成功判定，AI 故障时回退正则；模型正常返回信息不足时保留待判断。
      * @param {TopicPost} post 列表帖子或待处理快照。
      * @param {TopicRule} topic 话题。
      * @param {KeywordRule[]} rules 当前话题的合并规则。
@@ -267,11 +277,14 @@ export async function startMatchingRun(
       if (visibleIds.get(topic.id)?.has(post.id)) entry.lastSeenAt = timestamp;
       const live = old && old.expiresAt > timestamp;
       // 兼容把三次失败冻结至过期时间的条目，使仍有效的帖子恢复 AI 尝试。
-      if (entry.attempts >= 3 && entry.retryAt === entry.expiresAt) {
+      if (!entry.insufficient && entry.attempts >= 3 && entry.retryAt === entry.expiresAt) {
         entry.attempts = 0;
         entry.retryAt = 0;
       }
       entry.expiresAt = entry.lastSeenAt + ttl;
+      if (live && entry.insufficient && entry.attempts >= 3) {
+        entry.retryAt = entry.expiresAt;
+      }
       if (activity) activity.checked++;
       if (
         same && live && entry.result !== undefined &&
@@ -285,7 +298,7 @@ export async function startMatchingRun(
       }
       if (
         same && live && entry.result === undefined &&
-        entry.retryAt > timestamp
+        (entry.retryAt > timestamp || (entry.insufficient && entry.attempts >= 3))
       ) {
         await saveEntry(entry);
         return undefined;
@@ -391,14 +404,23 @@ export async function startMatchingRun(
       runtime.inputTokens += decision.inputTokens;
       runtime.outputTokens += decision.outputTokens;
       if (decision.usageKnown) runtime.unknownUsage--;
-      if (
-        decision.error || !decision.decision || decision.decision === "insufficient"
-      ) {
+      if (decision.error || !decision.decision) {
         return await fallback(
           entry, detailed, rules,
-          decision.error ?? "AI 判断信息不足，当前帖子使用正则匹配。",
+          decision.error ?? "AI 返回的分类格式无效。",
         );
+      }
+      // 合法的分类响应说明接口可用；信息不足不是服务故障，也不是未命中。
+      runtime.lastError = undefined;
+      delete runtime.aiFailure;
+      if (decision.decision === "insufficient") {
+        entry.insufficient = true;
+        if (entry.attempts >= 3) entry.retryAt = entry.expiresAt;
+        await saveEntry(entry);
+        await store.saveRuntime(runtime);
+        return undefined;
       } else {
+        delete entry.insufficient;
         entry.result = decision.decision === "match"
           ? ruleMatch ??
             { kind: "ai", keyword: "", aiReason: shortAiReason(decision.reason || "符合匹配提示词"), location: decision.location ?? "unknown" }
@@ -407,8 +429,6 @@ export async function startMatchingRun(
         entry.attempts = 0;
         entry.retryAt = 0;
         delete entry.pendingPost;
-        runtime.lastError = undefined;
-        delete runtime.aiFailure;
       }
       await saveEntry(entry);
       await store.saveRuntime(runtime);
