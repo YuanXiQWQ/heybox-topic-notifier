@@ -14,6 +14,8 @@ export type MatchingEntry = {
   detailCheckedAt?: number;
   detailFingerprint?: string;
   result?: MatchResult | null;
+  /** 模型正常返回信息不足；保持待判断，达到三次后等待内容、配置变化或过期。 */
+  insufficient?: boolean;
   pendingPost?: TopicPost;
   attempts: number;
   retryAt: number;

@@ -74,4 +74,8 @@ export async function verifyMatchingStore(
   await store.put({ ...base, key: "frozen", topicId: "frozen-topic", result: undefined, pendingPost: queued, attempts: 3, retryAt: base.expiresAt });
   assertEquals((await store.pending("frozen-topic", now)).map((entry) => entry.key), ["frozen"]);
   assertEquals(await store.pending("frozen-topic", base.expiresAt), []);
+  await store.put({ ...base, key: "insufficient", topicId: "insufficient-topic", result: undefined, pendingPost: queued, attempts: 3, retryAt: base.expiresAt, insufficient: true });
+  assertEquals(await store.pending("insufficient-topic", now), []);
+  await store.put({ ...base, key: "insufficient-due", topicId: "insufficient-topic", result: undefined, pendingPost: queued, attempts: 1, retryAt: now, insufficient: true });
+  assertEquals((await store.pending("insufficient-topic", now)).map((entry) => entry.key), ["insufficient-due"]);
 }

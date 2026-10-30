@@ -84,7 +84,7 @@ export function createPoller(
     },
 
     /**
-     * 执行话题查询、缓存或模型判定和通知；同一用户的缓存轮询由持久化租约串行化。
+     * 执行话题查询和判定，将回退提示随正常命中发送；同一用户由持久化租约串行化。
      *
      * @param {PollStorage} runStorage 本次轮询使用的用户存储。
      * @param {AppSettings} runSettings 同一次调度已读取的设置。
@@ -186,8 +186,10 @@ export function createPoller(
           }
         }
 
+        const hasFallback = matchedRecords.some((record) => record.aiFallback);
+        let matchesSent = false;
         try {
-          await notifyMatchedRecords(
+          matchesSent = await notifyMatchedRecords(
             runStorage,
             notifier,
             matchedRecords,
@@ -195,7 +197,11 @@ export function createPoller(
           );
         } finally {
           // 帖子查询和记录保存已经完成时，即使通知失败也要推进轮询倒计时。
-          await runStorage.setLastPollAt(new Date().toISOString());
+          try {
+            await cached?.completeNotifications(hasFallback ? matchesSent : undefined);
+          } finally {
+            await runStorage.setLastPollAt(new Date().toISOString());
+          }
         }
       } finally {
         matching.close();
@@ -238,15 +244,16 @@ async function saveMatchRecord(
  * @param {PollNotifier} notifier 通知器。
  * @param {MatchRecord[]} records 新命中。
  * @param {AppSettings} settings 通知设置。
+ * @return {Promise<boolean>} 是否至少一个通道受理命中通知。
  */
 async function notifyMatchedRecords(
   storage: Pick<PollStorage, "markMatchNotified" | "userId">,
   notifier: PollNotifier,
   records: MatchRecord[],
   settings: AppSettings,
-): Promise<void> {
+): Promise<boolean> {
   if (records.length === 0) {
-    return;
+    return false;
   }
 
   const result = await notifier.sendMatches(records, settings, storage.userId);
@@ -257,6 +264,7 @@ async function notifyMatchedRecords(
       await storage.markMatchNotified(record.id, notifiedAt);
     }
   }
+  return result.sent;
 }
 
 async function resolvePostDetails(
