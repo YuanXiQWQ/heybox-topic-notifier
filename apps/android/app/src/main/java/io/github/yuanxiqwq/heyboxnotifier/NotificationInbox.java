@@ -15,6 +15,13 @@ abstract class NotificationInbox {
     protected abstract String session() throws Exception;
     /** @param {String} cursor 已处理游标。 @return {JSONObject} 已认证通知批次。 @throws Exception 请求失败。 */
     protected abstract JSONObject read(String cursor) throws Exception;
+    /** @param {String} cursor 已处理游标。 @return {JSONObject} 首批通知与独立更新的角标。 @throws Exception 通知请求失败。 */
+    protected JSONObject readWithBadge(String cursor) throws Exception {
+        try { refreshBadge(); } catch (Exception ignored) { /* 角标不可用不阻断通知。 */ }
+        return read(cursor);
+    }
+    /** 独立更新角标，通知关闭或没有权限时仍可执行。 @throws Exception 角标请求失败。 */
+    protected void refreshBadge() throws Exception {}
     /** @return {boolean} 系统是否仍允许展示通知。 */
     protected abstract boolean allowed();
     /** @param {JSONObject} event 通知内容。 @param {String} userId 所属账号。 @throws Exception 系统展示失败。 */
@@ -30,34 +37,62 @@ abstract class NotificationInbox {
      * @throws Exception 网络或持久化失败，未确认游标保持可重试。
      */
     synchronized boolean poll() throws Exception {
-        JSONObject expected = binding();
-        if (expected == null || !expected.optBoolean("enabled")) return false;
-        String cursor = expected.optString("cursor");
-        JSONArray seen = expected.optJSONArray("seen");
-        if (seen == null) seen = new JSONArray();
-        for (int page = 0; page < MAX_PAGES; page++) {
-            if (!current(expected) || !allowed() || Thread.currentThread().isInterrupted()) return false;
-            JSONObject batch = read(cursor);
-            if (!current(expected)) return false;
-            if (!batch.getString("userId").equals(expected.optString("userId"))) { disable(expected); return false; }
-            JSONArray events = batch.getJSONArray("events");
-            for (int index = 0; index < events.length(); index++) {
+        return consume(false);
+    }
+    /**
+     * 首次补取同时更新角标，后续分页只补取通知；未发出通知请求时单独更新角标。
+     * @return {boolean} 达到工作上限时是否需要继续补取。
+     * @throws Exception 通知请求或展示失败，游标保留在最后确认处。
+     */
+    synchronized boolean pollWithBadge() throws Exception {
+        return consume(true);
+    }
+    /**
+     * 按持久游标消费通知，独立处理同轮角标需求。
+     * @param {boolean} withBadge 是否更新角标。
+     * @return {boolean} 是否需要继续补取积压。
+     * @throws Exception 通知请求、展示或落盘失败。
+     */
+    private boolean consume(boolean withBadge) throws Exception {
+        boolean badgeAttempted = false;
+        try {
+            JSONObject expected = binding();
+            if (expected == null || !expected.optBoolean("enabled")) return false;
+            String cursor = expected.optString("cursor");
+            JSONArray seen = expected.optJSONArray("seen");
+            if (seen == null) seen = new JSONArray();
+            for (int page = 0; page < MAX_PAGES; page++) {
                 if (!current(expected) || !allowed() || Thread.currentThread().isInterrupted()) return false;
-                JSONObject event = events.getJSONObject(index);
-                String next = event.getString("cursor"), id = event.getString("id");
-                if (next.compareTo(cursor) <= 0) throw new IllegalStateException("Notification cursor did not advance");
-                boolean duplicate = false;
-                for (int item = 0; item < seen.length(); item++) if (id.equals(seen.getString(item))) duplicate = true;
-                if (!duplicate) {
-                    show(event, expected.getString("userId"));
-                    seen.put(id); if (seen.length() > 2048) seen.remove(0);
+                JSONObject batch;
+                if (withBadge && !badgeAttempted) {
+                    badgeAttempted = true;
+                    batch = readWithBadge(cursor);
+                } else batch = read(cursor);
+                if (!current(expected)) return false;
+                if (!batch.getString("userId").equals(expected.optString("userId"))) { disable(expected); return false; }
+                JSONArray events = batch.getJSONArray("events");
+                for (int index = 0; index < events.length(); index++) {
+                    if (!current(expected) || !allowed() || Thread.currentThread().isInterrupted()) return false;
+                    JSONObject event = events.getJSONObject(index);
+                    String next = event.getString("cursor"), id = event.getString("id");
+                    if (next.compareTo(cursor) <= 0) throw new IllegalStateException("Notification cursor did not advance");
+                    boolean duplicate = false;
+                    for (int item = 0; item < seen.length(); item++) if (id.equals(seen.getString(item))) duplicate = true;
+                    if (!duplicate) {
+                        show(event, expected.getString("userId"));
+                        seen.put(id); if (seen.length() > 2048) seen.remove(0);
+                    }
+                    if (!commit(expected, next, seen)) return false;
+                    cursor = next;
                 }
-                if (!commit(expected, next, seen)) return false;
-                cursor = next;
+                if (events.length() < PAGE_SIZE) return false;
             }
-            if (events.length() < PAGE_SIZE) return false;
+            return true;
+        } finally {
+            if (withBadge && !badgeAttempted && !Thread.currentThread().isInterrupted()) {
+                try { refreshBadge(); } catch (Exception ignored) { /* 下次调度继续校准角标。 */ }
+            }
         }
-        return true;
     }
     /**
      * 验证请求和展示之间没有切换会话，也不覆盖期间创建的新绑定。

@@ -6,6 +6,35 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 
 public class BadgeCounterTest {
+    /** 版本确认保留完整基线，本机编辑、重启、账号切换均不能复用失效版本。 @throws Exception 测试失败。 */
+    @Test public void versionsRetainBaselinesAndInvalidateAfterLocalChanges() throws Exception {
+        BadgeCounter counter = new BadgeCounter();
+        JSONObject full = new JSONObject().put("userId","alice").put("version","alice:1").put("records",new JSONArray().put(record("a","post")));
+        counter.acceptRecords(counter.begin("session",true),"session","session",full);
+        assertEquals("alice:1",counter.version("session"));
+        counter.acceptRecords(counter.begin("session",true),"session","session",new JSONObject().put("userId","alice").put("version","alice:1").put("unchanged",true));
+        assertEquals(1,counter.read("session",true));
+        BadgeCounter reopened = new BadgeCounter(); reopened.restore(counter.snapshot());
+        assertEquals("",reopened.version("session")); assertEquals(1,reopened.read("session",true));
+        counter.setLocal("session",new JSONObject().put("userId","alice").put("records",new JSONArray().put(record("a","post").put("workspace",false))));
+        assertEquals("",counter.version("session")); assertEquals(0,counter.read("session",true));
+        counter.acceptRecords(counter.begin("session",true),"session","session",full);
+        assertEquals(0,counter.read("session",true));
+        counter.acceptRecords(counter.begin("session",true),"session","session",new JSONObject().put("userId","alice").put("version","alice:1").put("unchanged",true));
+        assertEquals(0,counter.read("session",true));
+        assertEquals("",counter.version("other")); assertEquals(0,counter.read("other",true));
+    }
+    /** 版本确认不得跨账号复用，旧服务端没有版本的完整快照仍可正常接纳。 @throws Exception 测试失败。 */
+    @Test public void rejectsForeignUnchangedAndAcceptsLegacySnapshots() throws Exception {
+        BadgeCounter counter = new BadgeCounter();
+        JSONObject full = new JSONObject().put("userId","alice").put("version","v1").put("records",new JSONArray().put(record("a","post")));
+        counter.acceptRecords(counter.begin("session",true),"session","session",full);
+        org.junit.Assert.assertThrows(IllegalArgumentException.class, () -> counter.acceptRecords(counter.begin("session",true),"session","session",new JSONObject().put("userId","bob").put("version","v1").put("unchanged",true)));
+        assertEquals("",counter.version("session")); assertEquals(1,counter.read("session",true));
+        full.remove("version");
+        counter.acceptRecords(counter.begin("session",true),"session","session",full);
+        assertEquals("",counter.version("session")); assertEquals(1,counter.read("session",true));
+    }
     /** @param {String} id 记录。 @param {String} postId 帖子。 @return {JSONObject} 工作区记录。 @throws Exception JSON 构造失败。 */
     private JSONObject record(String id,String postId) throws Exception { return new JSONObject().put("id",id).put("postId",postId); }
     /** 离线操作按帖子去重、允许恢复，并在重启后保留；服务器同步后重新裁决。 @throws Exception 测试失败。 */

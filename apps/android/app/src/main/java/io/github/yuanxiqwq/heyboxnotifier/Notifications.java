@@ -73,6 +73,10 @@ final class Notifications extends NotificationInbox {
     @Override protected String session() throws Exception { return currentSessionHash(); }
     /** @param {String} cursor 已处理游标。 @return {JSONObject} 本站通知批次。 @throws Exception 请求失败。 */
     @Override protected JSONObject read(String cursor) throws Exception { return Http.api("/api/native/notifications?after=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8.name())); }
+    /** @param {String} cursor 已处理游标。 @return {JSONObject} 同轮角标更新后的通知批次。 @throws Exception 通知请求失败。 */
+    @Override protected JSONObject readWithBadge(String cursor) throws Exception { return Badges.readNotifications(device, "/api/native/notifications?after=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8.name())); }
+    /** 通知关闭时仍更新独立开启的角标。 @throws Exception 角标请求失败。 */
+    @Override protected void refreshBadge() throws Exception { Badges.refresh(device); }
     /** @return {boolean} 应用及渠道均允许通知。 */
     @Override protected boolean allowed() { return manager.areNotificationsEnabled() && manager.getNotificationChannel(channelId).getImportance() != NotificationManager.IMPORTANCE_NONE; }
     /** @param {JSONObject} event 已校验账号的事件。 @param {String} userId 所属账号。 @throws Exception 通知构造失败。 */

@@ -2,6 +2,7 @@
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
 import { testAiConnection } from "./services/ai_connection.ts";
+import { readNativeBadge } from "./services/native_badge.ts";
 import { fetchAiModels } from "./services/ai_models.ts";
 import { type Context, Hono } from "@hono/hono";
 import {
@@ -190,7 +191,7 @@ export function createRoutes(
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
   /**
-   * 返回当前账号工作区未确认数量，不包含通知测试事件或历史记录。
+   * 返回当前账号角标数量或可按版本复用的离线基线，不包含通知测试事件或历史记录。
    * @param {Context} c 请求上下文。
    * @return {Promise<Response>} 角标计数或未登录响应。
    */
@@ -200,14 +201,13 @@ export function createRoutes(
     if (!session) return c.json({error:"unauthorized"},401);
     const storage = context.storage.forUser(session.userId);
     if (c.req.query("records") === "1") {
-      const records = (await storage.listPendingMatches()).map(record => ({id:record.id,postId:record.post.id}));
-      return c.json({userId:session.userId,count:new Set(records.map(record => record.postId)).size,records});
+      return c.json(await readNativeBadge(storage, session.userId, c.req.query("version")));
     }
     const count = storage.countPendingPosts ? await storage.countPendingPosts() : new Set((await storage.listPendingMatches()).map((record) => record.post.id)).size;
     return c.json({userId:session.userId,count});
   });
   /**
-   * 为原生应用返回当前账号的通知增量，未登录或账号切换不返回其它账号数据。
+   * 返回当前账号通知增量，可在同次鉴权后独立读取角标；旧客户端仍获得原有通知响应。
    * @param {Context} c 请求上下文。
    * @return {Promise<Response>} 通知批次与消费游标。
    */
@@ -217,7 +217,22 @@ export function createRoutes(
     if (!session) return c.json({ error: "unauthorized" }, 401);
     const after = c.req.query("after");
     if (after !== undefined && after !== "" && !/^\d{16}:[A-Za-z0-9_-]{43}$/.test(after)) return c.json({ error: "invalidCursor" }, 400);
-    const inbox = context.storage.forUser(session.userId).nativeNotifications;
+    const userStorage = context.storage.forUser(session.userId);
+    const inbox = userStorage.nativeNotifications;
+    if (c.req.query("badge") === "1") {
+      const [notifications, badge] = await Promise.allSettled([
+        Promise.resolve().then(() => {
+          if (!inbox) throw new Error("Notifications unavailable");
+          return inbox.read(after);
+        }),
+        readNativeBadge(userStorage, session.userId, c.req.query("badgeVersion") ?? ""),
+      ]);
+      return c.json({
+        userId: session.userId,
+        ...(notifications.status === "fulfilled" ? notifications.value : { error: "unavailable" }),
+        badge: badge.status === "fulfilled" ? badge.value : { error: "unavailable" },
+      });
+    }
     if (!inbox) return c.json({ error: "unavailable" }, 503);
     const result = await inbox.read(after);
     return c.json({ userId: session.userId, ...result });

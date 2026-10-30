@@ -382,6 +382,19 @@ export function createTursoStorage(
       async listPendingMatches(): Promise<MatchRecord[]> {
         return await listMatches(userId, "pending");
       },
+      /**
+       * 在数据库内投影角标所需标识，避免传输和解析帖子正文。
+       * @return {Promise<Array<{id: string, postId: string}>>} 当前账号工作区的精简记录。
+       */
+      async listPendingMatchReferences(): Promise<Array<{ id: string; postId: string }>> {
+        const result = await execute({
+          sql: `SELECT id, json_extract(value_json, '$.post.id') AS post_id FROM matches
+            WHERE user_id = ? AND completed_at IS NULL
+            ORDER BY post_published_at DESC, matched_at DESC, id ASC`,
+          args: [userId],
+        });
+        return result.rows.map((row) => ({ id: String(row.id), postId: String(row.post_id) }));
+      },
       /** 按用户与完成状态统计不重复的帖子数量，不向客户端传输帖子正文。 @return {Promise<number>} 未确认数量。 */
       async countPendingPosts(): Promise<number> {
         const result = await execute({sql:"SELECT COUNT(DISTINCT json_extract(value_json, '$.post.id')) AS count FROM matches WHERE user_id = ? AND completed_at IS NULL", args:[userId]});

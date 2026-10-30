@@ -66,11 +66,10 @@ public final class NotificationService extends Service {
         if (!scheduled) { scheduled = true; worker.scheduleWithFixedDelay(this::poll, 0, 15, TimeUnit.SECONDS); }
         return START_STICKY;
     }
-    /** 收取新事件和角标，离线失败保留游标，避免网络错误丢失通知。 */
+    /** 同轮补取新事件与角标，离线失败保留游标，两路状态独立处理。 */
     private void poll() {
         if (!needed(device)) { stopSelf(); return; }
-        try { Badges.refresh(device); } catch (Exception ignored) { /* 同账号断网保留最近计数。 */ }
-        try { Notifications.get(this, device).poll(); } catch (Exception ignored) { /* 下一轮从原游标重试。 */ }
+        try { Notifications.get(this, device).pollWithBadge(); } catch (Exception ignored) { /* 下一轮从原游标重试。 */ }
         manager.notify(STATUS_ID, status());
     }
     /** @return {Notification} 无声的后台状态及按工作区数量显示的系统角标。 */
