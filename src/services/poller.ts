@@ -9,6 +9,7 @@ import type { TopicSource } from "./topic_source.ts";
 import { startMatchingRun } from "./matching_engine.ts";
 import { normalizeMatchingSettings } from "./matching_settings.ts";
 import { createAiMatcher } from "./ai_matcher.ts";
+import { aiFailureNotification, type ServiceNotification } from "./service_notification.ts";
 
 type PollStorage = Pick<
   Storage,
@@ -29,6 +30,14 @@ export const postDetailRefreshIntervalMs = 6 * 60 * 60 * 1000;
 
 /** 支持按账号选择应用通知设备的通知器契约。 */
 type PollNotifier = {
+  /**
+   * 使用命中通知相同的通道投递独立服务消息。
+   * @param {ServiceNotification} notification 服务消息。
+   * @param {AppSettings} settings 用户设置。
+   * @param {string | undefined} userId 所属账号。
+   * @return {ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>} 投递结果。
+   */
+  sendService?(notification: ServiceNotification, settings: AppSettings, userId?: string): ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>;
   /**
    * 发送新命中，并使用所属账号选择应用通知设备。
    * @param {MatchRecord[]} records 新命中。
@@ -101,6 +110,8 @@ export function createPoller(
         if (runStorage.matching) {
           cached = await startMatchingRun(
             settings, runStorage.matching, matching, source, ai,
+            Date.now,
+            async (id) => (await notifier.sendService?.(aiFailureNotification(id, settings), settings, runStorage.userId))?.sent ?? false,
           );
           if (!cached) return;
         } else if (normalizeMatchingSettings(settings.matching).mode !== "rules") {

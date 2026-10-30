@@ -168,7 +168,7 @@ export function createKvMatchingStore(
       await operation.commit();
     },
     /**
-     * 读取已经到达重试时间的待处理帖子。
+     * 读取到期待处理帖子，并允许冻结至过期时间的兼容条目恢复处理。
      *
      * @param {string} topicId 话题。
      * @param {number} now 当前时间。
@@ -183,7 +183,7 @@ export function createKvMatchingStore(
       ) candidates.push(item.value);
       return candidates.filter((entry) =>
         entry.topicId === topicId && entry.pendingPost &&
-        entry.retryAt <= now && entry.expiresAt > now
+        (entry.retryAt <= now || (entry.attempts >= 3 && entry.retryAt === entry.expiresAt)) && entry.expiresAt > now
       )
         .sort((a, b) => a.retryAt - b.retryAt || a.lastSeenAt - b.lastSeenAt)
         .slice(0, 20);

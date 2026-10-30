@@ -4,6 +4,7 @@ import { createKvStorage } from "../storage/kv.ts";
 import { defaultAppSettingsFromEnv } from "./default_settings.ts";
 import { normalizeMatchingSettings } from "./matching_settings.ts";
 import { testAiConnection } from "./ai_connection.ts";
+import { matchingRuntimeForDay } from "./matching_engine.ts";
 
 Deno.test("AI connection tests use fixed input, account for usage, and respect daily limits and leases", async () => {
   const kv = await Deno.openKv(":memory:");
@@ -46,8 +47,14 @@ Deno.test("AI connection tests use fixed input, account for usage, and respect d
       error: "busy",
     });
     await store.release("polling");
+    const failedRuntime = matchingRuntimeForDay(undefined, Date.now());
+    failedRuntime.aiFailure = { id: "outage", notified: true };
+    failedRuntime.lastError = "AI HTTP 402";
+    await store.saveRuntime(failedRuntime);
     assertEquals(await testAiConnection(settings, store, ai), { ok: true });
     const runtime = await store.runtime();
+    assertEquals(runtime?.aiFailure, undefined);
+    assertEquals(runtime?.lastError, undefined);
     assertEquals(runtime?.calls, 1);
     assertEquals(runtime?.inputTokens, 50);
     assertEquals(runtime?.outputTokens, 12);

@@ -1,4 +1,4 @@
-/** @file 编排三种匹配模式、持久化结果缓存、有限重试和每日 AI 用量。 */
+/** @file 编排三种匹配模式、AI 失败正则回退、连续故障通知和每日用量。 */
 import type {
   AppSettings,
   KeywordRule,
@@ -75,6 +75,7 @@ export function matchingRuntimeForDay(
  * @param {TopicSource} source 帖子数据源。
  * @param {ReturnType<typeof createAiMatcher>} ai AI 分类器。
  * @param {() => number} now 可注入时钟。
+ * @param {(id: string) => Promise<boolean>} notifyAiFailure 发送故障通知并返回是否受理。
  * @return {Promise<object | undefined>} 已获得租约的会话，忙碌时返回 undefined。
  */
 export async function startMatchingRun(
@@ -84,6 +85,7 @@ export async function startMatchingRun(
   source: TopicSource,
   ai = createAiMatcher(),
   now = Date.now,
+  notifyAiFailure: (id: string) => Promise<boolean> = () => Promise.resolve(false),
 ) {
   const token = crypto.randomUUID();
   if (!await store.acquire(token, now())) return undefined;
@@ -98,7 +100,7 @@ export async function startMatchingRun(
   const startedAt = now();
   const configs = new Map<string, string>();
   const visibleIds = new Map<string, Set<string>>();
-  let circuitOpen = false;
+  const attemptedAlerts = new Set<string>();
   const savedEntries = new Map<string, MatchingEntry | undefined>();
   /**
    * 持久化条目并同步缓存与待处理数量。
@@ -127,6 +129,47 @@ export async function startMatchingRun(
     if (!await store.renew(token, now())) {
       throw new Error("Matching lease expired");
     }
+  }
+
+  /**
+   * 为当前帖子执行正则回退，并在连续失败首次发生时独立投递故障通知。
+   * @param {MatchingEntry} entry 待处理缓存。
+   * @param {TopicPost} post 实际可用的帖子内容。
+   * @param {KeywordRule[]} rules 当前话题规则。
+   * @param {string} error 脱敏错误。
+   * @return {Promise<MatchResult | undefined>} 带回退标记的正则命中。
+   */
+  async function fallback(
+    entry: MatchingEntry,
+    post: TopicPost,
+    rules: KeywordRule[],
+    error: string,
+  ): Promise<MatchResult | undefined> {
+    runtime.failures++;
+    runtime.lastError = error;
+    runtime.aiFailure ??= {
+      id: `ai-failure:${crypto.randomUUID()}`,
+      notified: false,
+    };
+    // 回退结果不充当 AI 缓存；下一轮仍先尝试模型。
+    entry.attempts = 0;
+    entry.retryAt = 0;
+    const match = await rulesMatcher.findMatch(post, rules);
+    if (match) delete entry.pendingPost;
+    await saveEntry(entry);
+    await store.saveRuntime(runtime);
+    const failure = runtime.aiFailure;
+    if (!failure.notified && !attemptedAlerts.has(failure.id)) {
+      attemptedAlerts.add(failure.id);
+      try {
+        await renew();
+        failure.notified = await notifyAiFailure(failure.id);
+      } catch {
+        console.warn("AI 故障通知投递失败，后续轮询将重试。");
+      }
+      await store.saveRuntime(runtime);
+    }
+    return match ? { ...match, kind: "keyword", aiFallback: true } : undefined;
   }
 
   return {
@@ -161,7 +204,7 @@ export async function startMatchingRun(
     },
 
     /**
-     * 复用判定结果，必要时补充详情并执行规则或 AI；失败与信息不足进入有限重试。
+     * 复用成功判定，必要时尝试 AI；失败或信息不足时对当前帖子回退正则。
      * @param {TopicPost} post 列表帖子或待处理快照。
      * @param {TopicRule} topic 话题。
      * @param {KeywordRule[]} rules 当前话题的合并规则。
@@ -223,6 +266,11 @@ export async function startMatchingRun(
       // 队列重试不延长已离开真实列表的帖子寿命。
       if (visibleIds.get(topic.id)?.has(post.id)) entry.lastSeenAt = timestamp;
       const live = old && old.expiresAt > timestamp;
+      // 兼容把三次失败冻结至过期时间的条目，使仍有效的帖子恢复 AI 尝试。
+      if (entry.attempts >= 3 && entry.retryAt === entry.expiresAt) {
+        entry.attempts = 0;
+        entry.retryAt = 0;
+      }
       entry.expiresAt = entry.lastSeenAt + ttl;
       if (activity) activity.checked++;
       if (
@@ -237,7 +285,7 @@ export async function startMatchingRun(
       }
       if (
         same && live && entry.result === undefined &&
-        (entry.retryAt > timestamp || entry.attempts >= 3)
+        entry.retryAt > timestamp
       ) {
         await saveEntry(entry);
         return undefined;
@@ -265,7 +313,7 @@ export async function startMatchingRun(
       };
       entry.result = undefined;
       if (
-        circuitOpen || now() - startedAt >= aiRunBudgetMs ||
+        now() - startedAt >= aiRunBudgetMs ||
         runtime.calls >= settings.dailyLimit
       ) {
         entry.retryAt = runtime.calls >= settings.dailyLimit
@@ -326,11 +374,10 @@ export async function startMatchingRun(
           throw new Error("config");
         }
       } catch {
-        runtime.lastError = "请完整配置有效的 AI 接口、密钥、模型和提示词。";
-        circuitOpen = true;
-        entry.retryAt = now() + 300000;
-        await saveEntry(entry);
-        return undefined;
+        return await fallback(
+          entry, detailed, rules,
+          "请完整配置有效的 AI 接口、密钥、模型和提示词。",
+        );
       }
       await renew();
       // 先持久化调用预留和短期退避，进程中断也不会立刻重复消费。
@@ -344,11 +391,13 @@ export async function startMatchingRun(
       runtime.inputTokens += decision.inputTokens;
       runtime.outputTokens += decision.outputTokens;
       if (decision.usageKnown) runtime.unknownUsage--;
-      if (!decision.decision || decision.decision === "insufficient") {
-        runtime.failures++;
-        runtime.lastError = decision.error ??
-          "AI 判断信息不足；最多尝试三次，之后等待内容或配置变化。";
-        if (decision.error) circuitOpen = true;
+      if (
+        decision.error || !decision.decision || decision.decision === "insufficient"
+      ) {
+        return await fallback(
+          entry, detailed, rules,
+          decision.error ?? "AI 判断信息不足，当前帖子使用正则匹配。",
+        );
       } else {
         entry.result = decision.decision === "match"
           ? ruleMatch ??
@@ -359,8 +408,8 @@ export async function startMatchingRun(
         entry.retryAt = 0;
         delete entry.pendingPost;
         runtime.lastError = undefined;
+        delete runtime.aiFailure;
       }
-      if (entry.attempts >= 3) entry.retryAt = entry.expiresAt;
       await saveEntry(entry);
       await store.saveRuntime(runtime);
       return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;

@@ -433,6 +433,9 @@ export type Messages = {
   notificationEmailService: string;
   notificationEmailSmtp: string;
   notificationMoreMatches: string;
+  notificationAiFailureTitle: string;
+  notificationAiFailureBody: string;
+  notificationAiFallback: string;
   notificationBatchTitle: string;
   notificationProvider: string;
   notificationPushPlus: string;

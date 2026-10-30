@@ -1,6 +1,7 @@
 /**
- * @file 本文件负责构建并发送 Webhook、邮件和测试通知。
+ * @file 本文件负责通过 Webhook 和邮件发送命中、服务故障和测试通知。
  */
+import { aiFallbackNotice, type ServiceNotification } from "./service_notification.ts";
 import { normalizeMatchResult } from "./match_result.ts";
 import type { AppSettings, MatchRecord, MatchResult } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
@@ -18,12 +19,13 @@ import {
 /**
  * 通知载荷类型。
  */
-type NotifyKind = "email" | "match" | "matches";
+type NotifyKind = "email" | "match" | "matches" | "service";
 
 /**
  * 通知投递时使用的统一载荷结构。
  */
 type NotificationPayload = {
+  fallbackNotice?: string;
   html?: string;
   title?: string;
   type: NotifyKind;
@@ -46,6 +48,7 @@ type NotificationPayload = {
  * 通知请求类型。
  */
 export type NotificationRequest =
+  | { type: "service"; notification: ServiceNotification }
   | {
     type: "match";
     record: MatchRecord;
@@ -1349,11 +1352,14 @@ function serverChanUrlFromSendKey(value: string): string {
  * 将单条命中记录转换为通知载荷。
  *
  * @param {MatchRecord} record 命中记录。
+ * @param {AppSettings} settings 用户语言设置。
  * @return {NotificationPayload} 含关键词或 AI 原因及实际位置的通知载荷。
  */
-function matchPayload(record: MatchRecord): NotificationPayload {
+function matchPayload(record: MatchRecord, settings: AppSettings): NotificationPayload {
   const result = normalizeMatchResult(record);
+  const notice = aiFallbackNotice([record], settings);
   return {
+    fallbackNotice: notice || undefined,
     match: {
       id: record.id,
       ...result,
@@ -1366,7 +1372,7 @@ function matchPayload(record: MatchRecord): NotificationPayload {
       },
     },
     text:
-      `New Heybox match: ${result.kind === "ai" ? result.aiReason : result.keyword} in ${result.location} - ${record.post.title}`,
+      `${notice ? notice + "\n\n" : ""}New Heybox match: ${result.kind === "ai" ? result.aiReason : result.keyword} in ${result.location} - ${record.post.title}`,
     type: "match",
   };
 }
@@ -1374,17 +1380,19 @@ function matchPayload(record: MatchRecord): NotificationPayload {
 /**
  * 根据通知请求创建通知载荷。
  *
- * @param notification 通知请求。
- * @param settings 应用设置。
- * @return 通知载荷；无内容可发送时返回 undefined。
+ * @param {NotificationRequest} notification 通知请求。
+ * @param {AppSettings} settings 应用设置。
+ * @return {NotificationPayload | undefined} 通知载荷；无内容可发送时返回 undefined。
  */
 function payloadForNotification(
   notification: NotificationRequest,
   settings: AppSettings,
 ): NotificationPayload | undefined {
   switch (notification.type) {
+    case "service":
+      return { type: "service", title: notification.notification.title, text: notification.notification.body };
     case "match":
-      return matchPayload(notification.record);
+      return matchPayload(notification.record, settings);
     case "matches":
       return notification.records.length > 0
         ? matchesPayload(notification.records, settings)
@@ -1397,10 +1405,10 @@ function payloadForNotification(
 /**
  * 将多条命中记录转换为批量通知载荷。
  *
- * @param records 命中记录列表。
- * @param settings 应用设置。
- * @param title 通知标题。
- * @return 批量通知载荷。
+ * @param {MatchRecord[]} records 命中记录列表。
+ * @param {AppSettings} settings 应用设置。
+ * @param {string} title 通知标题。
+ * @return {NotificationPayload} 批量通知载荷。
  */
 function matchesPayload(
   records: MatchRecord[],
@@ -1408,11 +1416,12 @@ function matchesPayload(
   title = getMessages(settings.locale).notificationBatchTitle,
 ): NotificationPayload {
   const now = new Date();
-  const text = matchesDescription(records, settings, now);
+  const notice = aiFallbackNotice(records, settings);
+  const text = matchesDescription(records, settings, now, notificationContentLimit - (notice ? notice.length + 2 : 0));
   return {
-    html: matchesHtml(records, settings, text, now),
+    html: (notice ? `<p>${escapeHtml(notice)}</p>` : "") + matchesHtml(records, settings, text, now),
     matches: records,
-    text,
+    text: notice ? `${notice}\n\n${text}` : text,
     title,
     type: "matches",
   };
@@ -1665,6 +1674,7 @@ function notificationDescription(payload: NotificationPayload): string {
   }
 
   return [
+    ...(payload.fallbackNotice ? [payload.fallbackNotice, ""] : []),
     `标题：${payload.match.post.title}`,
     `${payload.match.kind === "ai" ? "AI 匹配" : "关键词"}：${payload.match.kind === "ai" ? payload.match.aiReason : payload.match.keyword}`,
     `位置：${payload.match.location}`,
@@ -1741,15 +1751,17 @@ function matchesHtml(
 /**
  * 生成批量命中通知的 Markdown 文本。
  *
- * @param records 命中记录列表。
- * @param settings 应用设置。
- * @param now 当前时间。
- * @return 批量通知 Markdown 文本。
+ * @param {MatchRecord[]} records 命中记录列表。
+ * @param {AppSettings} settings 应用设置。
+ * @param {Date} now 当前时间。
+ * @param {number} limit 扣除前置说明后的正文上限。
+ * @return {string} 批量通知 Markdown 文本。
  */
 function matchesDescription(
   records: MatchRecord[],
   settings: AppSettings,
   now = new Date(),
+  limit = notificationContentLimit,
 ): string {
   const messages = getMessages(settings.locale);
   const renderedItems: string[] = [];
@@ -1766,7 +1778,7 @@ function matchesDescription(
 
     if (
       renderedItems.length > 0 &&
-      nextWithOmitted.length > notificationContentLimit
+      nextWithOmitted.length > limit
     ) {
       break;
     }

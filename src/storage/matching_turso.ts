@@ -159,7 +159,7 @@ export function createTursoMatchingStore(
       });
     },
     /**
-     * 读取已经到达重试时间的待处理帖子。
+     * 读取到期待处理帖子，并允许冻结至过期时间的兼容条目恢复处理。
      *
      * @param {string} topicId 话题。
      * @param {number} now 当前时间。
@@ -169,7 +169,8 @@ export function createTursoMatchingStore(
       const result = await execute({
         sql:
           `SELECT value_json FROM matching_cache WHERE user_id = ? AND topic_id = ? AND pending = 1
-        AND retry_at <= ? AND expires_at > ? ORDER BY retry_at, last_seen_at LIMIT 20`,
+        AND (retry_at <= ? OR (retry_at = expires_at AND json_extract(value_json, '$.attempts') >= 3))
+        AND expires_at > ? ORDER BY retry_at, last_seen_at LIMIT 20`,
         args: [userId, topicId, now, now],
       });
       return result.rows.map((row) => JSON.parse(String(row.value_json)));

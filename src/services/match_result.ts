@@ -18,7 +18,7 @@ export function shortAiReason(reason: string): string {
 }
 
 /**
- * 读取明确的匹配类型；缓存可按原判定模式归类，历史 AI 前缀记录的位置视为未记录。
+ * 读取匹配类型；AI 回退保留正则标记，其余缓存按判定模式归类，历史 AI 前缀位置视为未记录。
  * @param {MatchResult} result 已存或新生成的匹配结果。
  * @param {MatchingSettings["mode"] | undefined} mode 缓存所属的匹配模式。
  * @return {MatchResult} 可直接展示并持久化的结果。
@@ -27,7 +27,7 @@ export function normalizeMatchResult(
   result: MatchResult,
   mode?: MatchingSettings["mode"],
 ): MatchResult {
-  const isAi = mode
+  const isAi = result.aiFallback ? false : mode
     ? mode === "ai"
     : result.kind
     ? result.kind === "ai"
@@ -37,6 +37,7 @@ export function normalizeMatchResult(
       keyword: result.keyword,
       location: result.location,
       kind: "keyword",
+      ...(result.aiFallback ? { aiFallback: true } : {}),
     };
   }
   // 未带类型的 AI 记录将原因存于 AI: 前缀后，且没有可信的来源位置。

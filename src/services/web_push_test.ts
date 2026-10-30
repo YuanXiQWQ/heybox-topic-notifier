@@ -13,6 +13,7 @@ import {
 } from "./web_push.ts";
 import type { WebPushDevice } from "../storage/web_push_types.ts";
 import type { MatchRecord } from "../models.ts";
+import { aiFailureNotification, aiFallbackNotice } from "./service_notification.ts";
 
 /**
  * 生成仅供模拟推送验证的加密订阅，不请求外部推送服务。
@@ -151,4 +152,34 @@ Deno.test("browser delivery skips revoked sessions without depending on other no
   } finally {
     kv.close();
   }
+});
+
+Deno.test("browser notifications show service faults and prefix fallback matches with stable tags", async () => {
+  const kv = await Deno.openKv(":memory:");
+  try {
+    const settings = defaultAppSettingsFromEnv();
+    const storage = createKvStorage(settings, { openKv: () => Promise.resolve(kv) });
+    await storage.webPush!.save(device());
+    await storage.saveSession({ tokenHash: "session", userId: "alice", username: "alice", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString() });
+    const delivered: import("./web_push.ts").AppNotification[] = [];
+    const options = {
+      config: { ...webPush.generateVAPIDKeys(), subject: "mailto:test@example.com" },
+      deliver: (_device: WebPushDevice, notification: import("./web_push.ts").AppNotification) => { delivered.push(notification); return Promise.resolve("sent" as const); },
+    };
+    const notice = aiFailureNotification("first-outage", settings);
+    await notifyBrowsers(storage, "alice", notice, settings, options);
+    await notifyBrowsers(storage, "alice", notice, settings, options);
+    await notifyBrowsers(storage, "alice", aiFailureNotification("next-day", settings), settings, options);
+    assertEquals(delivered[0].title, notice.title);
+    assertEquals(delivered[0].body, notice.body);
+    assertEquals(delivered[0].path, "/settings");
+    assertEquals(delivered[0].tag, delivered[1].tag);
+    assert(delivered[0].tag !== delivered[2].tag);
+    const record: MatchRecord = {
+      id: "fallback", keyword: "help", location: "title", aiFallback: true, matchedAt: "",
+      post: { id: "post", title: "help", body: "", excerpt: "", comments: [], commentReplies: [], url: "", publishedAt: "" },
+    };
+    await notifyBrowsers(storage, "alice", [record], settings, options);
+    assert(delivered[3].body.startsWith(aiFallbackNotice([record], settings) + "\n"));
+  } finally { kv.close(); }
 });
