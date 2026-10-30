@@ -1,6 +1,7 @@
 /**
  * @file 本文件负责组装 Hono 应用和应用运行时上下文。
  */
+import { createAdminRoutes } from "./admin_routes.ts";
 import { Hono } from "@hono/hono";
 import {
   type AuthOptions,
@@ -167,6 +168,7 @@ export function createApplication(pollingContext?: PollingContext) {
       if (session) c.header("x-app-user", session.userId);
     }
   });
+  app.route("/admin", createAdminRoutes(context.storage));
   app.route("/api/app-notifications", createWebPushRoutes(context.storage));
   app.route("/", createRoutes(context));
 

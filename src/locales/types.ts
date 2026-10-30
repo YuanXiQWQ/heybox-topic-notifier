@@ -78,6 +78,36 @@ export function isRtlLocale(locale: Locale): boolean {
  * 应用所有可翻译文案字段的结构。
  */
 export type Messages = {
+  adminRateLimited: string;
+  adminEmailVerified: string;
+  adminPanel: string;
+  adminUsers: string;
+  roleUser: string;
+  roleAdmin: string;
+  roleSuperadmin: string;
+  accountRole: string;
+  invitationCode: string;
+  invitationGenerate: string;
+  invitationCount: string;
+  invitationExpires: string;
+  invitationNote: string;
+  invitationAvailable: string;
+  invitationUsed: string;
+  invitationRevoked: string;
+  invitationExpired: string;
+  invitationRevoke: string;
+  adminUserAdd: string;
+  adminUserDelete: string;
+  adminDeleteConfirm: string;
+  adminConfirmIdentity: string;
+  adminAccessDenied: string;
+  adminConflict: string;
+  adminSaved: string;
+  invitationInvalid: string;
+  adminCreatedAt: string;
+  adminUserId: string;
+  invitationUsedAt: string;
+  adminInputInvalid: string;
   notificationTestNoChannels: string;
   applicationNotifications: string;
   applicationNotificationsUnsupported: string;

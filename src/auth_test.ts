@@ -1,6 +1,7 @@
 /**
  * @file 本文件验证认证中间件和登录注册路由行为。
  */
+import { installTestInvitations } from "./invitation_test_helpers.ts";
 import { Hono } from "@hono/hono";
 import {
   type AuthOptions,
@@ -687,7 +688,7 @@ Deno.test("auth routes sign in with email verification and create a passwordless
   });
   await storage.savePendingEmailVerification(challenge.verification);
 
-  const response = await app.request("/login?locale=en-US&localeChanged=1", {
+  let response = await app.request("/login?locale=en-US&localeChanged=1", {
     body: testCsrfForm(
       new URLSearchParams({
         authMethod: "email",
@@ -700,6 +701,8 @@ Deno.test("auth routes sign in with email verification and create a passwordless
     headers: testCsrfHeaders(),
     method: "POST",
   });
+  assertEquals((await storage.listAccounts()).length, 0);
+  response = await completeTestInvitation(app,response);
   const account = await storage.getAccountByUsername("alice");
   const credential = account
     ? await storage.getEmailCredential(account.id, "alice@example.com")
@@ -728,7 +731,7 @@ Deno.test("auth routes sign in with Google credential and create a passwordless 
   const fixture = await googleTokenFixture();
   const app = createTestApp(storage, googleAuthOptions(fixture.jwks));
 
-  const response = await app.request(
+  let response = await app.request(
     "/auth/google?locale=en-US&localeChanged=1",
     {
       body: testCsrfForm(
@@ -741,6 +744,8 @@ Deno.test("auth routes sign in with Google credential and create a passwordless 
       method: "POST",
     },
   );
+  assertEquals((await storage.listAccounts()).length, 0);
+  response = await completeTestInvitation(app,response);
   const identity = await storage.getAuthIdentity(
     "google",
     "google-subject-id",
@@ -881,7 +886,7 @@ Deno.test("auth routes do not merge Google sign-in into an existing same-email a
   });
   const app = createTestApp(storage, googleAuthOptions(fixture.jwks));
 
-  const response = await app.request("/auth/google", {
+  let response = await app.request("/auth/google", {
     body: testCsrfForm(
       new URLSearchParams({
         credential: fixture.token,
@@ -891,6 +896,8 @@ Deno.test("auth routes do not merge Google sign-in into an existing same-email a
     headers: testCsrfHeaders(),
     method: "POST",
   });
+  assertEquals((await storage.listAccounts()).length, 1);
+  response = await completeTestInvitation(app,response);
   const identity = await storage.getAuthIdentity(
     "google",
     "google-subject-id",
@@ -2082,6 +2089,7 @@ function createTestApp(
   options: AuthOptions = {},
 ): Hono {
   const app = new Hono();
+  installTestInvitations(storage);
   app.route("/", createAuthRoutes(storage, options));
   app.get("/healthz", (c) => c.text("ok"));
   app.use("*", createAuthMiddleware(storage, options));
@@ -2350,7 +2358,7 @@ function submitGoogleLogin(
       headers: testCsrfHeaders(),
       method: "POST",
     }),
-  );
+  ).then(response => completeTestInvitation(app,response));
 }
 
 /**
@@ -2909,3 +2917,11 @@ const defaultSettings: AppSettings = {
   themeColor: "#bd7fff",
   topics: [],
 };
+
+/** @param {Hono} app 测试应用。 @param {Response} response 身份验证响应。 @return {Promise<Response>} 显式提交邀请码后的响应。 */
+async function completeTestInvitation(app:Hono,response:Response):Promise<Response>{
+ if(response.status!==200)return response;
+ const html=await response.clone().text(),pending=/name="pending" value="([^"]+)"/.exec(html)?.[1];
+ if(!pending)return response;
+ return await app.request('/register/invitation?locale=en-US',{method:'POST',headers:testCsrfHeaders(),body:testCsrfForm(new URLSearchParams({pending}))});
+}

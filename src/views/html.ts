@@ -1,6 +1,8 @@
 /**
  * @file 本文件提供基础 HTML 转义和页面布局渲染工具。
  */
+import { isAdministrator } from "../auth/roles.ts";
+import { materialSymbolIcon } from "./icons.ts";
 import { getMessages } from "../locales/index.ts";
 import { isRtlLocale, type Locale } from "../locales/types.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
@@ -191,7 +193,7 @@ export function renderAceAttorneyEasterEggData(locale: Locale): string {
  * @return {string} 完整 HTML 页面。
  */
 export function renderLayout(options: {
-  account?: Pick<UserAccount, "displayName" | "username"> & { id?: string };
+  account?: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string };
   body: string;
   csrfToken: string;
   darkMode: boolean;
@@ -199,6 +201,8 @@ export function renderLayout(options: {
   loginSession?: string;
   locale: Locale;
   stylesheets?: string[];
+  /** 管理界面不加载交互彩蛋。 */
+  disableEasterEggs?: boolean;
   themeColor: string;
   title: string;
 }): string {
@@ -231,12 +235,12 @@ export function renderLayout(options: {
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/app-sync/store.js" defer></script>
     <script src="/static/app-sync/client.js" defer></script>
-    <script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
+    ${options.disableEasterEggs ? "" : `<script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
     ${renderLobotomyCorpAccountIdentityData(options.account, options.loginSession)}
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>`}
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body data-app-user-id="${escapeHtml(options.account?.id ?? "")}">
@@ -309,14 +313,14 @@ function renderNavItem(icon: string, label: string): string {
 /**
  * 渲染导航栏中的账户下拉菜单。
  *
- * @param {Pick<UserAccount, "displayName" | "username"> & { id?: string }} account 当前账户。
+ * @param {Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string }} account 当前账户。
  * @param {string} csrfToken 当前页面的 CSRF 令牌。
  * @param {Locale} locale 当前界面语言。
  * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
  * @return {string} 账户菜单 HTML。
  */
 function renderAccountMenu(
-  account: Pick<UserAccount, "displayName" | "username"> & { id?: string },
+  account: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string },
   csrfToken: string,
   locale: Locale,
   messages: ReturnType<typeof getMessages>,
@@ -329,7 +333,7 @@ function renderAccountMenu(
     authIcon("username", "nav-account-menu-icon", "nav.accountSettings")
   }<span>${
     escapeHtml(messages.accountSettings)
-  }</span></a><form method="post" action="/logout?locale=${
+  }</span></a>${isAdministrator(account) ? `<a class="nav-account-menu-action" href="/admin">${materialSymbolIcon("badge","nav-account-menu-icon")}<span>${escapeHtml(messages.adminPanel)}</span></a>` : ""}<form method="post" action="/logout?locale=${
     encodeURIComponent(locale)
   }">${
     csrfHiddenInput(csrfToken)
@@ -358,12 +362,12 @@ export function defaultAvatarUrl(userId: string | undefined): string {
 /**
  * 渲染上传头像和默认头像的叠层。
  *
- * @param {Pick<UserAccount, "displayName" | "username"> & { id?: string }} account 当前账户。
+ * @param {Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string }} account 当前账户。
  * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
  * @return {string} 头像 HTML。
  */
 export function renderAvatar(
-  account: Pick<UserAccount, "displayName" | "username"> & { id?: string },
+  account: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string },
   messages: ReturnType<typeof getMessages>,
 ): string {
   const name = account.displayName ?? account.username;

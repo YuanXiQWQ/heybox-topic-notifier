@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供以权威存储响应、向迁移目标镜像写入的双写适配器。
  */
+import { mirrorAdministration } from "./administration_mirror.ts";
 import type { Storage, UserStorage } from "./types.ts";
 import type { WebPushStore } from "./web_push_types.ts";
 import type { NativePushStore } from "./native_push_types.ts";
@@ -109,6 +110,7 @@ export function createDualWriteStorage(
      * @return {unknown} 存储属性或用户作用域双写函数。
      */
     get(target, property, receiver): unknown {
+      if (property === "administration" && authoritative.administration && mirror.administration) return mirrorAdministration(authoritative, mirror, onMirrorFailure);
       if (property === "webPush" && authoritative.webPush && mirror.webPush) {
         return mirrorWrites<WebPushStore>(authoritative.webPush, mirror.webPush, new Set(["save", "remove"]), onMirrorFailure);
       }

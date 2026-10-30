@@ -2,6 +2,7 @@
  * @file 本文件定义与具体数据库实现无关的应用存储契约。
  */
 import type { MatchingStore } from "./matching_types.ts";
+import type { AdministrationStore } from "./administration_types.ts";
 import type { WebPushStore } from "./web_push_types.ts";
 import type { UserSyncStore } from "./sync_types.ts";
 import type { NativeNotificationStore } from "./native_notifications.ts";
@@ -181,6 +182,8 @@ export type UserStorage = {
  * 应用完整数据存储契约。
  */
 export type Storage = UserStorage & {
+  /** 账号准入与管理；缺失时新注册关闭。 */
+  administration?: AdministrationStore;
   /** 无 GMS 厂商推送设备，由当前账号会话约束。 */
   nativePush?: NativePushStore;
   /** 系统浏览器授权后由原生应用单次兑换的 PKCE 登录交接。 */

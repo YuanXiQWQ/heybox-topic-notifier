@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供基于 Deno KV 的应用数据存储实现。
  */
+import { createKvAdministration } from "./administration_kv.ts";
 import { createKvMatchingStore } from "./matching_kv.ts";
 import { createKvWebPushStore } from "./web_push_kv.ts";
 import { createKvNativePushStore } from "./native_push_kv.ts";
@@ -154,7 +155,7 @@ export type KvStore = {
   /**
    * 按前缀列出 KV 条目。
    */
-  list<T>(selector: { prefix: Deno.KvKey }): AsyncIterable<{ value: T }>;
+  list<T>(selector: { prefix: Deno.KvKey }): AsyncIterable<{ value: T; key?: Deno.KvKey }>;
   /**
    * 写入指定 KV 键值。
    */
@@ -474,6 +475,7 @@ export function createKvStorage(
 
   return {
     forUser,
+    administration: createKvAdministration(kv),
     matching: createKvMatchingStore(kv, "default"),
     webPush: createKvWebPushStore(kv),
     nativePush: createKvNativePushStore(kv),
@@ -531,29 +533,34 @@ export function createKvStorage(
     },
 
     /**
-     * 保存账号信息。
+     * 保存服务端账号资料，保留已有身份和权限版本，拒绝恢复已删除账号。
      *
-     * @param account 账号信息。
-     * @return 保存完成后的 Promise。
+     * @param {UserAccount} account 账号资料。
+     * @return {Promise<void>} 保存完成。
      */
     async saveAccount(account: UserAccount): Promise<void> {
       const store = await kv();
-      await store.set(keys.account(account.id), account);
-      await store.set(keys.accountUsername(account.username), account.id);
+      const key=keys.account(account.id),current=await store.get<UserAccount>(key);
+      if ((await store.get(["deletedAccounts",account.id])).value) throw new Error("Deleted account cannot be restored");
+      const result=await store.atomic().check({key,versionstamp:current.versionstamp}).check({key:["deletedAccounts",account.id],versionstamp:null})
+        .set(key,current.value?{...account,role:current.value.role,roleVersion:current.value.roleVersion}:account).set(keys.accountUsername(account.username),account.id).commit();
+      if(!result.ok)throw new Error("Concurrent account save");
     },
 
     /**
      * 原子创建账号，确保用户名只能被使用一次。
      *
-     * @param account 待创建的账号信息。
-     * @return 创建成功时返回 true，用户名或账号 ID 已存在时返回 false。
+     * @param {UserAccount} account 待创建的普通账号资料。
+     * @return {Promise<boolean>} 用户名和账号 ID 均未占用或删除时返回 true。
      */
     async createAccount(account: UserAccount): Promise<boolean> {
       const store = await kv();
+      if (account.role && account.role !== "user") return false;
       const accountKey = keys.account(account.id);
       const usernameKey = keys.accountUsername(account.username);
       const result = await store.atomic()
         .check({ key: accountKey, versionstamp: null })
+        .check({ key: ["deletedAccounts", account.id], versionstamp: null })
         .check({ key: usernameKey, versionstamp: null })
         .set(accountKey, account)
         .set(usernameKey, account.id)
@@ -561,6 +568,7 @@ export function createKvStorage(
       return result.ok;
     },
 
+    /** @param {UserAccount} account 资料更新，不允许修改身份。 @return {Promise<boolean>} 更新结果。 */
     async updateAccount(account: UserAccount): Promise<boolean> {
       const store = await kv();
       const accountKey = keys.account(account.id);
@@ -611,7 +619,7 @@ export function createKvStorage(
         }
 
         const updateResult = await operation
-          .set(accountKey, account)
+          .set(accountKey, { ...account, role: currentAccount.role, roleVersion: currentAccount.roleVersion })
           .commit();
         if (updateResult.ok) {
           return true;

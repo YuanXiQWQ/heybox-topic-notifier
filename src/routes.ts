@@ -2342,6 +2342,9 @@ export function createRoutes(
     });
   });
 
+  /** @return {Promise<Response>} 管理页面表单脚本，不包含账号资料。 */
+  app.get("/static/admin.js", async () => new Response(await Deno.readTextFile(new URL("../static/admin.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+
   app.get("/static/settings.js", async () => {
     const script = await Deno.readTextFile(
       new URL("../static/settings.js", import.meta.url),

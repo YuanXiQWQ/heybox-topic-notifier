@@ -269,6 +269,7 @@ export function createMemoryRateLimitRecorder(): {
  * @return {URLSearchParams} 追加 CSRF 字段后的表单。
  */
 export function testCsrfForm(body = new URLSearchParams()): URLSearchParams {
+  body.set("invitationCode", "test-invitation");
   body.set(csrfFieldName, testCsrfToken);
   return body;
 }
