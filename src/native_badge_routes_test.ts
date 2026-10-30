@@ -13,6 +13,7 @@ Deno.test("native badge counts only authenticated pending posts, not history or 
     const app = createRoutes({storage} as AppContext);
     const now = new Date().toISOString();
     for (const userId of ["alice", "bob"]) {
+      await storage.saveAccount({id:userId,username:userId,createdAt:now});
       await storage.saveSession({tokenHash:await sessionTokenHash(userId),userId,username:userId,createdAt:now,expiresAt:new Date(Date.now()+60000).toISOString()});
       await storage.forUser(userId).saveMatch({id:userId,keyword:"help",location:"title",matchedAt:now,post:{id:userId,title:"help",body:"",excerpt:"",comments:[],commentReplies:[],url:"https://example.com",publishedAt:now}});
     }

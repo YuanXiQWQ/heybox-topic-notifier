@@ -62,6 +62,8 @@ export type KvMigrationReport = {
  * 需要扫描的 KV 顶层 family。
  */
 const kvFamilies = [
+  "deletedAccounts",
+  "invitations",
   "userSync",
   "accounts",
   "authenticationEvents",
@@ -147,6 +149,8 @@ async function migrateKvEntry(
     if (second === "settings" && !third) return await importEntity(target, "settings", first, async () => target.importKvSync!(first, "settings", await decodeSettingsSync(entry.value as StoredSettingsSync)));
     if (second === "record" && third) return await importEntity(target, "match", entityKey(first, third), () => target.importKvSync!(first, "record", entry.value as RecordSyncSnapshot));
   }
+  if (family === "deletedAccounts" && first && target.administration) { await target.administration.applySnapshot({deletedId:first}); return "imported"; }
+  if (family === "invitations" && first && target.administration) { await target.administration.applySnapshot({invitations:[entry.value as import("./administration_types.ts").Invitation]}); return "imported"; }
   if (family === "accounts" && first && !second) {
     return await importEntity(
       target,

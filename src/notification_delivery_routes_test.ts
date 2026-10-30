@@ -14,6 +14,7 @@ Deno.test("unified notification test fans out despite webhook failure and does n
     const settings = defaultAppSettingsFromEnv();
     settings.notificationProvider = "webhook";
     const storage = createKvStorage(settings, { openKv: () => Promise.resolve(kv) });
+    await storage.saveAccount({id:"alice",username:"alice",createdAt:new Date().toISOString()});
     await storage.saveSession({tokenHash: await sessionTokenHash("test-session"), userId: "alice", username: "alice", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString()});
     let otherSent = 0;
     const app = createRoutes({storage, notifier: {sendTest: () => { otherSent++; return Promise.reject(new NotificationDeliveryError("Webhook HTTP 429", 429)); }}} as unknown as AppContext);

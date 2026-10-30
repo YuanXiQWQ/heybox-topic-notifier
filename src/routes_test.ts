@@ -1,6 +1,7 @@
 /**
  * @file 本文件验证业务路由和设置表单解析逻辑。
  */
+import { installTestInvitations } from "./invitation_test_helpers.ts";
 import { Hono } from "@hono/hono";
 import { createRoutes, settingsFromForm } from "./routes.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
@@ -664,6 +665,8 @@ Deno.test("account route updates non-unique display names without reauthenticati
     body: testCsrfForm(
       new URLSearchParams({
         accountAction: "displayName",
+        role: "superadmin",
+        roleVersion: "9000",
         displayName: "成步堂龙一",
       }),
     ),
@@ -3005,6 +3008,7 @@ function createAccountRouteApp(
   } = {},
 ): Hono {
   const app = new Hono();
+  installTestInvitations(storage as never);
   app.route("/", createAuthRoutes(storage as never));
   app.use("*", createAuthMiddleware(storage as never));
   app.route(

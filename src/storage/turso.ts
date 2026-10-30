@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供基于 Turso/libSQL 的应用数据存储实现。
  */
+import { createTursoAdministration } from "./administration_turso.ts";
 import { createTursoMatchingStore } from "./matching_turso.ts";
 import { createTursoWebPushStore } from "./web_push_turso.ts";
 import { createTursoNativePushStore } from "./native_push_turso.ts";
@@ -539,6 +540,7 @@ export function createTursoStorage(
     nativePush: createTursoNativePushStore(execute),
     nativeLogin: createTursoNativeLogin(execute),
     forUser,
+    administration: createTursoAdministration(execute, batch),
 
     /**
      * 在同一回填事务中保留编辑版本和可见内容，避免旧回填覆盖在线操作。
@@ -659,7 +661,7 @@ export function createTursoStorage(
     },
 
     /**
-     * 保存账号信息。
+     * 保存服务端账号资料，保留已有身份和权限版本，跳过已删除账号。
      *
      * @param {UserAccount} account 账号信息。
      * @return {Promise<void>} 保存完成后的 Promise。
@@ -675,13 +677,14 @@ export function createTursoStorage(
      * @return {Promise<boolean>} 创建成功时返回 true。
      */
     async createAccount(account: UserAccount): Promise<boolean> {
+      if (account.role && account.role !== "user") return false;
       try {
         const [result] = await batch([
           {
             sql: `INSERT INTO user_accounts
                 (id, username, username_normalized, created_at, value_json)
-              VALUES (?, ?, ?, ?, ?)`,
-            args: accountArgs(account),
+              SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?)`,
+            args: [...accountArgs(account) as import("@libsql/client").InValue[], account.id],
           },
           mutationStatement("account", account.id, true),
         ]);
@@ -695,7 +698,7 @@ export function createTursoStorage(
     },
 
     /**
-     * 原子更新账号。
+     * 原子更新账号资料，保留数据库中的身份与权限版本。
      *
      * @param {UserAccount} account 账号信息。
      * @return {Promise<boolean>} 更新成功时返回 true。
@@ -705,7 +708,7 @@ export function createTursoStorage(
         const [result] = await batch([
           {
             sql: `UPDATE user_accounts SET
-                username = ?, username_normalized = ?, created_at = ?, value_json = ?
+                username = ?, username_normalized = ?, created_at = ?, value_json = json_set(?, '$.role', COALESCE(json_extract(value_json, '$.role'), 'user'), '$.roleVersion', COALESCE(json_extract(value_json, '$.roleVersion'), 0))
               WHERE id = ?`,
             args: [
               account.username,
@@ -1938,13 +1941,13 @@ function accountUpsert(account: UserAccount): InStatement {
   return {
     sql: `INSERT INTO user_accounts
         (id, username, username_normalized, created_at, value_json)
-      VALUES (?, ?, ?, ?, ?)
+      SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?)
       ON CONFLICT(id) DO UPDATE SET
         username = excluded.username,
         username_normalized = excluded.username_normalized,
         created_at = excluded.created_at,
-        value_json = excluded.value_json`,
-    args: accountArgs(account),
+        value_json = json_set(excluded.value_json, '$.role', COALESCE(json_extract(user_accounts.value_json, '$.role'), 'user'), '$.roleVersion', COALESCE(json_extract(user_accounts.value_json, '$.roleVersion'), 0))`,
+    args: [...accountArgs(account) as import("@libsql/client").InValue[], account.id],
   };
 }
 

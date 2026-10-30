@@ -3668,3 +3668,28 @@ tr:last-child td{
 }
 :root[data-application-platform="windows"]::-webkit-scrollbar-track,
 :root[data-application-platform="windows"] *::-webkit-scrollbar-track{ background: var(--bg); }
+
+/* 管理页面沿用设置卡片的配色与控件，窄屏按原字段顺序重排。 */
+.admin-panel h2, .admin-panel button, .admin-user > summary, .admin-delete > summary { align-items:center; gap:8px; }
+.admin-panel h2, .admin-panel button { display:inline-flex; }
+.admin-panel input, .admin-panel select, .admin-panel textarea { max-inline-size:100%; box-sizing:border-box; }
+.admin-panel dd, .admin-panel time, .admin-panel bdi { overflow-wrap:anywhere; }
+.admin-user { margin-block:12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); }
+.admin-user > summary { display:flex; cursor:pointer; padding:18px 22px; background:var(--theme-soft); flex-wrap:wrap; }
+.admin-role { margin-inline-start:auto; color:var(--muted); font-size:14px; }
+.admin-user .settings-list { border:0; border-block-start:1px solid var(--border); border-radius:0; margin:0; }
+.admin-delete { padding:16px 22px; border-block-start:1px solid var(--border); }
+.admin-delete > summary { cursor:pointer; }
+.admin-delete form { display:grid; gap:12px; margin-block-start:16px; }
+.admin-delete label { display:grid; gap:8px; }
+.admin-invitations { display:grid; gap:12px; }
+.admin-invitation { padding:18px 22px; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+.admin-invitation > div { display:flex; justify-content:space-between; gap:12px; overflow-wrap:anywhere; }
+.admin-invitation dl { margin-block:12px; }
+.admin-invitation dl > div { display:flex; gap:12px; flex-wrap:wrap; }
+.admin-invitation dd { margin:0; }
+.admin-codes { display:grid; gap:8px; margin-block:16px; }
+.admin-codes textarea { inline-size:100%; font-family:monospace; }
+@media (max-width:640px) { .admin-panel .settings-list > div { grid-template-columns:1fr; padding:16px; } .admin-panel .settings-list > div > dd { margin:0; } .admin-user > summary { padding:16px; } .admin-panel input, .admin-panel select { inline-size:100%; } }
+.admin-codes textarea { color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; font-size:14px; line-height:1.5; resize:vertical; min-block-size:60px; }
+.admin-panel input[type="checkbox"] { inline-size:auto; }

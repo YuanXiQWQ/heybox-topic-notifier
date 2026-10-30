@@ -219,6 +219,10 @@ export type PasskeyChallengePurpose =
  * 用户账号信息。
  */
 export type UserAccount = {
+  /** 服务端账号身份；缺失或未知值按普通用户处理。 */
+  role?: "user" | "admin" | "superadmin";
+  /** 权限变更版本，防止旧管理表单覆盖新权限。 */
+  roleVersion?: number;
   authVersion?: number;
   createdAt: string;
   displayName?: string;
