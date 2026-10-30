@@ -27,6 +27,7 @@ Deno.test("browser subscriptions require session and CSRF and never accept clien
     const app = createWebPushRoutes(storage);
     const token = "test-only-session";
     const sessionHash = await sessionTokenHash(token);
+    await storage.saveAccount({id:"alice",username:"alice",createdAt:new Date().toISOString()});
     await storage.saveSession({
       tokenHash: sessionHash,
       userId: "alice",

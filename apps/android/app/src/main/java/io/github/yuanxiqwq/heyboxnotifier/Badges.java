@@ -1,6 +1,8 @@
 /** @file 将当前账号工作区未确认数提供给系统角标，不生成帖子命中事件。 */
 package io.github.yuanxiqwq.heyboxnotifier;
 import org.json.JSONObject;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 /** 网络读取不持有计数状态锁，界面可立即关闭角标或切换账号。 */
 final class Badges {
@@ -26,7 +28,7 @@ final class Badges {
     /** @param {DeviceState} device 设备状态。 @param {JSONObject} value 离线操作投影。 @throws Exception 状态无法保存。 */
     static void local(DeviceState device, JSONObject value) throws Exception { load(device); counter.setLocal(sessionKey(),value); persist(device); }
     /**
-     * 获取权威计数，离线保留同账号最近结果；认证失效时清零。
+     * 按版本获取权威基线，离线保留同账号最近结果；认证失效时清零。
      * @param {DeviceState} device 当前设备状态。
      * @throws Exception 网络或认证失败。
      */
@@ -37,9 +39,34 @@ final class Badges {
         int request = counter.begin(before, enabled);
         if (before.isEmpty() || !enabled) return;
         try {
-            JSONObject data = Http.api("/api/native/badge?records=1");
+            JSONObject data = Http.api("/api/native/badge?records=1&version=" + URLEncoder.encode(counter.version(before), StandardCharsets.UTF_8.name()));
             counter.acceptRecords(request,before,sessionKey(),data);
             persist(device);
+        } catch (SecurityException error) {
+            counter.read("",true); persist(device);
+            throw error;
+        }
+    }
+    /**
+     * 同次请求收取通知和角标，兼容仅返回通知的服务端，并保留两路失败隔离。
+     * @param {DeviceState} device 当前设备偏好。
+     * @param {String} path 已编码游标的本站通知路径。
+     * @return {JSONObject} 由既有消费器处理的通知批次。
+     * @throws Exception 通知请求失败；成功角标仍可保存。
+     */
+    static JSONObject readNotifications(DeviceState device, String path) throws Exception {
+        load(device);
+        String before = sessionKey();
+        boolean enabled = device.read().optBoolean("badgeEnabled", true);
+        int request = counter.begin(before, enabled);
+        if (before.isEmpty() || !enabled) return Http.api(path);
+        try {
+            String version = URLEncoder.encode(counter.version(before), StandardCharsets.UTF_8.name());
+            return NativePollRequest.read(
+                () -> Http.api(path + "&badge=1&badgeVersion=" + version),
+                badge -> { counter.acceptRecords(request,before,sessionKey(),badge); persist(device); },
+                () -> refresh(device)
+            );
         } catch (SecurityException error) {
             counter.read("",true); persist(device);
             throw error;

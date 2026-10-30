@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供基于 Turso/libSQL 的应用数据存储实现。
  */
+import { createTursoAdministration } from "./administration_turso.ts";
 import { createTursoMatchingStore } from "./matching_turso.ts";
 import { createTursoWebPushStore } from "./web_push_turso.ts";
 import { createTursoNativePushStore } from "./native_push_turso.ts";
@@ -381,6 +382,19 @@ export function createTursoStorage(
       async listPendingMatches(): Promise<MatchRecord[]> {
         return await listMatches(userId, "pending");
       },
+      /**
+       * 在数据库内投影角标所需标识，避免传输和解析帖子正文。
+       * @return {Promise<Array<{id: string, postId: string}>>} 当前账号工作区的精简记录。
+       */
+      async listPendingMatchReferences(): Promise<Array<{ id: string; postId: string }>> {
+        const result = await execute({
+          sql: `SELECT id, json_extract(value_json, '$.post.id') AS post_id FROM matches
+            WHERE user_id = ? AND completed_at IS NULL
+            ORDER BY post_published_at DESC, matched_at DESC, id ASC`,
+          args: [userId],
+        });
+        return result.rows.map((row) => ({ id: String(row.id), postId: String(row.post_id) }));
+      },
       /** 按用户与完成状态统计不重复的帖子数量，不向客户端传输帖子正文。 @return {Promise<number>} 未确认数量。 */
       async countPendingPosts(): Promise<number> {
         const result = await execute({sql:"SELECT COUNT(DISTINCT json_extract(value_json, '$.post.id')) AS count FROM matches WHERE user_id = ? AND completed_at IS NULL", args:[userId]});
@@ -539,6 +553,7 @@ export function createTursoStorage(
     nativePush: createTursoNativePushStore(execute),
     nativeLogin: createTursoNativeLogin(execute),
     forUser,
+    administration: createTursoAdministration(execute, batch),
 
     /**
      * 在同一回填事务中保留编辑版本和可见内容，避免旧回填覆盖在线操作。
@@ -659,7 +674,7 @@ export function createTursoStorage(
     },
 
     /**
-     * 保存账号信息。
+     * 保存服务端账号资料，保留已有身份和权限版本，跳过已删除账号。
      *
      * @param {UserAccount} account 账号信息。
      * @return {Promise<void>} 保存完成后的 Promise。
@@ -675,13 +690,14 @@ export function createTursoStorage(
      * @return {Promise<boolean>} 创建成功时返回 true。
      */
     async createAccount(account: UserAccount): Promise<boolean> {
+      if (account.role && account.role !== "user") return false;
       try {
         const [result] = await batch([
           {
             sql: `INSERT INTO user_accounts
                 (id, username, username_normalized, created_at, value_json)
-              VALUES (?, ?, ?, ?, ?)`,
-            args: accountArgs(account),
+              SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?)`,
+            args: [...accountArgs(account) as import("@libsql/client").InValue[], account.id],
           },
           mutationStatement("account", account.id, true),
         ]);
@@ -695,7 +711,7 @@ export function createTursoStorage(
     },
 
     /**
-     * 原子更新账号。
+     * 原子更新账号资料，保留数据库中的身份与权限版本。
      *
      * @param {UserAccount} account 账号信息。
      * @return {Promise<boolean>} 更新成功时返回 true。
@@ -705,7 +721,7 @@ export function createTursoStorage(
         const [result] = await batch([
           {
             sql: `UPDATE user_accounts SET
-                username = ?, username_normalized = ?, created_at = ?, value_json = ?
+                username = ?, username_normalized = ?, created_at = ?, value_json = json_set(?, '$.role', COALESCE(json_extract(value_json, '$.role'), 'user'), '$.roleVersion', COALESCE(json_extract(value_json, '$.roleVersion'), 0))
               WHERE id = ?`,
             args: [
               account.username,
@@ -1938,13 +1954,13 @@ function accountUpsert(account: UserAccount): InStatement {
   return {
     sql: `INSERT INTO user_accounts
         (id, username, username_normalized, created_at, value_json)
-      VALUES (?, ?, ?, ?, ?)
+      SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?)
       ON CONFLICT(id) DO UPDATE SET
         username = excluded.username,
         username_normalized = excluded.username_normalized,
         created_at = excluded.created_at,
-        value_json = excluded.value_json`,
-    args: accountArgs(account),
+        value_json = json_set(excluded.value_json, '$.role', COALESCE(json_extract(user_accounts.value_json, '$.role'), 'user'), '$.roleVersion', COALESCE(json_extract(user_accounts.value_json, '$.roleVersion'), 0))`,
+    args: [...accountArgs(account) as import("@libsql/client").InValue[], account.id],
   };
 }
 

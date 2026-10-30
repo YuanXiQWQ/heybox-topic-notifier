@@ -6,9 +6,15 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 9;
+export const TURSO_SCHEMA_VERSION = 10;
 /** 具备稳定游标和事件唯一键的原生通知收件箱。 */
 const nativeNotificationSchema = [
+  `CREATE TABLE IF NOT EXISTS invitations (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, value_json TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS admin_temporary (id TEXT PRIMARY KEY, expires_at TEXT NOT NULL, value_json TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS admin_temporary_expiry ON admin_temporary(expires_at)`,
+  `CREATE TABLE IF NOT EXISTS administration_guard (ok INTEGER NOT NULL CHECK(ok=1))`,
+  `CREATE TABLE IF NOT EXISTS deleted_accounts (id TEXT PRIMARY KEY)`,
+  `CREATE TABLE IF NOT EXISTS registration_emails (email TEXT PRIMARY KEY, user_id TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS native_push_devices (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, value_json TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS native_push_devices_user_idx ON native_push_devices(user_id)`,
   `CREATE TABLE IF NOT EXISTS native_login (id TEXT PRIMARY KEY, challenge TEXT NOT NULL, expires_at INTEGER NOT NULL, user_id TEXT, consumed INTEGER NOT NULL DEFAULT 0)`,

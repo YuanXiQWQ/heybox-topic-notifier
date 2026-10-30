@@ -1,7 +1,10 @@
 /**
  * @file 本文件提供登录、注册、会话读取和认证中间件。
  */
+import { normalizeInvitation, secretDigest } from "./auth/roles.ts";
+import type { AccountCreation } from "./storage/administration_types.ts";
 import { Hono } from "@hono/hono";
+import { bodyLimit } from "@hono/hono/body-limit";
 import type { Context, MiddlewareHandler } from "@hono/hono";
 import { getMessages, localeFromRequest } from "./locales/index.ts";
 import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
@@ -647,10 +650,11 @@ export function createAuthRoutes(
       ...(await hashPassword(password)),
     };
 
-    if (!(await storage.createAccount(account))) {
+    const invitationResult = await storage.administration?.register({ account, password: passwordCredentialFromAccount(account) }, await secretDigest(normalizeInvitation(String(form.invitationCode ?? ""))));
+    if (invitationResult !== "ok") {
       return c.redirect(
         authPagePath(config.registerPath, locale, {
-          error: "exists",
+          error: invitationResult === "conflict" && await storage.getAccountByUsername(username) ? "exists" : "invitation",
           [authLocaleChangedParam]: syncLocale
             ? authLocaleChangedValue
             : undefined,
@@ -658,8 +662,6 @@ export function createAuthRoutes(
         303,
       );
     }
-
-    await saveAccountPasswordCredential(account, storage);
 
     if (syncLocale) {
       await saveAuthLocale(account.id, locale, storage);
@@ -671,6 +673,24 @@ export function createAuthRoutes(
       storage,
       config,
     );
+  });
+
+  /** @param {Context} c 注册提交。 @return {Promise<Response>} 邀请核销后的登录结果。 */
+  app.post("/register/invitation", bodyLimit({ maxSize: 16_384, onError: (c) => c.text(getMessages(localeFromRequest(c.req.raw)).adminInputInvalid, 413) }), async (c) => {
+    c.header("cache-control", "no-store");
+    const form = await c.req.parseBody();
+    if (!verifyCsrfToken(c.req.header("cookie"), form.csrfToken)) return csrfForbiddenResponse(c.req.raw);
+    const limited = await rateLimitExceededResponseFor(storage, publicRateLimitPolicies.registration, clientRateLimitIdentifier((name) => c.req.header(name)), { request: c.req.raw });
+    if (limited) return limited;
+    const pending = String(form.pending ?? ""), id = await secretDigest(pending);
+    const record = await storage.administration?.getTemporary(id);
+    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config);
+    const messages = getMessages(locale);
+    if (!record?.creation || record.binding !== await secretDigest(String(form.csrfToken))) return c.redirect("/login",303);
+    const result = await storage.administration!.register(record.creation, await secretDigest(normalizeInvitation(String(form.invitationCode ?? ""))), id);
+    if (result !== "ok") return c.html(renderAuthPage({ action: "/register/invitation", csrfToken: String(form.csrfToken), error: messages.invitationInvalid, heading: messages.authRegister, locale, messages, mode: "register", pendingRegistration: pending, returnTo: record.returnTo ?? "/", submitLabel: messages.authCreateAccount, syncLocale: false }),400);
+    if (record.locale) await saveAuthLocale(record.creation.account.id, locale, storage);
+    return await redirectWithSession(c.req.url, safeReturnTo(record.returnTo ?? null), record.creation.account, storage, config);
   });
 
   app.post(emailVerificationPath, async (c) => {
@@ -1594,7 +1614,14 @@ async function handleGoogleCredentialLogin(
     throw error;
   }
 
-  const result = await findOrCreateGoogleAccount(storage, claims);
+  const knownIdentity = await storage.getAuthIdentity("google", claims.sub);
+  if (!knownIdentity || !(await storage.getAccountById(knownIdentity.userId))) {
+    const now = new Date().toISOString(), account = googleAccountFromClaims(claims, now, 0);
+    for (let attempt=1; await storage.getAccountByUsername(account.username); attempt++) account.username = googleUsernameCandidate(claims, attempt);
+    const email = verifiedGoogleEmail(claims);
+    return await beginInvitationRegistration(c, storage, config, { account, identity: { provider: "google", providerUserId: claims.sub, userId: account.id, createdAt: now, ...(email ? { email, emailVerified: true } : {}) }, ...(email ? { email: { userId: account.id, email, verified: true, createdAt: now, lastVerifiedAt: now } } : {}) }, options);
+  }
+  const result = await findGoogleAccount(storage, claims);
   if (options.syncLocale) {
     await saveAuthLocale(result.account.id, options.locale, storage);
   }
@@ -1729,13 +1756,13 @@ async function handleGoogleCredentialBind(
 }
 
 /**
- * 按 Google subject 查找或创建本地账号。
+ * 按 Google subject 查找已绑定的本地账号，不创建新账号。
  *
- * @param storage 应用存储。
- * @param claims Google 身份声明。
- * @return Google 登录对应的本地账号结果。
+ * @param {Storage} storage 应用存储。
+ * @param {GoogleIdentityClaims} claims Google 身份声明。
+ * @return {Promise<GoogleAccountResult>} Google 登录对应的本地账号结果。
  */
-async function findOrCreateGoogleAccount(
+async function findGoogleAccount(
   storage: Storage,
   claims: GoogleIdentityClaims,
 ): Promise<GoogleAccountResult> {
@@ -1755,17 +1782,7 @@ async function findOrCreateGoogleAccount(
     }
   }
 
-  const now = new Date().toISOString();
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const account = googleAccountFromClaims(claims, now, attempt);
-    if (await storage.createAccount(account)) {
-      await saveGoogleAuthIdentity(storage, account.id, claims, now);
-      await saveVerifiedGoogleEmailCredential(storage, account, claims, now);
-      return { account, created: true };
-    }
-  }
-
-  throw new Error("Could not create a unique Google login account.");
+  throw new Error("Google identity no longer exists.");
 }
 
 /**
@@ -2114,7 +2131,15 @@ async function handleEmailLogin(
     );
   }
 
-  const account = await findOrCreateEmailLoginAccount(storage, email);
+  const existingEmailAccount = await findAccountByVerifiedEmail(storage, email);
+  if (!existingEmailAccount) {
+    await storage.deletePendingEmailVerification(activeVerification.id);
+    const now = new Date().toISOString();
+    const account: UserAccount = { authVersion: 2, id: crypto.randomUUID(), username: emailLoginUsernameCandidate(email, 0), primaryEmail: email, emailVerified: true, createdAt: now };
+    for (let attempt=1; await storage.getAccountByUsername(account.username); attempt++) account.username = emailLoginUsernameCandidate(email, attempt);
+    return await beginInvitationRegistration(c, storage, config, { account, email: { userId: account.id, email, verified: true, createdAt: now, lastVerifiedAt: now } }, options);
+  }
+  const account = existingEmailAccount;
   const verifiedAccount = await ensureEmailLoginCredential(
     storage,
     account,
@@ -2898,54 +2923,6 @@ async function recordPrimaryEmailLoginFailure(
   }
 
   await storage.savePendingEmailVerification({ ...verification, attempts });
-}
-
-/**
- * 查找或创建邮箱登录对应的本地账号。
- *
- * @param storage 应用存储。
- * @param email 规范化后的邮箱地址。
- * @return 本地账号。
- */
-async function findOrCreateEmailLoginAccount(
-  storage: Storage,
-  email: string,
-): Promise<UserAccount> {
-  const existingAccount = await findAccountByVerifiedEmail(storage, email);
-  if (existingAccount) {
-    return existingAccount;
-  }
-
-  const now = new Date().toISOString();
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const account: UserAccount = {
-      authVersion: 2,
-      createdAt: now,
-      emailVerified: true,
-      id: crypto.randomUUID(),
-      primaryEmail: email,
-      username: emailLoginUsernameCandidate(email, attempt),
-    };
-    if (await storage.createAccount(account)) {
-      await storage.saveEmailCredential({
-        createdAt: now,
-        email,
-        lastVerifiedAt: now,
-        userId: account.id,
-        verified: true,
-      });
-      logSecurityAuditEvent({
-        code: "email_login_account_created",
-        details: { email: maskedEmailAddress(email) },
-        level: "info",
-        message: "邮箱验证码登录已创建本地账号。",
-        userId: account.id,
-      });
-      return account;
-    }
-  }
-
-  throw new Error("Could not create a unique email login account.");
 }
 
 /**
@@ -3831,6 +3808,7 @@ function renderAuthPage(options: {
   initialAuthMethod?: "email" | "password";
   locale: Locale;
   messages: Messages;
+  pendingRegistration?: string;
   mode: "login" | "register";
   returnTo: string;
   submitLabel: string;
@@ -4170,7 +4148,7 @@ function renderAuthPage(options: {
           <input type="hidden" name="returnTo" value="${
     escapeHtml(options.returnTo)
   }">
-          <div class="auth-fields">
+${options.pendingRegistration ? `<input type="hidden" name="pending" value="${escapeHtml(options.pendingRegistration)}">` : `          <div class="auth-fields">
             <label>
               ${
     escapeHtml(
@@ -4198,7 +4176,8 @@ function renderAuthPage(options: {
       : ""
   }
           </div>
-          ${
+       `}
+${options.mode === "register" ? `<label>${escapeHtml(options.messages.invitationCode)}<input name="invitationCode" dir="ltr" autocomplete="off" maxlength="80" required></label>` : ""}   ${
     options.mode === "login"
       ? renderLoginLinkRow({
         emailLoginHref,
@@ -4207,7 +4186,7 @@ function renderAuthPage(options: {
       : ""
   }
           ${
-    turnstileWidgetHtml(
+    options.pendingRegistration ? "" : turnstileWidgetHtml(
       options.turnstileSiteKey,
       options.altchaFallbackEnabled ?? false,
       options.messages.authHumanVerificationRequired,
@@ -6314,6 +6293,8 @@ function registerErrorMessage(
   messages: Messages,
 ): string | undefined {
   switch (value) {
+    case "invitation":
+      return messages.invitationInvalid;
     case "exists":
       return messages.authUsernameExists;
     case "password":
@@ -6464,4 +6445,23 @@ function escapeHtml(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+/**
+ * 将已验证身份暂存为绑定当前浏览器的注册步骤，不提前创建账号。
+ * @param {Context} c 当前请求。
+ * @param {Storage} storage 权威存储。
+ * @param {AuthConfig} _config 认证配置。
+ * @param {AccountCreation} creation 待创建账号与凭据。
+ * @param {object} options 登录目的地及语言。
+ * @return {Promise<Response>} 邀请码表单。
+ */
+async function beginInvitationRegistration(c: Context, storage: Storage, _config: AuthConfig, creation: AccountCreation, options: { locale: Locale; returnTo: string; syncLocale: boolean }): Promise<Response> {
+  if (!storage.administration) return c.text("Registration unavailable",503);
+  const pending = crypto.randomUUID() + crypto.randomUUID();
+  const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+  await storage.administration.putTemporary({ id: await secretDigest(pending), expiresAt: new Date(Date.now()+600_000).toISOString(), binding: await secretDigest(csrf.token), creation, returnTo: options.returnTo, ...(options.syncLocale ? { locale: options.locale } : {}) });
+  const messages = getMessages(options.locale);
+  c.header("cache-control", "no-store");
+  return withCsrfCookie(c.html(renderAuthPage({ action: "/register/invitation", csrfToken: csrf.token, heading: messages.authRegister, locale: options.locale, messages, mode: "register", pendingRegistration: pending, returnTo: options.returnTo, submitLabel: messages.authCreateAccount, syncLocale: false })),csrf);
 }

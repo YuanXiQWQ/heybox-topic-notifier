@@ -49,16 +49,16 @@ export type SessionRedirectOptions = SessionCookieOptions & {
 export const defaultSessionCookieName = "heybox_session";
 
 /**
- * 从 Cookie 中读取已认证会话。
+ * 从 Cookie 中读取已认证会话，并确认账号仍然存在。
  *
- * @param cookieHeader Cookie 请求头。
- * @param storage 应用存储。
- * @param options 会话 Cookie 配置选项。
- * @return 有效认证会话，不存在或过期时返回 undefined。
+ * @param {string | undefined} cookieHeader Cookie 请求头。
+ * @param {SessionStorage & Pick<Storage, "getAccountById">} storage 会话和账号存储。
+ * @param {SessionCookieOptions} options 会话 Cookie 配置选项。
+ * @return {Promise<AuthSession | undefined>} 账号及会话有效时返回认证信息。
  */
 export async function readAuthSession(
   cookieHeader: string | undefined,
-  storage: SessionStorage,
+  storage: SessionStorage & Pick<Storage, "getAccountById">,
   options: SessionCookieOptions = {},
 ): Promise<AuthSession | undefined> {
   const cookieName = options.cookieName ?? defaultSessionCookieName;
@@ -73,7 +73,11 @@ export async function readAuthSession(
     return undefined;
   }
 
-  if (new Date(session.expiresAt).getTime() <= Date.now()) {
+  if (
+    !(await storage.getAccountById(session.userId)) ||
+    !Number.isFinite(Date.parse(session.expiresAt)) ||
+    Date.parse(session.expiresAt) <= Date.now()
+  ) {
     await storage.deleteSession(tokenHash);
     return undefined;
   }

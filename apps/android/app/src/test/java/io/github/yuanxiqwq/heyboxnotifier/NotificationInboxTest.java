@@ -19,7 +19,7 @@ public class NotificationInboxTest {
     private static final class Inbox extends NotificationInbox {
         JSONObject saved;
         String active = "session-a";
-        int count, reads, failAt;
+        int count, reads, failAt, badgeReads;
         boolean permission = true, stuck;
         Action duringRead = () -> {};
         Action duringSession = () -> {};
@@ -32,6 +32,8 @@ public class NotificationInboxTest {
         @Override protected String session() throws Exception { duringSession.run(); return active; }
         /** @return {boolean} 模拟系统授权。 */
         @Override protected boolean allowed() { return permission; }
+        /** 记录每轮角标更新次数。 */
+        @Override protected void refreshBadge() { badgeReads++; }
         /** @param {String} after 游标。 @return {JSONObject} 最多一百条积压事件。 @throws Exception JSON 构造失败。 */
         @Override protected JSONObject read(String after) throws Exception {
             reads++; duringRead.run();
@@ -49,6 +51,18 @@ public class NotificationInboxTest {
     }
     /** @param {int} number 顺序号。 @return {String} 与服务端相同结构的游标。 */
     private static String cursor(int number) { return String.format(Locale.ROOT, "%016d:%d", number, number); }
+
+    /** 多页通知只在首批更新角标；关闭通知和关闭系统权限时角标仍独立刷新。 @throws Exception 测试失败。 */
+    @Test public void badgeUpdatesOncePerRunIncludingDisabledNotifications() throws Exception {
+        Inbox inbox = new Inbox(151);
+        assertFalse(inbox.pollWithBadge());
+        assertEquals(151,inbox.displayed.size()); assertEquals(2,inbox.reads); assertEquals(1,inbox.badgeReads);
+        inbox.saved.put("enabled",false);
+        assertFalse(inbox.pollWithBadge()); assertEquals(2,inbox.reads); assertEquals(2,inbox.badgeReads);
+        inbox.saved.put("enabled",true); inbox.permission=false;
+        assertFalse(inbox.pollWithBadge()); assertEquals(2,inbox.reads); assertEquals(3,inbox.badgeReads);
+        assertFalse(inbox.poll()); assertEquals(3,inbox.badgeReads);
+    }
 
     /** 超过一页的积压无需另一条厂商消息即可继续补取。 @throws Exception 测试失败。 */
     @Test public void drainsMultiplePages() throws Exception {

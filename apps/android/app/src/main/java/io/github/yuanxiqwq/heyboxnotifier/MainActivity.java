@@ -219,8 +219,8 @@ public final class MainActivity extends ComponentActivity {
     @Override public void onResume() { super.onResume(); resumed = true; if (device != null) NotificationService.maintainFromVisible(this, device); if (updates != null) updates.resume(worker); handler.removeCallbacks(pollTask); handler.post(pollTask); handler.removeCallbacks(updateTask); handler.post(updateTask); }
     /** 页面暂停后停止界面轮询，常驻服务和系统任务继续处理后台事件。 */
     @Override public void onPause() { resumed = false; handler.removeCallbacks(pollTask); handler.removeCallbacks(updateTask); CookieManager.getInstance().flush(); super.onPause(); }
-    /** 前台按固定周期补取，网络错误不重置游标。 */
-    private void poll() { if (!resumed || notifications == null) return; if (NotificationService.isRunning()) emit(); if (!pollInFlight && !NotificationService.isRunning()) { pollInFlight = true; notificationWorker.execute(() -> { try { Badges.refresh(device); notifications.poll(); emit(); } catch (Exception ignored) { /* 网络恢复后重试。 */ } finally { pollInFlight = false; } }); } handler.postDelayed(pollTask, 15000); }
+    /** 前台按固定周期合并补取通知与角标，网络错误不重置游标。 */
+    private void poll() { if (!resumed || notifications == null) return; if (NotificationService.isRunning()) emit(); if (!pollInFlight && !NotificationService.isRunning()) { pollInFlight = true; notificationWorker.execute(() -> { try { notifications.pollWithBadge(); emit(); } catch (Exception ignored) { /* 网络恢复后重试。 */ } finally { pollInFlight = false; } }); } handler.postDelayed(pollTask, 15000); }
     /** 定期检查更新，应用返回前台时也能发现后台期间发布的新版本。 */
     private void checkForUpdates() { if (!resumed || updates == null) return; worker.execute(() -> { try { updates.checkAutomatically(); } catch (Exception ignored) { /* 手动检查可立即重试。 */ } }); handler.postDelayed(updateTask, 6L * 60 * 60 * 1000); }
     /** @param {int} code 权限请求编号。 @param {String[]} permissions 权限名称。 @param {int[]} results 结果。 */

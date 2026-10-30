@@ -2,6 +2,7 @@
  * @file 本文件定义与具体数据库实现无关的应用存储契约。
  */
 import type { MatchingStore } from "./matching_types.ts";
+import type { AdministrationStore } from "./administration_types.ts";
 import type { WebPushStore } from "./web_push_types.ts";
 import type { UserSyncStore } from "./sync_types.ts";
 import type { NativeNotificationStore } from "./native_notifications.ts";
@@ -126,6 +127,11 @@ export type UserStorage = {
    * @return {Promise<MatchRecord[]>} 未完成的命中记录。
    */
   listPendingMatches(): Promise<MatchRecord[]>;
+  /**
+   * 只读取离线角标需要的工作区记录与帖子标识。
+   * @return {Promise<Array<{id: string, postId: string}>>} 保持工作区排序的精简记录。
+   */
+  listPendingMatchReferences?(): Promise<Array<{ id: string; postId: string }>>;
   /** 统计当前账号工作区未确认记录，供角标使用。 @return {Promise<number>} 未确认数量。 */
   countPendingPosts?(): Promise<number>;
   /**
@@ -181,6 +187,8 @@ export type UserStorage = {
  * 应用完整数据存储契约。
  */
 export type Storage = UserStorage & {
+  /** 账号准入与管理；缺失时新注册关闭。 */
+  administration?: AdministrationStore;
   /** 无 GMS 厂商推送设备，由当前账号会话约束。 */
   nativePush?: NativePushStore;
   /** 系统浏览器授权后由原生应用单次兑换的 PKCE 登录交接。 */

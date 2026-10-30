@@ -9,7 +9,7 @@ import type { TopicSource } from "./topic_source.ts";
 import { startMatchingRun } from "./matching_engine.ts";
 import { normalizeMatchingSettings } from "./matching_settings.ts";
 import { createAiMatcher } from "./ai_matcher.ts";
-import { aiFailureNotification, type ServiceNotification } from "./service_notification.ts";
+import type { ServiceNotification } from "./service_notification.ts";
 
 type PollStorage = Pick<
   Storage,
@@ -111,7 +111,13 @@ export function createPoller(
           cached = await startMatchingRun(
             settings, runStorage.matching, matching, source, ai,
             Date.now,
-            async (id) => (await notifier.sendService?.(aiFailureNotification(id, settings), settings, runStorage.userId))?.sent ?? false,
+            async (id) => {
+              if (!notifier.sendService) return false;
+              const { aiFailureNotification } = await import("./service_notification.ts");
+              return (await notifier.sendService(
+                aiFailureNotification(id, settings), settings, runStorage.userId,
+              )).sent;
+            },
           );
           if (!cached) return;
         } else if (normalizeMatchingSettings(settings.matching).mode !== "rules") {
