@@ -122,6 +122,8 @@ export type MatchResultLocation = MatchLocation | "excerpt" | "unknown";
  * 匹配结果；纯 AI 原因单独保存，关键词模式保留实际规则及位置。
  */
 export type MatchResult = {
+  /** 当前命中来自 AI 失败后的正则回退，通知须展示回退说明。 */
+  aiFallback?: boolean;
   /** 未带类型的持久化记录由展示兼容逻辑读取。 */
   kind?: "keyword" | "ai";
   aiReason?: string;

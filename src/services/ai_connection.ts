@@ -12,7 +12,7 @@ export type AiConnectionTestResult = {
 };
 
 /**
- * 验证当前配置能完成一次分类请求，不创建帖子记录、通知或判定缓存。
+ * 验证当前配置能完成分类请求，成功时重置故障提醒；不创建帖子记录、通知或判定缓存。
  * @param {MatchingSettings} settings 当前表单中的匹配配置。
  * @param {MatchingStore | undefined} store 用户匹配运行状态。
  * @param {ReturnType<typeof createAiMatcher>} ai 可注入的分类器。
@@ -59,6 +59,10 @@ export async function testAiConnection(
     runtime.outputTokens += decision.outputTokens;
     if (decision.usageKnown) runtime.unknownUsage--;
     if (decision.error || !decision.decision) runtime.failures++;
+    else {
+      delete runtime.aiFailure;
+      runtime.lastError = undefined;
+    }
     await store.saveRuntime(runtime);
     return decision.error || !decision.decision
       ? { ok: false, error: "request", detail: decision.error }
