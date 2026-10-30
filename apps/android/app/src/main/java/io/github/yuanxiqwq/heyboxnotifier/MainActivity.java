@@ -2,6 +2,7 @@
 package io.github.yuanxiqwq.heyboxnotifier;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -115,7 +116,7 @@ public final class MainActivity extends ComponentActivity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri url = request.getUrl();
                 if (url.toString().startsWith(BuildConfig.APP_ORIGIN + "/")) return false;
-                if (request.isForMainFrame() && Arrays.asList("https", "http").contains(url.getScheme())) startActivity(new Intent(Intent.ACTION_VIEW, url));
+                if (request.isForMainFrame()) openExternal(url);
                 return true;
             }
             /** @param {WebView} view 当前页面。 @param {String} url 页面地址。 @param {android.graphics.Bitmap} icon 图标。 */
@@ -139,8 +140,8 @@ public final class MainActivity extends ComponentActivity {
             @Override public boolean onCreateWindow(WebView view, boolean dialog, boolean gesture, android.os.Message result) {
                 WebView external = new WebView(MainActivity.this);
                 external.setWebViewClient(new WebViewClient() {
-                    /** @param {WebView} target 临时视图。 @param {WebResourceRequest} request 导航。 @return {boolean} 已交给浏览器。 */
-                    @Override public boolean shouldOverrideUrlLoading(WebView target, WebResourceRequest request) { Uri url = request.getUrl(); if (Arrays.asList("http", "https").contains(url.getScheme())) startActivity(new Intent(Intent.ACTION_VIEW, url)); target.destroy(); return true; }
+                    /** @param {WebView} target 临时视图。 @param {WebResourceRequest} request 导航。 @return {boolean} 已交给外部应用。 */
+                    @Override public boolean shouldOverrideUrlLoading(WebView target, WebResourceRequest request) { if (request.isForMainFrame()) openExternal(request.getUrl()); target.destroy(); return true; }
                 });
                 ((WebView.WebViewTransport) result.obj).setWebView(external); result.sendToTarget(); return true;
             }
@@ -149,6 +150,21 @@ public final class MainActivity extends ComponentActivity {
         consumeIntent(getIntent());
         worker.execute(() -> { HonorPush.register(getApplicationContext(), device); emit(); });
         worker.execute(() -> { try { updates.restore(); if (updates.hasPendingResume()) downloadWorker.execute(() -> { try { updates.download(); } catch (Exception error) { /* 检查点保留，用户可再次继续。 */ } }); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
+    }
+    /**
+     * 帖子优先交给已安装的小黑盒，未安装或无法处理时使用原网页。
+     * @param {Uri} url 用户打开的外部网址。
+     */
+    private void openExternal(Uri url) {
+        if (!"https".equals(url.getScheme()) && !"http".equals(url.getScheme())) return;
+        String post = PostLinks.appUrl(url.toString());
+        if (post != null) {
+            Intent app = new Intent(Intent.ACTION_VIEW, Uri.parse(post)).setPackage(PostLinks.PACKAGE);
+            try { startActivity(app); return; }
+            catch (ActivityNotFoundException | SecurityException ignored) { /* 未安装或客户端不支持时仍可查看原网页。 */ }
+        }
+        try { startActivity(new Intent(Intent.ACTION_VIEW, url)); }
+        catch (ActivityNotFoundException | SecurityException ignored) { /* 没有可处理网址的应用时保留当前页面。 */ }
     }
     /**
      * 分派有限能力请求，网络操作不阻塞网页或彩蛋。
