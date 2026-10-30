@@ -62,7 +62,8 @@ public final class NativeSmokeRunner extends Instrumentation {
             pass("foreground service starts without GMS; badge deduplicates posts");
             NotificationManager nm = manager;
             require(!nm.getNotificationChannel("background").canShowBadge(), "background channel has no badge");
-            require(!nm.getNotificationChannel("match-alerts").canShowBadge(), "new matches do not count as workspace badge");
+            android.app.NotificationChannel alerts = nm.getNotificationChannel(NotificationChannels.ensure(getTargetContext()));
+            require(!alerts.canShowBadge(), "new matches do not count as workspace badge");
             getTargetContext().startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             SystemClock.sleep(17000);
             require(NotificationService.isRunning(), "service survives leaving activity and a polling interval");

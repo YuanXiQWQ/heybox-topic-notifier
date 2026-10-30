@@ -2,7 +2,6 @@
 package io.github.yuanxiqwq.heyboxnotifier;
 import android.content.Context;
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
@@ -24,7 +23,7 @@ final class Notifications extends NotificationInbox {
     /** 开关请求序号防止较早的网络响应重新开启已关闭的通知。 */
     private final java.util.concurrent.atomic.AtomicInteger preferenceRevision = new java.util.concurrent.atomic.AtomicInteger();
     /** 应用通知的系统渠道，关闭后不伪装为已授权。 */
-    private static final String CHANNEL = "match-alerts";
+    private final String channelId;
     /** @return {String} 当前会话摘要。 @throws Exception 摘要不可用。 */
     static String currentSessionHash() throws Exception { return digest(Http.session()); }
 
@@ -35,12 +34,7 @@ final class Notifications extends NotificationInbox {
      */
     private Notifications(Context activity, DeviceState device) {
         this.application = (android.app.Application) activity.getApplicationContext(); this.device = device; manager = application.getSystemService(NotificationManager.class);
-        // matches 渠道保留用户已设置的通知重要性，新命中由独立渠道展示，角标由工作区状态渠道提供。
-        NotificationChannel saved = manager.getNotificationChannel("matches");
-        NotificationChannel channel = new NotificationChannel(CHANNEL, activity.getString(R.string.notification_channel), saved == null ? NotificationManager.IMPORTANCE_DEFAULT : saved.getImportance());
-        channel.setShowBadge(false);
-        if (saved != null) { channel.setSound(saved.getSound(), saved.getAudioAttributes()); channel.enableVibration(saved.shouldVibrate()); }
-        manager.createNotificationChannel(channel);
+        channelId = NotificationChannels.ensure(activity);
     }
     /**
      * 返回当前设备开关及系统权限状态，并按有效绑定维护系统周期任务。
@@ -49,7 +43,7 @@ final class Notifications extends NotificationInbox {
      */
     JSONObject state() throws Exception {
         JSONObject binding = device.read().optJSONObject("notifications");
-        boolean allowed = manager.areNotificationsEnabled() && manager.getNotificationChannel(CHANNEL).getImportance() != NotificationManager.IMPORTANCE_NONE;
+        boolean allowed = allowed();
         boolean current = binding != null && currentSessionHash().equals(binding.optString("session"));
         boolean enabled = allowed && current && binding.optBoolean("enabled");
         NotificationJob.maintain(application, enabled);
@@ -63,7 +57,7 @@ final class Notifications extends NotificationInbox {
     void set(boolean enabled) throws Exception {
         int revision = preferenceRevision.incrementAndGet();
         if (!enabled) { device.put("notifications", new JSONObject().put("enabled", false)); manager.cancelAll(); NotificationJob.maintain(application, false); HonorPush.disable(application, device); return; }
-        if (!manager.areNotificationsEnabled() || manager.getNotificationChannel(CHANNEL).getImportance() == NotificationManager.IMPORTANCE_NONE) throw new IllegalStateException("Notification permission denied");
+        if (!allowed()) throw new IllegalStateException("Notification permission denied");
         String token = Http.session(); if (token.isEmpty()) throw new IllegalStateException("Authentication required");
         JSONObject batch = Http.api("/api/native/notifications");
         synchronized (device) {
@@ -80,13 +74,13 @@ final class Notifications extends NotificationInbox {
     /** @param {String} cursor 已处理游标。 @return {JSONObject} 本站通知批次。 @throws Exception 请求失败。 */
     @Override protected JSONObject read(String cursor) throws Exception { return Http.api("/api/native/notifications?after=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8.name())); }
     /** @return {boolean} 应用及渠道均允许通知。 */
-    @Override protected boolean allowed() { return manager.areNotificationsEnabled() && manager.getNotificationChannel(CHANNEL).getImportance() != NotificationManager.IMPORTANCE_NONE; }
+    @Override protected boolean allowed() { return manager.areNotificationsEnabled() && manager.getNotificationChannel(channelId).getImportance() != NotificationManager.IMPORTANCE_NONE; }
     /** @param {JSONObject} event 已校验账号的事件。 @param {String} userId 所属账号。 @throws Exception 通知构造失败。 */
     @Override protected void show(JSONObject event, String userId) throws Exception {
         String id = event.getString("id");
         Intent intent = new Intent(application, MainActivity.class).setData(android.net.Uri.parse("heybox-notification:" + id)).putExtra("notificationPath", event.getString("path")).putExtra("notificationUser", userId);
         PendingIntent click = PendingIntent.getActivity(application, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        manager.notify(id, 0, new Notification.Builder(application, CHANNEL).setSmallIcon(R.drawable.app_icon).setContentTitle(event.getString("title")).setContentText(event.getString("body")).setOnlyAlertOnce(true).setAutoCancel(true).setContentIntent(click).build());
+        manager.notify(id, 0, new Notification.Builder(application, channelId).setSmallIcon(R.drawable.app_icon).setContentTitle(event.getString("title")).setContentText(event.getString("body")).setOnlyAlertOnce(true).setAutoCancel(true).setContentIntent(click).build());
     }
     /** @param {JSONObject} expected 原绑定。 @param {String} cursor 已处理游标。 @param {JSONArray} seen 去重标记。 @return {boolean} 是否已保存。 @throws Exception 加密落盘失败。 */
     @Override protected boolean commit(JSONObject expected, String cursor, JSONArray seen) throws Exception {
