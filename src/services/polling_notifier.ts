@@ -3,7 +3,7 @@ import type { AppSettings, MatchRecord } from "../models.ts";
 import type { Storage } from "../storage/types.ts";
 import type { createNotifier, NotificationRequest } from "./notifier.ts";
 import { sendIndependentNotifications } from "./application_notifier.ts";
-import { enqueueNativeNotifications } from "./native_notifications.ts";
+import type { enqueueNativeNotifications } from "./native_notifications.ts";
 import type { notifyBrowsers } from "./web_push.ts";
 import type { ServiceNotification } from "./service_notification.ts";
 
@@ -64,8 +64,9 @@ export function createPollingNotifier(storage: Storage, options: Options = {}) {
                 settings,
               )
           ),
-          Promise.resolve().then(() =>
-            (options.native ?? enqueueNativeNotifications)(
+          Promise.resolve().then(async () =>
+            (options.native ??
+              (await import("./native_notifications.ts")).enqueueNativeNotifications)(
               storage,
               userId,
               content,
