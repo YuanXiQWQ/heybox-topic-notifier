@@ -47,4 +47,29 @@ final class Badges {
             throw error;
         }
     }
+    /**
+     * 同次请求收取通知和角标，兼容仅返回通知的服务端，并保留两路失败隔离。
+     * @param {DeviceState} device 当前设备偏好。
+     * @param {String} path 已编码游标的本站通知路径。
+     * @return {JSONObject} 由既有消费器处理的通知批次。
+     * @throws Exception 通知请求失败；成功角标仍可保存。
+     */
+    static JSONObject readNotifications(DeviceState device, String path) throws Exception {
+        load(device);
+        String before = sessionKey();
+        boolean enabled = device.read().optBoolean("badgeEnabled", true);
+        int request = counter.begin(before, enabled);
+        if (before.isEmpty() || !enabled) return Http.api(path);
+        try {
+            String version = URLEncoder.encode(counter.version(before), StandardCharsets.UTF_8.name());
+            return NativePollRequest.read(
+                () -> Http.api(path + "&badge=1&badgeVersion=" + version),
+                badge -> { counter.acceptRecords(request,before,sessionKey(),badge); persist(device); },
+                () -> refresh(device)
+            );
+        } catch (SecurityException error) {
+            counter.read("",true); persist(device);
+            throw error;
+        }
+    }
 }

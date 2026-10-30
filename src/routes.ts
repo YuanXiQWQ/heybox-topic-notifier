@@ -207,7 +207,7 @@ export function createRoutes(
     return c.json({userId:session.userId,count});
   });
   /**
-   * 为原生应用返回当前账号的通知增量，未登录或账号切换不返回其它账号数据。
+   * 返回当前账号通知增量，可在同次鉴权后独立读取角标；旧客户端仍获得原有通知响应。
    * @param {Context} c 请求上下文。
    * @return {Promise<Response>} 通知批次与消费游标。
    */
@@ -217,7 +217,22 @@ export function createRoutes(
     if (!session) return c.json({ error: "unauthorized" }, 401);
     const after = c.req.query("after");
     if (after !== undefined && after !== "" && !/^\d{16}:[A-Za-z0-9_-]{43}$/.test(after)) return c.json({ error: "invalidCursor" }, 400);
-    const inbox = context.storage.forUser(session.userId).nativeNotifications;
+    const userStorage = context.storage.forUser(session.userId);
+    const inbox = userStorage.nativeNotifications;
+    if (c.req.query("badge") === "1") {
+      const [notifications, badge] = await Promise.allSettled([
+        Promise.resolve().then(() => {
+          if (!inbox) throw new Error("Notifications unavailable");
+          return inbox.read(after);
+        }),
+        readNativeBadge(userStorage, session.userId, c.req.query("badgeVersion") ?? ""),
+      ]);
+      return c.json({
+        userId: session.userId,
+        ...(notifications.status === "fulfilled" ? notifications.value : { error: "unavailable" }),
+        badge: badge.status === "fulfilled" ? badge.value : { error: "unavailable" },
+      });
+    }
     if (!inbox) return c.json({ error: "unavailable" }, 503);
     const result = await inbox.read(after);
     return c.json({ userId: session.userId, ...result });
