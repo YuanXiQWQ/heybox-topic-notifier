@@ -2,6 +2,7 @@
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
 import { testAiConnection } from "./services/ai_connection.ts";
+import { readNativeBadge } from "./services/native_badge.ts";
 import { fetchAiModels } from "./services/ai_models.ts";
 import { type Context, Hono } from "@hono/hono";
 import {
@@ -190,7 +191,7 @@ export function createRoutes(
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
   /**
-   * 返回当前账号工作区未确认数量，不包含通知测试事件或历史记录。
+   * 返回当前账号角标数量或可按版本复用的离线基线，不包含通知测试事件或历史记录。
    * @param {Context} c 请求上下文。
    * @return {Promise<Response>} 角标计数或未登录响应。
    */
@@ -200,8 +201,7 @@ export function createRoutes(
     if (!session) return c.json({error:"unauthorized"},401);
     const storage = context.storage.forUser(session.userId);
     if (c.req.query("records") === "1") {
-      const records = (await storage.listPendingMatches()).map(record => ({id:record.id,postId:record.post.id}));
-      return c.json({userId:session.userId,count:new Set(records.map(record => record.postId)).size,records});
+      return c.json(await readNativeBadge(storage, session.userId, c.req.query("version")));
     }
     const count = storage.countPendingPosts ? await storage.countPendingPosts() : new Set((await storage.listPendingMatches()).map((record) => record.post.id)).size;
     return c.json({userId:session.userId,count});

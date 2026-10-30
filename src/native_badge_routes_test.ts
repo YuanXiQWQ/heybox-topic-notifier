@@ -25,6 +25,8 @@ Deno.test("native badge counts only authenticated pending posts, not history or 
     assertEquals(await pending.json(),{userId:"alice",count:1});
     const snapshot=await app.request("/api/native/badge?records=1",{headers:{cookie:"heybox_session=alice"}});
     assertEquals(await snapshot.json(),{userId:"alice",count:1,records:[{id:"alice",postId:"alice"}]});
+    const fallback = await app.request("/api/native/badge?records=1&version=alice:1", {headers:{cookie:"heybox_session=alice"}});
+    assertEquals(await fallback.json(), {userId:"alice",count:1,records:[{id:"alice",postId:"alice"}]});
     await alice.completeMatches(["alice"]);
     assertEquals(await (await app.request("/api/native/badge",{headers:{cookie:"heybox_session=alice"}})).json(),{userId:"alice",count:0});
     assertEquals(await (await app.request("/api/native/badge",{headers:{cookie:"heybox_session=bob"}})).json(),{userId:"bob",count:1});

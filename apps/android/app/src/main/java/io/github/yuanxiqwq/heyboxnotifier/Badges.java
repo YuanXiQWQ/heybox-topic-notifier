@@ -1,6 +1,8 @@
 /** @file 将当前账号工作区未确认数提供给系统角标，不生成帖子命中事件。 */
 package io.github.yuanxiqwq.heyboxnotifier;
 import org.json.JSONObject;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 /** 网络读取不持有计数状态锁，界面可立即关闭角标或切换账号。 */
 final class Badges {
@@ -26,7 +28,7 @@ final class Badges {
     /** @param {DeviceState} device 设备状态。 @param {JSONObject} value 离线操作投影。 @throws Exception 状态无法保存。 */
     static void local(DeviceState device, JSONObject value) throws Exception { load(device); counter.setLocal(sessionKey(),value); persist(device); }
     /**
-     * 获取权威计数，离线保留同账号最近结果；认证失效时清零。
+     * 按版本获取权威基线，离线保留同账号最近结果；认证失效时清零。
      * @param {DeviceState} device 当前设备状态。
      * @throws Exception 网络或认证失败。
      */
@@ -37,7 +39,7 @@ final class Badges {
         int request = counter.begin(before, enabled);
         if (before.isEmpty() || !enabled) return;
         try {
-            JSONObject data = Http.api("/api/native/badge?records=1");
+            JSONObject data = Http.api("/api/native/badge?records=1&version=" + URLEncoder.encode(counter.version(before), StandardCharsets.UTF_8.name()));
             counter.acceptRecords(request,before,sessionKey(),data);
             persist(device);
         } catch (SecurityException error) {

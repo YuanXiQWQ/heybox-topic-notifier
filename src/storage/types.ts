@@ -127,6 +127,11 @@ export type UserStorage = {
    * @return {Promise<MatchRecord[]>} 未完成的命中记录。
    */
   listPendingMatches(): Promise<MatchRecord[]>;
+  /**
+   * 只读取离线角标需要的工作区记录与帖子标识。
+   * @return {Promise<Array<{id: string, postId: string}>>} 保持工作区排序的精简记录。
+   */
+  listPendingMatchReferences?(): Promise<Array<{ id: string; postId: string }>>;
   /** 统计当前账号工作区未确认记录，供角标使用。 @return {Promise<number>} 未确认数量。 */
   countPendingPosts?(): Promise<number>;
   /**
