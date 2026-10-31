@@ -431,6 +431,7 @@
   "roleSuperadmin": "Administrator utama",
   "accountRole": "Peran",
   "invitationCode": "Kode undangan",
+  "invitationEmpty": "Belum ada kode undangan",
   "invitationGenerate": "Buat undangan",
   "invitationCount": "Jumlah",
   "invitationExpires": "Kedaluwarsa",

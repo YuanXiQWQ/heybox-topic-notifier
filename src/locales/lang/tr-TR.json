@@ -431,6 +431,7 @@
   "roleSuperadmin": "Süper yönetici",
   "accountRole": "Rol",
   "invitationCode": "Davet kodu",
+  "invitationEmpty": "Henüz davet kodu yok",
   "invitationGenerate": "Davet oluştur",
   "invitationCount": "Adet",
   "invitationExpires": "Son kullanma tarihi",

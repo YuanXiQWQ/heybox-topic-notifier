@@ -431,6 +431,7 @@
   "roleSuperadmin": "Суперадминистратор",
   "accountRole": "Роль",
   "invitationCode": "Код приглашения",
+  "invitationEmpty": "Пока нет кодов приглашения",
   "invitationGenerate": "Создать приглашения",
   "invitationCount": "Количество",
   "invitationExpires": "Срок действия",

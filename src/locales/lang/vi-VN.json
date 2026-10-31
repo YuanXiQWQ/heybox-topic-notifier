@@ -431,6 +431,7 @@
   "roleSuperadmin": "Siêu quản trị viên",
   "accountRole": "Vai trò",
   "invitationCode": "Mã mời",
+  "invitationEmpty": "Chưa có mã mời",
   "invitationGenerate": "Tạo mã mời",
   "invitationCount": "Số lượng",
   "invitationExpires": "Hết hạn",

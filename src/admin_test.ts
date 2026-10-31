@@ -7,6 +7,11 @@ import { MemorySqlClient } from "./storage/sqlite_test_helpers.ts";
 import { defaultAppSettingsFromEnv } from "./services/default_settings.ts";
 import { createAdminRoutes } from "./admin_routes.ts";
 import {
+  encryptTotpSecret,
+  generateTotpCode,
+  totpConfigFromEnv,
+} from "./auth/totp.ts";
+import {
   createAuthRoutes,
   hashPassword,
   readAuthSession,
@@ -219,8 +224,23 @@ Deno.test("admin routes isolate roles, require CSRF and session reauthentication
         ...await hashPassword(password),
       });
     }
+    const totp = {
+      ...totpConfigFromEnv(() => undefined),
+      secretEncryptionKey: "admin-route-test-key",
+    };
+    const secret = crypto.getRandomValues(new Uint8Array(20));
+    await storage.saveTotpCredential({
+      userId: "owner",
+      credentialId: "test-totp",
+      enabledAt: new Date().toISOString(),
+      secretEncrypted: await encryptTotpSecret(
+        secret,
+        totp.secretEncryptionKey,
+      ),
+      recoveryCodeHashes: [],
+    });
     const app = new Hono();
-    app.route("/admin", createAdminRoutes(storage));
+    app.route("/admin", createAdminRoutes(storage, totp));
     app.route("/", createAuthRoutes(storage));
     /** @param {string} id 账号。 @return {Promise<string>} 测试会话。 */
     const cookie = async (id: string): Promise<string> => {
@@ -295,7 +315,9 @@ Deno.test("admin routes isolate roles, require CSRF and session reauthentication
       403,
     );
     assertEquals(
-      (await post("/admin/unlock", owner, { currentPassword: password }))
+      (await post("/admin/unlock", owner, {
+        totpCode: await generateTotpCode(secret, totp),
+      }))
         .status,
       303,
     );

@@ -431,6 +431,7 @@
   "roleSuperadmin": "मुख्य व्यवस्थापक",
   "accountRole": "भूमिका",
   "invitationCode": "आमंत्रण कोड",
+  "invitationEmpty": "अभी कोई आमंत्रण कोड नहीं है",
   "invitationGenerate": "आमंत्रण बनाएँ",
   "invitationCount": "संख्या",
   "invitationExpires": "समाप्ति तिथि",

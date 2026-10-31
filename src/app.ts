@@ -168,7 +168,7 @@ export function createApplication(pollingContext?: PollingContext) {
       if (session) c.header("x-app-user", session.userId);
     }
   });
-  app.route("/admin", createAdminRoutes(context.storage));
+  app.route("/admin", createAdminRoutes(context.storage, context.config.totp));
   app.route("/api/app-notifications", createWebPushRoutes(context.storage));
   app.route("/", createRoutes(context));
 

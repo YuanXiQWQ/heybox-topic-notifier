@@ -87,6 +87,7 @@ export type Messages = {
   roleSuperadmin: string;
   accountRole: string;
   invitationCode: string;
+  invitationEmpty: string;
   invitationGenerate: string;
   invitationCount: string;
   invitationExpires: string;

@@ -431,6 +431,7 @@
   "roleSuperadmin": "مسؤول أعلى",
   "accountRole": "الدور",
   "invitationCode": "رمز الدعوة",
+  "invitationEmpty": "لا توجد رموز دعوة بعد",
   "invitationGenerate": "إنشاء دعوات",
   "invitationCount": "العدد",
   "invitationExpires": "تاريخ الانتهاء",

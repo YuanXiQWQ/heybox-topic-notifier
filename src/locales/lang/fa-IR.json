@@ -431,6 +431,7 @@
   "roleSuperadmin": "مدیر ارشد",
   "accountRole": "نقش",
   "invitationCode": "کد دعوت",
+  "invitationEmpty": "هنوز کد دعوتی وجود ندارد",
   "invitationGenerate": "ایجاد دعوت‌نامه",
   "invitationCount": "تعداد",
   "invitationExpires": "تاریخ انقضا",

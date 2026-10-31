@@ -431,6 +431,7 @@
   "roleSuperadmin": "প্রধান প্রশাসক",
   "accountRole": "ভূমিকা",
   "invitationCode": "আমন্ত্রণ কোড",
+  "invitationEmpty": "এখনও কোনো আমন্ত্রণ কোড নেই",
   "invitationGenerate": "আমন্ত্রণ তৈরি করুন",
   "invitationCount": "সংখ্যা",
   "invitationExpires": "মেয়াদ শেষ",

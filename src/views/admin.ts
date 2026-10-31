@@ -20,11 +20,12 @@ export type AdminUser = {
   hasPassword: boolean;
 };
 
-/** @param {object} options 当前管理员、邀请码及已授权的账号列表。 @return {string} 管理面板 HTML。 */
+/** 将邀请码操作和用户管理组织为紧凑的设置卡片。 @param {object} options 当前管理员、邀请码及已授权的账号列表。 @return {string} 管理面板 HTML。 */
 export function renderAdmin(
   options: {
     account: UserAccount;
-    ownerHasPassword?: boolean;
+    ownerHasTotp?: boolean;
+    totpDigits?: number;
     settings: AppSettings;
     csrfToken: string;
     invitations: Invitation[];
@@ -54,13 +55,19 @@ export function renderAdmin(
     if (control) {
       content = content.replace(/<(input|select) /, `<$1 id="${id}" `);
     }
-    return `<div><dt>${
+    return `<div${label ? "" : ' class="admin-actions-row"'}><dt>${
       control ? `<label for="${id}">${e(label)}</label>` : e(label)
     }</dt><dd>${content}</dd></div>`;
   }
   /** @param {string} name 控件名。 @param {string} value 当前值。 @param {string} type 输入类型。 @param {string} extra 固定 HTML 属性。 @return {string} 表单控件。 */
   function input(name: string, value = "", type = "text", extra = ""): string {
     return `<input name="${name}" value="${e(value)}" type="${type}" ${extra}>`;
+  }
+  /** @param {string} label 字段标签。 @param {string} control 控件 HTML。 @return {string} 可换行工具栏中的关联标签和控件。 */
+  function field(label: string, control: string): string {
+    return `<label class="admin-field"><span>${
+      e(label)
+    }</span>${control}</label>`;
   }
   /** @param {string} selected 当前身份。 @param {boolean} own 是否为操作者本人。 @return {string} 身份选择控件。 */
   function roles(selected = "user", own = false): string {
@@ -91,7 +98,7 @@ export function renderAdmin(
           ? m.roleAdmin
           : m.roleUser,
       )
-    }</span></summary>
+    }</span><span class="dropdown-chevron" aria-hidden="true"></span></summary>
     <form method="post" action="/admin/users/edit">${csrf}${hidden}<dl class="settings-list">
     ${row(m.adminUserId, `<bdi>${e(user.id)}</bdi>`)}${
       row(m.adminCreatedAt, `<time>${e(date(user.createdAt))}</time>`)
@@ -146,7 +153,7 @@ export function renderAdmin(
           icon("delete", "settings-label-icon")
         }${
           e(m.adminUserDelete)
-        }</summary><form method="post" action="/admin/users/delete">${csrf}${hidden}<label>${
+        }<span class="dropdown-chevron" aria-hidden="true"></span></summary><form method="post" action="/admin/users/delete">${csrf}${hidden}<label>${
           e(m.adminDeleteConfirm)
         }${
           input("confirmUsername", "", "text", 'required autocomplete="off"')
@@ -157,8 +164,10 @@ export function renderAdmin(
     }</details>`;
   }
   const status = options.error
-    ? (options.error === "password"
-      ? m.accountPasswordCurrentInvalid
+    ? (options.error === "totp"
+      ? m.accountTotpInvalid
+      : options.error === "totp-config"
+      ? m.accountTotpConfigMissing
       : options.error === "forbidden"
       ? m.adminAccessDenied
       : options.error === "invalid"
@@ -177,25 +186,20 @@ export function renderAdmin(
       : ""
   }
   <section class="settings-group"><h2>${icon("key", "settings-label-icon")}${
-    e(m.invitationGenerate)
-  }</h2><form method="post" action="/admin/invitations" data-admin-invitations>${csrf}<dl class="settings-list">
+    e(m.invitationCode)
+  }</h2><div class="admin-card"><form class="admin-generate" method="post" action="/admin/invitations" data-admin-invitations>${csrf}
   ${
-    row(
+    field(
       m.invitationCount,
       input("count", "1", "number", 'min="1" max="20" required'),
     )
-  }${row(m.invitationExpires, input("expiresAt", "", "datetime-local"))}${
-    row(m.invitationNote, input("note", "", "text", 'maxlength="120"'))
+  }${field(m.invitationExpires, input("expiresAt", "", "datetime-local"))}${
+    field(m.invitationNote, input("note", "", "text", 'maxlength="120"'))
   }
-  ${
-    row(
-      "",
-      `<button type="submit">${icon("add", "settings-label-icon")}${
-        e(m.invitationGenerate)
-      }</button>`,
-    )
-  }
-  </dl></form>${
+  <button type="submit">${icon("add", "settings-label-icon")}${
+    e(m.invitationGenerate)
+  }</button>
+  </form>${
     options.codes.length
       ? `<label class="admin-codes">${
         e(m.invitationCode)
@@ -203,39 +207,38 @@ export function renderAdmin(
         Math.min(8, options.codes.length)
       }">${e(options.codes.join("\n"))}</textarea></label>`
       : ""
-  }</section>
-  <section class="settings-group"><h2>${
-    e(m.invitationCode)
-  }</h2><div class="admin-invitations">${
-    options.invitations.map((value) => {
-      const state = value.usedAt
-        ? m.invitationUsed
-        : value.revokedAt
-        ? m.invitationRevoked
-        : value.expiresAt && Date.parse(value.expiresAt) <= Date.now()
-        ? m.invitationExpired
-        : m.invitationAvailable;
-      return `<div class="admin-invitation"><div><strong>${
-        e(value.note || value.id.slice(0, 8))
-      }</strong><span>${e(state)}</span></div><dl>${
-        row(m.adminCreatedAt, e(date(value.createdAt)))
-      }${
-        value.expiresAt
-          ? row(m.invitationExpires, e(date(value.expiresAt)))
-          : ""
-      }${
-        value.usedAt ? row(m.invitationUsedAt, e(date(value.usedAt))) : ""
-      }</dl>${
-        !value.usedAt && !value.revokedAt
-          ? `<form method="post" action="/admin/invitations/${
-            e(value.id)
-          }/revoke">${csrf}<button type="submit" class="text-action-button">${
-            e(m.invitationRevoke)
-          }</button></form>`
-          : ""
-      }</div>`;
-    }).join("")
-  }</div></section>`;
+  }<div class="admin-invitations">${
+    options.invitations.length
+      ? options.invitations.map((value) => {
+        const state = value.usedAt
+          ? m.invitationUsed
+          : value.revokedAt
+          ? m.invitationRevoked
+          : value.expiresAt && Date.parse(value.expiresAt) <= Date.now()
+          ? m.invitationExpired
+          : m.invitationAvailable;
+        return `<div class="admin-invitation"><div><strong>${
+          e(value.note || value.id.slice(0, 8))
+        }</strong><span>${e(state)}</span></div><dl>${
+          row(m.adminCreatedAt, e(date(value.createdAt)))
+        }${
+          value.expiresAt
+            ? row(m.invitationExpires, e(date(value.expiresAt)))
+            : ""
+        }${
+          value.usedAt ? row(m.invitationUsedAt, e(date(value.usedAt))) : ""
+        }</dl>${
+          !value.usedAt && !value.revokedAt
+            ? `<form method="post" action="/admin/invitations/${
+              e(value.id)
+            }/revoke">${csrf}<button type="submit" class="text-action-button">${
+              e(m.invitationRevoke)
+            }</button></form>`
+            : ""
+        }</div>`;
+      }).join("")
+      : `<p class="admin-empty">${e(m.invitationEmpty)}</p>`
+  }</div></div></section>`;
   if (accountRole(options.account) === "superadmin") {
     body += `<section class="settings-group"><h2>${
       icon("badge", "settings-label-icon")
@@ -245,7 +248,7 @@ export function renderAdmin(
           icon("add", "settings-label-icon")
         }${
           e(m.adminUserAdd)
-        }</summary><form method="post" action="/admin/users/create">${csrf}<dl class="settings-list">${
+        }<span class="dropdown-chevron" aria-hidden="true"></span></summary><form method="post" action="/admin/users/create">${csrf}<dl class="settings-list">${
           row(
             m.authUsername,
             input(
@@ -283,26 +286,27 @@ export function renderAdmin(
         }${
           row("", `<button type="submit">${e(m.adminUserAdd)}</button>`)
         }</dl></form></details>${options.users.map(userCard).join("")}`
-        : options.ownerHasPassword === false
-        ? `<a class="button-link" href="/settings">${e(m.accountSettings)}</a>`
-        : `<form method="post" action="/admin/unlock">${csrf}<dl class="settings-list">${
-          row(
-            m.accountCurrentPassword,
+        : !options.ownerHasTotp
+        ? `<a class="button-link" href="/settings#account-two-step-heading">${
+          e(m.accountTotpBind)
+        }</a>`
+        : `<form class="admin-card admin-unlock" method="post" action="/admin/unlock">${csrf}${
+          field(
+            `${m.accountSecondFactorTotp} · ${m.accountTotpCode}`,
             input(
-              "currentPassword",
+              "totpCode",
               "",
-              "password",
-              'required maxlength="1024" autocomplete="current-password"',
+              "text",
+              `required inputmode="numeric" pattern="[0-9]{${
+                options.totpDigits ?? 6
+              }}" maxlength="${
+                options.totpDigits ?? 6
+              }" autocomplete="one-time-code"`,
             ),
           )
-        }${
-          row(
-            "",
-            `<button type="submit">${icon("lock", "settings-label-icon")}${
-              e(m.adminConfirmIdentity)
-            }</button>`,
-          )
-        }</dl></form>`
+        }<button type="submit">${icon("lock", "settings-label-icon")}${
+          e(m.adminConfirmIdentity)
+        }</button></form>`
     }</section>`;
   }
   body += '</div><script src="/static/admin.js" defer></script>';

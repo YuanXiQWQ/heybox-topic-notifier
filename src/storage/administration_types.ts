@@ -34,6 +34,9 @@ export type AdminTemporary = {
   locale?: string;
   userId?: string;
   roleVersion?: number;
+  method?: "totp";
+  credentialId?: string;
+  credentialDigest?: string;
 };
 /** 原子写入的有限结果，不携带账号隐私。 */
 export type AdminResult = "ok" | "forbidden" | "conflict" | "invitation";
