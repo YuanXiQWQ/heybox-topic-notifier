@@ -431,6 +431,7 @@
   "roleSuperadmin": "スーパー管理者",
   "accountRole": "権限",
   "invitationCode": "招待コード",
+  "invitationEmpty": "招待コードはまだありません",
   "invitationGenerate": "招待コードを生成",
   "invitationCount": "数量",
   "invitationExpires": "有効期限",

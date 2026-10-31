@@ -431,6 +431,7 @@
   "roleSuperadmin": "ผู้ดูแลระบบสูงสุด",
   "accountRole": "บทบาท",
   "invitationCode": "รหัสเชิญ",
+  "invitationEmpty": "ยังไม่มีรหัสเชิญ",
   "invitationGenerate": "สร้างรหัสเชิญ",
   "invitationCount": "จำนวน",
   "invitationExpires": "วันหมดอายุ",

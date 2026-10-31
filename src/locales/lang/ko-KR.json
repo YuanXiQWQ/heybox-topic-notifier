@@ -431,6 +431,7 @@
   "roleSuperadmin": "최고 관리자",
   "accountRole": "역할",
   "invitationCode": "초대 코드",
+  "invitationEmpty": "아직 초대 코드가 없습니다",
   "invitationGenerate": "초대 코드 생성",
   "invitationCount": "수량",
   "invitationExpires": "만료일",

@@ -431,6 +431,7 @@
   "roleSuperadmin": "超級管理員",
   "accountRole": "使用者身分",
   "invitationCode": "邀請碼",
+  "invitationEmpty": "暫無邀請碼",
   "invitationGenerate": "產生邀請碼",
   "invitationCount": "數量",
   "invitationExpires": "有效期限",
