@@ -8,15 +8,16 @@ const { createRequire } = require("node:module");
 
 /**
  * 以依赖替身执行真实主进程逻辑，不启动应用窗口或网络连接。
+ * @param {object} options 可选真实更新器与缓存校验器。
  * @return {object} 原生事件和受控窗口。
  */
-function harness() {
+function harness(options = {}) {
   const handlers = new Map(), events = new Map();
   let cacheReady = true;
   let installs = 0, downloads = 0, quitting = 0;
   const installOptions = [];
   const updaterEvents = new Map();
-  const updater = { quitAndInstall: (...options) => { installs++; installOptions.push(options); }, downloadUpdate: () => { downloads++; return Promise.resolve(); }, on: (name, fn) => updaterEvents.set(name, fn) };
+  const updater = options.updater || { quitAndInstall: (...options) => { installs++; installOptions.push(options); }, downloadUpdate: () => { downloads++; return Promise.resolve(); }, on: (name, fn) => updaterEvents.set(name, fn) };
   let cookie = "session-a";
   let read = () => Promise.resolve({ userId: "alice", cursor: "", events: [] });
   let display = "show";
@@ -95,7 +96,7 @@ function harness() {
       name === "electron"
         ? electron
         : name === "./update-cache.cjs"
-        ? {repairUpdateCache: () => Promise.resolve(cacheReady)}
+        ? {repairUpdateCache: options.repairUpdateCache || (() => Promise.resolve(cacheReady))}
         : name === "electron-updater"
         ? { autoUpdater: updater }
         : localRequire(name),
@@ -154,6 +155,8 @@ test("a rolled-back release cannot auto-install again or hide its update warning
   assert.equal(context.downloads(), 0);
   context.updaterEvents.get("update-available")({version:"1.2.0"});
   assert.equal(context.updater.autoDownload, true);
+  assert.equal(context.updater.autoInstallOnAppQuit, false);
+  await context.updaterEvents.get("update-downloaded")();
   assert.equal(context.updater.autoInstallOnAppQuit, true);
 });
 
@@ -414,10 +417,10 @@ test("cached automatic update waits for local writes before restarting on the ne
   const context = harness();
   context.api.installUpdater();
   await context.api.setPreferences({autoUpdate:true});
-  context.api.markCachedUpdate();
   let release;
   context.contents.executeJavaScript=()=>new Promise(resolve=>{release=resolve;});
   context.updaterEvents.get("update-available")({version:"1.2.0"});
+  context.api.markCachedUpdate();
   const downloaded=context.updaterEvents.get("update-downloaded")();
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(context.installs(),0);
@@ -489,5 +492,190 @@ test("startup resumes confirmed downloads only when the official newer release h
     await context.api.checkUpdate();
     assert.equal(context.downloads(),downloads);
     if (downloads) assert.equal(context.updater.autoInstallOnAppQuit,true);
+  }
+});
+
+test("checking after downloading and dismissing a release discovers the latest release", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  context.updaterEvents.get("update-available")({version:"3.10.12"});
+  await context.handlers.get("app:download-update")(context.event);
+  await context.updaterEvents.get("update-downloaded")();
+  await context.handlers.get("app:seen-update")(context.event, "dismissed");
+  let checks = 0;
+  context.updater.checkForUpdates = async () => {
+    checks++;
+    const updateInfo = {version:"3.11.0"};
+    context.updaterEvents.get("update-available")(updateInfo);
+    return {isUpdateAvailable:true, updateInfo};
+  };
+  const state = await context.api.checkUpdate();
+  assert.equal(checks, 1);
+  assert.equal(state.update.version, "3.11.0");
+  assert.equal(state.update.status, "available");
+  assert.equal(state.update.prompt, true);
+  assert.equal(context.downloads(), 1);
+  assert.equal(context.updater.autoInstallOnAppQuit, false);
+  await assert.rejects(context.handlers.get("app:install-update")(context.event), /not ready/);
+  await context.api.setPreferences({closeAction:"quit"});
+  await context.api.prepareExit();
+  assert.equal(context.updater.autoInstallOnAppQuit, false);
+  assert.equal(context.installs(), 0);
+});
+
+test("a recheck of the same downloaded release reuses the downloader and keeps restart available", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  context.updater.checkForUpdates = async () => {
+    const updateInfo = {version:"1.1.0"};
+    context.updaterEvents.get("update-available")(updateInfo);
+    return {isUpdateAvailable:true, updateInfo};
+  };
+  let reused = 0;
+  context.updater.downloadUpdate = async () => {
+    reused++;
+    await context.updaterEvents.get("update-downloaded")();
+  };
+  const state = await context.api.checkUpdate();
+  assert.equal(reused, 1);
+  assert.equal(state.update.version, "1.1.0");
+  assert.equal(state.update.status, "downloaded");
+});
+
+test("a withdrawn release clears pending prompts and cannot install the cached old package", async () => {
+  const context = harness();
+  context.device.value.autoUpdate = true;
+  context.device.value.autoUpdateReady = "1.1.0";
+  context.device.value.updateVersion = "1.1.0";
+  context.api.installUpdater();
+  context.updater.checkForUpdates = async () => {
+    context.updaterEvents.get("update-not-available")();
+    return {isUpdateAvailable:false};
+  };
+  const state = await context.api.checkUpdate();
+  assert.equal(state.update.status, "current");
+  assert.equal(state.update.version, undefined);
+  assert.equal(state.update.prompt, false);
+  assert.equal(context.device.value.autoUpdateReady, undefined);
+  assert.equal(context.device.value.updateVersion, undefined);
+  await context.api.prepareExit();
+  assert.equal(context.updater.autoInstallOnAppQuit, false);
+});
+
+test("failed rechecks report failure instead of claiming the downloaded release is latest", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  context.updater.checkForUpdates = async () => { throw new Error("offline"); };
+  assert.equal((await context.api.checkUpdate()).update.status, "error");
+  assert.equal(context.updater.autoInstallOnAppQuit, false);
+  assert.equal(context.downloads(), 0);
+});
+
+test("simultaneous rechecks share a request while an active download is not interrupted", async () => {
+  const context = harness();
+  context.api.installUpdater();
+  let complete, checks = 0;
+  context.updater.checkForUpdates = () => {
+    checks++;
+    return new Promise(resolve => { complete = resolve; });
+  };
+  const first = context.api.checkUpdate();
+  const second = context.api.checkUpdate();
+  assert.equal(first, second);
+  complete({isUpdateAvailable:false});
+  await first;
+  context.updaterEvents.get("download-progress")({percent:50});
+  assert.equal((await context.api.checkUpdate()).update.status, "downloading");
+  assert.equal(checks, 1);
+});
+
+test("a newer automatic download cannot trigger the previous cached startup restart", async () => {
+  const context = harness();
+  context.device.value.autoUpdate = true;
+  context.device.value.autoUpdateReady = "1.1.0";
+  context.api.installUpdater();
+  context.api.markCachedUpdate();
+  context.updater.checkForUpdates = async () => {
+    const updateInfo = {version:"1.2.0"};
+    context.updaterEvents.get("update-available")(updateInfo);
+    assert.equal(context.updater.autoInstallOnAppQuit, false);
+    assert.equal(context.device.value.autoUpdateReady, undefined);
+    return {isUpdateAvailable:true, updateInfo, downloadPromise:Promise.resolve(), cancellationToken:{cancel(){}}};
+  };
+  await context.api.checkUpdate();
+  await context.updaterEvents.get("update-downloaded")();
+  assert.equal(context.device.value.autoUpdateReady, "1.2.0");
+  assert.equal(context.updater.autoInstallOnAppQuit, true);
+  assert.equal(context.installs(), 0);
+});
+
+test("real NSIS updater replaces a deferred release while preserving same-release cache reuse", async () => {
+  const { NsisUpdater } = require("electron-updater/out/NsisUpdater");
+  const { DownloadedUpdateHelper } = require("electron-updater/out/DownloadedUpdateHelper");
+  const { repairUpdateCache } = require("../update-cache.cjs");
+  const { createHash } = require("node:crypto");
+  const os = require("node:os");
+  const disk = fs.promises;
+  const root = await disk.mkdtemp(path.join(os.tmpdir(), "heybox-recheck-test-"));
+  try {
+    let version = "3.10.12", checks = 0, transfers = 0;
+    const quits = [], installed = [];
+    const updater = new NsisUpdater(null, {
+      version:"3.10.11", isPackaged:true, onQuit:callback => quits.push(callback),
+    });
+    updater.logger = {info(){}, warn(){}, error(){}, debug(){}};
+    updater.downloadedUpdateHelper = new DownloadedUpdateHelper(root);
+    updater.disableDifferentialDownload = true;
+    /** @return {Promise<object>} 隔离发行源的当前清单。 */
+    updater.getUpdateInfoAndProvider = async () => {
+      checks++;
+      const bytes = Buffer.from(`isolated installer ${version}`);
+      const file = {url:"setup.exe", sha512:createHash("sha512").update(bytes).digest("base64"), size:bytes.length};
+      return {
+        info:{version, files:[file]},
+        provider:{resolveFiles:info => info.files.map(item => ({url:new URL(item.url,"https://updates.invalid/"), info:item}))},
+      };
+    };
+    updater.httpExecutor = {
+      /** @param {URL} url 隔离下载地址。 @param {string} target 临时安装包路径。 */
+      async download(url, target) {
+        assert.equal(url.hostname, "updates.invalid");
+        transfers++;
+        await disk.writeFile(target, `isolated installer ${version}`);
+      },
+    };
+    /** @return {Promise<null>} 隔离测试数据不执行发行签名检查。 */
+    updater.verifySignature = async () => null;
+    /** @return {boolean} 记录待安装文件，禁止运行测试数据。 */
+    updater.doInstall = () => { installed.push(fs.readFileSync(updater.installerPath,"utf8")); return true; };
+    const context = harness({updater, repairUpdateCache});
+    context.api.installUpdater();
+    assert.equal((await context.api.checkUpdate()).update.version, "3.10.12");
+    await context.handlers.get("app:download-update")(context.event);
+    await context.handlers.get("app:seen-update")(context.event,"dismissed");
+    assert.equal((await context.api.checkUpdate()).update.status,"downloaded");
+    assert.equal(transfers,1);
+    assert.equal(await repairUpdateCache(updater),true);
+    version = "3.11.0";
+    const next = await context.api.checkUpdate();
+    assert.equal(checks,3);
+    assert.equal(next.update.version,version);
+    assert.equal(next.update.status,"available");
+    assert.equal(next.update.prompt,true);
+    assert.equal(updater.autoInstallOnAppQuit,false);
+    for (const quit of quits) quit(0);
+    assert.deepEqual(installed,[]);
+    await context.handlers.get("app:download-update")(context.event);
+    assert.equal(context.api.info().update.status,"downloaded");
+    assert.equal(transfers,2);
+    assert.equal(await repairUpdateCache(updater),true);
+    assert.equal(updater.downloadedUpdateHelper.versionInfo.version,version);
+    await context.api.prepareExit();
+    for (const quit of quits) quit(0);
+    assert.deepEqual(installed,["isolated installer 3.11.0"]);
+  } finally {
+    assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));
+    assert.match(path.basename(root),/^heybox-recheck-test-/);
+    await disk.rm(root,{recursive:true,force:true});
   }
 });

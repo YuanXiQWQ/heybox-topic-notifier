@@ -110,6 +110,8 @@ async function prepareExit(installing = false) {
       if (update.status !== "downloaded") updateTransfer.token.cancel();
       await updateTransfer.promise.catch(() => {});
     }
+    if (update.status !== "downloaded") autoUpdater.autoInstallOnAppQuit = false;
+    if (installing && update.status !== "downloaded") throw new Error("Update not ready");
     if (app.isPackaged && !await repairUpdateCache(autoUpdater)) {
       autoUpdater.autoInstallOnAppQuit = false;
       delete device.value.autoUpdateReady;
@@ -685,16 +687,26 @@ function installUpdater() {
   autoUpdater.allowPrerelease = false;
   autoUpdater.allowDowngrade = false;
   autoUpdater.on("update-available", (release) => {
+    if (release.version !== update.version) {
+      manualUpdateDownload = false;
+      installCachedUpdateOnStart = false;
+      delete device.value.autoUpdateReady;
+    }
     const failed = recoveryReadFailed || device.value.failedUpdateVersion === release.version;
     update = { status: failed ? "error" : "available", version: release.version, progress: 0 };
     autoUpdater.autoDownload = autoUpdateAllowed(release.version);
-    autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed(release.version) || manualUpdateDownload;
+    autoUpdater.autoInstallOnAppQuit = false;
     device.value.updateVersion = release.version;
     void device.save().catch(() => { update.status = "error"; emitState(); });
     emitState();
   });
   autoUpdater.on("update-not-available", () => {
-    update.status = update.version ? "error" : "current";
+    update = { status: "current", version: undefined, progress: 0 };
+    manualUpdateDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+    delete device.value.autoUpdateReady;
+    delete device.value.updateVersion;
+    void device.save().catch(() => { update.status = "error"; emitState(); });
     emitState();
   });
   autoUpdater.on("download-progress", (progress) => {
@@ -706,6 +718,7 @@ function installUpdater() {
     try {
       update.status = "downloaded";
       update.progress = 100;
+      autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed() || manualUpdateDownload;
       if (autoUpdateAllowed()) device.value.autoUpdateReady = update.version;
       await device.save();
       emitState();
@@ -718,12 +731,14 @@ function installUpdater() {
     } catch {
       quitting = false;
       update.status = "error";
+      autoUpdater.autoInstallOnAppQuit = false;
       emitState();
     }
   });
   autoUpdater.on("error", () => {
     if (quitting) { quitting = false; stoppingUpdates = false; }
     update.status = "error";
+    autoUpdater.autoInstallOnAppQuit = false;
     emitState();
   });
 }
@@ -753,7 +768,8 @@ function newerVersion(candidate, installed) {
   return false;
 }
 /**
- * 检查 GitHub Release；开发运行不执行安装版更新。
+ * 重新查询 GitHub Release，已下载的同版本交由下载器复用校验，新版本重新等待下载。
+ * 传输期间合并检查，开发运行不执行安装版更新。
  * @return {Promise<object>} 检查后的状态。
  */
 function checkUpdate() {
@@ -763,12 +779,18 @@ function checkUpdate() {
       update.status = "development";
       return info();
     }
-    if (["downloading", "downloaded"].includes(update.status)) return info();
+    if (update.status === "downloading") return info();
+    const downloadedVersion = update.status === "downloaded" ? update.version : undefined;
+    autoUpdater.autoInstallOnAppQuit = false;
     update.status = "checking";
     emitState();
     try {
       const result = await autoUpdater.checkForUpdates();
-      if (result?.isUpdateAvailable === true && !result.downloadPromise && !stoppingUpdates && confirmedResumeDigest &&
+      if (result?.isUpdateAvailable === true && !result.downloadPromise && !stoppingUpdates &&
+        downloadedVersion && downloadedVersion === result.updateInfo?.version &&
+        !recoveryReadFailed && device.value.failedUpdateVersion !== downloadedVersion) {
+        await downloadUpdate();
+      } else if (result?.isUpdateAvailable === true && !result.downloadPromise && !stoppingUpdates && confirmedResumeDigest &&
         !recoveryReadFailed && (!device.value.failedUpdateVersion || device.value.failedUpdateVersion !== result.updateInfo?.version) &&
         result?.updateInfo?.files?.some(file => file.sha512 === confirmedResumeDigest)) {
         confirmedResumeDigest = undefined;
@@ -782,6 +804,7 @@ function checkUpdate() {
       }
     } catch {
       update.status = "error";
+      autoUpdater.autoInstallOnAppQuit = false;
       emitState();
     }
     return info();
