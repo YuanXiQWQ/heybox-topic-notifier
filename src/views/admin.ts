@@ -24,7 +24,8 @@ export type AdminUser = {
 export function renderAdmin(
   options: {
     account: UserAccount;
-    ownerHasPassword?: boolean;
+    ownerHasTotp?: boolean;
+    totpDigits?: number;
     settings: AppSettings;
     csrfToken: string;
     invitations: Invitation[];
@@ -163,8 +164,10 @@ export function renderAdmin(
     }</details>`;
   }
   const status = options.error
-    ? (options.error === "password"
-      ? m.accountPasswordCurrentInvalid
+    ? (options.error === "totp"
+      ? m.accountTotpInvalid
+      : options.error === "totp-config"
+      ? m.accountTotpConfigMissing
       : options.error === "forbidden"
       ? m.adminAccessDenied
       : options.error === "invalid"
@@ -283,16 +286,22 @@ export function renderAdmin(
         }${
           row("", `<button type="submit">${e(m.adminUserAdd)}</button>`)
         }</dl></form></details>${options.users.map(userCard).join("")}`
-        : options.ownerHasPassword === false
-        ? `<a class="button-link" href="/settings">${e(m.accountSettings)}</a>`
+        : !options.ownerHasTotp
+        ? `<a class="button-link" href="/settings#account-two-step-heading">${
+          e(m.accountTotpBind)
+        }</a>`
         : `<form class="admin-card admin-unlock" method="post" action="/admin/unlock">${csrf}${
           field(
-            m.accountCurrentPassword,
+            `${m.accountSecondFactorTotp} · ${m.accountTotpCode}`,
             input(
-              "currentPassword",
+              "totpCode",
               "",
-              "password",
-              'required maxlength="1024" autocomplete="current-password"',
+              "text",
+              `required inputmode="numeric" pattern="[0-9]{${
+                options.totpDigits ?? 6
+              }}" maxlength="${
+                options.totpDigits ?? 6
+              }" autocomplete="one-time-code"`,
             ),
           )
         }<button type="submit">${icon("lock", "settings-label-icon")}${

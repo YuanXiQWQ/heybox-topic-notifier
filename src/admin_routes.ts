@@ -6,8 +6,8 @@ import {
   readAuthSession,
   validDisplayName,
   validUsername,
-  verifyAccountPassword,
 } from "./auth.ts";
+import { type TotpConfig, verifyEncryptedTotpCode } from "./auth/totp.ts";
 import {
   accountRole,
   isAdministrator,
@@ -27,8 +27,8 @@ import { logSecurityAuditEvent } from "./security/audit_log.ts";
 import type { Storage } from "./storage/types.ts";
 import { type AdminUser, renderAdmin } from "./views/admin.ts";
 
-/** @param {Storage} storage 权威存储。 @return {Hono} 管理路由，所有写操作再次在存储事务中校验身份。 */
-export function createAdminRoutes(storage: Storage) {
+/** @param {Storage} storage 权威存储。 @param {TotpConfig} totp 验证器配置；缺失时禁止解锁。 @return {Hono} 管理路由，所有写操作再次在存储事务中校验身份。 */
+export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
   const app = new Hono<{ Variables: { account: UserAccount } }>();
   /** @param {import("@hono/hono").Context} c 当前请求。 @return {Promise<string>} 绑定当前登录令牌的授权索引。 */
   async function grantId(c: import("@hono/hono").Context): Promise<string> {
@@ -44,9 +44,22 @@ export function createAdminRoutes(storage: Storage) {
   ): Promise<boolean> {
     const id = await grantId(c),
       grant = await storage.administration?.getTemporary(id);
-    return accountRole(account) === "superadmin" && grant?.binding === id &&
-      grant.userId === account.id &&
-      grant.roleVersion === (account.roleVersion ?? 0);
+    if (
+      !(totp?.secretEncryptionKey && accountRole(account) === "superadmin" &&
+        grant?.binding === id &&
+        grant.userId === account.id &&
+        grant.roleVersion === (account.roleVersion ?? 0) &&
+        grant.method === "totp" && grant.credentialDigest)
+    ) return false;
+    const credentials = await storage.listTotpCredentials(account.id);
+    for (const credential of credentials) {
+      if (
+        credential.credentialId === grant.credentialId &&
+        await secretDigest(credential.secretEncrypted) ===
+          grant.credentialDigest
+      ) return true;
+    }
+    return false;
   }
   /** @param {import("@hono/hono").Context} c 当前请求。 @param {string[]} codes 刚生成的邀请码。 @param {string} error 操作错误。 @return {Promise<Response>} 管理页面。 */
   async function page(
@@ -84,10 +97,9 @@ export function createAdminRoutes(storage: Storage) {
       c.html(
         renderAdmin({
           account,
-          ownerHasPassword: Boolean(
-            account.passwordHash ||
-              await storage.getPasswordCredential(account.id),
-          ),
+          ownerHasTotp:
+            (await storage.listTotpCredentials(account.id)).length > 0,
+          totpDigits: totp?.digits,
           settings,
           csrfToken: csrf.token,
           invitations,
@@ -214,11 +226,32 @@ export function createAdminRoutes(storage: Storage) {
         429,
       );
     }
-    const password = String(form.currentPassword ?? "");
-    if (
-      password.length > 1024 ||
-      !(await verifyAccountPassword(password, account, storage))
-    ) {
+    if (!totp?.secretEncryptionKey) return page(c, [], "totp-config");
+    const code = String(form.totpCode ?? "").trim();
+    let verifiedCredential;
+    if (new RegExp(`^[0-9]{${totp.digits}}$`).test(code)) {
+      for (const credential of await storage.listTotpCredentials(account.id)) {
+        if (
+          await verifyEncryptedTotpCode(code, credential.secretEncrypted, totp)
+        ) {
+          verifiedCredential = credential;
+          break;
+        }
+      }
+    }
+    // 原子占用验证码，覆盖其全部有效时间窗，防止跨会话并发重放。
+    const accepted = verifiedCredential && (await storage.recordRateLimitHit(
+      [
+        "admin-totp-use",
+        account.id,
+        await secretDigest(
+          `${totp.secretEncryptionKey}:${account.id}:${code}`,
+        ),
+      ],
+      1,
+      (2 * totp.verificationWindow + 2) * totp.periodSeconds * 1000,
+    )).allowed;
+    if (!accepted || !verifiedCredential) {
       logSecurityAuditEvent({
         code: "admin_reauth_failed",
         level: "warn",
@@ -226,7 +259,7 @@ export function createAdminRoutes(storage: Storage) {
         userId: account.id,
         request: c.req.raw,
       });
-      return page(c, [], "password");
+      return page(c, [], "totp");
     }
     const id = await grantId(c);
     await storage.administration!.putTemporary({
@@ -234,6 +267,9 @@ export function createAdminRoutes(storage: Storage) {
       binding: id,
       userId: account.id,
       roleVersion: account.roleVersion ?? 0,
+      method: "totp",
+      credentialId: verifiedCredential.credentialId,
+      credentialDigest: await secretDigest(verifiedCredential.secretEncrypted),
       expiresAt: new Date(Date.now() + 600_000).toISOString(),
     });
     logSecurityAuditEvent({
