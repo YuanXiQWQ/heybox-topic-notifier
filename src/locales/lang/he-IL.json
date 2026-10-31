@@ -431,6 +431,7 @@
   "roleSuperadmin": "מנהל על",
   "accountRole": "תפקיד",
   "invitationCode": "קוד הזמנה",
+  "invitationEmpty": "אין עדיין קודי הזמנה",
   "invitationGenerate": "יצירת הזמנות",
   "invitationCount": "כמות",
   "invitationExpires": "תוקף עד",

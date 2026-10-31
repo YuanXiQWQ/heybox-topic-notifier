@@ -431,6 +431,7 @@
   "roleSuperadmin": "اعلیٰ منتظم",
   "accountRole": "کردار",
   "invitationCode": "دعوتی کوڈ",
+  "invitationEmpty": "ابھی کوئی دعوتی کوڈ نہیں ہے",
   "invitationGenerate": "دعوتیں بنائیں",
   "invitationCount": "تعداد",
   "invitationExpires": "میعاد ختم ہونے کی تاریخ",

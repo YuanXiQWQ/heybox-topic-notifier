@@ -431,6 +431,7 @@
   "roleSuperadmin": "Superadministrador",
   "accountRole": "Função",
   "invitationCode": "Código de convite",
+  "invitationEmpty": "Nenhum código de convite",
   "invitationGenerate": "Gerar convites",
   "invitationCount": "Quantidade",
   "invitationExpires": "Validade",

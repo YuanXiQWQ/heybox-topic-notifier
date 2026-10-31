@@ -431,6 +431,7 @@
   "roleSuperadmin": "Superadministrador",
   "accountRole": "Rol",
   "invitationCode": "Código de invitación",
+  "invitationEmpty": "Aún no hay códigos de invitación",
   "invitationGenerate": "Generar invitaciones",
   "invitationCount": "Cantidad",
   "invitationExpires": "Caducidad",
