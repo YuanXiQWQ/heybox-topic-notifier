@@ -406,6 +406,7 @@
   "updateAvailable": "มีเวอร์ชันใหม่",
   "updateDownload": "ดาวน์โหลดและอัปเดต",
   "updateLater": "ภายหลัง",
+  "updateReady": "อัปเดตพร้อมแล้ว",
   "updateRestart": "เริ่มใหม่และอัปเดต",
   "updateCurrent": "เป็นเวอร์ชันล่าสุดแล้ว",
   "updateFailed": "อัปเดตไม่สำเร็จ โปรดลองอีกครั้ง",

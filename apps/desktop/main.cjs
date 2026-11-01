@@ -446,7 +446,7 @@ function info() {
     preferences: {
       closeAction: device.value.closeAction === "quit" ? "quit" : "minimize",
       launchAtLogin: app.isPackaged && app.getLoginItemSettings().openAtLogin,
-      autoUpdate: device.value.autoUpdate === true,
+      autoUpdate: device.value.autoUpdate !== false,
     },
     notifications: {
       supported: Notification.isSupported(),
@@ -788,7 +788,7 @@ function installUpdater() {
  * @return {boolean} 当前目标是否可自动下载和安装。
  */
 function autoUpdateAllowed(version = update.version) {
-  return device.value.autoUpdate === true && !recoveryReadFailed &&
+  return device.value.autoUpdate !== false && !recoveryReadFailed &&
     (!device.value.failedUpdateVersion || Boolean(version && device.value.failedUpdateVersion !== version));
 }
 

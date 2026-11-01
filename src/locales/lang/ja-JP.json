@@ -406,6 +406,7 @@
   "updateAvailable": "新しいバージョンがあります",
   "updateDownload": "ダウンロードして更新",
   "updateLater": "後で",
+  "updateReady": "更新の準備ができました",
   "updateRestart": "再起動して更新",
   "updateCurrent": "最新バージョンです",
   "updateFailed": "更新に失敗しました。再試行してください",

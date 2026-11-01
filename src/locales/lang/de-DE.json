@@ -406,6 +406,7 @@
   "updateAvailable": "Update verfügbar",
   "updateDownload": "Herunterladen und aktualisieren",
   "updateLater": "Später",
+  "updateReady": "Update bereit",
   "updateRestart": "Neustarten und aktualisieren",
   "updateCurrent": "Die Version ist aktuell",
   "updateFailed": "Update fehlgeschlagen. Erneut versuchen",

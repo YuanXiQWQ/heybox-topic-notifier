@@ -164,6 +164,25 @@ Deno.test("native download progress renews the idle timeout beyond two minutes",
   assertEquals(bridge.timers.size, 0);
 });
 
+Deno.test("native Android completion requests installation before the download reply arrives", async () => {
+  const bridge = await harness();
+  const download = bridge.api.downloadUpdate();
+  const request = bridge.requests.at(-1)!;
+  bridge.progress("downloading");
+  bridge.progress("downloaded");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const install = bridge.requests.at(-1)!;
+  assertEquals(install.method, "installUpdate");
+  assertEquals(
+    bridge.requests.filter((item) => item.method === "installUpdate").length,
+    1,
+  );
+  bridge.respond(install.id);
+  bridge.respond(request.id);
+  await download;
+  assertEquals(bridge.timers.size, 0);
+});
+
 Deno.test("native Google login button uses the shared Android dispatcher without replacing progress listeners", async () => {
   const bridge = await harness();
   const dispatcher = bridge.context.HeyboxNative.onmessage;
