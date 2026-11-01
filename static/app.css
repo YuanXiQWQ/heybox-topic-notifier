@@ -3817,6 +3817,9 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .schedule-calendar-options{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
 .schedule-date-fields select{ min-width:0; width:100%; }
 .schedule-date-fields [hidden]{ display:none; }
+.schedule-editable-select{ display:block; min-width:0; }
+.schedule-editable-select > select{ display:none; }
+.schedule-editable-select > input{ width:100%; min-width:0; }
 .schedule-date-dialog{ max-height:90vh; overflow-y:auto; }
 /* 旧 WebView 不支持逻辑定位时使用物理边界，RTL 同步镜像开关位置。 */
 .settings-list > .polling-coverage-overlay{ left:0; right:0; }

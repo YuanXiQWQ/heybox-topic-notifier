@@ -1,12 +1,10 @@
 /** @file 日期弹窗的历法、纪年与年份选择，所有有效及不完整编辑均交给原表单即时保存。 */
 import {
   branches,
-  convertCalendar,
+  convertDateDraft,
   cycleMonthDays,
-  cycleYear,
   dateMinute,
   dateParts,
-  dateValue,
   fromGregorian,
   monthDays,
   stems,
@@ -26,7 +24,118 @@ export function calendarPicker(root, labels, changed) {
   const era = dialog.querySelector("[data-schedule-era]");
   const groups = [...dialog.querySelectorAll("[data-schedule-date]")];
   const locale = document.querySelector('[name="locale"]');
-  let row, pending;
+  const editors = new Map();
+  let row;
+
+  /**
+   * 将原有选项作为可输入建议列表，保留选项的内部值及即时编辑事件。
+   * @param {HTMLSelectElement} select 原选框。
+   */
+  function makeEditable(select) {
+    const wrapper = document.createElement("span");
+    wrapper.className = "schedule-editable-select";
+    const input = document.createElement("input"),
+      options = document.createElement("datalist");
+    options.id = "schedule-choices-" + crypto.randomUUID();
+    input.setAttribute("list", options.id);
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute(
+      "aria-label",
+      select.getAttribute("aria-label") ||
+        select.closest("label")?.querySelector("span")?.textContent || "",
+    );
+    input.dataset.scheduleInput = select.dataset.datePart ||
+      (select === calendar ? "calendar" : "era");
+    if (["month", "day"].includes(select.dataset.datePart)) {
+      input.inputMode = select.dataset.datePart === "day" ? "numeric" : "text";
+    }
+    select.before(wrapper);
+    wrapper.append(select, input, options);
+    editors.set(select, { input, options, wrapper });
+    /**
+     * 接纳选项文本或内部值，组合输入结束前不触发日期重算。
+     * @param {Event} event 输入或提交事件。
+     */
+    function accept(event) {
+      event.stopPropagation();
+      if (event.isComposing) return;
+      const text = input.value.trim();
+      const match = [...select.options].find((option) =>
+        !option.hidden && !option.disabled && !option.dataset.draft &&
+        (option.textContent === text || option.value === text)
+      );
+      if (select === calendar || select === era) {
+        input.setAttribute("aria-invalid", String(!match));
+        if (match) {
+          select.value = match.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          refresh(select, true);
+        } else if (event.type === "change") refresh(select, true);
+        return;
+      }
+      setValue(select, match ? match.value : text);
+      select.dispatchEvent(
+        new Event(event.type === "change" ? "change" : "input", {
+          bubbles: true,
+        }),
+      );
+    }
+    input.addEventListener("input", accept);
+    input.addEventListener("change", accept);
+    input.addEventListener("compositionend", accept);
+    input.addEventListener("blur", () => refresh(select, true));
+  }
+
+  /**
+   * 写入当前选框值，未匹配选项的草稿保留给字段校验。
+   * @param {HTMLSelectElement} select 选框。
+   * @param {string} value 内部值。
+   */
+  function setValue(select, value) {
+    for (const option of [...select.options]) {
+      if (option.dataset.draft) option.remove();
+    }
+    if (![...select.options].some((option) => option.value === value)) {
+      const option = new Option(value, value);
+      option.dataset.draft = "true";
+      select.add(option);
+    }
+    select.value = value;
+  }
+
+  /**
+   * 同步建议列表、显示值和校验状态，不打断正在输入的文本。
+   * @param {HTMLSelectElement} select 选框。
+   * @param {boolean} force 是否立即更新文本。
+   */
+  function refresh(select, force = false) {
+    const editor = editors.get(select);
+    if (!editor) return;
+    editor.wrapper.hidden = select.hidden;
+    editor.input.disabled = select.disabled;
+    editor.options.textContent = "";
+    for (const option of select.options) {
+      if (
+        !option.value || option.hidden || option.disabled ||
+        option.dataset.draft
+      ) continue;
+      editor.options.append(new Option(option.textContent, option.textContent));
+    }
+    editor.input.placeholder = select.options[0]?.value === ""
+      ? select.options[0].textContent
+      : "";
+    if (force || document.activeElement !== editor.input) {
+      editor.input.value = select.value
+        ? select.selectedOptions[0]?.textContent || select.value
+        : "";
+    }
+    editor.input.setAttribute(
+      "aria-invalid",
+      select.getAttribute("aria-invalid") || "false",
+    );
+  }
+
+  for (const select of dialog.querySelectorAll("select")) makeEditable(select);
 
   /**
    * 获取单个日期端点的控件。
@@ -36,6 +145,71 @@ export function calendarPicker(root, labels, changed) {
    */
   function field(group, part) {
     return group.querySelector(`[data-date-part="${part}"]`);
+  }
+
+  /** 校验起止端点的必填部分与日期顺序，将状态标在具体控件上。 */
+  function validateDates() {
+    const needsYear = groups.some((group) =>
+      field(group, row.era === "ganzhi" ? "cycle" : "year").value !== ""
+    );
+    const needsDate = needsYear ||
+      groups.some((group) =>
+        field(group, "month").value || field(group, "day").value
+      );
+    for (const group of groups) {
+      const year = field(group, row.era === "ganzhi" ? "cycle" : "year");
+      const month = field(group, "month"),
+        day = field(group, "day"),
+        time = field(group, "time");
+      const m = parseInt(month.value) * (month.value.endsWith("L") ? -1 : 1);
+      year.setAttribute(
+        "aria-invalid",
+        String(
+          needsYear &&
+            (!year.value || !Number.isInteger(yearValue(group)) ||
+              (row.era === "ganzhi"
+                ? year.selectedOptions[0]?.dataset.draft === "true"
+                : !year.validity.valid)),
+        ),
+      );
+      month.setAttribute(
+        "aria-invalid",
+        String(
+          needsDate &&
+            (!month.value ||
+              month.selectedOptions[0]?.dataset.draft === "true" ||
+              !maxDays(group, m)),
+        ),
+      );
+      day.setAttribute(
+        "aria-invalid",
+        String(
+          needsDate &&
+            (!day.value || day.selectedOptions[0]?.dataset.draft === "true" ||
+              Number(day.value) > maxDays(group, m)),
+        ),
+      );
+      time.setAttribute(
+        "aria-invalid",
+        String(!/^\d{2}:\d{2}$/.test(time.value)),
+      );
+    }
+    const a = dateParts(row.start, row.calendar, row.era),
+      b = dateParts(row.end, row.calendar, row.era);
+    if (
+      a && b && a[0] !== null && b[0] !== null && row.era !== "ganzhi" &&
+      dateMinute(b, row.calendar) < dateMinute(a, row.calendar)
+    ) {
+      const part = a[0] !== b[0]
+        ? "year"
+        : a[1] !== b[1]
+        ? "month"
+        : a[2] !== b[2]
+        ? "day"
+        : "time";
+      field(groups[1], part).setAttribute("aria-invalid", "true");
+    }
+    for (const select of editors.keys()) refresh(select);
   }
 
   /**
@@ -105,7 +279,8 @@ export function calendarPicker(root, labels, changed) {
     for (let day = 1; day <= count; day++) {
       control.add(new Option(String(day), String(day).padStart(2, "0")));
     }
-    control.value = Number(selected) <= count ? selected : "";
+    setValue(control, selected);
+    refresh(control);
   }
 
   /**
@@ -129,8 +304,9 @@ export function calendarPicker(root, labels, changed) {
         );
       }
     }
-    control.value = selected;
+    setValue(control, selected);
     updateDays(group);
+    refresh(control);
   }
 
   /** 根据当前行更新历法与日期控件。 @param {boolean} optionsOnly 是否仅更新选择项。 */
@@ -155,6 +331,8 @@ export function calendarPicker(root, labels, changed) {
       root.dataset.chinese !== "true" && row.calendar !== "chinese";
     dialog.querySelector("[data-era-label]").hidden =
       root.dataset.chinese !== "true" && !["roc", "ganzhi"].includes(row.era);
+    refresh(calendar);
+    refresh(era);
     if (optionsOnly) return;
     for (const group of groups) {
       const value = row[group.dataset.scheduleDate];
@@ -169,7 +347,15 @@ export function calendarPicker(root, labels, changed) {
       for (let i = 0; i < 60; i++) {
         cycle.add(new Option(stems[i % 10] + branches[i % 12], String(i)));
       }
-      cycle.value = year.startsWith("C") ? String(Number(year.slice(1))) : "";
+      setValue(
+        cycle,
+        year.startsWith("C")
+          ? Number.isFinite(Number(year.slice(1)))
+            ? String(Number(year.slice(1)))
+            : year.slice(1)
+          : "",
+      );
+      refresh(cycle, true);
       number.min = row.era === "roc" ? "-1812" : "100";
       number.max = row.era === "roc"
         ? (locale?.value || document.documentElement.lang) === "zh-CN"
@@ -185,39 +371,28 @@ export function calendarPicker(root, labels, changed) {
       updateMonths(group, parts.length >= 2 ? parts[parts.length - 2] : "");
       updateDays(group, parts.length >= 2 ? parts[parts.length - 1] : "");
       field(group, "time").value = time || "";
-      field(group, "reference").value = row[
-        group.dataset.scheduleDate === "start"
-          ? "referenceStart"
-          : "referenceEnd"
-      ] || "";
-      group.querySelector("[data-reference-label]").hidden = true;
     }
+    validateDates();
   }
 
   /**
-   * 把干支年还原为用户明确指定的实际年，不猜测所属轮次。
+   * 取得当前日期的绝对年份表示，循环日期自动就近补足参照。
    * @param {string} side 起止端点。
-   * @return {string|null} 含绝对年份的日期，缺少参照时为 null。
+   * @return {string} 可供纪年选择判断的日期。
    */
   function absoluteValue(side) {
-    const value = row[side], p = dateParts(value, row.calendar, row.era);
-    if (!value) return value;
-    if (!p) return null;
-    if (row.era !== "ganzhi" || p[0] === null) return value;
-    const reference = Number(
+    return convertDateDraft(
+      row[side],
+      row.calendar,
+      row.calendar,
+      row.era,
+      "ce",
       row[side === "start" ? "referenceStart" : "referenceEnd"],
-    );
-    if (
-      !Number.isInteger(reference) || reference < 100 || reference > 9999 ||
-      cycleYear(reference) !== p[0]
-    ) return null;
-    p[0] = reference;
-    const absolute = dateValue(p);
-    return dateParts(absolute, row.calendar) ? absolute : null;
+    ).value;
   }
 
   /**
-   * 原子换算两端的历法或纪年，任何歧义都先要求明确实际年份。
+   * 换算两端的历法或纪年，空白部分保持空白，循环年份使用就近参照。
    * @param {string} kind calendar 或 era。
    * @param {string} target 目标值。
    * @return {boolean} 是否完成换算。
@@ -226,36 +401,17 @@ export function calendarPicker(root, labels, changed) {
     const next = { ...row };
     const nextEra = kind === "era" ? target : row.era;
     for (const side of ["start", "end"]) {
-      let value = row[side];
-      const sameAbsoluteEra = kind === "era" && row.era !== "ganzhi" &&
-        target !== "ganzhi";
-      if (!sameAbsoluteEra) {
-        value = absoluteValue(side);
-        if (value !== null && kind === "calendar") {
-          value = convertCalendar(value, row.calendar, target, "ce");
-        }
-        if (value === null) {
-          pending = { kind, target };
-          calendar.value = row.calendar;
-          era.value = row.era;
-          const group = groups.find((g) => g.dataset.scheduleDate === side);
-          if (row.era === "ganzhi") {
-            group.querySelector("[data-reference-label]").hidden = false;
-          }
-          field(group, row.era === "ganzhi" ? "reference" : "year").focus();
-          globalThis.showToast(root, labels.scheduleChooseYear);
-          return false;
-        }
-        const p = dateParts(value, kind === "calendar" ? target : row.calendar);
-        if (nextEra === "ganzhi" && p && p[0] !== null) {
-          next[side === "start" ? "referenceStart" : "referenceEnd"] = String(
-            p[0],
-          );
-          p[0] = cycleYear(p[0]);
-          value = dateValue(p, "ganzhi");
-        }
-      }
-      next[side] = value;
+      const key = side === "start" ? "referenceStart" : "referenceEnd";
+      const converted = convertDateDraft(
+        row[side],
+        row.calendar,
+        kind === "calendar" ? target : row.calendar,
+        row.era,
+        nextEra,
+        row[key],
+      );
+      next[side] = converted.value;
+      next[key] = converted.reference;
     }
     if (
       nextEra === "roc" &&
@@ -264,19 +420,17 @@ export function calendarPicker(root, labels, changed) {
           locale?.value || document.documentElement.lang,
         ).rows[0].era !== "roc"
     ) {
-      pending = undefined;
       fill();
       return false;
     }
     Object.assign(row, next, { [kind]: target });
-    pending = undefined;
     fill();
     changed();
     return true;
   }
 
   /**
-   * 记录日期草稿，参照年份只用于消歧义，不限制干支规则的循环执行。
+   * 记录日期草稿，用户修改干支年份后重新采用就近换算参照。
    * @param {Event} event 字段编辑事件。
    */
   function edit(event) {
@@ -284,16 +438,6 @@ export function calendarPicker(root, labels, changed) {
     if (!group || !row) return;
     const side = group.dataset.scheduleDate,
       part = event.target.dataset.datePart;
-    if (part === "reference") {
-      row[side === "start" ? "referenceStart" : "referenceEnd"] =
-        event.target.value;
-      fill(true);
-      changed();
-      if (pending && event.type === "change") {
-        switchTo(pending.kind, pending.target);
-      }
-      return;
-    }
     if (
       part === "year" && row.era === "roc" &&
       (locale?.value || document.documentElement.lang) === "zh-CN" &&
@@ -308,7 +452,9 @@ export function calendarPicker(root, labels, changed) {
     const prefix = year === null
       ? ""
       : row.era === "ganzhi"
-      ? "C" + String(year).padStart(2, "0")
+      ? "C" + (Number.isFinite(year)
+        ? String(year).padStart(2, "0")
+        : field(group, "cycle").value)
       : String(year).padStart(4, "0");
     const date = prefix
       ? prefix + "-" + month + "-" + day
@@ -320,6 +466,7 @@ export function calendarPicker(root, labels, changed) {
       row[side === "start" ? "referenceStart" : "referenceEnd"] = "";
     }
     fill(true);
+    validateDates();
     changed();
   }
   dialog.addEventListener("input", edit);
@@ -330,7 +477,7 @@ export function calendarPicker(root, labels, changed) {
   );
   era.addEventListener("change", () => switchTo("era", era.value));
   /**
-   * 打开时段并丢弃未完成的换算意图，草稿内容仍然保留。
+   * 打开时段并恢复草稿与各字段校验状态。
    * @param {object} value 时段行。
    */
   return function open(value) {
@@ -344,7 +491,6 @@ export function calendarPicker(root, labels, changed) {
     row = value;
     if (!row.calendar) row.calendar = "gregory";
     if (!row.era) row.era = "ce";
-    pending = undefined;
     fill();
     dialog.showModal();
   };

@@ -135,9 +135,7 @@ export function renderPollingSchedule(settings: AppSettings): string {
         e(m.scheduleDay)
       }"><option value="">${
         e(m.scheduleDay)
-      }</option></select></div><label data-reference-label hidden><span>${
-        e(m.scheduleAbsoluteYear)
-      }</span><input type="number" min="100" max="9999" step="1" data-date-part="reference"></label><input type="time" data-date-part="time" step="60" aria-label="${
+      }</option></select></div><input type="time" data-date-part="time" step="60" aria-label="${
         e(side === "start" ? m.scheduleStart : m.scheduleEnd)
       }"></fieldset>`
     ).join("")

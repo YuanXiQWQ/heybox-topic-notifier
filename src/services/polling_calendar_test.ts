@@ -2,10 +2,12 @@
 import { assertEquals, assertNotEquals } from "@std/assert";
 import {
   convertCalendar,
+  convertDateDraft,
   cycleMonthDays,
   dateParts,
   fromGregorian,
   monthDays,
+  nearestDateParts,
   toGregorian,
 } from "../../static/polling-calendar.js";
 import {
@@ -62,7 +64,7 @@ function covered(...rows: ReturnType<typeof row>[]) {
   return fullyCovered(normalizeSchedule({ rows }));
 }
 
-Deno.test("calendar conversion preserves civil dates and requires explicit years", () => {
+Deno.test("calendar conversion preserves civil dates and resolves nearby cycles", () => {
   // 香港天文台 2023 年公历与农历对照：3 月 22 日为闰二月初一。
   assertEquals(
     convertCalendar("2023-03-22T08:09", "gregory", "chinese"),
@@ -72,10 +74,45 @@ Deno.test("calendar conversion preserves civil dates and requires explicit years
     convertCalendar("2023-02L-01T08:09", "chinese", "gregory"),
     "2023-03-22T08:09",
   );
-  assertEquals(convertCalendar("02-29T08:09", "gregory", "chinese"), null);
+  const now = new Date(2026, 10, 1, 12);
   assertEquals(
-    convertCalendar("C00-01-01T08:09", "chinese", "gregory", "ganzhi"),
+    nearestDateParts([null, 2, 29, 8, 9], "gregory", "ce", null, now)?.[0],
+    2028,
+  );
+  assertNotEquals(
+    convertCalendar("02-29T08:09", "gregory", "chinese", "ce", now),
     null,
+  );
+  assertEquals(
+    nearestDateParts([0, 1, 1, 8, 9], "gregory", "ganzhi", null, now)?.[0],
+    2044,
+  );
+  assertEquals(
+    convertDateDraft("C15--18T", "gregory", "gregory", "ganzhi", "ce", "", now)
+      .value,
+    "1999--18T",
+  );
+  assertEquals(
+    convertDateDraft("1949--T", "gregory", "gregory", "roc", "ganzhi", "", now)
+      .value,
+    "C25--T",
+  );
+  assertEquals(
+    convertDateDraft(
+      "C00-01-01T08:09",
+      "gregory",
+      "gregory",
+      "ganzhi",
+      "ce",
+      "1984",
+      now,
+    ).value,
+    "1984-01-01T08:09",
+  );
+  assertEquals(
+    convertDateDraft("02-29T08:09", "gregory", "chinese", "ce", "ce", "", now)
+      .value.includes("2028"),
+    false,
   );
   assertEquals(convertCalendar("08:09", "gregory", "chinese"), "08:09");
   assertEquals(convertCalendar("", "gregory", "chinese"), "");
