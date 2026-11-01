@@ -454,5 +454,19 @@
   "invitationUsedAt": "Verwendet am",
   "adminInputInvalid": "Eingaben prüfen",
   "adminRateLimited": "Zu viele Anfragen. Bitte später erneut versuchen.",
-  "adminEmailVerified": "E-Mail bestätigt"
+  "adminEmailVerified": "E-Mail bestätigt",
+  "scheduleTitle": "Erweiterte Intervalleinstellungen",
+  "scheduleEnabled": "Zeitgesteuerte Abfragen",
+  "scheduleCovered": "Alle Zeiten sind durch Zeitbereiche abgedeckt",
+  "scheduleRange": "Benutzerdefinierter Zeitraum",
+  "scheduleStart": "Beginn",
+  "scheduleEnd": "Ende",
+  "scheduleClear": "Leeren",
+  "scheduleClearConfirm": "Alle Zeitbereiche leeren?",
+  "scheduleIncomplete": "Bitte alle Zeitbereiche vollständig ausfüllen",
+  "scheduleAdd": "Zeitbereich hinzufügen",
+  "scheduleRemove": "Zeitbereich entfernen",
+  "scheduleYear": "Jahr",
+  "scheduleMonth": "Monat",
+  "scheduleDay": "Tag"
 }

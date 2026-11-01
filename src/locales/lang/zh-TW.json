@@ -454,5 +454,19 @@
   "invitationUsedAt": "使用時間",
   "adminInputInvalid": "請檢查輸入內容",
   "adminRateLimited": "操作過於頻繁，請稍後再試",
-  "adminEmailVerified": "電子郵件已驗證"
+  "adminEmailVerified": "電子郵件已驗證",
+  "scheduleTitle": "進階間隔設定",
+  "scheduleEnabled": "分時段輪詢",
+  "scheduleCovered": "分時段輪詢已完全覆蓋",
+  "scheduleRange": "自訂區間",
+  "scheduleStart": "開始時間",
+  "scheduleEnd": "結束時間",
+  "scheduleClear": "清空",
+  "scheduleClearConfirm": "清空所有時段設定？",
+  "scheduleIncomplete": "請先完整填寫所有時段",
+  "scheduleAdd": "新增時段",
+  "scheduleRemove": "刪除時段",
+  "scheduleYear": "年",
+  "scheduleMonth": "月",
+  "scheduleDay": "日"
 }

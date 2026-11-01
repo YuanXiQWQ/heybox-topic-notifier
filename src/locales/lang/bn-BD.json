@@ -454,5 +454,19 @@
   "invitationUsedAt": "ব্যবহারের সময়",
   "adminInputInvalid": "দেওয়া তথ্য যাচাই করুন",
   "adminRateLimited": "অনেক বেশি অনুরোধ। পরে আবার চেষ্টা করুন।",
-  "adminEmailVerified": "ইমেইল যাচাইকৃত"
+  "adminEmailVerified": "ইমেইল যাচাইকৃত",
+  "scheduleTitle": "উন্নত বিরতি সেটিংস",
+  "scheduleEnabled": "সময়সীমা অনুযায়ী পোলিং",
+  "scheduleCovered": "পোলিং সময়সীমাগুলো সব সময় জুড়ে রয়েছে",
+  "scheduleRange": "কাস্টম সময়সীমা",
+  "scheduleStart": "শুরুর সময়",
+  "scheduleEnd": "শেষের সময়",
+  "scheduleClear": "মুছুন",
+  "scheduleClearConfirm": "সব সময়সীমা মুছে ফেলবেন?",
+  "scheduleIncomplete": "আগে সব সময়সীমা পূরণ করুন",
+  "scheduleAdd": "সময়সীমা যোগ করুন",
+  "scheduleRemove": "সময়সীমা সরান",
+  "scheduleYear": "বছর",
+  "scheduleMonth": "মাস",
+  "scheduleDay": "দিন"
 }

@@ -504,7 +504,10 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     const api = browser.lobotomyCorpEasterEgg!;
     const observedCanonicalIds: string[] = [];
     api.onAbnormalitySubmitted((id) => observedCanonicalIds.push(id));
-    const form = { action: "https://warmnest.test/settings", method: "post" };
+    const form = { action: "https://warmnest.test/settings", method: "post",
+      /** @return {Element[]} 账户表单没有被时段覆盖的轮询控件。 */
+      querySelectorAll: () => [],
+    };
 
     Object.defineProperty(browser, "fetch", {
       configurable: true,

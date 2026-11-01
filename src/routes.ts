@@ -102,6 +102,8 @@ import {
   parseMatchTableQuery,
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
+import { canEnableSchedule, normalizeSchedule, resolvePolling } from "../static/polling-schedule-core.js";
+import type { PollingSettings } from "./models.ts";
 import { renderAbout } from "./views/about.ts";
 import { sendNotificationTest } from "./services/notification_test.ts";
 import { enqueueNativeNotifications } from "./services/native_notifications.ts";
@@ -184,11 +186,11 @@ export function createRoutes(
 ): Hono {
   const app = new Hono();
   app.route("/api/native/push", createNativePushRoutes(context.storage));
-  /**
-   * 提供共享原生桥接和应用更新界面脚本。
-   * @return {Promise<Response>} 同源脚本。
-   */
+  /** 提供前后端共用的时段计算和编辑器脚本。 @param {Context} c 固定脚本路径请求。 @return {Promise<Response>} 同源脚本。 */
+  app.get("/static/:scheduleScript{polling-schedule(?:-core)?\\.js}", async (c) => new Response(await Deno.readTextFile(new URL("../static/" + c.req.param("scheduleScript"), import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  /** 提供设置子页的返回位置保存脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/settings-navigation.js", async () => new Response(await Deno.readTextFile(new URL("../static/settings-navigation.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  /** 提供共享原生桥接和应用更新界面脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
@@ -394,6 +396,7 @@ export function createRoutes(
     // 版本先于数据读取，期间发生的更新会在下次检查中产生不同版本。
     const { pendingMatches, settings, state } = await storage
       .getDashboardSnapshot();
+    const effectivePolling = resolvePolling(settings.polling).polling as PollingSettings;
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       query,
@@ -420,8 +423,8 @@ export function createRoutes(
         polling: {
           enabled: settings.polling.enabled,
           intervalStartedAt: settings.polling.intervalStartedAt ?? null,
-          intervalUnit: settings.polling.intervalUnit,
-          intervalValue: settings.polling.intervalValue,
+          intervalUnit: effectivePolling.intervalUnit,
+          intervalValue: effectivePolling.intervalValue,
         },
         totalMatches: state.totalMatches,
         serverTime: Date.now(),
@@ -3657,7 +3660,7 @@ async function formDataOrEmpty(request: Request): Promise<FormData> {
 }
 
 /**
- * 从表单数据生成应用设置，保留未重新提交的密钥并规范化匹配限制。
+ * 从表单生成设置，保留密钥与时段草稿，仅允许完整时段由关闭切换为开启。
  *
  * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
  * @param {AppSettings} currentSettings 当前应用设置。
@@ -3682,6 +3685,10 @@ export function settingsFromForm(
     activeKeywordTarget,
     keywordRules,
   );
+  const schedule = form.pollSchedule !== undefined
+    ? normalizeSchedule(parseScheduleForm(String(form.pollSchedule)))
+    : currentSettings.polling.schedule;
+  if (schedule?.enabled && !currentSettings.polling.schedule?.enabled && !canEnableSchedule(schedule)) schedule.enabled = false;
   const pollingEnabled = form.pollEnabled === "on";
   const pollIntervalUnit = normalizePollIntervalUnit(
     form.pollIntervalUnit,
@@ -3760,6 +3767,7 @@ export function settingsFromForm(
       true,
     ),
     polling: {
+      ...(schedule ? {schedule} : {}),
       enabled: pollingEnabled,
       intervalStartedAt,
       intervalUnit: pollIntervalUnit,
@@ -4079,4 +4087,13 @@ async function dashboardResponseVersion(
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
+}
+
+/**
+ * 解析独立的时段草稿字段，拒绝损坏 JSON 而不影响其它设置。
+ * @param {string} value 表单中的时段 JSON。
+ * @return {unknown} 配置对象或空配置。
+ */
+function parseScheduleForm(value: string): unknown {
+  try { return JSON.parse(value); } catch { return {}; }
 }

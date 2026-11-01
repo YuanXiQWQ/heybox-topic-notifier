@@ -454,5 +454,19 @@
   "invitationUsedAt": "วันที่ใช้",
   "adminInputInvalid": "ตรวจสอบข้อมูลที่ป้อน",
   "adminRateLimited": "คำขอมากเกินไป โปรดลองอีกครั้งภายหลัง",
-  "adminEmailVerified": "ยืนยันอีเมลแล้ว"
+  "adminEmailVerified": "ยืนยันอีเมลแล้ว",
+  "scheduleTitle": "การตั้งค่าช่วงเวลาขั้นสูง",
+  "scheduleEnabled": "ตรวจสอบตามช่วงเวลา",
+  "scheduleCovered": "ช่วงเวลาตรวจสอบครอบคลุมเวลาทั้งหมดแล้ว",
+  "scheduleRange": "ช่วงเวลาที่กำหนดเอง",
+  "scheduleStart": "เวลาเริ่มต้น",
+  "scheduleEnd": "เวลาสิ้นสุด",
+  "scheduleClear": "ล้าง",
+  "scheduleClearConfirm": "ล้างช่วงเวลาทั้งหมดหรือไม่?",
+  "scheduleIncomplete": "กรอกข้อมูลทุกช่วงเวลาให้ครบก่อน",
+  "scheduleAdd": "เพิ่มช่วงเวลา",
+  "scheduleRemove": "ลบช่วงเวลา",
+  "scheduleYear": "ปี",
+  "scheduleMonth": "เดือน",
+  "scheduleDay": "วัน"
 }

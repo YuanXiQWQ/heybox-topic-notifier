@@ -78,6 +78,20 @@ export function isRtlLocale(locale: Locale): boolean {
  * 应用所有可翻译文案字段的结构。
  */
 export type Messages = {
+  scheduleYear: string;
+  scheduleMonth: string;
+  scheduleDay: string;
+  scheduleTitle: string;
+  scheduleEnabled: string;
+  scheduleCovered: string;
+  scheduleRange: string;
+  scheduleStart: string;
+  scheduleEnd: string;
+  scheduleClear: string;
+  scheduleClearConfirm: string;
+  scheduleIncomplete: string;
+  scheduleAdd: string;
+  scheduleRemove: string;
   adminRateLimited: string;
   adminEmailVerified: string;
   adminPanel: string;

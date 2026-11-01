@@ -454,5 +454,19 @@
   "invitationUsedAt": "زمان استفاده",
   "adminInputInvalid": "اطلاعات واردشده را بررسی کنید",
   "adminRateLimited": "درخواست‌ها بیش از حد است. بعداً دوباره تلاش کنید.",
-  "adminEmailVerified": "ایمیل تأیید شده"
+  "adminEmailVerified": "ایمیل تأیید شده",
+  "scheduleTitle": "تنظیمات پیشرفته فاصله",
+  "scheduleEnabled": "بررسی بر اساس بازه زمانی",
+  "scheduleCovered": "بازه‌های بررسی تمام زمان‌ها را پوشش می‌دهند",
+  "scheduleRange": "بازه دلخواه",
+  "scheduleStart": "زمان شروع",
+  "scheduleEnd": "زمان پایان",
+  "scheduleClear": "پاک کردن",
+  "scheduleClearConfirm": "همه بازه‌های زمانی پاک شوند؟",
+  "scheduleIncomplete": "ابتدا همه بازه‌ها را کامل کنید",
+  "scheduleAdd": "افزودن بازه",
+  "scheduleRemove": "حذف بازه",
+  "scheduleYear": "سال",
+  "scheduleMonth": "ماه",
+  "scheduleDay": "روز"
 }

@@ -454,5 +454,19 @@
   "invitationUsedAt": "تاريخ الاستخدام",
   "adminInputInvalid": "تحقق من البيانات المدخلة",
   "adminRateLimited": "طلبات كثيرة جدًا. حاول لاحقًا.",
-  "adminEmailVerified": "البريد الإلكتروني مؤكد"
+  "adminEmailVerified": "البريد الإلكتروني مؤكد",
+  "scheduleTitle": "إعدادات الفاصل المتقدمة",
+  "scheduleEnabled": "استطلاع حسب الفترات",
+  "scheduleCovered": "تغطي فترات الاستطلاع جميع الأوقات",
+  "scheduleRange": "نطاق مخصص",
+  "scheduleStart": "وقت البدء",
+  "scheduleEnd": "وقت الانتهاء",
+  "scheduleClear": "مسح",
+  "scheduleClearConfirm": "هل تريد مسح جميع الفترات؟",
+  "scheduleIncomplete": "أكمل جميع الفترات أولاً",
+  "scheduleAdd": "إضافة فترة",
+  "scheduleRemove": "حذف الفترة",
+  "scheduleYear": "السنة",
+  "scheduleMonth": "الشهر",
+  "scheduleDay": "اليوم"
 }

@@ -454,5 +454,19 @@
   "invitationUsedAt": "Дата использования",
   "adminInputInvalid": "Проверьте введённые данные",
   "adminRateLimited": "Слишком много запросов. Попробуйте позже.",
-  "adminEmailVerified": "Почта подтверждена"
+  "adminEmailVerified": "Почта подтверждена",
+  "scheduleTitle": "Расширенные настройки интервалов",
+  "scheduleEnabled": "Опрос по расписанию",
+  "scheduleCovered": "Расписание охватывает всё время",
+  "scheduleRange": "Свой диапазон",
+  "scheduleStart": "Начало",
+  "scheduleEnd": "Конец",
+  "scheduleClear": "Очистить",
+  "scheduleClearConfirm": "Очистить все временные диапазоны?",
+  "scheduleIncomplete": "Заполните все временные диапазоны",
+  "scheduleAdd": "Добавить диапазон",
+  "scheduleRemove": "Удалить диапазон",
+  "scheduleYear": "Год",
+  "scheduleMonth": "Месяц",
+  "scheduleDay": "День"
 }

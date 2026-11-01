@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供基于 Deno KV 的应用数据存储实现。
  */
+import { normalizeSchedule } from "../../static/polling-schedule-core.js";
 import { createKvAdministration } from "./administration_kv.ts";
 import { createKvMatchingStore } from "./matching_kv.ts";
 import { createKvWebPushStore } from "./web_push_kv.ts";
@@ -2067,9 +2068,9 @@ export function normalizeSettings(
 /**
  * 规范化轮询设置。
  *
- * @param value 待读取的轮询设置。
- * @param fallback 兜底轮询设置。
- * @return 规范化后的轮询设置。
+ * @param {Partial<PollingSettings>|undefined} value 待读取的轮询设置及分时段草稿。
+ * @param {PollingSettings} fallback 兜底轮询设置。
+ * @return {PollingSettings} 规范化后的轮询设置。
  */
 function normalizePollingSettings(
   value: Partial<PollingSettings> | undefined,
@@ -2099,6 +2100,7 @@ function normalizePollingSettings(
       intervalUnit,
       fallback.intervalValue,
     ),
+    ...(value?.schedule ? { schedule: normalizeSchedule(value.schedule) } : {}),
     postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
     sort: normalizePollSort(value?.sort, fallback.sort),
   };

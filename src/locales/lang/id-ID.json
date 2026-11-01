@@ -454,5 +454,19 @@
   "invitationUsedAt": "Digunakan pada",
   "adminInputInvalid": "Periksa data yang dimasukkan",
   "adminRateLimited": "Terlalu banyak permintaan. Coba lagi nanti.",
-  "adminEmailVerified": "Email terverifikasi"
+  "adminEmailVerified": "Email terverifikasi",
+  "scheduleTitle": "Pengaturan interval lanjutan",
+  "scheduleEnabled": "Polling berdasarkan rentang waktu",
+  "scheduleCovered": "Rentang polling mencakup seluruh waktu",
+  "scheduleRange": "Rentang khusus",
+  "scheduleStart": "Waktu mulai",
+  "scheduleEnd": "Waktu selesai",
+  "scheduleClear": "Kosongkan",
+  "scheduleClearConfirm": "Kosongkan semua rentang waktu?",
+  "scheduleIncomplete": "Lengkapi semua rentang waktu terlebih dahulu",
+  "scheduleAdd": "Tambah rentang waktu",
+  "scheduleRemove": "Hapus rentang waktu",
+  "scheduleYear": "Tahun",
+  "scheduleMonth": "Bulan",
+  "scheduleDay": "Hari"
 }

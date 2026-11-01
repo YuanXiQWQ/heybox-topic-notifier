@@ -454,5 +454,19 @@
   "invitationUsedAt": "使用日時",
   "adminInputInvalid": "入力内容を確認してください",
   "adminRateLimited": "操作が多すぎます。しばらくしてから再試行してください",
-  "adminEmailVerified": "メール確認済み"
+  "adminEmailVerified": "メール確認済み",
+  "scheduleTitle": "詳細な間隔設定",
+  "scheduleEnabled": "時間帯別ポーリング",
+  "scheduleCovered": "時間帯別ポーリングが全時間帯をカバーしています",
+  "scheduleRange": "カスタム期間",
+  "scheduleStart": "開始日時",
+  "scheduleEnd": "終了日時",
+  "scheduleClear": "クリア",
+  "scheduleClearConfirm": "すべての時間帯設定をクリアしますか？",
+  "scheduleIncomplete": "すべての時間帯を入力してください",
+  "scheduleAdd": "時間帯を追加",
+  "scheduleRemove": "時間帯を削除",
+  "scheduleYear": "年",
+  "scheduleMonth": "月",
+  "scheduleDay": "日"
 }

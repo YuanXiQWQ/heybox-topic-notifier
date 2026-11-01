@@ -1,6 +1,7 @@
 /**
  * @file 本文件负责注册和调度话题轮询定时任务。
  */
+import { resolvePolling } from "../static/polling-schedule-core.js";
 import type { AppContext } from "./services/app_context.ts";
 import type { PollingSettings } from "./models.ts";
 import type { PollScheduleEntry, Storage } from "./storage/types.ts";
@@ -50,6 +51,8 @@ export function createPollScheduler(
    * 各用户最近一次调度开始时间。
    */
   const lastPollStartedAtByUserId = new Map<string, number>();
+  /** 已开始的轮询所属时段，避免跨边界完成的旧轮询吞掉新时段。 */
+  const lastPollKeyByUserId = new Map<string, string>();
   let scheduling = false;
 
   return {
@@ -89,7 +92,7 @@ export function createPollScheduler(
   };
 
   /**
-   * 对指定用户执行一次调度检查。
+   * 按当前时段检查指定用户，新时段首次进入时立即调度，未覆盖时间使用默认参数。
    *
    * @param {string} userId 用户 ID。
    * @param {PollScheduleEntry | undefined} snapshot 同一次调度已读取的账号快照。
@@ -109,24 +112,32 @@ export function createPollScheduler(
       const settings = snapshot?.settings ?? await storage.getSettings();
       if (!settings.polling.enabled) {
         lastPollStartedAtByUserId.delete(userId);
+        lastPollKeyByUserId.delete(userId);
         return false;
       }
 
       const lastPollAt = snapshot
         ? snapshot.lastPollAt
         : await storage.getLastPollAt();
+      const now = new Date();
+      const effective = resolvePolling(settings.polling, now);
+      const previous = Math.max(lastPollStartedAtByUserId.get(userId) ?? 0, Date.parse(lastPollAt ?? "") || 0);
+      const previousKey = lastPollKeyByUserId.get(userId) ?? (previous > 0 ? resolvePolling(settings.polling, new Date(previous)).key : undefined);
+      const entered = previousKey !== undefined && effective.key !== previousKey;
       if (
-        !shouldPollFromLastStart(
+        !entered && !shouldPollFromLastStart(
           lastPollStartedAtByUserId.get(userId),
           lastPollAt,
-          settings.polling,
+          effective.polling as PollingSettings,
+          now,
         )
       ) {
         return false;
       }
 
-      lastPollStartedAtByUserId.set(userId, Date.now());
-      await context.poller.runOnce(storage, settings);
+      lastPollStartedAtByUserId.set(userId, now.getTime());
+      lastPollKeyByUserId.set(userId, effective.key);
+      await context.poller.runOnce(storage, effective.polling === settings.polling ? settings : {...settings, polling: effective.polling as PollingSettings});
       return true;
     } catch (error) {
       console.error(`Scheduled poll failed for user ${userId}`, error);

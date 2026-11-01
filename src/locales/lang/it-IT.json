@@ -454,5 +454,19 @@
   "invitationUsedAt": "Data di utilizzo",
   "adminInputInvalid": "Controlla i dati inseriti",
   "adminRateLimited": "Troppe richieste. Riprova più tardi.",
-  "adminEmailVerified": "Email verificata"
+  "adminEmailVerified": "Email verificata",
+  "scheduleTitle": "Impostazioni avanzate degli intervalli",
+  "scheduleEnabled": "Polling per fasce orarie",
+  "scheduleCovered": "Le fasce coprono tutti gli orari",
+  "scheduleRange": "Intervallo personalizzato",
+  "scheduleStart": "Inizio",
+  "scheduleEnd": "Fine",
+  "scheduleClear": "Svuota",
+  "scheduleClearConfirm": "Svuotare tutte le fasce orarie?",
+  "scheduleIncomplete": "Completa tutte le fasce orarie",
+  "scheduleAdd": "Aggiungi fascia",
+  "scheduleRemove": "Rimuovi fascia",
+  "scheduleYear": "Anno",
+  "scheduleMonth": "Mese",
+  "scheduleDay": "Giorno"
 }

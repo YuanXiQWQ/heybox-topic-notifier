@@ -454,5 +454,19 @@
   "invitationUsedAt": "사용 일시",
   "adminInputInvalid": "입력 내용을 확인하세요",
   "adminRateLimited": "요청이 너무 많습니다. 나중에 다시 시도하세요",
-  "adminEmailVerified": "이메일 인증됨"
+  "adminEmailVerified": "이메일 인증됨",
+  "scheduleTitle": "고급 간격 설정",
+  "scheduleEnabled": "시간대별 폴링",
+  "scheduleCovered": "시간대별 폴링이 모든 시간을 포함합니다",
+  "scheduleRange": "사용자 지정 구간",
+  "scheduleStart": "시작 시간",
+  "scheduleEnd": "종료 시간",
+  "scheduleClear": "비우기",
+  "scheduleClearConfirm": "모든 시간대 설정을 비울까요?",
+  "scheduleIncomplete": "모든 시간대 설정을 완료하세요",
+  "scheduleAdd": "시간대 추가",
+  "scheduleRemove": "시간대 삭제",
+  "scheduleYear": "년",
+  "scheduleMonth": "월",
+  "scheduleDay": "일"
 }

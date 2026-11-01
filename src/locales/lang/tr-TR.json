@@ -454,5 +454,19 @@
   "invitationUsedAt": "Kullanılma tarihi",
   "adminInputInvalid": "Girilen bilgileri kontrol edin",
   "adminRateLimited": "Çok fazla istek. Daha sonra tekrar deneyin.",
-  "adminEmailVerified": "E-posta doğrulandı"
+  "adminEmailVerified": "E-posta doğrulandı",
+  "scheduleTitle": "Gelişmiş aralık ayarları",
+  "scheduleEnabled": "Zaman aralığına göre sorgulama",
+  "scheduleCovered": "Sorgulama aralıkları tüm zamanları kapsıyor",
+  "scheduleRange": "Özel aralık",
+  "scheduleStart": "Başlangıç zamanı",
+  "scheduleEnd": "Bitiş zamanı",
+  "scheduleClear": "Temizle",
+  "scheduleClearConfirm": "Tüm zaman aralıkları temizlensin mi?",
+  "scheduleIncomplete": "Önce tüm zaman aralıklarını doldurun",
+  "scheduleAdd": "Zaman aralığı ekle",
+  "scheduleRemove": "Zaman aralığını kaldır",
+  "scheduleYear": "Yıl",
+  "scheduleMonth": "Ay",
+  "scheduleDay": "Gün"
 }

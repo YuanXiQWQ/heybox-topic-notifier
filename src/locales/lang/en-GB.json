@@ -454,5 +454,19 @@
   "invitationUsedAt": "Used at",
   "adminInputInvalid": "Check the entered values",
   "adminRateLimited": "Too many requests. Try again later.",
-  "adminEmailVerified": "Email verified"
+  "adminEmailVerified": "Email verified",
+  "scheduleTitle": "Advanced interval settings",
+  "scheduleEnabled": "Scheduled polling",
+  "scheduleCovered": "Scheduled polling fully covers all times",
+  "scheduleRange": "Custom range",
+  "scheduleStart": "Start time",
+  "scheduleEnd": "End time",
+  "scheduleClear": "Clear",
+  "scheduleClearConfirm": "Clear all time ranges?",
+  "scheduleIncomplete": "Complete all time ranges first",
+  "scheduleAdd": "Add time range",
+  "scheduleRemove": "Remove time range",
+  "scheduleYear": "Year",
+  "scheduleMonth": "Month",
+  "scheduleDay": "Day"
 }

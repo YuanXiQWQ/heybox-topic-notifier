@@ -454,5 +454,19 @@
   "invitationUsedAt": "Fecha de uso",
   "adminInputInvalid": "Revisa los datos introducidos",
   "adminRateLimited": "Demasiadas solicitudes. Inténtalo más tarde.",
-  "adminEmailVerified": "Correo verificado"
+  "adminEmailVerified": "Correo verificado",
+  "scheduleTitle": "Ajustes avanzados de intervalos",
+  "scheduleEnabled": "Consulta por franjas horarias",
+  "scheduleCovered": "Las franjas cubren todo el tiempo",
+  "scheduleRange": "Intervalo personalizado",
+  "scheduleStart": "Inicio",
+  "scheduleEnd": "Fin",
+  "scheduleClear": "Vaciar",
+  "scheduleClearConfirm": "¿Vaciar todas las franjas horarias?",
+  "scheduleIncomplete": "Completa todas las franjas horarias",
+  "scheduleAdd": "Añadir franja",
+  "scheduleRemove": "Eliminar franja",
+  "scheduleYear": "Año",
+  "scheduleMonth": "Mes",
+  "scheduleDay": "Día"
 }

@@ -1,6 +1,7 @@
 /**
  * @file 本文件负责渲染设置页面及其通知、轮询、话题和关键词配置区域。
  */
+import { renderPollingSchedule } from "./polling_schedule.ts";
 import { getMessages } from "../locales/index.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type { MatchingRuntime } from "../storage/matching_types.ts";
@@ -243,6 +244,7 @@ export function renderSettings(options: {
         </dl>
       </section>
       ${renderPollingSection(options.settings)}
+      ${renderPollingSchedule(options.settings)}
       ${renderNotificationSection(options.settings)}
     </form>
     ${
@@ -294,6 +296,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
+    <script type="module" src="/static/polling-schedule.js"></script>
     <script src="/static/settings.js?v=20261026-settings-header-key" defer></script>
   `;
 
@@ -3673,6 +3676,10 @@ function renderPollingSection(settings: AppSettings): string {
                 >
               </label>
             </dd>
+          </div>
+          <div class="settings-navigation-row schedule-navigation-row" data-polling-field="schedule">
+            <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/settings?panel=polling" data-settings-subpage><span class="settings-label-with-icon">${materialSymbolIcon("timer", "settings-label-icon")}<span>${escapeHtml(messages.scheduleEnabled)}</span></span></a></dt>
+            <dd><label class="switch-control"><input type="checkbox" disabled data-schedule-toggle aria-label="${escapeHtml(messages.scheduleEnabled)}"></label></dd>
           </div>
           <div class="polling-option-row" data-polling-field="interval">
             ${

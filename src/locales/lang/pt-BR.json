@@ -454,5 +454,19 @@
   "invitationUsedAt": "Usado em",
   "adminInputInvalid": "Confira os dados inseridos",
   "adminRateLimited": "Muitas solicitações. Tente novamente mais tarde.",
-  "adminEmailVerified": "E-mail verificado"
+  "adminEmailVerified": "E-mail verificado",
+  "scheduleTitle": "Configurações avançadas de intervalo",
+  "scheduleEnabled": "Consulta por faixas de horário",
+  "scheduleCovered": "As faixas cobrem todos os horários",
+  "scheduleRange": "Intervalo personalizado",
+  "scheduleStart": "Início",
+  "scheduleEnd": "Fim",
+  "scheduleClear": "Limpar",
+  "scheduleClearConfirm": "Limpar todas as faixas de horário?",
+  "scheduleIncomplete": "Preencha todas as faixas de horário",
+  "scheduleAdd": "Adicionar faixa",
+  "scheduleRemove": "Remover faixa",
+  "scheduleYear": "Ano",
+  "scheduleMonth": "Mês",
+  "scheduleDay": "Dia"
 }
