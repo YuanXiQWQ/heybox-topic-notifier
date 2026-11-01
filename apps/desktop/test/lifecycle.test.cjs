@@ -206,6 +206,48 @@ test("native navigation waits for local writes and stays on the editor when savi
   assert.equal(context.opened.length, 1);
 });
 
+test("native navigation keeps update checks active even when an account change cancels navigation", async () => {
+  for (const allowed of [true, false]) {
+    const context = harness();
+    context.api.installUpdater();
+    context.updaterEvents.get("update-not-available")({version:"1.0.0"});
+    let checks = 0;
+    context.updater.checkForUpdates = () => {
+      checks++;
+      const updateInfo = {version:"3.11.3"};
+      context.updaterEvents.get("update-available")(updateInfo);
+      return Promise.resolve({isUpdateAvailable:true, updateInfo});
+    };
+    await context.api.showWindow("/about", () => allowed);
+    const state = await context.handlers.get("app:check-update")(context.event);
+    assert.equal(context.opened.length, allowed ? 1 : 0);
+    assert.equal(checks, 1);
+    assert.equal(state.update.status, "available");
+    assert.equal(state.update.version, "3.11.3");
+  }
+});
+
+test("native navigation neither cancels an update download nor waits for it to finish", async () => {
+  const context = harness();
+  let cancelled = false, complete;
+  context.updater.downloadUpdate = token => new Promise(resolve => {
+    complete = resolve;
+    token.onCancel(() => { cancelled = true; resolve(); });
+  });
+  const transfer = context.api.downloadUpdate();
+  const navigation = context.api.showWindow("/history");
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(cancelled, false);
+    assert.equal(context.opened.length, 1);
+    assert.equal(context.api.info().update.status, "downloading");
+  } finally {
+    complete();
+    await transfer;
+    await navigation;
+  }
+});
+
 test("notification cursor advances only after system display and failed events remain retryable", async () => {
   const context = harness();
   await context.api.setNotifications(true);

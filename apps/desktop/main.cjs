@@ -95,14 +95,22 @@ else {
 }
 
 /**
+ * 等待当前页面的本地编辑落盘，供页面跳转和应用退出共用。
+ * @return {Promise<void>} 本地事务已完成；保存失败时拒绝后续操作。
+ */
+async function savePageChanges() {
+  if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
+    await window.webContents.executeJavaScript("globalThis.applicationSync?.prepareForExit()", true);
+  }
+}
+
+/**
  * 等待页面本地事务，保存失败时保持窗口以便用户重试。
  * @param {boolean} installing 是否必须保留有效安装包。
  * @return {Promise<void>} 下载已停止且缓存已处理，可以退出或安装更新。
  */
 async function prepareExit(installing = false) {
-  if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
-    await window.webContents.executeJavaScript("globalThis.applicationSync?.prepareForExit()", true);
-  }
+  await savePageChanges();
   stoppingUpdates = true;
   try {
     await checking;
@@ -468,7 +476,7 @@ function emitState() {
   }
 }
 /**
- * 打开主窗口；原生跳转等待页面保存，失败时保留当前编辑页。
+ * 打开主窗口；原生跳转等待页面保存，保持更新任务运行，失败时保留当前编辑页。
  * @param {string | undefined} route 可选本站路径。
  * @param {Function | undefined} allowed 保存后再次验证通知账号。
  * @return {Promise<void>} 窗口已显示，或保留保存失败的编辑页。
@@ -480,7 +488,7 @@ async function showWindow(route, allowed) {
   window.focus();
   if (route && route.startsWith("/") && !route.startsWith("//")) {
     try {
-      await prepareExit();
+      await savePageChanges();
       if (allowed && !await allowed()) return;
       if (!window.isDestroyed()) await window.loadURL(origin + route);
     } catch { /* 保存失败时保留编辑页，由现有保存状态反馈错误。 */ }
