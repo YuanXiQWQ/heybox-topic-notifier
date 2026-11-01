@@ -85,7 +85,13 @@ abstract class NotificationInbox {
                     if (!commit(expected, next, seen)) return false;
                     cursor = next;
                 }
-                if (events.length() < PAGE_SIZE) return false;
+                String next = batch.optString("cursor", cursor);
+                if (next.compareTo(cursor) < 0) throw new IllegalStateException("Notification batch cursor moved backwards");
+                if (!next.equals(cursor)) {
+                    if (!commit(expected, next, seen)) return false;
+                    cursor = next;
+                }
+                if (!batch.optBoolean("hasMore", events.length() == PAGE_SIZE)) return false;
             }
             return true;
         } finally {

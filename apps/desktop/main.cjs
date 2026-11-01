@@ -233,7 +233,7 @@ async function start() {
     void pollNotifications();
     void checkUpdate();
   });
-  setInterval(() => void pollNotifications(), 15000).unref();
+  setInterval(() => void pollNotifications(), 5000).unref();
   setInterval(() => void checkUpdate(), 6 * 60 * 60 * 1000).unref();
   await window.loadURL(origin + "/").catch(() => {});
   handleLaunchAction(process.argv);
@@ -580,7 +580,7 @@ function pollNotifications() {
   return polling;
 }
 /**
- * 在账号和会话仍相同时展示通知；只有成功处理的事件才推进游标。
+ * 在账号和会话仍相同时合并分页积压；成功展示摘要后确认事件和已过滤项。
  * @return {Promise<void>} 通知处理结束。
  */
 async function consumeNotifications() {
@@ -592,15 +592,38 @@ async function consumeNotifications() {
     await disableNotifications();
     return;
   }
-  const batch = await readNotifications(binding.cursor);
+  let cursor = binding.cursor;
+  const events = [], ids = new Set(binding.seen), posts = new Set();
+  // 一次补取最多十页，所有可见积压合为一条系统通知。
+  for (let page = 0; page < 10; page++) {
+    const batch = await readNotifications(cursor);
+    const fingerprint = await sessionFingerprint();
+    if (device.value.notifications !== binding) return;
+    if (batch.userId !== binding.userId || fingerprint !== binding.session) {
+      await disableNotifications();
+      return;
+    }
+    for (const event of batch.events) {
+      if (!ids.has(event.id)) {
+        const key = event.kind === "match" && event.postId ? "post:" + event.postId : "event:" + event.id;
+        if (!posts.has(key)) { events.push(event); posts.add(key); }
+        ids.add(event.id);
+      }
+    }
+    const next = batch.cursor ?? batch.events.at(-1)?.cursor ?? cursor;
+    if (next < cursor || (next === cursor && batch.events.length)) throw new Error("Invalid notification cursor");
+    cursor = next;
+    if (!(batch.hasMore ?? batch.events.length === 100)) break;
+  }
   if (device.value.notifications !== binding) return;
   const fingerprint = await sessionFingerprint();
   if (device.value.notifications !== binding) return;
-  if (batch.userId !== binding.userId || fingerprint !== binding.session) {
+  if (fingerprint !== binding.session) {
     await disableNotifications();
     return;
   }
-  for (const event of batch.events) {
+  if (events.length) {
+    const event = events[0];
     const current = await sessionFingerprint();
     if (device.value.notifications !== binding) return;
     if (current !== binding.session) {
@@ -609,8 +632,9 @@ async function consumeNotifications() {
     }
     if (!binding.seen.includes(event.id)) {
       const notification = new Notification({
-        title: String(event.title).slice(0, 120),
-        body: String(event.body).slice(0, 300),
+        title: String(event.title).slice(0, 120) + (events.length > 1 ? ` (${events.length})` : ""),
+        body: events.slice(0, 3).map((item) => String(item.body)).join("\n").slice(0, 300),
+        icon: path.join(resources, "favicon.png"),
         silent: false,
       });
       notification.on("click", async () => {
@@ -621,7 +645,7 @@ async function consumeNotifications() {
             current === binding.session
           ) {
             await showWindow(
-              event.path,
+              events.length > 1 ? "/" : event.path,
               async () =>
                 device.value.notifications === binding &&
                 await sessionFingerprint() === binding.session,
@@ -632,15 +656,22 @@ async function consumeNotifications() {
       notification.on("close", () => visibleNotifications.delete(notification));
       visibleNotifications.add(notification);
       await showNotification(notification);
-      if (device.value.notifications !== binding) {
+      if (device.value.notifications !== binding || await sessionFingerprint() !== binding.session) {
         notification.close();
         return;
       }
-      binding.seen = [...binding.seen, event.id].slice(-2048);
+      for (const previous of visibleNotifications) if (previous !== notification) {
+        previous.close(); visibleNotifications.delete(previous);
+      }
     }
-    binding.cursor = event.cursor;
-    await device.save();
   }
+  if (device.value.notifications !== binding) return;
+  if (cursor === binding.cursor && !events.length) return;
+  const previousCursor = binding.cursor, previousSeen = binding.seen;
+  binding.cursor = cursor;
+  binding.seen = [...ids].slice(-2048);
+  try { await device.save(); }
+  catch (error) { binding.cursor = previousCursor; binding.seen = previousSeen; throw error; }
 }
 /**
  * 等待系统确认展示；失败或超时保留游标，下轮可重新投递。

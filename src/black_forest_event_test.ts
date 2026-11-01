@@ -862,6 +862,28 @@ Deno.test("Black Forest hunts the eggs and ends with the EGO gift", () => {
   assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-gift").length, 0);
 });
 
+/** 表格刷新重新挂载筛选图标中的鸟蛋，不重置已找到进度或在 CG 中重新挂蛋。 */
+Deno.test("Black Forest rebinds replaced table slots without losing hunt progress", () => {
+  const harness = createBlackForestHarness();
+  const saved = { birds: [], eggs: { "history.filter": "bigEyes", "nav.settings": "longArms", "nav.history": "smallBeak" },
+    found: ["longArms"], gift: false, id: "black-forest", order: [...blackForestDefaultBirdOrder], phase: "hunt" };
+  harness.storage.setItem("test.black-forest", JSON.stringify(saved));
+  const event = createBlackForestEvent(harness.shared);
+  event.restore();
+  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 2);
+  const selector = '[data-lobotomy-corp-black-forest-slot="history.filter"]';
+  harness.body.querySelector(selector)!.remove();
+  const next = new ClickableElement(); next.className = "ui-icon"; next.selectors.add(selector); harness.body.append(next);
+  event.refreshSlots();
+  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 2);
+  assertEquals(next.styleProperties.get("display"), "none");
+  assertEquals(JSON.parse(harness.storage.getItem("test.black-forest")!).found, ["longArms"]);
+  void event.activateEgg("bigEyes");
+  event.refreshSlots();
+  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 0);
+  event.finish();
+});
+
 /** 匹配标题和模式行可挂蛋；旧条件槽位中的未发现鸟蛋迁移，已发现进度保留。 */
 Deno.test("Black Forest restores accessible matching slots and migrates conditional slots", () => {
   const harness = createBlackForestHarness();

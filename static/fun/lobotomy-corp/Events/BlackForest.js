@@ -877,6 +877,8 @@ export function createBlackForestEvent(shared) {
   let state;
   /** @type {any} */
   let player;
+  /** CG 播放期间不因表格刷新提前恢复鸟蛋交互。 */
+  let narrationPlaying = false;
   /** @type {Array<{node: any, original: any, overflowHost: any, stage: any, visibilityObserver: any}>} */
   const mountedEggs = [];
 
@@ -1304,6 +1306,11 @@ export function createBlackForestEvent(shared) {
     [...mountedEggs].forEach(restoreMountedEgg);
   };
 
+  /** 表格替换后重新定位当前槽位，保留已找到的进度并等待 CG 结束。 */
+  const refreshSlots = () => {
+    if (state?.phase === 'hunt' && !narrationPlaying) mountEggs();
+  };
+
   /**
    * 结算一次鸟蛋点击：播放这只鸟的死亡 CG；三颗蛋都处理完时接着播终末鸟死亡 CG。
    *
@@ -1321,7 +1328,9 @@ export function createBlackForestEvent(shared) {
     unmountEggs();
     const keys = [bird.breakdown];
     if (completed) keys.push('suppressed');
-    await playNarration(keys);
+    narrationPlaying = true;
+    try { await playNarration(keys); }
+    finally { narrationPlaying = false; }
     if (completed) {
       finish({ completed: true });
       return;
@@ -1459,6 +1468,7 @@ export function createBlackForestEvent(shared) {
     isRecording: () => state?.phase === 'recording',
     persisted,
     recordSubmission,
+    refreshSlots,
     restrictHuntToWhiteNightPages,
     resetBirdRecord,
     restore,

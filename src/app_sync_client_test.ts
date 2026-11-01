@@ -3,6 +3,45 @@ import { runInNewContext } from "node:vm";
 import { IDBFactory } from "fake-indexeddb";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 
+Deno.test("edits queued during an active sync upload immediately after that request", async () => {
+  const source = await Deno.readTextFile(new URL("../static/app-sync/client.js", import.meta.url));
+  const start = source.indexOf("  async function drain(reason)");
+  const end = source.indexOf("  async function applyPendingRecords()", start);
+  const functions = source.slice(start, source.lastIndexOf("  /**", end));
+  const queue: Array<{ kind: string; target: string; body: string; stamp: { operationId: string } }> = [];
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let requests = 0;
+  const submitted: string[] = [];
+  const context = runInNewContext(`let flushing, requestedFlush; const responses = new Map(); ${functions}; ({flush, responses})`, {
+    userId: "alice", metadata: {}, URLSearchParams, AbortSignal,
+    navigator: {}, document: { dispatchEvent() {} }, CustomEvent,
+    compareStamp: () => 0,
+    store: {
+      pending: () => Promise.resolve([...queue]),
+      writeState: () => Promise.resolve(),
+      acknowledge: () => { queue.shift(); return Promise.resolve(); },
+    },
+    fetch: async (path: string) => {
+      if (path === "/api/sync/session") {
+        if (++requests === 1) await held;
+        return Response.json({ userId: "alice", serverTime: Date.now(), csrfToken: "test" });
+      }
+      submitted.push(path); return new Response("saved");
+    },
+  });
+  const first = context.flush();
+  while (!requests) await new Promise((resolve) => setTimeout(resolve, 0));
+  queue.push({ kind: "record", target: "/matches/complete", body: "matchId=one", stamp: { operationId: "one" } });
+  const second = context.flush("submit");
+  context.flush(); context.flush();
+  release(); await Promise.all([first, second]);
+  assertEquals(submitted, ["/matches/complete"]);
+  assertEquals(queue.length, 0);
+  assertEquals(requests, 2);
+  assertEquals(await context.responses.get("one").text(), "saved");
+});
+
 Deno.test("cached scripts survive service failures without hiding missing resources", async () => {
   const source = await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url));
   let status = 503;

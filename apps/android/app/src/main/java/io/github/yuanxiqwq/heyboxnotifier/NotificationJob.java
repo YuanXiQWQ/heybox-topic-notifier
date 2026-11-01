@@ -24,6 +24,7 @@ public final class NotificationJob extends JobService {
     private final ConcurrentHashMap<JobParameters, FutureTask<Void>> jobs = new ConcurrentHashMap<>();
     /** @param {Context} context 应用上下文。 */
     static void schedule(Context context) {
+        NotificationService.requestPoll();
         JobScheduler scheduler = context.getSystemService(JobScheduler.class);
         JobInfo.Builder job = new JobInfo.Builder(JOB_ID, new ComponentName(context, NotificationJob.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
         if (Build.VERSION.SDK_INT >= 31) job.setExpedited(true);
@@ -43,7 +44,7 @@ public final class NotificationJob extends JobService {
     }
     /** @param {JobParameters} params 系统任务。 @return {boolean} 是否存在异步工作。 */
     @Override public boolean onStartJob(JobParameters params) {
-        if (NotificationService.isRunning()) return false;
+        boolean serviceRunning = NotificationService.requestPoll();
         FutureTask<Void> task = new FutureTask<>(() -> {
             boolean retry = false;
             try {
@@ -53,7 +54,7 @@ public final class NotificationJob extends JobService {
                 if (binding != null && binding.optBoolean("enabled") && !binding.optBoolean("honorRegistered") && !token.isEmpty()) {
                     try { HonorPush.saveToken(device, token); } catch (Exception ignored) { retry = true; }
                 }
-                retry |= Notifications.get(this, device).poll();
+                if (!serviceRunning) retry |= Notifications.get(this, device).pollWithBadge();
             } catch (Exception ignored) { retry = true; }
             if (jobs.remove(params) != null) jobFinished(params, retry);
             return null;

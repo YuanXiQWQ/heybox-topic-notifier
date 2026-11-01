@@ -46,7 +46,7 @@ final class Notifications extends NotificationInbox {
         boolean allowed = allowed();
         boolean current = binding != null && currentSessionHash().equals(binding.optString("session"));
         boolean enabled = allowed && current && binding.optBoolean("enabled");
-        NotificationJob.maintain(application, enabled);
+        NotificationJob.maintain(application, enabled || (!Http.session().isEmpty() && device.read().optBoolean("badgeEnabled", true)));
         return new JSONObject().put("supported", true).put("enabled", enabled).put("backgroundPushConfigured", current && (binding.optBoolean("honorRegistered") || NotificationService.isRunning()));
     }
     /**
@@ -84,7 +84,9 @@ final class Notifications extends NotificationInbox {
         String id = event.getString("id");
         Intent intent = new Intent(application, MainActivity.class).setData(android.net.Uri.parse("heybox-notification:" + id)).putExtra("notificationPath", event.getString("path")).putExtra("notificationUser", userId);
         PendingIntent click = PendingIntent.getActivity(application, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        manager.notify(id, 0, new Notification.Builder(application, channelId).setSmallIcon(R.drawable.app_icon).setContentTitle(event.getString("title")).setContentText(event.getString("body")).setOnlyAlertOnce(true).setAutoCancel(true).setContentIntent(click).build());
+        manager.notify(id, 0, new Notification.Builder(application, channelId).setSmallIcon(R.drawable.app_icon)
+            .setLargeIcon(android.graphics.BitmapFactory.decodeResource(application.getResources(), R.drawable.launcher))
+            .setContentTitle(event.getString("title")).setContentText(event.getString("body")).setOnlyAlertOnce(true).setAutoCancel(true).setContentIntent(click).build());
     }
     /** @param {JSONObject} expected 原绑定。 @param {String} cursor 已处理游标。 @param {JSONArray} seen 去重标记。 @return {boolean} 是否已保存。 @throws Exception 加密落盘失败。 */
     @Override protected boolean commit(JSONObject expected, String cursor, JSONArray seen) throws Exception {

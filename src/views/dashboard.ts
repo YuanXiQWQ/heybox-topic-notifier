@@ -222,9 +222,9 @@ function renderLastPollScript(
     week: messages.pollIntervalWeek,
   };
   /**
-   * 仪表盘状态后台刷新间隔。
+   * 可见工作区以版本增量及时跟进跨端操作。
    */
-  const dashboardStateRefreshMs = 30_000;
+  const dashboardStateRefreshMs = 5_000;
 
   return `<script>
     (() => {
@@ -277,6 +277,10 @@ function renderLastPollScript(
         if (document.visibilityState !== "visible") return;
         void refreshDashboardState();
       }, dashboardStateRefreshMs);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") void refreshDashboardState();
+      });
+      window.addEventListener("online", () => void refreshDashboardState());
 
       /**
        * 按服务端时间锚点和单调计时器计算当前时间，避免本机时钟偏差或校时影响。
@@ -314,6 +318,7 @@ function renderLastPollScript(
        */
       async function refreshDashboardState(options = {}) {
         if (isDashboardStateRefreshInFlight) return;
+        if (pendingSection?.querySelector('[data-match-table-submitting="true"]')) return;
         isDashboardStateRefreshInFlight = true;
         try {
           const query = location.search;
@@ -330,6 +335,7 @@ function renderLastPollScript(
           if (!response.ok) return;
           const state = await response.json();
           if (query !== location.search) return;
+          if (pendingSection?.querySelector('[data-match-table-submitting="true"]')) return;
           synchronizeServerTime(state.serverTime);
           if (state.unchanged === true) {
             updateLastPoll();
@@ -393,17 +399,25 @@ function renderLastPollScript(
         return input instanceof HTMLInputElement ? input.value : "";
       }
 
+      /**
+       * 更新工作区表格，保留仍存在记录的选择并重投影本地离线操作。
+       * @param {string} html 服务端表格。
+       * @param {string} signature 表格内容签名。
+       */
       function updatePendingSection(html, signature) {
         if (!pendingSection || typeof html !== "string" || typeof signature !== "string") return;
         if (pendingSection.dataset.matchTableSignature === signature) return;
         const parsed = new DOMParser().parseFromString(html, "text/html");
         const nextSection = parsed.querySelector(".table-section");
         if (!nextSection) return;
+        const selected = new Set(Array.from(pendingSection.querySelectorAll('input[name="matchId"]:checked')).map((input) => input.value));
+        for (const input of nextSection.querySelectorAll('input[name="matchId"]')) input.checked = selected.has(input.value);
         pendingSection.replaceWith(nextSection);
         pendingSection = nextSection;
         window["__matchTableFilterInit"]?.();
         window["__matchTableRelativeTimeUpdate"]?.();
         window["__matchTableOverflowUpdate"]?.();
+        document.dispatchEvent(new CustomEvent("application-records-rendered"));
       }
 
       /**

@@ -19,7 +19,7 @@ public class NotificationInboxTest {
     private static final class Inbox extends NotificationInbox {
         JSONObject saved;
         String active = "session-a";
-        int count, reads, failAt, badgeReads;
+        int count, reads, failAt, badgeReads, suppressedThrough;
         boolean permission = true, stuck;
         Action duringRead = () -> {};
         Action duringSession = () -> {};
@@ -39,8 +39,10 @@ public class NotificationInboxTest {
             reads++; duringRead.run();
             int start = after.isEmpty() ? 0 : Integer.parseInt(after.substring(0, 16));
             JSONArray events = new JSONArray();
-            for (int i = start + 1; i <= Math.min(count, start + 100); i++) events.put(new JSONObject().put("id", Integer.toString(i)).put("cursor", stuck ? after : cursor(i)));
-            return new JSONObject().put("userId", "alice").put("events", events);
+            for (int i = start + 1; i <= Math.min(count, start + 100); i++) if (i > suppressedThrough) events.put(new JSONObject().put("id", Integer.toString(i)).put("cursor", stuck ? after : cursor(i)));
+            JSONObject batch = new JSONObject().put("userId", "alice").put("events", events);
+            if (suppressedThrough > 0) batch.put("cursor", cursor(Math.min(count, start + 100))).put("hasMore", start + 100 < count);
+            return batch;
         }
         /** @param {JSONObject} event 通知。 @param {String} userId 所属账号。 @throws Exception 模拟通知系统失败。 */
         @Override protected void show(JSONObject event, String userId) throws Exception { int id = Integer.parseInt(event.getString("id")); if (id == failAt) throw new IllegalStateException("System unavailable"); displayed.add(id); }
@@ -51,6 +53,16 @@ public class NotificationInboxTest {
     }
     /** @param {int} number 顺序号。 @return {String} 与服务端相同结构的游标。 */
     private static String cursor(int number) { return String.format(Locale.ROOT, "%016d:%d", number, number); }
+
+    /** 整页历史帖被过滤后仍继续读取新命中，过滤尾部也推进持久游标。 @throws Exception 测试失败。 */
+    @Test public void advancesAcrossFilteredPages() throws Exception {
+        Inbox inbox = new Inbox(151); inbox.suppressedThrough = 150;
+        assertFalse(inbox.poll()); assertEquals(List.of(151), inbox.displayed);
+        assertEquals(2, inbox.reads); assertEquals(cursor(151), inbox.saved.getString("cursor"));
+        Inbox empty = new Inbox(100); empty.suppressedThrough = 100;
+        assertFalse(empty.poll()); assertTrue(empty.displayed.isEmpty());
+        assertEquals(cursor(100), empty.saved.getString("cursor"));
+    }
 
     /** 多页通知只在首批更新角标；关闭通知和关闭系统权限时角标仍独立刷新。 @throws Exception 测试失败。 */
     @Test public void badgeUpdatesOncePerRunIncludingDisabledNotifications() throws Exception {

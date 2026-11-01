@@ -11,6 +11,8 @@
   let previous;
   /** 合并同一页面内重复触发的同步请求。 */
   let flushing;
+  /** 当前轮次期间新增的同步请求，提交响应优先交还操作界面。 */
+  let requestedFlush;
   /** 当前操作的服务器结果，只保存在内存中供调用者处理。 */
   const responses = new Map();
   /** 尚未完成本机落盘的操作，退出和更新必须等待。 */
@@ -230,7 +232,7 @@
     );
     metadata.previous = previous;
     await store.writeState(userId, "device", metadata);
-    void flush();
+    void flush("edit");
     return new Response(null, { status: 202, headers: { "x-app-local": "1" } });
   }
   /**
@@ -339,16 +341,21 @@
     }
   }
   /**
-   * 合并重复同步；支持 Web Locks 的浏览器在多个标签页间共享锁。
+   * 合并并发请求，并立即续传当前轮次期间新增的编辑；多标签页共享 Web Lock。
    * @param {string} reason 同步来源。
    * @return {Promise<void>} 同步尝试结束。
    */
   function flush(reason = "background") {
-    flushing = flushing ?? Promise.resolve().then(() =>
-      navigator.locks
-        ? navigator.locks.request(`heybox-sync:${userId}`, () => drain(reason))
-        : drain(reason)
-    ).finally(() => {
+    if (flushing && reason === "background") return flushing;
+    if (requestedFlush !== "submit") requestedFlush = reason;
+    flushing = flushing ?? Promise.resolve().then(async () => {
+      while (requestedFlush) {
+        const next = requestedFlush;
+        requestedFlush = undefined;
+        if (navigator.locks) await navigator.locks.request(`heybox-sync:${userId}`, () => drain(next));
+        else await drain(next);
+      }
+    }).finally(() => {
       flushing = undefined;
     });
     return flushing;
@@ -478,7 +485,7 @@
     void ready.then(async () => {
       if ((await store.pending(userId)).length) await flush();
     }).catch(() => {});
-  }, 30000);
+  }, 5000);
   void ready.then(applyPendingRecords).catch(() => {});
   /**
    * 跟踪一次本地提交，落盘失败会阻止更新退出。

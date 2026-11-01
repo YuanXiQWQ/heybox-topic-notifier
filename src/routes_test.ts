@@ -3473,6 +3473,30 @@ Deno.test("dashboard versions skip unchanged snapshots and bind filters and CSRF
   assertEquals(snapshots, 10);
 });
 
+Deno.test("history versions skip unchanged tables but follow remote mutations and query changes", async () => {
+  let reads = 0, version = "alice:1";
+  const app = createRoutes({ storage: {
+    getDashboardVersion: () => Promise.resolve(version),
+    getSettings: () => Promise.resolve(currentSettings),
+    listHistory: () => { reads++; return Promise.resolve([]); },
+  } } as unknown as AppContext);
+  const headers = testCsrfHeaders({ "x-match-table-refresh": "1" });
+  const first = await app.request("/history?range=all", { headers });
+  assertEquals(first.status, 200);
+  assertIncludes(await first.text(), "data-match-table-section");
+  const revision = first.headers.get("x-history-version")!;
+  const conditional = { ...headers, "x-history-version": revision };
+  assertEquals((await app.request("/history?range=all", { headers: conditional })).status, 304);
+  assertEquals(reads, 1);
+  version = "alice:2";
+  assertEquals((await app.request("/history?range=all", { headers: conditional })).status, 200);
+  assertEquals(reads, 2);
+  version = "alice:1";
+  assertEquals((await app.request("/history?range=all&page=2", { headers: conditional })).status, 200);
+  assertEquals(reads, 3);
+  assertEquals((await app.request("/history?range=day", { headers: conditional })).status, 200);
+});
+
 Deno.test("dashboard mutations during snapshot reads remain visible on the next refresh", async () => {
   let version = "v1";
   let snapshots = 0;
