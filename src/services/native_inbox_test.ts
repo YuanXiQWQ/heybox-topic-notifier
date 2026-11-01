@@ -42,16 +42,21 @@ for (const backend of ["kv", "turso"]) Deno.test(`native inbox filters handled b
   } finally { kv.close(); sql.close(); }
 });
 
-Deno.test("a fully filtered page retains hasMore and its cursor", async () => {
+Deno.test("filtered pages cannot strand legacy clients before later visible notifications", async () => {
   const kv = await Deno.openKv(":memory:");
   try {
     const storage = createKvStorage(defaultAppSettingsFromEnv(), { openKv: () => Promise.resolve(kv) });
     const user = storage.forUser("alice");
-    for (let i = 0; i < 101; i++) await user.nativeNotifications!.save({ id: await sessionTokenHash(String(i)), cursor: "", createdAt: Date.now(), title: "handled", body: "", path: "/history" });
+    for (let i = 0; i < 101; i++) await user.nativeNotifications!.save({ id: await sessionTokenHash(String(i)), cursor: "", createdAt: Date.now(), title: "handled", body: "", path: "/history", ...(i < 100 ? { kind: "match" as const, matchId: String(i) } : {}) });
     const page = await readActiveNativeNotifications(user, "");
-    assertEquals(page.events, []); assertEquals(page.hasMore, true);
-    const last = await readActiveNativeNotifications(user, page.cursor);
-    assertEquals(last.events, []); assertEquals(last.hasMore, false);
+    assertEquals(page.events, []); assertEquals(page.hasMore, false);
+    await user.saveMatch({ id: "100", keyword: "help", location: "title", matchedAt: new Date().toISOString(),
+      post: { id: "p", title: "legacy pending", body: "", excerpt: "", comments: [], commentReplies: [], url: "https://example.com", publishedAt: "" } });
+    assertEquals((await readActiveNativeNotifications(user, "")).events.map(event => event.id), [await sessionTokenHash("100")]);
+    await user.completeMatches(["100"]);
+    await enqueueNativeNotifications(storage, "alice", { id: "after-filtered-pages", title: "Test", body: "", path: "/settings" }, defaultAppSettingsFromEnv());
+    const last = await readActiveNativeNotifications(user, "");
+    assertEquals(last.events.length, 1); assertEquals(last.hasMore, false);
     assertEquals(last.cursor > page.cursor, true);
   } finally { kv.close(); }
 });
