@@ -70,6 +70,35 @@ export function rowKind(row) {
 }
 
 /**
+ * 分别检查各个可编辑字段，日期范围共用调度器的精度和先后顺序校验。
+ * @param {ScheduleRow} row 时段草稿。
+ * @return {string[]} 无效控件的字段名。
+ */
+export function rowErrors(row) {
+  const errors = [];
+  const unit = Object.prototype.hasOwnProperty.call(
+    intervalUnits,
+    row.intervalUnit,
+  );
+  if (!unit) errors.push("intervalUnit");
+  if (!validInterval(row.intervalValue, unit ? row.intervalUnit : "minute")) {
+    errors.push("intervalValue");
+  }
+  if (!postLimits.includes(Number(row.postLimit))) errors.push("postLimit");
+  if (!pollSorts.includes(row.sort)) errors.push("sort");
+  if (
+    !rowKind({
+      ...row,
+      intervalValue: "3",
+      intervalUnit: "second",
+      postLimit: "20",
+      sort: "publishTime",
+    })
+  ) errors.push("range");
+  return errors;
+}
+
+/**
  * 规范化持久草稿，保留不完整行供编辑和单行错误反馈。
  * @param {unknown} input 外部输入。
  * @param {string} locale 界面语言。

@@ -3754,8 +3754,8 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .schedule-list{ border:1px solid var(--border); border-radius:8px; background:var(--theme-soft); overflow:hidden; }
 .schedule-row{ display:grid; grid-template-columns:32px minmax(210px,1.5fr) minmax(170px,1fr) minmax(85px,.6fr) minmax(140px,.8fr) 72px; gap:16px; padding:20px; border-bottom:1px solid var(--border-soft); align-items:center; position:relative; }
 .schedule-row:last-child{ border-bottom:0; }
-.schedule-row.is-invalid{ box-shadow:inset 0 0 0 1px #B42318; }
-:root[data-color-mode="dark"] .schedule-row.is-invalid{ box-shadow:inset 0 0 0 1px #FFB4AB; }
+.schedule-field [aria-invalid="true"],.schedule-date-fields [aria-invalid="true"]{ border-color:#B42318; }
+:root[data-color-mode="dark"] .schedule-field [aria-invalid="true"],:root[data-color-mode="dark"] .schedule-date-fields [aria-invalid="true"]{ border-color:#FFB4AB; }
 .schedule-row.is-dragging{ opacity:.65; background:var(--theme-soft-strong); }
 .schedule-field{ display:flex; flex-direction:column; gap:10px; min-width:0; color:var(--muted); font-size:14px; }
 .schedule-field input,.schedule-field select{ width:100%; min-width:0; }

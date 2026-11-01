@@ -4,7 +4,7 @@ import {
   dateParts,
   fullyCovered,
   normalizeSchedule,
-  rowKind,
+  rowErrors,
 } from "./polling-schedule-core.js";
 import { calendarPicker } from "./polling-calendar-picker.js";
 import { branches, stems } from "./polling-calendar.js";
@@ -124,9 +124,19 @@ function initialize() {
     );
     for (const row of list.children) {
       const value = state.rows.find((item) => item.id === row.dataset.id);
-      const invalid = !rowKind(value);
-      row.classList.toggle("is-invalid", invalid);
-      row.setAttribute("aria-invalid", String(invalid));
+      const errors = rowErrors(value);
+      row.classList.remove("is-invalid");
+      row.setAttribute("aria-invalid", String(errors.length > 0));
+      for (
+        const control of row.querySelectorAll(
+          "[data-field],[data-schedule-range]",
+        )
+      ) {
+        control.setAttribute(
+          "aria-invalid",
+          String(errors.includes(control.dataset.field || "range")),
+        );
+      }
       row.querySelector("[data-schedule-range]").textContent =
         formatRange(value, document.documentElement.lang) ||
         labels.scheduleRange;
