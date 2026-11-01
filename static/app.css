@@ -3738,3 +3738,9 @@ tr:last-child td{
   .admin-delete form { flex-direction:column; align-items:stretch; }
   .admin-codes { padding:16px; }
 }
+
+/* 子页返回入口沿用主题边框与页面底色，保留键盘焦点轮廓。 */
+.settings-back{ display:inline-flex; align-items:center; justify-content:center; width:38px; height:34px; margin-top:10px; border:1px solid var(--theme-border); border-radius:8px; background:var(--bg); color:var(--muted); }
+.settings-back svg{ width:22px; height:22px; }
+.settings-back:hover{ background:var(--theme-soft); color:var(--theme-link); }
+.settings-back:focus-visible{ outline:2px solid var(--theme-link); outline-offset:3px; }

@@ -188,6 +188,7 @@ export function createRoutes(
    * 提供共享原生桥接和应用更新界面脚本。
    * @return {Promise<Response>} 同源脚本。
    */
+  app.get("/static/settings-navigation.js", async () => new Response(await Deno.readTextFile(new URL("../static/settings-navigation.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
   app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));

@@ -457,7 +457,7 @@ function renderGlobalSettingsSection(
             <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="badgeEnabled" aria-label="${escapeHtml(messages.applicationBadge)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
           <div class="settings-navigation-row">
-            <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about" data-app-about-link>
+            <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about" data-settings-subpage data-app-about-link>
               <span class="settings-label-with-icon">${materialSymbolIcon("info", "settings-label-icon")}<span>${escapeHtml(messages.aboutProject)}</span></span>
               <span class="settings-navigation-chevron" aria-hidden="true"></span>
             </a></dt>
