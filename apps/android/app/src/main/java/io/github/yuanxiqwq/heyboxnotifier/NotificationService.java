@@ -32,7 +32,7 @@ public final class NotificationService extends Service {
     private PowerManager.WakeLock wakeLock;
     private ConnectivityManager network;
     private ConnectivityManager.NetworkCallback networkCallback;
-    /** 当前前台服务实例只用于立即刷新角标，停止时释放引用。 */
+    /** 当前前台服务实例提供角标更新和即时补取入口，停止时释放引用。 */
     private static volatile NotificationService active;
     /** @return {boolean} 当前进程是否已有常驻收取线程。 */
     static boolean isRunning() { NotificationService service = active; return service != null && service.scheduled != null && !service.scheduled.isDone(); }

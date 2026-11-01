@@ -10,8 +10,8 @@ import { renderMatchRecordsSection } from "./match_table_view.ts";
 /**
  * 渲染历史页面。
  *
- * @param options 历史页面渲染选项。
- * @return 完整历史页面 HTML。
+ * @param {object} options 历史页面渲染选项。
+ * @return {string} 完整历史页面 HTML。
  */
 export function renderHistory(options: {
   account?: Pick<UserAccount, "displayName" | "id" | "username">;
