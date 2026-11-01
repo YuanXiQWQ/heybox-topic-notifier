@@ -406,6 +406,7 @@
   "updateAvailable": "새 버전 사용 가능",
   "updateDownload": "다운로드 및 업데이트",
   "updateLater": "나중에",
+  "updateReady": "업데이트 준비 완료",
   "updateRestart": "다시 시작 및 업데이트",
   "updateCurrent": "최신 버전입니다",
   "updateFailed": "업데이트 실패. 다시 시도하세요",

@@ -40,7 +40,7 @@ function harness(options = {}) {
     show() {},
     focus() {},
   };
-  const device = { value: {}, save: async () => {} };
+  const device = { value: {autoUpdate: false}, save: async () => {} };
   const app = {
     isPackaged: true,
     setAppUserModelId() {},
@@ -139,6 +139,20 @@ function harness(options = {}) {
     },
   };
 }
+
+test("new devices enable silent downloads and install on exit by default", async () => {
+  const context = harness();
+  delete context.device.value.autoUpdate;
+  context.api.installUpdater();
+  assert.equal(context.api.info().preferences.autoUpdate, true);
+  assert.equal(context.updater.autoDownload, true);
+  context.updaterEvents.get("update-available")({version: "1.1.0"});
+  assert.equal(context.api.info().update.prompt, false);
+  await context.updaterEvents.get("update-downloaded")();
+  assert.equal(context.updater.autoInstallOnAppQuit, true);
+  assert.equal(context.device.value.autoUpdateReady, "1.1.0");
+  assert.equal(context.installs(), 0);
+});
 
 test("a rolled-back release cannot auto-install again or hide its update warning", async () => {
   const context = harness();

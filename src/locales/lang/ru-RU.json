@@ -406,6 +406,7 @@
   "updateAvailable": "Доступно обновление",
   "updateDownload": "Скачать и обновить",
   "updateLater": "Позже",
+  "updateReady": "Обновление готово",
   "updateRestart": "Перезапустить и обновить",
   "updateCurrent": "Установлена последняя версия",
   "updateFailed": "Не удалось обновить. Повторите попытку",

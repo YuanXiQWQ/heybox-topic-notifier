@@ -406,6 +406,7 @@
   "updateAvailable": "Mise à jour disponible",
   "updateDownload": "Télécharger et mettre à jour",
   "updateLater": "Plus tard",
+  "updateReady": "Mise à jour prête",
   "updateRestart": "Redémarrer et mettre à jour",
   "updateCurrent": "Vous êtes à jour",
   "updateFailed": "Échec de la mise à jour. Réessayez",

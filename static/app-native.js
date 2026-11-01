@@ -115,6 +115,10 @@
   let marked;
   let prompted;
   let dialog;
+  let banner;
+  let content;
+  let manualDownload = false;
+  let installing = false;
   /** 手动检查后才展示行内检查结果，启动检查通过红点和确认窗口提示更新。 */
   let updateRequested = false;
   const check = document.querySelector("[data-app-check-update]");
@@ -131,8 +135,17 @@
   );
   check?.addEventListener("click", async () => {
     updateRequested = true;
+    if (state?.update.status === "downloaded") {
+      render(state);
+      showConfirmation();
+      return;
+    }
     check.disabled = true;
-    showStatus(labels.updateChecking);
+    showStatus(
+      state?.update.status === "downloading"
+        ? labels.updateDownloading
+        : labels.updateChecking,
+    );
     try {
       render(await native.checkUpdate());
       if (["available", "downloaded"].includes(state.update.status)) {
@@ -169,6 +182,7 @@
    * @param {object} next 原生状态。
    */
   function render(next) {
+    const previous = state?.update.status;
     state = next;
     document.documentElement.dataset.applicationPlatform = state.platform;
     const version = document.querySelector("[data-app-version]");
@@ -183,7 +197,7 @@
       error: labels.updateFailed,
       development: labels.updateDevelopment,
       available: `${labels.updateAvailable} ${update.version ?? ""}`,
-      downloaded: `${labels.updateAvailable} ${update.version ?? ""}`,
+      downloaded: `${labels.updateReady} ${update.version ?? ""}`,
       downloading: `${labels.updateDownloading} ${
         Math.floor(update.progress ?? 0)
       }%`,
@@ -195,6 +209,11 @@
     );
     if (check) {
       check.disabled = ["checking", "downloading"].includes(update.status);
+      check.textContent = update.status === "downloading"
+        ? messages.downloading
+        : update.status === "downloaded"
+        ? labels.updateReady
+        : labels.checkUpdate;
     }
     if (
       update.version && marked !== update.version &&
@@ -207,10 +226,29 @@
     }
     if (
       ["available", "downloaded"].includes(update.status) && update.prompt &&
-      prompted !== update.version
+      state.platform !== "windows" && prompted !== update.version
     ) {
       prompted = update.version;
       showConfirmation();
+    }
+    if (
+      state.platform === "windows" && manualDownload &&
+      update.status === "downloaded"
+    ) showBanner();
+    if (banner && update.status !== "downloaded") {
+      banner.remove();
+      banner = undefined;
+      if (content) {
+        content.replaceWith(...content.childNodes);
+        content = undefined;
+      }
+      document.documentElement.classList.remove("app-update-banner-visible");
+    }
+    if (
+      state.platform === "android" && previous === "downloading" &&
+      update.status === "downloaded"
+    ) {
+      void installUpdate().catch(() => showStatus(labels.updateFailed));
     }
     if (dialog?.open) updateDialog();
     document.dispatchEvent(
@@ -221,6 +259,18 @@
    * 创建更新确认窗口；Android 使用标题关闭按钮与整行更新按钮。
    */
   function showConfirmation() {
+    if (state.platform === "windows") {
+      if (state.update.status === "downloaded") showBanner();
+      else if (
+        state.update.status === "available" || state.update.status === "error"
+      ) {
+        manualDownload = true;
+        void native.downloadUpdate().then(render).catch(() =>
+          showStatus(labels.updateFailed)
+        );
+      }
+      return;
+    }
     if (!dialog) {
       dialog = document.createElement("dialog");
       dialog.className = "avatar-crop-dialog app-update-dialog";
@@ -238,7 +288,24 @@
       later.type = "button";
       const mobile = state.platform === "android";
       later.className = mobile ? "icon-button" : "secondary";
-      later.textContent = mobile ? "×" : labels.updateLater;
+      if (mobile) {
+        const icon = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "svg",
+        );
+        icon.setAttribute("viewBox", "0 0 24 24");
+        icon.setAttribute("aria-hidden", "true");
+        const path = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "path",
+        );
+        path.setAttribute(
+          "d",
+          "m6.7 5.3 5.3 5.3 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3z",
+        );
+        icon.append(path);
+        later.append(icon);
+      } else later.textContent = labels.updateLater;
       if (mobile) later.setAttribute("aria-label", labels.accountCancel);
       later.addEventListener("click", () => dialog.close());
       const confirm = document.createElement("button");
@@ -248,17 +315,9 @@
         confirm.disabled = true;
         try {
           if (state.update.status === "downloaded") {
-            await globalThis.applicationSync?.prepareForExit();
-            await native.installUpdate();
+            await installUpdate();
           } else {
             render(await native.downloadUpdate());
-            if (
-              state.platform === "android" &&
-              state.update.status === "downloaded"
-            ) {
-              await globalThis.applicationSync?.prepareForExit();
-              await native.installUpdate();
-            }
           }
         } catch {
           showStatus(labels.updateFailed);
@@ -278,6 +337,47 @@
     }
     updateDialog();
     if (!dialog.open) dialog.showModal();
+  }
+  /** 等待本地事务完成后请求安装，合并下载事件与按钮产生的重复请求。 */
+  async function installUpdate() {
+    if (installing) return;
+    installing = true;
+    try {
+      await globalThis.applicationSync?.prepareForExit();
+      await native.installUpdate();
+    } finally {
+      installing = false;
+    }
+  }
+  /** 手动更新完成后显示贴底窄横幅，通过页面网格预留空间而不遮挡内容。 */
+  function showBanner() {
+    if (banner) return;
+    banner = document.createElement("div");
+    banner.className = "app-update-banner";
+    banner.setAttribute("role", "status");
+    const message = document.createElement("span");
+    message.textContent = labels.updateReady;
+    const restart = document.createElement("button");
+    restart.type = "button";
+    restart.textContent = labels.updateRestart;
+    restart.addEventListener("click", async () => {
+      restart.disabled = true;
+      try {
+        await installUpdate();
+      } catch {
+        showStatus(labels.updateFailed);
+      } finally {
+        restart.disabled = false;
+      }
+    });
+    banner.append(message, restart);
+    const scrollTop = globalThis.scrollY;
+    content = document.createElement("div");
+    content.className = "app-update-content";
+    content.append(...document.body.childNodes);
+    document.body.append(content, banner);
+    document.documentElement.classList.add("app-update-banner-visible");
+    content.scrollTop = scrollTop;
   }
   /**
    * 下载过程中只更新确认按钮和进度，不重新创建窗口或覆盖用户焦点。

@@ -416,6 +416,7 @@ export type Messages = {
   updateAvailable: string;
   updateDownload: string;
   updateLater: string;
+  updateReady: string;
   updateRestart: string;
   updateCurrent: string;
   updateFailed: string;
