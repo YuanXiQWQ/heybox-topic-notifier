@@ -81,8 +81,11 @@ function lobotomyCorpLocaleFile(locale: Locale): string {
     [
         "en-US",
         "es-ES",
+        "fr-FR",
         "ja-JP",
         "ko-KR",
+        "pt-BR",
+        "pt-PT",
         "ru-RU",
         "vi-VN",
         "zh-CN",
@@ -119,8 +122,11 @@ function renderLobotomyCorpConfessionAliasesData(): string {
   const localeFiles = [
     "en-US",
     "es-ES",
+    "fr-FR",
     "ja-JP",
     "ko-KR",
+    "pt-BR",
+    "pt-PT",
     "ru-RU",
     "vi-VN",
     "zh-CN",
