@@ -105,6 +105,7 @@ import { renderSettings } from "./views/settings.ts";
 import { renderAbout } from "./views/about.ts";
 import { sendNotificationTest } from "./services/notification_test.ts";
 import { enqueueNativeNotifications } from "./services/native_notifications.ts";
+import { readActiveNativeNotifications } from "./services/native_inbox.ts";
 import { notifyBrowsers } from "./services/web_push.ts";
 import { projectVersion } from "./project.ts";
 import { parseEditStamp, serverEditStamp } from "./sync/protocol.ts";
@@ -223,7 +224,7 @@ export function createRoutes(
       const [notifications, badge] = await Promise.allSettled([
         Promise.resolve().then(() => {
           if (!inbox) throw new Error("Notifications unavailable");
-          return inbox.read(after);
+          return readActiveNativeNotifications(userStorage, after);
         }),
         readNativeBadge(userStorage, session.userId, c.req.query("badgeVersion") ?? ""),
       ]);
@@ -234,7 +235,7 @@ export function createRoutes(
       });
     }
     if (!inbox) return c.json({ error: "unavailable" }, 503);
-    const result = await inbox.read(after);
+    const result = await readActiveNativeNotifications(userStorage, after);
     return c.json({ userId: session.userId, ...result });
   });
   /**
@@ -2261,7 +2262,10 @@ export function createRoutes(
           if (!nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
         });
         channels.push(async () => {
-          const sent = await enqueueNativeNotifications(context.storage, userId, [record], settings);
+          const sent = await enqueueNativeNotifications(context.storage, userId, {
+            id: record.id, title: getMessages(settings.locale).appName,
+            body: record.post.title, path: "/settings",
+          }, settings);
           if (nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
         });
       }

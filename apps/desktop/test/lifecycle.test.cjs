@@ -258,6 +258,25 @@ test("notification navigation rechecks the account after saving pending edits", 
   assert.equal(context.opened.length, 0);
 });
 
+test("notification backlog merges across pages and confirms filtered tails", async () => {
+  const context = harness();
+  await context.api.setNotifications(true);
+  let page = 0;
+  context.readWith(() => ({ userId: "alice", cursor: String(++page), hasMore: page < 3,
+    events: page === 3 ? [] : [{id: "post-" + page, cursor: String(page), title: "App", body: "Post " + page, path: "/history"}],
+  }));
+  await context.api.consumeNotifications();
+  assert.equal(context.shown.length, 1);
+  assert.equal(context.shown[0].data.title, "App (2)");
+  assert.equal(context.shown[0].data.body, "Post 1\nPost 2");
+  assert.equal(context.device.value.notifications.cursor, "3");
+  assert.equal(context.device.value.notifications.seen.length, 2);
+  context.readWith(() => ({userId: "alice", cursor: "4", events: []}));
+  await context.api.consumeNotifications();
+  assert.equal(context.shown.length, 1);
+  assert.equal(context.device.value.notifications.cursor, "4");
+});
+
 test("notification setup cannot bind a response from an account replaced during the request", async () => {
   const context = harness();
   context.readWith(() => {
