@@ -6,7 +6,8 @@
     "apps/desktop/node_modules",
     "apps/desktop/dist",
     "apps/android",
-    "static/fun/lobotomy-corp/vendor"
+    "static/fun/lobotomy-corp/vendor",
+    "static/vendor/lunar"
   ],
   "tasks": {
     "dev": "deno run --env-file=.env --allow-net --allow-env --allow-read --unstable-kv --watch src/main.ts",

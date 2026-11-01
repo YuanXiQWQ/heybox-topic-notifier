@@ -1,6 +1,7 @@
 /**
  * @file 沿用设置页布局渲染项目信息和网页应用下载入口。
  */
+import { renderSettingsBack } from "./settings_back.ts";
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, UserAccount } from "../models.ts";
 import { projectRepositoryUrl } from "../project.ts";
@@ -58,6 +59,7 @@ export function renderAbout(options: {
     escapeHtml(messages.projectLicense)
   }</dt><dd><a href="${projectRepositoryUrl}/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0</a></dd></div>
       </dl>
+      ${renderSettingsBack(messages.navSettings)}
     </section>
     <section class="settings-group" aria-labelledby="about-install-heading" data-app-downloads>
       <h2 id="about-install-heading">${

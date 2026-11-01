@@ -14,7 +14,10 @@
       "ru-RU": "Заяц-неваляшка для обучающего режима",
       "es-ES": "Conejo de Entrenamiento Estandar",
       "bg-BG": "Стандартен заешки манекен",
-      "vi-VN": "교육용 오뚜기 토끼"
+      "vi-VN": "교육용 오뚜기 토끼",
+      "fr-FR": "Mannequin d’Entraînement Lapinesque Standard",
+      "pt-BR": "Coelho Padrão de Ensino",
+      "pt-PT": "Boneco Coelho Padrão para Treino"
     }
   },
   "Bald-is-awesome!": {
@@ -35,7 +38,10 @@
       "ru-RU": "Ты лысый…",
       "es-ES": "Eres calvo…",
       "bg-BG": "Ти си плешив...",
-      "vi-VN": "You’re Bald…"
+      "vi-VN": "You’re Bald…",
+      "fr-FR": "Vous êtes Chauve…",
+      "pt-BR": "Você está Careca…",
+      "pt-PT": "Tu és careca…"
     }
   },
   "D-01-105": {
@@ -50,7 +56,10 @@
       "ru-RU": "Девушка на Луне",
       "es-ES": "La Luna",
       "bg-BG": "La Luna",
-      "vi-VN": "Il Pianto della Luna"
+      "vi-VN": "Il Pianto della Luna",
+      "fr-FR": "Il Pianto della Luna",
+      "pt-BR": "Il Pianto della Luna",
+      "pt-PT": "Il Pianto della Luna"
     }
   },
   "D-01-106": {
@@ -65,7 +74,10 @@
       "ru-RU": "Армия в чёрном",
       "es-ES": "Ejército Negro",
       "bg-BG": "Армия в черно",
-      "vi-VN": "Army in Black"
+      "vi-VN": "Army in Black",
+      "fr-FR": "Armée de Noir",
+      "pt-BR": "Exército Vestido de Preto",
+      "pt-PT": "Exército de Preto"
     }
   },
   "D-01-110": {
@@ -80,7 +92,10 @@
       "ru-RU": "Странствующий монах",
       "es-ES": "Monje Heroico",
       "bg-BG": "Героичен монах",
-      "vi-VN": "Clouded Monk"
+      "vi-VN": "Clouded Monk",
+      "fr-FR": "Moine Troublé",
+      "pt-BR": "Monge Ensombrado",
+      "pt-PT": "Monge Ofuscado"
     }
   },
   "D-02-107": {
@@ -95,7 +110,10 @@
       "ru-RU": "Пеподай",
       "es-ES": "Ppodae",
       "bg-BG": "Ppodae",
-      "vi-VN": "Ppodae"
+      "vi-VN": "Ppodae",
+      "fr-FR": "Ppodae",
+      "pt-BR": "Ppodae",
+      "pt-PT": "Ppodae"
     }
   },
   "D-03-109": {
@@ -110,7 +128,10 @@
       "ru-RU": "Растаявшая любовь",
       "es-ES": "Derretimiento de Amor",
       "bg-BG": "Топяща се любов",
-      "vi-VN": "Melting Love"
+      "vi-VN": "Melting Love",
+      "fr-FR": "Amour Fusionnel",
+      "pt-BR": "Amor em Derretimento",
+      "pt-PT": "Amor Derretido"
     }
   },
   "D-04-108": {
@@ -125,7 +146,10 @@
       "ru-RU": "Дерево-паразит",
       "es-ES": "Árbol Parasitario",
       "bg-BG": "Дърво паразит",
-      "vi-VN": "Parasite Tree"
+      "vi-VN": "Parasite Tree",
+      "fr-FR": "Arbre Parasite",
+      "pt-BR": "Árvore Parasita",
+      "pt-PT": "Árvore Parasita"
     }
   },
   "D-09-104": {
@@ -140,7 +164,10 @@
       "ru-RU": "Часы обратного хода",
       "es-ES": "Reloj Hacia Atrás",
       "bg-BG": "Часовник, движещ се назад",
-      "vi-VN": "Backward Clock"
+      "vi-VN": "Backward Clock",
+      "fr-FR": "Horloge Inversée",
+      "pt-BR": "Relógio do Regresso",
+      "pt-PT": "Relógio Retrógrado"
     }
   },
   "F-01-02": {
@@ -155,7 +182,10 @@
       "ru-RU": "Девочка со спичкой",
       "es-ES": "Niña Chamuscada",
       "bg-BG": "Обгорено Момиче",
-      "vi-VN": "Scorched Girl"
+      "vi-VN": "Scorched Girl",
+      "fr-FR": "La Fille Brûlée",
+      "pt-BR": "Garota Queimada",
+      "pt-PT": "Menina Carbonizada"
     }
   },
   "F-01-18": {
@@ -170,7 +200,10 @@
       "ru-RU": "Смотрящая на стену",
       "es-ES": "La mujer ante la pared",
       "bg-BG": "Гледащата в стената",
-      "vi-VN": "Wall Gazer"
+      "vi-VN": "Wall Gazer",
+      "fr-FR": "La Dame Fixant le Mur",
+      "pt-BR": "A Mulher Que Encara a Parede",
+      "pt-PT": "A Que Olha A Parede"
     }
   },
   "F-01-37": {
@@ -185,7 +218,10 @@
       "ru-RU": "Снежная королева",
       "es-ES": "La Reina de la Nieve",
       "bg-BG": "Снежната кралица",
-      "vi-VN": "The Snow Queen"
+      "vi-VN": "The Snow Queen",
+      "fr-FR": "La Reine des Neiges",
+      "pt-BR": "A Rainha da Neve",
+      "pt-PT": "Rainha Das Neves"
     }
   },
   "F-01-57": {
@@ -200,7 +236,10 @@
       "ru-RU": "Наёмница \"Красный капюшон\"",
       "es-ES": "La Mercenaria con la Caperucita Roja",
       "bg-BG": "Малката Червена Шапчица Разбойничка",
-      "vi-VN": "Little Red Riding Hooded Mercenary"
+      "vi-VN": "Little Red Riding Hooded Mercenary",
+      "fr-FR": "Petit Mercenaire Chaperonné de Rouge",
+      "pt-BR": "Chapeuzinho Vermelho Mercenária",
+      "pt-PT": "Capuchinho Vermelho Mercenária"
     }
   },
   "F-01-69": {
@@ -215,7 +254,10 @@
       "ru-RU": "Вольный стрелок",
       "es-ES": "Der Freischütz",
       "bg-BG": "Вълшебния стрелец",
-      "vi-VN": "Der Freischütz"
+      "vi-VN": "Der Freischütz",
+      "fr-FR": "Der Freischütz",
+      "pt-BR": "Der Freischütz",
+      "pt-PT": "Der Freischütz"
     }
   },
   "F-01-87": {
@@ -230,7 +272,10 @@
       "ru-RU": "Пугало ищущее мудрость",
       "es-ES": "Espantapájaros Buscando Sabiduría",
       "bg-BG": "Плашило търсещо мъдрост",
-      "vi-VN": "Scarecrow Searching for Wisdom"
+      "vi-VN": "Scarecrow Searching for Wisdom",
+      "fr-FR": "L'Épouvantail à la Recherche de Sagesse",
+      "pt-BR": "Espantalho em Busca de Sabedoria",
+      "pt-PT": "Espantalho Que Procura Por Sabedoria"
     }
   },
   "F-02-44": {
@@ -245,7 +290,10 @@
       "ru-RU": "Красавица и чудовище",
       "es-ES": "La Bella y la Bestia",
       "bg-BG": "Красавицата и Звяра",
-      "vi-VN": "Beauty and the Beast"
+      "vi-VN": "Beauty and the Beast",
+      "fr-FR": "La Belle et la Bête",
+      "pt-BR": "A Bela e a Fera",
+      "pt-PT": "A Bela e o Monstro"
     }
   },
   "F-02-49": {
@@ -260,7 +308,10 @@
       "ru-RU": "Рудольф",
       "es-ES": "Rudolta",
       "bg-BG": "Рудолта",
-      "vi-VN": "Rudolta"
+      "vi-VN": "Rudolta",
+      "fr-FR": "Rudoël du Traîneau",
+      "pt-BR": "Rudolta do Trenó",
+      "pt-PT": "Rudolta"
     }
   },
   "F-02-58": {
@@ -275,7 +326,10 @@
       "ru-RU": "Большой и может быть злой волк",
       "es-ES": "El Gran Lobo que puede ser Feroz",
       "bg-BG": "Голям и Може и да е лош Вълк",
-      "vi-VN": "Big and Might be bad Wolf"
+      "vi-VN": "Big and Might be bad Wolf",
+      "fr-FR": "Grand et Sera Méchant Loup",
+      "pt-BR": "Grande Lobo Mau",
+      "pt-PT": "O Lobo (certamente) Mau"
     }
   },
   "F-02-70": {
@@ -290,7 +344,10 @@
       "ru-RU": "Мечта чёрного лебедя",
       "es-ES": "El Sueño de un Cisne Negro",
       "bg-BG": "Мечта за Черен Лебед",
-      "vi-VN": "Dream of a Black Swan"
+      "vi-VN": "Dream of a Black Swan",
+      "fr-FR": "Rêve d’un Cygne Noir",
+      "pt-BR": "Sonho de um Cisne Negro",
+      "pt-PT": "Sonho de um Cisne Negro"
     }
   },
   "F-04-42": {
@@ -305,7 +362,10 @@
       "ru-RU": "Яблоко Белоснежки",
       "es-ES": "La Manzana de Blancanieves",
       "bg-BG": "Ябълката на Снежанка",
-      "vi-VN": "Snow White's Apple"
+      "vi-VN": "Snow White's Apple",
+      "fr-FR": "La Pomme de Blanche-Neige",
+      "pt-BR": "Maçã da Branca de Neve",
+      "pt-PT": "A Maçã da Branca de Neve"
     }
   },
   "F-04-83": {
@@ -320,7 +380,10 @@
       "ru-RU": "Фестиваль фей",
       "es-ES": "Festival de hadas",
       "bg-BG": "Фестивал на Феите",
-      "vi-VN": "Fairy Festival"
+      "vi-VN": "Fairy Festival",
+      "fr-FR": "Festival des Fées",
+      "pt-BR": "Festival das Fadas",
+      "pt-PT": "Festival Fada"
     }
   },
   "F-05-32": {
@@ -335,7 +398,10 @@
       "ru-RU": "Дровосек с добрым сердцем",
       "es-ES": "Leñador de buen corazón",
       "bg-BG": "Добросърдечен Лесничей",
-      "vi-VN": "Warm-hearted Woodsman"
+      "vi-VN": "Warm-hearted Woodsman",
+      "fr-FR": "Bûcheron au Cœur Tendre",
+      "pt-BR": "Lenhador de Coração Caloroso",
+      "pt-PT": "Lenhador De Coração Quente"
     }
   },
   "F-05-52": {
@@ -350,7 +416,10 @@
       "ru-RU": "Открытая банка \"Wellcheers\"",
       "es-ES": "Lata abierta de Wellcheers",
       "bg-BG": "Отворено кенче от Уелчиърс",
-      "vi-VN": "Opened can of Wellcheers"
+      "vi-VN": "Opened can of Wellcheers",
+      "fr-FR": "Canette Ouverte de WellCheers",
+      "pt-BR": "Lata Aberta de Wéllcheers",
+      "pt-PT": "Lata Aberta de Wellcheers"
     }
   },
   "O-01-04": {
@@ -365,7 +434,10 @@
       "ru-RU": "Королева ненависти",
       "es-ES": "La reina del odio",
       "bg-BG": "Кралицата на омразата",
-      "vi-VN": "The queen of hatred"
+      "vi-VN": "The queen of hatred",
+      "fr-FR": "La Reine de l’Aversion",
+      "pt-BR": "A Rainha do Ódio",
+      "pt-PT": "A Rainha do Ódio"
     }
   },
   "O-01-12": {
@@ -380,7 +452,10 @@
       "ru-RU": "Старая леди",
       "es-ES": "Dama Antigua",
       "bg-BG": "Стара жена",
-      "vi-VN": "Old lady"
+      "vi-VN": "Old lady",
+      "fr-FR": "Vieille Femme",
+      "pt-BR": "Velha Senhora",
+      "pt-PT": "Velha Senhora"
     }
   },
   "O-01-15": {
@@ -395,7 +470,10 @@
       "ru-RU": "Безымянный зародыш",
       "es-ES": "Feto Sin Nombre",
       "bg-BG": "Безименен зародиш",
-      "vi-VN": "Nameless Fetus"
+      "vi-VN": "Nameless Fetus",
+      "fr-FR": "Fœtus Innommable",
+      "pt-BR": "Feto Sem Nome",
+      "pt-PT": "Feto Sem Nome"
     }
   },
   "O-01-45": {
@@ -410,7 +488,10 @@
       "ru-RU": "Чумной доктор",
       "es-ES": "Doctor de la Plaga",
       "bg-BG": "Чумен Лекар",
-      "vi-VN": "Plague Doctor"
+      "vi-VN": "Plague Doctor",
+      "fr-FR": "Docteur de Peste",
+      "pt-BR": "Doutor da Praga",
+      "pt-PT": "O Doutor Da Peste"
     }
   },
   "O-01-55": {
@@ -425,7 +506,10 @@
       "ru-RU": "Дитя галактики",
       "es-ES": "El niño de la galaxia",
       "bg-BG": "Детето на Вселената",
-      "vi-VN": "The Child of Galaxy"
+      "vi-VN": "The Child of Galaxy",
+      "fr-FR": "L’Enfant de la Galaxie",
+      "pt-BR": "Criança da Galáxia",
+      "pt-PT": "A Criança da Galáxia"
     }
   },
   "O-01-64": {
@@ -440,7 +524,10 @@
       "ru-RU": "Король жадности",
       "es-ES": "El Rey de la Codicia",
       "bg-BG": "Кралят на Алчността",
-      "vi-VN": "The King of Greed"
+      "vi-VN": "The King of Greed",
+      "fr-FR": "Le Roi de l'Avidité",
+      "pt-BR": "O Rei da Ganância",
+      "pt-PT": "O Rei da Ganância"
     }
   },
   "O-01-67": {
@@ -455,7 +542,10 @@
       "ru-RU": "Летиция",
       "es-ES": "Laetitia",
       "bg-BG": "Лаетитиа",
-      "vi-VN": "Laetitia"
+      "vi-VN": "Laetitia",
+      "fr-FR": "Lætitia",
+      "pt-BR": "Laetitia",
+      "pt-PT": "Laetitia"
     }
   },
   "O-01-73": {
@@ -470,7 +560,10 @@
       "ru-RU": "Рыцарь отчаяния",
       "es-ES": "La caballera de la desesperación",
       "bg-BG": "Рицарката на Отчаянието",
-      "vi-VN": "The Knight of Despair"
+      "vi-VN": "The Knight of Despair",
+      "fr-FR": "La Chevaleresse de la Désillusion",
+      "pt-BR": "Dama do Desespero",
+      "pt-PT": "A Cavaleira do Desespero"
     }
   },
   "O-01-92": {
@@ -485,7 +578,10 @@
       "ru-RU": "Сегодня стесняется",
       "es-ES": "Mirada tímida",
       "bg-BG": "Срамежлив Поглед Днес",
-      "vi-VN": "Shy Look Today"
+      "vi-VN": "Shy Look Today",
+      "fr-FR": "L’Air Intimidé du Jour",
+      "pt-BR": "Expressão Tímida de Hoje",
+      "pt-PT": "Expressão Tímida de Hoje"
     }
   },
   "O-02-101": {
@@ -500,7 +596,10 @@
       "ru-RU": "Жар-птица",
       "es-ES": "Pájaro Ardiente",
       "bg-BG": "Огнена Птица",
-      "vi-VN": "Fiery Bird"
+      "vi-VN": "Fiery Bird",
+      "fr-FR": "L’Oiseau de Feu",
+      "pt-BR": "O Pássaro de Fogo",
+      "pt-PT": "Pássaro Flamejante"
     }
   },
   "O-02-40": {
@@ -515,7 +614,10 @@
       "ru-RU": "Большая птица",
       "es-ES": "Gran Ave",
       "bg-BG": "Голяма птица",
-      "vi-VN": "Big bird"
+      "vi-VN": "Big bird",
+      "fr-FR": "Gros Oiseau",
+      "pt-BR": "Pássaro Grande",
+      "pt-PT": "Pássaro Grande"
     }
   },
   "O-02-56": {
@@ -530,7 +632,10 @@
       "ru-RU": "Карающая птица",
       "es-ES": "Ave Castigador",
       "bg-BG": "Наказваща Птица",
-      "vi-VN": "Punishing Bird"
+      "vi-VN": "Punishing Bird",
+      "fr-FR": "Oiseau de la Punition",
+      "pt-BR": "Pássaro Punitivo",
+      "pt-PT": "Pássaro Punidor"
     }
   },
   "O-02-62": {
@@ -545,7 +650,10 @@
       "ru-RU": "Птица правосудия",
       "es-ES": "Ave del Juicio",
       "bg-BG": "Птицата на Справедливостта",
-      "vi-VN": "Bird of Judgement"
+      "vi-VN": "Bird of Judgement",
+      "fr-FR": "Oiseau du Jugement",
+      "pt-BR": "Pássaro do Julgamento",
+      "pt-PT": "Pássaro do Julgamento"
     }
   },
   "O-02-63": {
@@ -560,7 +668,10 @@
       "ru-RU": "Птица апокалипсиса",
       "es-ES": "El Ave del Apocalipsis",
       "bg-BG": "Птица на Апокалипсиса",
-      "vi-VN": "Apocalypse Bird"
+      "vi-VN": "Apocalypse Bird",
+      "fr-FR": "Oiseau de l’Apocalypse",
+      "pt-BR": "Pássaro do Apocalipse",
+      "pt-PT": "Pássaro do Apocalipse"
     }
   },
   "O-02-74": {
@@ -575,7 +686,10 @@
       "ru-RU": "Пустое гнездо",
       "es-ES": "El Nido Desnudo",
       "bg-BG": "Голото гнездо",
-      "vi-VN": "The Naked Nest"
+      "vi-VN": "The Naked Nest",
+      "fr-FR": "Nid Dénudé",
+      "pt-BR": "O Ninho Exposto",
+      "pt-PT": "O Ninho Nu"
     }
   },
   "O-02-98": {
@@ -590,7 +704,10 @@
       "ru-RU": "Суккубраз",
       "es-ES": "Porccubus",
       "bg-BG": "Поркъбъс",
-      "vi-VN": "Porccubus"
+      "vi-VN": "Porccubus",
+      "fr-FR": "Porccubus",
+      "pt-BR": "Pórcubo",
+      "pt-PT": "Porccubus"
     }
   },
   "O-03-03": {
@@ -605,7 +722,10 @@
       "ru-RU": "Один грех и сотни благих деяний",
       "es-ES": "Un pecado y cientos de buenas acciones",
       "bg-BG": "Един Грях и Стотици Добри Дела",
-      "vi-VN": "One Sin and Hundreds of Good Deeds"
+      "vi-VN": "One Sin and Hundreds of Good Deeds",
+      "fr-FR": "Un Péché et des Centaines de Bonnes Actions",
+      "pt-BR": "Um Pecado e Centenas de Boas Ações",
+      "pt-PT": "Um Pecado e Centenas de Bons Atos"
     }
   },
   "O-03-60": {
@@ -620,7 +740,10 @@
       "ru-RU": "Фрагмент вселенной",
       "es-ES": "Fragmento del Universo",
       "bg-BG": "Фрагмент от Вселената",
-      "vi-VN": "Fragment of the Universe"
+      "vi-VN": "Fragment of the Universe",
+      "fr-FR": "Fragment de l’Univers",
+      "pt-BR": "Fragmento do Universo",
+      "pt-PT": "Fragmento do Universo"
     }
   },
   "O-03-88": {
@@ -635,7 +758,10 @@
       "ru-RU": "Разновидность преломления пространства",
       "es-ES": "Variante de Refracción Dimensional",
       "bg-BG": "Променливо измерение на пречупване",
-      "vi-VN": "Dimensional Refraction Variant"
+      "vi-VN": "Dimensional Refraction Variant",
+      "fr-FR": "Réfraction Dimensionnelle Alternative",
+      "pt-BR": "Variante de Refração Dimensional",
+      "pt-PT": "Variante de Refração Dimensional"
     }
   },
   "O-03-89": {
@@ -650,7 +776,10 @@
       "ru-RU": "ЗАЦЕНЗУРЕНО",
       "es-ES": "CENSURADO",
       "bg-BG": "ЦЕНЗУРИРАНО",
-      "vi-VN": "CENSORED"
+      "vi-VN": "CENSORED",
+      "fr-FR": "CENSURÉ",
+      "pt-BR": "CENSURADO",
+      "pt-PT": "CENSURADO"
     }
   },
   "O-03-93": {
@@ -665,7 +794,10 @@
       "ru-RU": "Голубая звезда",
       "es-ES": "Estrella Azul",
       "bg-BG": "Синя Звезда",
-      "vi-VN": "Blue Star"
+      "vi-VN": "Blue Star",
+      "fr-FR": "Étoile Bleue",
+      "pt-BR": "Estrela Azul",
+      "pt-PT": "Estrela Azul"
     }
   },
   "O-04-08": {
@@ -680,7 +812,10 @@
       "ru-RU": "Красные туфли",
       "es-ES": "Los Zapatos Rojos",
       "bg-BG": "Червените Обувки",
-      "vi-VN": "The Red Shoes"
+      "vi-VN": "The Red Shoes",
+      "fr-FR": "Chaussures Rouges",
+      "pt-BR": "Os Saltos Vermelhos",
+      "pt-PT": "Sapatos Vermelhos"
     }
   },
   "O-04-100": {
@@ -695,7 +830,10 @@
       "ru-RU": "Могила сакуры",
       "es-ES": "Tumba de los Flores de Cerezo",
       "bg-BG": "Гроб на Черешов Цвят",
-      "vi-VN": "Grave of Cherry Blossoms"
+      "vi-VN": "Grave of Cherry Blossoms",
+      "fr-FR": "Tombeau des Fleurs de Cerisier",
+      "pt-BR": "Túmulo das Flores de Cerejeira",
+      "pt-PT": "Túmulo de Flores de Cerejeira"
     }
   },
   "O-04-66": {
@@ -710,7 +848,10 @@
       "ru-RU": "Маленький принц",
       "es-ES": "El Principito",
       "bg-BG": "Малкия Принц",
-      "vi-VN": "The Little Prince"
+      "vi-VN": "The Little Prince",
+      "fr-FR": "Le Petit Prince",
+      "pt-BR": "O Pequeno Príncipe",
+      "pt-PT": "O Principezinho"
     }
   },
   "O-04-72": {
@@ -725,7 +866,10 @@
       "ru-RU": "Рвущийся к небесам",
       "es-ES": "Escarbando el Paraíso",
       "bg-BG": "Ровещото Небе",
-      "vi-VN": "The Burrowing Heaven"
+      "vi-VN": "The Burrowing Heaven",
+      "fr-FR": "Le Paradis Enraciné",
+      "pt-BR": "O Céu Perfurador",
+      "pt-PT": "Escavando O Paraíso"
     }
   },
   "O-04-84": {
@@ -740,7 +884,10 @@
       "ru-RU": "Мясной фонарь",
       "es-ES": "Linterna de Carne",
       "bg-BG": "Месен Фенер",
-      "vi-VN": "Meat Lantern"
+      "vi-VN": "Meat Lantern",
+      "fr-FR": "Lanterne à Viande",
+      "pt-BR": "Lanterna Carnívora",
+      "pt-PT": "Lanterna de Carne"
     }
   },
   "O-05-102": {
@@ -755,7 +902,10 @@
       "ru-RU": "Инь",
       "es-ES": "Yin",
       "bg-BG": "Ин",
-      "vi-VN": "Yin"
+      "vi-VN": "Yin",
+      "fr-FR": "Yin",
+      "pt-BR": "Yin",
+      "pt-PT": "Yin"
     }
   },
   "O-05-30": {
@@ -770,7 +920,10 @@
       "ru-RU": "Поющая машина",
       "es-ES": "Maquina de cantar",
       "bg-BG": "Пееща Машина",
-      "vi-VN": "Singing Machine"
+      "vi-VN": "Singing Machine",
+      "fr-FR": "La Machine Chantante",
+      "pt-BR": "Máquina Cantora",
+      "pt-PT": "A Máquina que Canta"
     }
   },
   "O-05-47": {
@@ -785,7 +938,10 @@
       "ru-RU": "Не трогай меня",
       "es-ES": "No me toques",
       "bg-BG": "Не Ме Бутай",
-      "vi-VN": "Don't Touch Me"
+      "vi-VN": "Don't Touch Me",
+      "fr-FR": "Ne Me Touchez Pas",
+      "pt-BR": "Não Me Toque",
+      "pt-PT": "Não Me Toques"
     }
   },
   "O-05-61": {
@@ -800,7 +956,10 @@
       "ru-RU": "Рассыпающаяся броня",
       "es-ES": "Armadura desmoronada",
       "bg-BG": "Разпадаща се броня",
-      "vi-VN": "Crumbling Armor"
+      "vi-VN": "Crumbling Armor",
+      "fr-FR": "L’Armure Effritée",
+      "pt-BR": "Armadura Decadente",
+      "pt-PT": "Armadura Despedaçada"
     }
   },
   "O-05-76": {
@@ -815,7 +974,10 @@
       "ru-RU": "Шаденфрейд",
       "es-ES": "Schadenfreude",
       "bg-BG": "Злощастна радост",
-      "vi-VN": "Schadenfreude"
+      "vi-VN": "Schadenfreude",
+      "fr-FR": "Schadenfreude",
+      "pt-BR": "Schadenfreude",
+      "pt-PT": "Schadenfreude"
     }
   },
   "O-06-20": {
@@ -830,7 +992,10 @@
       "ru-RU": "Здесь ничего нет",
       "es-ES": "Nada Esta Ahí",
       "bg-BG": "Няма Нищо Там",
-      "vi-VN": "Nothing There"
+      "vi-VN": "Nothing There",
+      "fr-FR": "Rien à Signaler",
+      "pt-BR": "Há Nada Aqui",
+      "pt-PT": "Nada Ali"
     }
   },
   "O-07-103": {
@@ -845,7 +1010,10 @@
       "ru-RU": "Ян",
       "es-ES": "Yang",
       "bg-BG": "Ян",
-      "vi-VN": "Yang"
+      "vi-VN": "Yang",
+      "fr-FR": "Yang",
+      "pt-BR": "Yang",
+      "pt-PT": "Yang"
     }
   },
   "O-09-81": {
@@ -860,7 +1028,10 @@
       "ru-RU": "Корректирующее зеркало",
       "es-ES": "Espejo de Ajuste",
       "bg-BG": "Огледало на Корекция",
-      "vi-VN": "Mirror of Adjustment"
+      "vi-VN": "Mirror of Adjustment",
+      "fr-FR": "Miroir des Ajustements",
+      "pt-BR": "Espelho de Ajuste",
+      "pt-PT": "Espelho de Ajuste"
     }
   },
   "O-09-91": {
@@ -875,7 +1046,10 @@
       "ru-RU": "Портрет другого мира",
       "es-ES": "Retrato del Otro Mundo",
       "bg-BG": "Портрет на Друг Свят",
-      "vi-VN": "Portrait of Another World"
+      "vi-VN": "Portrait of Another World",
+      "fr-FR": "Portrait d’un Autre Monde",
+      "pt-BR": "Retrato de Outro Mundo",
+      "pt-PT": "Retrato do Outro Mundo"
     }
   },
   "O-09-95": {
@@ -890,7 +1064,10 @@
       "ru-RU": "Светящийся браслет",
       "es-ES": "Pulsera luminosa",
       "bg-BG": "Светеща Гривна",
-      "vi-VN": "Luminous Bracelet"
+      "vi-VN": "Luminous Bracelet",
+      "fr-FR": "Bracelet Lumineux",
+      "pt-BR": "Bracelete Luminoso",
+      "pt-PT": "Bracelete Luminosa"
     }
   },
   "O-09-96": {
@@ -905,7 +1082,10 @@
       "ru-RU": "Корректировщик поведения",
       "es-ES": "Ajuste de comportamiento",
       "bg-BG": "Настройка на поведението",
-      "vi-VN": "Behavior Adjustment"
+      "vi-VN": "Behavior Adjustment",
+      "fr-FR": "Ajusteur d’Attitude",
+      "pt-BR": "Ajustador Comportamental",
+      "pt-PT": "Ajuste de Comportamento"
     }
   },
   "T-01-31": {
@@ -920,7 +1100,10 @@
       "ru-RU": "Безмолвный оркестр",
       "es-ES": "La Orquesta Silenciosa",
       "bg-BG": "Тихият Оркестър",
-      "vi-VN": "The Silent Orchestra"
+      "vi-VN": "The Silent Orchestra",
+      "fr-FR": "L’Orchestre Silencieux",
+      "pt-BR": "A Orquestra Silenciosa",
+      "pt-PT": "A Orquestra Silenciosa"
     }
   },
   "T-01-54": {
@@ -935,7 +1118,10 @@
       "ru-RU": "Покинутый убийца",
       "es-ES": "Asesino Abandonado",
       "bg-BG": "Изоставен убиец",
-      "vi-VN": "Forsaken Murderer"
+      "vi-VN": "Forsaken Murderer",
+      "fr-FR": "Meurtrier Abandonné",
+      "pt-BR": "Assassino Abandonado",
+      "pt-PT": "Assassino Abandonado"
     }
   },
   "T-01-68": {
@@ -950,7 +1136,10 @@
       "ru-RU": "Похороны мёртвых бабочек",
       "es-ES": "Funeral de las Mariposas Muertas",
       "bg-BG": "Погребение на Мъртви Пеперуди",
-      "vi-VN": "Funeral of the Dead Butterflies"
+      "vi-VN": "Funeral of the Dead Butterflies",
+      "fr-FR": "La Funéraille des Papillons Morts",
+      "pt-BR": "O Funeral das Borboletas Mortas",
+      "pt-PT": "O Funeral das Borboletas Mortas"
     }
   },
   "T-01-75": {
@@ -965,7 +1154,10 @@
       "ru-RU": "Гора улыбающихся тел",
       "es-ES": "La Montaña de Cuerpos Sonrientes",
       "bg-BG": "Планина от усмихващи се тела",
-      "vi-VN": "The Mountain of Smiling Bodies"
+      "vi-VN": "The Mountain of Smiling Bodies",
+      "fr-FR": "Montagne des Corps Souriants",
+      "pt-BR": "Montanha de Corpos Sorridentes",
+      "pt-PT": "A Montanha de Corpos Sorridentes"
     }
   },
   "T-02-43": {
@@ -980,7 +1172,10 @@
       "ru-RU": "Паучье логово",
       "es-ES": "Brote Aracnido",
       "bg-BG": "Развъдник на паяци",
-      "vi-VN": "Spider Bud"
+      "vi-VN": "Spider Bud",
+      "fr-FR": "Bourgeon d'Araignée",
+      "pt-BR": "Casulo Aracnídeo",
+      "pt-PT": "Casulo Aranha"
     }
   },
   "T-02-71": {
@@ -995,7 +1190,10 @@
       "ru-RU": "Дремлющее течение",
       "es-ES": "La Corriente de Ensueño",
       "bg-BG": "Сънувашата вълна",
-      "vi-VN": "The Dreaming Current"
+      "vi-VN": "The Dreaming Current",
+      "fr-FR": "Le Courant Rêveur",
+      "pt-BR": "A Correnteza Sonhadora",
+      "pt-PT": "Correncia do Sonho"
     }
   },
   "T-02-99": {
@@ -1010,7 +1208,10 @@
       "ru-RU": "Пустые сны",
       "es-ES": "Sueño Vacío",
       "bg-BG": "Празен сън",
-      "vi-VN": "Void Dream"
+      "vi-VN": "Void Dream",
+      "fr-FR": "Rêve Vide",
+      "pt-BR": "Sonho Vazio",
+      "pt-PT": "Sonho Vazio"
     }
   },
   "T-03-46": {
@@ -1025,7 +1226,10 @@
       "ru-RU": "Белая ночь",
       "es-ES": "NocheBlanca",
       "bg-BG": "Бяла Нощ",
-      "vi-VN": "WhiteNight"
+      "vi-VN": "WhiteNight",
+      "fr-FR": "NuitBlanche",
+      "pt-BR": "NoiteBranca",
+      "pt-PT": "NoiteBranca"
     }
   },
   "T-04-06": {
@@ -1040,7 +1244,10 @@
       "ru-RU": "Счастливый мишка",
       "es-ES": "Feliz osito de peluche",
       "bg-BG": "Щастливо Плюшено Мече",
-      "vi-VN": "Happy Teddy Bear"
+      "vi-VN": "Happy Teddy Bear",
+      "fr-FR": "Heureux Ours en Peluche",
+      "pt-BR": "Ursinho de Pelúcia Feliz",
+      "pt-PT": "Ursinho de Peluche Feliz"
     }
   },
   "T-04-50": {
@@ -1055,7 +1262,10 @@
       "ru-RU": "Пчелиная королева",
       "es-ES": "Abeja Reina",
       "bg-BG": "Пчела Майка",
-      "vi-VN": "Queen Bee"
+      "vi-VN": "Queen Bee",
+      "fr-FR": "La Reine des Abeilles",
+      "pt-BR": "Abelha Rainha",
+      "pt-PT": "Abelha Rainha"
     }
   },
   "T-04-53": {
@@ -1070,7 +1280,10 @@
       "ru-RU": "Альраун",
       "es-ES": "Alriune",
       "bg-BG": "Алрийн",
-      "vi-VN": "Alriune"
+      "vi-VN": "Alriune",
+      "fr-FR": "Alriune",
+      "pt-BR": "Alriune",
+      "pt-PT": "Alriune"
     }
   },
   "T-05-41": {
@@ -1085,7 +1298,10 @@
       "ru-RU": "Маленький помощник",
       "es-ES": "Pequeño Ayudante",
       "bg-BG": "Малък помощник",
-      "vi-VN": "Little Helper"
+      "vi-VN": "Little Helper",
+      "fr-FR": "L’Assistant-à-tout-faire",
+      "pt-BR": "Auxiliar Geral",
+      "pt-PT": "Ajudante Alada"
     }
   },
   "T-05-51": {
@@ -1100,7 +1316,10 @@
       "ru-RU": "Ванна с кровью",
       "es-ES": "Baño de Sangre",
       "bg-BG": "Кървава вана",
-      "vi-VN": "Bloodbath"
+      "vi-VN": "Bloodbath",
+      "fr-FR": "Le Bain de Sang",
+      "pt-BR": "Banheira de Sangue",
+      "pt-PT": "Banheira Sangrenta"
     }
   },
   "T-06-27": {
@@ -1115,7 +1334,10 @@
       "ru-RU": "1.76 MГц",
       "es-ES": "1.76 MHz",
       "bg-BG": "1.76 MHz",
-      "vi-VN": "1.76 MHz"
+      "vi-VN": "1.76 MHz",
+      "fr-FR": "1.76 MHz",
+      "pt-BR": "1.76 MHz",
+      "pt-PT": "1.76 MHz"
     }
   },
   "T-09-09": {
@@ -1130,7 +1352,10 @@
       "ru-RU": "Тереза",
       "es-ES": "Theresia",
       "bg-BG": "Тереза",
-      "vi-VN": "Theresia"
+      "vi-VN": "Theresia",
+      "fr-FR": "Thérésia",
+      "pt-BR": "Theresia",
+      "pt-PT": "Theresia"
     }
   },
   "T-09-77": {
@@ -1145,7 +1370,10 @@
       "ru-RU": "Сердце устремления",
       "es-ES": "El Corazón de la Aspiración",
       "bg-BG": "Сърце на Стремежа",
-      "vi-VN": "The Heart of Aspiration"
+      "vi-VN": "The Heart of Aspiration",
+      "fr-FR": "Le Cœur de l’Ambition",
+      "pt-BR": "Coração da Aspiração",
+      "pt-PT": "Coração de Aspiração"
     }
   },
   "T-09-78": {
@@ -1160,7 +1388,10 @@
       "ru-RU": "Записи сумасшедшего исследователя",
       "es-ES": "Nota de un Investigador Enloquecido",
       "bg-BG": "Бележник на Луд Изследовател",
-      "vi-VN": "Note from a Crazed Researcher"
+      "vi-VN": "Note from a Crazed Researcher",
+      "fr-FR": "Notes d’un Chercheur Fou",
+      "pt-BR": "Anotações de um Pesquisador Enlouquecido",
+      "pt-PT": "Apontamentos de um Pesquisador Enlouquecido"
     }
   },
   "T-09-79": {
@@ -1175,7 +1406,10 @@
       "ru-RU": "Божество из плоти",
       "es-ES": "Ídolo de la carne",
       "bg-BG": "Кръст от плът",
-      "vi-VN": "Flesh Idol"
+      "vi-VN": "Flesh Idol",
+      "fr-FR": "Idole de Chair",
+      "pt-BR": "Ídolo de Carne",
+      "pt-PT": "Ídolo de Carne"
     }
   },
   "T-09-80": {
@@ -1190,7 +1424,10 @@
       "ru-RU": "Сок огромного дерева",
       "es-ES": "Savia del Arbol Gigante",
       "bg-BG": "Огромна капка дървесен сок",
-      "vi-VN": "Giant Tree Sap"
+      "vi-VN": "Giant Tree Sap",
+      "fr-FR": "La Sève d’un Arbre Géant",
+      "pt-BR": "Seiva da Árvore Gigante",
+      "pt-PT": "Seiva da Árvore Gigante"
     }
   },
   "T-09-82": {
@@ -1205,7 +1442,10 @@
       "ru-RU": "Убежище из 27-го марта",
       "es-ES": "Refugio del 27 de marzo",
       "bg-BG": "Подслон от 27-ми март",
-      "vi-VN": "Shelter from the 27th of March"
+      "vi-VN": "Shelter from the 27th of March",
+      "fr-FR": "Le Refuge du 27 Mars",
+      "pt-BR": "Abrigo do Dia 27 de Março",
+      "pt-PT": "Abrigo de 27 de Março"
     }
   },
   "T-09-85": {
@@ -1220,7 +1460,10 @@
       "ru-RU": "Мы можем изменить что угодно",
       "es-ES": "Podemos Cambiar Cualquier Cosa",
       "bg-BG": "Можем Да Променим Всичко",
-      "vi-VN": "We Can Change Anything"
+      "vi-VN": "We Can Change Anything",
+      "fr-FR": "Nous Pouvons Tout Changer",
+      "pt-BR": "Nós Podemos Mudar Qualquer Coisa",
+      "pt-PT": "Nós Pudemos Mudar Tudo"
     }
   },
   "T-09-86": {
@@ -1235,7 +1478,10 @@
       "ru-RU": "Адский экспресс",
       "es-ES": "Tren Expreso al Infierno",
       "bg-BG": "Бърз Влак за Ада",
-      "vi-VN": "Express Train to Hell"
+      "vi-VN": "Express Train to Hell",
+      "fr-FR": "Enfer Express",
+      "pt-BR": "Trem Expresso para o Inferno",
+      "pt-PT": "O Expresso para o Inferno"
     }
   },
   "T-09-90": {
@@ -1250,7 +1496,10 @@
       "ru-RU": "Пророчество кожи",
       "es-ES": "Profecía de la Piel",
       "bg-BG": "Пророчество на Кожата",
-      "vi-VN": "Prophecy of the Skin"
+      "vi-VN": "Prophecy of the Skin",
+      "fr-FR": "Prophétie Cutanée",
+      "pt-BR": "Profecia da Pele",
+      "pt-PT": "A Profecia da Pele"
     }
   },
   "T-09-94": {
@@ -1265,7 +1514,10 @@
       "ru-RU": "Тебе нужно быть счастливым.",
       "es-ES": "Debes estar feliz.",
       "bg-BG": "Трябва Да Си Щастлив.",
-      "vi-VN": "You Must Be Happy."
+      "vi-VN": "You Must Be Happy.",
+      "fr-FR": "Vous Devez Être Heureux",
+      "pt-BR": "Você Precisa Ser Feliz",
+      "pt-PT": "Tu Deves Estar Feliz."
     }
   },
   "T-09-97": {
@@ -1280,7 +1532,10 @@
       "ru-RU": "Старые убеждения и обещания",
       "es-ES": "Antigua Creencia y Promesa",
       "bg-BG": "Древно Вярване и Обещание",
-      "vi-VN": "Old Faith and Promise"
+      "vi-VN": "Old Faith and Promise",
+      "fr-FR": "Croyance d’Autrefois et Promesse Oubliée",
+      "pt-BR": "Velha Crença e Promessa",
+      "pt-PT": "Velha Crença e Promessa"
     }
   }
 }

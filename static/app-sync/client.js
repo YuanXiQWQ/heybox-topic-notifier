@@ -50,7 +50,7 @@
             type: "app-resources",
             urls: [
               ...document.querySelectorAll(
-                "script[src],link[rel='stylesheet']",
+                "script[src],link[rel='stylesheet'],link[rel='modulepreload']",
               ),
             ].map((element) => element.src || element.href),
           });
@@ -200,7 +200,7 @@
     return "<!doctype html>" + clone.outerHTML;
   }
   /**
-   * 原子保存设置操作和页面快照，再尝试同步；离线返回明确的本地受理状态。
+   * 原子保存设置和快照，主设置与时段子页共用快照；离线返回本地受理状态。
    * @param {FormData} form 用户本次设置。
    * @param {string} base 用户编辑前的表单。
    * @return {Promise<Response>} 服务器响应或本地已保存响应。
@@ -217,12 +217,12 @@
     };
     const existing = await store.readState(
       userId,
-      `page:${location.pathname}${location.search}`,
+      `page:${location.pathname}${location.pathname === "/settings" && location.search === "?panel=polling" ? "" : location.search}`,
     );
     await store.append(
       userId,
       operation,
-      `page:${location.pathname}${location.search}`,
+      `page:${location.pathname}${location.pathname === "/settings" && location.search === "?panel=polling" ? "" : location.search}`,
       {
         html,
         headers: existing?.headers,
@@ -266,12 +266,12 @@
     };
     const existing = await store.readState(
       userId,
-      `page:${location.pathname}${location.search}`,
+      `page:${location.pathname}${location.pathname === "/settings" && location.search === "?panel=polling" ? "" : location.search}`,
     );
     await store.append(
       userId,
       operation,
-      `page:${location.pathname}${location.search}`,
+      `page:${location.pathname}${location.pathname === "/settings" && location.search === "?panel=polling" ? "" : location.search}`,
       {
         html: capturePage(),
         headers: existing?.headers,
@@ -468,7 +468,7 @@
    */
   async function savePage() {
     await ready;
-    const name = `page:${location.pathname}${location.search}`;
+    const name = `page:${location.pathname}${location.pathname === "/settings" && location.search === "?panel=polling" ? "" : location.search}`;
     const existing = await store.readState(userId, name);
     await store.writeState(userId, name, { ...existing, html: capturePage() });
   }

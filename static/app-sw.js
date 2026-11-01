@@ -94,13 +94,13 @@ async function rangeResponse(request, response) {
 }
 
 /**
- * 在当前账号内缓存页面，待同步设置优先使用本地编辑快照。
+ * 在当前账号内缓存页面，主设置与时段子页共用最新草稿，其它查询页保持隔离。
  * @param {Request} request 页面请求。
  * @return {Promise<Response>} 在线页面或当前账号离线页面。
  */
 async function applicationPage(request) {
   const url = new URL(request.url);
-  const name = `page:${url.pathname}${url.search}`;
+  const name = `page:${url.pathname}${url.pathname === "/settings" && url.search === "?panel=polling" ? "" : url.search}`;
   const store = self.AppLocalStore;
   let active = await store.readState("__device", "active-user");
   try {

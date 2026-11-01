@@ -58,6 +58,8 @@ export type PollIntervalUnit =
  * 轮询设置。
  */
 export type PollingSettings = {
+  /** 自动保存的分时段草稿及当前设备时区，无效行不参与调度。 */
+  schedule?: import("../static/polling-schedule-core.js").PollingSchedule;
   enabled: boolean;
   intervalStartedAt?: string;
   intervalUnit: PollIntervalUnit;

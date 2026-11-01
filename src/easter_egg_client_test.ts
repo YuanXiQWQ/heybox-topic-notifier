@@ -19,6 +19,7 @@ import {
   StorageMock,
 } from "./test_harness.ts";
 import { renderLayout } from "./views/html.ts";
+import type { Locale } from "./locales/types.ts";
 import {
   whiteNightConfessionSuppressionDelayMs,
   whiteNightDeathSequenceDurationMs,
@@ -71,20 +72,11 @@ const whiteNightFadeStartMs = whiteNightPreludeDurationMs +
 /**
  * 从页面内联脚本中读取《脑叶公司》当前本地化。
  *
- * @param {string} locale 页面 locale。
+ * @param {Locale} locale 页面 locale。
  * @return {Record<string, string>} 注入的游戏文本。
  */
 function renderedLobotomyCorpLocale(
-  locale:
-    | "en-CA"
-    | "en-GB"
-    | "en-US"
-    | "fr-FR"
-    | "zh-CN"
-    | "zh-HK"
-    | "zh-MO"
-    | "zh-SG"
-    | "zh-TW",
+  locale: Locale,
 ) {
   const html = renderLayout({
     body: "",
@@ -192,15 +184,44 @@ Deno.test("Lobotomy Corporation locale data is injected from game JSON with fall
     renderedLobotomyCorpLocale("en-US"),
   );
   assertEquals(
-    renderedLobotomyCorpLocale("fr-FR"),
+    renderedLobotomyCorpLocale("de-DE"),
     renderedLobotomyCorpLocale("en-US"),
   );
 });
 
+/** 验证已有原作翻译的法文及两种葡萄牙文直接进入页面内联数据。 */
+Deno.test("Lobotomy Corporation embeds original French and Portuguese dialogue", () => {
+  const cases: Array<[Locale, string, string]> = [
+    ["fr-FR", "Retourner à l'Ancrage Mémoriel", "Confesser"],
+    ["pt-BR", "Retroceder ao Repositório de Memória.", "Confesar"],
+    ["pt-PT", "Voltar através do Repositório de Memórias", "Confissão"],
+  ];
+  for (const [locale, restart, confession] of cases) {
+    const messages = renderedLobotomyCorpLocale(locale);
+    assertEquals(messages.restartDay, restart);
+    assertEquals(messages["oneSin.specialWork.confession"], confession);
+    assertEquals(
+      Object.keys(messages).sort(),
+      Object.keys(renderedLobotomyCorpLocale("en-US")).sort(),
+    );
+  }
+});
+
 Deno.test("Lobotomy Corporation injects every maintained Confession alias", () => {
   const aliases = renderedLobotomyCorpConfessionAliases();
-  assertEquals(aliases.length, 8);
-  ["Confess", "Confesarse", "懺悔", "고해", "Исповедь", "Xoa dịu", "赎罪"]
+  assertEquals(aliases.length, 11);
+  [
+    "Confess",
+    "Confesarse",
+    "Confesser",
+    "Confesar",
+    "Confissão",
+    "懺悔",
+    "고해",
+    "Исповедь",
+    "Xoa dịu",
+    "赎罪",
+  ]
     .forEach(
       (alias) => assert(aliases.includes(alias)),
     );
@@ -504,7 +525,10 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     const api = browser.lobotomyCorpEasterEgg!;
     const observedCanonicalIds: string[] = [];
     api.onAbnormalitySubmitted((id) => observedCanonicalIds.push(id));
-    const form = { action: "https://warmnest.test/settings", method: "post" };
+    const form = { action: "https://warmnest.test/settings", method: "post",
+      /** @return {Element[]} 账户表单没有被时段覆盖的轮询控件。 */
+      querySelectorAll: () => [],
+    };
 
     Object.defineProperty(browser, "fetch", {
       configurable: true,
@@ -712,6 +736,7 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
     browser,
     "lobotomyCorpEasterEgg",
   );
+  const documentElement = { lang: "zh-CN" };
   const label = new Element();
   label.textContent = "显示名称";
   const navAvatarWrapper = new Element();
@@ -733,7 +758,7 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
     configurable: true,
     value: {
       createElement: () => new Element(),
-      documentElement: { lang: "zh-CN" },
+      documentElement,
       getElementById: (id: string) =>
         id === "lobotomy-corp-locale-data"
           ? { textContent: localeData }
@@ -782,6 +807,16 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
     );
     assertEquals(browser.lobotomyCorpEasterEgg!.getDangerScore(), 0);
     await browser.lobotomyCorpEasterEgg!.commitDisplayName("O-03-03");
+    for (const [locale, name] of [
+      ["fr-FR", "Un Péché et des Centaines de Bonnes Actions"],
+      ["pt-BR", "Um Pecado e Centenas de Boas Ações"],
+      ["pt-PT", "Um Pecado e Centenas de Bons Atos"],
+    ]) {
+      documentElement.lang = locale;
+      await browser.lobotomyCorpEasterEgg!.commitDisplayName("O-03-03");
+      assertEquals(label.textContent, name);
+    }
+    documentElement.lang = "zh-CN";
     assertEquals(
       navAvatarWrapper.querySelector(".lobotomy-corp-risk-badge") !==
         undefined,

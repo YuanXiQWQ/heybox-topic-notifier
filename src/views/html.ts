@@ -81,8 +81,11 @@ function lobotomyCorpLocaleFile(locale: Locale): string {
     [
         "en-US",
         "es-ES",
+        "fr-FR",
         "ja-JP",
         "ko-KR",
+        "pt-BR",
+        "pt-PT",
         "ru-RU",
         "vi-VN",
         "zh-CN",
@@ -119,8 +122,11 @@ function renderLobotomyCorpConfessionAliasesData(): string {
   const localeFiles = [
     "en-US",
     "es-ES",
+    "fr-FR",
     "ja-JP",
     "ko-KR",
+    "pt-BR",
+    "pt-PT",
     "ru-RU",
     "vi-VN",
     "zh-CN",
@@ -226,6 +232,7 @@ export function renderLayout(options: {
     <script src="/static/app-compat.js" defer></script>
     <script src="/static/app-native.js" defer></script>
     <script src="/static/app-device-settings.js" defer></script>
+    <script src="/static/settings-navigation.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
