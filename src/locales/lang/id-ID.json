@@ -478,5 +478,7 @@
   "scheduleGanzhi": "Siklus 60 tahun",
   "scheduleLeapMonth": "Bulan kabisat {month}",
   "scheduleAbsoluteYear": "Tahun Masehi yang sesuai",
-  "scheduleChooseYear": "Pilih tahun Masehi yang sesuai dan tanggal lengkap terlebih dahulu"
+  "scheduleChooseYear": "Pilih tahun Masehi yang sesuai dan tanggal lengkap terlebih dahulu",
+  "schedulePaused": "Tanpa polling",
+  "scheduleIntervalOutsideRange": "Interval terlalu panjang untuk menjalankan satu polling dalam rentang waktu ini"
 }

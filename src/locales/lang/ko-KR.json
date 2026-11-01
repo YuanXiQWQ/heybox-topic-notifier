@@ -478,5 +478,7 @@
   "scheduleGanzhi": "간지",
   "scheduleLeapMonth": "윤{month}월",
   "scheduleAbsoluteYear": "해당 서기 연도",
-  "scheduleChooseYear": "먼저 해당 서기 연도와 날짜의 연·월·일을 모두 지정하세요"
+  "scheduleChooseYear": "먼저 해당 서기 연도와 날짜의 연·월·일을 모두 지정하세요",
+  "schedulePaused": "폴링 안 함",
+  "scheduleIntervalOutsideRange": "설정된 시간 범위에서 한 번도 폴링할 수 없을 만큼 간격이 깁니다"
 }

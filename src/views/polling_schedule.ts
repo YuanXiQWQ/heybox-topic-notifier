@@ -85,6 +85,9 @@ export function renderPollingSchedule(settings: AppSettings): string {
   }</option><option value="replyTime">${
     e(m.pollSortReplyTime)
   }</option></select></label>
+      <button type="button" class="text-action-button schedule-paused-summary" data-schedule-paused hidden>${
+    e(m.schedulePaused)
+  }</button>
       <div class="schedule-actions"><button type="button" class="icon-button" data-schedule-add aria-label="${
     e(m.scheduleAdd)
   }" title="${e(m.scheduleAdd)}">${
@@ -135,9 +138,7 @@ export function renderPollingSchedule(settings: AppSettings): string {
         e(m.scheduleDay)
       }"><option value="">${
         e(m.scheduleDay)
-      }</option></select></div><label data-reference-label hidden><span>${
-        e(m.scheduleAbsoluteYear)
-      }</span><input type="number" min="100" max="9999" step="1" data-date-part="reference"></label><input type="time" data-date-part="time" step="60" aria-label="${
+      }</option></select></div><input type="time" data-date-part="time" step="60" aria-label="${
         e(side === "start" ? m.scheduleStart : m.scheduleEnd)
       }"></fieldset>`
     ).join("")

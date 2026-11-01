@@ -177,25 +177,204 @@ export function toGregorian(p, calendar) {
 }
 
 /**
- * 换算已明确年份的日期，未指定年份或干支周期不能确定唯一实际日期。
+ * 换算完整日期，未指定绝对年份时使用附近最近的有效日期。
  * @param {string} value 日期草稿。
  * @param {string} from 原历法。
  * @param {string} to 目标历法。
  * @param {string} era 纪年。
- * @return {string|null} 换算值；null 表示需要先明确绝对年份及完整日期。
+ * @param {Date} now 就近换算的当前时间。
+ * @return {string|null} 换算值，非法日期为 null。
  */
-export function convertCalendar(value, from, to, era = "ce") {
+export function convertCalendar(value, from, to, era = "ce", now = new Date()) {
   if (!value || from === to) return value;
   const p = dateParts(value, from, era);
   if (!p) return null;
   if (p[1] === null) return value;
-  if (p[0] === null || era === "ganzhi") return null;
-  const solar = toGregorian(p, from);
+  const actual = nearestDateParts(p, from, era, null, now);
+  const solar = actual && toGregorian(actual, from);
   const target = solar && fromGregorian(solar, to);
   if (
     !target || target[0] < calendarYears.min || target[0] > calendarYears.max
   ) return null;
+  target[0] = p[0] === null
+    ? null
+    : era === "ganzhi"
+    ? cycleYear(target[0])
+    : target[0];
   return dateValue(target, era);
+}
+
+/**
+ * 以实际日期距离选择循环年份；明确年份及仍有效的换算参照优先保留。
+ * @param {Array<number|null>} parts 已选择的年月日时分，空白部分为 null。
+ * @param {string} calendar 历法。
+ * @param {string} era 纪年。
+ * @param {number|null} reference 先前明确的绝对年份。
+ * @param {Date} now 当前设备时间。
+ * @return {number[]|null} 最近有效日期，无法解析的分量返回 null。
+ */
+export function nearestDateParts(
+  parts,
+  calendar,
+  era = "ce",
+  reference = null,
+  now = new Date(),
+) {
+  if (
+    era === "ganzhi" && parts[0] !== null && (parts[0] < 0 || parts[0] > 59)
+  ) return null;
+  if (
+    parts.some((part) => part !== null && !Number.isInteger(part)) ||
+    (parts[1] !== null && (!parts[1] || Math.abs(parts[1]) > 12)) ||
+    (parts[2] !== null && (parts[2] < 1 || parts[2] > 31))
+  ) return null;
+  const solarNow = [
+    now.getFullYear(),
+    now.getMonth() + 1,
+    now.getDate(),
+    now.getHours(),
+    now.getMinutes(),
+  ];
+  const current = fromGregorian(solarNow, calendar),
+    target = Date.UTC(...[
+      solarNow[0],
+      solarNow[1] - 1,
+      solarNow[2],
+      solarNow[3],
+      solarNow[4],
+    ]);
+  let best = null, distance = Infinity;
+  /**
+   * 在某个年份中补齐空白日期部分并保留最接近当前时间的候选。
+   * @param {number} year 待检查的绝对年份。
+   * @return {boolean} 该年是否存在符合条件的日期。
+   */
+  function consider(year) {
+    if (year < calendarYears.min || year > calendarYears.max) return false;
+    const months = parts[1] !== null
+      ? [parts[1]]
+      : Array.from({ length: 12 }, (_, i) => i + 1).flatMap((m) =>
+        calendar === "chinese" ? [m, -m] : [m]
+      );
+    let found = false;
+    for (const month of months) {
+      const count = monthDays(calendar, year, month);
+      const day = parts[2] ?? Math.min(current[2], count);
+      if (!count || day < 1 || day > count) continue;
+      const p = [
+          year,
+          month,
+          day,
+          parts[3] ?? current[3],
+          parts[4] ?? current[4],
+        ],
+        solar = toGregorian(p, calendar);
+      if (!solar) continue;
+      const gap = Math.abs(
+        Date.UTC(solar[0], solar[1] - 1, solar[2], solar[3], solar[4]) - target,
+      );
+      if (gap < distance) {
+        best = p;
+        distance = gap;
+      }
+      found = true;
+    }
+    return found;
+  }
+  if (parts[0] !== null && era !== "ganzhi") {
+    consider(parts[0]);
+    return best;
+  }
+  if (
+    era === "ganzhi" && parts[0] !== null && Number.isInteger(reference) &&
+    cycleYear(reference) === parts[0] && consider(reference)
+  ) return best;
+  const step = era === "ganzhi" && parts[0] !== null ? 60 : 1;
+  const base = step === 60
+    ? 4 + parts[0] + Math.round((current[0] - 4 - parts[0]) / 60) * 60
+    : current[0];
+  let foundAt = null;
+  for (
+    let offset = 0;
+    offset <= Math.ceil((calendarYears.max - calendarYears.min) / step);
+    offset++
+  ) {
+    for (
+      const year of offset
+        ? [base - offset * step, base + offset * step]
+        : [base]
+    ) if (consider(year) && foundAt === null) foundAt = offset;
+    if (foundAt !== null && offset >= foundAt + 2) break;
+  }
+  return best;
+}
+
+/**
+ * 换算编辑中的日期，空白分量保持空白，循环年份按当前日期自动补足参照。
+ * @param {string} value 日期草稿。
+ * @param {string} from 原历法。
+ * @param {string} to 目标历法。
+ * @param {string} fromEra 原纪年。
+ * @param {string} toEra 目标纪年。
+ * @param {string} reference 先前明确的年份。
+ * @param {Date} now 当前设备时间。
+ * @return {{value:string,reference:string}} 换算草稿与绝对年份参照。
+ */
+export function convertDateDraft(
+  value,
+  from,
+  to,
+  fromEra,
+  toEra,
+  reference = "",
+  now = new Date(),
+) {
+  if (!value.includes("T")) return { value, reference };
+  const [date, time] = value.split("T"), fields = date.split("-");
+  const year = fields.length === 3 ? fields[0] : "",
+    month = fields[fields.length - 2],
+    day = fields[fields.length - 1];
+  const p = [
+    year ? Number(year.startsWith("C") ? year.slice(1) : year) : null,
+    month ? parseInt(month) * (month.endsWith("L") ? -1 : 1) : null,
+    day ? Number(day) : null,
+    ...(time ? time.split(":").map(Number) : [null, null]),
+  ];
+  let actual = nearestDateParts(
+    p,
+    from,
+    fromEra,
+    reference ? Number(reference) : null,
+    now,
+  );
+  if (!actual && from === to) {
+    actual = nearestDateParts(
+      [p[0], null, null, null, null],
+      from,
+      fromEra,
+      reference ? Number(reference) : null,
+      now,
+    );
+  }
+  if (!actual) return { value, reference };
+  const result = from === to
+    ? actual
+    : fromGregorian(toGregorian(actual, from), to);
+  const y = !year
+    ? ""
+    : toEra === "ganzhi"
+    ? "C" + String(cycleYear(result[0])).padStart(2, "0")
+    : String(result[0]).padStart(4, "0");
+  const m = !month
+    ? ""
+    : from === to
+    ? month
+    : String(Math.abs(result[1])).padStart(2, "0") + (result[1] < 0 ? "L" : "");
+  const d = !day ? "" : from === to ? day : String(result[2]).padStart(2, "0");
+  return {
+    value: (y ? y + "-" : "") + m + "-" + d + "T" + time,
+    reference: String(result[0]),
+  };
 }
 
 /**

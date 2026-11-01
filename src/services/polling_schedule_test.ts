@@ -4,7 +4,10 @@ import {
   canEnableSchedule,
   fullyCovered,
   normalizeSchedule,
+  pollingWindowMs,
   resolvePolling,
+  rowErrors,
+  rowInactive,
   rowKind,
 } from "../../static/polling-schedule-core.js";
 import { defaultAppSettingsFromEnv } from "./default_settings.ts";
@@ -233,7 +236,11 @@ Deno.test("scheduler enters a new time range without waiting for the previous in
     enabled: true,
     intervalUnit: "day",
     intervalValue: 30,
-    schedule: schedule(row(start, start)),
+    schedule: schedule({
+      ...row(start, start),
+      intervalValue: "3",
+      intervalUnit: "second",
+    }),
   };
   let runs = 0;
   const storage = {
@@ -324,4 +331,150 @@ Deno.test("scheduled polling modules are served by the application routes", asyn
     );
     await response.text();
   }
+});
+
+Deno.test("range-only and overlong intervals pause without discarding settings", async () => {
+  const pause = {
+    ...row(),
+    intervalValue: "",
+    intervalUnit: "",
+    postLimit: "",
+    sort: "",
+  };
+  assertEquals(rowKind(pause), "daily");
+  assertEquals(rowErrors(pause), []);
+  assertEquals(canEnableSchedule(schedule(pause)), true);
+  assertEquals(fullyCovered(schedule(pause)), true);
+  assertEquals(
+    (resolvePolling({
+      enabled: true,
+      schedule: schedule(pause, { ...row(), id: "next" }),
+    }).polling as { enabled: boolean }).enabled,
+    false,
+  );
+  const long = {
+    ...row("00:00", "22:59"),
+    intervalValue: "1",
+    intervalUnit: "day",
+  };
+  assertEquals(rowInactive(long), true);
+  assertEquals(rowErrors(long), []);
+  assertEquals(
+    rowInactive({ ...long, intervalValue: "23", intervalUnit: "hour" }),
+    false,
+  );
+  const settings = defaultAppSettingsFromEnv();
+  settings.polling.enabled = true;
+  settings.polling.schedule = schedule(pause);
+  let runs = 0;
+  const scheduler = createPollScheduler({
+    storage: {
+      getSettings: () => Promise.resolve(settings),
+      getLastPollAt: () => Promise.resolve(new Date().toISOString()),
+    } as unknown as Storage,
+    poller: {
+      runOnce: () => {
+        runs++;
+        return Promise.resolve();
+      },
+    },
+  });
+  assertEquals(await scheduler.tickUser("user"), false);
+  assertEquals(runs, 0);
+  settings.polling.schedule = schedule(row());
+  assertEquals(await scheduler.tickUser("user"), true);
+  assertEquals(runs, 1);
+  assertEquals(
+    normalizeSchedule({ rows: [{ ...pause, start: "", end: "" }] }).rows[0]
+      .edited,
+    false,
+  );
+  assertEquals(
+    normalizeSchedule({
+      rows: [{ ...pause, start: "", end: "", edited: true }],
+    }).rows[0].edited,
+    true,
+  );
+});
+
+Deno.test("window length follows real dates, leap days, short lunar months and daylight changes", () => {
+  const utc = new Date("2026-06-01T12:00Z");
+  assertEquals(pollingWindowMs(row("22:00", "01:59"), utc), 4 * 3600000);
+  assertEquals(
+    pollingWindowMs(row("2026-01-01T00:00", "2026-01-01T22:59"), utc),
+    23 * 3600000,
+  );
+  const feb = row("02-01T00:00", "02-29T23:59");
+  assertEquals(
+    pollingWindowMs(feb, new Date("2026-02-10T12:00Z")),
+    28 * 86400000,
+  );
+  assertEquals(
+    pollingWindowMs(feb, new Date("2028-02-10T12:00Z")),
+    29 * 86400000,
+  );
+  const threshold = { ...feb, intervalValue: "29", intervalUnit: "day" };
+  assertEquals(rowInactive(threshold, new Date("2026-02-10T12:00Z")), true);
+  assertEquals(rowInactive(threshold, new Date("2028-02-10T12:00Z")), false);
+  for (
+    const [time, enabled] of [
+      ["2026-02-10T12:00Z", false],
+      ["2028-02-10T12:00Z", true],
+      ["2029-02-10T12:00Z", false],
+    ] as const
+  ) {
+    const settings = { enabled: true, schedule: schedule(threshold) };
+    assertEquals(
+      (resolvePolling(settings, new Date(time)).polling as { enabled: boolean })
+        .enabled,
+      enabled,
+    );
+    assertEquals(settings.schedule.rows[0].intervalValue, "29");
+  }
+  const cyclic = {
+    ...threshold,
+    start: "C36-02-01T00:00",
+    end: "C36-02-29T23:59",
+    era: "ganzhi",
+  };
+  assertEquals(rowInactive(cyclic, new Date("1900-02-10T12:00Z")), true);
+  assertEquals(rowInactive(cyclic, new Date("1960-02-10T12:00Z")), false);
+  const lunar = { ...row("02L-01T00:00", "02L-30T23:59"), calendar: "chinese" };
+  assertEquals(
+    pollingWindowMs(lunar, new Date("2023-03-25T00:00Z")),
+    29 * 86400000,
+  );
+  assertEquals(pollingWindowMs(lunar, new Date("2024-03-25T00:00Z")), 0);
+  const lunarMonth = {
+    ...row("01-01T00:00", "01-30T23:59"),
+    calendar: "chinese",
+    intervalValue: "30",
+    intervalUnit: "day",
+  };
+  assertEquals(rowInactive(lunarMonth, new Date("2023-02-01T12:00Z")), true);
+  assertEquals(rowInactive(lunarMonth, new Date("2025-02-15T12:00Z")), false);
+  assertEquals(
+    pollingWindowMs(row(), new Date("2026-03-08T12:00Z"), "America/Vancouver"),
+    23 * 3600000,
+  );
+  assertEquals(
+    pollingWindowMs(row(), new Date("2026-11-01T12:00Z"), "America/Vancouver"),
+    25 * 3600000,
+  );
+  assertEquals(
+    pollingWindowMs(
+      row("01:00", "01:59"),
+      new Date("2026-11-01T09:30Z"),
+      "America/Vancouver",
+    ),
+    2 * 3600000,
+  );
+  assertEquals(
+    pollingWindowMs(
+      row("02:00", "03:00"),
+      new Date("2026-03-08T10:00Z"),
+      "America/Vancouver",
+    ),
+    60000,
+  );
 });

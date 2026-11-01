@@ -478,5 +478,7 @@
   "scheduleGanzhi": "รอบหกสิบปี",
   "scheduleLeapMonth": "เดือนอธิกมาส {month}",
   "scheduleAbsoluteYear": "ปีคริสต์ศักราชที่ตรงกัน",
-  "scheduleChooseYear": "โปรดเลือกปีคริสต์ศักราชที่ตรงกันและวันที่ให้ครบก่อน"
+  "scheduleChooseYear": "โปรดเลือกปีคริสต์ศักราชที่ตรงกันและวันที่ให้ครบก่อน",
+  "schedulePaused": "ไม่ตรวจสอบเป็นระยะ",
+  "scheduleIntervalOutsideRange": "ช่วงห่างยาวเกินกว่าจะตรวจสอบได้หนึ่งครั้งภายในช่วงเวลานี้"
 }

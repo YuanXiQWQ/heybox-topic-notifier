@@ -478,5 +478,7 @@
   "scheduleGanzhi": "干支",
   "scheduleLeapMonth": "闰{month}月",
   "scheduleAbsoluteYear": "对应的公元年份",
-  "scheduleChooseYear": "请先指定对应的公元年份和完整日期"
+  "scheduleChooseYear": "请先指定对应的公元年份和完整日期",
+  "schedulePaused": "不进行轮询",
+  "scheduleIntervalOutsideRange": "有效区间内无法完成至少一次轮询"
 }

@@ -92,7 +92,7 @@ export function createPollScheduler(
   };
 
   /**
-   * 按当前时段检查指定用户，新时段首次进入时立即调度，未覆盖时间使用默认参数。
+   * 按当前时段检查指定用户，跳过暂停时段，进入轮询时段时立即调度，未覆盖时间使用默认参数。
    *
    * @param {string} userId 用户 ID。
    * @param {PollScheduleEntry | undefined} snapshot 同一次调度已读取的账号快照。
@@ -121,6 +121,10 @@ export function createPollScheduler(
         : await storage.getLastPollAt();
       const now = new Date();
       const effective = resolvePolling(settings.polling, now);
+      if (!(effective.polling as PollingSettings).enabled) {
+        lastPollKeyByUserId.set(userId, effective.key);
+        return false;
+      }
       const previous = Math.max(lastPollStartedAtByUserId.get(userId) ?? 0, Date.parse(lastPollAt ?? "") || 0);
       const previousKey = lastPollKeyByUserId.get(userId) ?? (previous > 0 ? resolvePolling(settings.polling, new Date(previous)).key : undefined);
       const entered = previousKey !== undefined && effective.key !== previousKey;

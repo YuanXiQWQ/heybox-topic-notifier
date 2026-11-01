@@ -478,5 +478,7 @@
   "scheduleGanzhi": "ساٹھ سالہ دور",
   "scheduleLeapMonth": "کبیسہ مہینہ {month}",
   "scheduleAbsoluteYear": "متعلقہ عیسوی سال",
-  "scheduleChooseYear": "پہلے متعلقہ عیسوی سال اور مکمل تاریخ منتخب کریں"
+  "scheduleChooseYear": "پہلے متعلقہ عیسوی سال اور مکمل تاریخ منتخب کریں",
+  "schedulePaused": "پولنگ بند",
+  "scheduleIntervalOutsideRange": "اس دورانیے میں ایک بار پولنگ کے لیے وقفہ بہت طویل ہے"
 }

@@ -478,5 +478,7 @@
   "scheduleGanzhi": "Шестидесятилетний цикл",
   "scheduleLeapMonth": "Вставной месяц {month}",
   "scheduleAbsoluteYear": "Соответствующий год нашей эры",
-  "scheduleChooseYear": "Сначала укажите соответствующий год нашей эры и полную дату"
+  "scheduleChooseYear": "Сначала укажите соответствующий год нашей эры и полную дату",
+  "schedulePaused": "Без опроса",
+  "scheduleIntervalOutsideRange": "Интервал слишком велик для выполнения хотя бы одного опроса в этом периоде"
 }

@@ -4,7 +4,9 @@ import {
   dateParts,
   fullyCovered,
   normalizeSchedule,
-  rowKind,
+  rowErrors,
+  rowInactive,
+  rowPaused,
 } from "./polling-schedule-core.js";
 import { calendarPicker } from "./polling-calendar-picker.js";
 import { branches, stems } from "./polling-calendar.js";
@@ -79,6 +81,9 @@ function initialize() {
       document.documentElement.lang,
   );
   const openDates = calendarPicker(root, labels, update);
+  const expanded = new Set();
+  const inactiveIntervals = new Set();
+  let dateRowId;
   let activeDrag;
   const advanced =
     new URL(location.href).searchParams.get("panel") === "polling";
@@ -99,6 +104,7 @@ function initialize() {
   function emptyRow() {
     return {
       id: crypto.randomUUID(),
+      edited: false,
       calendar: "gregory",
       era: "ce",
       start: "",
@@ -111,10 +117,11 @@ function initialize() {
   }
 
   /**
-   * 保存隐藏字段并交给既有防抖保存，不丢弃无效行。
+   * 刷新当前轮次的字段状态，编辑时交给既有防抖保存，不丢弃无效行。
    * @param {boolean} changed 是否需要调度保存。
    */
   function update(changed = true) {
+    const now = new Date();
     input.value = JSON.stringify(state);
     toggle.disabled = false;
     toggle.checked = state.enabled;
@@ -124,9 +131,19 @@ function initialize() {
     );
     for (const row of list.children) {
       const value = state.rows.find((item) => item.id === row.dataset.id);
-      const invalid = !rowKind(value);
-      row.classList.toggle("is-invalid", invalid);
-      row.setAttribute("aria-invalid", String(invalid));
+      const errors = value.edited ? rowErrors(value) : [];
+      row.classList.remove("is-invalid");
+      row.setAttribute("aria-invalid", String(errors.length > 0));
+      for (
+        const control of row.querySelectorAll(
+          "[data-field],[data-schedule-range]",
+        )
+      ) {
+        control.setAttribute(
+          "aria-invalid",
+          String(errors.includes(control.dataset.field || "range")),
+        );
+      }
       row.querySelector("[data-schedule-range]").textContent =
         formatRange(value, document.documentElement.lang) ||
         labels.scheduleRange;
@@ -136,6 +153,24 @@ function initialize() {
         state.rows.length >= 200;
       row.querySelector('[data-field="intervalValue"]').min =
         value.intervalUnit === "second" ? "3" : "1";
+      const inactive = rowInactive(value, now, state.timeZone);
+      const collapsed = inactive && !expanded.has(value.id);
+      for (const field of row.querySelectorAll("[data-field]")) {
+        field.closest(".schedule-field").hidden = collapsed;
+      }
+      const summary = row.querySelector("[data-schedule-paused]");
+      summary.hidden = !collapsed;
+      const insufficient = inactive && !rowPaused(value);
+      summary.title = insufficient ? labels.scheduleIntervalOutsideRange : "";
+      row.querySelector('[data-field="intervalValue"]').title = insufficient
+        ? labels.scheduleIntervalOutsideRange
+        : "";
+      if (insufficient) {
+        if (changed && !inactiveIntervals.has(value.id)) {
+          globalThis.showToast(section, labels.scheduleIntervalOutsideRange);
+        }
+        inactiveIntervals.add(value.id);
+      } else inactiveIntervals.delete(value.id);
     }
     const covered = state.enabled && fullyCovered(state);
     for (const row of defaultRows) {
@@ -153,6 +188,15 @@ function initialize() {
   /** 将遮罩定位在三个默认轮询字段上，保留其它开关可操作。 */
   function positionOverlay() {
     if (!overlay.hidden) overlay.style.top = defaultRows[0].offsetTop + "px";
+  }
+
+  /** 按当前时间刷新时段摘要，页面恢复可见时同步设备时区。 */
+  function refreshTime() {
+    if (document.hidden) return;
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const changed = state.timeZone !== zone;
+    state.timeZone = zone;
+    update(changed && state.enabled);
   }
 
   /** 根据已保存草稿重建各行，控件继续使用设置页的统一样式。 */
@@ -194,6 +238,7 @@ function initialize() {
       item.id === event.target.closest(".schedule-row").dataset.id
     );
     row[field] = event.target.value;
+    row.edited = true;
     update();
   });
   list.addEventListener("change", (event) => {
@@ -202,6 +247,7 @@ function initialize() {
       item.id === event.target.closest(".schedule-row").dataset.id
     );
     row[event.target.dataset.field] = event.target.value;
+    row.edited = true;
     if (
       row.intervalUnit === "second" && row.intervalValue !== "" &&
       Number(row.intervalValue) < 3
@@ -218,7 +264,11 @@ function initialize() {
     const element = event.target.closest(".schedule-row");
     if (!element) return;
     const index = state.rows.findIndex((row) => row.id === element.dataset.id);
-    if (
+    if (event.target.closest("[data-schedule-paused]")) {
+      expanded.add(element.dataset.id);
+      update(false);
+      element.querySelector('[data-field="intervalValue"]').focus();
+    } else if (
       event.target.closest("[data-schedule-add]") && state.rows.length < 200
     ) {
       state.rows.splice(index + 1, 0, emptyRow());
@@ -235,8 +285,48 @@ function initialize() {
         "[data-schedule-range]",
       ).focus();
     } else if (event.target.closest("[data-schedule-range]")) {
+      dateRowId = element.dataset.id;
+      expanded.add(dateRowId);
       openDates(state.rows[index]);
     }
+  });
+  list.addEventListener("focusin", (event) => {
+    const row = event.target.closest(".schedule-row");
+    if (row && !event.target.closest("[data-schedule-paused]")) {
+      expanded.add(row.dataset.id);
+      update(false);
+    }
+  });
+  list.addEventListener("focusout", (event) => {
+    const row = event.target.closest(".schedule-row");
+    setTimeout(() => {
+      if (
+        row && !row.contains(document.activeElement) &&
+        !(dates.open && dateRowId === row.dataset.id)
+      ) {
+        expanded.delete(row.dataset.id);
+        update(false);
+      }
+    }, 0);
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (dates.open) return;
+    for (const row of list.children) {
+      if (!row.contains(event.target)) expanded.delete(row.dataset.id);
+    }
+    update(false);
+  });
+  dates.addEventListener("close", () => {
+    setTimeout(() => {
+      const row = [...list.children].find((item) =>
+        item.dataset.id === dateRowId
+      );
+      if (row && !row.contains(document.activeElement)) {
+        expanded.delete(dateRowId);
+      }
+      dateRowId = undefined;
+      update(false);
+    }, 0);
   });
   root.querySelector("[data-schedule-close]").addEventListener(
     "click",
@@ -330,14 +420,17 @@ function initialize() {
     new ResizeObserver(positionOverlay).observe(section);
   }
   if (!state.rows.length) state.rows = [emptyRow()];
-  render();
   // 当前设备时区随正常设置编辑提交，不把首次打开空编辑器当成业务变更。
   const previousZone = state.timeZone;
   state.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  render();
   input.value = JSON.stringify(state);
   if (state.enabled && previousZone !== state.timeZone) {
     setTimeout(() => update(), 0);
   }
+  setInterval(refreshTime, 60000);
+  document.addEventListener("visibilitychange", refreshTime);
+  addEventListener("focus", refreshTime);
 }
 
 document.addEventListener("DOMContentLoaded", initialize);
