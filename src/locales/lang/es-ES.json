@@ -478,5 +478,7 @@
   "scheduleGanzhi": "Ciclo sexagenario",
   "scheduleLeapMonth": "Mes intercalar {month}",
   "scheduleAbsoluteYear": "Año correspondiente de la era común",
-  "scheduleChooseYear": "Selecciona primero el año correspondiente y una fecha completa"
+  "scheduleChooseYear": "Selecciona primero el año correspondiente y una fecha completa",
+  "schedulePaused": "Sin consultas",
+  "scheduleIntervalOutsideRange": "El intervalo es demasiado largo para realizar una consulta en este período"
 }

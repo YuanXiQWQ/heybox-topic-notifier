@@ -85,6 +85,9 @@ export function renderPollingSchedule(settings: AppSettings): string {
   }</option><option value="replyTime">${
     e(m.pollSortReplyTime)
   }</option></select></label>
+      <button type="button" class="text-action-button schedule-paused-summary" data-schedule-paused hidden>${
+    e(m.schedulePaused)
+  }</button>
       <div class="schedule-actions"><button type="button" class="icon-button" data-schedule-add aria-label="${
     e(m.scheduleAdd)
   }" title="${e(m.scheduleAdd)}">${

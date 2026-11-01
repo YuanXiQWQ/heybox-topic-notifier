@@ -91,6 +91,8 @@ export type Messages = {
   scheduleYear: string;
   scheduleMonth: string;
   scheduleDay: string;
+  schedulePaused: string;
+  scheduleIntervalOutsideRange: string;
   scheduleTitle: string;
   scheduleEnabled: string;
   scheduleCovered: string;

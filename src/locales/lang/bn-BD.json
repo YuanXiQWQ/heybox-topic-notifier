@@ -478,5 +478,7 @@
   "scheduleGanzhi": "ষাট বছরের চক্র",
   "scheduleLeapMonth": "অধিমাস {month}",
   "scheduleAbsoluteYear": "সমতুল্য খ্রিষ্টাব্দ",
-  "scheduleChooseYear": "আগে সমতুল্য খ্রিষ্টাব্দ ও সম্পূর্ণ তারিখ বেছে নিন"
+  "scheduleChooseYear": "আগে সমতুল্য খ্রিষ্টাব্দ ও সম্পূর্ণ তারিখ বেছে নিন",
+  "schedulePaused": "পোলিং বন্ধ",
+  "scheduleIntervalOutsideRange": "এই সময়সীমায় একবার পোলিং করার জন্য ব্যবধানটি অতিরিক্ত দীর্ঘ"
 }

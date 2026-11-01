@@ -478,5 +478,7 @@
   "scheduleGanzhi": "Ciclo sessagesimale",
   "scheduleLeapMonth": "Mese intercalare {month}",
   "scheduleAbsoluteYear": "Anno corrispondente dell’era comune",
-  "scheduleChooseYear": "Scegli prima l’anno corrispondente e una data completa"
+  "scheduleChooseYear": "Scegli prima l’anno corrispondente e una data completa",
+  "schedulePaused": "Nessun controllo",
+  "scheduleIntervalOutsideRange": "L’intervallo è troppo lungo per eseguire un controllo in questo periodo"
 }

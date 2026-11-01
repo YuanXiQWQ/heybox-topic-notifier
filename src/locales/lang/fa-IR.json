@@ -478,5 +478,7 @@
   "scheduleGanzhi": "چرخه شصت‌ساله",
   "scheduleLeapMonth": "ماه کبیسه {month}",
   "scheduleAbsoluteYear": "سال میلادی متناظر",
-  "scheduleChooseYear": "ابتدا سال میلادی متناظر و تاریخ کامل را انتخاب کنید"
+  "scheduleChooseYear": "ابتدا سال میلادی متناظر و تاریخ کامل را انتخاب کنید",
+  "schedulePaused": "بدون بررسی دوره‌ای",
+  "scheduleIntervalOutsideRange": "فاصله برای انجام یک بررسی در این بازه زمانی بیش از حد طولانی است"
 }

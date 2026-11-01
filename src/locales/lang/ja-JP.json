@@ -478,5 +478,7 @@
   "scheduleGanzhi": "干支",
   "scheduleLeapMonth": "閏{month}月",
   "scheduleAbsoluteYear": "対応する西暦年",
-  "scheduleChooseYear": "先に対応する西暦年と年月日を全て指定してください"
+  "scheduleChooseYear": "先に対応する西暦年と年月日を全て指定してください",
+  "schedulePaused": "定期確認を停止",
+  "scheduleIntervalOutsideRange": "指定期間内に定期確認を1回実行できる間隔を超えています"
 }

@@ -478,5 +478,7 @@
   "scheduleGanzhi": "Sexagenary cycle",
   "scheduleLeapMonth": "Leap month {month}",
   "scheduleAbsoluteYear": "Corresponding CE year",
-  "scheduleChooseYear": "Choose the corresponding CE year and a complete date first"
+  "scheduleChooseYear": "Choose the corresponding CE year and a complete date first",
+  "schedulePaused": "No polling",
+  "scheduleIntervalOutsideRange": "The interval is too long to complete a poll within this time range"
 }

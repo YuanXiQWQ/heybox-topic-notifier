@@ -478,5 +478,7 @@
   "scheduleGanzhi": "Altmış yıllık döngü",
   "scheduleLeapMonth": "Artık ay {month}",
   "scheduleAbsoluteYear": "Karşılık gelen miladi yıl",
-  "scheduleChooseYear": "Önce karşılık gelen miladi yılı ve tam tarihi seçin"
+  "scheduleChooseYear": "Önce karşılık gelen miladi yılı ve tam tarihi seçin",
+  "schedulePaused": "Sorgulama yok",
+  "scheduleIntervalOutsideRange": "Aralık, bu zaman diliminde bir sorgulama yapmak için çok uzun"
 }

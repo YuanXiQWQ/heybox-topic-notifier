@@ -478,5 +478,7 @@
   "scheduleGanzhi": "Sechzigjahreszyklus",
   "scheduleLeapMonth": "Schaltmonat {month}",
   "scheduleAbsoluteYear": "Entsprechendes Jahr n. Chr.",
-  "scheduleChooseYear": "Zuerst das entsprechende Jahr n. Chr. und ein vollständiges Datum wählen"
+  "scheduleChooseYear": "Zuerst das entsprechende Jahr n. Chr. und ein vollständiges Datum wählen",
+  "schedulePaused": "Keine Abfragen",
+  "scheduleIntervalOutsideRange": "Das Intervall ist zu lang für eine Abfrage in diesem Zeitraum"
 }

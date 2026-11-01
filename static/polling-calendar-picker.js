@@ -83,6 +83,12 @@ export function calendarPicker(root, labels, changed) {
     input.addEventListener("input", accept);
     input.addEventListener("change", accept);
     input.addEventListener("compositionend", accept);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.isComposing) {
+        event.preventDefault();
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
     input.addEventListener("blur", () => refresh(select, true));
   }
 
@@ -149,6 +155,13 @@ export function calendarPicker(root, labels, changed) {
 
   /** 校验起止端点的必填部分与日期顺序，将状态标在具体控件上。 */
   function validateDates() {
+    if (!row.edited) {
+      for (const field of dialog.querySelectorAll("[data-date-part]")) {
+        field.setAttribute("aria-invalid", "false");
+      }
+      for (const select of editors.keys()) refresh(select);
+      return;
+    }
     const needsYear = groups.some((group) =>
       field(group, row.era === "ganzhi" ? "cycle" : "year").value !== ""
     );
@@ -186,7 +199,8 @@ export function calendarPicker(root, labels, changed) {
         String(
           needsDate &&
             (!day.value || day.selectedOptions[0]?.dataset.draft === "true" ||
-              Number(day.value) > maxDays(group, m)),
+              Number(day.value) >
+                (maxDays(group, m) || (row.calendar === "chinese" ? 30 : 31))),
         ),
       );
       time.setAttribute(
@@ -261,18 +275,15 @@ export function calendarPicker(root, labels, changed) {
   }
 
   /**
-   * 重建可选日期，非法日期清空并由行校验标红。
+   * 重建可选日期，保留未完成的输入并由字段校验标红。
    * @param {HTMLElement} group 端点字段组。
    * @param {string} selected 希望保留的日。
    */
   function updateDays(group, selected = field(group, "day").value) {
     const month = field(group, "month").value;
     const number = parseInt(month) * (month.endsWith("L") ? -1 : 1);
-    const count = month
-      ? maxDays(group, number)
-      : row.calendar === "chinese"
-      ? 30
-      : 31;
+    const count = (month ? maxDays(group, number) : 0) ||
+      (row.calendar === "chinese" ? 30 : 31);
     const control = field(group, "day");
     control.textContent = "";
     control.add(new Option(labels.scheduleDay, ""));
@@ -423,7 +434,7 @@ export function calendarPicker(root, labels, changed) {
       fill();
       return false;
     }
-    Object.assign(row, next, { [kind]: target });
+    Object.assign(row, next, { [kind]: target, edited: true });
     fill();
     changed();
     return true;
@@ -436,6 +447,7 @@ export function calendarPicker(root, labels, changed) {
   function edit(event) {
     const group = event.target.closest("[data-schedule-date]");
     if (!group || !row) return;
+    row.edited = true;
     const side = group.dataset.scheduleDate,
       part = event.target.dataset.datePart;
     if (

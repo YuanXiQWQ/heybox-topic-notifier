@@ -478,5 +478,7 @@
   "scheduleGanzhi": "מחזור של שישים שנה",
   "scheduleLeapMonth": "חודש מעובר {month}",
   "scheduleAbsoluteYear": "השנה המקבילה לספירה",
-  "scheduleChooseYear": "יש לבחור תחילה שנה מקבילה לספירה ותאריך מלא"
+  "scheduleChooseYear": "יש לבחור תחילה שנה מקבילה לספירה ותאריך מלא",
+  "schedulePaused": "ללא בדיקות",
+  "scheduleIntervalOutsideRange": "המרווח ארוך מדי להשלמת בדיקה בטווח הזמן הזה"
 }

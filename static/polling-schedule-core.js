@@ -5,12 +5,15 @@ import {
   dateMinute,
   dateParts,
   dateValue,
+  daySlot,
   fromGregorian,
+  lunarYear,
+  monthDays,
   toGregorian,
 } from "./polling-calendar.js";
 import { calendarProfiles } from "./polling-calendar-profiles.js";
 export { dateParts } from "./polling-calendar.js";
-/** @typedef {{id:string,start:string,end:string,calendar?:string,era?:string,referenceStart?:string,referenceEnd?:string,intervalValue:string,intervalUnit:string,postLimit:string,sort:string}} ScheduleRow */
+/** @typedef {{id:string,start:string,end:string,edited?:boolean,calendar?:string,era?:string,referenceStart?:string,referenceEnd?:string,intervalValue:string,intervalUnit:string,postLimit:string,sort:string}} ScheduleRow */
 /** @typedef {{enabled:boolean,timeZone:string,rows:ScheduleRow[]}} PollingSchedule */
 /** 允许的轮询单位及固定时长，月沿用默认轮询的三十天语义。 */
 export const intervalUnits = {
@@ -25,6 +28,181 @@ export const intervalUnits = {
 export const postLimits = [10, 20, 50, 100, 200, 500];
 /** 与默认轮询一致的排序值。 */
 export const pollSorts = ["publishTime", "smart", "replyTime"];
+/** 最近出现的时段长度，避免每次调度重复换算时区边界。 */
+const windowCache = new Map();
+
+/**
+ * 检查是否只设置了区间，没有填写任何轮询参数。
+ * @param {ScheduleRow} row 时段草稿。
+ * @return {boolean} 是否选择暂停轮询。
+ */
+export function rowPaused(row) {
+  return !!row &&
+    [row.intervalValue, row.intervalUnit, row.postLimit, row.sort].every((
+      value,
+    ) => String(value ?? "").trim() === "");
+}
+
+/**
+ * 将民用时间边界换算为真实时刻，重复分钟覆盖两次，空缺分钟收敛到跳变边界。
+ * @param {number} wall 民用日期按 UTC 编码的毫秒。
+ * @param {string} timeZone 设备时区。
+ * @param {boolean} end 是否为区间终点。
+ * @return {number} UTC 毫秒。
+ */
+function civilInstant(wall, timeZone, end) {
+  const target = new Date(wall).toISOString().slice(0, 16);
+  const candidates = [-129600000, 0, 129600000].map((offset) => {
+    const probe = wall + offset;
+    return wall -
+      (Date.parse(localTime(new Date(probe), timeZone) + ":00Z") - probe);
+  });
+  const exact = candidates.filter((value) =>
+    localTime(new Date(value), timeZone) === target
+  );
+  if (exact.length) return end ? Math.max(...exact) : Math.min(...exact);
+  let low = Math.min(...candidates), high = Math.max(...candidates);
+  while (high - low > 60000) {
+    const middle = Math.floor((low + high) / 120000) * 60000;
+    if (localTime(new Date(middle), timeZone) < target) low = middle;
+    else high = middle;
+  }
+  return high;
+}
+
+/**
+ * 取得某年中实际存在的起止边界，不存在的闰日或闰月按匹配规则裁去。
+ * @param {number[]} parts 年月日时分。
+ * @param {string} calendar 历法。
+ * @param {boolean} end 是否包含最后一分钟。
+ * @return {number} 民用边界的 UTC 编码毫秒。
+ */
+function calendarBoundary(parts, calendar, end) {
+  const year = parts[0], target = daySlot(parts, calendar);
+  const months = calendar === "chinese"
+    ? lunarYear(year).getMonths().filter((m) => m.getYear() === year).map((m) =>
+      m.getMonth()
+    )
+    : Array.from({ length: 12 }, (_, i) => i + 1);
+  let previous;
+  for (const month of months) {
+    const count = monthDays(calendar, year, month);
+    for (let day = 1; day <= count; day++) {
+      const p = [year, month, day, 0, 0], slot = daySlot(p, calendar);
+      if (slot >= target) {
+        if (slot === target) {
+          const solar = toGregorian(p, calendar);
+          return Date.UTC(
+            solar[0],
+            solar[1] - 1,
+            solar[2],
+            parts[3],
+            parts[4] + Number(end),
+          );
+        }
+        const solar = toGregorian(p, calendar);
+        return Date.UTC(solar[0], solar[1] - 1, solar[2]);
+      }
+      previous = p;
+    }
+  }
+  const solar = toGregorian(previous, calendar);
+  return Date.UTC(solar[0], solar[1] - 1, solar[2] + 1);
+}
+
+/**
+ * 按当前轮次计算有效时段长度，月长、闰日与时区跳变均使用实际日期。
+ * @param {ScheduleRow} row 完整区间。
+ * @param {Date} now 当前时间。
+ * @param {string} timeZone 设备时区。
+ * @return {number} 有效毫秒数。
+ */
+export function pollingWindowMs(row, now = new Date(), timeZone = "UTC") {
+  const a = dateParts(row.start, row.calendar, row.era),
+    b = dateParts(row.end, row.calendar, row.era);
+  if (
+    !a || !b || (a[0] === null) !== (b[0] === null) ||
+    (a[1] === null) !== (b[1] === null)
+  ) return 0;
+  const solar = dateParts(localTime(now, timeZone));
+  const current = fromGregorian(solar, row.calendar), daily = a[1] === null;
+  const at = [...current];
+  if (daily) at[0] = at[1] = at[2] = null;
+  else if (a[0] === null) at[0] = null;
+  else if (row.era === "ganzhi") at[0] = cycleYear(at[0]);
+  const phase = dateMinute(a, row.calendar) > dateMinute(b, row.calendar) &&
+    dateMinute(at, row.calendar) <= dateMinute(b, row.calendar);
+  const key = JSON.stringify([
+    row.start,
+    row.end,
+    row.calendar,
+    row.era,
+    timeZone,
+    daily ? solar.slice(0, 3) : current[0],
+    phase,
+  ]);
+  if (windowCache.has(key)) return windowCache.get(key);
+  let start, end;
+  if (daily) {
+    const first = a[3] * 60 + a[4],
+      last = b[3] * 60 + b[4],
+      at = solar[3] * 60 + solar[4];
+    const day = solar[2] - (first > last && at <= last ? 1 : 0);
+    start = Date.UTC(solar[0], solar[1] - 1, day, 0, first);
+    end = Date.UTC(
+      solar[0],
+      solar[1] - 1,
+      day + Number(first > last),
+      0,
+      last + 1,
+    );
+  } else {
+    const wrap = dateMinute(a, row.calendar) > dateMinute(b, row.calendar);
+    if (a[0] === null) {
+      const at = [...current];
+      at[0] = null;
+      a[0] = current[0] -
+        (wrap && dateMinute(at, row.calendar) <= dateMinute(b, row.calendar)
+          ? 1
+          : 0);
+      b[0] = a[0] + Number(wrap);
+    } else if (row.era === "ganzhi") {
+      const at = [...current];
+      at[0] = cycleYear(current[0]);
+      const cycle = Math.floor((current[0] - 4) / 60) -
+        (wrap && dateMinute(at, row.calendar) <= dateMinute(b, row.calendar)
+          ? 1
+          : 0);
+      a[0] = 4 + 60 * cycle + a[0];
+      b[0] = 4 + 60 * (cycle + Number(wrap)) + b[0];
+    }
+    start = calendarBoundary(a, row.calendar, false);
+    end = calendarBoundary(b, row.calendar, true);
+  }
+  const length = Math.max(
+    0,
+    civilInstant(end, timeZone, true) - civilInstant(start, timeZone, false),
+  );
+  if (windowCache.size >= 512) {
+    windowCache.delete(windowCache.keys().next().value);
+  }
+  windowCache.set(key, length);
+  return length;
+}
+
+/**
+ * 判断当前轮次是否暂停，包括没有参数和间隔容不下一次轮询两种情况。
+ * @param {ScheduleRow} row 时段。
+ * @param {Date} now 当前时间。
+ * @param {string} timeZone 设备时区。
+ * @return {boolean} 是否不进行自动轮询。
+ */
+export function rowInactive(row, now = new Date(), timeZone = "UTC") {
+  return !!rowKind(row) &&
+    (rowPaused(row) ||
+      Number(row.intervalValue) * intervalUnits[row.intervalUnit] >
+        pollingWindowMs(row, now, timeZone));
+}
 
 /**
  * 检查间隔是否为合法正整数，并应用秒级下限。
@@ -46,8 +224,10 @@ export function validInterval(value, unit) {
  */
 export function rowKind(row) {
   if (
-    !row || !validInterval(row.intervalValue, row.intervalUnit) ||
-    !postLimits.includes(Number(row.postLimit)) || !pollSorts.includes(row.sort)
+    !row ||
+    (!rowPaused(row) && (!validInterval(row.intervalValue, row.intervalUnit) ||
+      !postLimits.includes(Number(row.postLimit)) ||
+      !pollSorts.includes(row.sort)))
   ) return null;
   if (row.calendar && !["gregory", "chinese"].includes(row.calendar)) {
     return null;
@@ -76,6 +256,7 @@ export function rowKind(row) {
  */
 export function rowErrors(row) {
   const errors = [];
+  if (rowPaused(row)) return rowKind(row) ? [] : ["range"];
   const unit = Object.prototype.hasOwnProperty.call(
     intervalUnits,
     row.intervalUnit,
@@ -133,6 +314,15 @@ export function normalizeSchedule(input, locale = "") {
         ? item.calendar
         : "gregory";
       row.era = ["ce", "roc", "ganzhi"].includes(item?.era) ? item.era : "ce";
+      row.edited = item?.edited === true ||
+        [
+          row.start,
+          row.end,
+          row.intervalValue,
+          row.intervalUnit,
+          row.postLimit,
+          row.sort,
+        ].some((value) => value !== "");
       if (locale === "zh-CN" && row.era === "roc") {
         const parts = [row.start, row.end].map((date) =>
           dateParts(date, row.calendar, row.era)
@@ -402,11 +592,11 @@ function localTime(now, timeZone) {
     hourCycle: "h23",
   }).formatToParts(now);
   const p = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+  return `${p.year.padStart(4, "0")}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
 /**
- * 依行优先级选择有效时段，未命中时使用默认参数；键区分每次周期进入。
+ * 依优先级选择时段及当期暂停状态，未命中时使用默认参数；键区分每次周期进入。
  * @param {object} polling 账号轮询设置。
  * @param {Date} now 本次调度时间。
  * @return {{polling:object,key:string}} 生效参数及区间标识。
@@ -455,13 +645,15 @@ export function resolvePolling(polling, now = new Date()) {
         ).toISOString().slice(0, 10);}
     }
     return {
-      polling: {
-        ...polling,
-        intervalValue: Number(row.intervalValue),
-        intervalUnit: row.intervalUnit,
-        postLimit: Number(row.postLimit),
-        sort: row.sort,
-      },
+      polling: rowInactive(row, now, schedule.timeZone)
+        ? { ...polling, enabled: false }
+        : {
+          ...polling,
+          intervalValue: Number(row.intervalValue),
+          intervalUnit: row.intervalUnit,
+          postLimit: Number(row.postLimit),
+          sort: row.sort,
+        },
       key: JSON.stringify([row, occurrence, schedule.timeZone]),
     };
   }

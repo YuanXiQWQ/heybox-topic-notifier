@@ -478,5 +478,7 @@
   "scheduleGanzhi": "साठ-वर्षीय चक्र",
   "scheduleLeapMonth": "अधिमास {month}",
   "scheduleAbsoluteYear": "संबंधित ईस्वी वर्ष",
-  "scheduleChooseYear": "पहले संबंधित ईस्वी वर्ष और पूरी तारीख चुनें"
+  "scheduleChooseYear": "पहले संबंधित ईस्वी वर्ष और पूरी तारीख चुनें",
+  "schedulePaused": "पोलिंग बंद",
+  "scheduleIntervalOutsideRange": "इस समयावधि में एक बार पोलिंग करने के लिए अंतराल बहुत लंबा है"
 }

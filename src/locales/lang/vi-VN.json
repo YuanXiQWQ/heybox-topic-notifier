@@ -478,5 +478,7 @@
   "scheduleGanzhi": "Can chi",
   "scheduleLeapMonth": "Tháng nhuận {month}",
   "scheduleAbsoluteYear": "Năm công nguyên tương ứng",
-  "scheduleChooseYear": "Hãy chọn năm công nguyên tương ứng và ngày đầy đủ trước"
+  "scheduleChooseYear": "Hãy chọn năm công nguyên tương ứng và ngày đầy đủ trước",
+  "schedulePaused": "Không thăm dò",
+  "scheduleIntervalOutsideRange": "Khoảng cách quá dài để thực hiện một lần thăm dò trong khung thời gian này"
 }

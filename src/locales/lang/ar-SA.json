@@ -478,5 +478,7 @@
   "scheduleGanzhi": "الدورة الستينية",
   "scheduleLeapMonth": "الشهر الكبيس {month}",
   "scheduleAbsoluteYear": "السنة الميلادية المقابلة",
-  "scheduleChooseYear": "اختر السنة الميلادية المقابلة والتاريخ الكامل أولاً"
+  "scheduleChooseYear": "اختر السنة الميلادية المقابلة والتاريخ الكامل أولاً",
+  "schedulePaused": "بدون استقصاء",
+  "scheduleIntervalOutsideRange": "الفاصل طويل جدًا لإكمال استقصاء ضمن هذا النطاق الزمني"
 }
