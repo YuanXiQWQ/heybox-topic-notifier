@@ -269,6 +269,7 @@ test("notification backlog merges across pages and confirms filtered tails", asy
   assert.equal(context.shown.length, 1);
   assert.equal(context.shown[0].data.title, "App (2)");
   assert.equal(context.shown[0].data.body, "Post 1\nPost 2");
+  assert.match(context.shown[0].data.icon, /[\\/]favicon\.png$/);
   assert.equal(context.device.value.notifications.cursor, "3");
   assert.equal(context.device.value.notifications.seen.length, 2);
   context.readWith(() => ({userId: "alice", cursor: "4", events: []}));

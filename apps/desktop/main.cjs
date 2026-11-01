@@ -634,6 +634,7 @@ async function consumeNotifications() {
       const notification = new Notification({
         title: String(event.title).slice(0, 120) + (events.length > 1 ? ` (${events.length})` : ""),
         body: events.slice(0, 3).map((item) => String(item.body)).join("\n").slice(0, 300),
+        icon: path.join(resources, "favicon.png"),
         silent: false,
       });
       notification.on("click", async () => {
