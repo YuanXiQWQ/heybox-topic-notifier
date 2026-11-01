@@ -191,6 +191,8 @@ export function createRoutes(
   app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  /** 提供历史表格增量同步脚本。 @return {Promise<Response>} 同源脚本。 */
+  app.get("/static/history-sync.js", async () => new Response(await Deno.readTextFile(new URL("../static/history-sync.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
   /**
    * 返回当前账号角标数量或可按版本复用的离线基线，不包含通知测试事件或历史记录。
    * @param {Context} c 请求上下文。
@@ -2168,6 +2170,17 @@ export function createRoutes(
 
   app.get("/history", async (c) => {
     const storage = await storageForRequest(c, context);
+    if (isMatchTableRefreshRequest(c)) {
+      c.header("cache-control", "no-store");
+      const params = new URL(c.req.url).searchParams;
+      const query = parseMatchTableQuery(params);
+      const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
+      const revision = ["hour", "day", "week"].includes(query.range) ? undefined : await storage.getDashboardVersion?.();
+      const version = revision ? await dashboardResponseVersion(revision, params, csrf.token) : undefined;
+      if (version) c.header("x-history-version", version);
+      if (version && c.req.header("x-history-version") === version) return c.body(null, 304);
+      return historyTableResponse(c, storage, c.req.url);
+    }
     const session = await authSessionForRequest(c, context);
     const account = session ? await context.storage.getAccountById(session.userId) : undefined;
     const settings = await storage.getSettings();

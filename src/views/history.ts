@@ -37,6 +37,7 @@ export function renderHistory(options: {
       options.csrfToken,
     )
   }
+  <script src="/static/history-sync.js" defer></script>
   `;
 
   return renderLayout({

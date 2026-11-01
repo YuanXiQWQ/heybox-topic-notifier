@@ -52,6 +52,7 @@ Deno.test("dashboard client reuses versions and rejects responses for abandoned 
     HTMLInputElement: InputMock,
     location,
     document: {
+      addEventListener() {},
       visibilityState: "visible",
       querySelector: (selector: string) => {
         if (selector === "[data-last-poll-at]") return lastPoll;
@@ -61,6 +62,7 @@ Deno.test("dashboard client reuses versions and rejects responses for abandoned 
       },
     },
     window: {
+      addEventListener() {},
       setInterval: (callback: () => void, ms: number) =>
         intervals.set(ms, callback),
     },
@@ -78,7 +80,7 @@ Deno.test("dashboard client reuses versions and rejects responses for abandoned 
   assertEquals(requests[0].headers["x-dashboard-version"], undefined);
 
   response = { unchanged: true, version: "v1", totalMatches: 999 };
-  intervals.get(30_000)!();
+  intervals.get(5_000)!();
   await settleRefresh();
   assertEquals(requests[1].headers["x-dashboard-version"], "v1");
   assertEquals(totalMatches.textContent, "15");
@@ -88,20 +90,20 @@ Deno.test("dashboard client reuses versions and rejects responses for abandoned 
     release = resolve;
   });
   response = { totalMatches: 20, version: "v2" };
-  intervals.get(30_000)!();
+  intervals.get(5_000)!();
   location.search = "?page=2";
   release();
   await settleRefresh();
   assertEquals(totalMatches.textContent, "15");
   waitForResponse = undefined;
   response = { totalMatches: 30, version: "v3" };
-  intervals.get(30_000)!();
+  intervals.get(5_000)!();
   await settleRefresh();
   assertEquals(requests[3].url, "/dashboard-state?page=2");
   assertEquals(requests[3].headers["x-dashboard-version"], "v1");
   assertEquals(requests[3].headers["x-csrf-token"], "csrf-test-token");
   assertEquals(totalMatches.textContent, "30");
-  intervals.get(30_000)!();
+  intervals.get(5_000)!();
   await settleRefresh();
   assertEquals(requests[4].headers["x-dashboard-version"], "v3");
 });
@@ -198,11 +200,13 @@ function progressHarness(clockSkew: number) {
     performance: { now: () => elapsed },
     location: new URL("https://example.com/"),
     document: {
+      addEventListener() {},
       visibilityState: "visible",
       querySelector: (selector: string) => elements[selector] ?? null,
       querySelectorAll: () => [],
     },
     window: {
+      addEventListener() {},
       setInterval: (callback: () => void, ms: number) =>
         intervals.set(ms, callback),
     },
@@ -233,7 +237,7 @@ function progressHarness(clockSkew: number) {
      */
     async respond(value: Record<string, unknown>): Promise<void> {
       response = value;
-      intervals.get(30_000)!();
+      intervals.get(5_000)!();
       await settleRefresh();
     },
     /**

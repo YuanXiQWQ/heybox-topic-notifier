@@ -233,7 +233,7 @@ async function start() {
     void pollNotifications();
     void checkUpdate();
   });
-  setInterval(() => void pollNotifications(), 15000).unref();
+  setInterval(() => void pollNotifications(), 5000).unref();
   setInterval(() => void checkUpdate(), 6 * 60 * 60 * 1000).unref();
   await window.loadURL(origin + "/").catch(() => {});
   handleLaunchAction(process.argv);
