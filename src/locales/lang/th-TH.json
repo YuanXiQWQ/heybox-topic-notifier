@@ -468,5 +468,15 @@
   "scheduleRemove": "ลบช่วงเวลา",
   "scheduleYear": "ปี",
   "scheduleMonth": "เดือน",
-  "scheduleDay": "วัน"
+  "scheduleDay": "วัน",
+  "scheduleCalendar": "ปฏิทิน",
+  "scheduleGregorian": "เกรกอเรียน",
+  "scheduleLunar": "จันทรคติจีน",
+  "scheduleEra": "ระบบนับปี",
+  "scheduleCE": "คริสต์ศักราช",
+  "scheduleROC": "หมินกั๋ว",
+  "scheduleGanzhi": "รอบหกสิบปี",
+  "scheduleLeapMonth": "เดือนอธิกมาส {month}",
+  "scheduleAbsoluteYear": "ปีคริสต์ศักราชที่ตรงกัน",
+  "scheduleChooseYear": "โปรดเลือกปีคริสต์ศักราชที่ตรงกันและวันที่ให้ครบก่อน"
 }

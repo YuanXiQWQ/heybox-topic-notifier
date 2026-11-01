@@ -1,5 +1,16 @@
 /** @file 前后端共用的时段校验、循环覆盖和有效轮询配置计算。 */
-/** @typedef {{id:string,start:string,end:string,intervalValue:string,intervalUnit:string,postLimit:string,sort:string}} ScheduleRow */
+import {
+  cycleMonthDays,
+  cycleYear,
+  dateMinute,
+  dateParts,
+  dateValue,
+  fromGregorian,
+  toGregorian,
+} from "./polling-calendar.js";
+import { calendarProfiles } from "./polling-calendar-profiles.js";
+export { dateParts } from "./polling-calendar.js";
+/** @typedef {{id:string,start:string,end:string,calendar?:string,era?:string,referenceStart?:string,referenceEnd?:string,intervalValue:string,intervalUnit:string,postLimit:string,sort:string}} ScheduleRow */
 /** @typedef {{enabled:boolean,timeZone:string,rows:ScheduleRow[]}} PollingSchedule */
 /** 允许的轮询单位及固定时长，月沿用默认轮询的三十天语义。 */
 export const intervalUnits = {
@@ -29,57 +40,42 @@ export function validInterval(value, unit) {
 }
 
 /**
- * 解析可省略年份或整个日期的选择器值；无年份以闰年校验月日。
- * @param {string} value 本地年月日时分。
- * @return {Array<number|null>|null} 年月日时分，未选择的日期部分为 null。
- */
-export function dateParts(value) {
-  const match = /^(?:(?:(\d{4})-)?(\d{2})-(\d{2})T)?(\d{2}):(\d{2})$/.exec(
-    value,
-  );
-  if (!match) return null;
-  const p = [
-    match[1] ? Number(match[1]) : null,
-    match[2] ? Number(match[2]) : null,
-    match[3] ? Number(match[3]) : null,
-    Number(match[4]),
-    Number(match[5]),
-  ];
-  if (p[3] > 23 || p[4] > 59 || (p[0] !== null && p[0] < 100)) return null;
-  if (p[1] !== null) {
-    const date = new Date(Date.UTC(p[0] ?? 2000, p[1] - 1, p[2]));
-    if (date.getUTCMonth() + 1 !== p[1] || date.getUTCDate() !== p[2]) {
-      return null;
-    }
-  }
-  return p;
-}
-
-/**
  * 根据实际填写的日期精度确定每日、年度或指定年份区间。
  * @param {ScheduleRow} row 时段行。
- * @return {"daily"|"annual"|"once"|null} 有效行的时间语义。
+ * @return {"daily"|"annual"|"cycle"|"once"|null} 有效行的时间语义。
  */
 export function rowKind(row) {
   if (
     !row || !validInterval(row.intervalValue, row.intervalUnit) ||
     !postLimits.includes(Number(row.postLimit)) || !pollSorts.includes(row.sort)
   ) return null;
-  const a = dateParts(row.start), b = dateParts(row.end);
+  if (row.calendar && !["gregory", "chinese"].includes(row.calendar)) {
+    return null;
+  }
+  if (row.era && !["ce", "roc", "ganzhi"].includes(row.era)) return null;
+  const a = dateParts(row.start, row.calendar, row.era),
+    b = dateParts(row.end, row.calendar, row.era);
   if (!a || !b) return null;
   if (
     (a[0] === null) !== (b[0] === null) || (a[1] === null) !== (b[1] === null)
   ) return null;
-  if (a[0] !== null) return row.end >= row.start ? "once" : null;
+  if (a[0] !== null) {
+    return row.era === "ganzhi"
+      ? "cycle"
+      : dateMinute(b, row.calendar) >= dateMinute(a, row.calendar)
+      ? "once"
+      : null;
+  }
   return a[1] === null ? "daily" : "annual";
 }
 
 /**
  * 规范化持久草稿，保留不完整行供编辑和单行错误反馈。
  * @param {unknown} input 外部输入。
+ * @param {string} locale 界面语言。
  * @return {PollingSchedule} 有界的时段配置。
  */
-export function normalizeSchedule(input) {
+export function normalizeSchedule(input, locale = "") {
   const value = input && typeof input === "object" ? input : {};
   let timeZone = typeof value.timeZone === "string" ? value.timeZone : "UTC";
   try {
@@ -100,8 +96,42 @@ export function normalizeSchedule(input) {
           "intervalUnit",
           "postLimit",
           "sort",
+          "referenceStart",
+          "referenceEnd",
         ]
       ) row[field] = String(item?.[field] ?? "").slice(0, 80);
+      row.calendar = ["gregory", "chinese"].includes(item?.calendar)
+        ? item.calendar
+        : "gregory";
+      row.era = ["ce", "roc", "ganzhi"].includes(item?.era) ? item.era : "ce";
+      if (locale === "zh-CN" && row.era === "roc") {
+        const parts = [row.start, row.end].map((date) =>
+          dateParts(date, row.calendar, row.era)
+        );
+        const dates = parts.map((part) =>
+          part && part[0] !== null ? toGregorian(part, row.calendar) : null
+        );
+        if (
+          dates.some((date) =>
+            date &&
+            dateMinute(date, "gregory") >
+              dateMinute([1949, 9, 30, 23, 59], "gregory")
+          ) || [row.start, row.end].some((date) =>
+            /^\d{4}-/.test(date) && Number(date.slice(0, 4)) > 1949
+          )
+        ) {
+          row.era = "ce";
+          if (
+            parts.every((part, i) =>
+              dates[i] || part?.[1] === null || ![row.start, row.end][i]
+            )
+          ) {
+            if (dates[0]) row.start = dateValue(dates[0]);
+            if (dates[1]) row.end = dateValue(dates[1]);
+            row.calendar = "gregory";
+          }
+        }
+      }
       if (!row.id || ids.has(row.id)) row.id = `row-${index}`;
       ids.add(row.id);
       return row;
@@ -130,61 +160,200 @@ function segments(start, end, length) {
   return start <= end ? [[start, end + 1]] : [[0, end + 1], [start, length]];
 }
 
+/** 最近一次覆盖结果只缓存日期与有效性，普通数值编辑不重复扫描历法。 */
+let coverageCache = { key: "", value: false };
+
 /**
- * 同时检查平年与闰年的完整并集，指定年份的有限区间不参与闭环。
+ * 将循环区间投影到各自历法的六十年坐标，并检查所有实际历法结构的逐日并集。
  * @param {PollingSchedule} schedule 时段配置。
- * @return {boolean} 每日及年度区间是否完整覆盖。
+ * @return {boolean} 是否没有任何可能落回默认设置的分钟。
  */
 export function fullyCovered(schedule) {
-  const recurring = schedule.rows.filter((row) =>
-    ["daily", "annual"].includes(rowKind(row))
+  const rows = schedule.rows.filter((row) =>
+    ["daily", "annual", "cycle"].includes(rowKind(row))
   );
-  return [2000, 2001].every((year) => coveredYear(recurring, year));
+  const key = JSON.stringify(
+    rows.map((row) => [row.start, row.end, row.calendar, row.era]),
+  );
+  if (key === coverageCache.key) return coverageCache.value;
+  const value = checkCoverage(rows);
+  coverageCache = { key, value };
+  return value;
 }
 
 /**
- * 将实际存在的日期映射为连续分钟并求并集，不构造平年的二月二十九日。
- * @param {ScheduleRow[]} rows 循环时段。
- * @param {number} year 需要检查的平年或闰年。
- * @return {boolean} 该年的每一分钟是否均被覆盖。
+ * 合并当天已覆盖的半开分钟区间。
+ * @param {number[][]} ranges 各时段的分钟交集。
+ * @return {number[][]} 按开始时间排序、互不重叠的并集。
  */
-function coveredYear(rows, year) {
-  const length = (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 86400000;
-  const ranges = [];
-  for (const row of rows) {
-    const kind = rowKind(row), a = dateParts(row.start), b = dateParts(row.end);
-    const start = kind === "daily"
-      ? a[3] * 60 + a[4]
-      : ((a[1] - 1) * 31 + a[2] - 1) * 1440 + a[3] * 60 + a[4];
-    const end = kind === "daily"
-      ? b[3] * 60 + b[4]
-      : ((b[1] - 1) * 31 + b[2] - 1) * 1440 + b[3] * 60 + b[4];
-    const pieces = segments(
-      start,
-      end,
-      kind === "daily" ? 1440 : 12 * 31 * 1440,
-    );
-    for (let day = 0; day < length; day++) {
-      const date = new Date(Date.UTC(year, 0, day + 1));
-      const offset = kind === "daily"
-        ? 0
-        : (date.getUTCMonth() * 31 + date.getUTCDate() - 1) * 1440;
-      for (const [left, right] of pieces) {
-        const low = Math.max(offset, left),
-          high = Math.min(offset + 1440, right);
-        if (low < high) {
-          ranges.push([day * 1440 + low - offset, day * 1440 + high - offset]);
+function mergeRanges(ranges) {
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+    else merged.push([...range]);
+  }
+  return merged;
+}
+
+/**
+ * 把循环规则拆成其实际周期内的区间，绝对年份不会被误当成循环。
+ * @param {ScheduleRow} row 有效循环行。
+ * @return {{pieces:number[][],length:number,calendar:string}} 周期及区间。
+ */
+function recurringRange(row) {
+  const kind = rowKind(row), calendar = row.calendar || "gregory";
+  const length = kind === "daily"
+    ? 1440
+    : (calendar === "chinese" ? 720 : 372) * 1440 * (kind === "cycle" ? 60 : 1);
+  return {
+    calendar,
+    length,
+    pieces: segments(
+      dateMinute(dateParts(row.start, calendar, row.era), calendar),
+      dateMinute(dateParts(row.end, calendar, row.era), calendar),
+      length,
+    ),
+  };
+}
+
+/**
+ * 使用真实年结构检查公历、农历和干支循环的联合覆盖；不存在的日期没有对应槽位。
+ * @param {ScheduleRow[]} rows 完整循环行。
+ * @return {boolean} 全部可出现日期是否覆盖整天。
+ */
+function checkCoverage(rows) {
+  if (!rows.length) return false;
+  const rules = rows.map(recurringRange);
+  const daily = rules.filter((r) => r.length === 1440).flatMap((r) => r.pieces);
+  const baseline = mergeRanges(daily);
+  if (
+    baseline.length === 1 && baseline[0][0] === 0 && baseline[0][1] === 1440
+  ) return true;
+  const solarRules = rules.filter((r) =>
+    r.length !== 1440 && r.calendar !== "chinese"
+  );
+  const lunarRules = rules.filter((r) =>
+    r.length !== 1440 && r.calendar === "chinese"
+  );
+  const solarDays = new Map(), lunarDays = new Map();
+  const patterns = [], patternIds = new Map();
+  const pairs = new Map();
+  /**
+   * 缓存某一天的分钟覆盖模式，相同模式共享序号。
+   * @param {number} slot 六十年内的日期槽位。
+   * @param {object[]} selected 同历法规则。
+   * @param {Map<number,number>} cache 已计算的日期。
+   * @return {number} 分钟覆盖模式序号。
+   */
+  function pattern(slot, selected, cache) {
+    if (cache.has(slot)) return cache.get(slot);
+    const ranges = baseline.map((r) => [...r]);
+    for (const rule of selected) {
+      const offset = (slot * 1440) % rule.length;
+      for (const [start, end] of rule.pieces) {
+        const a = Math.max(offset, start), b = Math.min(offset + 1440, end);
+        if (a < b) ranges.push([a - offset, b - offset]);
+      }
+    }
+    const merged = mergeRanges(ranges), signature = JSON.stringify(merged);
+    if (!patternIds.has(signature)) {
+      patternIds.set(signature, patterns.length);
+      patterns.push(merged);
+    }
+    const id = patternIds.get(signature);
+    cache.set(slot, id);
+    return id;
+  }
+  /**
+   * 合并同一天的两种历法覆盖，并缓存模式组合。
+   * @param {number} solar 公历槽位。
+   * @param {number} lunar 农历槽位。
+   * @return {boolean} 当天是否完整。
+   */
+  function completeDay(solar, lunar) {
+    const a = pattern(solarRules.length ? solar : 0, solarRules, solarDays);
+    const b = pattern(lunarRules.length ? lunar : 0, lunarRules, lunarDays);
+    const key = a + ":" + b;
+    if (!pairs.has(key)) {
+      const merged = mergeRanges([...patterns[a], ...patterns[b]]);
+      pairs.set(
+        key,
+        merged.length === 1 && merged[0][0] === 0 && merged[0][1] === 1440,
+      );
+    }
+    return pairs.get(key);
+  }
+  /**
+   * 对单一历法只检查实际可能的日期槽位，年度与干支规则共用周期算法。
+   * @param {string} calendar 历法。
+   * @param {object[]} selected 同历法规则。
+   * @param {Map<number,number>} cache 日期模式缓存。
+   * @return {boolean} 单独采用该历法能否覆盖全部时间。
+   */
+  function completeCalendar(calendar, selected, cache) {
+    if (!selected.length) return false;
+    for (let cycle = 0; cycle < 60; cycle++) {
+      for (let month = 1; month <= 12; month++) {
+        for (let leap = 0; leap <= Number(calendar === "chinese"); leap++) {
+          const count = cycleMonthDays(calendar, cycle, leap ? -month : month);
+          for (let day = 0; day < count; day++) {
+            const slot = calendar === "chinese"
+              ? cycle * 720 + ((month - 1) * 2 + leap) * 30 + day
+              : cycle * 372 + (month - 1) * 31 + day;
+            const ranges = patterns[pattern(slot, selected, cache)];
+            if (
+              ranges.length !== 1 || ranges[0][0] !== 0 || ranges[0][1] !== 1440
+            ) return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+  if (
+    completeCalendar("gregory", solarRules, solarDays) ||
+    completeCalendar("chinese", lunarRules, lunarDays)
+  ) return true;
+  if (!solarRules.length || !lunarRules.length) return false;
+  for (
+    const [lunarCycle, solarCycle, start, leapBits, leapMonth, lengths]
+      of calendarProfiles
+  ) {
+    let solarYear = solarCycle,
+      solarMonth = Math.floor(start / 31),
+      solarDay = start % 31,
+      yearOffset = 0,
+      index = 0;
+    for (let month = 1; month <= 12; month++) {
+      for (let leap = 0; leap <= Number(month === leapMonth); leap++) {
+        const count = 29 + ((lengths >> index++) & 1);
+        for (let day = 0; day < count; day++) {
+          if (
+            !completeDay(
+              solarYear * 372 + solarMonth * 31 + solarDay,
+              lunarCycle * 720 + ((month - 1) * 2 + leap) * 30 + day,
+            )
+          ) return false;
+          const max = solarMonth === 1
+            ? 28 + ((leapBits >> yearOffset) & 1)
+            : [3, 5, 8, 10].includes(solarMonth)
+            ? 30
+            : 31;
+          if (++solarDay === max) {
+            solarDay = 0;
+            if (++solarMonth === 12) {
+              solarMonth = 0;
+              solarYear = (solarYear + 1) % 60;
+              yearOffset++;
+            }
+          }
         }
       }
     }
   }
-  ranges.sort((a, b) => a[0] - b[0]);
-  let covered = 0;
-  for (const [start, end] of ranges) {
-    if (start > covered) return false;
-    covered = Math.max(covered, end);
-  }
-  return covered === length * 1440;
+  return true;
 }
 
 /**
@@ -218,21 +387,41 @@ export function resolvePolling(polling, now = new Date()) {
   const schedule = normalizeSchedule(polling.schedule);
   if (!schedule.enabled) return { polling, key: "default" };
   const current = localTime(now, schedule.timeZone);
+  const solar = dateParts(current);
+  let lunar;
   for (const row of schedule.rows) {
     const kind = rowKind(row);
     if (!kind) continue;
-    const offset = kind === "daily" ? 11 : kind === "annual" ? 5 : 0;
-    const a = row.start, b = row.end, t = current.slice(offset);
+    if (row.calendar === "chinese" && !lunar) {
+      lunar = fromGregorian(solar, "chinese");
+    }
+    const p = [...(row.calendar === "chinese" ? lunar : solar)];
+    const actualYear = p[0];
+    if (kind === "daily") p[0] = p[1] = p[2] = null;
+    else if (kind === "annual") p[0] = null;
+    else if (kind === "cycle") p[0] = cycleYear(p[0]);
+    const a = dateMinute(
+      dateParts(row.start, row.calendar, row.era),
+      row.calendar,
+    );
+    const b = dateMinute(
+      dateParts(row.end, row.calendar, row.era),
+      row.calendar,
+    );
+    const t = dateMinute(p, row.calendar);
     const match = a <= b ? t >= a && t <= b : t >= a || t <= b;
     if (!match) continue;
     let occurrence = kind === "once"
       ? row.start
+      : kind === "cycle"
+      ? String(Math.floor((actualYear - 4) / 60))
       : kind === "annual"
-      ? current.slice(0, 4)
+      ? String(actualYear)
       : current.slice(0, 10);
     if (a > b && t <= b) {
-      if (kind === "annual") occurrence = String(Number(occurrence) - 1);
-      else {occurrence = new Date(
+      if (kind === "annual" || kind === "cycle") {
+        occurrence = String(Number(occurrence) - 1);
+      } else {occurrence = new Date(
           Date.parse(current.slice(0, 10) + "T12:00:00Z") - 86400000,
         ).toISOString().slice(0, 10);}
     }

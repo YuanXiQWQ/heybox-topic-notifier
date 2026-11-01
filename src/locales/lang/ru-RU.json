@@ -468,5 +468,15 @@
   "scheduleRemove": "Удалить диапазон",
   "scheduleYear": "Год",
   "scheduleMonth": "Месяц",
-  "scheduleDay": "День"
+  "scheduleDay": "День",
+  "scheduleCalendar": "Календарь",
+  "scheduleGregorian": "Григорианский",
+  "scheduleLunar": "Китайский лунный",
+  "scheduleEra": "Летосчисление",
+  "scheduleCE": "Наша эра",
+  "scheduleROC": "Миньго",
+  "scheduleGanzhi": "Шестидесятилетний цикл",
+  "scheduleLeapMonth": "Вставной месяц {month}",
+  "scheduleAbsoluteYear": "Соответствующий год нашей эры",
+  "scheduleChooseYear": "Сначала укажите соответствующий год нашей эры и полную дату"
 }

@@ -468,5 +468,15 @@
   "scheduleRemove": "Zeitbereich entfernen",
   "scheduleYear": "Jahr",
   "scheduleMonth": "Monat",
-  "scheduleDay": "Tag"
+  "scheduleDay": "Tag",
+  "scheduleCalendar": "Kalender",
+  "scheduleGregorian": "Gregorianisch",
+  "scheduleLunar": "Chinesischer Mondkalender",
+  "scheduleEra": "Jahreszählung",
+  "scheduleCE": "n. Chr.",
+  "scheduleROC": "Minguo",
+  "scheduleGanzhi": "Sechzigjahreszyklus",
+  "scheduleLeapMonth": "Schaltmonat {month}",
+  "scheduleAbsoluteYear": "Entsprechendes Jahr n. Chr.",
+  "scheduleChooseYear": "Zuerst das entsprechende Jahr n. Chr. und ein vollständiges Datum wählen"
 }

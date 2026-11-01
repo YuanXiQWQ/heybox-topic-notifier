@@ -187,7 +187,9 @@ export function createRoutes(
   const app = new Hono();
   app.route("/api/native/push", createNativePushRoutes(context.storage));
   /** 提供前后端共用的时段计算和编辑器脚本。 @param {Context} c 固定脚本路径请求。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/:scheduleScript{polling-schedule(?:-core)?\\.js}", async (c) => new Response(await Deno.readTextFile(new URL("../static/" + c.req.param("scheduleScript"), import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get("/static/:scheduleScript{polling-(?:schedule(?:-core)?|calendar(?:-profiles|-picker)?)\\.js}", async (c) => new Response(await Deno.readTextFile(new URL("../static/" + c.req.param("scheduleScript"), import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  /** 提供固定版本的离线农历模块。 @return {Promise<Response>} 同源历法脚本。 */
+  app.get("/static/vendor/lunar/lunar.js", async () => new Response(await Deno.readTextFile(new URL("../static/vendor/lunar/lunar.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
   /** 提供设置子页的返回位置保存脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/settings-navigation.js", async () => new Response(await Deno.readTextFile(new URL("../static/settings-navigation.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
   /** 提供共享原生桥接和应用更新界面脚本。 @return {Promise<Response>} 同源脚本。 */
@@ -3685,9 +3687,10 @@ export function settingsFromForm(
     activeKeywordTarget,
     keywordRules,
   );
+  const locale = normalizeLocale(String(form.locale ?? currentSettings.locale));
   const schedule = form.pollSchedule !== undefined
-    ? normalizeSchedule(parseScheduleForm(String(form.pollSchedule)))
-    : currentSettings.polling.schedule;
+    ? normalizeSchedule(parseScheduleForm(String(form.pollSchedule)), locale)
+    : currentSettings.polling.schedule ? normalizeSchedule(currentSettings.polling.schedule, locale) : undefined;
   if (schedule?.enabled && !currentSettings.polling.schedule?.enabled && !canEnableSchedule(schedule)) schedule.enabled = false;
   const pollingEnabled = form.pollEnabled === "on";
   const pollIntervalUnit = normalizePollIntervalUnit(
@@ -3716,7 +3719,7 @@ export function settingsFromForm(
     activeKeywordTarget,
     commonKeywordRules,
     darkMode: form.darkMode === "on",
-    locale: normalizeLocale(String(form.locale ?? currentSettings.locale)),
+    locale,
     notificationEmailAddress: String(form.notificationEmailAddress ?? "")
       .trim(),
     notificationEmailApiToken: secretValueFromForm(

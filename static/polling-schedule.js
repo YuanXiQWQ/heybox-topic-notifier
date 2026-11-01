@@ -6,6 +6,8 @@ import {
   normalizeSchedule,
   rowKind,
 } from "./polling-schedule-core.js";
+import { calendarPicker } from "./polling-calendar-picker.js";
+import { branches, stems } from "./polling-calendar.js";
 
 /**
  * 按区间两端的日期差异显示日期，避免重复展示相同年月日。
@@ -14,25 +16,47 @@ import {
  * @return {string} 本地化范围摘要。
  */
 export function formatRange(row, locale) {
-  const a = dateParts(row.start), b = dateParts(row.end);
+  const a = dateParts(row.start, row.calendar, row.era),
+    b = dateParts(row.end, row.calendar, row.era);
   if (!a || !b) return "";
-  const options = {
+  const years = a[0] !== b[0];
+  const dates = years || a[1] !== b[1] || a[2] !== b[2];
+  const clock = new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
     timeZone: "UTC",
-  };
-  if (a[0] !== b[0]) options.year = "numeric";
-  if (a[1] !== b[1] || a[2] !== b[2]) {
-    options.month = "2-digit";
-    options.day = "2-digit";
-  }
-  const formatter = new Intl.DateTimeFormat(locale, options);
-  return [a, b].map((p) =>
-    formatter.format(
-      new Date(Date.UTC(p[0] ?? 2000, (p[1] ?? 1) - 1, p[2] ?? 1, p[3], p[4])),
-    )
-  ).join(" – ");
+  });
+  return [a, b].map((p) => {
+    const time = clock.format(new Date(Date.UTC(2000, 0, 1, p[3], p[4])));
+    if (!dates) return time;
+    if (row.calendar !== "chinese" && row.era !== "ganzhi") {
+      const options = {
+        month: "2-digit",
+        day: "2-digit",
+        timeZone: "UTC",
+        ...(years ? { year: "numeric" } : {}),
+        ...(row.era === "roc"
+          ? { calendar: "roc", era: years ? "short" : undefined }
+          : {}),
+      };
+      return new Intl.DateTimeFormat(locale, options).format(
+        new Date(Date.UTC(p[0] ?? 2000, p[1] - 1, p[2])),
+      ) + " " + time;
+    }
+    const year = years
+      ? row.era === "ganzhi"
+        ? stems[p[0] % 10] + branches[p[0] % 12]
+        : row.era === "roc"
+        ? "民國" + (p[0] <= 1911 ? "前" + (1912 - p[0]) : p[0] - 1911)
+        : p[0]
+      : "";
+    const leap = p[1] < 0
+      ? (locale === "zh-CN" || locale === "zh-SG" ? "闰" : "閏")
+      : "";
+    return (year ? year + "年" : "") + leap + Math.abs(p[1]) + "月" + p[2] +
+      "日 " + time;
+  }).join(" – ");
 }
 
 /** 初始化独立视图，但复用同一设置表单及其本地队列和保存反馈。 */
@@ -49,8 +73,12 @@ function initialize() {
   const section = document.querySelector("[data-polling-section]");
   const defaultRows = [...section.querySelectorAll("[data-polling-field]")]
     .filter((row) => row.dataset.pollingField !== "schedule");
-  const state = normalizeSchedule(JSON.parse(input.value));
-  let dateRow;
+  const state = normalizeSchedule(
+    JSON.parse(input.value),
+    document.querySelector('[name="locale"]')?.value ||
+      document.documentElement.lang,
+  );
+  const openDates = calendarPicker(root, labels, update);
   let activeDrag;
   const advanced =
     new URL(location.href).searchParams.get("panel") === "polling";
@@ -71,6 +99,8 @@ function initialize() {
   function emptyRow() {
     return {
       id: crypto.randomUUID(),
+      calendar: "gregory",
+      era: "ce",
       start: "",
       end: "",
       intervalValue: "",
@@ -205,70 +235,9 @@ function initialize() {
         "[data-schedule-range]",
       ).focus();
     } else if (event.target.closest("[data-schedule-range]")) {
-      dateRow = state.rows[index];
-      for (const group of dates.querySelectorAll("[data-schedule-date]")) {
-        const value = dateRow[group.dataset.scheduleDate];
-        const [date, time] = value.includes("T")
-          ? value.split("T")
-          : ["", value];
-        const parts = date ? date.split("-") : [];
-        group.querySelector('[data-date-part="year"]').value =
-          parts.length === 3 ? parts[0] : "";
-        group.querySelector('[data-date-part="month"]').value =
-          parts.length >= 2 ? parts[parts.length - 2] : "";
-        updateDays(group, parts.length >= 2 ? parts[parts.length - 1] : "");
-        group.querySelector('[data-date-part="time"]').value = time || "";
-      }
-      dates.showModal();
+      openDates(state.rows[index]);
     }
   });
-  /**
-   * 为实际年份或未指定年份填充日期上限，月份改变时清除不存在的日期。
-   * @param {HTMLElement} group 一个端点的日期字段。
-   * @param {string} selected 当前选择的日。
-   */
-  function updateDays(
-    group,
-    selected = group.querySelector('[data-date-part="day"]').value,
-  ) {
-    const year = Number(group.querySelector('[data-date-part="year"]').value) ||
-      2000;
-    const month = Number(group.querySelector('[data-date-part="month"]').value);
-    const count = month
-      ? new Date(Date.UTC(year >= 100 ? year : 2000, month, 0)).getUTCDate()
-      : 31;
-    const day = group.querySelector('[data-date-part="day"]');
-    day.textContent = "";
-    day.add(new Option(labels.scheduleDay, ""));
-    for (let value = 1; value <= count; value++) {
-      day.add(new Option(String(value), String(value).padStart(2, "0")));
-    }
-    day.value = Number(selected) <= count ? selected : "";
-  }
-  /**
-   * 将可留空的日期部分组合为草稿，不把无年份的月日绑定到当前年份。
-   * @param {Event} event 日期字段编辑事件。
-   */
-  function editDate(event) {
-    const group = event.target.closest("[data-schedule-date]");
-    if (!group || !dateRow) return;
-    if (["year", "month"].includes(event.target.dataset.datePart)) {
-      updateDays(group);
-    }
-    const year = group.querySelector('[data-date-part="year"]').value;
-    const month = group.querySelector('[data-date-part="month"]').value;
-    const day = group.querySelector('[data-date-part="day"]').value;
-    const time = group.querySelector('[data-date-part="time"]').value;
-    const date = year
-      ? year.padStart(4, "0") + "-" + month + "-" + day
-      : month || day
-      ? month + "-" + day
-      : "";
-    dateRow[group.dataset.scheduleDate] = date ? date + "T" + time : time;
-    update();
-  }
-  dates.addEventListener("input", editDate);
-  dates.addEventListener("change", editDate);
   root.querySelector("[data-schedule-close]").addEventListener(
     "click",
     () => dates.close(),
@@ -349,6 +318,14 @@ function initialize() {
     },
   );
   addEventListener("resize", positionOverlay);
+  document.querySelector('[name="locale"]')?.addEventListener(
+    "change",
+    (event) => {
+      Object.assign(state, normalizeSchedule(state, event.target.value));
+      render();
+      update();
+    },
+  );
   if (typeof ResizeObserver !== "undefined") {
     new ResizeObserver(positionOverlay).observe(section);
   }

@@ -468,5 +468,15 @@
   "scheduleRemove": "Remove time range",
   "scheduleYear": "Year",
   "scheduleMonth": "Month",
-  "scheduleDay": "Day"
+  "scheduleDay": "Day",
+  "scheduleCalendar": "Calendar",
+  "scheduleGregorian": "Gregorian",
+  "scheduleLunar": "Chinese lunar",
+  "scheduleEra": "Year numbering",
+  "scheduleCE": "CE",
+  "scheduleROC": "Minguo",
+  "scheduleGanzhi": "Sexagenary cycle",
+  "scheduleLeapMonth": "Leap month {month}",
+  "scheduleAbsoluteYear": "Corresponding CE year",
+  "scheduleChooseYear": "Choose the corresponding CE year and a complete date first"
 }

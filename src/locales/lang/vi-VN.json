@@ -468,5 +468,15 @@
   "scheduleRemove": "Xóa khung giờ",
   "scheduleYear": "Năm",
   "scheduleMonth": "Tháng",
-  "scheduleDay": "Ngày"
+  "scheduleDay": "Ngày",
+  "scheduleCalendar": "Lịch",
+  "scheduleGregorian": "Dương lịch",
+  "scheduleLunar": "Âm lịch Trung Quốc",
+  "scheduleEra": "Cách ghi năm",
+  "scheduleCE": "Công nguyên",
+  "scheduleROC": "Dân quốc",
+  "scheduleGanzhi": "Can chi",
+  "scheduleLeapMonth": "Tháng nhuận {month}",
+  "scheduleAbsoluteYear": "Năm công nguyên tương ứng",
+  "scheduleChooseYear": "Hãy chọn năm công nguyên tương ứng và ngày đầy đủ trước"
 }

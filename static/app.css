@@ -3811,9 +3811,13 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 /* 日期端点直接选择可留空的年份、月日与时间，不增加重复周期模式。 */
 .schedule-date-fields fieldset{ border:0; margin:0; padding:0; min-width:0; display:grid; gap:10px; }
 .schedule-date-fields legend{ padding:0; margin-bottom:8px; }
-.schedule-calendar-fields{ display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr); gap:8px; }
-.schedule-calendar-fields select{ width:100%; min-width:0; }
+.schedule-calendar-fields{ display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,.8fr); gap:8px; }
+.schedule-calendar-fields select{ width:100%; min-width:0; padding-inline:8px; }
 .schedule-date-fields [type="time"]{ min-height:42px; }
+.schedule-calendar-options{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+.schedule-date-fields select{ min-width:0; width:100%; }
+.schedule-date-fields [hidden]{ display:none; }
+.schedule-date-dialog{ max-height:90vh; overflow-y:auto; }
 /* 旧 WebView 不支持逻辑定位时使用物理边界，RTL 同步镜像开关位置。 */
 .settings-list > .polling-coverage-overlay{ left:0; right:0; }
 .settings-list > .schedule-navigation-row > dd{ right:22px; left:auto; }

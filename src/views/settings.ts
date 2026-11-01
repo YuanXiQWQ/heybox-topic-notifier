@@ -296,6 +296,7 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
+    ${["polling-schedule-core.js", "polling-calendar.js", "polling-calendar-picker.js", "polling-calendar-profiles.js", "vendor/lunar/lunar.js"].map((file) => `<link rel="modulepreload" href="/static/${file}">`).join("")}
     <script type="module" src="/static/polling-schedule.js"></script>
     <script src="/static/settings.js?v=20261026-settings-header-key" defer></script>
   `;

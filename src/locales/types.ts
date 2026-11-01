@@ -78,6 +78,16 @@ export function isRtlLocale(locale: Locale): boolean {
  * 应用所有可翻译文案字段的结构。
  */
 export type Messages = {
+  scheduleCalendar: string;
+  scheduleGregorian: string;
+  scheduleLunar: string;
+  scheduleEra: string;
+  scheduleCE: string;
+  scheduleROC: string;
+  scheduleGanzhi: string;
+  scheduleLeapMonth: string;
+  scheduleAbsoluteYear: string;
+  scheduleChooseYear: string;
   scheduleYear: string;
   scheduleMonth: string;
   scheduleDay: string;

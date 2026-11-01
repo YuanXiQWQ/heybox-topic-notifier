@@ -468,5 +468,15 @@
   "scheduleRemove": "حذف بازه",
   "scheduleYear": "سال",
   "scheduleMonth": "ماه",
-  "scheduleDay": "روز"
+  "scheduleDay": "روز",
+  "scheduleCalendar": "تقویم",
+  "scheduleGregorian": "میلادی",
+  "scheduleLunar": "قمری چینی",
+  "scheduleEra": "سال‌شماری",
+  "scheduleCE": "میلادی",
+  "scheduleROC": "مینگو",
+  "scheduleGanzhi": "چرخه شصت‌ساله",
+  "scheduleLeapMonth": "ماه کبیسه {month}",
+  "scheduleAbsoluteYear": "سال میلادی متناظر",
+  "scheduleChooseYear": "ابتدا سال میلادی متناظر و تاریخ کامل را انتخاب کنید"
 }

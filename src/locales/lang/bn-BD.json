@@ -468,5 +468,15 @@
   "scheduleRemove": "সময়সীমা সরান",
   "scheduleYear": "বছর",
   "scheduleMonth": "মাস",
-  "scheduleDay": "দিন"
+  "scheduleDay": "দিন",
+  "scheduleCalendar": "পঞ্জিকা",
+  "scheduleGregorian": "গ্রেগরীয়",
+  "scheduleLunar": "চীনা চান্দ্র",
+  "scheduleEra": "বর্ষ গণনা",
+  "scheduleCE": "খ্রিষ্টাব্দ",
+  "scheduleROC": "মিনগুও",
+  "scheduleGanzhi": "ষাট বছরের চক্র",
+  "scheduleLeapMonth": "অধিমাস {month}",
+  "scheduleAbsoluteYear": "সমতুল্য খ্রিষ্টাব্দ",
+  "scheduleChooseYear": "আগে সমতুল্য খ্রিষ্টাব্দ ও সম্পূর্ণ তারিখ বেছে নিন"
 }

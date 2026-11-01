@@ -468,5 +468,15 @@
   "scheduleRemove": "Zaman aralığını kaldır",
   "scheduleYear": "Yıl",
   "scheduleMonth": "Ay",
-  "scheduleDay": "Gün"
+  "scheduleDay": "Gün",
+  "scheduleCalendar": "Takvim",
+  "scheduleGregorian": "Miladi",
+  "scheduleLunar": "Çin ay takvimi",
+  "scheduleEra": "Yıl numaralandırması",
+  "scheduleCE": "Miladi yıl",
+  "scheduleROC": "Minguo",
+  "scheduleGanzhi": "Altmış yıllık döngü",
+  "scheduleLeapMonth": "Artık ay {month}",
+  "scheduleAbsoluteYear": "Karşılık gelen miladi yıl",
+  "scheduleChooseYear": "Önce karşılık gelen miladi yılı ve tam tarihi seçin"
 }

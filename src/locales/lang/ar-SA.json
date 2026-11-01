@@ -468,5 +468,15 @@
   "scheduleRemove": "حذف الفترة",
   "scheduleYear": "السنة",
   "scheduleMonth": "الشهر",
-  "scheduleDay": "اليوم"
+  "scheduleDay": "اليوم",
+  "scheduleCalendar": "التقويم",
+  "scheduleGregorian": "الميلادي",
+  "scheduleLunar": "القمري الصيني",
+  "scheduleEra": "نظام السنوات",
+  "scheduleCE": "ميلادي",
+  "scheduleROC": "مينغو",
+  "scheduleGanzhi": "الدورة الستينية",
+  "scheduleLeapMonth": "الشهر الكبيس {month}",
+  "scheduleAbsoluteYear": "السنة الميلادية المقابلة",
+  "scheduleChooseYear": "اختر السنة الميلادية المقابلة والتاريخ الكامل أولاً"
 }

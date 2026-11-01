@@ -468,5 +468,15 @@
   "scheduleRemove": "Remover período",
   "scheduleYear": "Ano",
   "scheduleMonth": "Mês",
-  "scheduleDay": "Dia"
+  "scheduleDay": "Dia",
+  "scheduleCalendar": "Calendário",
+  "scheduleGregorian": "Gregoriano",
+  "scheduleLunar": "Lunar chinês",
+  "scheduleEra": "Numeração dos anos",
+  "scheduleCE": "Era comum",
+  "scheduleROC": "Minguo",
+  "scheduleGanzhi": "Ciclo sexagenário",
+  "scheduleLeapMonth": "Mês intercalar {month}",
+  "scheduleAbsoluteYear": "Ano correspondente da era comum",
+  "scheduleChooseYear": "Escolha primeiro o ano correspondente e uma data completa"
 }

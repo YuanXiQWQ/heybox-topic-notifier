@@ -468,5 +468,15 @@
   "scheduleRemove": "دورانیہ حذف کریں",
   "scheduleYear": "سال",
   "scheduleMonth": "مہینہ",
-  "scheduleDay": "دن"
+  "scheduleDay": "دن",
+  "scheduleCalendar": "تقویم",
+  "scheduleGregorian": "گریگوری",
+  "scheduleLunar": "چینی قمری",
+  "scheduleEra": "سال شماری",
+  "scheduleCE": "عیسوی",
+  "scheduleROC": "منگو",
+  "scheduleGanzhi": "ساٹھ سالہ دور",
+  "scheduleLeapMonth": "کبیسہ مہینہ {month}",
+  "scheduleAbsoluteYear": "متعلقہ عیسوی سال",
+  "scheduleChooseYear": "پہلے متعلقہ عیسوی سال اور مکمل تاریخ منتخب کریں"
 }

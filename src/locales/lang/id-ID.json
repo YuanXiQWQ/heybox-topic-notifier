@@ -468,5 +468,15 @@
   "scheduleRemove": "Hapus rentang waktu",
   "scheduleYear": "Tahun",
   "scheduleMonth": "Bulan",
-  "scheduleDay": "Hari"
+  "scheduleDay": "Hari",
+  "scheduleCalendar": "Kalender",
+  "scheduleGregorian": "Gregorian",
+  "scheduleLunar": "Lunar Tionghoa",
+  "scheduleEra": "Penomoran tahun",
+  "scheduleCE": "Masehi",
+  "scheduleROC": "Minguo",
+  "scheduleGanzhi": "Siklus 60 tahun",
+  "scheduleLeapMonth": "Bulan kabisat {month}",
+  "scheduleAbsoluteYear": "Tahun Masehi yang sesuai",
+  "scheduleChooseYear": "Pilih tahun Masehi yang sesuai dan tanggal lengkap terlebih dahulu"
 }

@@ -195,6 +195,33 @@ Deno.test("storage, form validation and independent sync preserve enabled drafts
       .polling.schedule,
     invalid,
   );
+  base.locale = "zh-TW";
+  base.polling.schedule = normalizeSchedule({
+    enabled: true,
+    rows: [{ ...row("1951-01-01T00:00", "1951-01-02T23:59"), era: "roc" }],
+  });
+  const translated = settingsFromForm({ locale: "zh-CN" }, base);
+  assertEquals(translated.polling.schedule?.rows[0].era, "ce");
+  assertEquals(translated.polling.schedule?.rows[0].start, "1951-01-01T00:00");
+  assertEquals(translated.polling.schedule?.enabled, true);
+  assertEquals(
+    normalizeSettings({ ...base, locale: "zh-CN" }, base).polling.schedule
+      ?.rows[0].era,
+    "ce",
+  );
+  assertEquals(
+    mergeSettings(initialSettingsSnapshot(base), [{
+      region: "setting/locale",
+      value: "zh-CN",
+      stamp: {
+        editedAt: 200,
+        deviceId: "two",
+        counter: 1,
+        operationId: "locale",
+      },
+    }]).snapshot.settings.polling.schedule?.rows[0].era,
+    "ce",
+  );
 });
 
 Deno.test("scheduler enters a new time range without waiting for the previous interval", async () => {
@@ -282,6 +309,10 @@ Deno.test("scheduled polling modules are served by the application routes", asyn
     const file of [
       "polling-schedule.js",
       "polling-schedule-core.js",
+      "polling-calendar.js",
+      "polling-calendar-picker.js",
+      "polling-calendar-profiles.js",
+      "vendor/lunar/lunar.js",
       "settings-navigation.js",
     ]
   ) {

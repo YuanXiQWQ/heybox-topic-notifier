@@ -468,5 +468,15 @@
   "scheduleRemove": "刪除時段",
   "scheduleYear": "年",
   "scheduleMonth": "月",
-  "scheduleDay": "日"
+  "scheduleDay": "日",
+  "scheduleCalendar": "曆法",
+  "scheduleGregorian": "公曆",
+  "scheduleLunar": "農曆",
+  "scheduleEra": "紀年",
+  "scheduleCE": "公元",
+  "scheduleROC": "民國",
+  "scheduleGanzhi": "干支",
+  "scheduleLeapMonth": "閏{month}月",
+  "scheduleAbsoluteYear": "對應的公元年份",
+  "scheduleChooseYear": "請先指定對應的公元年份和完整日期"
 }

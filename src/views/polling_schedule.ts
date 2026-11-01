@@ -19,7 +19,9 @@ export function renderPollingSchedule(settings: AppSettings): string {
   const labels = Object.fromEntries(
     Object.entries(m).filter(([key]) => key.startsWith("schedule")),
   );
-  return `<section data-schedule-page hidden data-labels="${
+  return `<section data-schedule-page hidden data-chinese="${
+    settings.locale.startsWith("zh-")
+  }" data-roc="${["zh-CN", "zh-TW"].includes(settings.locale)}" data-labels="${
     e(JSON.stringify(labels))
   }">
     <div class="page-heading"><h1>${
@@ -28,7 +30,9 @@ export function renderPollingSchedule(settings: AppSettings): string {
     e(m.scheduleClear)
   }</button></div>
     <input type="hidden" name="pollSchedule" value="${
-    e(JSON.stringify(normalizeSchedule(settings.polling.schedule)))
+    e(JSON.stringify(
+      normalizeSchedule(settings.polling.schedule, settings.locale),
+    ))
   }">
     <div class="schedule-list" data-schedule-list></div>
     ${renderSettingsBack(m.navSettings)}
@@ -97,7 +101,21 @@ export function renderPollingSchedule(settings: AppSettings): string {
   }</h2><button type="button" class="settings-row-action-button settings-icon-action-button" data-schedule-close aria-label="${
     e(m.accountCancel)
   }"><svg viewBox="0 0 24 24" class="settings-row-action-icon" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
-      <div class="schedule-date-fields">${
+      <div class="schedule-date-fields"><div class="schedule-calendar-options"><label data-calendar-label><span>${
+    e(m.scheduleCalendar)
+  }</span><select data-schedule-calendar><option value="gregory">${
+    e(m.scheduleGregorian)
+  }</option><option value="chinese">${
+    e(m.scheduleLunar)
+  }</option></select></label><label data-era-label><span>${
+    e(m.scheduleEra)
+  }</span><select data-schedule-era><option value="ce">${
+    e(m.scheduleCE)
+  }</option><option value="roc">${
+    e(m.scheduleROC)
+  }</option><option value="ganzhi">${
+    e(m.scheduleGanzhi)
+  }</option></select></label></div>${
     (["start", "end"] as const).map((side) =>
       `<fieldset data-schedule-date="${side}"><legend>${
         e(side === "start" ? m.scheduleStart : m.scheduleEnd)
@@ -105,7 +123,9 @@ export function renderPollingSchedule(settings: AppSettings): string {
         e(m.scheduleYear)
       }" aria-label="${
         e(m.scheduleYear)
-      }"><select data-date-part="month" aria-label="${
+      }"><select data-date-part="cycle" aria-label="${
+        e(m.scheduleYear)
+      }" hidden></select><select data-date-part="month" aria-label="${
         e(m.scheduleMonth)
       }"><option value="">${e(m.scheduleMonth)}</option>${
         Array.from({ length: 12 }, (_, i) =>
@@ -115,7 +135,9 @@ export function renderPollingSchedule(settings: AppSettings): string {
         e(m.scheduleDay)
       }"><option value="">${
         e(m.scheduleDay)
-      }</option></select></div><input type="time" data-date-part="time" step="60" aria-label="${
+      }</option></select></div><label data-reference-label hidden><span>${
+        e(m.scheduleAbsoluteYear)
+      }</span><input type="number" min="100" max="9999" step="1" data-date-part="reference"></label><input type="time" data-date-part="time" step="60" aria-label="${
         e(side === "start" ? m.scheduleStart : m.scheduleEnd)
       }"></fieldset>`
     ).join("")

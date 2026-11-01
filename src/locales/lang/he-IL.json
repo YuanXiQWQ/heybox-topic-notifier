@@ -468,5 +468,15 @@
   "scheduleRemove": "הסרת טווח",
   "scheduleYear": "שנה",
   "scheduleMonth": "חודש",
-  "scheduleDay": "יום"
+  "scheduleDay": "יום",
+  "scheduleCalendar": "לוח שנה",
+  "scheduleGregorian": "גרגוריאני",
+  "scheduleLunar": "ירחי סיני",
+  "scheduleEra": "מניין השנים",
+  "scheduleCE": "לספירה",
+  "scheduleROC": "מינגואו",
+  "scheduleGanzhi": "מחזור של שישים שנה",
+  "scheduleLeapMonth": "חודש מעובר {month}",
+  "scheduleAbsoluteYear": "השנה המקבילה לספירה",
+  "scheduleChooseYear": "יש לבחור תחילה שנה מקבילה לספירה ותאריך מלא"
 }

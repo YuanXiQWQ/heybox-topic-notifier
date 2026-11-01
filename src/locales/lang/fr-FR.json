@@ -468,5 +468,15 @@
   "scheduleRemove": "Supprimer la plage",
   "scheduleYear": "Année",
   "scheduleMonth": "Mois",
-  "scheduleDay": "Jour"
+  "scheduleDay": "Jour",
+  "scheduleCalendar": "Calendrier",
+  "scheduleGregorian": "Grégorien",
+  "scheduleLunar": "Lunaire chinois",
+  "scheduleEra": "Numérotation des années",
+  "scheduleCE": "Ère commune",
+  "scheduleROC": "Minguo",
+  "scheduleGanzhi": "Cycle sexagésimal",
+  "scheduleLeapMonth": "Mois intercalaire {month}",
+  "scheduleAbsoluteYear": "Année correspondante de l’ère commune",
+  "scheduleChooseYear": "Choisissez d’abord l’année correspondante et une date complète"
 }

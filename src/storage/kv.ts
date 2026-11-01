@@ -2056,7 +2056,7 @@ export function normalizeSettings(
     notificationWxPusherSpt: typeof value.notificationWxPusherSpt === "string"
       ? value.notificationWxPusherSpt
       : defaultSettings.notificationWxPusherSpt,
-    polling: normalizePollingSettings(value.polling, defaultSettings.polling),
+    polling: normalizePollingSettings(value.polling, defaultSettings.polling, value.locale ?? defaultSettings.locale),
     themeColor: normalizeThemeColor(
       value.themeColor,
       defaultSettings.themeColor,
@@ -2070,11 +2070,13 @@ export function normalizeSettings(
  *
  * @param {Partial<PollingSettings>|undefined} value 待读取的轮询设置及分时段草稿。
  * @param {PollingSettings} fallback 兜底轮询设置。
+ * @param {string} locale 界面语言。
  * @return {PollingSettings} 规范化后的轮询设置。
  */
 function normalizePollingSettings(
   value: Partial<PollingSettings> | undefined,
   fallback: PollingSettings,
+  locale: string,
 ): PollingSettings {
   const legacyIntervalMinutes = (value as
     | Partial<PollingSettings> & {
@@ -2100,7 +2102,7 @@ function normalizePollingSettings(
       intervalUnit,
       fallback.intervalValue,
     ),
-    ...(value?.schedule ? { schedule: normalizeSchedule(value.schedule) } : {}),
+    ...(value?.schedule ? { schedule: normalizeSchedule(value.schedule, locale) } : {}),
     postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
     sort: normalizePollSort(value?.sort, fallback.sort),
   };

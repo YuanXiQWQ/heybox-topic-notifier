@@ -468,5 +468,15 @@
   "scheduleRemove": "समयावधि हटाएँ",
   "scheduleYear": "वर्ष",
   "scheduleMonth": "महीना",
-  "scheduleDay": "दिन"
+  "scheduleDay": "दिन",
+  "scheduleCalendar": "कैलेंडर",
+  "scheduleGregorian": "ग्रेगोरियन",
+  "scheduleLunar": "चीनी चंद्र",
+  "scheduleEra": "वर्ष गणना",
+  "scheduleCE": "ईस्वी",
+  "scheduleROC": "मिंगुओ",
+  "scheduleGanzhi": "साठ-वर्षीय चक्र",
+  "scheduleLeapMonth": "अधिमास {month}",
+  "scheduleAbsoluteYear": "संबंधित ईस्वी वर्ष",
+  "scheduleChooseYear": "पहले संबंधित ईस्वी वर्ष और पूरी तारीख चुनें"
 }

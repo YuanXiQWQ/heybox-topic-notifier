@@ -50,7 +50,7 @@
             type: "app-resources",
             urls: [
               ...document.querySelectorAll(
-                "script[src],link[rel='stylesheet']",
+                "script[src],link[rel='stylesheet'],link[rel='modulepreload']",
               ),
             ].map((element) => element.src || element.href),
           });
