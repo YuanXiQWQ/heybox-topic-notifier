@@ -1,6 +1,8 @@
 /**
  * @file 本文件负责轮询话题帖子、执行规则或 AI 匹配并触发通知。
  */
+import { resolvePolling } from "../../static/polling-schedule-core.js";
+import type { PollingSettings } from "../models.ts";
 import type { AppSettings, MatchRecord, MatchResult } from "../models.ts";
 import type { MatchedPostIndexEntry, Storage } from "../storage/types.ts";
 import type { createMatcher } from "./matcher.ts";
@@ -84,17 +86,18 @@ export function createPoller(
     },
 
     /**
-     * 执行话题查询和判定，将回退提示随正常命中发送；同一用户由持久化租约串行化。
+     * 按当前有效时段执行话题查询和判定，将回退提示随正常命中发送；同一用户由持久化租约串行化。
      *
      * @param {PollStorage} runStorage 本次轮询使用的用户存储。
-     * @param {AppSettings} runSettings 同一次调度已读取的设置。
+     * @param {AppSettings} runSettings 调度时已确定生效时段的设置快照。
      * @return {Promise<void>} 本次轮询完成后的 Promise。
      */
     async runOnce(
       runStorage: PollStorage = storage,
       runSettings?: AppSettings,
     ): Promise<void> {
-      const settings = runSettings ?? await runStorage.getSettings();
+      const base = runSettings ?? await runStorage.getSettings();
+      const settings = runSettings ?? {...base, polling: resolvePolling(base.polling).polling as PollingSettings};
       const enabledTopics = settings.topics.filter((topic) =>
         topic.enabled && topic.id.trim()
       );

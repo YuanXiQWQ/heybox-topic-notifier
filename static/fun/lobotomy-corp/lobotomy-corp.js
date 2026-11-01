@@ -513,6 +513,9 @@ function lobotomyCorpAbnormalityLocale(locale) {
     'ko-KR',
     'ru-RU',
     'es-ES',
+    'fr-FR',
+    'pt-BR',
+    'pt-PT',
     'bg-BG',
     'vi-VN',
   ]);

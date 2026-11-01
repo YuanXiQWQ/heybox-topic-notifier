@@ -6254,7 +6254,7 @@ function formSignature(form) {
 }
 
 /**
- * 从浏览器表单创建 FormData。
+ * 从浏览器表单创建 FormData，保留分时段覆盖时锁定的默认参数。
  *
  * 此脚本在浏览器执行；Deno 的 FormData 类型声明缺少 HTMLFormElement 重载。
  *
@@ -6263,7 +6263,9 @@ function formSignature(form) {
  */
 function formDataFromForm(form) {
   // noinspection JSCheckFunctionSignatures
-  return new FormData(form);
+  const data = new FormData(form);
+  for (const control of form.querySelectorAll('[data-schedule-locked][name]')) data.set(control.name, control.value);
+  return data;
 }
 
 /**

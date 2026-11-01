@@ -1,5 +1,6 @@
 /** @file 将设置拆成独立区域，并按编辑版本合并，保留被删除话题的生命周期标记。 */
 import type { AppSettings, TopicRule } from "../models.ts";
+import { normalizeSchedule } from "../../static/polling-schedule-core.js";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import { baselineStamp, compareEdits, type EditStamp } from "./protocol.ts";
 
@@ -196,6 +197,7 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
       a.order - b.order ||
       (a.topic.id < b.topic.id ? -1 : a.topic.id === b.topic.id ? 0 : 1)
     ).map((item) => item.topic);
+  if (result.polling.schedule) result.polling.schedule = normalizeSchedule(result.polling.schedule, result.locale);
   return result;
 }
 

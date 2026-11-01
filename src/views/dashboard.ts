@@ -1,6 +1,8 @@
 /**
  * @file 本文件负责渲染仪表盘页面和轮询进度交互脚本。
  */
+import { resolvePolling } from "../../static/polling-schedule-core.js";
+import type { PollingSettings } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, AppState, PollIntervalUnit, UserAccount } from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
@@ -10,10 +12,10 @@ import { renderMatchRecordsSection } from "./match_table_view.ts";
 import { formatHeyboxRelativeTime } from "./time.ts";
 
 /**
- * 渲染仪表盘页面。
+ * 使用当前时段的有效轮询参数渲染仪表盘和倒计时。
  *
- * @param options 仪表盘渲染选项。
- * @return 完整仪表盘页面 HTML。
+ * @param {object} options 仪表盘渲染选项。
+ * @return {string} 完整仪表盘页面 HTML。
  */
 export function renderDashboard(options: {
   account?: Pick<UserAccount, "displayName" | "id" | "username">;
@@ -26,6 +28,7 @@ export function renderDashboard(options: {
   settings: AppSettings;
   state: AppState;
 }): string {
+  options = {...options, settings: {...options.settings, polling: resolvePolling(options.settings.polling).polling as PollingSettings}};
   const messages = getMessages(options.settings.locale);
   const latest = options.state.latestMatch;
   const lastPollAt = options.state.lastPollAt;
