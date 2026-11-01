@@ -20,6 +20,7 @@ final class Http {
     static JSONObject api(String path) throws Exception {
         if (!path.startsWith("/") || path.startsWith("//")) throw new SecurityException("Invalid API path");
         HttpURLConnection connection = connect(BuildConfig.APP_ORIGIN + path);
+        connection.setConnectTimeout(10000); connection.setReadTimeout(10000);
         String cookie = CookieManager.getInstance().getCookie(BuildConfig.APP_ORIGIN);
         if (cookie != null) connection.setRequestProperty("Cookie", cookie);
         try { int status = connection.getResponseCode(); if (status == 401 || status == 403 || status == 303) throw new SecurityException("Authentication required"); if (status != 200) throw new IllegalStateException("API unavailable"); saveCookies(connection); return json(connection.getInputStream()); }

@@ -57,6 +57,9 @@ public final class NativeSmokeRunner extends Instrumentation {
                 CookieManager.getInstance().setCookie(BuildConfig.APP_ORIGIN, "heybox_session=" + token + "; Path=/; Secure");
                 CookieManager.getInstance().flush();
             });
+            device.put("notifications", new JSONObject().put("enabled", true).put("userId", "smoke-user")
+                .put("session", Notifications.currentSessionHash()).put("generation", "smoke")
+                .put("cursor", "").put("seen", new org.json.JSONArray()));
             activity = startActivitySync(new Intent(getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             awaitStatus(2);
             pass("foreground service starts without GMS; badge deduplicates posts");
@@ -74,6 +77,9 @@ public final class NativeSmokeRunner extends Instrumentation {
             require(NotificationService.isRunning(), "service survives removing the recent task and a polling interval");
             awaitStatus(2);
             pass("removing recent task preserves foreground service and status notification");
+            require(NotificationService.requestPoll(), "wake signal reaches running service after task removal");
+            assertPollingSurvivesStateFailure();
+            pass("immediate background wake and state failure preserve scheduled polling");
             Badges.local(device, new JSONObject("{\"userId\":\"smoke-user\",\"records\":[{\"id\":\"c\",\"postId\":\"p2\",\"workspace\":false}]}"));
             runOnMainSync(NotificationService::publishBadge);
             awaitStatus(1);
@@ -81,6 +87,11 @@ public final class NativeSmokeRunner extends Instrumentation {
             Notifications.get(getTargetContext(), device).show(new JSONObject("{\"id\":\"isolated-smoke-notification\",\"path\":\"/\",\"title\":\"Native smoke test\",\"body\":\"Isolated emulator only\"}"), "smoke-user");
             SystemClock.sleep(500);
             require(manager.getActiveNotifications().length == 2 && Badges.count(device) == 1, "test notification does not change workspace count");
+            for (StatusBarNotification posted : manager.getActiveNotifications()) if (posted.getId() != 12101) {
+                require(posted.getNotification().getSmallIcon().getResId() == R.drawable.app_icon, "status bar uses application logo");
+                require(posted.getNotification().getLargeIcon() != null, "notification includes application artwork");
+                require(alerts.getImportance() == NotificationManager.IMPORTANCE_HIGH && alerts.getSound() != null, "alerts retain banner and sound configuration");
+            }
             pass("Android accepts native notification after task removal independently of badge count");
             device.put("badgeEnabled", false);
             runOnMainSync(NotificationService::publishBadge);
@@ -94,14 +105,17 @@ public final class NativeSmokeRunner extends Instrumentation {
             result.putString("error", android.util.Log.getStackTraceString(error));
         } finally {
           if (isolated) {
-            getTargetContext().stopService(new Intent(getTargetContext(), NotificationService.class));
-            if (manager != null) manager.cancelAll();
             try { if (device != null) { device.put("badgeEnabled", false); device.put("badgeSnapshot", new JSONObject()); device.put("notifications", new JSONObject().put("enabled", false)); } }
             catch (Exception error) { result.putString("cleanupError", error.toString()); status = Activity.RESULT_CANCELED; }
+            NotificationJob.maintain(getTargetContext(), false);
+            boolean stopped = getTargetContext().stopService(new Intent(getTargetContext(), NotificationService.class));
             runOnMainSync(() -> { CookieManager.getInstance().removeAllCookies(null); CookieManager.getInstance().flush(); if (activity != null) activity.finish(); });
-            SystemClock.sleep(500);
+            long cleanupEnd = SystemClock.uptimeMillis() + 10000;
+            while (SystemClock.uptimeMillis() < cleanupEnd && NotificationService.isRunning()) SystemClock.sleep(100);
+            if (manager != null) manager.cancelAll();
+            while (SystemClock.uptimeMillis() < cleanupEnd && (NotificationService.isRunning() || (manager != null && manager.getActiveNotifications().length != 0))) SystemClock.sleep(100);
             if (NotificationService.isRunning() || (manager != null && manager.getActiveNotifications().length != 0)) {
-                result.putString("cleanupError", "Test service or notifications remained active"); status = Activity.RESULT_CANCELED;
+                result.putString("cleanupError", "stopped=" + stopped + " running=" + NotificationService.isRunning() + " notifications=" + (manager == null ? -1 : manager.getActiveNotifications().length)); status = Activity.RESULT_CANCELED;
             }
           }
         }
@@ -112,6 +126,22 @@ public final class NativeSmokeRunner extends Instrumentation {
     private static void require(boolean value, String message) { if (!value) throw new AssertionError(message); }
     /** @param {String} name 已完成的检查。 */
     private void pass(String name) { passed.append("PASS ").append(name).append('\n'); }
+    /** 模拟加密状态暂不可读，验证整个轮询回调的异常边界与 CPU 锁。 @throws Exception 反射或断言失败。 */
+    private void assertPollingSurvivesStateFailure() throws Exception {
+        java.lang.reflect.Field active = NotificationService.class.getDeclaredField("active"); active.setAccessible(true);
+        Object service = active.get(null);
+        java.lang.reflect.Field workerField = NotificationService.class.getDeclaredField("worker"); workerField.setAccessible(true);
+        java.util.concurrent.ScheduledExecutorService worker = (java.util.concurrent.ScheduledExecutorService) workerField.get(service);
+        worker.submit(() -> {}).get(30, java.util.concurrent.TimeUnit.SECONDS);
+        java.lang.reflect.Field lock = NotificationService.class.getDeclaredField("wakeLock"); lock.setAccessible(true);
+        require(((android.os.PowerManager.WakeLock) lock.get(service)).isHeld(), "enabled alerts keep background CPU available");
+        java.lang.reflect.Method poll = NotificationService.class.getDeclaredMethod("poll"); poll.setAccessible(true);
+        java.lang.reflect.Field value = DeviceState.class.getDeclaredField("value"); value.setAccessible(true);
+        Object saved = value.get(device);
+        try { value.set(device, null); poll.invoke(service); }
+        finally { value.set(device, saved); }
+        require(NotificationService.isRunning(), "state failure must not terminate recurring work");
+    }
     /** @return {Notification} 当前常驻通知；缺失时为空。 */
     private Notification statusNotification() {
         for (StatusBarNotification item : manager.getActiveNotifications()) if (item.getId() == 12101) return item.getNotification();

@@ -46,7 +46,7 @@ final class Notifications extends NotificationInbox {
         boolean allowed = allowed();
         boolean current = binding != null && currentSessionHash().equals(binding.optString("session"));
         boolean enabled = allowed && current && binding.optBoolean("enabled");
-        NotificationJob.maintain(application, enabled);
+        NotificationJob.maintain(application, enabled || (!Http.session().isEmpty() && device.read().optBoolean("badgeEnabled", true)));
         return new JSONObject().put("supported", true).put("enabled", enabled).put("backgroundPushConfigured", current && (binding.optBoolean("honorRegistered") || NotificationService.isRunning()));
     }
     /**
