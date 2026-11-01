@@ -3857,6 +3857,9 @@ if (
   }
 }
 lobotomyCorpShelterEvent.restore();
+globalThis.document?.addEventListener?.('application-records-rendered', () => {
+  lobotomyCorpBlackForestEvent.refreshSlots();
+});
 if (restoredLobotomyCorpBlackForest?.id === blackForestEventId) {
   lobotomyCorpBlackForestEvent.restore();
 }
