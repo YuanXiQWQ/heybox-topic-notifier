@@ -406,6 +406,7 @@
   "updateAvailable": "Update available",
   "updateDownload": "Download and update",
   "updateLater": "Later",
+  "updateReady": "Update ready",
   "updateRestart": "Restart and update",
   "updateCurrent": "You're up to date",
   "updateFailed": "Update failed. Try again",

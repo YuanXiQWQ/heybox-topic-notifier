@@ -406,6 +406,7 @@
   "updateAvailable": "يتوفر تحديث",
   "updateDownload": "تنزيل وتحديث",
   "updateLater": "لاحقًا",
+  "updateReady": "التحديث جاهز",
   "updateRestart": "إعادة التشغيل والتحديث",
   "updateCurrent": "الإصدار محدّث",
   "updateFailed": "فشل التحديث. حاول مجددًا",

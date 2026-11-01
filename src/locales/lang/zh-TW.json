@@ -406,6 +406,7 @@
   "updateAvailable": "發現新版本",
   "updateDownload": "下載並更新",
   "updateLater": "稍後",
+  "updateReady": "更新已就緒",
   "updateRestart": "重新啟動並更新",
   "updateCurrent": "已是最新版本",
   "updateFailed": "更新失敗，請重試",

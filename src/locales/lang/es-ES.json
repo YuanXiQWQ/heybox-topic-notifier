@@ -406,6 +406,7 @@
   "updateAvailable": "Actualización disponible",
   "updateDownload": "Descargar y actualizar",
   "updateLater": "Más tarde",
+  "updateReady": "Actualización lista",
   "updateRestart": "Reiniciar y actualizar",
   "updateCurrent": "Ya está actualizado",
   "updateFailed": "Error al actualizar. Inténtalo de nuevo",

@@ -3797,11 +3797,10 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   .schedule-row{ grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 60px; padding:12px 10px; gap:10px; }
   .schedule-row > .schedule-field:nth-child(4),.schedule-row > .schedule-field:nth-child(5){ grid-column:2 / 5; }
   .schedule-range,.schedule-row > .schedule-field:nth-child(3){ grid-column:2 / 5; }
-  .schedule-row > .rule-drag-handle{ grid-row:1; }
-  .schedule-actions{ grid-row:1; }
+  .schedule-row > .rule-drag-handle{ grid-column:1 / -1; grid-row:1; }
+  .schedule-actions{ grid-column:1 / -1; grid-row:auto; justify-content:flex-end; }
   .schedule-range{ grid-row:2; grid-column:1 / 5; }
   .schedule-row > .schedule-field:nth-child(3),.schedule-row > .schedule-field:nth-child(4),.schedule-row > .schedule-field:nth-child(5){ grid-column:1 / 5; }
-  .schedule-actions{ grid-column:4; }
   [data-schedule-page] .page-heading{ gap:16px; flex-wrap:wrap; }
   [data-schedule-page] .page-heading h1{ font-size:26px; }
   .settings-list > .schedule-navigation-row > dd{ inset-inline-end:16px; }
@@ -3833,3 +3832,12 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   .settings-list > .schedule-navigation-row > dd{ right:16px; }
   [dir="rtl"] .settings-list > .schedule-navigation-row > dd{ right:auto; left:16px; }
 }
+
+/* 更新横幅独占底部一行，页面在剩余高度内滚动，不改变原生窗口大小。 */
+:root.app-update-banner-visible{ overflow: hidden; }
+.app-update-banner-visible body{ height: 100dvh; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+.app-update-content{ min-height: 0; overflow-y: auto; }
+.app-update-banner{ display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; box-sizing: border-box; padding: 4px 12px; background: var(--theme-soft); border-top: 1px solid var(--theme-border); animation: app-update-rise 180ms ease-out; }
+.app-update-banner button{ min-height: 30px; padding: 4px 12px; font-size: 13px; }
+@keyframes app-update-rise{ from{ transform: translateY(100%); } to{ transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce){ .app-update-banner{ animation: none; } }
