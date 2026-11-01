@@ -701,6 +701,13 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
     };
   };
   const originalDocument = Object.getOwnPropertyDescriptor(browser, "document");
+  const originalStorages = ["localStorage", "sessionStorage"].map((name) =>
+    [name, Object.getOwnPropertyDescriptor(browser, name)] as const
+  );
+  const storage = new StorageMock();
+  for (const [name] of originalStorages) {
+    Object.defineProperty(browser, name, { configurable: true, value: storage });
+  }
   const originalApi = Object.getOwnPropertyDescriptor(
     browser,
     "lobotomyCorpEasterEgg",
@@ -803,6 +810,10 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
     if (originalApi) {
       Object.defineProperty(browser, "lobotomyCorpEasterEgg", originalApi);
     } else delete browser.lobotomyCorpEasterEgg;
+    for (const [name, descriptor] of originalStorages) {
+      if (descriptor) Object.defineProperty(browser, name, descriptor);
+      else Reflect.deleteProperty(browser, name);
+    }
   }
 });
 

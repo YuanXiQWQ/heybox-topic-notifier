@@ -258,6 +258,26 @@ test("notification navigation rechecks the account after saving pending edits", 
   assert.equal(context.opened.length, 0);
 });
 
+test("notification backlog merges across pages and confirms filtered tails", async () => {
+  const context = harness();
+  await context.api.setNotifications(true);
+  let page = 0;
+  context.readWith(() => ({ userId: "alice", cursor: String(++page), hasMore: page < 3,
+    events: page === 3 ? [] : [{id: "post-" + page, cursor: String(page), title: "App", body: "Post " + page, path: "/history"}],
+  }));
+  await context.api.consumeNotifications();
+  assert.equal(context.shown.length, 1);
+  assert.equal(context.shown[0].data.title, "App (2)");
+  assert.equal(context.shown[0].data.body, "Post 1\nPost 2");
+  assert.match(context.shown[0].data.icon, /[\\/]favicon\.png$/);
+  assert.equal(context.device.value.notifications.cursor, "3");
+  assert.equal(context.device.value.notifications.seen.length, 2);
+  context.readWith(() => ({userId: "alice", cursor: "4", events: []}));
+  await context.api.consumeNotifications();
+  assert.equal(context.shown.length, 1);
+  assert.equal(context.device.value.notifications.cursor, "4");
+});
+
 test("notification setup cannot bind a response from an account replaced during the request", async () => {
   const context = harness();
   context.readWith(() => {
@@ -503,11 +523,11 @@ test("checking after downloading and dismissing a release discovers the latest r
   await context.updaterEvents.get("update-downloaded")();
   await context.handlers.get("app:seen-update")(context.event, "dismissed");
   let checks = 0;
-  context.updater.checkForUpdates = async () => {
+  context.updater.checkForUpdates = () => {
     checks++;
     const updateInfo = {version:"3.11.0"};
     context.updaterEvents.get("update-available")(updateInfo);
-    return {isUpdateAvailable:true, updateInfo};
+    return Promise.resolve({isUpdateAvailable:true, updateInfo});
   };
   const state = await context.api.checkUpdate();
   assert.equal(checks, 1);
@@ -526,10 +546,10 @@ test("checking after downloading and dismissing a release discovers the latest r
 test("a recheck of the same downloaded release reuses the downloader and keeps restart available", async () => {
   const context = harness();
   context.api.installUpdater();
-  context.updater.checkForUpdates = async () => {
+  context.updater.checkForUpdates = () => {
     const updateInfo = {version:"1.1.0"};
     context.updaterEvents.get("update-available")(updateInfo);
-    return {isUpdateAvailable:true, updateInfo};
+    return Promise.resolve({isUpdateAvailable:true, updateInfo});
   };
   let reused = 0;
   context.updater.downloadUpdate = async () => {
@@ -548,9 +568,9 @@ test("a withdrawn release clears pending prompts and cannot install the cached o
   context.device.value.autoUpdateReady = "1.1.0";
   context.device.value.updateVersion = "1.1.0";
   context.api.installUpdater();
-  context.updater.checkForUpdates = async () => {
+  context.updater.checkForUpdates = () => {
     context.updaterEvents.get("update-not-available")();
-    return {isUpdateAvailable:false};
+    return Promise.resolve({isUpdateAvailable:false});
   };
   const state = await context.api.checkUpdate();
   assert.equal(state.update.status, "current");
@@ -565,7 +585,7 @@ test("a withdrawn release clears pending prompts and cannot install the cached o
 test("failed rechecks report failure instead of claiming the downloaded release is latest", async () => {
   const context = harness();
   context.api.installUpdater();
-  context.updater.checkForUpdates = async () => { throw new Error("offline"); };
+  context.updater.checkForUpdates = () => Promise.reject(new Error("offline"));
   assert.equal((await context.api.checkUpdate()).update.status, "error");
   assert.equal(context.updater.autoInstallOnAppQuit, false);
   assert.equal(context.downloads(), 0);
@@ -595,12 +615,12 @@ test("a newer automatic download cannot trigger the previous cached startup rest
   context.device.value.autoUpdateReady = "1.1.0";
   context.api.installUpdater();
   context.api.markCachedUpdate();
-  context.updater.checkForUpdates = async () => {
+  context.updater.checkForUpdates = () => {
     const updateInfo = {version:"1.2.0"};
     context.updaterEvents.get("update-available")(updateInfo);
     assert.equal(context.updater.autoInstallOnAppQuit, false);
     assert.equal(context.device.value.autoUpdateReady, undefined);
-    return {isUpdateAvailable:true, updateInfo, downloadPromise:Promise.resolve(), cancellationToken:{cancel(){}}};
+    return Promise.resolve({isUpdateAvailable:true, updateInfo, downloadPromise:Promise.resolve(), cancellationToken:{cancel(){}}});
   };
   await context.api.checkUpdate();
   await context.updaterEvents.get("update-downloaded")();
@@ -627,14 +647,14 @@ test("real NSIS updater replaces a deferred release while preserving same-releas
     updater.downloadedUpdateHelper = new DownloadedUpdateHelper(root);
     updater.disableDifferentialDownload = true;
     /** @return {Promise<object>} 隔离发行源的当前清单。 */
-    updater.getUpdateInfoAndProvider = async () => {
+    updater.getUpdateInfoAndProvider = () => {
       checks++;
       const bytes = Buffer.from(`isolated installer ${version}`);
       const file = {url:"setup.exe", sha512:createHash("sha512").update(bytes).digest("base64"), size:bytes.length};
-      return {
+      return Promise.resolve({
         info:{version, files:[file]},
         provider:{resolveFiles:info => info.files.map(item => ({url:new URL(item.url,"https://updates.invalid/"), info:item}))},
-      };
+      });
     };
     updater.httpExecutor = {
       /** @param {URL} url 隔离下载地址。 @param {string} target 临时安装包路径。 */
@@ -645,7 +665,7 @@ test("real NSIS updater replaces a deferred release while preserving same-releas
       },
     };
     /** @return {Promise<null>} 隔离测试数据不执行发行签名检查。 */
-    updater.verifySignature = async () => null;
+    updater.verifySignature = () => Promise.resolve(null);
     /** @return {boolean} 记录待安装文件，禁止运行测试数据。 */
     updater.doInstall = () => { installed.push(fs.readFileSync(updater.installerPath,"utf8")); return true; };
     const context = harness({updater, repairUpdateCache});

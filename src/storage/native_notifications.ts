@@ -8,6 +8,10 @@ export type NativeNotification = {
   title: string;
   body: string;
   path: string;
+  /** 帖子事件关联工作区记录；服务和测试消息不参与历史过滤。 */
+  kind?: "match" | "service";
+  matchId?: string;
+  postId?: string;
 };
 /** 原生通知持久接口，收件箱与其它通知通道互不依赖。 */
 export type NativeNotificationStore = {
