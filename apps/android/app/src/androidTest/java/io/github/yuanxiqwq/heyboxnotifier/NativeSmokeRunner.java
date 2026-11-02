@@ -61,26 +61,37 @@ public final class NativeSmokeRunner extends Instrumentation {
                 .put("session", Notifications.currentSessionHash()).put("generation", "smoke")
                 .put("cursor", "").put("seen", new org.json.JSONArray()));
             activity = startActivitySync(new Intent(getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            require(!NotificationService.isRunning(), "no ongoing foreground service");
-            require(statusNotification() == null, "no background status notification");
-            require(Badges.count(device) == 2, "workspace count deduplicates posts");
-            android.app.NotificationChannel alerts = manager.getNotificationChannel(NotificationChannels.ensure(getTargetContext()));
+            awaitStatus(2);
+            pass("foreground service starts without GMS; badge deduplicates posts");
+            NotificationManager nm = manager;
+            require(!nm.getNotificationChannel("background-silent-v2").canShowBadge(), "background channel has no badge");
+            android.app.NotificationChannel background = nm.getNotificationChannel("background-silent-v2");
+            require(background.getImportance() <= NotificationManager.IMPORTANCE_LOW && background.getSound() == null && !background.shouldVibrate(), "background status cannot alert with sound or heads-up");
+            long statusTime = statusNotification().when;
+            runOnMainSync(NotificationService::publishBadge);
+            require(statusNotification().when == statusTime, "unchanged polling does not repost the status");
+            android.app.NotificationChannel alerts = nm.getNotificationChannel(NotificationChannels.ensure(getTargetContext()));
             require(!alerts.canShowBadge(), "new matches do not count as workspace badge");
             getTargetContext().startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             SystemClock.sleep(17000);
-            require(statusNotification() == null, "backgrounding does not recreate status notification");
+            require(NotificationService.isRunning(), "service survives leaving activity and a polling interval");
+            awaitStatus(2);
+            pass("background service survives offline polling");
             runOnMainSync(() -> activity.finishAndRemoveTask());
             SystemClock.sleep(17000);
-            require(statusNotification() == null, "removing recent task does not recreate status notification");
-            require(getTargetContext().getSystemService(android.app.job.JobScheduler.class).getPendingJob(12100) != null, "system polling remains scheduled");
-            pass("background and task removal retain scheduled work without ongoing notification");
+            require(NotificationService.isRunning(), "service survives removing the recent task and a polling interval");
+            awaitStatus(2);
+            pass("removing recent task preserves foreground service and status notification");
+            require(NotificationService.requestPoll(), "wake signal reaches running service after task removal");
+            assertPollingSurvivesStateFailure();
+            pass("immediate background wake and state failure preserve scheduled polling");
             Badges.local(device, new JSONObject("{\"userId\":\"smoke-user\",\"records\":[{\"id\":\"c\",\"postId\":\"p2\",\"workspace\":false}]}"));
             runOnMainSync(NotificationService::publishBadge);
-            require(Badges.count(device) == 1 && statusNotification() == null, "offline confirmation updates local count without status notification");
-            pass("offline confirmation preserves local count without status notification");
+            awaitStatus(1);
+            pass("offline confirmation immediately updates system notification number");
             Notifications.get(getTargetContext(), device).show(new JSONObject("{\"id\":\"isolated-smoke-notification\",\"path\":\"/\",\"title\":\"Native smoke test\",\"body\":\"Isolated emulator only\"}"), "smoke-user");
             SystemClock.sleep(500);
-            require(manager.getActiveNotifications().length == 1 && Badges.count(device) == 1, "test notification does not change workspace count");
+            require(manager.getActiveNotifications().length == 2 && Badges.count(device) == 1, "test notification does not change workspace count");
             for (StatusBarNotification posted : manager.getActiveNotifications()) if (posted.getId() != 12101) {
                 require(posted.getNotification().getSmallIcon().getResId() == R.drawable.app_icon, "status bar uses application logo");
                 require(posted.getNotification().getLargeIcon() != null, "notification includes application artwork");
@@ -89,7 +100,8 @@ public final class NativeSmokeRunner extends Instrumentation {
             pass("Android accepts native notification after task removal independently of badge count");
             device.put("badgeEnabled", false);
             runOnMainSync(NotificationService::publishBadge);
-            require(statusNotification() == null, "badge changes do not publish background status");
+            awaitStatus(0);
+            require("background-silent-v2".equals(statusNotification().getChannelId()), "disabled badge uses background channel");
             byte[] encrypted = java.nio.file.Files.readAllBytes(new java.io.File(getTargetContext().getFilesDir(), "device.bin").toPath());
             require(!new String(encrypted, StandardCharsets.UTF_8).contains("smoke-user"), "state is encrypted");
             pass("badge disable and Keystore encrypted persistence");
@@ -119,9 +131,35 @@ public final class NativeSmokeRunner extends Instrumentation {
     private static void require(boolean value, String message) { if (!value) throw new AssertionError(message); }
     /** @param {String} name 已完成的检查。 */
     private void pass(String name) { passed.append("PASS ").append(name).append('\n'); }
+    /** 模拟加密状态暂不可读，验证整个轮询回调的异常边界与 CPU 锁。 @throws Exception 反射或断言失败。 */
+    private void assertPollingSurvivesStateFailure() throws Exception {
+        java.lang.reflect.Field active = NotificationService.class.getDeclaredField("active"); active.setAccessible(true);
+        Object service = active.get(null);
+        java.lang.reflect.Field workerField = NotificationService.class.getDeclaredField("worker"); workerField.setAccessible(true);
+        java.util.concurrent.ScheduledExecutorService worker = (java.util.concurrent.ScheduledExecutorService) workerField.get(service);
+        worker.submit(() -> {}).get(30, java.util.concurrent.TimeUnit.SECONDS);
+        java.lang.reflect.Field lock = NotificationService.class.getDeclaredField("wakeLock"); lock.setAccessible(true);
+        require(((android.os.PowerManager.WakeLock) lock.get(service)).isHeld(), "enabled alerts keep background CPU available");
+        java.lang.reflect.Method poll = NotificationService.class.getDeclaredMethod("poll"); poll.setAccessible(true);
+        java.lang.reflect.Field value = DeviceState.class.getDeclaredField("value"); value.setAccessible(true);
+        Object saved = value.get(device);
+        try { value.set(device, null); poll.invoke(service); }
+        finally { value.set(device, saved); }
+        require(NotificationService.isRunning(), "state failure must not terminate recurring work");
+    }
     /** @return {Notification} 当前常驻通知；缺失时为空。 */
     private Notification statusNotification() {
         for (StatusBarNotification item : manager.getActiveNotifications()) if (item.getId() == 12101) return item.getNotification();
         return null;
+    }
+    /** @param {int} count 预期工作区数量。 */
+    private void awaitStatus(int count) {
+        long end = SystemClock.uptimeMillis() + 10000;
+        while (SystemClock.uptimeMillis() < end) {
+            Notification status = statusNotification();
+            if (status != null && status.number == count) return;
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Expected ongoing notification count " + count);
     }
 }
