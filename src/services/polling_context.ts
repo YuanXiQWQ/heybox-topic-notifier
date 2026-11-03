@@ -8,6 +8,7 @@ import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import { createPoller } from "./poller.ts";
 import { createPollingNotifier } from "./polling_notifier.ts";
+import { cachePollSchedule } from "../storage/poll_schedule_cache.ts";
 
 /** 供网页请求与定时任务共享的轮询依赖。 */
 export type PollingContext = ReturnType<typeof createPollingContext>;
@@ -15,11 +16,13 @@ export type PollingContext = ReturnType<typeof createPollingContext>;
 /**
  * 创建不依赖 HTTP 路由、认证页面及翻译文案的轮询上下文。
  *
+ * @param {{cacheSchedule?: boolean}} options 常驻单进程可启用调度快照缓存。
  * @return {object} 默认设置、存储、数据源、匹配器、轮询器与调度器。
  */
-export function createPollingContext() {
+export function createPollingContext(options: { cacheSchedule?: boolean } = {}) {
   const defaultSettings = defaultAppSettingsFromEnv();
-  const storage = createAppStorage(defaultSettings);
+  const backend = createAppStorage(defaultSettings);
+  const storage = options.cacheSchedule ? cachePollSchedule(backend) : backend;
   const matcher = createMatcher();
   const signatureMode = Deno.env.get("HEYBOX_SIGNATURE_MODE");
   const source = createHeyboxTopicSource({
