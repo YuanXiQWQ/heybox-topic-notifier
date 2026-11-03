@@ -30,6 +30,12 @@ sudo bash ops/deploy.sh production FULL_COMMIT_ID /path/to/release.tar.gz SHA256
 它不会用旧快照覆盖数据库，也不会自动停止另一台服务器的轮询。正式切换前须停止旧调度并等待在途任务结束，
 再打开新环境的 `VM_POLLING_ENABLED=true`，避免重复抓取和投递。
 
+原项目从 Deno Deploy 迁到 `heybox.yuanxiqwq.top` 时，可在旧应用的生产和预览环境设置
+`HEYBOX_LEGACY_LANDING=true`，并部署含此入口的版本。旧站的常用页面会跳到新站，
+旧业务接口返回 503，旧进程不再初始化数据库或注册 Cron。确认旧接口返回
+`X-Heybox-Legacy: moved`，并等待在途任务结束后再开启 Oracle 后台。
+回退时先停止 Oracle 后台，再从 Deno 环境移除该开关并重新部署完整服务。
+
 ## 更换域名与客户端
 
 更换域名之前，让所有设备连接旧服务，保存设置并等待离线修改同步完成。保留旧应用数据，
