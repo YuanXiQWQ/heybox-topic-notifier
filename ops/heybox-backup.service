@@ -1,0 +1,26 @@
+# 独立账号读取数据库连接配置，服务器仅持有备份公钥与受限上传授权。
+[Unit]
+Description=Heybox encrypted offsite database backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=heybox-backup
+Group=heybox-backup
+WorkingDirectory=/opt/heybox-topic-notifier/backup
+EnvironmentFile=/etc/heybox-topic-notifier/backup.env
+Environment=DENO_DIR=/var/cache/heybox-backup
+Environment=HOME=/var/lib/heybox-backup
+StateDirectory=heybox-backup
+CacheDirectory=heybox-backup
+ExecStart=/bin/bash /usr/local/lib/heybox/backup.sh
+TimeoutStartSec=30min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/cache/heybox-backup /var/lib/heybox-backup
+StandardOutput=journal
+StandardError=journal
