@@ -27,7 +27,7 @@
   function mix(first, second, weight) {
     const other = channels(second);
     return `rgb(${channels(first).map((part, index) =>
-      Math.round(part * weight + other[index] * (1 - weight))).join(', ')})`;
+        Math.round(part * weight + other[index] * (1 - weight))).join(', ')})`;
   }
 
   /** 根据当前主色和明暗模式更新兼容颜色；自身写入不会重复触发计算。 */

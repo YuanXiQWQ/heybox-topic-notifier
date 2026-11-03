@@ -4,17 +4,19 @@ const {resumeDownload} = require('../../resumable-download.cjs');
 const options = JSON.parse(process.argv[2]);
 /** 正常退出路径使用的取消信号。 */
 const controller = new AbortController();
-process.on('message', message => { if (message === 'pause') controller.abort(); });
+process.on('message', message => {
+  if (message === 'pause') controller.abort();
+});
 resumeDownload({
   ...options,
   signal: controller.signal,
   fetcher: (_url, request) => fetch(options.endpoint, request),
-  onProgress: progress => process.send?.({type:'progress', transferred:progress.transferred}),
+  onProgress: progress => process.send?.({type: 'progress', transferred: progress.transferred}),
 }).then(() => {
-  process.send?.({type:'complete'});
+  process.send?.({type: 'complete'});
   process.disconnect();
 }, error => {
-  process.send?.({type:controller.signal.aborted ? 'paused' : 'error', message:error.message});
+  process.send?.({type: controller.signal.aborted ? 'paused' : 'error', message: error.message});
   process.disconnect();
   if (!controller.signal.aborted) process.exitCode = 1;
 });

@@ -1,7 +1,10 @@
 /**
  * @file 本文件负责通过 Webhook 和邮件发送命中、服务故障和测试通知。
  */
-import { aiFallbackNotice, type ServiceNotification } from "./service_notification.ts";
+import {
+  aiFallbackNotice,
+  type ServiceNotification,
+} from "./service_notification.ts";
 import { normalizeMatchResult } from "./match_result.ts";
 import type { AppSettings, MatchRecord, MatchResult } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
@@ -176,8 +179,7 @@ const testNotificationOverflowGuard = 300;
 /**
  * 测试通知中使用的示例帖子链接。
  */
-const testNotificationUrl =
-  "https://heybox.yuanxiqwq.top/";
+const testNotificationUrl = "https://heybox.yuanxiqwq.top/";
 /**
  * 测试通知可随机使用的命中位置。
  */
@@ -1355,7 +1357,10 @@ function serverChanUrlFromSendKey(value: string): string {
  * @param {AppSettings} settings 用户语言设置。
  * @return {NotificationPayload} 含关键词或 AI 原因及实际位置的通知载荷。
  */
-function matchPayload(record: MatchRecord, settings: AppSettings): NotificationPayload {
+function matchPayload(
+  record: MatchRecord,
+  settings: AppSettings,
+): NotificationPayload {
   const result = normalizeMatchResult(record);
   const notice = aiFallbackNotice([record], settings);
   return {
@@ -1371,8 +1376,9 @@ function matchPayload(record: MatchRecord, settings: AppSettings): NotificationP
         url: record.post.url,
       },
     },
-    text:
-      `${notice ? notice + "\n\n" : ""}New Heybox match: ${result.kind === "ai" ? result.aiReason : result.keyword} in ${result.location} - ${record.post.title}`,
+    text: `${notice ? notice + "\n\n" : ""}New Heybox match: ${
+      result.kind === "ai" ? result.aiReason : result.keyword
+    } in ${result.location} - ${record.post.title}`,
     type: "match",
   };
 }
@@ -1390,7 +1396,11 @@ function payloadForNotification(
 ): NotificationPayload | undefined {
   switch (notification.type) {
     case "service":
-      return { type: "service", title: notification.notification.title, text: notification.notification.body };
+      return {
+        type: "service",
+        title: notification.notification.title,
+        text: notification.notification.body,
+      };
     case "match":
       return matchPayload(notification.record, settings);
     case "matches":
@@ -1417,9 +1427,15 @@ function matchesPayload(
 ): NotificationPayload {
   const now = new Date();
   const notice = aiFallbackNotice(records, settings);
-  const text = matchesDescription(records, settings, now, notificationContentLimit - (notice ? notice.length + 2 : 0));
+  const text = matchesDescription(
+    records,
+    settings,
+    now,
+    notificationContentLimit - (notice ? notice.length + 2 : 0),
+  );
   return {
-    html: (notice ? `<p>${escapeHtml(notice)}</p>` : "") + matchesHtml(records, settings, text, now),
+    html: (notice ? `<p>${escapeHtml(notice)}</p>` : "") +
+      matchesHtml(records, settings, text, now),
     matches: records,
     text: notice ? `${notice}\n\n${text}` : text,
     title,
@@ -1655,7 +1671,11 @@ function notificationTitle(payload: NotificationPayload): string {
     return payload.title;
   }
 
-  return `小黑盒命中：${payload.match?.kind === "ai" ? payload.match.aiReason : payload.match?.keyword ?? "关键词"}`;
+  return `小黑盒命中：${
+    payload.match?.kind === "ai"
+      ? payload.match.aiReason
+      : payload.match?.keyword ?? "关键词"
+  }`;
 }
 
 /**
@@ -1676,7 +1696,11 @@ function notificationDescription(payload: NotificationPayload): string {
   return [
     ...(payload.fallbackNotice ? [payload.fallbackNotice, ""] : []),
     `标题：${payload.match.post.title}`,
-    `${payload.match.kind === "ai" ? "AI 匹配" : "关键词"}：${payload.match.kind === "ai" ? payload.match.aiReason : payload.match.keyword}`,
+    `${payload.match.kind === "ai" ? "AI 匹配" : "关键词"}：${
+      payload.match.kind === "ai"
+        ? payload.match.aiReason
+        : payload.match.keyword
+    }`,
     `位置：${payload.match.location}`,
     `时间：${payload.match.matchedAt}`,
     "",
@@ -1838,7 +1862,11 @@ function matchMetadataLine(
   const result = normalizeMatchResult(record);
   return `${messages.publishedAt}：${
     formatHeyboxRelativeTime(record.post.publishedAt, now, settings.locale)
-  }，${result.kind === "ai" ? messages.matchDetailAi : messages.matchedKeyword}：${result.kind === "ai" ? result.aiReason : result.keyword}，${messages.matchLocationHeader}：${
+  }，${
+    result.kind === "ai" ? messages.matchDetailAi : messages.matchedKeyword
+  }：${
+    result.kind === "ai" ? result.aiReason : result.keyword
+  }，${messages.matchLocationHeader}：${
     matchLocationLabel(result.location, messages)
   }`;
 }

@@ -306,18 +306,43 @@ Deno.test("renderHistory keeps history post titles emphasized", () => {
 
 Deno.test("match details distinguish AI reasons from all keyword matches and preserve actual locations", () => {
   const base = record("details", "2026-06-30T12:00:00.000Z");
-  const ai = renderMatchSectionForSlots("/", table([{ ...base, kind: "ai", keyword: "", aiReason: "标题明确寻求帮助", location: "title" }]));
+  const ai = renderMatchSectionForSlots(
+    "/",
+    table([{
+      ...base,
+      kind: "ai",
+      keyword: "",
+      aiReason: "标题明确寻求帮助",
+      location: "title",
+    }]),
+  );
   assertIncludes(ai, "<dt>AI 匹配：</dt>");
   assertIncludes(ai, "标题明确寻求帮助");
   assertIncludes(ai, '<span class="match-detail-value">标题</span>');
   assertNotIncludes(ai, "<dt>关键词：</dt>");
   assertNotIncludes(ai, '<span class="match-detail-value">正文</span>');
-  const keyword = renderMatchSectionForSlots("/", table([{ ...base, kind: "keyword", keyword: "AI: 求助", aiReason: "不应显示此原因", location: "comments" }]));
+  const keyword = renderMatchSectionForSlots(
+    "/",
+    table([{
+      ...base,
+      kind: "keyword",
+      keyword: "AI: 求助",
+      aiReason: "不应显示此原因",
+      location: "comments",
+    }]),
+  );
   assertIncludes(keyword, "<dt>关键词：</dt>");
   assertIncludes(keyword, "AI: 求助");
   assertNotIncludes(keyword, "<dt>AI 匹配：</dt>");
   assertNotIncludes(keyword, "不应显示此原因");
-  const legacy = renderMatchSectionForSlots("/", table([{ ...base, keyword: "AI: " + "旧原因".repeat(30), location: "body" }]));
+  const legacy = renderMatchSectionForSlots(
+    "/",
+    table([{
+      ...base,
+      keyword: "AI: " + "旧原因".repeat(30),
+      location: "body",
+    }]),
+  );
   assertIncludes(legacy, "<dt>AI 匹配：</dt>");
   assertIncludes(legacy, '<span class="match-detail-value">未确定</span>');
   assertNotIncludes(legacy, '<span class="match-detail-value">正文</span>');
@@ -397,14 +422,19 @@ Deno.test("Black Forest candidate slots match the approved fixed lists", () => {
 
 Deno.test("Black Forest matching candidates never depend on configuration changes", () => {
   const baseline = new Set(blackForestSlotIds(renderSettings({
-    settings: settings(), csrfToken: testCsrfToken,
+    settings: settings(),
+    csrfToken: testCsrfToken,
   })));
   for (const mode of ["rules", "ai", "hybrid"] as const) {
     for (const provider of ["custom", "openai", "deepseek"] as const) {
       const html = renderSettings({
         settings: {
           ...settings(),
-          matching: normalizeMatchingSettings({ mode, provider, model: "deepseek-reasoner" }),
+          matching: normalizeMatchingSettings({
+            mode,
+            provider,
+            model: "deepseek-reasoner",
+          }),
         },
         csrfToken: testCsrfToken,
       });
@@ -412,7 +442,10 @@ Deno.test("Black Forest matching candidates never depend on configuration change
       assertEquals(slots, baseline);
       assertEquals(slots.has("settings.post.matching"), true);
       assertEquals(slots.has("settings.matching.mode"), true);
-      assertEquals([...slots].filter((slot) => slot.startsWith("settings.matching.")), ["settings.matching.mode"]);
+      assertEquals(
+        [...slots].filter((slot) => slot.startsWith("settings.matching.")),
+        ["settings.matching.mode"],
+      );
       assertEquals(slots.has("settings.post.advanced"), false);
       assertEquals(slots.has("settings.post.keywords"), false);
     }
@@ -421,22 +454,34 @@ Deno.test("Black Forest matching candidates never depend on configuration change
 
 Deno.test("adaptive pagination renders links with their own Black Forest slots", () => {
   const html = renderMatchSectionForSlots("/", {
-    ...table([]), pageSize: 10, totalPages: 30, totalRecords: 300,
+    ...table([]),
+    pageSize: 10,
+    totalPages: 30,
+    totalRecords: 300,
   });
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/gu)]
-    .map((match) => match[1]).find((source) => source.includes("__adaptivePaginationInstalled"))!;
+    .map((match) => match[1]).find((source) =>
+      source.includes("__adaptivePaginationInstalled")
+    )!;
   /** 分页重绘所需的最小元素模型。 */
   class Element {
     dataset: Record<string, string> = {};
     clientWidth = 0;
     children: Element[] = [];
     /** @param {Element[]} nodes 渲染生成的分页控件。 */
-    replaceChildren(...nodes: Element[]) { this.children = nodes; }
+    replaceChildren(...nodes: Element[]) {
+      this.children = nodes;
+    }
   }
   for (const width of [1600, 250]) {
     const nav = new Element();
     nav.clientWidth = width;
-    nav.dataset = { currentPage: "15", totalPages: "30", pageUrlTemplate: "/?page=__PAGE__", lobotomyCorpBlackForestPagePrefix: "dashboard" };
+    nav.dataset = {
+      currentPage: "15",
+      totalPages: "30",
+      pageUrlTemplate: "/?page=__PAGE__",
+      lobotomyCorpBlackForestPagePrefix: "dashboard",
+    };
     runInNewContext(script, {
       HTMLElement: Element,
       window: { addEventListener() {} },
@@ -450,7 +495,10 @@ Deno.test("adaptive pagination renders links with their own Black Forest slots",
     const links = nav.children.filter((element) => element.dataset.page);
     assertEquals(links.length > 0, true);
     for (const link of links) {
-      assertEquals(link.dataset.lobotomyCorpBlackForestSlot, `dashboard.page.${link.dataset.page}`);
+      assertEquals(
+        link.dataset.lobotomyCorpBlackForestSlot,
+        `dashboard.page.${link.dataset.page}`,
+      );
     }
     assertEquals(nav.children.length < 30, width < 1600);
   }

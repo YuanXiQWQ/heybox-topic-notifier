@@ -35,9 +35,18 @@ export async function verifySettingsSync(storage: Storage): Promise<void> {
     settingsEdits(initial, phone, early),
   );
   assertEquals(result.superseded, ["setting/notificationEmailAddress"]);
-  assertEquals((await alice.getSettings()).notificationEmailAddress, "web@example.com");
-  assertEquals((await alice.getSettings()).notificationEmailFrom, "phone-sender@example.com");
-  assertEquals((await bob.getSettings()).notificationEmailAddress, initial.notificationEmailAddress);
+  assertEquals(
+    (await alice.getSettings()).notificationEmailAddress,
+    "web@example.com",
+  );
+  assertEquals(
+    (await alice.getSettings()).notificationEmailFrom,
+    "phone-sender@example.com",
+  );
+  assertEquals(
+    (await bob.getSettings()).notificationEmailAddress,
+    initial.notificationEmailAddress,
+  );
   const beforeDuplicate = await alice.sync!.readSettings();
   await alice.sync!.applySettings(settingsEdits(initial, web, late));
   assertEquals(
@@ -85,7 +94,13 @@ export async function verifySettingsSync(storage: Storage): Promise<void> {
     "notificationEmailFrom",
   ].map((field, index) => ({
     region: `setting/${field}`,
-    value: ["https://example.com/webhook", "fixture-spt", "alice@example.com", "sender@example.com"][index],
+    value:
+      [
+        "https://example.com/webhook",
+        "fixture-spt",
+        "alice@example.com",
+        "sender@example.com",
+      ][index],
     stamp: { ...late, editedAt: 7000, operationId: `parallel-${index}` },
   }));
   await Promise.all(edits.map((edit) => alice.sync!.applySettings([edit])));

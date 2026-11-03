@@ -236,7 +236,7 @@
           state.widgetId = turnstile.render(widget, {
             callback: (token) => finishVerification(widget, token),
             'error-callback': (code) =>
-              failVerification(widget, 'turnstileErrorCallback', code),
+                failVerification(widget, 'turnstileErrorCallback', code),
             'expired-callback': () => {
               state.failed = false;
               state.token = '';

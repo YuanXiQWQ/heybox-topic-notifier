@@ -24,16 +24,28 @@ type Options = {
 export function createPollingNotifier(storage: Storage, options: Options = {}) {
   let notifierPromise: Promise<ReturnType<typeof createNotifier>> | undefined;
   /** 当前进程同账号的后台重试和新命中发送共享一轮投递。 */
-  const delivering = new Map<string, Promise<import("./notifier.ts").NotifyResult>>();
+  const delivering = new Map<
+    string,
+    Promise<import("./notifier.ts").NotifyResult>
+  >();
   /**
    * 延迟加载其它通知发送器，失败后允许后续重新加载。
    * @param {NotificationRequest} request 通知载荷。
    * @param {AppSettings} settings 通知设置。
    * @return {Promise<import("./notifier.ts").NotifyResult>} 其它通道的受理结果。
    */
-  async function sendOther(request: NotificationRequest, settings: AppSettings) {
-    notifierPromise ??= (options.other ? options.other() : import("./notifier.ts").then((module) => module.createNotifier()))
-      .catch((error) => { notifierPromise = undefined; throw error; });
+  async function sendOther(
+    request: NotificationRequest,
+    settings: AppSettings,
+  ) {
+    notifierPromise ??=
+      (options.other
+        ? options.other()
+        : import("./notifier.ts").then((module) => module.createNotifier()))
+        .catch((error) => {
+          notifierPromise = undefined;
+          throw error;
+        });
     return await (await notifierPromise).sendNotification(request, settings);
   }
 
@@ -43,19 +55,42 @@ export function createPollingNotifier(storage: Storage, options: Options = {}) {
    * @param {string} userId 账号 ID。
    * @return {Promise<import("./notifier.ts").NotifyResult>} 本批受理结果。
    */
-  function flush(settings: AppSettings, userId: string): Promise<import("./notifier.ts").NotifyResult> {
+  function flush(
+    settings: AppSettings,
+    userId: string,
+  ): Promise<import("./notifier.ts").NotifyResult> {
     const previous = delivering.get(userId);
     if (previous) return previous;
     const outbox = storage.forUser(userId).notificationOutbox;
-    if (!outbox) return Promise.resolve({ provider: settings.notificationProvider, sent: false });
+    if (!outbox) {
+      return Promise.resolve({
+        provider: settings.notificationProvider,
+        sent: false,
+      });
+    }
     const work = deliverNotificationOutbox(outbox, {
-      other: async (records) => (await sendOther({ type: "matches", records }, settings)).sent,
-      browser: async (records) => (options.browsers ?? (await import("./web_push.ts")).notifyBrowsers)(storage, userId, records, settings, { strict: true }),
-      native: async (records) => (options.native ?? (await import("./native_notifications.ts")).enqueueNativeNotifications)(storage, userId, records, settings),
+      other: async (records) =>
+        (await sendOther({ type: "matches", records }, settings)).sent,
+      browser: async (records) =>
+        (options.browsers ?? (await import("./web_push.ts")).notifyBrowsers)(
+          storage,
+          userId,
+          records,
+          settings,
+          { strict: true },
+        ),
+      native: async (records) =>
+        (options.native ??
+          (await import("./native_notifications.ts"))
+            .enqueueNativeNotifications)(storage, userId, records, settings),
     }).then((result) => {
-      if (result.failed && !result.sent) throw new Error("Notification delivery is queued for retry.");
+      if (result.failed && !result.sent) {
+        throw new Error("Notification delivery is queued for retry.");
+      }
       return { provider: settings.notificationProvider, sent: result.sent };
-    }).finally(() => { delivering.delete(userId); });
+    }).finally(() => {
+      delivering.delete(userId);
+    });
     delivering.set(userId, work);
     return work;
   }
@@ -90,12 +125,13 @@ export function createPollingNotifier(storage: Storage, options: Options = {}) {
           ),
           Promise.resolve().then(async () =>
             (options.native ??
-              (await import("./native_notifications.ts")).enqueueNativeNotifications)(
-              storage,
-              userId,
-              content,
-              settings,
-            )
+              (await import("./native_notifications.ts"))
+                .enqueueNativeNotifications)(
+                storage,
+                userId,
+                content,
+                settings,
+              )
           ),
         ]);
         for (const result of results) {
@@ -126,7 +162,9 @@ export function createPollingNotifier(storage: Storage, options: Options = {}) {
       settings: AppSettings,
       userId?: string,
     ) {
-      if (userId && storage.forUser(userId).notificationOutbox) return flush(settings, userId);
+      if (userId && storage.forUser(userId).notificationOutbox) {
+        return flush(settings, userId);
+      }
       return send({ type: "matches", records }, records, settings, userId);
     },
     /**

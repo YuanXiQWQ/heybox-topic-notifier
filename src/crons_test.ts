@@ -5,7 +5,6 @@ import {
   createPollScheduler,
   pollingIntervalMs,
   registerCrons,
-  shouldPoll,
   shouldPollFromLastStart,
   shouldRunDeployCron,
 } from "./crons.ts";
@@ -24,17 +23,28 @@ Deno.test("scheduler shutdown drains in-flight work and rejects new per-user and
   const started = Promise.withResolvers<void>();
   const finish = Promise.withResolvers<void>();
   let runs = 0;
-  const scheduler = createPollScheduler({
-    storage: {
-      getSettings: () => Promise.resolve({ polling: { enabled: true, ...fiveMinutes } }),
-      getLastPollAt: () => Promise.resolve(undefined),
-    },
-    poller: { runOnce: async () => { runs++; started.resolve(); await finish.promise; } },
-  } as unknown as Parameters<typeof createPollScheduler>[0]);
+  const scheduler = createPollScheduler(
+    {
+      storage: {
+        getSettings: () =>
+          Promise.resolve({ polling: { enabled: true, ...fiveMinutes } }),
+        getLastPollAt: () => Promise.resolve(undefined),
+      },
+      poller: {
+        runOnce: async () => {
+          runs++;
+          started.resolve();
+          await finish.promise;
+        },
+      },
+    } as unknown as Parameters<typeof createPollScheduler>[0],
+  );
   const work = scheduler.tick();
   await started.promise;
   let stopped = false;
-  const shutdown = scheduler.stop().then(() => { stopped = true; });
+  const shutdown = scheduler.stop().then(() => {
+    stopped = true;
+  });
   assertEquals(await scheduler.tick(), false);
   assertEquals(await scheduler.tickUser("other"), false);
   assertEquals(stopped, false);
@@ -45,34 +55,50 @@ Deno.test("scheduler shutdown drains in-flight work and rejects new per-user and
   assertEquals(runs, 1);
 });
 
-Deno.test("shouldPoll runs when no previous poll exists", () => {
+Deno.test("shouldPollFromLastStart runs when no previous poll exists", () => {
   assertEquals(
-    shouldPoll(undefined, fiveMinutes, new Date("2026-06-30T12:00:00.000Z")),
+    shouldPollFromLastStart(
+      undefined,
+      undefined,
+      fiveMinutes,
+      new Date("2026-06-30T12:00:00.000Z"),
+    ),
     true,
   );
 });
 
-Deno.test("shouldPoll waits until the configured interval elapses", () => {
+Deno.test("shouldPollFromLastStart waits until the configured interval elapses", () => {
   const now = new Date("2026-06-30T12:05:00.000Z");
 
   assertStrictEquals(
-    shouldPoll("2026-06-30T12:01:00.000Z", fiveMinutes, now),
+    shouldPollFromLastStart(
+      undefined,
+      "2026-06-30T12:01:00.000Z",
+      fiveMinutes,
+      now,
+    ),
     false,
   );
   assertStrictEquals(
-    shouldPoll("2026-06-30T12:00:00.000Z", fiveMinutes, now),
+    shouldPollFromLastStart(
+      undefined,
+      "2026-06-30T12:00:00.000Z",
+      fiveMinutes,
+      now,
+    ),
     true,
   );
 });
 
-Deno.test("shouldPoll starts a fresh interval after polling settings change", () => {
+Deno.test("shouldPollFromLastStart starts a fresh interval after polling settings change", () => {
   const polling = {
     ...fiveMinutes,
     intervalStartedAt: "2026-06-30T12:04:00.000Z",
   };
 
   assertEquals(
-    shouldPoll(
+    shouldPollFromLastStart(
+      undefined,
       "2026-06-30T11:00:00.000Z",
       polling,
       new Date("2026-06-30T12:08:59.999Z"),
@@ -80,7 +106,8 @@ Deno.test("shouldPoll starts a fresh interval after polling settings change", ()
     false,
   );
   assertEquals(
-    shouldPoll(
+    shouldPollFromLastStart(
+      undefined,
       "2026-06-30T11:00:00.000Z",
       polling,
       new Date("2026-06-30T12:09:00.000Z"),
@@ -89,14 +116,15 @@ Deno.test("shouldPoll starts a fresh interval after polling settings change", ()
   );
 });
 
-Deno.test("shouldPoll waits from a new interval even without a previous poll", () => {
+Deno.test("shouldPollFromLastStart waits from a new interval even without a previous poll", () => {
   const polling = {
     ...fiveMinutes,
     intervalStartedAt: "2026-06-30T12:04:00.000Z",
   };
 
   assertEquals(
-    shouldPoll(
+    shouldPollFromLastStart(
+      undefined,
       undefined,
       polling,
       new Date("2026-06-30T12:08:00.000Z"),
@@ -105,15 +133,25 @@ Deno.test("shouldPoll waits from a new interval even without a previous poll", (
   );
 });
 
-Deno.test("shouldPoll supports second intervals", () => {
+Deno.test("shouldPollFromLastStart supports second intervals", () => {
   const now = new Date("2026-06-30T12:00:03.000Z");
 
   assertEquals(
-    shouldPoll("2026-06-30T12:00:01.000Z", threeSeconds, now),
+    shouldPollFromLastStart(
+      undefined,
+      "2026-06-30T12:00:01.000Z",
+      threeSeconds,
+      now,
+    ),
     false,
   );
   assertStrictEquals(
-    shouldPoll("2026-06-30T12:00:00.000Z", threeSeconds, now),
+    shouldPollFromLastStart(
+      undefined,
+      "2026-06-30T12:00:00.000Z",
+      threeSeconds,
+      now,
+    ),
     true,
   );
 });
@@ -125,9 +163,14 @@ Deno.test("pollingIntervalMs clamps second intervals to at least three seconds",
   );
 });
 
-Deno.test("shouldPoll runs when previous poll time is invalid", () => {
+Deno.test("shouldPollFromLastStart runs when previous poll time is invalid", () => {
   assertEquals(
-    shouldPoll("not-a-date", fiveMinutes, new Date("2026-06-30T12:00:00.000Z")),
+    shouldPollFromLastStart(
+      undefined,
+      "not-a-date",
+      fiveMinutes,
+      new Date("2026-06-30T12:00:00.000Z"),
+    ),
     true,
   );
 });

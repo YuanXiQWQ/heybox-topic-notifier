@@ -1,7 +1,8 @@
 /** @file 使用 KV 比较交换原子保存设置版本及业务投影。 */
 import type { AppSettings } from "../models.ts";
 import { initialSettingsSnapshot, mergeSettings } from "../sync/settings.ts";
-import { type KvStore, normalizeSettings } from "./kv.ts";
+import type { KvStore } from "./kv.ts";
+import { normalizeSettings } from "./stored_settings.ts";
 import type { UserSyncStore } from "./sync_types.ts";
 import { createKvRecordSync } from "./sync_records_kv.ts";
 import {

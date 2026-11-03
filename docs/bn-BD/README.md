@@ -1,19 +1,15 @@
 # Heybox Topic Notifier
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
-[![Deno](https://img.shields.io/badge/Deno-2.x-000?logo=deno&logoColor=white)](https://deno.com/)
-[![Production](https://img.shields.io/badge/Production-online-brightgreen)](https://heybox-topic-notifier.yuanxiqwq.deno.net/)
-[![Dev](https://img.shields.io/badge/Dev-preview-blue)](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
 
 | [简体中文](../../README.md) | **বাংলা** |
 |:-----------------------:|:---------:|
 
----
+[Web](https://heybox.yuanxiqwq.top/) · [Windows x64](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-windows-x64-setup.exe) · [Android APK](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-android-universal.apk)
 
-<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
-Heybox topic পোস্ট পর্যবেক্ষণের জন্য একটি হালকা Deno অ্যাপ। এটি প্রতিটি অ্যাকাউন্টের সেটিংস অনুযায়ী
-নিয়মিতভাবে বাস্তব topic পোস্ট পড়ে, শিরোনাম, মূল লেখা, মন্তব্য এবং reply-গুলো keyword rule-এর সঙ্গে
-মিলিয়ে দেখে, pending ও history view-তে match রেকর্ড করে, এবং কনফিগার করা channel দিয়ে notification পাঠায়।
+সেটিংসে Heybox বিষয় যোগ করুন, কীওয়ার্ড, রেগুলার এক্সপ্রেশন বা AI ফিল্টার বেছে নিয়ে নিয়মিত পরীক্ষা চালু করুন। মিলে যাওয়া পোস্ট ইতিহাসে পাঠানো যায় এবং আবার কর্মক্ষেত্রে ফিরিয়ে আনা যায়।
+
+নতুন অ্যাকাউন্ট খুলতে আমন্ত্রণ কোড লাগে। প্রতিটি ডিভাইসে আলাদাভাবে অ্যাপের বিজ্ঞপ্তি চালু করা যায় এবং এর সঙ্গে ইমেইল বা Webhook ব্যবহার করা যায়। সংযোগ ফিরলে অফলাইনের পরিবর্তনগুলো সিঙ্ক হয়। শুরুতে ভাষা ও ডার্ক মোড ডিভাইসের সেটিং অনুসরণ করে।
 
 ## বৈশিষ্ট্য
 
@@ -25,67 +21,23 @@ Heybox topic পোস্ট পর্যবেক্ষণের জন্য �
   user ID অনুযায়ী আলাদা রাখা হয়
 - Keyword rules: shared rule, topic-specific rule, match location, case sensitivity এবং regular
   expression সমর্থন করে
-- Match tables: pending ও history record—দুটিই time-range filter, pagination, batch-complete এবং
-  delete action সমর্থন করে
-- Debug entries: simulated match এবং notification test, manual polling ও debug operation-এর জন্য
-  server-side rate limit সহ
+- সেটিংস → বিজ্ঞপ্তির সেটিংস → বিজ্ঞপ্তি পরীক্ষা
 - Notification channels: custom Webhook, ServerChan, PushPlus, WxPusher, email API এবং SMTP
 - Notification relay: PushPlus, WxPusher এবং ServerChan-এর জন্য optional Cloudflare Worker relay
-- Security: PBKDF2 password hash, KV-backed session, CSRF token, security header, audit log,
-  outbound allowlist এবং DNS validation
-
-## প্রযুক্তি স্ট্যাক
-
-- Deno 2 + TypeScript
-- Hono
-- Deno KV
-- Deno.cron + local timer scheduler
-- Server-rendered HTML + vanilla JavaScript/CSS
-- Cloudflare Workers notification relay script
 
 ## Local Development
 
-Development server চালু করুন:
-
-```powershell
+```sh
 deno task dev
 ```
 
-তারপর খুলুন:
-
-```text
-http://localhost:8000
-```
-
-Default মানগুলো override করতে `.env.example`-কে reference হিসেবে ব্যবহার করুন এবং আপনার runtime
-environment-এ সংশ্লিষ্ট environment variable সেট করুন। প্রথমবার ভিজিট করার সময় একটি account register
-করুন; environment variable শুধু নতুন account বা default data-এর জন্য default value seed করে, এরপর
-প্রতিটি account-এর settings page-ই source of truth হয়ে যায়।
-
-অ্যাপটি registration এবং login page প্রদান করে। প্রতিটি account-এর settings, match history, polling state
-এবং notification configuration আলাদা থাকে, তাই একই deployment URL ব্যবহার করা users-রা data share করে না।
-User password Deno KV-তে salted PBKDF2 hash হিসেবে সংরক্ষিত হয়, plaintext হিসেবে নয়। Login session
-Deno KV-তে সংরক্ষিত হয়, এবং browser cookie-তে শুধু একটি random session token থাকে। Settings, account
-এবং debug mutation CSRF token validate করে, আর public deployment-এ sensitive operation rate-limited থাকে।
-
-## Commands
-
-```powershell
-deno task dev
-deno task start
-deno task check
-deno task clear-seen
-```
-
-`clear-seen` processed-post marker মুছে দেয়, যাতে একই পোস্ট আবার verify করা যায়; production-এ এটি
-সতর্কতার সঙ্গে ব্যবহার করুন।
+[localhost:8000](http://localhost:8000) · [`.env.example`](../../.env.example) · `deno task check`
 
 ## Deployment
 
-Deno Deploy setup-এর জন্য [deployment](./deployment.md) দেখুন। অ্যাপের entrypoint `deno.json`-এর
-`deploy` section দ্বারা নির্ধারিত হয়; GitHub Actions শুধু check চালায় এবং অ্যাপ deploy করে না।
-`src/deploy.ts`-এর deploy entrypoint Deno Deploy Cron declare করে, এবং actual polling শুধু Production
-ও `dev` Git Branch timeline-এ চলে। Notification relay Worker setup-এর জন্য [worker](./worker.md) দেখুন।
+Deno পরিষেবা Oracle Cloud-এ চলে, আর Caddy HTTPS পরিচালনা করে। অ্যাকাউন্ট, সেশন ও ফলাফল Turso-তে থাকে। রিলিজ ট্যাগ থেকে GitHub Actions Windows ও Android ইনস্টলার তৈরি করে।
+
+[নিজস্ব সার্ভারে স্থাপন](./deployment.md) · [Cloudflare Worker](./worker.md)
 
 ## License
 

@@ -31,7 +31,16 @@ function drawer(
   blackForestSlot?: string,
 ): string {
   return `<div class="dropdown-settings-row matching-conditional-row" data-${name}-editor ${attributes}>
-    ${renderDrawerHeading(`${name}s`, `${name}-panel`, label, "sort", `<span data-${name}-summary>${e(summary)}</span>`, blackForestSlot)}
+    ${
+    renderDrawerHeading(
+      `${name}s`,
+      `${name}-panel`,
+      label,
+      "sort",
+      `<span data-${name}-summary>${e(summary)}</span>`,
+      blackForestSlot,
+    )
+  }
     <dd class="dropdown-panel" id="${name}-panel" data-${name}-panel hidden><div class="dropdown-panel-inner"><dl class="settings-list matching-settings-list">${body}</dl></div></dd>
   </div>`;
 }

@@ -112,15 +112,15 @@ export const blackForestEggReferenceHeight = 556.78;
 export function blackForestEggSpineLayout(width, height, bounds) {
   if (!(width > 0) || !(height > 0)) return undefined;
   const boundsWidth = bounds
-    ? bounds.maxX - bounds.minX
-    : blackForestEggReferenceWidth;
+      ? bounds.maxX - bounds.minX
+      : blackForestEggReferenceWidth;
   const boundsHeight = bounds
-    ? bounds.maxY - bounds.minY
-    : blackForestEggReferenceHeight;
+      ? bounds.maxY - bounds.minY
+      : blackForestEggReferenceHeight;
   if (!(boundsWidth > 0) || !(boundsHeight > 0)) return undefined;
   const pixelsPerSkeletonUnit = Math.min(
-    width / boundsWidth,
-    height / boundsHeight,
+      width / boundsWidth,
+      height / boundsHeight,
   ) * blackForestEggIconScale;
   if (!(pixelsPerSkeletonUnit > 0)) return undefined;
   return {
@@ -141,10 +141,10 @@ export function blackForestEggSpinePaths(egg, moduleRoot) {
   const config = blackForestEggSpineAssets[egg];
   if (!config) return undefined;
   return spineAssetPaths(
-    config.assetDirectory,
-    config.skeletonFile,
-    config.atlasFile,
-    moduleRoot,
+      config.assetDirectory,
+      config.skeletonFile,
+      config.atlasFile,
+      moduleRoot,
   );
 }
 
@@ -160,10 +160,10 @@ export function blackForestEggSpinePaths(egg, moduleRoot) {
  * @return {{minX: number, minY: number, maxX: number, maxY: number}|undefined} 联合包围盒。
  */
 export function measureBlackForestEggSpineBounds(
-  runtime,
-  animationState,
-  skeleton,
-  animations,
+    runtime,
+    animationState,
+    skeleton,
+    animations,
 ) {
   const offset = new runtime.Vector2();
   const size = new runtime.Vector2();
@@ -174,8 +174,8 @@ export function measureBlackForestEggSpineBounds(
   let maxY = Number.NEGATIVE_INFINITY;
   animations.forEach((animation) => {
     const sampleCount = Math.max(
-      2,
-      Math.ceil(animation.duration * blackForestEggBoundsSampleRate),
+        2,
+        Math.ceil(animation.duration * blackForestEggBoundsSampleRate),
     );
     const step = animation.duration / sampleCount;
     animationState.setAnimation(0, animation.name, false);
@@ -214,7 +214,7 @@ export function measureBlackForestEggSpineBounds(
 export function createBlackForestEggSpineStage(options) {
   const config = blackForestEggSpineAssets[options?.egg];
   const hostDocument = options?.document ??
-    /** @type {Document|undefined} */ (globalThis.document);
+      /** @type {Document|undefined} */ (globalThis.document);
   if (!config || !hostDocument?.createElement) return undefined;
   const hostGlobal = options.globalObject ?? globalThis;
   const moduleRoot = spineModuleRoot(options.assetRoot ?? '');
@@ -275,7 +275,8 @@ export function createBlackForestEggSpineStage(options) {
       playDead: () => false,
       playFullBlood: () => false,
       playHalfTransition: () => false,
-      resize: () => {},
+      resize: () => {
+      },
       dispose,
     };
   }
@@ -287,8 +288,8 @@ export function createBlackForestEggSpineStage(options) {
     const baseWidth = Math.max(1, options.width || canvas.clientWidth || 1);
     const baseHeight = Math.max(1, options.height || canvas.clientHeight || 1);
     const displayScale = Math.max(
-      blackForestEggCanvasScale,
-      blackForestEggMinimumCanvasSize / Math.min(baseWidth, baseHeight),
+        blackForestEggCanvasScale,
+        blackForestEggMinimumCanvasSize / Math.min(baseWidth, baseHeight),
     );
     const width = Math.max(1, Math.round(baseWidth * displayScale));
     const height = Math.max(1, Math.round(baseHeight * displayScale));
@@ -365,7 +366,7 @@ export function createBlackForestEggSpineStage(options) {
 
   /** 播放满血待机。 */
   const playFullBlood = () =>
-    play(config.animations.fullBlood, true);
+      play(config.animations.fullBlood, true);
 
   /** 触发半血转换。 */
   const playHalfTransition = () => {
@@ -385,18 +386,18 @@ export function createBlackForestEggSpineStage(options) {
     if (disposed || !animationState || !skeleton) return;
     const seconds = timestamp / 1000;
     const step = lastTimestamp === undefined
-      ? 0
-      : Math.min(0.1, Math.max(0, seconds - lastTimestamp));
+        ? 0
+        : Math.min(0.1, Math.max(0, seconds - lastTimestamp));
     lastTimestamp = seconds;
     animationState.update(step);
     if (currentAnimation === config.animations.halfTransition) {
       const transition = skeletonData?.findAnimation(
-        config.animations.halfTransition,
+          config.animations.halfTransition,
       );
       halfTransitionElapsed += step;
       if (
-        transition &&
-        halfTransitionElapsed >=
+          transition &&
+          halfTransitionElapsed >=
           transition.duration * blackForestEggHalfTransitionExitTime
       ) {
         play(config.animations.halfBlood, true);
@@ -427,55 +428,55 @@ export function createBlackForestEggSpineStage(options) {
     if (disposed) return false;
     if (assetManager.hasErrors()) {
       throw new Error(
-        `black forest egg spine assets failed to load: ${
-          JSON.stringify(assetManager.getErrors())
-        }`,
+          `black forest egg spine assets failed to load: ${
+              JSON.stringify(assetManager.getErrors())
+          }`,
       );
     }
     const atlas = assetManager.get(paths.atlasPath);
     const json = JSON.parse(assetManager.get(paths.skeletonPath));
     skeletonData = new runtime.SkeletonJson(
-      new runtime.AtlasAttachmentLoader(atlas),
+        new runtime.AtlasAttachmentLoader(atlas),
     ).readSkeletonData(json);
     skeleton = new runtime.Skeleton(skeletonData);
     animationStateData = new runtime.AnimationStateData(skeletonData);
     animationStateData.setMix(
-      config.animations.fullBlood,
-      config.animations.halfTransition,
-      blackForestEggTransitionSeconds,
+        config.animations.fullBlood,
+        config.animations.halfTransition,
+        blackForestEggTransitionSeconds,
     );
     animationStateData.setMix(
-      config.animations.halfTransition,
-      config.animations.halfBlood,
-      blackForestEggTransitionSeconds,
+        config.animations.halfTransition,
+        config.animations.halfBlood,
+        blackForestEggTransitionSeconds,
     );
     animationStateData.setMix(
-      config.animations.halfTransition,
-      config.animations.dead,
-      blackForestEggTransitionSeconds,
+        config.animations.halfTransition,
+        config.animations.dead,
+        blackForestEggTransitionSeconds,
     );
     animationStateData.setMix(
-      config.animations.halfBlood,
-      config.animations.dead,
-      blackForestEggTransitionSeconds,
+        config.animations.halfBlood,
+        config.animations.dead,
+        blackForestEggTransitionSeconds,
     );
     animationState = new runtime.AnimationState(animationStateData);
     eggBounds = measureBlackForestEggSpineBounds(
-      runtime,
-      animationState,
-      skeleton,
-      Object.values(config.animations)
-        .map((name) => skeletonData.findAnimation(name))
-        .filter(Boolean),
+        runtime,
+        animationState,
+        skeleton,
+        Object.values(config.animations)
+            .map((name) => skeletonData.findAnimation(name))
+            .filter(Boolean),
     );
     animationState.clearTracks();
     sceneRenderer = new runtime.webgl.SceneRenderer(canvas, gl, false);
     resize();
     if (!playFullBlood()) {
       throw new Error(
-        `black forest egg full blood animation missing: ${
-          config.animations.fullBlood
-        }`,
+          `black forest egg full blood animation missing: ${
+              config.animations.fullBlood
+          }`,
       );
     }
     return true;
@@ -483,7 +484,7 @@ export function createBlackForestEggSpineStage(options) {
 
   const ready = start().catch((error) => {
     hostGlobal.console?.warn?.(
-      `[BlackForest] egg spine failed: ${error?.message ?? error}`,
+        `[BlackForest] egg spine failed: ${error?.message ?? error}`,
     );
     return false;
   });

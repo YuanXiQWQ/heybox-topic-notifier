@@ -199,7 +199,9 @@ export function renderAceAttorneyEasterEggData(locale: Locale): string {
  * @return {string} 完整 HTML 页面。
  */
 export function renderLayout(options: {
-  account?: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string };
+  account?: Pick<UserAccount, "displayName" | "username" | "role"> & {
+    id?: string;
+  };
   body: string;
   csrfToken: string;
   darkMode: boolean;
@@ -229,7 +231,17 @@ export function renderLayout(options: {
     <meta charset="utf-8">
     <script src="/static/device-preferences.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    ${renderEasterEggJsonData("application-messages", Object.fromEntries(Object.entries(messages).filter(([name]) => name.startsWith("update") || name === "checkUpdate" || name === "autoSaveError" || name === "accountCancel")))}
+    ${
+    renderEasterEggJsonData(
+      "application-messages",
+      Object.fromEntries(
+        Object.entries(messages).filter(([name]) =>
+          name.startsWith("update") || name === "checkUpdate" ||
+          name === "autoSaveError" || name === "accountCancel"
+        ),
+      ),
+    )
+  }
     <script src="/static/app-compat.js" defer></script>
     <script src="/static/app-native.js" defer></script>
     <script src="/static/app-device-settings.js" defer></script>
@@ -243,12 +255,21 @@ export function renderLayout(options: {
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/app-sync/store.js" defer></script>
     <script src="/static/app-sync/client.js" defer></script>
-    ${options.disableEasterEggs ? "" : `<script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
+    ${
+    options.disableEasterEggs
+      ? ""
+      : `<script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
-    ${renderLobotomyCorpAccountIdentityData(options.account, options.loginSession)}
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>`}
+    ${
+        renderLobotomyCorpAccountIdentityData(
+          options.account,
+          options.loginSession,
+        )
+      }
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>`
+  }
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body data-app-user-id="${escapeHtml(options.account?.id ?? "")}">
@@ -328,7 +349,9 @@ function renderNavItem(icon: string, label: string): string {
  * @return {string} 账户菜单 HTML。
  */
 function renderAccountMenu(
-  account: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string },
+  account: Pick<UserAccount, "displayName" | "username" | "role"> & {
+    id?: string;
+  },
   csrfToken: string,
   locale: Locale,
   messages: ReturnType<typeof getMessages>,
@@ -339,11 +362,13 @@ function renderAccountMenu(
     renderAvatar(account, messages)
   }</summary><div class="nav-account-dropdown"><a class="nav-account-menu-action" href="/settings">${
     authIcon("username", "nav-account-menu-icon", "nav.accountSettings")
-  }<span>${
-    escapeHtml(messages.accountSettings)
-  }</span></a>${isAdministrator(account) ? `<a class="nav-account-menu-action" href="/admin">${materialSymbolIcon("badge","nav-account-menu-icon")}<span>${escapeHtml(messages.adminPanel)}</span></a>` : ""}<form method="post" action="/logout?locale=${
-    encodeURIComponent(locale)
-  }">${
+  }<span>${escapeHtml(messages.accountSettings)}</span></a>${
+    isAdministrator(account)
+      ? `<a class="nav-account-menu-action" href="/admin">${
+        materialSymbolIcon("badge", "nav-account-menu-icon")
+      }<span>${escapeHtml(messages.adminPanel)}</span></a>`
+      : ""
+  }<form method="post" action="/logout?locale=${encodeURIComponent(locale)}">${
     csrfHiddenInput(csrfToken)
   }<button class="nav-account-menu-action nav-account-logout" type="submit">${
     logoutIcon("nav-account-menu-icon", "nav.logout")
@@ -375,7 +400,9 @@ export function defaultAvatarUrl(userId: string | undefined): string {
  * @return {string} 头像 HTML。
  */
 export function renderAvatar(
-  account: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string },
+  account: Pick<UserAccount, "displayName" | "username" | "role"> & {
+    id?: string;
+  },
   messages: ReturnType<typeof getMessages>,
 ): string {
   const name = account.displayName ?? account.username;
@@ -385,4 +412,32 @@ export function renderAvatar(
   }" alt="${
     escapeHtml(alt)
   }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>`;
+}
+
+/**
+ * 渲染外联表单控件属性。
+ *
+ * @param {string} formId 表单 ID。
+ * @return {string} form 属性 HTML。
+ */
+export function formControlAttribute(formId: string): string {
+  return `form="${escapeHtml(formId)}"`;
+}
+
+/**
+ * 渲染 select 选项。
+ *
+ * @param {string} value 选项值。
+ * @param {string} current 当前选中值。
+ * @param {string} label 选项文案。
+ * @return {string} option HTML。
+ */
+export function renderSelectOption(
+  value: string,
+  current: string,
+  label: string,
+): string {
+  return `<option value="${escapeHtml(value)}" ${
+    value === current ? "selected" : ""
+  }>${escapeHtml(label)}</option>`;
 }

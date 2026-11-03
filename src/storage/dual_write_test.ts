@@ -10,18 +10,39 @@ import type { NativeLoginStore } from "./native_login.ts";
 Deno.test("native login handoffs stay in the authoritative database during dual writes", async () => {
   const mirrors: string[] = [];
   const login: NativeLoginStore = {
-    create: () => Promise.resolve(true), read: () => Promise.resolve(undefined),
-    approve: () => Promise.resolve(true), consume: () => Promise.resolve("alice"),
+    create: () => Promise.resolve(true),
+    read: () => Promise.resolve(undefined),
+    approve: () => Promise.resolve(true),
+    consume: () => Promise.resolve("alice"),
   };
-  const authoritative = { ...storageStub("authoritative", []), nativeLogin: login };
-  const mirror = { ...storageStub("mirror", []), nativeLogin: {
-    ...login,
-    create: () => { mirrors.push("create"); return Promise.resolve(true); },
-    approve: () => { mirrors.push("approve"); return Promise.resolve(true); },
-    consume: () => { mirrors.push("consume"); return Promise.resolve("alice"); },
-  } };
+  const authoritative = {
+    ...storageStub("authoritative", []),
+    nativeLogin: login,
+  };
+  const mirror = {
+    ...storageStub("mirror", []),
+    nativeLogin: {
+      ...login,
+      create: () => {
+        mirrors.push("create");
+        return Promise.resolve(true);
+      },
+      approve: () => {
+        mirrors.push("approve");
+        return Promise.resolve(true);
+      },
+      consume: () => {
+        mirrors.push("consume");
+        return Promise.resolve("alice");
+      },
+    },
+  };
   const storage = createDualWriteStorage(authoritative, mirror);
-  await storage.nativeLogin!.create({ id: "flow", challenge: "proof", expiresAt: Date.now() + 60000 });
+  await storage.nativeLogin!.create({
+    id: "flow",
+    challenge: "proof",
+    expiresAt: Date.now() + 60000,
+  });
   await storage.nativeLogin!.approve("flow", "alice");
   assertEquals(await storage.nativeLogin!.consume("flow", "proof"), "alice");
   assertEquals(mirrors, []);

@@ -2,7 +2,7 @@
 import { Hono } from "@hono/hono";
 import { assert, assertEquals } from "@std/assert";
 import { createAdminRoutes } from "./admin_routes.ts";
-import { hashPassword } from "./auth.ts";
+import { hashPassword } from "./auth/password.ts";
 import { redirectWithSession } from "./auth/session.ts";
 import { secretDigest } from "./auth/roles.ts";
 import {

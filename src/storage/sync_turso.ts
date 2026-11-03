@@ -6,7 +6,7 @@ import {
   mergeSettings,
   type SettingsSyncSnapshot,
 } from "../sync/settings.ts";
-import { normalizeSettings } from "./kv.ts";
+import { normalizeSettings } from "./stored_settings.ts";
 import type { UserSyncStore } from "./sync_types.ts";
 import { createTursoRecordSync } from "./sync_records_turso.ts";
 import type { MatchRecord } from "../models.ts";

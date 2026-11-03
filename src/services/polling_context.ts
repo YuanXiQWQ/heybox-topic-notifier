@@ -19,9 +19,13 @@ export type PollingContext = ReturnType<typeof createPollingContext>;
  * @param {{cacheSchedule?: boolean, durableNotifications?: boolean}} options 常驻进程的快照缓存与持久投递。
  * @return {object} 默认设置、存储、数据源、匹配器、轮询器与调度器。
  */
-export function createPollingContext(options: { cacheSchedule?: boolean; durableNotifications?: boolean } = {}) {
+export function createPollingContext(
+  options: { cacheSchedule?: boolean; durableNotifications?: boolean } = {},
+) {
   const defaultSettings = defaultAppSettingsFromEnv();
-  const backend = createAppStorage(defaultSettings, { notificationOutbox: options.durableNotifications });
+  const backend = createAppStorage(defaultSettings, {
+    notificationOutbox: options.durableNotifications,
+  });
   const storage = options.cacheSchedule ? cachePollSchedule(backend) : backend;
   const matcher = createMatcher();
   const signatureMode = Deno.env.get("HEYBOX_SIGNATURE_MODE");
@@ -41,5 +45,13 @@ export function createPollingContext(options: { cacheSchedule?: boolean; durable
     notifier: pollingNotifier,
   });
   const scheduler = createPollScheduler({ poller, storage });
-  return { defaultSettings, storage, matcher, source, poller, scheduler, notificationDelivery: pollingNotifier.flush };
+  return {
+    defaultSettings,
+    storage,
+    matcher,
+    source,
+    poller,
+    scheduler,
+    notificationDelivery: pollingNotifier.flush,
+  };
 }

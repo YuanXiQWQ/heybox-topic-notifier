@@ -105,7 +105,7 @@ export function employeeCountForDepartments(departmentCount) {
  *
  * 这类贡献按“每名员工”计入，不除以部门数。
  *
- * @param {"death"|"panic"} kind 事件类型。
+ * @param {'death'|'panic'} kind 事件类型。
  * @param {number} count 员工数量。
  * @return {number} 危急值贡献。
  */
@@ -152,8 +152,8 @@ export function escapableAbnormalitySummary(abnormalities) {
     if (data?.canBreach !== true || specialEventIds.has(id)) return;
     count += 1;
     const points = data.riskLevel
-      ? (abnormalityDangerPoints[data.riskLevel] ?? 0)
-      : 0;
+        ? (abnormalityDangerPoints[data.riskLevel] ?? 0)
+        : 0;
     totalDanger += points;
   });
   return {
@@ -177,8 +177,8 @@ export function abnormalityCapacity(departmentCount) {
   );
   return regularDepartments * abnormalitiesPerDepartment +
       (departmentCount >= lastDepartmentCount
-        ? abnormalitiesInLastDepartment
-        : 0);
+          ? abnormalitiesInLastDepartment
+          : 0);
 }
 
 /**

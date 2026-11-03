@@ -32,7 +32,6 @@ const storageWriteMethods = new Set<PropertyKey>([
   "consumeAuthenticationEvent",
   "createAccount",
   "deleteAuthIdentity",
-  "deleteEmailCredential",
   "deleteMatches",
   "deletePasskeyCredential",
   "deletePendingEmailVerification",
@@ -110,12 +109,28 @@ export function createDualWriteStorage(
      * @return {unknown} 存储属性或用户作用域双写函数。
      */
     get(target, property, receiver): unknown {
-      if (property === "administration" && authoritative.administration && mirror.administration) return mirrorAdministration(authoritative, mirror, onMirrorFailure);
+      if (
+        property === "administration" && authoritative.administration &&
+        mirror.administration
+      ) return mirrorAdministration(authoritative, mirror, onMirrorFailure);
       if (property === "webPush" && authoritative.webPush && mirror.webPush) {
-        return mirrorWrites<WebPushStore>(authoritative.webPush, mirror.webPush, new Set(["save", "remove"]), onMirrorFailure);
+        return mirrorWrites<WebPushStore>(
+          authoritative.webPush,
+          mirror.webPush,
+          new Set(["save", "remove"]),
+          onMirrorFailure,
+        );
       }
-      if (property === "nativePush" && authoritative.nativePush && mirror.nativePush) {
-        return mirrorWrites<NativePushStore>(authoritative.nativePush, mirror.nativePush, new Set(["save", "remove"]), onMirrorFailure);
+      if (
+        property === "nativePush" && authoritative.nativePush &&
+        mirror.nativePush
+      ) {
+        return mirrorWrites<NativePushStore>(
+          authoritative.nativePush,
+          mirror.nativePush,
+          new Set(["save", "remove"]),
+          onMirrorFailure,
+        );
       }
       // 短时登录交接只在权威库消费，跨库异步授权不能重新打开已消费的凭据。
       if (property === "nativeLogin") return authoritative.nativeLogin;
@@ -159,16 +174,37 @@ function mirrorWrites<T extends object>(
      */
     get(target, property, receiver): unknown {
       const value = Reflect.get(target, property, receiver);
-      if (property === "nativeNotifications" && value && Reflect.get(mirror, property)) {
-        const inbox = value as unknown as NativeNotificationStore, replica = Reflect.get(mirror, property) as unknown as NativeNotificationStore;
+      if (
+        property === "nativeNotifications" && value &&
+        Reflect.get(mirror, property)
+      ) {
+        const inbox = value as unknown as NativeNotificationStore,
+          replica = Reflect.get(
+            mirror,
+            property,
+          ) as unknown as NativeNotificationStore;
         return {
           read: inbox.read.bind(inbox),
           /** @param {import("./native_notifications.ts").NativeNotification} event 新事件。 @return {Promise<import("./native_notifications.ts").NativeNotification>} 权威游标。 */
-          async save(event: import("./native_notifications.ts").NativeNotification) { const saved = await inbox.save(event); try { await replica.save(saved); } catch (error) { onMirrorFailure({ error, method: "nativeNotifications.save" }); } return saved; },
+          async save(
+            event: import("./native_notifications.ts").NativeNotification,
+          ) {
+            const saved = await inbox.save(event);
+            try {
+              await replica.save(saved);
+            } catch (error) {
+              onMirrorFailure({ error, method: "nativeNotifications.save" });
+            }
+            return saved;
+          },
         };
       }
-      const sourceSync = Reflect.get(target, "sync") as UserSyncStore | undefined;
-      const mirrorSync = Reflect.get(mirror, "sync") as UserSyncStore | undefined;
+      const sourceSync = Reflect.get(target, "sync") as
+        | UserSyncStore
+        | undefined;
+      const mirrorSync = Reflect.get(mirror, "sync") as
+        | UserSyncStore
+        | undefined;
       if (property === "sync" && sourceSync && mirrorSync) {
         return mirrorSyncStore(sourceSync, mirrorSync, onMirrorFailure);
       }
@@ -181,15 +217,25 @@ function mirrorWrites<T extends object>(
       return async (...args: unknown[]): Promise<unknown> => {
         const result = await callMethod(target, property, args);
         if (property === "saveSettings" && sourceSync && mirrorSync) {
-          try { await mirrorSync.replaceSettings(await sourceSync.readSettings()); }
-          catch (error) { onMirrorFailure({ error, method: "sync.replaceSettings" }); }
+          try {
+            await mirrorSync.replaceSettings(await sourceSync.readSettings());
+          } catch (error) {
+            onMirrorFailure({ error, method: "sync.replaceSettings" });
+          }
           return result;
         }
-        if ((property === "completeMatches" || property === "deleteMatches") && sourceSync && mirrorSync) {
+        if (
+          (property === "completeMatches" || property === "deleteMatches") &&
+          sourceSync && mirrorSync
+        ) {
           try {
             const ids = new Set(args[0] as string[]);
-            for (const state of await sourceSync.readRecordStates()) if (ids.has(state.id)) await mirrorSync.replaceRecord(state);
-          } catch (error) { onMirrorFailure({ error, method: "sync.replaceRecord" }); }
+            for (const state of await sourceSync.readRecordStates()) {
+              if (ids.has(state.id)) await mirrorSync.replaceRecord(state);
+            }
+          } catch (error) {
+            onMirrorFailure({ error, method: "sync.replaceRecord" });
+          }
           return result;
         }
         if (!shouldMirrorResult(property, result)) {
@@ -213,7 +259,11 @@ function mirrorWrites<T extends object>(
  * @param {(failure: StorageMirrorFailure) => void} onFailure 镜像故障记录器。
  * @return {UserSyncStore} 同步双写接口。
  */
-function mirrorSyncStore(source: UserSyncStore, mirror: UserSyncStore, onFailure: (failure: StorageMirrorFailure) => void): UserSyncStore {
+function mirrorSyncStore(
+  source: UserSyncStore,
+  mirror: UserSyncStore,
+  onFailure: (failure: StorageMirrorFailure) => void,
+): UserSyncStore {
   return {
     readRecordStates: source.readRecordStates.bind(source),
     /**
@@ -226,8 +276,11 @@ function mirrorSyncStore(source: UserSyncStore, mirror: UserSyncStore, onFailure
     async applyRecord(id, status, stamp) {
       const result = await source.applyRecord(id, status, stamp);
       if (result.snapshot) {
-        try { await mirror.replaceRecord(result.snapshot); }
-        catch (error) { onFailure({ error, method: "sync.replaceRecord" }); }
+        try {
+          await mirror.replaceRecord(result.snapshot);
+        } catch (error) {
+          onFailure({ error, method: "sync.replaceRecord" });
+        }
       }
       return result;
     },
@@ -237,8 +290,11 @@ function mirrorSyncStore(source: UserSyncStore, mirror: UserSyncStore, onFailure
      */
     async saveRecordContent(record) {
       await source.saveRecordContent(record);
-      try { await mirror.saveRecordContent(record); }
-      catch (error) { onFailure({ error, method: "sync.saveRecordContent" }); }
+      try {
+        await mirror.saveRecordContent(record);
+      } catch (error) {
+        onFailure({ error, method: "sync.saveRecordContent" });
+      }
     },
     /**
      * 安装受控管理快照并镜像。
@@ -246,8 +302,11 @@ function mirrorSyncStore(source: UserSyncStore, mirror: UserSyncStore, onFailure
      */
     async replaceRecord(snapshot) {
       await source.replaceRecord(snapshot);
-      try { await mirror.replaceRecord(snapshot); }
-      catch (error) { onFailure({ error, method: "sync.replaceRecord" }); }
+      try {
+        await mirror.replaceRecord(snapshot);
+      } catch (error) {
+        onFailure({ error, method: "sync.replaceRecord" });
+      }
     },
     readSettings: source.readSettings.bind(source),
     /**
@@ -257,8 +316,11 @@ function mirrorSyncStore(source: UserSyncStore, mirror: UserSyncStore, onFailure
      */
     async applySettings(edits) {
       const result = await source.applySettings(edits);
-      try { await mirror.replaceSettings(result.snapshot); }
-      catch (error) { onFailure({ error, method: "sync.replaceSettings" }); }
+      try {
+        await mirror.replaceSettings(result.snapshot);
+      } catch (error) {
+        onFailure({ error, method: "sync.replaceSettings" });
+      }
       return result;
     },
     /**
@@ -267,8 +329,11 @@ function mirrorSyncStore(source: UserSyncStore, mirror: UserSyncStore, onFailure
      */
     async replaceSettings(snapshot) {
       await source.replaceSettings(snapshot);
-      try { await mirror.replaceSettings(snapshot); }
-      catch (error) { onFailure({ error, method: "sync.replaceSettings" }); }
+      try {
+        await mirror.replaceSettings(snapshot);
+      } catch (error) {
+        onFailure({ error, method: "sync.replaceSettings" });
+      }
     },
   };
 }

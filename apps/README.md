@@ -1,5 +1,9 @@
 # Windows 与 Android 应用
 
+[正式站](https://heybox.yuanxiqwq.top/) · [下载 Windows x64 安装包](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-windows-x64-setup.exe) · [下载 Android APK](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-android-universal.apk)
+
+网页与两个客户端共用账号。首次在新域名登录时可使用已有的登录方式；旧域名的 Passkey 需要在新域名重新登记。网页推送需要在新域名登录后开启。升级前请让旧版联网同步离线编辑，保留本机数据。
+
 应用共用现有账号、界面、离线队列和全部彩蛋。Windows 使用 Electron；Android 使用系统 WebView 和 AndroidX WebKit，不依赖 Google Play Services。服务器继续执行小黑盒抓取和匹配。
 
 Android 的兼容目标是没有 Google Play／GMS 的设备，不限定品牌或型号。构建会检查完整运行依赖树，发现 Google Play Services 或 Firebase 依赖即失败。厂商推送是可选增强，不是安装、登录、离线管理或系统通知的必要条件。
@@ -20,32 +24,32 @@ Windows 安装目录页直接显示实际目标目录：浏览选择父目录后
 
 ## Release 更新
 
-沿用仓库现有的 `3.8.2` 标签格式，也兼容 `v3.8.2`。正式发布时自动生成并上传以下四个附件，无需手工下载 Actions 产物后转传：
+发行标签使用三段数字版本号，可带 `v` 前缀。正式发布时自动生成并上传以下四个附件，无需手工下载 Actions 产物后转传：
 
 - `heybox-topic-notifier-windows-x64-setup.exe`
 - `heybox-topic-notifier-windows-x64-setup.exe.blockmap`
 - `heybox-topic-notifier-android-universal.apk`
 - `latest.yml`（核对版本、尺寸和摘要后最后上传）
 
-Android `versionCode` 自动使用 `major × 1,000,000 + minor × 1,000 + patch + 1`，例如 `3.8.2 → 3008003`。同版本重跑保持相同编码；major 上限为 2099，minor、patch 上限为 999。正式发布后不要改换编码规则或签名密钥。
+Android `versionCode` 自动使用 `major × 1,000,000 + minor × 1,000 + patch + 1`，例如 `3.12.6 → 3012007`。同版本重跑保持相同编码；major 上限为 2099，minor、patch 上限为 999。正式发布后不要改换编码规则或签名密钥。
 
 首次启用前，在仓库 **Settings → Secrets and variables → Actions** 配置：
 
-| 类型 | 名称 | 用途 |
-| --- | --- | --- |
-| Secret | `ANDROID_KEYSTORE_BASE64` | 正式 Android keystore 的 Base64 内容 |
-| Secret | `ANDROID_KEYSTORE_PASSWORD` | keystore 密码 |
-| Secret | `ANDROID_KEY_ALIAS` | 签名密钥别名 |
-| Secret | `ANDROID_KEY_PASSWORD` | 签名密钥密码 |
-| Variable（可选） | `HONOR_PUSH_APP_ID` | 荣耀推送公开应用 ID；未设置时不初始化厂商通道 |
+| 类型             | 名称                        | 用途                                          |
+|------------------|-----------------------------|-----------------------------------------------|
+| Secret           | `ANDROID_KEYSTORE_BASE64`   | 正式 Android keystore 的 Base64 内容          |
+| Secret           | `ANDROID_KEYSTORE_PASSWORD` | keystore 密码                                 |
+| Secret           | `ANDROID_KEY_ALIAS`         | 签名密钥别名                                  |
+| Secret           | `ANDROID_KEY_PASSWORD`      | 签名密钥密码                                  |
+| Variable（可选） | `HONOR_PUSH_APP_ID`         | 荣耀推送公开应用 ID；未设置时不初始化厂商通道 |
 
 发行使用当前任务的 `GITHUB_TOKEN`，准备草稿与上传 job 获得 `contents: write`，构建 job 保持只读，无需另存个人访问令牌。Android 签名配置缺失、检查失败或任一平台构建失败都会阻止上传和公开草稿；Android 不降级为调试签名。Windows 没有证书不会阻止构建或发布。
 
 本机可运行 `deno run --allow-env --allow-read --allow-write=apps/signing --allow-run scripts/prepare_app_credentials.ts <JDK keytool 路径>`，一次性生成 Android 发行证书及 VAPID 密钥，重跑复用已有凭据。私密文件位于 Git 忽略的 `apps/signing/`，应另行安全备份。`credentials.json` 保存 keystore 密码、别名和 VAPID；Android key 密码与 keystore 密码相同。上传到 Actions 时将 keystore 文件转为 Base64 配置 `ANDROID_KEYSTORE_BASE64`，密码分别填入两个密码 Secret。本地文件生成不等于 GitHub Secrets 或远程部署已经配置。
 
-新版本标签指向的提交必须包含这套工作流与应用源码。推送 `3.9.2` 或 `v3.9.2` 形式的正式标签后，等待 Actions 完成构建、上传和公开 Release，网页下载和客户端更新即可读取完整附件。草稿不会触发 `published`，预发行不会进入正式更新通道；版本解析也拒绝带 beta 等后缀的标签。工作流通过默认 `GITHUB_TOKEN` 公开草稿不会递归触发发布事件。[GitHub 触发规则](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
+新版本标签指向的提交必须包含这套工作流与应用源码。推送新的正式版本标签后，等待 Actions 完成构建、上传和公开 Release，网页下载和客户端更新即可读取完整附件。草稿不会触发 `published`，预发行不会进入正式更新通道；版本解析也拒绝带 beta 等后缀的标签。工作流通过默认 `GITHUB_TOKEN` 公开草稿不会递归触发发布事件。[GitHub 触发规则](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
 
-手动触发可为已有标签补发：选择包含最新发布流程的分支，`tag` 填已有标签（例如 `3.9.1`），开启 `upload` 和 `publish`，便会创建草稿、按该标签的源码构建、上传并公开。`upload` 关闭时仅生成 Actions 产物；关闭 `publish` 可以只上传而保留草稿。已有标签不会因为工作流变更自动重放推送事件，无需删除或移动标签。发行脚本使用所选工作流的提交，两个安装包始终使用标签锁定的源码提交。上传中断后优先重跑失败的上传 job，复用原构建产物；同摘要附件会跳过，空的未完成上传会清理后重试，内容不同的同名附件不会覆盖。
+手动触发可为已有标签补发：选择包含最新发布流程的分支，`tag` 填需要补发的已有标签，开启 `upload` 和 `publish`，便会创建草稿、按该标签的源码构建、上传并公开。`upload` 关闭时仅生成 Actions 产物；关闭 `publish` 可以只上传而保留草稿。已有标签不会因为工作流变更自动重放推送事件，无需删除或移动标签。发行脚本使用所选工作流的提交，两个安装包始终使用标签锁定的源码提交。上传中断后优先重跑失败的上传 job，复用原构建产物；同摘要附件会跳过，空的未完成上传会清理后重试，内容不同的同名附件不会覆盖。
 
 如果仓库启用了不可变 Release，标签触发流程会先上传完整附件再公开草稿；也可使用手动工作流执行相同流程。已锁定且附件齐全的发布事件会跳过重复构建，缺失附件则明确失败。GitHub 不允许在不可变 Release 发布后追加附件。[GitHub 不可变发行说明](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
 
@@ -67,7 +71,7 @@ Windows 每五秒检查一次，将同轮最多十页积压按帖子去重合并
 
 Google 登录使用系统浏览器完成现有认证和 MFA，再通过短时、单次 PKCE 交接进入原生应用。页面和浏览器显示相同配对码。Google 账号的已验证邮箱及用户绑定的密码、邮箱或其它登录方法仍指向同一 userId；不会按相同邮箱擅自合并两个已有账号。
 
-PKCE 交接只在当前权威数据库消费，不复制临时授权状态；数据库切换期间尚未完成的交接需要重新发起。正常登录后的账号会话仍遵循原有持久化与双写规则。
+PKCE 临时授权只能在签发它的数据库中使用一次。若在登录期间切换数据库，需要重新发起登录。正式站的账号与会话保存在 Turso。
 
 ## 离线与数据
 
@@ -79,7 +83,9 @@ PKCE 交接只在当前权威数据库消费，不复制临时授权状态；数
 
 ## 本设备设置与统一测试
 
-Windows 全局设置提供关闭窗口时的圆形单选项（默认最小化到任务栏，可改为退出）、开机自启、自动更新及恢复默认窗口大小。任务栏快捷任务和托盘菜单均包含工作区、设置、历史及退出。设备偏好保存在本机，不同步到其他设备；旧安装包未提供对应能力时隐藏新控件。
+Windows 默认在关闭窗口时隐藏到系统托盘，继续在后台接收通知。可从托盘恢复窗口，或在全局设置中把关闭行为改为退出。标题栏的最小化按钮仍将窗口最小化到任务栏。全局设置还提供开机自启、自动更新和恢复默认窗口大小。任务栏快捷任务和托盘菜单均包含工作区、设置、历史及退出。
+
+语言和深色模式默认跟随当前设备系统，主题色使用默认值。手动更改后只保存在当前设备或浏览器，登录同一账号的其他设备仍使用各自的偏好。
 
 Windows 点击「重启并更新」会在保存本地编辑后静默升级并重新打开应用，沿用已有安装目录和安装范围，不重复显示安装向导。安装包也会识别应用更新标记，即使发起更新的旧版应用没有传递静默参数，也会跳过向导；首次手动安装仍保留选择流程。安装到所有用户时，Windows 仍可能要求管理员授权。
 

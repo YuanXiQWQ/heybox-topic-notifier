@@ -1,12 +1,9 @@
 /** @file 管理员面板：邀请码管理及经过再认证的超级管理员用户操作。 */
 import { bodyLimit } from "@hono/hono/body-limit";
 import { Hono } from "@hono/hono";
-import {
-  hashPassword,
-  readAuthSession,
-  validDisplayName,
-  validUsername,
-} from "./auth.ts";
+import { hashPassword } from "./auth/password.ts";
+import { readAuthSession } from "./auth/session.ts";
+import { normalizeDisplayName, normalizeUsername, validAccountName } from "./auth/account_names.ts";
 import { type TotpConfig, verifyEncryptedTotpCode } from "./auth/totp.ts";
 import {
   accountRole,
@@ -69,7 +66,10 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
     error = "",
   ): Promise<Response> {
     const account = c.get("account") as UserAccount,
-      settings = settingsForDevice(await storage.forUser(account.id).getSettings(), c.req.raw);
+      settings = settingsForDevice(
+        await storage.forUser(account.id).getSettings(),
+        c.req.raw,
+      );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     const canManageUsers = await unlocked(c, account);
     let users: AdminUser[] | undefined;
@@ -365,12 +365,12 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
         version,
       );
     } else if (action === "create" || action === "edit") {
-      const username = String(form.username ?? "").trim().toLowerCase(),
-        displayName = String(form.displayName ?? "").trim(),
+      const username = normalizeUsername(String(form.username ?? "")),
+        displayName = normalizeDisplayName(String(form.displayName ?? "")),
         role = String(form.role ?? "user");
       if (
-        !validUsername(username) ||
-        (displayName && !validDisplayName(displayName)) ||
+        !validAccountName(username) ||
+        (displayName && !validAccountName(displayName)) ||
         !["user", "admin", "superadmin"].includes(role)
       ) return page(c, [], "invalid");
       const typedRole = role as NonNullable<UserAccount["role"]>;

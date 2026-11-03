@@ -1,10 +1,8 @@
 /**
  * @file 本文件提供 Authenticator / TOTP 密钥生成、加密、URI 生成和验证码校验能力。
  */
-import {
-  base64UrlEncode,
-  constantTimeEquals,
-} from "../security/crypto_utils.ts";
+import type { TotpCredential } from "../models.ts";
+import { base64UrlDecode, base64UrlEncode, constantTimeEquals } from "../security/crypto_utils.ts";
 
 /**
  * 默认 TOTP 发行方名称。
@@ -265,9 +263,9 @@ export async function decryptTotpSecret(
 
     const key = await importTotpEncryptionKey(encryptionKey);
     const decrypted = await crypto.subtle.decrypt(
-      { iv: arrayBufferFromBytes(base64UrlDecode(ivText)), name: "AES-GCM" },
+      { iv: base64UrlDecode(ivText), name: "AES-GCM" },
       key,
-      arrayBufferFromBytes(base64UrlDecode(cipherText)),
+      base64UrlDecode(cipherText),
     );
     return new Uint8Array(decrypted);
   } catch (error) {
@@ -537,18 +535,6 @@ async function importTotpEncryptionKey(
 }
 
 /**
- * Base64URL 解码。
- *
- * @param value Base64URL 字符串。
- * @return 解码后的字节。
- */
-function base64UrlDecode(value: string): Uint8Array {
-  const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
-}
-
-/**
  * 将字节复制为明确的 ArrayBuffer，便于传入 Web Crypto。
  *
  * @param bytes 原始字节。
@@ -657,4 +643,28 @@ function integerInRange(
       value <= max
     ? value
     : fallback;
+}
+
+/**
+ * 使用任一已绑定验证器校验动态码。
+ *
+ * @param {string} code 用户提交的动态码。
+ * @param {readonly TotpCredential[]} credentials 已绑定验证器凭证。
+ * @param {TotpConfig} config 验证器动态码配置。
+ * @return {Promise<boolean>} 任一验证器校验成功时返回 true。
+ */
+export async function verifyTotpCodeAgainstCredentials(
+  code: string,
+  credentials: readonly TotpCredential[],
+  config: TotpConfig,
+): Promise<boolean> {
+  for (const credential of credentials) {
+    if (
+      credential.secretEncrypted &&
+      await verifyEncryptedTotpCode(code, credential.secretEncrypted, config)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }

@@ -152,7 +152,10 @@ export function pageSizeValues(): readonly (number | "all")[] {
  * @param totalPages 总页数。
  * @return 带省略号的页码列表。
  */
-export function compactPages(currentPage: number, totalPages: number): (number | "...")[] {
+export function compactPages(
+  currentPage: number,
+  totalPages: number,
+): (number | "...")[] {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
   }
@@ -207,7 +210,8 @@ function filterByRange(
       return false;
     }
 
-    return matchedAt >= bounds.from.getTime() && matchedAt <= bounds.to.getTime();
+    return matchedAt >= bounds.from.getTime() &&
+      matchedAt <= bounds.to.getTime();
   });
 }
 
@@ -228,7 +232,10 @@ function rangeBounds(
     case "day":
       return { from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
     case "week":
-      return { from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
+      return {
+        from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        to: now,
+      };
     case "custom": {
       const from = parseChinaDateTime(query.from, false);
       const to = parseChinaDateTime(query.to, true);
@@ -246,7 +253,10 @@ function rangeBounds(
  * @param endOfMinute 是否补到当前分钟末尾。
  * @return 解析后的日期，无法解析时返回 undefined。
  */
-function parseChinaDateTime(value: string, endOfMinute: boolean): Date | undefined {
+function parseChinaDateTime(
+  value: string,
+  endOfMinute: boolean,
+): Date | undefined {
   if (!value) {
     return undefined;
   }
@@ -263,7 +273,8 @@ function parseChinaDateTime(value: string, endOfMinute: boolean): Date | undefin
  * @return 合法时间范围。
  */
 function parseRange(value: string | null): MatchTableRange {
-  return value === "hour" || value === "day" || value === "week" || value === "custom"
+  return value === "hour" || value === "day" || value === "week" ||
+      value === "custom"
     ? value
     : "all";
 }
@@ -280,7 +291,9 @@ function parsePageSize(value: string | null): MatchTablePageSize {
   }
 
   const pageSize = parsePositiveInteger(value, 10);
-  return pageSizeOptions.includes(pageSize as typeof pageSizeOptions[number]) ? pageSize : 10;
+  return pageSizeOptions.includes(pageSize as typeof pageSizeOptions[number])
+    ? pageSize
+    : 10;
 }
 
 /**
@@ -292,5 +305,7 @@ function parsePageSize(value: string | null): MatchTablePageSize {
  */
 function parsePositiveInteger(value: string | null, fallback: number): number {
   const numericValue = Number(value);
-  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : fallback;
+  return Number.isInteger(numericValue) && numericValue > 0
+    ? numericValue
+    : fallback;
 }

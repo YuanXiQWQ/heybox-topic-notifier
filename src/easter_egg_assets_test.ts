@@ -8,8 +8,8 @@ import {
   lobotomyCorpWhiteNightEventResponse,
 } from "./easter_egg_assets.ts";
 import {
-  whiteNightSpineAssetPaths,
   whiteNightSpineAssetDirectory,
+  whiteNightSpineAssetPaths,
   whiteNightSpineAtlasFile,
   whiteNightSpineRangeTexture,
   whiteNightSpineRuntimePath,
@@ -78,7 +78,10 @@ Deno.test({
   fn: async () => {
     const paths = whiteNightSpineAssetPaths("/static/fun/lobotomy-corp");
     assertEquals(paths.assetDirectory, "Assets/Resources/spinedata/deathangel");
-    assertEquals(paths.pathPrefix, "/static/fun/lobotomy-corp/Assets/Resources/spinedata/");
+    assertEquals(
+      paths.pathPrefix,
+      "/static/fun/lobotomy-corp/Assets/Resources/spinedata/",
+    );
     assertEquals(paths.atlasPath, "deathangel/skeleton.atlas.txt");
     assertEquals(paths.skeletonPath, "deathangel/skeleton_5.json");
 
@@ -88,9 +91,7 @@ Deno.test({
         import.meta.url,
       ),
     );
-    const pages = atlas.split(/\r?\n/u).filter((line) =>
-      line.endsWith(".png")
-    );
+    const pages = atlas.split(/\r?\n/u).filter((line) => line.endsWith(".png"));
     assert(pages.length > 0);
     // `AssetManager` 会把分页贴图拼成「目录前缀 + 父目录 + 页名」，任一段为空都会
     // 产生重复斜杠，资源路由会判为非法路径——这里逐个走一遍真实路由。
@@ -189,8 +190,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "Plague Doctor module and its tick sound are served to the browser",
+  name: "Plague Doctor module and its tick sound are served to the browser",
   permissions: { read: true },
   fn: async () => {
     const moduleResponse = await lobotomyCorpAssetResponse(
@@ -327,7 +327,9 @@ Deno.test({
       moduleResponse.headers.get("content-type"),
       "text/javascript; charset=utf-8",
     );
-    assert((await moduleResponse.text()).includes("createDeathAngelAdventLight"));
+    assert(
+      (await moduleResponse.text()).includes("createDeathAngelAdventLight"),
+    );
 
     const spriteResponse = await lobotomyCorpAssetResponse(
       "Assets/Resources/texture/particle/Copy.png",
@@ -336,7 +338,9 @@ Deno.test({
     assertEquals(spriteResponse.headers.get("content-type"), "image/png");
     // PNG 头：89 50 4E 47。
     assertEquals(
-      Array.from(new Uint8Array(await spriteResponse.arrayBuffer()).slice(0, 4)),
+      Array.from(
+        new Uint8Array(await spriteResponse.arrayBuffer()).slice(0, 4),
+      ),
       [0x89, 0x50, 0x4e, 0x47],
     );
   },

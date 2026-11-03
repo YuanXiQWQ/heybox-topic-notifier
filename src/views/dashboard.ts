@@ -4,7 +4,12 @@
 import { resolvePolling } from "../../static/polling-schedule-core.js";
 import type { PollingSettings } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
-import type { AppSettings, AppState, PollIntervalUnit, UserAccount } from "../models.ts";
+import type {
+  AppSettings,
+  AppState,
+  PollIntervalUnit,
+  UserAccount,
+} from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
@@ -28,7 +33,14 @@ export function renderDashboard(options: {
   settings: AppSettings;
   state: AppState;
 }): string {
-  options = {...options, settings: {...options.settings, polling: resolvePolling(options.settings.polling).polling as PollingSettings}};
+  options = {
+    ...options,
+    settings: {
+      ...options.settings,
+      polling: resolvePolling(options.settings.polling)
+        .polling as PollingSettings,
+    },
+  };
   const messages = getMessages(options.settings.locale);
   const latest = options.state.latestMatch;
   const lastPollAt = options.state.lastPollAt;

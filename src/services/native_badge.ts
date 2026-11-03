@@ -4,7 +4,12 @@ import type { UserStorage } from "../storage/types.ts";
 /** 完整快照用于离线投影，未变化响应仅确认已保存的同账号基线。 */
 export type NativeBadgeSnapshot =
   | { userId: string; version: string; unchanged: true }
-  | { userId: string; count: number; records: Array<{ id: string; postId: string }>; version?: string };
+  | {
+    userId: string;
+    count: number;
+    records: Array<{ id: string; postId: string }>;
+    version?: string;
+  };
 
 /**
  * 读取角标基线，先读取版本以便并发写入能在后续检查中被发现。
@@ -21,10 +26,15 @@ export async function readNativeBadge(
   const version = previousVersion !== undefined
     ? await storage.getDashboardVersion?.()
     : undefined;
-  if (version && previousVersion === version) return { userId, version, unchanged: true };
+  if (version && previousVersion === version) {
+    return { userId, version, unchanged: true };
+  }
   const records = storage.listPendingMatchReferences
     ? await storage.listPendingMatchReferences()
-    : (await storage.listPendingMatches()).map((record) => ({ id: record.id, postId: record.post.id }));
+    : (await storage.listPendingMatches()).map((record) => ({
+      id: record.id,
+      postId: record.post.id,
+    }));
   return {
     userId,
     count: new Set(records.map((record) => record.postId)).size,

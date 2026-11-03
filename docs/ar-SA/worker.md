@@ -18,7 +18,7 @@
 2. الصق محتوى `workers/notification-relay.js` في محرر Worker، أو انشر هذا السكربت باستخدام Wrangler.
 3. أضف `RELAY_TOKEN` إلى متغيرات/أسرار Worker، واجعل قيمته مفتاحًا عشوائيًا طويلًا.
 4. بعد النشر، افتح `https://<your-worker>.workers.dev/healthz` وتأكد من أنه يعيد `{"status":"ok"}`.
-5. اضبط Deno Deploy:
+5. `/etc/heybox-topic-notifier/heybox.env`
 
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher

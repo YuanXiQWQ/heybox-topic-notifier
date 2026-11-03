@@ -7,7 +7,6 @@ import static org.junit.Assert.*;
 import org.json.JSONObject;
 import java.io.File;
 import java.nio.file.Files;
-import java.security.MessageDigest;
 
 /** 只测试文件校验与版本逻辑，不安装 APK 或调用系统界面。 */
 public class UpdateIntegrityTest {
@@ -17,7 +16,7 @@ public class UpdateIntegrityTest {
     @Test public void rejectsTruncatedOrModifiedDownload() throws Exception {
         File apk = files.newFile("fixture.apk"); byte[] bytes = { 1, 2, 3, 4 };
         Files.write(apk.toPath(), bytes);
-        JSONObject asset = new JSONObject().put("size", bytes.length).put("digest", "sha256:" + Updates.hex(MessageDigest.getInstance("SHA-256").digest(bytes)));
+        JSONObject asset = new JSONObject().put("size", bytes.length).put("digest", "sha256:9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a");
         Updates.verifyDownload(apk, asset);
         Files.write(apk.toPath(), new byte[] { 1, 2 });
         assertThrows(SecurityException.class, () -> Updates.verifyDownload(apk, asset));

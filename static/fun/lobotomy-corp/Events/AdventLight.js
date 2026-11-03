@@ -39,9 +39,9 @@ import {
 export const adventLightAssetSources = Object.freeze({
   animationClip: 'Assets/AnimationClip/ApostleAdventLight.anim',
   animatorController:
-    'Assets/AnimatorController/ApostleAdventEffectAnim.controller',
+      'Assets/AnimatorController/ApostleAdventEffectAnim.controller',
   prefab:
-    'Assets/Resources/prefabs/effect/creature/deathangel/AdventLight.prefab',
+      'Assets/Resources/prefabs/effect/creature/deathangel/AdventLight.prefab',
   sprite: 'Assets/Resources/texture/particle/Copy.asset',
   spriteTexture: 'Assets/Resources/texture/particle/Copy.png',
 });
@@ -72,10 +72,10 @@ export const deathAngelAdventLightPrefab = Object.freeze({
    * 单位自身 localScale 等于该员工所在通道的 currentScale，所以世界偏移是
    * localPosition × currentScale。
    */
-  localPosition: Object.freeze({ x: 0, y: 2, z: 0 }),
+  localPosition: Object.freeze({x: 0, y: 2, z: 0}),
   name: 'AdventLight',
   particle: Object.freeze({
-    localPosition: Object.freeze({ x: 0, y: 0, z: 0 }),
+    localPosition: Object.freeze({x: 0, y: 0, z: 0}),
     /**
      * ParticlePretend 在 prefab 里的 Transform.localScale。
      *
@@ -83,7 +83,7 @@ export const deathAngelAdventLightPrefab = Object.freeze({
      * `ApostleAdventLight`，`.anim` 的 `m_LocalScale` 会按绝对值覆盖它，
      * 所以计算光斑尺寸时**不能**把它乘进动画曲线值。
      */
-    localScale: Object.freeze({ x: 5.5, y: 5.5, z: 1 }),
+    localScale: Object.freeze({x: 5.5, y: 5.5, z: 1}),
     name: 'ParticlePretend',
     sortingLayer: 'Particle',
     sortingLayerId: -355962239,
@@ -104,8 +104,8 @@ export const deathAngelAdventLightSprite = Object.freeze({
   }),
   /** m_PixelsToUnits：100 像素 = 1 世界单位。 */
   pixelsToUnits: 100,
-  pivot: Object.freeze({ x: 0.50000006, y: 0.50000006 }),
-  texture: Object.freeze({ height: 256, width: 256 }),
+  pivot: Object.freeze({x: 0.50000006, y: 0.50000006}),
+  texture: Object.freeze({height: 256, width: 256}),
   textureGuid: adventLightGuids.spriteTexture,
 });
 
@@ -133,10 +133,10 @@ export const apostleAdventEffectAnimator = Object.freeze({
   guid: adventLightGuids.animatorController,
   name: 'ApostleAdventEffectAnim',
   parameters: Object.freeze([
-    Object.freeze({ name: 'Run', type: 'Trigger' }),
+    Object.freeze({name: 'Run', type: 'Trigger'}),
   ]),
   states: Object.freeze([
-    Object.freeze({ motion: null, name: 'New State' }),
+    Object.freeze({motion: null, name: 'New State'}),
     Object.freeze({
       motion: 'ApostleAdventLight',
       name: 'ApostleAdventLight',
@@ -379,10 +379,10 @@ function clamp(value, minimum, maximum) {
  * @return {number} 每个世界单位占用的逻辑像素数。
  */
 export function adventLightPixelsPerWorldUnit(
-  currentScale = deathAngelAdventLightCamera.referenceScale,
+    currentScale = deathAngelAdventLightCamera.referenceScale,
 ) {
   const ortho = deathAngelAdventLightCamera.orthographicBase -
-    (1 - currentScale) * deathAngelAdventLightCamera.orthographicScale;
+      (1 - currentScale) * deathAngelAdventLightCamera.orthographicScale;
   return orthographicPixelsPerUnit(ortho);
 }
 
@@ -394,8 +394,8 @@ export function adventLightPixelsPerWorldUnit(
  */
 function orthographicPixelsPerUnit(orthographicSize) {
   const size = Number.isFinite(orthographicSize) && orthographicSize > 0
-    ? orthographicSize
-    : deathAngelAdventLightCamera.orthographicBase;
+      ? orthographicSize
+      : deathAngelAdventLightCamera.orthographicBase;
   return lobotomyCorpReferenceCanvasHeight / (2 * size);
 }
 
@@ -406,7 +406,7 @@ function orthographicPixelsPerUnit(orthographicSize) {
  */
 export function adventLightSpriteWorldSize() {
   return deathAngelAdventLightSprite.rect.width /
-    deathAngelAdventLightSprite.pixelsToUnits;
+      deathAngelAdventLightSprite.pixelsToUnits;
 }
 
 /**
@@ -416,12 +416,12 @@ export function adventLightSpriteWorldSize() {
  * @return {{x: number, y: number}} 相对 1920×1080 画布中心的逻辑像素偏移。
  */
 export function adventLightCanvasCenterOffset(
-  currentScale = deathAngelAdventLightCamera.referenceScale,
+    currentScale = deathAngelAdventLightCamera.referenceScale,
 ) {
   const pixelsPerUnit = adventLightPixelsPerWorldUnit(currentScale);
   const worldOffset = deathAngelAdventLightPrefab.localPosition.y -
-    deathAngelAdventLightCamera.focusOffsetY;
-  return { x: 0, y: -worldOffset * currentScale * pixelsPerUnit };
+      deathAngelAdventLightCamera.focusOffsetY;
+  return {x: 0, y: -worldOffset * currentScale * pixelsPerUnit};
 }
 
 /**
@@ -443,11 +443,11 @@ export function adventLightCanvasCenterOffset(
  * @return {number} 该帧光斑的逻辑像素边长。
  */
 export function adventLightQuadPixels(
-  animationScale,
-  currentScale = deathAngelAdventLightCamera.referenceScale,
+    animationScale,
+    currentScale = deathAngelAdventLightCamera.referenceScale,
 ) {
   return adventLightSpriteWorldSize() *
-    Math.max(animationScale, 0) * adventLightPixelsPerWorldUnit(currentScale);
+      Math.max(animationScale, 0) * adventLightPixelsPerWorldUnit(currentScale);
 }
 
 /**
@@ -481,7 +481,7 @@ export function sampleAdventLightCurve(curve, time) {
     const h01 = -2 * rate3 + 3 * rate2;
     const h11 = rate3 - rate2;
     return h00 * previous.value + h10 * span * previous.outSlope +
-      h01 * next.value + h11 * span * next.inSlope;
+        h01 * next.value + h11 * span * next.inSlope;
   }
   return last.value;
 }
@@ -523,7 +523,7 @@ export function apostleAdventLightStateAt(time) {
   const clamped = clamp(seconds, 0, clip.stopTime);
   const finished = seconds >= clip.stopTime;
   const active = !finished &&
-    sampleAdventLightActiveCurve(clip.curves.particleActive, clamped);
+      sampleAdventLightActiveCurve(clip.curves.particleActive, clamped);
   return {
     active,
     color: {
@@ -552,9 +552,9 @@ function toCssColor(color) {
    * @return {number} CSS 通道值。
    */
   const channel = (value) =>
-    clamp(Number.isFinite(value) ? value : 0, 0, 1) * 255;
+      clamp(Number.isFinite(value) ? value : 0, 0, 1) * 255;
   return `rgb(${channel(color.red).toFixed(6)} ${
-    channel(color.green).toFixed(6)
+      channel(color.green).toFixed(6)
   } ${channel(color.blue).toFixed(6)})`;
 }
 
@@ -570,7 +570,7 @@ function toCssColor(color) {
 export function adventLightSpriteUrl(assetRoot) {
   const root = String(assetRoot ?? '').replace(/\/$/, '');
   return `${root}${
-    adventLightAssetSources.spriteTexture.replace(/^Assets/u, '')
+      adventLightAssetSources.spriteTexture.replace(/^Assets/u, '')
   }`;
 }
 
@@ -602,8 +602,8 @@ export function createDeathAngelAdventLight(options) {
   }
   const assetRoot = String(options?.assetRoot ?? '');
   const currentScale = Number.isFinite(options?.currentScale)
-    ? Number(options.currentScale)
-    : deathAngelAdventLightCamera.referenceScale;
+      ? Number(options.currentScale)
+      : deathAngelAdventLightCamera.referenceScale;
   const sprite = deathAngelAdventLightSprite;
   const basePixels = adventLightQuadPixels(1, currentScale);
   const texturePixels = basePixels / sprite.rect.width;
@@ -617,30 +617,30 @@ export function createDeathAngelAdventLight(options) {
   spriteNode.setAttribute('aria-hidden', 'true');
   const center = adventLightCanvasCenterOffset(currentScale);
   element.style.setProperty(
-    'left',
-    `${lobotomyCorpReferenceCanvasWidth / 2 + center.x}px`,
+      'left',
+      `${lobotomyCorpReferenceCanvasWidth / 2 + center.x}px`,
   );
   element.style.setProperty(
-    'top',
-    `${lobotomyCorpReferenceCanvasHeight / 2 + center.y}px`,
+      'top',
+      `${lobotomyCorpReferenceCanvasHeight / 2 + center.y}px`,
   );
   spriteNode.style.setProperty(
-    '--lobotomy-corp-advent-light-sprite',
-    `url('${adventLightSpriteUrl(assetRoot)}')`,
+      '--lobotomy-corp-advent-light-sprite',
+      `url('${adventLightSpriteUrl(assetRoot)}')`,
   );
   spriteNode.style.setProperty(
-    '--lobotomy-corp-advent-light-size',
-    `${basePixels}px`,
+      '--lobotomy-corp-advent-light-size',
+      `${basePixels}px`,
   );
   spriteNode.style.setProperty(
-    '--lobotomy-corp-advent-light-mask-size',
-    `${sprite.texture.width * texturePixels}px ${
-      sprite.texture.height * texturePixels
-    }px`,
+      '--lobotomy-corp-advent-light-mask-size',
+      `${sprite.texture.width * texturePixels}px ${
+          sprite.texture.height * texturePixels
+      }px`,
   );
   spriteNode.style.setProperty(
-    '--lobotomy-corp-advent-light-mask-position',
-    `${-sprite.rect.x * texturePixels}px ${-maskTop * texturePixels}px`,
+      '--lobotomy-corp-advent-light-mask-position',
+      `${-sprite.rect.x * texturePixels}px ${-maskTop * texturePixels}px`,
   );
   element.append(spriteNode);
 
@@ -658,16 +658,16 @@ export function createDeathAngelAdventLight(options) {
   const paint = (state) => {
     lastState = state;
     spriteNode.style.setProperty(
-      '--lobotomy-corp-advent-light-color',
-      toCssColor(state.color),
+        '--lobotomy-corp-advent-light-color',
+        toCssColor(state.color),
     );
     spriteNode.style.setProperty(
-      '--lobotomy-corp-advent-light-scale',
-      String(Math.max(state.scale, 0)),
+        '--lobotomy-corp-advent-light-scale',
+        String(Math.max(state.scale, 0)),
     );
     spriteNode.style.setProperty(
-      '--lobotomy-corp-advent-light-visible',
-      state.active ? '1' : '0',
+        '--lobotomy-corp-advent-light-visible',
+        state.active ? '1' : '0',
     );
   };
   // Prefab 里 AdventLight 与 ParticlePretend 都是 inactive：未触发 Run 之前
@@ -710,8 +710,8 @@ export function createDeathAngelAdventLight(options) {
     stop: () => {
       runStartedAt = undefined;
       spriteNode.style.setProperty(
-        '--lobotomy-corp-advent-light-visible',
-        '0',
+          '--lobotomy-corp-advent-light-visible',
+          '0',
       );
     },
   });

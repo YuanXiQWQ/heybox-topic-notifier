@@ -1,52 +1,23 @@
 # 배포 설명
 
-이 프로젝트는 Deno Deploy의 GitHub 통합으로 배포하며, GitHub Actions로 앱을 배포하지 않습니다. GitHub Actions는
-`deno task check`만 실행하고, Deno Deploy가 repository push 이후 앱을 빌드하고 라우팅합니다.
+Oracle Cloud에서 Deno 서비스를 실행하며 Caddy가 HTTPS를 제공합니다. 계정, 세션, 게시물 기록은 Turso에 저장합니다. 릴리스 태그를 푸시하면 GitHub Actions에서 Windows 및 Android 설치 파일을 빌드합니다.
 
-## 브랜치 배포
-
-Deno Deploy는 동일한 App에 대해 서로 다른 timeline을 생성합니다.
-
-- `main`: 공식 릴리스 배포, Production URL로 라우팅
-- `dev`: 릴리스 전 테스트 배포, Git Branch / DEV URL로 라우팅
-
-현재 App 이름이 `heybox-topic-notifier`일 때 URL 규칙은 대략 다음과 같습니다.
-
-```text
-https://heybox-topic-notifier.yuanxiqwq.deno.net
-https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
-```
-
-현재 `dev` 테스트 배포는 이미 생성되었으며, 안정적인 테스트 진입점은 Git Branch / DEV URL입니다. 이후 `dev`로 push하면
-테스트 배포가 업데이트되고, `main`으로 push하면 Production이 업데이트됩니다.
-
-Deno Deploy의 GitHub 통합은 기능 브랜치 push에 대해 Git Branch timeline과 Build를 생성할 수 있습니다. Preview
-및 일반 기능 브랜치가 KV를 반복해서 읽거나 Heybox를 가져오거나 알림을 보내지 않도록, 배포 entrypoint는 top level에서 Cron을 선언하지만 handler는
-`DENO_TIMELINE=production` 또는 `DENO_TIMELINE=git-branch/dev`일 때만 계속 실행합니다. 일반 페이지 요청, 루트 경로,
-health check, Warm up
-요청은 자동 polling을 트리거하지 않습니다. 프런트엔드 페이지에서 1분 미만으로 도래한 조회는 제어된 상태 API를 통해 현재 계정의 스케줄링을 트리거합니다.
-
-## Deno Deploy 구성
-
-Deno Deploy App에서 다음 구성을 유지하세요.
-
-- Repository: `YuanXiQWQ/heybox-topic-notifier`
-- App Directory: root directory
-- Entrypoint: `./src/deploy.ts`
-- Config Source: `deno.json deploy section`
-
-`deno.json`의 deploy 구성은 배포 entrypoint에 대한 유일한 repository 구성 소스입니다.
-
-## 데이터베이스
-
-Deno Deploy App에는 Deno KV 데이터베이스가 바인딩되어 있습니다. 코드는 `Deno.openKv()`
-를 통해 계정, 설정, 기록, polling 상태, 처리된 게시물 마커를 읽고 씁니다. 계정 비밀번호는 salt가 적용된 PBKDF2 해시로 저장됩니다. 사용자 데이터는 user
-ID prefix로 분리되며, Deno Deploy도 timeline 기준으로 Production과 Git Branch 데이터를 분리합니다.
+[systemd](../../ops/heybox-topic-notifier.service) · [Caddy](../../ops/Caddyfile)
 
 ## 런타임 환경 변수
 
-Deno Deploy App에서 필요에 따라 구성하세요. repository 루트의 `.env.example`은 시나리오별로 정리되어 있습니다. 기본적으로는 최소 사용 가능 구성만 활성화되고,
-그 외 polling 튜닝, 알림 채널, 릴레이, 보안 allowlist 구성은 주석 처리되어 있습니다. 사용할 시나리오에 해당하는 줄만 주석 해제하세요.
+[`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
+
+```dotenv
+STORAGE_READ_BACKEND=turso
+TURSO_DATABASE_URL=libsql://YOUR_DATABASE.turso.io
+TURSO_AUTH_TOKEN=<TOKEN>
+PUBLIC_ORIGIN=https://YOUR_DOMAIN
+PORT=8000
+VM_POLLING_ENABLED=false
+```
+
+검증용 인스턴스에는 별도 데이터베이스를 사용하세요. 기존 주기적 확인을 중지한 후 운영 환경에 `VM_POLLING_ENABLED=true` 를 설정하고 서비스를 다시 시작하세요.
 
 - 기본값: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling 튜닝: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
@@ -70,21 +41,17 @@ HTTP redirect는 hop마다 검증되며, same-origin redirect만 허용됩니다
 A/AAAA 해석 결과가 localhost, 내부 네트워크, link-local, metadata service, 예약 주소 범위에 속하지 않는지도 검증합니다. `OUTBOUND_ALLOWED_HOSTS`
 는 관리자가 명시적으로 설정하는 신뢰 경계이며, wildcard는 완전히 제어하는 도메인 아래에서만 구성해야 합니다.
 
-앱은 등록 및 로그인 페이지를 제공합니다. 계정 정보, 로그인 세션, 각 계정의 설정, 일치 기록, polling 상태, 알림 구성은
-Deno KV에 저장되고 user ID 기준으로 분리됩니다. 브라우저 Cookie에는 random session token만 저장되고, 서버는 token
-hash와 만료 시간을 저장합니다.
-
 실제 Heybox 토픽 가져오기는 현재 유일한 런타임 데이터 소스입니다. 기본 `HEYBOX_SIGNATURE_MODE=app`은 검증된 App API
 게시 시간 목록을 사용합니다. `web`은 진단용 fallback으로만 유지됩니다.
 새 계정은 polling이 꺼진 상태로 시작하며, 설정 페이지에서 “Enable polling”을 켠 뒤에만 실제로 가져옵니다.
 
 ## 알림 릴레이
 
-Deno Deploy가 PushPlus, WxPusher 또는 Server酱에 직접 접근할 수 없다면, 먼저 무료 Cloudflare Worker
+Oracle Cloud가 PushPlus, WxPusher 또는 Server酱에 직접 접근할 수 없다면, 먼저 무료 Cloudflare Worker
 릴레이를 배포할 수 있습니다. repository의 `workers/notification-relay.js`는 `/pushplus`, `/wxpusher`, `/serverchan`
 세 가지 고정 전달 entry를 제공하며, `Authorization: Bearer <token>`으로 인증합니다. 전체 단계는 [worker.md](worker.md)를 참조하세요.
 
-Deno Deploy 측 구성 예시:
+`/etc/heybox-topic-notifier/heybox.env`
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
@@ -95,10 +62,7 @@ NOTIFIER_RELAY_TOKEN=<same-random-secret>
 
 ## 검증
 
-배포가 완료되면 다음에 접속하세요.
-
-```text
-/healthz
+```sh
+systemctl is-active heybox-topic-notifier.service
+curl --fail --silent --show-error -H "Host: YOUR_DOMAIN" http://127.0.0.1:8000/healthz
 ```
-
-`status: ok`가 반환되면 서비스 프로세스가 시작된 것이며, health check는 Deno KV를 읽지 않습니다.

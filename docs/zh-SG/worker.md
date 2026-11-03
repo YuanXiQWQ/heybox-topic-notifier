@@ -16,7 +16,7 @@ SendKey，并按项目现有规则构造官方地址。
 2. 将 `workers/notification-relay.js` 的内容粘贴到 Worker 编辑器，或用 Wrangler 部署该脚本。
 3. 在 Worker 的变量/密钥中添加 `RELAY_TOKEN`，值使用一段随机长密钥。
 4. 部署后访问 `https://<your-worker>.workers.dev/healthz`，确认返回 `{"status":"ok"}`。
-5. 在 Deno Deploy 配置：
+5. `/etc/heybox-topic-notifier/heybox.env`
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus

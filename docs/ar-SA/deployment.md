@@ -1,52 +1,23 @@
 <div dir="rtl" lang="ar-SA" align="right">
 
-# تعليمات النشر
+تعمل خدمة Deno على Oracle Cloud ويتولى Caddy اتصالات HTTPS. تُحفظ الحسابات والجلسات والنتائج في Turso. ينشئ GitHub Actions حزم تثبيت Windows وAndroid عند دفع وسم إصدار.
 
-يستخدم هذا المشروع تكامل GitHub في Deno Deploy للنشر، ولا يستخدم GitHub Actions لنشر التطبيق. يقتصر دور GitHub Actions على تشغيل
-`deno task check`، بينما يتولى Deno Deploy بناء التطبيق وتوجيهه بعد أي push إلى المستودع.
-
-## نشر الفروع
-
-ينشئ Deno Deploy خطوطًا زمنية مختلفة لنفس App:
-
-- &rlm;`main`: نشر الإصدار الرسمي، ويُوجَّه إلى Production URL
-- &rlm;`dev`: نشر اختبار ما قبل الإصدار، ويُوجَّه إلى Git Branch / DEV URL
-
-عندما يكون اسم App الحالي هو `heybox-topic-notifier`، تكون صيغة URL المتفق عليها تقريبًا:
-
-<pre dir='ltr' align='left'><code class='language-text'>https://heybox-topic-notifier.yuanxiqwq.deno.net
-https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
-</code></pre>
-
-تم إنشاء نشر الاختبار الحالي لـ `dev` بالفعل، ونقطة الدخول المستقرة للاختبار هي Git Branch / DEV URL. ستؤدي عمليات push اللاحقة إلى `dev`
-إلى تحديث نشر الاختبار، بينما ستؤدي عمليات push إلى `main` إلى تحديث Production.
-
-قد ينشئ تكامل GitHub في Deno Deploy خطوطًا زمنية من نوع Git Branch وعمليات Build عند push إلى فروع الميزات. لتجنب أن تقوم Preview
-والفروع العادية للميزات بقراءة KV أو جلب Heybox أو إرسال إشعارات بشكل مكرر، يصرّح مدخل النشر بـ Cron في المستوى الأعلى، لكن handler لن يواصل التنفيذ إلا عندما تكون
-`DENO_TIMELINE=production` أو `DENO_TIMELINE=git-branch/dev`. طلبات الصفحات العادية، والمسار الجذر، وفحص الصحة، وطلبات Warm up
-لن تؤدي إلى تشغيل polling تلقائي؛ أما استعلامات الواجهة الأمامية التي يحين موعدها خلال أقل من دقيقة فستشغّل جدولة الحساب الحالي عبر واجهة حالة مضبوطة.
-
-## إعدادات Deno Deploy
-
-حافظ على الإعدادات التالية في Deno Deploy App:
-
-- &rlm;Repository: `YuanXiQWQ/heybox-topic-notifier`
-- &rlm;App Directory: root directory
-- &rlm;Entrypoint: `./src/deploy.ts`
-- &rlm;Config Source: `deno.json deploy section`
-
-إعداد `deploy` داخل `deno.json` هو المصدر الوحيد لإعدادات المستودع الخاصة بمدخل النشر.
-
-## قاعدة البيانات
-
-تم ربط Deno Deploy App بقاعدة بيانات Deno KV. يستخدم الكود `Deno.openKv()`
-لقراءة وكتابة الحسابات، والإعدادات، والسجل، وحالة polling، وعلامات المنشورات التي تمت معالجتها. تُخزّن كلمات مرور الحسابات كتجزئات PBKDF2 مملّحة؛ وتعزل بيانات المستخدمين حسب بادئة user
-ID، كما يعزل Deno Deploy بيانات Production وGit Branch حسب timeline.
+[systemd](../../ops/heybox-topic-notifier.service) · [Caddy](../../ops/Caddyfile)
 
 ## متغيرات بيئة التشغيل
 
-تُضبط في Deno Deploy App حسب الحاجة. تم تنظيم `.env.example` في جذر المستودع حسب السيناريوهات: افتراضيًا لا يفعّل إلا الحد الأدنى القابل للاستخدام،
-بينما تبقى إعدادات تحسين polling، وقنوات الإشعارات، والترحيل، وقوائم السماح الأمنية معلّقة، وتُزال علامة التعليق فقط عن الأسطر المناسبة للسيناريو المطلوب.
+[`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
+
+```dotenv
+STORAGE_READ_BACKEND=turso
+TURSO_DATABASE_URL=libsql://YOUR_DATABASE.turso.io
+TURSO_AUTH_TOKEN=<TOKEN>
+PUBLIC_ORIGIN=https://YOUR_DOMAIN
+PORT=8000
+VM_POLLING_ENABLED=false
+```
+
+استخدم قاعدة بيانات مستقلة للاختبار. بعد إيقاف الفحص الدوري على الخادم السابق، اضبط `VM_POLLING_ENABLED=true` في بيئة الإنتاج وأعد تشغيل الخدمة.
 
 - القيم الافتراضية الأساسية: `APP_LOCALE`، `HEYBOX_TOPIC_ID`، `NOTIFIER_PROVIDER`
 - تحسين polling: `POLL_INTERVAL_MINUTES`، `POLL_POST_LIMIT`، `POLL_SORT`
@@ -70,21 +41,17 @@ ID، كما يعزل Deno Deploy بيانات Production وGit Branch حسب tim
 A/AAAA للمضيف الهدف لا تقع ضمن عناوين الجهاز المحلي، أو الشبكة الداخلية، أو link-local، أو خدمة metadata، أو نطاقات العناوين المحجوزة. يمثّل `OUTBOUND_ALLOWED_HOSTS`
 حدّ ثقة صريحًا يحدده المسؤول، ويجب عدم استخدام wildcard إلا تحت نطاقات تتحكم بها بالكامل.
 
-يوفر التطبيق صفحات تسجيل وإنشاء جلسة دخول. تُخزن معلومات الحساب، وجلسات تسجيل الدخول، وإعدادات كل حساب، وسجلات المطابقات، وحالة polling، وإعدادات الإشعارات في
-Deno KV، وتُعزل حسب user ID. لا يحفظ Browser Cookie إلا random session token؛ بينما يحفظ الخادم token
-hash ووقت الانتهاء.
-
 جلب مواضيع Heybox الحقيقية هو مصدر بيانات التشغيل الوحيد حاليًا. يستخدم الوضع الافتراضي `HEYBOX_SIGNATURE_MODE=app` قائمة نشر App API التي تم التحقق منها؛
 ويُحتفظ بـ `web` فقط كخيار تشخيصي احتياطي.
 تبدأ الحسابات الجديدة مع تعطيل polling، ولا تجلب البيانات إلا بعد تفعيل خيار “تمكين polling” في صفحة إعداداتها.
 
 ## ترحيل الإشعارات
 
-إذا لم يتمكن Deno Deploy من الوصول مباشرة إلى PushPlus أو WxPusher أو Server酱، فيمكن أولًا نشر Cloudflare Worker مجاني
+إذا لم يتمكن Oracle Cloud من الوصول مباشرة إلى PushPlus أو WxPusher أو Server酱، فيمكن أولًا نشر Cloudflare Worker مجاني
 للترحيل. يوفّر `workers/notification-relay.js` في المستودع ثلاثة مداخل تحويل ثابتة هي `/pushplus` و`/wxpusher` و`/serverchan`،
 ويستخدم `Authorization: Bearer <token>` للمصادقة؛ راجع [worker.md](worker.md) للخطوات الكاملة.
 
-مثال إعدادات جهة Deno Deploy:
+مثال إعدادات جهة Oracle Cloud:
 
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
@@ -94,11 +61,7 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 ## التحقق
 
-بعد اكتمال النشر، افتح:
-
-<pre dir='ltr' align='left'><code class='language-text'>/healthz
-</code></pre>
-
-إذا أعاد `status: ok` فهذا يعني أن عملية الخدمة قد بدأت، وأن فحص الصحة لا يقرأ Deno KV.
-
-</div>
+```sh
+systemctl is-active heybox-topic-notifier.service
+curl --fail --silent --show-error -H "Host: YOUR_DOMAIN" http://127.0.0.1:8000/healthz
+```

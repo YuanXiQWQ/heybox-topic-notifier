@@ -13,30 +13,30 @@ const {
   session,
   shell,
   screen,
-} = require("electron");
-const { autoUpdater } = require("electron-updater");
-const { CancellationToken } = require("builder-util-runtime");
-const { repairUpdateCache } = require("./update-cache.cjs");
-const { readInstallFailure, clearInstallFailure } = require("./update-recovery.cjs");
-const { installResumableDownload, restoreResume } = require("./resumable-download.cjs");
-const { createHash } = require("node:crypto");
-const fs = require("node:fs/promises");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
-const { applicationOrigin, assetPath, externalUrl } = require("./policy.cjs");
-const { deviceState } = require("./state.cjs");
-const { browserLogin } = require("./login.cjs");
-const config = require("./config.json");
+} = require('electron');
+const {autoUpdater} = require('electron-updater');
+const {CancellationToken} = require('builder-util-runtime');
+const {repairUpdateCache} = require('./update-cache.cjs');
+const {readInstallFailure, clearInstallFailure} = require('./update-recovery.cjs');
+const {installResumableDownload, restoreResume} = require('./resumable-download.cjs');
+const {createNotificationInbox} = require('./notification-inbox.cjs');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const {pathToFileURL} = require('node:url');
+const {applicationOrigin, assetPath, externalUrl} = require('./policy.cjs');
+const {deviceState} = require('./state.cjs');
+const {browserLogin} = require('./login.cjs');
+const config = require('./config.json');
 
 /** 固定来源在发行构建时配置；开发预览只允许显式指定回环服务。 */
 const origin = applicationOrigin(
-  !app.isPackaged && process.env.HEYBOX_PREVIEW_ORIGIN || config.origin,
-  !app.isPackaged,
+    !app.isPackaged && process.env.HEYBOX_PREVIEW_ORIGIN || config.origin,
+    !app.isPackaged,
 );
 /** 安装资源包含完整彩蛋，离线时无需再次下载。 */
 const resources = app.isPackaged
-  ? path.join(process.resourcesPath, "static")
-  : path.resolve(__dirname, "../generated/static");
+    ? path.join(process.resourcesPath, 'static')
+    : path.resolve(__dirname, '../generated/static');
 /** 主窗口保持驻留，使关窗后托盘仍可接收通知。 */
 let window;
 /** 托盘引用必须保持存活。 */
@@ -49,8 +49,7 @@ let webSession;
 let quitting = false;
 /** 防止重复退出事件同时执行持久化屏障。 */
 let preparingExit;
-/** 通知轮询与更新检查各自合并并发触发。 */
-let polling;
+/** 合并并发的更新检查。 */
 let checking;
 /** 启动前已完整下载的自动更新，只在再次启动并校验缓存后安装。 */
 let installCachedUpdateOnStart = false;
@@ -63,19 +62,15 @@ let stoppingUpdates = false;
 /** 恢复标记不可读取时暂停自动安装，防止反复覆盖未恢复完整的安装。 */
 let recoveryReadFailed = false;
 let updateTransfer;
-/** 设备开关变更序号使旧的开启请求不能覆盖较新的关闭操作。 */
-let notificationRevision = 0;
-/** 当前会话展示的通知，退出登录时撤回。 */
-const visibleNotifications = new Set();
 /** 原生更新进度不依赖服务器部署版本。 */
-let update = { status: "idle", version: undefined, progress: 0 };
+let update = {status: 'idle', version: undefined, progress: 0};
 
-app.setAppUserModelId("io.github.yuanxiqwq.heyboxnotifier");
+app.setAppUserModelId('io.github.yuanxiqwq.heyboxnotifier');
 app.enableSandbox();
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on("second-instance", (_event, argv) => handleLaunchAction(argv));
-  app.on("before-quit", (event) => {
+  app.on('second-instance', (_event, argv) => handleLaunchAction(argv));
+  app.on('before-quit', (event) => {
     if (quitting || !window || window.isDestroyed()) return;
     event.preventDefault();
     preparingExit ??= prepareExit().then(() => {
@@ -87,9 +82,10 @@ else {
       preparingExit = undefined;
     });
   });
-  app.on("window-all-closed", () => {});
+  app.on('window-all-closed', () => {
+  });
   void app.whenReady().then(start).catch((error) => {
-    console.error("Application startup failed:", error.message);
+    console.error('Application startup failed:', error.message);
     app.quit();
   });
 }
@@ -100,7 +96,7 @@ else {
  */
 async function savePageChanges() {
   if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
-    await window.webContents.executeJavaScript("globalThis.applicationSync?.prepareForExit()", true);
+    await window.webContents.executeJavaScript('globalThis.applicationSync?.prepareForExit()', true);
   }
 }
 
@@ -115,20 +111,21 @@ async function prepareExit(installing = false) {
   try {
     await checking;
     if (updateTransfer) {
-      if (update.status !== "downloaded") updateTransfer.token.cancel();
-      await updateTransfer.promise.catch(() => {});
+      if (update.status !== 'downloaded') updateTransfer.token.cancel();
+      await updateTransfer.promise.catch(() => {
+      });
     }
-    if (update.status !== "downloaded") autoUpdater.autoInstallOnAppQuit = false;
-    if (installing && update.status !== "downloaded") throw new Error("Update not ready");
+    if (update.status !== 'downloaded') autoUpdater.autoInstallOnAppQuit = false;
+    if (installing && update.status !== 'downloaded') throw new Error('Update not ready');
     if (app.isPackaged && !await repairUpdateCache(autoUpdater)) {
       autoUpdater.autoInstallOnAppQuit = false;
       delete device.value.autoUpdateReady;
       await device.save();
-      if (installing) throw new Error("Update cache is incomplete");
+      if (installing) throw new Error('Update cache is incomplete');
     }
   } catch (error) {
     stoppingUpdates = false;
-    update.status = "error";
+    update.status = 'error';
     emitState();
     throw error;
   }
@@ -139,51 +136,58 @@ async function prepareExit(installing = false) {
  * @return {Promise<void>} 初始化完成。
  */
 async function start() {
-  device = await deviceState(app.getPath("userData"), safeStorage);
+  device = await deviceState(app.getPath('userData'), safeStorage);
   if (app.isPackaged) {
     try {
-      const failedVersion = await readInstallFailure(app.getPath("exe"));
+      const failedVersion = await readInstallFailure(app.getPath('exe'));
       if (failedVersion && newerVersion(failedVersion, app.getVersion())) {
         device.value.failedUpdateVersion = failedVersion;
         delete device.value.autoUpdateReady;
-        update = {status: "error", version: failedVersion, progress: 0};
+        update = {status: 'error', version: failedVersion, progress: 0};
       } else if (device.value.failedUpdateVersion && !newerVersion(device.value.failedUpdateVersion, app.getVersion())) {
         delete device.value.failedUpdateVersion;
       }
       await device.save();
-    } catch { recoveryReadFailed = true; update.status = "error"; }
+    } catch {
+      recoveryReadFailed = true;
+      update.status = 'error';
+    }
   }
   installResumableDownload(autoUpdater, () => manualUpdateDownload);
-  try { if (app.isPackaged) {
-    const helper = await autoUpdater.getOrCreateDownloadHelper();
-    const partial = await restoreResume(path.join(helper.cacheDir,"resume"));
-    if (partial?.manual) confirmedResumeDigest = partial.sha512;
-  } } catch { update.status = "error"; }
-  try { if (app.isPackaged && !await repairUpdateCache(autoUpdater)) delete device.value.autoUpdateReady; }
-  catch { delete device.value.autoUpdateReady; update.status = "error"; }
+  try {
+    if (app.isPackaged) {
+      const helper = await autoUpdater.getOrCreateDownloadHelper();
+      const partial = await restoreResume(path.join(helper.cacheDir, 'resume'));
+      if (partial?.manual) confirmedResumeDigest = partial.sha512;
+    }
+  } catch {
+    update.status = 'error';
+  }
+  try {
+    if (app.isPackaged && !await repairUpdateCache(autoUpdater)) delete device.value.autoUpdateReady;
+  } catch {
+    delete device.value.autoUpdateReady;
+    update.status = 'error';
+  }
   installCachedUpdateOnStart = autoUpdateAllowed(device.value.autoUpdateReady) &&
-    typeof device.value.autoUpdateReady === "string" && newerVersion(device.value.autoUpdateReady, app.getVersion());
+      typeof device.value.autoUpdateReady === 'string' && newerVersion(device.value.autoUpdateReady, app.getVersion());
   if (
-    device.value.updateVersion &&
-    newerVersion(device.value.updateVersion, app.getVersion())
+      device.value.updateVersion &&
+      newerVersion(device.value.updateVersion, app.getVersion())
   ) update.version = device.value.updateVersion;
   else {
     delete device.value.updateVersion;
     delete device.value.autoUpdateReady;
     await device.save();
   }
-  webSession = session.fromPartition("persist:heybox-app");
+  webSession = session.fromPartition('persist:heybox-app');
   await installAssets();
   webSession.setPermissionRequestHandler((_contents, _permission, callback) =>
-    callback(false)
+      callback(false)
   );
   webSession.setPermissionCheckHandler(() => false);
-  webSession.cookies.on("changed", (_event, cookie, _cause, removed) => {
-    if (
-      cookie.name === "heybox_session" &&
-      (removed ||
-        device.value.notifications?.session !== cookieFingerprint(cookie.value))
-    ) void disableNotifications();
+  const inbox = createNotificationInbox({
+    webSession, device, origin, Notification, icon: path.join(resources, 'favicon.png'), emitState, showWindow,
   });
   window = new BrowserWindow({
     width: 1200,
@@ -191,10 +195,10 @@ async function start() {
     minWidth: 360,
     minHeight: 480,
     show: false,
-    title: "小黑盒话题提醒",
+    title: '小黑盒话题提醒',
     webPreferences: {
       session: webSession,
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: path.join(__dirname, 'preload.cjs'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -203,47 +207,50 @@ async function start() {
     },
   });
   window.removeMenu();
-  window.on("close", handleWindowClose);
-  window.once("ready-to-show", () => window.show());
-  window.webContents.setWindowOpenHandler(({ url }) => {
+  window.on('close', handleWindowClose);
+  window.once('ready-to-show', () => window.show());
+  window.webContents.setWindowOpenHandler(({url}) => {
     if (externalUrl(url)) void shell.openExternal(url);
-    return { action: "deny" };
+    return {action: 'deny'};
   });
-  window.webContents.on("will-navigate", (event, url) => {
+  window.webContents.on('will-navigate', (event, url) => {
     if (new URL(url).origin !== origin) {
       event.preventDefault();
       if (externalUrl(url)) void shell.openExternal(url);
     }
   });
   window.webContents.on(
-    "will-attach-webview",
-    (event) => event.preventDefault(),
+      'will-attach-webview',
+      (event) => event.preventDefault(),
   );
-  window.webContents.on("did-finish-load", () => emitState());
-  const icon = nativeImage.createFromPath(path.join(resources, "favicon.png"));
-  tray = new Tray(icon.resize({ width: 20, height: 20 }));
-  tray.setToolTip("小黑盒话题提醒");
+  window.webContents.on('did-finish-load', () => emitState());
+  const icon = nativeImage.createFromPath(path.join(resources, 'favicon.png'));
+  tray = new Tray(icon.resize({width: 20, height: 20}));
+  tray.setToolTip('小黑盒话题提醒');
   tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "工作区", click: () => showWindow("/") },
-      { label: "设置", click: () => showWindow("/settings") },
-      { label: "历史", click: () => showWindow("/history") },
-      { type: "separator" },
-      { label: "退出", click: () => app.quit() },
-    ]),
+      Menu.buildFromTemplate([
+        {label: '工作区', click: () => showWindow('/')},
+        {label: '设置', click: () => showWindow('/settings')},
+        {label: '历史', click: () => showWindow('/history')},
+        {type: 'separator'},
+        {label: '退出', click: () => app.quit()},
+      ]),
   );
-  tray.on("double-click", () => showWindow());
+  tray.on('double-click', () => showWindow());
   installJumpList();
-  installBridge();
+  installBridge(inbox);
   installUpdater();
   void checkUpdate();
-  powerMonitor.on("resume", () => {
+  /** 暂时无法投递时保留消费游标，下一轮再次尝试。 @return {Promise<void>} 本轮尝试结束。 */
+  const pollNotifications = () => inbox.poll().catch(() => {});
+  powerMonitor.on('resume', () => {
     void pollNotifications();
     void checkUpdate();
   });
   setInterval(() => void pollNotifications(), 5000).unref();
   setInterval(() => void checkUpdate(), 6 * 60 * 60 * 1000).unref();
-  await window.loadURL(origin + "/").catch(() => {});
+  await window.loadURL(origin + '/').catch(() => {
+  });
   handleLaunchAction(process.argv);
   void pollNotifications();
 }
@@ -255,7 +262,7 @@ async function start() {
 function handleWindowClose(event) {
   if (quitting) return;
   event.preventDefault();
-  if (device.value.closeAction === "quit") app.quit();
+  if (device.value.closeAction === 'quit') app.quit();
   else window.hide();
 }
 
@@ -264,22 +271,35 @@ function handleWindowClose(event) {
  * @param {string[]} argv 操作系统传入的启动参数。
  */
 function handleLaunchAction(argv = []) {
-  if (argv.includes("--app-quit")) { app.quit(); return; }
-  const route = ["/", "/settings", "/history"].find((path) => argv.includes("--app-open=" + path));
+  if (argv.includes('--app-quit')) {
+    app.quit();
+    return;
+  }
+  const route = ['/', '/settings', '/history'].find((path) => argv.includes('--app-open=' + path));
   void showWindow(route);
 }
 
 /** 为 Windows 任务栏注册工作区、设置、历史及退出动作。 */
 function installJumpList() {
   if (!app.isPackaged) return;
-  const program = app.getPath("exe");
-  app.setJumpList([{type: "tasks", items: [
-    ...[["工作区", "/"], ["设置", "/settings"], ["历史", "/history"]].map(([title, route]) => ({
-      type: "task", title, description: title, program, args: "--app-open=" + route, iconPath: program, iconIndex: 0,
-    })),
-    {type: "separator"},
-    {type: "task", title: "退出", description: "退出小黑盒话题提醒", program, args: "--app-quit", iconPath: program, iconIndex: 0},
-  ]}]);
+  const program = app.getPath('exe');
+  app.setJumpList([{
+    type: 'tasks', items: [
+      ...[['工作区', '/'], ['设置', '/settings'], ['历史', '/history']].map(([title, route]) => ({
+        type: 'task', title, description: title, program, args: '--app-open=' + route, iconPath: program, iconIndex: 0,
+      })),
+      {type: 'separator'},
+      {
+        type: 'task',
+        title: '退出',
+        description: '退出小黑盒话题提醒',
+        program,
+        args: '--app-quit',
+        iconPath: program,
+        iconIndex: 0
+      },
+    ]
+  }]);
 }
 
 /**
@@ -288,26 +308,33 @@ function installJumpList() {
  * @return {Promise<object>} 生效后的设备状态。
  */
 async function setPreferences(values) {
-  if (!values || typeof values !== "object" || Array.isArray(values) ||
-    Object.keys(values).some((key) => !["closeAction", "launchAtLogin", "autoUpdate"].includes(key))) throw new Error("Invalid preferences");
-  if ("closeAction" in values && !["minimize", "quit"].includes(values.closeAction)) throw new Error("Invalid close action");
-  for (const key of ["launchAtLogin", "autoUpdate"]) if (key in values && typeof values[key] !== "boolean") throw new Error("Invalid preference");
-  if ("launchAtLogin" in values) {
-    if (!app.isPackaged) throw new Error("Installed application required");
-    app.setLoginItemSettings({openAtLogin: values.launchAtLogin, path: app.getPath("exe")});
+  if (!values || typeof values !== 'object' || Array.isArray(values) ||
+      Object.keys(values).some((key) => !['closeAction', 'launchAtLogin', 'autoUpdate'].includes(key))) throw new Error('Invalid preferences');
+  if ('closeAction' in values && !['minimize', 'quit'].includes(values.closeAction)) throw new Error('Invalid close action');
+  for (const key of ['launchAtLogin', 'autoUpdate']) if (key in values && typeof values[key] !== 'boolean') throw new Error('Invalid preference');
+  if ('launchAtLogin' in values) {
+    if (!app.isPackaged) throw new Error('Installed application required');
+    app.setLoginItemSettings({openAtLogin: values.launchAtLogin, path: app.getPath('exe')});
   }
   const previous = {closeAction: device.value.closeAction, autoUpdate: device.value.autoUpdate};
-  if ("closeAction" in values) device.value.closeAction = values.closeAction;
-  if ("autoUpdate" in values) device.value.autoUpdate = values.autoUpdate;
-  try { await device.save(); }
-  catch (error) { Object.assign(device.value, previous); throw error; }
+  if ('closeAction' in values) device.value.closeAction = values.closeAction;
+  if ('autoUpdate' in values) device.value.autoUpdate = values.autoUpdate;
+  try {
+    await device.save();
+  } catch (error) {
+    Object.assign(device.value, previous);
+    throw error;
+  }
   autoUpdater.autoDownload = autoUpdateAllowed();
   autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed() || manualUpdateDownload;
-  if (autoUpdater.autoDownload && (update.status === "available" ||
-    (values.autoUpdate === true && previous.autoUpdate !== true && update.status === "downloaded"))) {
+  if (autoUpdater.autoDownload && (update.status === 'available' ||
+      (values.autoUpdate === true && previous.autoUpdate !== true && update.status === 'downloaded'))) {
     // 完整包通过下载器重新校验后注册退出安装，与当前开关保持一致。
-    update.status = "downloading";
-    void downloadUpdate().catch(() => { update.status = "error"; emitState(); });
+    update.status = 'downloading';
+    void downloadUpdate().catch(() => {
+      update.status = 'error';
+      emitState();
+    });
   }
   emitState();
   return info();
@@ -341,7 +368,8 @@ async function installAssets() {
             bypassCustomProtocolHandlers: true,
           });
           if (response.ok) return response;
-        } catch { /* 离线脚本使用安装包版本。 */ }
+        } catch { /* 离线脚本使用安装包版本。 */
+        }
       }
       try {
         if ((await fs.stat(local)).isFile()) {
@@ -349,9 +377,10 @@ async function installAssets() {
             headers: request.headers,
           });
         }
-      } catch { /* 未打包的资源继续由本站处理。 */ }
+      } catch { /* 未打包的资源继续由本站处理。 */
+      }
     }
-    return webSession.fetch(request, { bypassCustomProtocolHandlers: true });
+    return webSession.fetch(request, {bypassCustomProtocolHandlers: true});
   });
 }
 
@@ -361,16 +390,18 @@ async function installAssets() {
  */
 function authorize(event) {
   if (
-    event.sender !== window?.webContents ||
-    event.senderFrame !== window.webContents.mainFrame ||
-    new URL(event.senderFrame.url).origin !== origin
-  ) throw new Error("Untrusted application frame");
+      event.sender !== window?.webContents ||
+      event.senderFrame !== window.webContents.mainFrame ||
+      new URL(event.senderFrame.url).origin !== origin
+  ) throw new Error('Untrusted application frame');
 }
+
 /**
  * 注册固定原生功能，页面只能调用有限的业务能力。
  * 重启更新先保存本地编辑，再静默安装并重新启动应用。
+ * @param {object} inbox 当前会话的设备通知收件箱。
  */
-function installBridge() {
+function installBridge(inbox) {
   /**
    * 为每个处理器统一验证调用来源。
    * @param {string} name 通道。
@@ -382,52 +413,56 @@ function installBridge() {
       return handler(...args);
     });
   }
-  handle("app:info", info);
+
+  handle('app:info', info);
   handle(
-    "app:sign-in",
-    browserLogin({
-      origin,
-      session: webSession,
-      openExternal: (url) => shell.openExternal(url),
-      complete: () => showWindow("/"),
-    }),
+      'app:sign-in',
+      browserLogin({
+        origin,
+        session: webSession,
+        openExternal: (url) => shell.openExternal(url),
+        complete: () => showWindow('/'),
+      }),
   );
-  handle("app:notifications", setNotifications);
-  handle("app:preferences", setPreferences);
-  handle("app:reset-window", resetWindow);
-  handle("app:check-update", checkUpdate);
-  handle("app:download-update", async () => {
-    if (update.status !== "available" && update.status !== "error") {
-      throw new Error("No update available");
+  handle('app:notifications', async (enabled) => {
+    await inbox.setEnabled(enabled);
+    return info();
+  });
+  handle('app:preferences', setPreferences);
+  handle('app:reset-window', resetWindow);
+  handle('app:check-update', checkUpdate);
+  handle('app:download-update', async () => {
+    if (update.status !== 'available' && update.status !== 'error') {
+      throw new Error('No update available');
     }
-    await clearInstallFailure(app.getPath("exe"));
+    await clearInstallFailure(app.getPath('exe'));
     recoveryReadFailed = false;
     delete device.value.failedUpdateVersion;
     await device.save();
     manualUpdateDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
-    update.status = "downloading";
+    update.status = 'downloading';
     emitState();
     try {
       await downloadUpdate();
     } catch {
-      update.status = "error";
+      update.status = 'error';
       emitState();
     }
     return info();
   });
-  handle("app:install-update", async () => {
-    if (update.status !== "downloaded") throw new Error("Update not ready");
+  handle('app:install-update', async () => {
+    if (update.status !== 'downloaded') throw new Error('Update not ready');
     await prepareExit(true);
     quitting = true;
     autoUpdater.quitAndInstall(true, true);
   });
-  handle("app:seen-update", async (section) => {
-    if (!["settings", "about", "dismissed"].includes(section)) {
-      throw new Error("Invalid update section");
+  handle('app:seen-update', async (section) => {
+    if (!['settings', 'about', 'dismissed'].includes(section)) {
+      throw new Error('Invalid update section');
     }
-    device.value["updateSeen_" + section] = update.version;
-    if (section === "about") device.value.updateSeen_settings = update.version;
+    device.value['updateSeen_' + section] = update.version;
+    if (section === 'about') device.value.updateSeen_settings = update.version;
     await device.save();
     emitState();
     return info();
@@ -439,12 +474,12 @@ function installBridge() {
  * @return {object} 页面可见状态。
  */
 function info() {
-  const silent = autoUpdateAllowed() && ["available", "downloading", "downloaded"].includes(update.status);
+  const silent = autoUpdateAllowed() && ['available', 'downloading', 'downloaded'].includes(update.status);
   return {
-    platform: "windows",
+    platform: 'windows',
     version: app.getVersion(),
     preferences: {
-      closeAction: device.value.closeAction === "quit" ? "quit" : "minimize",
+      closeAction: device.value.closeAction === 'quit' ? 'quit' : 'minimize',
       launchAtLogin: app.isPackaged && app.getLoginItemSettings().openAtLogin,
       autoUpdate: device.value.autoUpdate !== false,
     },
@@ -456,25 +491,27 @@ function info() {
       ...update,
       silent,
       settingsUnread: Boolean(
-        !silent && update.version && device.value.updateSeen_settings !== update.version,
+          !silent && update.version && device.value.updateSeen_settings !== update.version,
       ),
       aboutUnread: Boolean(
-        !silent && update.version && device.value.updateSeen_about !== update.version,
+          !silent && update.version && device.value.updateSeen_about !== update.version,
       ),
       prompt: Boolean(
-        !silent && update.version && device.value.updateSeen_dismissed !== update.version,
+          !silent && update.version && device.value.updateSeen_dismissed !== update.version,
       ),
     },
   };
 }
+
 /**
  * 推送不含敏感数据的原生状态。
  */
 function emitState() {
   if (window && !window.isDestroyed()) {
-    window.webContents.send("app:state", info());
+    window.webContents.send('app:state', info());
   }
 }
+
 /**
  * 打开主窗口；原生跳转等待页面保存，保持更新任务运行，失败时保留当前编辑页。
  * @param {string | undefined} route 可选本站路径。
@@ -486,237 +523,16 @@ async function showWindow(route, allowed) {
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
-  if (route && route.startsWith("/") && !route.startsWith("//")) {
+  if (route && route.startsWith('/') && !route.startsWith('//')) {
     try {
       await savePageChanges();
       if (allowed && !await allowed()) return;
       if (!window.isDestroyed()) await window.loadURL(origin + route);
-    } catch { /* 保存失败时保留编辑页，由现有保存状态反馈错误。 */ }
-  }
-}
-/**
- * 生成会话绑定摘要，不把 Cookie 明文保存到设备设置。
- * @param {string} value 会话令牌。
- * @return {string} 摘要。
- */
-function cookieFingerprint(value) {
-  return createHash("sha256").update(value).digest("hex");
-}
-/**
- * 读取当前认证会话摘要。
- * @return {Promise<string>} 摘要或空值。
- */
-async function sessionFingerprint() {
-  const cookies = await webSession.cookies.get({
-    url: origin,
-    name: "heybox_session",
-  });
-  return cookies[0] ? cookieFingerprint(cookies[0].value) : "";
-}
-/**
- * 读取账号通知接口，拒绝跳转到登录页后误当作 JSON 成功。
- * @param {string | undefined} after 消费游标。
- * @return {Promise<object>} 服务端通知批次。
- */
-async function readNotifications(after) {
-  const url = origin + "/api/native/notifications" +
-    (after === undefined ? "" : "?after=" + encodeURIComponent(after));
-  const response = await webSession.fetch(url, {
-    cache: "no-store",
-    redirect: "error",
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok) throw new Error("Notifications unavailable");
-  return response.json();
-}
-/**
- * 开启时绑定当前账号和会话，并从当前游标开始；关闭时立即撤回可见通知。
- * @param {boolean} enabled 当前设备开关。
- * @return {Promise<object>} 原生状态。
- */
-async function setNotifications(enabled) {
-  if (typeof enabled !== "boolean") {
-    throw new Error("Invalid notification preference");
-  }
-  if (!enabled) {
-    await disableNotifications();
-    return info();
-  }
-  if (!Notification.isSupported()) throw new Error("Notifications unsupported");
-  const revision = ++notificationRevision;
-  const before = await sessionFingerprint();
-  const batch = await readNotifications();
-  const fingerprint = await sessionFingerprint();
-  if (
-    !fingerprint || fingerprint !== before ||
-    revision !== notificationRevision || typeof batch.userId !== "string"
-  ) {
-    throw new Error("Authentication required");
-  }
-  device.value.notifications = {
-    enabled: true,
-    userId: batch.userId,
-    session: fingerprint,
-    cursor: batch.cursor,
-    seen: [],
-  };
-  await device.save();
-  emitState();
-  return info();
-}
-/**
- * 停用设备通知并撤回当前进程创建的系统提示。
- * @return {Promise<void>} 设备偏好已保存。
- */
-async function disableNotifications() {
-  if (!device) return;
-  notificationRevision++;
-  device.value.notifications = { enabled: false };
-  for (const notification of visibleNotifications) notification.close();
-  visibleNotifications.clear();
-  await device.save();
-  emitState();
-}
-/**
- * 合并通知补取，关窗驻留和休眠恢复使用同一消费游标。
- * @return {Promise<void>} 本次读取结束。
- */
-function pollNotifications() {
-  polling ??= consumeNotifications().catch(() => {}).finally(() => {
-    polling = undefined;
-  });
-  return polling;
-}
-/**
- * 在账号和会话仍相同时合并分页积压；成功展示摘要后确认事件和已过滤项。
- * @return {Promise<void>} 通知处理结束。
- */
-async function consumeNotifications() {
-  const binding = device.value.notifications;
-  if (!binding?.enabled) return;
-  const initialSession = await sessionFingerprint();
-  if (device.value.notifications !== binding) return;
-  if (initialSession !== binding.session) {
-    await disableNotifications();
-    return;
-  }
-  let cursor = binding.cursor;
-  const events = [], ids = new Set(binding.seen), posts = new Set();
-  // 一次补取最多十页，所有可见积压合为一条系统通知。
-  for (let page = 0; page < 10; page++) {
-    const batch = await readNotifications(cursor);
-    const fingerprint = await sessionFingerprint();
-    if (device.value.notifications !== binding) return;
-    if (batch.userId !== binding.userId || fingerprint !== binding.session) {
-      await disableNotifications();
-      return;
-    }
-    for (const event of batch.events) {
-      if (!ids.has(event.id)) {
-        const key = event.kind === "match" && event.postId ? "post:" + event.postId : "event:" + event.id;
-        if (!posts.has(key)) { events.push(event); posts.add(key); }
-        ids.add(event.id);
-      }
-    }
-    const next = batch.cursor ?? batch.events.at(-1)?.cursor ?? cursor;
-    if (next < cursor || (next === cursor && batch.events.length)) throw new Error("Invalid notification cursor");
-    cursor = next;
-    if (!(batch.hasMore ?? batch.events.length === 100)) break;
-  }
-  if (device.value.notifications !== binding) return;
-  const fingerprint = await sessionFingerprint();
-  if (device.value.notifications !== binding) return;
-  if (fingerprint !== binding.session) {
-    await disableNotifications();
-    return;
-  }
-  if (events.length) {
-    const event = events[0];
-    const current = await sessionFingerprint();
-    if (device.value.notifications !== binding) return;
-    if (current !== binding.session) {
-      await disableNotifications();
-      return;
-    }
-    if (!binding.seen.includes(event.id)) {
-      const notification = new Notification({
-        title: String(event.title).slice(0, 120) + (events.length > 1 ? ` (${events.length})` : ""),
-        body: events.slice(0, 3).map((item) => String(item.body)).join("\n").slice(0, 300),
-        icon: path.join(resources, "favicon.png"),
-        silent: false,
-      });
-      notification.on("click", async () => {
-        try {
-          const current = await sessionFingerprint();
-          if (
-            device.value.notifications === binding &&
-            current === binding.session
-          ) {
-            await showWindow(
-              events.length > 1 ? "/" : event.path,
-              async () =>
-                device.value.notifications === binding &&
-                await sessionFingerprint() === binding.session,
-            );
-          }
-        } catch { /* 已过期通知的点击不切换当前账号页面。 */ }
-      });
-      notification.on("close", () => visibleNotifications.delete(notification));
-      visibleNotifications.add(notification);
-      await showNotification(notification);
-      if (device.value.notifications !== binding || await sessionFingerprint() !== binding.session) {
-        notification.close();
-        return;
-      }
-      for (const previous of visibleNotifications) if (previous !== notification) {
-        previous.close(); visibleNotifications.delete(previous);
-      }
+    } catch { /* 保存失败时保留编辑页，由现有保存状态反馈错误。 */
     }
   }
-  if (device.value.notifications !== binding) return;
-  if (cursor === binding.cursor && !events.length) return;
-  const previousCursor = binding.cursor, previousSeen = binding.seen;
-  binding.cursor = cursor;
-  binding.seen = [...ids].slice(-2048);
-  try { await device.save(); }
-  catch (error) { binding.cursor = previousCursor; binding.seen = previousSeen; throw error; }
 }
-/**
- * 等待系统确认展示；失败或超时保留游标，下轮可重新投递。
- * @param {Notification} notification 系统通知实例。
- * @return {Promise<void>} 系统已接受展示。
- */
-function showNotification(notification) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    /** @param {Error | undefined} error 展示失败原因。 */
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (error) {
-        visibleNotifications.delete(notification);
-        notification.close();
-        reject(error);
-      } else resolve();
-    };
-    const timer = setTimeout(
-      () => finish(new Error("Notification timed out")),
-      10000,
-    );
-    notification.once("show", () => finish());
-    notification.once("failed", () => finish(new Error("Notification failed")));
-    notification.once(
-      "close",
-      () => finish(new Error("Notification closed before display")),
-    );
-    try {
-      notification.show();
-    } catch (error) {
-      finish(error);
-    }
-  });
-}
+
 /**
  * 按本设备偏好后台下载，正常退出时安装；自动处理失败时恢复人工提示。
  */
@@ -725,37 +541,43 @@ function installUpdater() {
   autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed() || manualUpdateDownload;
   autoUpdater.allowPrerelease = false;
   autoUpdater.allowDowngrade = false;
-  autoUpdater.on("update-available", (release) => {
+  autoUpdater.on('update-available', (release) => {
     if (release.version !== update.version) {
       manualUpdateDownload = false;
       installCachedUpdateOnStart = false;
       delete device.value.autoUpdateReady;
     }
     const failed = recoveryReadFailed || device.value.failedUpdateVersion === release.version;
-    update = { status: failed ? "error" : "available", version: release.version, progress: 0 };
+    update = {status: failed ? 'error' : 'available', version: release.version, progress: 0};
     autoUpdater.autoDownload = autoUpdateAllowed(release.version);
     autoUpdater.autoInstallOnAppQuit = false;
     device.value.updateVersion = release.version;
-    void device.save().catch(() => { update.status = "error"; emitState(); });
+    void device.save().catch(() => {
+      update.status = 'error';
+      emitState();
+    });
     emitState();
   });
-  autoUpdater.on("update-not-available", () => {
-    update = { status: "current", version: undefined, progress: 0 };
+  autoUpdater.on('update-not-available', () => {
+    update = {status: 'current', version: undefined, progress: 0};
     manualUpdateDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
     delete device.value.autoUpdateReady;
     delete device.value.updateVersion;
-    void device.save().catch(() => { update.status = "error"; emitState(); });
+    void device.save().catch(() => {
+      update.status = 'error';
+      emitState();
+    });
     emitState();
   });
-  autoUpdater.on("download-progress", (progress) => {
-    update.status = "downloading";
+  autoUpdater.on('download-progress', (progress) => {
+    update.status = 'downloading';
     update.progress = progress.percent;
     emitState();
   });
-  autoUpdater.on("update-downloaded", async () => {
+  autoUpdater.on('update-downloaded', async () => {
     try {
-      update.status = "downloaded";
+      update.status = 'downloaded';
       update.progress = 100;
       autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed() || manualUpdateDownload;
       if (autoUpdateAllowed()) device.value.autoUpdateReady = update.version;
@@ -769,14 +591,17 @@ function installUpdater() {
       }
     } catch {
       quitting = false;
-      update.status = "error";
+      update.status = 'error';
       autoUpdater.autoInstallOnAppQuit = false;
       emitState();
     }
   });
-  autoUpdater.on("error", () => {
-    if (quitting) { quitting = false; stoppingUpdates = false; }
-    update.status = "error";
+  autoUpdater.on('error', () => {
+    if (quitting) {
+      quitting = false;
+      stoppingUpdates = false;
+    }
+    update.status = 'error';
     autoUpdater.autoInstallOnAppQuit = false;
     emitState();
   });
@@ -789,7 +614,7 @@ function installUpdater() {
  */
 function autoUpdateAllowed(version = update.version) {
   return device.value.autoUpdate !== false && !recoveryReadFailed &&
-    (!device.value.failedUpdateVersion || Boolean(version && device.value.failedUpdateVersion !== version));
+      (!device.value.failedUpdateVersion || Boolean(version && device.value.failedUpdateVersion !== version));
 }
 
 /**
@@ -799,13 +624,14 @@ function autoUpdateAllowed(version = update.version) {
  * @return {boolean} 是否仍待升级。
  */
 function newerVersion(candidate, installed) {
-  const left = candidate.split(".").map(Number),
-    right = installed.split(".").map(Number);
+  const left = candidate.split('.').map(Number),
+      right = installed.split('.').map(Number);
   for (let index = 0; index < 3; index++) {
     if (left[index] !== right[index]) return left[index] > right[index];
   }
   return false;
 }
+
 /**
  * 重新查询 GitHub Release，已下载的同版本交由下载器复用校验，新版本重新等待下载。
  * 传输期间合并检查，开发运行不执行安装版更新。
@@ -815,34 +641,35 @@ function checkUpdate() {
   if (stoppingUpdates) return Promise.resolve(info());
   checking ??= (async () => {
     if (!app.isPackaged) {
-      update.status = "development";
+      update.status = 'development';
       return info();
     }
-    if (update.status === "downloading") return info();
-    const downloadedVersion = update.status === "downloaded" ? update.version : undefined;
+    if (update.status === 'downloading') return info();
+    const downloadedVersion = update.status === 'downloaded' ? update.version : undefined;
     autoUpdater.autoInstallOnAppQuit = false;
-    update.status = "checking";
+    update.status = 'checking';
     emitState();
     try {
       const result = await autoUpdater.checkForUpdates();
       if (result?.isUpdateAvailable === true && !result.downloadPromise && !stoppingUpdates &&
-        downloadedVersion && downloadedVersion === result.updateInfo?.version &&
-        !recoveryReadFailed && device.value.failedUpdateVersion !== downloadedVersion) {
+          downloadedVersion && downloadedVersion === result.updateInfo?.version &&
+          !recoveryReadFailed && device.value.failedUpdateVersion !== downloadedVersion) {
         await downloadUpdate();
       } else if (result?.isUpdateAvailable === true && !result.downloadPromise && !stoppingUpdates && confirmedResumeDigest &&
-        !recoveryReadFailed && (!device.value.failedUpdateVersion || device.value.failedUpdateVersion !== result.updateInfo?.version) &&
-        result?.updateInfo?.files?.some(file => file.sha512 === confirmedResumeDigest)) {
+          !recoveryReadFailed && (!device.value.failedUpdateVersion || device.value.failedUpdateVersion !== result.updateInfo?.version) &&
+          result?.updateInfo?.files?.some(file => file.sha512 === confirmedResumeDigest)) {
         confirmedResumeDigest = undefined;
         manualUpdateDownload = true;
         autoUpdater.autoInstallOnAppQuit = true;
-        void downloadUpdate().catch(() => {});
+        void downloadUpdate().catch(() => {
+        });
       }
       if (result?.downloadPromise) {
         trackDownload(result.cancellationToken, result.downloadPromise);
         if (stoppingUpdates) result.cancellationToken.cancel();
       }
     } catch {
-      update.status = "error";
+      update.status = 'error';
       autoUpdater.autoInstallOnAppQuit = false;
       emitState();
     }
@@ -861,14 +688,18 @@ function checkUpdate() {
 function trackDownload(token, promise) {
   const transfer = {token, promise};
   updateTransfer = transfer;
-  void promise.catch(() => { update.status = "error"; emitState(); }).finally(() => {
+  void promise.catch(() => {
+    update.status = 'error';
+    emitState();
+  }).finally(() => {
     if (updateTransfer === transfer) updateTransfer = undefined;
   });
 }
+
 /** @return {Promise<unknown>} 可取消的手动下载完成结果。 */
 function downloadUpdate() {
-  if (stoppingUpdates) return Promise.reject(new Error("Application is closing"));
-  update.status = "downloading";
+  if (stoppingUpdates) return Promise.reject(new Error('Application is closing'));
+  update.status = 'downloading';
   const token = new CancellationToken();
   const promise = autoUpdater.downloadUpdate(token);
   trackDownload(token, promise);

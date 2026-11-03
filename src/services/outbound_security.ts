@@ -33,7 +33,10 @@ export type DnsRecordType = "A" | "AAAA";
 /**
  * DNS 解析函数。
  */
-export type DnsResolver = (hostname: string, recordType: DnsRecordType) => Promise<string[]>;
+export type DnsResolver = (
+  hostname: string,
+  recordType: DnsRecordType,
+) => Promise<string[]>;
 
 /**
  * DNS 解析结果校验选项。
@@ -114,7 +117,11 @@ export function validateHttpEndpoint(
     return blockedEndpoint(options.serviceLabel);
   }
 
-  return validateHost(parsed.hostname, options.allowedHosts, options.serviceLabel)
+  return validateHost(
+      parsed.hostname,
+      options.allowedHosts,
+      options.serviceLabel,
+    )
     ? { ok: true, value: parsed.toString() }
     : blockedEndpoint(options.serviceLabel);
 }
@@ -160,7 +167,10 @@ export async function validateResolvedOutboundHost(
     return blockedEndpoint(options.serviceLabel);
   }
 
-  if (options.allowedHosts.length > 0 || parseIpv4Address(host) || parseIpv6Address(host)) {
+  if (
+    options.allowedHosts.length > 0 || parseIpv4Address(host) ||
+    parseIpv6Address(host)
+  ) {
     return { ok: true, value: undefined };
   }
 
@@ -171,7 +181,9 @@ export async function validateResolvedOutboundHost(
     return blockedEndpoint(options.serviceLabel);
   }
 
-  return addresses.some((address) => isBlockedIpAddress(normalizeHost(address) ?? ""))
+  return addresses.some((address) =>
+      isBlockedIpAddress(normalizeHost(address) ?? "")
+    )
     ? blockedEndpoint(options.serviceLabel)
     : { ok: true, value: undefined };
 }
@@ -195,7 +207,9 @@ function validateHost(
   }
 
   if (allowedHosts.length > 0) {
-    return allowedHosts.some((allowedHost) => hostMatchesAllowedPattern(host, allowedHost));
+    return allowedHosts.some((allowedHost) =>
+      hostMatchesAllowedPattern(host, allowedHost)
+    );
   }
 
   if (isBlockedHostname(host) || isBlockedIpAddress(host)) {
@@ -242,7 +256,9 @@ function normalizeHost(value: string): string | undefined {
     : trimmed;
   const host = unwrapped.replace(/\.$/, "");
 
-  if (!host || host.includes("/") || host.includes("\\") || host.includes("@")) {
+  if (
+    !host || host.includes("/") || host.includes("\\") || host.includes("@")
+  ) {
     return undefined;
   }
 
@@ -276,7 +292,8 @@ function hostMatchesAllowedPattern(host: string, pattern: string): boolean {
  * @return {boolean} 主机名应被拒绝时返回 true。
  */
 function isBlockedHostname(host: string): boolean {
-  return blockedHostnames.has(host) || host.endsWith(".localhost") || host.endsWith(".local") ||
+  return blockedHostnames.has(host) || host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
     host.endsWith(".internal");
 }
 
@@ -329,7 +346,10 @@ function isBlockedIpAddress(host: string): boolean {
  * @param {DnsResolver} resolveDns DNS 解析函数。
  * @return {Promise<string[]>} 解析得到的 IP 地址列表。
  */
-async function resolveHostAddresses(host: string, resolveDns: DnsResolver): Promise<string[]> {
+async function resolveHostAddresses(
+  host: string,
+  resolveDns: DnsResolver,
+): Promise<string[]> {
   const [ipv4Addresses, ipv6Addresses] = await Promise.all([
     resolveDnsRecords(host, "A", resolveDns),
     resolveDnsRecords(host, "AAAA", resolveDns),
@@ -407,8 +427,12 @@ function parseIpv6Address(value: string): number[] | undefined {
     return undefined;
   }
 
-  const missingGroups = doubleColonParts.length === 2 ? 8 - left.length - right.length : 0;
-  if (missingGroups < 0 || (doubleColonParts.length === 1 && left.length !== 8)) {
+  const missingGroups = doubleColonParts.length === 2
+    ? 8 - left.length - right.length
+    : 0;
+  if (
+    missingGroups < 0 || (doubleColonParts.length === 1 && left.length !== 8)
+  ) {
     return undefined;
   }
 
@@ -484,13 +508,15 @@ function isBlockedIpv4Address(bytes: number[]): boolean {
  */
 function isBlockedIpv6Address(bytes: number[]): boolean {
   const isUnspecified = bytes.every((byte) => byte === 0);
-  const isLoopback = bytes.slice(0, 15).every((byte) => byte === 0) && bytes[15] === 1;
+  const isLoopback = bytes.slice(0, 15).every((byte) => byte === 0) &&
+    bytes[15] === 1;
   const isUniqueLocal = (bytes[0] & 0xfe) === 0xfc;
   const isLinkLocal = bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80;
   const isMulticast = bytes[0] === 0xff;
   const ipv4Mapped = ipv4FromMappedIpv6(bytes);
 
-  return isUnspecified || isLoopback || isUniqueLocal || isLinkLocal || isMulticast ||
+  return isUnspecified || isLoopback || isUniqueLocal || isLinkLocal ||
+    isMulticast ||
     Boolean(ipv4Mapped && isBlockedIpv4Address(ipv4Mapped));
 }
 
@@ -513,7 +539,9 @@ function ipv4FromMappedIpv6(bytes: number[]): number[] | undefined {
  * @param {string} serviceLabel 当前通知服务标签。
  * @return {OutboundValidationResult<never>} 出站目标被拒绝的校验结果。
  */
-function blockedEndpoint(serviceLabel: string): OutboundValidationResult<never> {
+function blockedEndpoint(
+  serviceLabel: string,
+): OutboundValidationResult<never> {
   return {
     message: `${serviceLabel} is not allowed for security reasons.`,
     ok: false,

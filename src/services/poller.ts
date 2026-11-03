@@ -40,7 +40,11 @@ type PollNotifier = {
    * @param {string | undefined} userId 所属账号。
    * @return {ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>} 投递结果。
    */
-  sendService?(notification: ServiceNotification, settings: AppSettings, userId?: string): ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>;
+  sendService?(
+    notification: ServiceNotification,
+    settings: AppSettings,
+    userId?: string,
+  ): ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>;
   /**
    * 发送新命中，并使用所属账号选择应用通知设备。
    * @param {MatchRecord[]} records 新命中。
@@ -48,7 +52,11 @@ type PollNotifier = {
    * @param {string | undefined} userId 账号 ID。
    * @return {ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>} 投递结果。
    */
-  sendMatches(records: MatchRecord[], settings: AppSettings, userId?: string): ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>;
+  sendMatches(
+    records: MatchRecord[],
+    settings: AppSettings,
+    userId?: string,
+  ): ReturnType<ReturnType<typeof createNotifier>["sendMatches"]>;
 };
 
 type PollerDependencies = {
@@ -66,7 +74,8 @@ type PollerDependencies = {
  * @return {object} 支持正式轮询和模拟记录的轮询器。
  */
 export function createPoller(
-  { matcher, notifier, source, storage, ai = createAiMatcher() }: PollerDependencies,
+  { matcher, notifier, source, storage, ai = createAiMatcher() }:
+    PollerDependencies,
 ) {
   return {
     /**
@@ -98,7 +107,11 @@ export function createPoller(
       runSettings?: AppSettings,
     ): Promise<void> {
       const base = runSettings ?? await runStorage.getSettings();
-      const settings = runSettings ?? {...base, polling: resolvePolling(base.polling).polling as PollingSettings};
+      const settings = runSettings ??
+        {
+          ...base,
+          polling: resolvePolling(base.polling).polling as PollingSettings,
+        };
       const enabledTopics = settings.topics.filter((topic) =>
         topic.enabled && topic.id.trim()
       );
@@ -113,18 +126,28 @@ export function createPoller(
       try {
         if (runStorage.matching) {
           cached = await startMatchingRun(
-            settings, runStorage.matching, matching, source, ai,
+            settings,
+            runStorage.matching,
+            matching,
+            source,
+            ai,
             Date.now,
             async (id) => {
               if (!notifier.sendService) return false;
-              const { aiFailureNotification } = await import("./service_notification.ts");
+              const { aiFailureNotification } = await import(
+                "./service_notification.ts"
+              );
               return (await notifier.sendService(
-                aiFailureNotification(id, settings), settings, runStorage.userId,
+                aiFailureNotification(id, settings),
+                settings,
+                runStorage.userId,
               )).sent;
             },
           );
           if (!cached) return;
-        } else if (normalizeMatchingSettings(settings.matching).mode !== "rules") {
+        } else if (
+          normalizeMatchingSettings(settings.matching).mode !== "rules"
+        ) {
           throw new Error("AI matching requires persistent cache storage");
         }
         for (const topic of enabledTopics) {
@@ -178,8 +201,9 @@ export function createPoller(
             const result: MatchResult = match;
             const record: MatchRecord = {
               detailRefreshedAt: runAt,
-              id:
-                `${topic.id}:${detailedPost.id}:${result.kind === "ai" ? "ai" : match.keyword}:${match.location}`,
+              id: `${topic.id}:${detailedPost.id}:${
+                result.kind === "ai" ? "ai" : match.keyword
+              }:${match.location}`,
               ...match,
               kind: result.kind ?? "keyword",
               matchedAt: runAt,
@@ -208,7 +232,9 @@ export function createPoller(
         } finally {
           // 帖子查询和记录保存已经完成时，即使通知失败也要推进轮询倒计时。
           try {
-            await cached?.completeNotifications(hasFallback ? matchesSent : undefined);
+            await cached?.completeNotifications(
+              hasFallback ? matchesSent : undefined,
+            );
           } finally {
             await runStorage.setLastPollAt(new Date().toISOString());
           }
@@ -262,7 +288,10 @@ async function saveMatchRecord(
  * @return {Promise<boolean>} 是否至少一个通道受理命中通知。
  */
 async function notifyMatchedRecords(
-  storage: Pick<PollStorage, "markMatchNotified" | "userId" | "notificationOutbox">,
+  storage: Pick<
+    PollStorage,
+    "markMatchNotified" | "userId" | "notificationOutbox"
+  >,
   notifier: PollNotifier,
   records: MatchRecord[],
   settings: AppSettings,

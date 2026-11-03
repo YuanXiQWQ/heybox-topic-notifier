@@ -77,7 +77,10 @@ export function localeFromRequest(
   request: Request,
   fallback: Locale = "zh-CN",
 ): Locale {
-  const manual = devicePreferenceCookie(request.headers.get("cookie"), "locale");
+  const manual = devicePreferenceCookie(
+    request.headers.get("cookie"),
+    "locale",
+  );
   if (isLocale(manual)) return manual;
   const url = new URL(request.url);
   const queryLocale = supportedLocaleFromLanguageTag(

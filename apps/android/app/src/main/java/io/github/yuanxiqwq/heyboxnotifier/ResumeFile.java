@@ -60,9 +60,7 @@ final class ResumeFile {
                 while (remaining > 0) { int length = input.read(bytes,0,(int)Math.min(bytes.length,remaining)); if (length < 0) throw new SecurityException("Truncated prefix"); copy.update(bytes,0,length); remaining -= length; }
             }
         }
-        StringBuilder value = new StringBuilder();
-        for (byte part : copy.digest()) value.append(String.format(java.util.Locale.ROOT,"%02x",part & 255));
-        return value.toString();
+        return DigestHex.encode(copy.digest());
     }
     /** @param {FileOutputStream} output 安装包输出流。 @throws Exception 数据或检查点无法持久化。 */
     void checkpoint(FileOutputStream output) throws Exception {

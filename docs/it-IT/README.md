@@ -1,20 +1,15 @@
 # Notificatore di argomenti Heybox
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
-[![Deno](https://img.shields.io/badge/Deno-2.x-000?logo=deno&logoColor=white)](https://deno.com/)
-[![Production](https://img.shields.io/badge/Production-online-brightgreen)](https://heybox-topic-notifier.yuanxiqwq.deno.net/)
-[![Dev](https://img.shields.io/badge/Dev-preview-blue)](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
 
 | [简体中文](../../README.md) | **Italiano** |
 |:-----------------------:|:------------:|
 
----
+[Web](https://heybox.yuanxiqwq.top/) · [Windows x64](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-windows-x64-setup.exe) · [Android APK](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-android-universal.apk)
 
-<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
-è una leggera app Deno per monitorare i post degli argomenti Heybox. Legge periodicamente post reali
-degli argomenti in base alle impostazioni di ciascun account, controlla titoli, corpi, commenti e risposte
-rispetto alle regole di parole chiave, registra le corrispondenze nelle viste in sospeso e cronologia,
-e invia notifiche tramite il canale configurato.
+Aggiungi un argomento Heybox nelle impostazioni, scegli parole chiave, espressioni regolari o filtri IA e attiva il controllo periodico. Puoi spostare i risultati nella cronologia e riportarli nell’area di lavoro.
+
+Per creare un account serve un codice di invito. Le notifiche dell’app si attivano per dispositivo e possono affiancare email o webhook. Le modifiche offline si sincronizzano alla riconnessione. Lingua e modalità scura seguono inizialmente il dispositivo.
 
 ## Funzionalità
 
@@ -27,69 +22,23 @@ e invia notifiche tramite il canale configurato.
   aggiornamento della password; i dati dell’account sono isolati per ID utente
 - Regole di parole chiave: supporto per regole condivise, regole specifiche per argomento, posizioni di
   corrispondenza, distinzione tra maiuscole e minuscole ed espressioni regolari
-- Tabelle delle corrispondenze: i record in sospeso e quelli della cronologia supportano entrambi filtri
-  per intervallo temporale, paginazione, completamento in batch e azioni di eliminazione
-- Voci di debug: corrispondenze simulate e test di notifica, con limiti di frequenza lato server per
-  polling manuale e operazioni di debug
+- Impostazioni → Impostazioni notifiche → Prova notifica
 - Canali di notifica: Webhook personalizzato, ServerChan, PushPlus, WxPusher, email API e SMTP
 - Relay delle notifiche: relay Cloudflare Worker opzionale per PushPlus, WxPusher e ServerChan
-- Sicurezza: hash delle password PBKDF2, sessioni basate su KV, token CSRF, header di sicurezza,
-  log di audit e allowlist in uscita con validazione DNS
-
-## Stack
-
-- Deno 2 + TypeScript
-- Hono
-- Deno KV
-- Deno.cron + scheduler timer locale
-- HTML renderizzato lato server + JavaScript/CSS vanilla
-- Script Cloudflare Workers per il relay delle notifiche
 
 ## Sviluppo locale
 
-Avvia il server di sviluppo:
-
-```powershell
+```sh
 deno task dev
 ```
 
-Poi apri:
-
-```text
-http://localhost:8000
-```
-
-Per sovrascrivere i valori predefiniti, usa `.env.example` come riferimento e imposta le variabili
-d’ambiente corrispondenti nel tuo ambiente di runtime. Registra un account alla prima visita; le variabili
-d’ambiente inizializzano solo i valori predefiniti per nuovi account o dati predefiniti, dopodiché la
-pagina delle impostazioni di ciascun account diventa la fonte di verità.
-
-L’app fornisce pagine di registrazione e accesso. Ogni account ha impostazioni, cronologia delle
-corrispondenze, stato di polling e configurazione delle notifiche isolati, quindi gli utenti che condividono
-lo stesso URL di deployment non condividono dati. Le password utente sono memorizzate in Deno KV come hash
-PBKDF2 con salt, non in chiaro. Le sessioni di accesso sono memorizzate in Deno KV e il cookie del browser
-contiene solo un token di sessione casuale. Le modifiche a impostazioni, account e debug convalidano un
-token CSRF, e le operazioni sensibili sono soggette a limiti di frequenza nei deployment pubblici.
-
-## Comandi
-
-```powershell
-deno task dev
-deno task start
-deno task check
-deno task clear-seen
-```
-
-`clear-seen` elimina i marker dei post elaborati, così gli stessi post possono essere verificati di nuovo;
-usalo con cautela in produzione.
+[localhost:8000](http://localhost:8000) · [`.env.example`](../../.env.example) · `deno task check`
 
 ## Deployment
 
-Vedi [deployment](./deployment.md) per la configurazione di Deno Deploy. L’entrypoint dell’app è definito
-dalla sezione `deploy` in `deno.json`; GitHub Actions esegue solo i controlli e non effettua il deployment
-dell’app. L’entrypoint di deployment in `src/deploy.ts` dichiara il Cron di Deno Deploy, e il polling reale
-viene eseguito solo su Production e sulla timeline del Git Branch `dev`. Vedi [worker](./worker.md) per la
-configurazione del Worker di relay delle notifiche.
+Il servizio Deno è ospitato su Oracle Cloud e usa Caddy per HTTPS. Turso conserva account, sessioni e risultati. GitHub Actions crea i pacchetti di installazione per Windows e Android dai tag di rilascio.
+
+[Installazione sul proprio server](./deployment.md) · [Cloudflare Worker](./worker.md)
 
 ## Licenza
 

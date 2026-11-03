@@ -16,7 +16,7 @@ SendKey ที่ปลอดภัย และสร้าง official address
 2. วางเนื้อหาของ `workers/notification-relay.js` ลงใน Worker editor หรือ deploy script นี้ด้วย Wrangler
 3. เพิ่ม `RELAY_TOKEN` ใน variables/secrets ของ Worker โดยใช้ค่าเป็น random secret ที่ยาว
 4. หลัง deploy แล้ว ให้เข้าถึง `https://<your-worker>.workers.dev/healthz` และยืนยันว่าคืนค่า `{"status":"ok"}`
-5. ตั้งค่า Deno Deploy:
+5. `/etc/heybox-topic-notifier/heybox.env`
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus

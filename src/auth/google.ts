@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供 Google ID token 配置读取和服务端验签能力。
  */
+import { base64UrlDecode } from "../security/crypto_utils.ts";
 
 /**
  * Google OpenID Connect JWKS 默认地址。
@@ -158,7 +159,7 @@ export async function verifyGoogleIdToken(
   const verified = await crypto.subtle.verify(
     "RSASSA-PKCS1-v1_5",
     key,
-    arrayBufferFromBytes(base64UrlDecodeToBytes(parts[2])),
+    base64UrlDecode(parts[2]),
     new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
   );
   if (!verified) {
@@ -268,40 +269,9 @@ function normalizeGoogleEmailVerified(
 function decodeJwtJson<T>(segment: string): T {
   try {
     return JSON.parse(
-      new TextDecoder().decode(base64UrlDecodeToBytes(segment)),
+      new TextDecoder().decode(base64UrlDecode(segment)),
     ) as T;
   } catch {
     throw new GoogleIdTokenVerificationError("Invalid Google ID token JSON.");
   }
-}
-
-/**
- * 将 Base64URL 字符串解码为字节数组。
- *
- * @param value Base64URL 字符串。
- * @return 解码后的字节数组。
- */
-function base64UrlDecodeToBytes(value: string): Uint8Array {
-  const base64 = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(
-    Math.ceil(value.length / 4) * 4,
-    "=",
-  );
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-/**
- * 将字节数组复制为 ArrayBuffer。
- *
- * @param value 字节数组。
- * @return 独立 ArrayBuffer。
- */
-function arrayBufferFromBytes(value: Uint8Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(value.byteLength);
-  new Uint8Array(buffer).set(value);
-  return buffer;
 }

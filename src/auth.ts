@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供登录、注册、会话读取和认证中间件。
  */
+import { isRecord, passkeyChallengeMaxAttempts, passkeyJsonPayload, passkeyOptionsResponse, recordPasskeyChallengeFailure } from "./auth/passkey_request.ts";
 import { normalizeInvitation, secretDigest } from "./auth/roles.ts";
 import type { AccountCreation } from "./storage/administration_types.ts";
 import { Hono } from "@hono/hono";
@@ -16,7 +17,6 @@ import type {
   EmailVerificationPurpose,
   PasskeyChallengePurpose,
   PasskeyCredential,
-  PasswordCredential,
   PendingEmailVerification,
   PendingMfaChallenge,
   PendingPasskeyChallenge,
@@ -36,10 +36,9 @@ import {
   withCsrfCookie,
 } from "./security/csrf.ts";
 import { auditText, logSecurityAuditEvent } from "./security/audit_log.ts";
-import {
-  base64UrlEncode,
-  constantTimeEquals,
-} from "./security/crypto_utils.ts";
+import { base64UrlEncode } from "./security/crypto_utils.ts";
+import { hashPassword, passwordCredentialFromAccount, verifyAccountPassword } from "./auth/password.ts";
+import { normalizeUsername, validAccountName } from "./auth/account_names.ts";
 import {
   clientRateLimitIdentifier,
   publicRateLimitPolicies,
@@ -91,7 +90,7 @@ import {
 import {
   type TotpConfig,
   TotpConfigError,
-  verifyEncryptedTotpCode,
+  verifyTotpCodeAgainstCredentials,
 } from "./auth/totp.ts";
 import {
   RecoveryCodeConfigError,
@@ -99,7 +98,6 @@ import {
 } from "./auth/recovery_codes.ts";
 import {
   createPasskeyAuthenticationOptions,
-  type PasskeyAuthenticationOptionsResult,
   type PasskeyConfig,
   passkeyConfigFromEnv,
   passkeyCredentialAfterAuthentication,
@@ -114,9 +112,6 @@ import {
   MfaConfigurationError,
   nextMfaChallengeAttempt,
 } from "./auth/mfa.ts";
-
-export { readAuthSession } from "./auth/session.ts";
-export type { AuthSession } from "./auth/session.ts";
 
 /**
  * Passkey 认证响应校验函数。
@@ -246,10 +241,6 @@ const defaultLoginLockoutSeconds = 60 * 15;
  */
 const defaultMaxLoginFailures = 5;
 /**
- * 密码 PBKDF2 迭代次数。
- */
-const passwordIterations = 210_000;
-/**
  * 标记认证页语言已被用户显式切换的查询参数。
  */
 const authLocaleChangedParam = "localeChanged";
@@ -298,10 +289,6 @@ const passkeyMfaPath = "/auth/passkeys/mfa";
  */
 const mfaPath = "/mfa";
 /**
- * Passkey challenge 最大校验失败次数。
- */
-const passkeyChallengeMaxAttempts = 5;
-/**
  * ALTCHA 载荷的重放保护窗口（毫秒）。
  */
 const altchaReplayWindowMs = 10 * 60 * 1000;
@@ -337,7 +324,12 @@ export function createAuthMiddleware(
     }
 
     const loginUrl = new URL(config.loginPath, url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     loginUrl.searchParams.set("locale", locale);
     if (c.req.method === "GET") {
       loginUrl.searchParams.set("returnTo", pathWithSearch(url));
@@ -362,7 +354,12 @@ export function createAuthRoutes(
 
   app.get(config.loginPath, (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
@@ -406,7 +403,12 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url);
     if (String(form.authMethod ?? "password") === "email") {
       return await handleEmailLogin(c, storage, config, form, {
@@ -549,7 +551,12 @@ export function createAuthRoutes(
 
   app.get(config.registerPath, (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
@@ -587,7 +594,12 @@ export function createAuthRoutes(
     ) {
       return csrfForbiddenResponse(c.req.raw);
     }
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url);
     const username = normalizeUsername(String(form.username ?? ""));
     const displayName = username;
@@ -648,11 +660,20 @@ export function createAuthRoutes(
       ...(await hashPassword(password)),
     };
 
-    const invitationResult = await storage.administration?.register({ account, password: passwordCredentialFromAccount(account) }, await secretDigest(normalizeInvitation(String(form.invitationCode ?? ""))));
+    const invitationResult = await storage.administration?.register(
+      { account, password: passwordCredentialFromAccount(account) },
+      await secretDigest(
+        normalizeInvitation(String(form.invitationCode ?? "")),
+      ),
+    );
     if (invitationResult !== "ok") {
       return c.redirect(
         authPagePath(config.registerPath, locale, {
-          error: invitationResult === "conflict" && await storage.getAccountByUsername(username) ? "exists" : "invitation",
+          error:
+            invitationResult === "conflict" &&
+              await storage.getAccountByUsername(username)
+              ? "exists"
+              : "invitation",
           [authLocaleChangedParam]: syncLocale
             ? authLocaleChangedValue
             : undefined,
@@ -671,21 +692,77 @@ export function createAuthRoutes(
   });
 
   /** @param {Context} c 注册提交。 @return {Promise<Response>} 邀请核销后的登录结果。 */
-  app.post("/register/invitation", bodyLimit({ maxSize: 16_384, onError: (c) => c.text(getMessages(localeFromRequest(c.req.raw)).adminInputInvalid, 413) }), async (c) => {
-    c.header("cache-control", "no-store");
-    const form = await c.req.parseBody();
-    if (!verifyCsrfToken(c.req.header("cookie"), form.csrfToken)) return csrfForbiddenResponse(c.req.raw);
-    const limited = await rateLimitExceededResponseFor(storage, publicRateLimitPolicies.registration, clientRateLimitIdentifier((name) => c.req.header(name)), { request: c.req.raw });
-    if (limited) return limited;
-    const pending = String(form.pending ?? ""), id = await secretDigest(pending);
-    const record = await storage.administration?.getTemporary(id);
-    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config, c.req.header("cookie"));
-    const messages = getMessages(locale);
-    if (!record?.creation || record.binding !== await secretDigest(String(form.csrfToken))) return c.redirect("/login",303);
-    const result = await storage.administration!.register(record.creation, await secretDigest(normalizeInvitation(String(form.invitationCode ?? ""))), id);
-    if (result !== "ok") return c.html(renderAuthPage({ action: "/register/invitation", csrfToken: String(form.csrfToken), error: messages.invitationInvalid, heading: messages.authRegister, locale, messages, mode: "register", pendingRegistration: pending, returnTo: record.returnTo ?? "/", submitLabel: messages.authCreateAccount, syncLocale: false }),400);
-    return await redirectWithSession(c.req.url, safeReturnTo(record.returnTo ?? null), record.creation.account, storage, config);
-  });
+  app.post(
+    "/register/invitation",
+    bodyLimit({
+      maxSize: 16_384,
+      onError: (c) =>
+        c.text(
+          getMessages(localeFromRequest(c.req.raw)).adminInputInvalid,
+          413,
+        ),
+    }),
+    async (c) => {
+      c.header("cache-control", "no-store");
+      const form = await c.req.parseBody();
+      if (
+        !verifyCsrfToken(c.req.header("cookie"), form.csrfToken)
+      ) return csrfForbiddenResponse(c.req.raw);
+      const limited = await rateLimitExceededResponseFor(
+        storage,
+        publicRateLimitPolicies.registration,
+        clientRateLimitIdentifier((name) => c.req.header(name)),
+        { request: c.req.raw },
+      );
+      if (limited) return limited;
+      const pending = String(form.pending ?? ""),
+        id = await secretDigest(pending);
+      const record = await storage.administration?.getTemporary(id);
+      const locale = authPageLocale(
+        new URL(c.req.url),
+        c.req.header("accept-language"),
+        config,
+        c.req.header("cookie"),
+      );
+      const messages = getMessages(locale);
+      if (
+        !record?.creation ||
+        record.binding !== await secretDigest(String(form.csrfToken))
+      ) return c.redirect("/login", 303);
+      const result = await storage.administration!.register(
+        record.creation,
+        await secretDigest(
+          normalizeInvitation(String(form.invitationCode ?? "")),
+        ),
+        id,
+      );
+      if (result !== "ok") {
+        return c.html(
+          renderAuthPage({
+            action: "/register/invitation",
+            csrfToken: String(form.csrfToken),
+            error: messages.invitationInvalid,
+            heading: messages.authRegister,
+            locale,
+            messages,
+            mode: "register",
+            pendingRegistration: pending,
+            returnTo: record.returnTo ?? "/",
+            submitLabel: messages.authCreateAccount,
+            syncLocale: false,
+          }),
+          400,
+        );
+      }
+      return await redirectWithSession(
+        c.req.url,
+        safeReturnTo(record.returnTo ?? null),
+        record.creation.account,
+        storage,
+        config,
+      );
+    },
+  );
 
   app.post(emailVerificationPath, async (c) => {
     const url = new URL(c.req.url);
@@ -699,7 +776,12 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const email = normalizeEmailAddress(String(form.email ?? ""));
     const purpose = emailVerificationPurposeFromForm(form);
     if (!email || !purpose) {
@@ -909,7 +991,7 @@ export function createAuthRoutes(
     });
     await storage.savePendingPasskeyChallenge(authentication.challenge);
 
-    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+    return c.json(passkeyOptionsResponse(authentication));
   });
 
   app.post(passkeyLoginPath, async (c) => {
@@ -936,7 +1018,12 @@ export function createAuthRoutes(
       return rateLimitResponse;
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url) ||
       String(payload[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
     return await handlePasskeyLogin(c, storage, config, payload, {
@@ -999,7 +1086,7 @@ export function createAuthRoutes(
     });
     await storage.savePendingPasskeyChallenge(authentication.challenge);
 
-    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+    return c.json(passkeyOptionsResponse(authentication));
   });
 
   app.post(passkeyMfaPath, async (c) => {
@@ -1024,7 +1111,12 @@ export function createAuthRoutes(
       return rateLimitResponse;
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     return await handlePasskeySecondFactor(
       c,
       storage,
@@ -1047,7 +1139,12 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url) ||
       String(form[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
@@ -1113,7 +1210,12 @@ export function createAuthRoutes(
 
   app.get(mfaPath, async (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const messages = getMessages(locale);
     const returnTo = safeReturnTo(url.searchParams.get("returnTo"));
     const challenge = await getRenderableMfaChallenge(
@@ -1171,7 +1273,12 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
     const challengeId = String(form.challengeId ?? "").trim();
     const method = secondFactorMethodFromForm(form.method);
@@ -1608,10 +1715,35 @@ async function handleGoogleCredentialLogin(
 
   const knownIdentity = await storage.getAuthIdentity("google", claims.sub);
   if (!knownIdentity || !(await storage.getAccountById(knownIdentity.userId))) {
-    const now = new Date().toISOString(), account = googleAccountFromClaims(claims, now, 0);
-    for (let attempt=1; await storage.getAccountByUsername(account.username); attempt++) account.username = googleUsernameCandidate(claims, attempt);
+    const now = new Date().toISOString(),
+      account = googleAccountFromClaims(claims, now, 0);
+    for (
+      let attempt = 1;
+      await storage.getAccountByUsername(account.username);
+      attempt++
+    ) account.username = googleUsernameCandidate(claims, attempt);
     const email = verifiedGoogleEmail(claims);
-    return await beginInvitationRegistration(c, storage, config, { account, identity: { provider: "google", providerUserId: claims.sub, userId: account.id, createdAt: now, ...(email ? { email, emailVerified: true } : {}) }, ...(email ? { email: { userId: account.id, email, verified: true, createdAt: now, lastVerifiedAt: now } } : {}) }, options);
+    return await beginInvitationRegistration(c, storage, config, {
+      account,
+      identity: {
+        provider: "google",
+        providerUserId: claims.sub,
+        userId: account.id,
+        createdAt: now,
+        ...(email ? { email, emailVerified: true } : {}),
+      },
+      ...(email
+        ? {
+          email: {
+            userId: account.id,
+            email,
+            verified: true,
+            createdAt: now,
+            lastVerifiedAt: now,
+          },
+        }
+        : {}),
+    }, options);
   }
   const result = await findGoogleAccount(storage, claims);
 
@@ -1958,7 +2090,7 @@ function googleUsernameCandidate(
   }
 
   const base = googleUsernameBase(claims);
-  if (attempt === 0 && validUsername(base)) {
+  if (attempt === 0 && validAccountName(base)) {
     return base;
   }
 
@@ -1982,7 +2114,7 @@ function googleUsernameBase(claims: GoogleIdentityClaims): string {
     .replaceAll(/[^a-z0-9_-]+/g, "-")
     .replaceAll(/^-+|-+$/g, "")
     .slice(0, 32);
-  return validUsername(normalized) ? normalized : "google-user";
+  return validAccountName(normalized) ? normalized : "google-user";
 }
 
 /**
@@ -2124,9 +2256,29 @@ async function handleEmailLogin(
   if (!existingEmailAccount) {
     await storage.deletePendingEmailVerification(activeVerification.id);
     const now = new Date().toISOString();
-    const account: UserAccount = { authVersion: 2, id: crypto.randomUUID(), username: emailLoginUsernameCandidate(email, 0), primaryEmail: email, emailVerified: true, createdAt: now };
-    for (let attempt=1; await storage.getAccountByUsername(account.username); attempt++) account.username = emailLoginUsernameCandidate(email, attempt);
-    return await beginInvitationRegistration(c, storage, config, { account, email: { userId: account.id, email, verified: true, createdAt: now, lastVerifiedAt: now } }, options);
+    const account: UserAccount = {
+      authVersion: 2,
+      id: crypto.randomUUID(),
+      username: emailLoginUsernameCandidate(email, 0),
+      primaryEmail: email,
+      emailVerified: true,
+      createdAt: now,
+    };
+    for (
+      let attempt = 1;
+      await storage.getAccountByUsername(account.username);
+      attempt++
+    ) account.username = emailLoginUsernameCandidate(email, attempt);
+    return await beginInvitationRegistration(c, storage, config, {
+      account,
+      email: {
+        userId: account.id,
+        email,
+        verified: true,
+        createdAt: now,
+        lastVerifiedAt: now,
+      },
+    }, options);
   }
   const account = existingEmailAccount;
   const verifiedAccount = await ensureEmailLoginCredential(
@@ -2135,7 +2287,6 @@ async function handleEmailLogin(
     email,
   );
   await storage.deletePendingEmailVerification(activeVerification.id);
-
 
   logSecurityAuditEvent({
     code: "email_login_succeeded",
@@ -2528,30 +2679,6 @@ async function handleRecoveryCodeSecondFactor(
     storage,
     config,
   );
-}
-
-/**
- * 使用任一已绑定验证器校验动态码。
- *
- * @param {string} code 用户提交的动态码。
- * @param {readonly TotpCredential[]} credentials 已绑定验证器凭证。
- * @param {TotpConfig} config 验证器动态码配置。
- * @return {Promise<boolean>} 任一验证器校验成功时返回 true。
- */
-async function verifyTotpCodeAgainstCredentials(
-  code: string,
-  credentials: readonly TotpCredential[],
-  config: TotpConfig,
-): Promise<boolean> {
-  for (const credential of credentials) {
-    if (
-      credential.secretEncrypted &&
-      await verifyEncryptedTotpCode(code, credential.secretEncrypted, config)
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**
@@ -2989,7 +3116,7 @@ async function ensureEmailLoginCredential(
  */
 function emailLoginUsernameCandidate(email: string, attempt: number): string {
   const base = emailUsernameBase(email);
-  if (attempt === 0 && validUsername(base)) {
+  if (attempt === 0 && validAccountName(base)) {
     return base;
   }
 
@@ -3013,7 +3140,7 @@ function emailUsernameBase(email: string): string {
     .replaceAll(/[^a-z0-9_-]+/g, "-")
     .replaceAll(/^-+|-+$/g, "")
     .slice(0, 32);
-  return validUsername(normalized) ? normalized : "email-user";
+  return validAccountName(normalized) ? normalized : "email-user";
 }
 
 /**
@@ -3040,38 +3167,6 @@ function emailLoginErrorRedirect(
 }
 
 /**
- * 生成 Passkey 登录 options 接口响应。
- *
- * @param authentication Passkey 认证 options 结果。
- * @return 可序列化响应体。
- */
-function passkeyAuthenticationOptionsResponse(
-  authentication: PasskeyAuthenticationOptionsResult,
-) {
-  return {
-    challengeId: authentication.challenge.id,
-    optionsJSON: authentication.optionsJSON,
-  };
-}
-
-/**
- * 读取 JSON 请求体。
- *
- * @param c Hono 请求上下文。
- * @return JSON 对象，请求体无效时返回空对象。
- */
-async function passkeyJsonPayload(
-  c: Context,
-): Promise<Record<string, unknown>> {
-  try {
-    const payload = await c.req.json();
-    return isRecord(payload) ? payload : {};
-  } catch {
-    return {};
-  }
-}
-
-/**
  * 从 JSON 请求体或请求头中读取 CSRF 令牌。
  *
  * @param payload JSON 请求体。
@@ -3086,16 +3181,6 @@ function submittedJsonCsrfToken(
     payload as Record<string, FormDataEntryValue | FormDataEntryValue[]>,
     headerToken,
   );
-}
-
-/**
- * 判断值是否为普通对象。
- *
- * @param value 待判断值。
- * @return 值为普通对象时返回 true。
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -3137,27 +3222,6 @@ function passkeyAuthenticationChallengeError(
       !challenge.allowedCredentialIds.includes(credentialId)
     ? "challenge"
     : undefined;
-}
-
-/**
- * 记录一次 Passkey challenge 失败尝试。
- *
- * @param storage 应用存储。
- * @param challenge 待更新 challenge。
- * @return 更新完成后的 Promise。
- */
-async function recordPasskeyChallengeFailure(
-  storage: Storage,
-  challenge: PendingPasskeyChallenge,
-): Promise<"attempts" | undefined> {
-  const attempts = Math.max(0, challenge.attempts) + 1;
-  if (attempts >= passkeyChallengeMaxAttempts) {
-    await storage.deletePendingPasskeyChallenge(challenge.id);
-    return "attempts";
-  }
-
-  await storage.savePendingPasskeyChallenge({ ...challenge, attempts });
-  return undefined;
 }
 
 /**
@@ -3530,233 +3594,6 @@ function maskedEmailAddress(email: string): string {
 }
 
 /**
- * 对密码进行加盐哈希。
- *
- * @param password 原始密码。
- * @return 密码哈希、盐和迭代次数。
- */
-export async function hashPassword(
-  password: string,
-): Promise<
-  Pick<
-    PasswordCredential,
-    "passwordHash" | "passwordIterations" | "passwordSalt"
-  >
-> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const hash = await derivePasswordHash(password, salt, passwordIterations);
-
-  return {
-    passwordHash: base64UrlEncode(hash),
-    passwordIterations,
-    passwordSalt: base64UrlEncode(salt),
-  };
-}
-
-/**
- * 校验账号密码，必要时将旧账号密码字段迁移到独立凭证。
- *
- * @param password 原始密码。
- * @param account 用户账号。
- * @param storage 应用存储。
- * @return 密码匹配时返回 true。
- */
-export async function verifyAccountPassword(
-  password: string,
-  account: UserAccount,
-  storage: Storage,
-): Promise<boolean> {
-  if (await verifyPassword(password, account)) {
-    await ensureAccountPasswordCredential(account, storage);
-    return true;
-  }
-
-  if (hasLegacyPasswordFields(account)) {
-    return false;
-  }
-
-  const credential = await storage.getPasswordCredential(account.id);
-  return credential ? await verifyPassword(password, credential) : false;
-}
-
-/**
- * 将账号上的密码字段保存为独立密码凭证。
- *
- * @param account 用户账号。
- * @param storage 应用存储。
- * @return 保存完成后的 Promise。
- */
-export async function saveAccountPasswordCredential(
-  account: UserAccount,
-  storage: Storage,
-): Promise<void> {
-  const credential = passwordCredentialFromAccount(account);
-  if (!credential) {
-    return;
-  }
-
-  await storage.savePasswordCredential(credential);
-}
-
-/**
- * 校验密码是否匹配账号密码哈希。
- *
- * @param password 原始密码。
- * @param credential 密码哈希字段。
- * @return 密码字段存在且匹配时返回 true。
- */
-export async function verifyPassword(
-  password: string,
-  credential: Partial<
-    Pick<
-      PasswordCredential,
-      "passwordHash" | "passwordIterations" | "passwordSalt"
-    >
-  >,
-): Promise<boolean> {
-  if (
-    !credential.passwordHash ||
-    !credential.passwordSalt ||
-    !credential.passwordIterations
-  ) {
-    return false;
-  }
-
-  const hash = await derivePasswordHash(
-    password,
-    base64UrlDecode(credential.passwordSalt),
-    credential.passwordIterations,
-  );
-  return constantTimeEquals(base64UrlEncode(hash), credential.passwordHash);
-}
-
-/**
- * 判断账号是否仍携带旧版密码字段。
- *
- * @param account 用户账号。
- * @return 旧版密码字段完整时返回 true。
- */
-function hasLegacyPasswordFields(
-  account: UserAccount,
-): account is
-  & UserAccount
-  & Pick<
-    PasswordCredential,
-    "passwordHash" | "passwordIterations" | "passwordSalt"
-  > {
-  return Boolean(
-    account.passwordHash && account.passwordSalt && account.passwordIterations,
-  );
-}
-
-/**
- * 从账号旧版密码字段创建独立密码凭证。
- *
- * @param account 用户账号。
- * @return 密码字段完整时返回独立密码凭证。
- */
-function passwordCredentialFromAccount(
-  account: UserAccount,
-): PasswordCredential | undefined {
-  if (!hasLegacyPasswordFields(account)) {
-    return undefined;
-  }
-
-  return {
-    passwordHash: account.passwordHash,
-    passwordIterations: account.passwordIterations,
-    passwordSalt: account.passwordSalt,
-    updatedAt: new Date().toISOString(),
-    userId: account.id,
-  };
-}
-
-/**
- * 确保旧账号密码字段已经迁移为独立密码凭证。
- *
- * @param account 用户账号。
- * @param storage 应用存储。
- * @return 保存完成后的 Promise。
- */
-async function ensureAccountPasswordCredential(
-  account: UserAccount,
-  storage: Storage,
-): Promise<void> {
-  const credential = passwordCredentialFromAccount(account);
-  if (!credential) {
-    return;
-  }
-
-  const existing = await storage.getPasswordCredential(account.id);
-  if (samePasswordCredential(existing, credential)) {
-    return;
-  }
-
-  await storage.savePasswordCredential(credential);
-}
-
-/**
- * 判断两个密码凭证的哈希字段是否一致。
- *
- * @param left 已保存的密码凭证。
- * @param right 待保存的密码凭证。
- * @return 哈希字段一致时返回 true。
- */
-function samePasswordCredential(
-  left: PasswordCredential | undefined,
-  right: PasswordCredential,
-): boolean {
-  return left?.passwordHash === right.passwordHash &&
-    left.passwordIterations === right.passwordIterations &&
-    left.passwordSalt === right.passwordSalt;
-}
-
-/**
- * 使用 PBKDF2 派生密码哈希。
- *
- * @param password 原始密码。
- * @param salt 密码盐。
- * @param iterations 迭代次数。
- * @return 派生出的密码哈希字节。
- */
-async function derivePasswordHash(
-  password: string,
-  salt: Uint8Array,
-  iterations: number,
-): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
-  const bits = await crypto.subtle.deriveBits(
-    {
-      hash: "SHA-256",
-      iterations,
-      name: "PBKDF2",
-      salt: arrayBufferFromBytes(salt),
-    },
-    key,
-    256,
-  );
-  return new Uint8Array(bits);
-}
-
-/**
- * 将字节数组复制为 ArrayBuffer。
- *
- * @param value 原始字节数组。
- * @return 复制后的 ArrayBuffer。
- */
-function arrayBufferFromBytes(value: Uint8Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(value.byteLength);
-  new Uint8Array(buffer).set(value);
-  return buffer;
-}
-
-/**
  * 渲染登录或注册页面。
  *
  * @param options 认证页面渲染选项。
@@ -4114,36 +3951,48 @@ function renderAuthPage(options: {
           <input type="hidden" name="returnTo" value="${
     escapeHtml(options.returnTo)
   }">
-${options.pendingRegistration ? `<input type="hidden" name="pending" value="${escapeHtml(options.pendingRegistration)}">` : `          <div class="auth-fields">
+${
+    options.pendingRegistration
+      ? `<input type="hidden" name="pending" value="${
+        escapeHtml(options.pendingRegistration)
+      }">`
+      : `          <div class="auth-fields">
             <label>
               ${
-    escapeHtml(
-      options.mode === "login"
-        ? options.messages.authUsernameOrEmail
-        : options.messages.authUsername,
-    )
-  }
+        escapeHtml(
+          options.mode === "login"
+            ? options.messages.authUsernameOrEmail
+            : options.messages.authUsername,
+        )
+      }
               <input name="username" dir="ltr" autocomplete="${
-    options.mode === "login" ? "username webauthn" : "username"
-  }" required ${emailLoginInitiallyVisible ? "" : "autofocus"}>
+        options.mode === "login" ? "username webauthn" : "username"
+      }" required ${emailLoginInitiallyVisible ? "" : "autofocus"}>
             </label>
             <label>
               ${escapeHtml(options.messages.authPassword)}
               <input name="password" type="password" dir="ltr" autocomplete="${
-    options.mode === "login" ? "current-password" : "new-password"
-  }" required>
+        options.mode === "login" ? "current-password" : "new-password"
+      }" required>
             </label>
             ${
-    options.mode === "register"
-      ? `<label>
+        options.mode === "register"
+          ? `<label>
               ${escapeHtml(options.messages.authConfirmPassword)}
               <input name="confirmPassword" type="password" dir="ltr" autocomplete="new-password" required>
             </label>`
-      : ""
-  }
+          : ""
+      }
           </div>
-       `}
-${options.mode === "register" ? `<label>${escapeHtml(options.messages.invitationCode)}<input name="invitationCode" dir="ltr" autocomplete="off" maxlength="80" required></label>` : ""}   ${
+       `
+  }
+${
+    options.mode === "register"
+      ? `<label>${
+        escapeHtml(options.messages.invitationCode)
+      }<input name="invitationCode" dir="ltr" autocomplete="off" maxlength="80" required></label>`
+      : ""
+  }   ${
     options.mode === "login"
       ? renderLoginLinkRow({
         emailLoginHref,
@@ -4302,8 +4151,12 @@ function renderGoogleLoginForm(options: {
   return `<div
           class="auth-google-method"
           data-google-login
-          data-google-label="${escapeHtml(getMessages(options.locale).accountGoogle)}"
-          data-google-failed="${escapeHtml(getMessages(options.locale).authGoogleUnavailable)}"
+          data-google-label="${
+    escapeHtml(getMessages(options.locale).accountGoogle)
+  }"
+          data-google-failed="${
+    escapeHtml(getMessages(options.locale).authGoogleUnavailable)
+  }"
           data-google-client-id="${escapeHtml(options.googleClientId)}"
           hidden
         >
@@ -6001,7 +5854,9 @@ function authPageLocale(
   config: AuthConfig,
   cookies?: string,
 ): Locale {
-  const manual = localeFromLanguageTag(devicePreferenceCookie(cookies, "locale"));
+  const manual = localeFromLanguageTag(
+    devicePreferenceCookie(cookies, "locale"),
+  );
   if (manual && !shouldSyncAuthLocale(url)) return manual;
   const queryLocale = localeFromLanguageTag(url.searchParams.get("locale"));
   if (queryLocale) {
@@ -6223,7 +6078,7 @@ async function findPasswordLoginAccount(
   }
 
   const username = normalizeUsername(value);
-  return validUsername(username)
+  return validAccountName(username)
     ? await storage.getAccountByUsername(username)
     : undefined;
 }
@@ -6301,7 +6156,7 @@ function validateRegistration(
   password: string,
   confirmPassword: string,
 ): string | undefined {
-  if (!validUsername(username)) {
+  if (!validAccountName(username)) {
     return "username";
   }
 
@@ -6314,30 +6169,6 @@ function validateRegistration(
   }
 
   return undefined;
-}
-
-/**
- * 判断用户名是否为长度受控且不包含控制字符的 Unicode 文本。
- *
- * @param {string} username 用户名。
- * @return {boolean} 用户名有效时返回 true。
- */
-export function validUsername(username: string): boolean {
-  const length = [...username].length;
-  return length >= 1 && length <= 80 && /\S/u.test(username) &&
-    !/\p{C}/u.test(username);
-}
-
-/**
- * 判断显示名称是否为长度受控且不包含控制字符的 Unicode 文本。
- *
- * @param {string} displayName 显示名称。
- * @return {boolean} 显示名称有效时返回 true。
- */
-export function validDisplayName(displayName: string): boolean {
-  const length = [...displayName].length;
-  return length >= 1 && length <= 80 && /\S/u.test(displayName) &&
-    !/\p{C}/u.test(displayName);
 }
 
 /**
@@ -6378,38 +6209,6 @@ function pathWithSearch(url: URL): string {
 }
 
 /**
- * 规范化用户名。
- *
- * @param value 原始用户名。
- * @return 小写并去除首尾空白后的用户名。
- */
-export function normalizeUsername(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-/**
- * 规范化显示名称，同时保留用户输入的大小写。
- *
- * @param {string} value 原始显示名称。
- * @return {string} 去除首尾空白后的显示名称。
- */
-export function normalizeDisplayName(value: string): string {
-  return value.trim();
-}
-
-/**
- * 将 Base64URL 字符串解码为字节数组。
- *
- * @param value Base64URL 字符串。
- * @return 解码后的字节数组。
- */
-function base64UrlDecode(value: string): Uint8Array {
-  const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
-}
-
-/**
  * 转义 HTML 文本。
  *
  * @param value 原始文本。
@@ -6432,12 +6231,39 @@ function escapeHtml(value: string): string {
  * @param {object} options 登录目的地及语言。
  * @return {Promise<Response>} 邀请码表单。
  */
-async function beginInvitationRegistration(c: Context, storage: Storage, _config: AuthConfig, creation: AccountCreation, options: { locale: Locale; returnTo: string; syncLocale: boolean }): Promise<Response> {
-  if (!storage.administration) return c.text("Registration unavailable",503);
+async function beginInvitationRegistration(
+  c: Context,
+  storage: Storage,
+  _config: AuthConfig,
+  creation: AccountCreation,
+  options: { locale: Locale; returnTo: string; syncLocale: boolean },
+): Promise<Response> {
+  if (!storage.administration) return c.text("Registration unavailable", 503);
   const pending = crypto.randomUUID() + crypto.randomUUID();
   const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-  await storage.administration.putTemporary({ id: await secretDigest(pending), expiresAt: new Date(Date.now()+600_000).toISOString(), binding: await secretDigest(csrf.token), creation, returnTo: options.returnTo, ...(options.syncLocale ? { locale: options.locale } : {}) });
+  await storage.administration.putTemporary({
+    id: await secretDigest(pending),
+    expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    binding: await secretDigest(csrf.token),
+    creation,
+    returnTo: options.returnTo,
+    ...(options.syncLocale ? { locale: options.locale } : {}),
+  });
   const messages = getMessages(options.locale);
   c.header("cache-control", "no-store");
-  return withCsrfCookie(c.html(renderAuthPage({ action: "/register/invitation", csrfToken: csrf.token, heading: messages.authRegister, locale: options.locale, messages, mode: "register", pendingRegistration: pending, returnTo: options.returnTo, submitLabel: messages.authCreateAccount, syncLocale: false })),csrf);
+  return withCsrfCookie(
+    c.html(renderAuthPage({
+      action: "/register/invitation",
+      csrfToken: csrf.token,
+      heading: messages.authRegister,
+      locale: options.locale,
+      messages,
+      mode: "register",
+      pendingRegistration: pending,
+      returnTo: options.returnTo,
+      submitLabel: messages.authCreateAccount,
+      syncLocale: false,
+    })),
+    csrf,
+  );
 }

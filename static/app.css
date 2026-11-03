@@ -5,19 +5,19 @@
   /* 主题主色。 */
   --theme-color: #BD7FFF;
   /* 强调态主题色。 */
-  --theme-strong: #a06ed9;
+  --theme-strong: #A06ED9;
   /* 链接使用的主题色。 */
-  --theme-link: #9273e2;
+  --theme-link: #9273E2;
   /* 轻量主题背景色。 */
-  --theme-soft: #f1edf9;
+  --theme-soft: #F1EDF9;
   /* 较强的轻量主题背景色。 */
-  --theme-soft-strong: #eee6f9;
+  --theme-soft-strong: #EEE6F9;
   /* 白底操作区域悬浮背景色。 */
   --surface-action-hover: var(--theme-soft-strong);
   /* 主题边框色。 */
-  --theme-border: #d8ceef;
+  --theme-border: #D8CEEF;
   /* 页面背景色。 */
-  --bg: #f3f1f8;
+  --bg: #F3F1F8;
   /* 默认边框色。 */
   --border: #DFE4EA;
   /* 弱化边框色。 */
@@ -39,7 +39,7 @@
   /* 占位文本颜色。 */
   --placeholder: #9AA7B4;
   /* 次级按钮背景色。 */
-  --secondary-button: #8469b6;
+  --secondary-button: #8469B6;
   /* 强投影颜色。 */
   --shadow-strong: rgba(23, 32, 42, 0.18);
   /* 主内容表面色。 */
@@ -67,13 +67,13 @@
 
 :root[data-color-mode="dark"]{
   /* 暗色模式页面背景色。 */
-  --bg: #1c1b27;
+  --bg: #1C1B27;
   /* 不支持颜色混合时，仍提供完整的暗色主题。 */
-  --theme-strong: #c592fc;
-  --theme-link: #bc95ff;
-  --theme-soft: #2c2c3e;
-  --theme-soft-strong: #35324a;
-  --theme-border: #50486c;
+  --theme-strong: #C592FC;
+  --theme-link: #BC95FF;
+  --theme-soft: #2C2C3E;
+  --theme-soft-strong: #35324A;
+  --theme-border: #50486C;
   /* 暗色模式默认边框色。 */
   --border: #313842;
   /* 暗色模式弱化边框色。 */
@@ -95,7 +95,7 @@
   /* 暗色模式占位文本颜色。 */
   --placeholder: #778390;
   /* 暗色模式次级按钮背景色。 */
-  --secondary-button: #c1a7e8;
+  --secondary-button: #C1A7E8;
   /* 暗色模式强投影颜色。 */
   --shadow-strong: rgba(0, 0, 0, 0.36);
   /* 暗色模式主内容表面色。 */

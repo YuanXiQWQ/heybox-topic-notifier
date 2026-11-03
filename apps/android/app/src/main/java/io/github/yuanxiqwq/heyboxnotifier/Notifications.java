@@ -119,5 +119,5 @@ final class Notifications extends NotificationInbox {
      * @return {String} SHA-256 摘要。
      * @throws Exception 摘要不可用。
      */
-    private static String digest(String value) throws Exception { return Updates.hex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
+    private static String digest(String value) throws Exception { return DigestHex.encode(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
 }

@@ -33,7 +33,10 @@ export function formatHeyboxRelativeTime(
   }
 
   const messages = getMessages(locale);
-  const diffSeconds = Math.max(0, Math.floor((now.getTime() - timestamp) / 1000));
+  const diffSeconds = Math.max(
+    0,
+    Math.floor((now.getTime() - timestamp) / 1000),
+  );
 
   if (diffSeconds === 0) {
     return messages.relativeJustNow;
@@ -83,10 +86,14 @@ export function formatHeyboxRelativeTime(
  * @param values 替换变量映射。
  * @return 替换后的文案。
  */
-function formatTemplate(template: string, values: Record<string, string | number>): string {
+function formatTemplate(
+  template: string,
+  values: Record<string, string | number>,
+): string {
   return template.replaceAll(
     /\{(\w+)}/g,
-    (placeholder, key) => values[key] === undefined ? placeholder : String(values[key]),
+    (placeholder, key) =>
+      values[key] === undefined ? placeholder : String(values[key]),
   );
 }
 
