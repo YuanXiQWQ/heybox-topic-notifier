@@ -22,12 +22,14 @@ type StoredRecord = {
  * @param {(statement: InStatement) => Promise<ResultSet>} execute SQL 执行器。
  * @param {(statements: InStatement[]) => Promise<ResultSet[]>} batch 原子事务执行器。
  * @param {string} userId 账号 ID。
+ * @param {(record: MatchRecord) => InStatement[]} enqueue 常驻模式的新命中入队语句。
  * @return {RecordSyncStore} 记录同步接口。
  */
 export function createTursoRecordSync(
   execute: (statement: InStatement) => Promise<ResultSet>,
   batch: (statements: InStatement[]) => Promise<ResultSet[]>,
   userId: string,
+  enqueue?: (record: MatchRecord) => InStatement[],
 ): RecordSyncStore {
   /**
    * 在同一 SQL 快照中读取记录及管理版本。
@@ -59,6 +61,7 @@ export function createTursoRecordSync(
    * @param {StoredRecord} before 读取时的状态。
    * @param {RecordSyncSnapshot | undefined} state 新管理状态，省略表示仅更新正文。
    * @param {MatchRecord | undefined} record 新可见记录，省略表示删除。
+   * @param {boolean} notify 是否为需通知的新命中。
    * @return {Promise<boolean>} 是否成功提交。
    */
   async function commit(
@@ -66,6 +69,7 @@ export function createTursoRecordSync(
     before: StoredRecord,
     state: RecordSyncSnapshot | undefined,
     record: MatchRecord | undefined,
+    notify = false,
   ): Promise<boolean> {
     const statements: InStatement[] = [
       "DELETE FROM sync_transaction_guard",
@@ -102,6 +106,8 @@ export function createTursoRecordSync(
         sql: "DELETE FROM matches WHERE user_id = ? AND id = ?",
         args: [userId, id],
       });}
+    if (notify && record && !before.record && !before.state) statements.push(...enqueue?.(record) ?? []);
+    if (!record) statements.push({ sql: "DELETE FROM notification_outbox WHERE user_id = ? AND id = ?", args: [userId, id] });
     const key = JSON.stringify([userId, id]);
     statements.push({
       sql:
@@ -168,8 +174,9 @@ export function createTursoRecordSync(
     /**
      * 刷新内容并保留当前管理状态，删除墓碑阻止后台刷新复活记录。
      * @param {MatchRecord} record 新内容。
+     * @param {import("./notification_outbox.ts").MatchSaveOptions} options 原子投递选项。
      */
-    async saveRecordContent(record) {
+    async saveRecordContent(record, options) {
       for (let attempt = 0; attempt < 16; attempt++) {
         const before = await read(record.id);
         const next = projectRecord(record, before.state);
@@ -183,6 +190,7 @@ export function createTursoRecordSync(
             before,
             before.state ? { ...before.state, record: next } : undefined,
             next,
+            options?.notify === true,
           )
         ) return;
       }

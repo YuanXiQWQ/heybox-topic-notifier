@@ -16,12 +16,12 @@ export type PollingContext = ReturnType<typeof createPollingContext>;
 /**
  * 创建不依赖 HTTP 路由、认证页面及翻译文案的轮询上下文。
  *
- * @param {{cacheSchedule?: boolean}} options 常驻单进程可启用调度快照缓存。
+ * @param {{cacheSchedule?: boolean, durableNotifications?: boolean}} options 常驻进程的快照缓存与持久投递。
  * @return {object} 默认设置、存储、数据源、匹配器、轮询器与调度器。
  */
-export function createPollingContext(options: { cacheSchedule?: boolean } = {}) {
+export function createPollingContext(options: { cacheSchedule?: boolean; durableNotifications?: boolean } = {}) {
   const defaultSettings = defaultAppSettingsFromEnv();
-  const backend = createAppStorage(defaultSettings);
+  const backend = createAppStorage(defaultSettings, { notificationOutbox: options.durableNotifications });
   const storage = options.cacheSchedule ? cachePollSchedule(backend) : backend;
   const matcher = createMatcher();
   const signatureMode = Deno.env.get("HEYBOX_SIGNATURE_MODE");
@@ -33,12 +33,13 @@ export function createPollingContext(options: { cacheSchedule?: boolean } = {}) 
       : undefined,
     userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
   });
+  const pollingNotifier = createPollingNotifier(storage);
   const poller = createPoller({
     matcher,
     source,
     storage,
-    notifier: createPollingNotifier(storage),
+    notifier: pollingNotifier,
   });
   const scheduler = createPollScheduler({ poller, storage });
-  return { defaultSettings, storage, matcher, source, poller, scheduler };
+  return { defaultSettings, storage, matcher, source, poller, scheduler, notificationDelivery: pollingNotifier.flush };
 }

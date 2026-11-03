@@ -6,7 +6,7 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 11;
+export const TURSO_SCHEMA_VERSION = 12;
 /** 具备稳定游标和事件唯一键的原生通知收件箱。 */
 const nativeNotificationSchema = [
   `CREATE TABLE IF NOT EXISTS invitations (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, value_json TEXT NOT NULL)`,
@@ -49,6 +49,13 @@ function dashboardVersionTriggers(table: string): string[] {
  * 命中总数由数据库触发器维护，覆盖同步投影、批量删除及所有版本的业务写入。
  */
 export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
+  `CREATE TABLE IF NOT EXISTS notification_outbox (
+    user_id TEXT NOT NULL, id TEXT NOT NULL, channel TEXT NOT NULL,
+    record_json TEXT NOT NULL, retry_at INTEGER NOT NULL, attempts INTEGER NOT NULL,
+    lease_token TEXT, lease_until INTEGER NOT NULL,
+    PRIMARY KEY (user_id, id, channel)
+  )`,
+  `CREATE INDEX IF NOT EXISTS notification_outbox_due ON notification_outbox(user_id, retry_at, lease_until)`,
   `CREATE TABLE IF NOT EXISTS sync_settings (user_id TEXT PRIMARY KEY, revision TEXT NOT NULL, value_json TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS sync_records (user_id TEXT NOT NULL, id TEXT NOT NULL, value_json TEXT NOT NULL, PRIMARY KEY (user_id, id))`,
   `CREATE TABLE IF NOT EXISTS sync_transaction_guard (id INTEGER PRIMARY KEY CONSTRAINT sync_guard_valid CHECK (id = 1))`,

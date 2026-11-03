@@ -8,6 +8,8 @@ import { createTursoNativePushStore } from "./native_push_turso.ts";
 import { createTursoSyncStore } from "./sync_turso.ts";
 import { createTursoNativeNotifications } from "./native_notifications_turso.ts";
 import { createTursoNativeLogin } from "./native_login_turso.ts";
+import { createTursoNotificationOutbox, notificationEnqueueStatements } from "./notification_outbox_turso.ts";
+import type { MatchSaveOptions } from "./notification_outbox.ts";
 import { serverEditStamp } from "../sync/protocol.ts";
 import { settingsEdits } from "../sync/settings.ts";
 import type { SettingsSyncSnapshot } from "../sync/settings.ts";
@@ -75,6 +77,7 @@ export type TursoClient = {
  * Turso 存储创建选项。
  */
 export type TursoStorageOptions = {
+  notificationOutbox?: boolean;
   authToken?: string;
   client?: TursoClient;
   url?: string;
@@ -265,8 +268,10 @@ export function createTursoStorage(
    * @return {UserStorage} 指定用户的数据存储操作集合。
    */
   function forUser(userId: string): UserStorage {
-    const sync = createTursoSyncStore(execute, batch, userId, defaultSettings);
+    const sync = createTursoSyncStore(execute, batch, userId, defaultSettings,
+      options.notificationOutbox ? (record) => notificationEnqueueStatements(userId, record) : undefined);
     return {
+      notificationOutbox: options.notificationOutbox ? createTursoNotificationOutbox(execute, batch, userId) : undefined,
       sync,
       userId,
       matching: createTursoMatchingStore(execute, userId),
@@ -457,11 +462,12 @@ export function createTursoStorage(
        * 刷新内容并保留管理状态；受控回填继续受迁移保护。
        *
        * @param {MatchRecord} record 命中记录。
+       * @param {MatchSaveOptions} options 新命中投递选项。
        * @return {Promise<void>} 保存完成后的 Promise。
        */
-      async saveMatch(record: MatchRecord): Promise<void> {
+      async saveMatch(record: MatchRecord, options?: MatchSaveOptions): Promise<void> {
         if (writeMode !== "kv-import") {
-          await sync.saveRecordContent(record);
+          await sync.saveRecordContent(record, options);
           return;
         }
         await writeEntity("match", entityKey(userId, record.id), {
