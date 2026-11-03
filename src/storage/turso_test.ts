@@ -31,19 +31,19 @@ Deno.test("Turso native events and login handoffs remain isolated and atomic", a
 Deno.test("Turso imports sync metadata and projection together and rejects stale backfills", async () => {
   await withStorage(async (storage, client) => {
     const importer = createTursoStorage(defaultSettings, { client, writeMode: "kv-import" });
-    const snapshot = initialSettingsSnapshot({ ...defaultSettings, themeColor: "#123456" });
+    const snapshot = initialSettingsSnapshot({ ...defaultSettings, notificationEmailAddress: "first@example.com" });
     snapshot.revision = "migrated";
     snapshot.sequence = 1;
     await importer.importKvSync!("imported-sync", "settings", snapshot);
     const user = storage.forUser("imported-sync");
-    assertEquals((await user.getSettings()).themeColor, "#123456");
+    assertEquals((await user.getSettings()).notificationEmailAddress, "first@example.com");
     assertEquals(await user.sync!.readSettings(), snapshot);
     await assertRejects(() => importer.forUser("imported-sync").saveSettings(defaultSettings));
-    await user.saveSettings({ ...snapshot.settings, themeColor: "#654321" });
+    await user.saveSettings({ ...snapshot.settings, notificationEmailAddress: "second@example.com" });
     const live = await user.sync!.readSettings();
     await assertRejects(() => importer.importKvSync!("imported-sync", "settings", snapshot));
     assertEquals(await user.sync!.readSettings(), live);
-    assertEquals((await user.getSettings()).themeColor, "#654321");
+    assertEquals((await user.getSettings()).notificationEmailAddress, "second@example.com");
     const entry = record("deleted-sync", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z");
     await importer.importKvSync!("imported-sync", "record", { id: entry.id, status: "deleted", stamp: { editedAt: 1000, counter: 0, deviceId: "phone", operationId: "delete" }, record: entry });
     await assertRejects(() => importer.forUser("imported-sync").saveMatch(entry));

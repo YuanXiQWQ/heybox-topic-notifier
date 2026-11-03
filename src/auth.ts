@@ -6,6 +6,7 @@ import type { AccountCreation } from "./storage/administration_types.ts";
 import { Hono } from "@hono/hono";
 import { bodyLimit } from "@hono/hono/body-limit";
 import type { Context, MiddlewareHandler } from "@hono/hono";
+import { devicePreferenceCookie } from "./device_preferences.ts";
 import { getMessages, localeFromRequest } from "./locales/index.ts";
 import { languageOptions, languageSwitcherLabel } from "./locales/languages.ts";
 import { isRtlLocale, type Locale, type Messages } from "./locales/types.ts";
@@ -336,7 +337,7 @@ export function createAuthMiddleware(
     }
 
     const loginUrl = new URL(config.loginPath, url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     loginUrl.searchParams.set("locale", locale);
     if (c.req.method === "GET") {
       loginUrl.searchParams.set("returnTo", pathWithSearch(url));
@@ -361,7 +362,7 @@ export function createAuthRoutes(
 
   app.get(config.loginPath, (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const syncLocale = shouldSyncAuthLocale(url);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
@@ -405,7 +406,7 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const syncLocale = shouldSyncAuthLocale(url);
     if (String(form.authMethod ?? "password") === "email") {
       return await handleEmailLogin(c, storage, config, form, {
@@ -528,9 +529,6 @@ export function createAuthRoutes(
       await storage.clearLoginFailures(loginIdentifier);
     }
 
-    if (syncLocale) {
-      await saveAuthLocale(account.id, locale, storage);
-    }
     return await completePrimaryLogin(c, storage, config, account, {
       locale,
       primaryMethod: "password",
@@ -551,7 +549,7 @@ export function createAuthRoutes(
 
   app.get(config.registerPath, (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const syncLocale = shouldSyncAuthLocale(url);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
@@ -589,7 +587,7 @@ export function createAuthRoutes(
     ) {
       return csrfForbiddenResponse(c.req.raw);
     }
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const syncLocale = shouldSyncAuthLocale(url);
     const username = normalizeUsername(String(form.username ?? ""));
     const displayName = username;
@@ -663,9 +661,6 @@ export function createAuthRoutes(
       );
     }
 
-    if (syncLocale) {
-      await saveAuthLocale(account.id, locale, storage);
-    }
     return await redirectWithSession(
       c.req.url,
       returnTo,
@@ -684,12 +679,11 @@ export function createAuthRoutes(
     if (limited) return limited;
     const pending = String(form.pending ?? ""), id = await secretDigest(pending);
     const record = await storage.administration?.getTemporary(id);
-    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config);
+    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config, c.req.header("cookie"));
     const messages = getMessages(locale);
     if (!record?.creation || record.binding !== await secretDigest(String(form.csrfToken))) return c.redirect("/login",303);
     const result = await storage.administration!.register(record.creation, await secretDigest(normalizeInvitation(String(form.invitationCode ?? ""))), id);
     if (result !== "ok") return c.html(renderAuthPage({ action: "/register/invitation", csrfToken: String(form.csrfToken), error: messages.invitationInvalid, heading: messages.authRegister, locale, messages, mode: "register", pendingRegistration: pending, returnTo: record.returnTo ?? "/", submitLabel: messages.authCreateAccount, syncLocale: false }),400);
-    if (record.locale) await saveAuthLocale(record.creation.account.id, locale, storage);
     return await redirectWithSession(c.req.url, safeReturnTo(record.returnTo ?? null), record.creation.account, storage, config);
   });
 
@@ -705,7 +699,7 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const email = normalizeEmailAddress(String(form.email ?? ""));
     const purpose = emailVerificationPurposeFromForm(form);
     if (!email || !purpose) {
@@ -942,7 +936,7 @@ export function createAuthRoutes(
       return rateLimitResponse;
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const syncLocale = shouldSyncAuthLocale(url) ||
       String(payload[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
     return await handlePasskeyLogin(c, storage, config, payload, {
@@ -1030,7 +1024,7 @@ export function createAuthRoutes(
       return rateLimitResponse;
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     return await handlePasskeySecondFactor(
       c,
       storage,
@@ -1053,7 +1047,7 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const syncLocale = shouldSyncAuthLocale(url) ||
       String(form[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
@@ -1091,6 +1085,7 @@ export function createAuthRoutes(
         new URL(c.req.url),
         c.req.header("accept-language"),
         config,
+        c.req.header("cookie"),
       );
       return c.redirect(
         authPagePath(config.loginPath, locale, { returnTo: "/settings" }),
@@ -1118,7 +1113,7 @@ export function createAuthRoutes(
 
   app.get(mfaPath, async (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const messages = getMessages(locale);
     const returnTo = safeReturnTo(url.searchParams.get("returnTo"));
     const challenge = await getRenderableMfaChallenge(
@@ -1176,7 +1171,7 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config);
+    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
     const challengeId = String(form.challengeId ?? "").trim();
     const method = secondFactorMethodFromForm(form.method);
@@ -1523,9 +1518,6 @@ async function handlePasskeyLogin(
     verification.authenticationInfo.newCounter,
   ));
   await storage.deletePendingPasskeyChallenge(activeChallenge.id);
-  if (options.syncLocale) {
-    await saveAuthLocale(account.id, options.locale, storage);
-  }
 
   logSecurityAuditEvent({
     code: "passkey_login_succeeded",
@@ -1622,9 +1614,6 @@ async function handleGoogleCredentialLogin(
     return await beginInvitationRegistration(c, storage, config, { account, identity: { provider: "google", providerUserId: claims.sub, userId: account.id, createdAt: now, ...(email ? { email, emailVerified: true } : {}) }, ...(email ? { email: { userId: account.id, email, verified: true, createdAt: now, lastVerifiedAt: now } } : {}) }, options);
   }
   const result = await findGoogleAccount(storage, claims);
-  if (options.syncLocale) {
-    await saveAuthLocale(result.account.id, options.locale, storage);
-  }
 
   if (result.created) {
     logSecurityAuditEvent({
@@ -2147,9 +2136,6 @@ async function handleEmailLogin(
   );
   await storage.deletePendingEmailVerification(activeVerification.id);
 
-  if (options.syncLocale) {
-    await saveAuthLocale(verifiedAccount.id, options.locale, storage);
-  }
 
   logSecurityAuditEvent({
     code: "email_login_succeeded",
@@ -3274,6 +3260,7 @@ function authConfig(options: AuthOptions): AuthConfig {
           mfaPath,
           "/static/app.css",
           "/static/theme-compat.js",
+          "/static/device-preferences.js",
           "/static/turnstile.js",
           "/static/tooltip.js",
         ],
@@ -3540,28 +3527,6 @@ function maskedEmailAddress(email: string): string {
     ? localPart.slice(0, 1)
     : localPart.slice(0, 2);
   return `${visible}***@${domain ?? ""}`;
-}
-
-/**
- * 将用户显式选择的认证页语言同步到用户设置。
- *
- * @param userId 用户 ID。
- * @param locale 认证页当前语言。
- * @param storage 应用存储。
- * @return 同步完成后的 Promise。
- */
-async function saveAuthLocale(
-  userId: string,
-  locale: Locale,
-  storage: Storage,
-): Promise<void> {
-  const userStorage = storage.forUser(userId);
-  const settings = await userStorage.getSettings();
-  if (settings.locale === locale) {
-    return;
-  }
-
-  await userStorage.saveSettings({ ...settings, locale });
 }
 
 /**
@@ -3845,6 +3810,7 @@ function renderAuthPage(options: {
 <html lang="${options.locale}" dir="${direction}">
   <head>
     <meta charset="utf-8">
+    <script src="/static/device-preferences.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.heading)} - ${
     escapeHtml(options.messages.appName)
@@ -4709,6 +4675,7 @@ function renderMfaPage(options: {
 <html lang="${options.locale}" dir="${direction}">
   <head>
     <meta charset="utf-8">
+    <script src="/static/device-preferences.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.messages.authMfaTitle)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
@@ -6015,18 +5982,22 @@ function altchaWidgetHtml(
 }
 
 /**
- * 获取认证页应该使用的语言。
+ * 获取设备手动选择或请求系统语言，并保留认证页显式切换。
  *
- * @param url 当前请求 URL。
- * @param acceptLanguage 浏览器语言请求头。
- * @param config 认证配置。
- * @return 认证页语言。
+ * @param {URL} url 当前请求 URL。
+ * @param {string | undefined} acceptLanguage 浏览器语言请求头。
+ * @param {AuthConfig} config 认证配置。
+ * @param {string | undefined} cookies 本设备 Cookie。
+ * @return {Locale} 认证页语言。
  */
 function authPageLocale(
   url: URL,
   acceptLanguage: string | undefined,
   config: AuthConfig,
+  cookies?: string,
 ): Locale {
+  const manual = localeFromLanguageTag(devicePreferenceCookie(cookies, "locale"));
+  if (manual && !shouldSyncAuthLocale(url)) return manual;
   const queryLocale = localeFromLanguageTag(url.searchParams.get("locale"));
   if (queryLocale) {
     return queryLocale;
@@ -6046,7 +6017,7 @@ function authPageLocale(
  * 判断认证页语言是否来自用户显式切换。
  *
  * @param url 当前请求 URL。
- * @return 需要在认证成功后同步语言时返回 true。
+ * @return {boolean} 认证流程显式切换语言时返回 true。
  */
 function shouldSyncAuthLocale(url: URL): boolean {
   return url.searchParams.get(authLocaleChangedParam) ===
@@ -6258,7 +6229,7 @@ async function findPasswordLoginAccount(
  * @param loginPath 登录路径。
  * @param returnTo 登录成功后的返回路径。
  * @param locale 当前页面语言。
- * @param syncLocale 是否需要在认证成功后同步语言设置。
+ * @param {boolean} syncLocale 是否在认证流程中保留显式语言选择标记。
  * @return 重定向响应。
  */
 function loginRateLimitedRedirect(

@@ -227,6 +227,7 @@ export function renderLayout(options: {
 >
   <head>
     <meta charset="utf-8">
+    <script src="/static/device-preferences.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     ${renderEasterEggJsonData("application-messages", Object.fromEntries(Object.entries(messages).filter(([name]) => name.startsWith("update") || name === "checkUpdate" || name === "autoSaveError" || name === "accountCancel")))}
     <script src="/static/app-compat.js" defer></script>

@@ -1,6 +1,7 @@
 /**
  * @file 本文件负责组装 Hono 应用和应用运行时上下文。
  */
+import { settingsForDevice } from "./services/device_settings.ts";
 import { createAdminRoutes } from "./admin_routes.ts";
 import { Hono } from "@hono/hono";
 import {
@@ -183,7 +184,7 @@ export function createApplication(pollingContext?: PollingContext) {
     const account = session
       ? await context.storage.getAccountById(session.userId)
       : undefined;
-    const settings = await context.storage.getSettings();
+    const settings = settingsForDevice(await context.storage.getSettings(), c.req.raw);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(
