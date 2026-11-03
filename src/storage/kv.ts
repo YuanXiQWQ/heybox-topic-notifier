@@ -1,7 +1,8 @@
 /**
  * @file 本文件提供基于 Deno KV 的应用数据存储实现。
  */
-import { normalizeSchedule } from "../../static/polling-schedule-core.js";
+import { normalizeUsername } from "../auth/account_names.ts";
+import { normalizeSettings, type StoredSettings } from "./stored_settings.ts";
 import { createKvAdministration } from "./administration_kv.ts";
 import { createKvMatchingStore } from "./matching_kv.ts";
 import { createKvWebPushStore } from "./web_push_kv.ts";
@@ -11,7 +12,6 @@ import { createKvNativeNotifications } from "./native_notifications_kv.ts";
 import { createKvNativeLogin } from "./native_login_kv.ts";
 import { serverEditStamp } from "../sync/protocol.ts";
 import { settingsEdits } from "../sync/settings.ts";
-import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type {
   AppSettings,
   AppState,
@@ -21,7 +21,6 @@ import type {
   AuthIdentityProvider,
   DashboardSnapshot,
   EmailCredential,
-  KeywordRule,
   MatchRecord,
   PasskeyChallengePurpose,
   PasskeyCredential,
@@ -30,10 +29,6 @@ import type {
   PendingMfaChallenge,
   PendingPasskeyChallenge,
   PendingRecoveryCodeReveal,
-  PollingSettings,
-  PollIntervalUnit,
-  PollSort,
-  TopicRule,
   TotpCredential,
   UserAccount,
   UserAvatar,
@@ -45,10 +40,6 @@ import {
   normalizePendingMfaChallenge,
   normalizeUserSecuritySettings,
 } from "../auth/mfa.ts";
-import {
-  normalizeNotificationEmailService,
-  normalizeNotificationWebhookService,
-} from "../notification_services.ts";
 import type {
   LoginFailure,
   MatchedPostIndexEntry,
@@ -255,7 +246,7 @@ export function createKvStorage(
        */
       async getSettings(): Promise<AppSettings> {
         const store = await kv();
-        const entry = await store.get<Partial<AppSettings> & LegacySettings>(
+        const entry = await store.get<StoredSettings>(
           keys.settings(userId),
         );
         return normalizeSettings(entry.value, defaultSettings);
@@ -309,7 +300,7 @@ export function createKvStorage(
       async getDashboardSnapshot(): Promise<DashboardSnapshot> {
         const store = await kv();
         const settingsEntry = await store.get<
-          Partial<AppSettings> & LegacySettings
+          StoredSettings
         >(
           keys.settings(userId),
         );
@@ -1596,16 +1587,6 @@ export function createKvStorage(
 }
 
 /**
- * 规范化用户名。
- *
- * @param value 原始用户名。
- * @return 小写并去除首尾空白后的用户名。
- */
-function normalizeUsername(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-/**
  * 将邮箱地址规范化为 KV key 使用的稳定片段。
  *
  * @param value 原始邮箱地址。
@@ -1973,323 +1954,4 @@ export function latestMatchByMatchedTime(
     compareIsoDesc(left.matchedAt, right.matchedAt) ||
     compareIsoDesc(left.post.publishedAt, right.post.publishedAt)
   )[0];
-}
-
-/**
- * 旧版本设置字段结构。
- */
-type LegacySettings = {
-  commonKeywordRules?: KeywordRule[];
-  keywordRules?: KeywordRule[];
-  keywords?: string[];
-  topicId?: string;
-};
-
-/**
- * 将读取到的设置与默认设置合并并规范化。
- *
- * @param {Partial<AppSettings> & LegacySettings | null} value KV 中读取到的设置。
- * @param {AppSettings} defaultSettings 默认应用设置。
- * @return {AppSettings} 合并默认匹配模式与限制后的应用设置。
- */
-export function normalizeSettings(
-  value: (Partial<AppSettings> & LegacySettings) | null,
-  defaultSettings: AppSettings,
-): AppSettings {
-  if (!value) {
-    return defaultSettings;
-  }
-
-  const commonKeywordRules = normalizeKeywordRules(
-    value,
-    defaultSettings.commonKeywordRules,
-  );
-  const topics = normalizeTopics(value, defaultSettings.topics);
-
-  return {
-    ...defaultSettings,
-    ...value,
-    matching: normalizeMatchingSettings(
-      value.matching ?? defaultSettings.matching,
-    ),
-    activeKeywordTarget: value.activeKeywordTarget ??
-      defaultSettings.activeKeywordTarget,
-    commonKeywordRules,
-    darkMode: typeof value.darkMode === "boolean"
-      ? value.darkMode
-      : defaultSettings.darkMode,
-    notificationEmailAddress: typeof value.notificationEmailAddress === "string"
-      ? value.notificationEmailAddress
-      : defaultSettings.notificationEmailAddress,
-    notificationEmailApiToken:
-      typeof value.notificationEmailApiToken === "string"
-        ? value.notificationEmailApiToken
-        : defaultSettings.notificationEmailApiToken,
-    notificationEmailApiUrl: typeof value.notificationEmailApiUrl === "string"
-      ? value.notificationEmailApiUrl
-      : defaultSettings.notificationEmailApiUrl,
-    notificationEmailFrom: typeof value.notificationEmailFrom === "string"
-      ? value.notificationEmailFrom
-      : defaultSettings.notificationEmailFrom,
-    notificationEmailService: value.notificationEmailService
-      ? normalizeNotificationEmailService(value.notificationEmailService)
-      : defaultSettings.notificationEmailService,
-    notificationPushPlusToken:
-      typeof value.notificationPushPlusToken === "string"
-        ? value.notificationPushPlusToken
-        : defaultSettings.notificationPushPlusToken,
-    notificationServerChanSendKey:
-      typeof value.notificationServerChanSendKey === "string"
-        ? value.notificationServerChanSendKey
-        : defaultSettings.notificationServerChanSendKey,
-    notificationSmtpHost: typeof value.notificationSmtpHost === "string"
-      ? value.notificationSmtpHost
-      : defaultSettings.notificationSmtpHost,
-    notificationSmtpPassword: typeof value.notificationSmtpPassword === "string"
-      ? value.notificationSmtpPassword
-      : defaultSettings.notificationSmtpPassword,
-    notificationSmtpPort: normalizePositiveInteger(
-      value.notificationSmtpPort,
-      defaultSettings.notificationSmtpPort,
-    ),
-    notificationSmtpSecure: typeof value.notificationSmtpSecure === "boolean"
-      ? value.notificationSmtpSecure
-      : defaultSettings.notificationSmtpSecure,
-    notificationSmtpUsername: typeof value.notificationSmtpUsername === "string"
-      ? value.notificationSmtpUsername
-      : defaultSettings.notificationSmtpUsername,
-    notificationWebhookService: value.notificationWebhookService
-      ? normalizeNotificationWebhookService(value.notificationWebhookService)
-      : defaultSettings.notificationWebhookService,
-    notificationWebhookUrl: typeof value.notificationWebhookUrl === "string"
-      ? value.notificationWebhookUrl
-      : defaultSettings.notificationWebhookUrl,
-    notificationWxPusherSpt: typeof value.notificationWxPusherSpt === "string"
-      ? value.notificationWxPusherSpt
-      : defaultSettings.notificationWxPusherSpt,
-    polling: normalizePollingSettings(
-      value.polling,
-      defaultSettings.polling,
-      value.locale ?? defaultSettings.locale,
-    ),
-    themeColor: normalizeThemeColor(
-      value.themeColor,
-      defaultSettings.themeColor,
-    ),
-    topics,
-  };
-}
-
-/**
- * 规范化轮询设置。
- *
- * @param {Partial<PollingSettings>|undefined} value 待读取的轮询设置及分时段草稿。
- * @param {PollingSettings} fallback 兜底轮询设置。
- * @param {string} locale 界面语言。
- * @return {PollingSettings} 规范化后的轮询设置。
- */
-function normalizePollingSettings(
-  value: Partial<PollingSettings> | undefined,
-  fallback: PollingSettings,
-  locale: string,
-): PollingSettings {
-  const legacyIntervalMinutes = (value as
-    | Partial<PollingSettings> & {
-      intervalMinutes?: unknown;
-    }
-    | undefined)?.intervalMinutes;
-  const intervalUnit = normalizePollIntervalUnit(
-    value?.intervalUnit,
-    fallback.intervalUnit,
-  );
-
-  return {
-    enabled: typeof value?.enabled === "boolean"
-      ? value.enabled
-      : fallback.enabled,
-    intervalStartedAt: normalizeOptionalTimestamp(
-      value?.intervalStartedAt,
-      fallback.intervalStartedAt,
-    ),
-    intervalUnit,
-    intervalValue: normalizePollIntervalValue(
-      value?.intervalValue ?? legacyIntervalMinutes,
-      intervalUnit,
-      fallback.intervalValue,
-    ),
-    ...(value?.schedule
-      ? { schedule: normalizeSchedule(value.schedule, locale) }
-      : {}),
-    postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
-    sort: normalizePollSort(value?.sort, fallback.sort),
-  };
-}
-
-/**
- * 规范化可选时间戳。
- *
- * @param value 待规范化值。
- * @param fallback 兜底时间戳。
- * @return 合法 ISO 时间戳，不存在合法值时返回 undefined。
- */
-function normalizeOptionalTimestamp(
-  value: unknown,
-  fallback: string | undefined,
-): string | undefined {
-  if (typeof value === "string" && Number.isFinite(Date.parse(value))) {
-    return value;
-  }
-  return typeof fallback === "string" && Number.isFinite(Date.parse(fallback))
-    ? fallback
-    : undefined;
-}
-
-/**
- * 规范化正整数。
- *
- * @param value 待规范化值。
- * @param fallback 兜底值。
- * @return 合法正整数。
- */
-function normalizePositiveInteger(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0
-    ? value
-    : fallback;
-}
-
-/**
- * 规范化轮询排序方式。
- *
- * @param value 待规范化值。
- * @param fallback 兜底排序方式。
- * @return 合法轮询排序方式。
- */
-function normalizePollSort(value: unknown, fallback: PollSort): PollSort {
-  return value === "publishTime" || value === "smart" || value === "replyTime"
-    ? value
-    : fallback;
-}
-
-/**
- * 规范化轮询间隔单位。
- *
- * @param value 待规范化值。
- * @param fallback 兜底间隔单位。
- * @return 合法轮询间隔单位。
- */
-function normalizePollIntervalUnit(
-  value: unknown,
-  fallback: PollIntervalUnit,
-): PollIntervalUnit {
-  return value === "second" || value === "minute" || value === "hour" ||
-      value === "day" ||
-      value === "week" || value === "month"
-    ? value
-    : fallback;
-}
-
-/**
- * 规范化轮询间隔数值。
- *
- * @param value 待规范化值。
- * @param unit 轮询间隔单位。
- * @param fallback 兜底间隔数值。
- * @return 合法轮询间隔数值。
- */
-function normalizePollIntervalValue(
-  value: unknown,
-  unit: PollIntervalUnit,
-  fallback: number,
-): number {
-  const intervalValue = normalizePositiveInteger(value, fallback);
-  return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
-}
-
-/**
- * 规范化主题颜色。
- *
- * @param value 待规范化值。
- * @param fallback 兜底主题颜色。
- * @return 合法的十六进制主题颜色。
- */
-function normalizeThemeColor(value: unknown, fallback: string): string {
-  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
-    ? value.toLowerCase()
-    : fallback;
-}
-
-/**
- * 规范化通用关键词规则，兼容旧版本关键词字段。
- *
- * @param value 设置值。
- * @param defaultKeywordRules 默认关键词规则。
- * @return 规范化后的关键词规则列表。
- */
-function normalizeKeywordRules(
-  value: LegacySettings,
-  defaultKeywordRules: KeywordRule[],
-): KeywordRule[] {
-  if (value.commonKeywordRules) {
-    return normalizeKeywordRuleList(value.commonKeywordRules);
-  }
-
-  if (value.keywordRules) {
-    return normalizeKeywordRuleList(value.keywordRules);
-  }
-
-  if (value.keywords) {
-    return value.keywords.map((keyword) => ({
-      keyword,
-      locations: ["title", "body", "comments", "replies"],
-    }));
-  }
-
-  return defaultKeywordRules;
-}
-
-/**
- * 规范化话题规则，兼容旧版本单话题字段。
- *
- * @param value 设置值。
- * @param defaultTopics 默认话题规则。
- * @return 规范化后的话题规则列表。
- */
-function normalizeTopics(
-  value: Partial<AppSettings> & LegacySettings,
-  defaultTopics: TopicRule[],
-): TopicRule[] {
-  if (value.topics) {
-    return value.topics.map((topic) => ({
-      ...topic,
-      keywordRules: normalizeKeywordRuleList(topic.keywordRules),
-    }));
-  }
-
-  if (value.topicId) {
-    return [
-      {
-        enabled: true,
-        id: value.topicId,
-        keywordRules: [],
-        note: value.topicId === "12099" ? "蔚蓝" : "",
-      },
-    ];
-  }
-
-  return defaultTopics;
-}
-
-/**
- * 规范化关键词规则列表。
- *
- * @param rules 关键词规则列表。
- * @return 规范化后的关键词规则列表。
- */
-function normalizeKeywordRuleList(rules: KeywordRule[]): KeywordRule[] {
-  return rules.map((rule) => ({
-    caseSensitive: rule.caseSensitive === true,
-    keyword: rule.keyword,
-    locations: rule.locations,
-    useRegex: rule.useRegex === true,
-  }));
 }

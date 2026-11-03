@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供基于 Turso/libSQL 的应用数据存储实现。
  */
+import { normalizeUsername } from "../auth/account_names.ts";
 import { createTursoAdministration } from "./administration_turso.ts";
 import { createTursoMatchingStore } from "./matching_turso.ts";
 import { createTursoWebPushStore } from "./web_push_turso.ts";
@@ -46,7 +47,7 @@ import type {
   UserSecuritySettings,
   UserSession,
 } from "../models.ts";
-import { latestMatchByMatchedTime, normalizeSettings } from "./kv.ts";
+import { normalizeSettings } from "./stored_settings.ts";
 import {
   TURSO_SCHEMA_STATEMENTS,
   TURSO_SCHEMA_VERSION,
@@ -2010,7 +2011,7 @@ function appStateFromRows(
   matchRow: Row | undefined,
 ): AppState {
   const latestMatch = matchRow?.value_json != null
-    ? latestMatchByMatchedTime([parseJsonRow<MatchRecord>(matchRow)])
+    ? parseJsonRow<MatchRecord>(matchRow)
     : undefined;
   return {
     lastPollAt: stringValue(stateRow?.last_poll_at),
@@ -2071,16 +2072,6 @@ function isAvatarType(
 ): value is UserAvatar["contentType"] {
   return value === "image/gif" || value === "image/jpeg" ||
     value === "image/png" || value === "image/webp";
-}
-
-/**
- * 规范化用户名。
- *
- * @param {string} value 原始用户名。
- * @return {string} 规范化用户名。
- */
-function normalizeUsername(value: string): string {
-  return value.trim().toLowerCase();
 }
 
 /**
