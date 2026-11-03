@@ -1,53 +1,23 @@
 <div dir="rtl" lang="ur-PK" align="right">
 
-# Deployment ہدایات
+Deno سروس Oracle Cloud پر چلتی ہے اور Caddy کے ذریعے HTTPS فراہم کیا جاتا ہے۔ اکاؤنٹس، سیشن اور نتائج Turso میں محفوظ ہوتے ہیں۔ GitHub Actions ریلیز ٹیگ سے Windows اور Android کے انسٹالر بناتا ہے۔
 
-یہ project Deno Deploy کی GitHub integration استعمال کر کے deploy ہوتا ہے، اور app deploy کرنے کے لیے GitHub Actions استعمال نہیں کرتا۔ GitHub Actions صرف
-`deno task check` چلاتا ہے، جبکہ repository میں push کے بعد app کو build اور route کرنے کی ذمہ داری Deno Deploy کی ہے۔
-
-## Branch deployment
-
-Deno Deploy ایک ہی App کے لیے مختلف timelines بناتا ہے:
-
-- &rlm;`main`: official release deployment، Production URL پر route ہوتا ہے
-- &rlm;`dev`: release سے پہلے test deployment، Git Branch / DEV URL پر route ہوتا ہے
-
-جب موجودہ App کا نام `heybox-topic-notifier` ہو، تو URL convention تقریباً یہ ہے:
-
-<pre dir='ltr' align='left'><code class='language-text'>https://heybox-topic-notifier.yuanxiqwq.deno.net
-https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
-</code></pre>
-
-موجودہ `dev` test deployment پہلے ہی بن چکا ہے، اور stable test entry Git Branch / DEV URL ہے۔ آئندہ `dev` پر push
-test deployment update کرے گا، جبکہ `main` پر push Production update کرے گا۔
-
-Deno Deploy کی GitHub integration feature branch push کے لیے Git Branch timeline اور Build بنا سکتی ہے۔ Preview
-اور عام feature branches کو بار بار KV پڑھنے، Heybox fetch کرنے یا notification بھیجنے سے بچانے کے لیے، deployment entrypoint top level پر Cron declare کرتا ہے، مگر handler صرف اس وقت execution جاری رکھتا ہے جب
-`DENO_TIMELINE=production` یا `DENO_TIMELINE=git-branch/dev` ہو۔ عام page requests، root path،
-health check اور Warm up
-requests automatic polling trigger نہیں کریں گے؛ frontend page پر ایک منٹ سے کم وقت والی due query controlled state API کے ذریعے current account scheduling trigger کرے گی۔
-
-## Deno Deploy configuration
-
-Deno Deploy App میں درج ذیل configuration برقرار رکھیں:
-
-- &rlm;Repository: `YuanXiQWQ/heybox-topic-notifier`
-- &rlm;App Directory: root directory
-- &rlm;Entrypoint: `./src/deploy.ts`
-- &rlm;Config Source: `deno.json deploy section`
-
-`deno.json` میں deploy configuration deployment entrypoint کے لیے واحد repository-side configuration source ہے۔
-
-## Database
-
-Deno Deploy App سے Deno KV database bind ہے۔ Code `Deno.openKv()`
-کے ذریعے accounts، settings، history، polling state اور processed-post markers read/write کرتا ہے۔ Account passwords salted PBKDF2 hashes کے طور پر محفوظ ہوتے ہیں؛ user data user
-ID prefix کے مطابق isolated ہوتا ہے، اور Deno Deploy timeline کے مطابق Production اور Git Branch data کو بھی الگ کرتا ہے۔
+[systemd](../../ops/heybox-topic-notifier.service) · [Caddy](../../ops/Caddyfile)
 
 ## Runtime environment variables
 
-Deno Deploy App میں ضرورت کے مطابق configure کریں۔ Repository root میں `.env.example` scenario کے مطابق ترتیب دیا گیا ہے: default میں صرف minimum usable configuration enabled ہے،
-جبکہ دیگر polling tuning، notification channels، relay اور security allowlist configuration commented رہتی ہیں؛ جس scenario کو استعمال کرنا ہو، صرف اسی کی متعلقہ lines uncomment کریں۔
+[`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
+
+```dotenv
+STORAGE_READ_BACKEND=turso
+TURSO_DATABASE_URL=libsql://YOUR_DATABASE.turso.io
+TURSO_AUTH_TOKEN=<TOKEN>
+PUBLIC_ORIGIN=https://YOUR_DOMAIN
+PORT=8000
+VM_POLLING_ENABLED=false
+```
+
+جانچ کے لیے الگ ڈیٹا بیس استعمال کریں۔ پرانے سرور پر وقفے وقفے سے جانچ بند کرنے کے بعد اصل سرور پر `VM_POLLING_ENABLED=true` مقرر کریں اور سروس دوبارہ چلائیں۔
 
 - &rlm;Basic defaults: `APP_LOCALE`، `HEYBOX_TOPIC_ID`، `NOTIFIER_PROVIDER`
 - &rlm;Polling tuning: `POLL_INTERVAL_MINUTES`، `POLL_POST_LIMIT`، `POLL_SORT`
@@ -71,21 +41,17 @@ HTTP redirects ہر hop پر validate ہوتے ہیں، اور صرف same-origi
 A/AAAA resolution result کو بھی validate کیا جاتا ہے کہ وہ localhost، internal network، link-local، metadata service یا reserved address ranges میں نہ آئے۔ `OUTBOUND_ALLOWED_HOSTS`
 administrator کی explicit trust boundary ہے؛ wildcard صرف مکمل طور پر controlled domains کے تحت configure ہونا چاہیے۔
 
-App registration اور login pages فراہم کرتا ہے۔ Account information، login sessions، اور ہر account کی settings، match records، polling state، notification configuration
-Deno KV میں stored ہوتی ہیں اور user ID کے مطابق isolated رہتی ہیں۔ Browser Cookie صرف random session token store کرتا ہے؛ server token
-hash اور expiry time store کرتا ہے۔
-
 Real Heybox topic fetching فی الحال واحد runtime data source ہے۔ Default `HEYBOX_SIGNATURE_MODE=app` verified App API
 publish-time list استعمال کرتا ہے؛ `web` صرف diagnostic fallback کے طور پر رکھا گیا ہے۔
 نئے account polling بند حالت میں شروع ہوتے ہیں اور اپنے settings page میں “Enable polling” آن کرنے کے بعد ہی fetching کرتے ہیں۔
 
 ## Notification relay
 
-اگر Deno Deploy براہ راست PushPlus، WxPusher یا Server酱 تک access نہیں کر سکتا، تو پہلے free Cloudflare Worker
+اگر Oracle Cloud براہ راست PushPlus، WxPusher یا Server酱 تک access نہیں کر سکتا، تو پہلے free Cloudflare Worker
 relay deploy کیا جا سکتا ہے۔ Repository میں `workers/notification-relay.js` fixed طور پر `/pushplus`، `/wxpusher` اور `/serverchan`
 تین forwarding entries فراہم کرتا ہے، اور authentication کے لیے `Authorization: Bearer <token>` استعمال کرتا ہے؛ مکمل steps کے لیے [worker.md](worker.md) دیکھیں۔
 
-Deno Deploy-side configuration example:
+Oracle Cloud-side configuration example:
 
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
@@ -95,11 +61,7 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 ## Verification
 
-Deployment مکمل ہونے کے بعد visit کریں:
-
-<pre dir='ltr' align='left'><code class='language-text'>/healthz
-</code></pre>
-
-اگر `status: ok` return ہو تو اس کا مطلب ہے کہ service process start ہو چکا ہے، اور health check Deno KV read نہیں کرتا۔
-
-</div>
+```sh
+systemctl is-active heybox-topic-notifier.service
+curl --fail --silent --show-error -H "Host: YOUR_DOMAIN" http://127.0.0.1:8000/healthz
+```

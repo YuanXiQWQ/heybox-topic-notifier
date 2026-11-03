@@ -1,52 +1,23 @@
 # Deployment Talimatları
 
-Bu proje, Deno Deploy’un GitHub entegrasyonu ile deploy edilir ve uygulamayı deploy etmek için GitHub Actions kullanılmaz. GitHub Actions yalnızca
-`deno task check` çalıştırır; repository’ye push yapıldıktan sonra uygulamayı build etmek ve route etmek Deno Deploy’un sorumluluğundadır.
+Deno hizmeti Oracle Cloud üzerinde çalışır ve HTTPS bağlantılarını Caddy yönetir. Hesaplar, oturumlar ve sonuçlar Turso’da saklanır. GitHub Actions sürüm etiketlerinden Windows ve Android kurulum paketlerini oluşturur.
 
-## Branch Deployment
-
-Deno Deploy, aynı App için farklı timeline’lar oluşturur:
-
-- `main`: resmi release deployment, Production URL’ye route edilir
-- `dev`: release öncesi test deployment, Git Branch / DEV URL’ye route edilir
-
-Mevcut App adı `heybox-topic-notifier` olduğunda URL kuralı yaklaşık olarak şöyledir:
-
-```text
-https://heybox-topic-notifier.yuanxiqwq.deno.net
-https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
-```
-
-Mevcut `dev` test deployment’ı zaten oluşturulmuştur ve stabil test giriş noktası Git Branch / DEV URL’dir. Bundan sonra `dev` branch’ine yapılan push’lar
-test deployment güncellemesini tetikler, `main` branch’ine yapılan push’lar ise Production güncellemesini tetikler.
-
-Deno Deploy’un GitHub entegrasyonu, feature branch push’ları için Git Branch timeline ve Build oluşturabilir. Preview
-ve normal feature branch’lerin KV’yi tekrar tekrar okumasını, Heybox fetch etmesini veya notification göndermesini önlemek için deployment entrypoint top level’da Cron bildirir, ancak handler yalnızca
-`DENO_TIMELINE=production` veya `DENO_TIMELINE=git-branch/dev` olduğunda çalışmaya devam eder. Normal page request’leri, root path,
-health check ve Warm up
-request’leri automatic polling tetiklemez; frontend sayfasında bir dakikadan kısa süre içinde vadesi gelen sorgular, kontrollü state API üzerinden mevcut account scheduling’i tetikler.
-
-## Deno Deploy Yapılandırması
-
-Deno Deploy App içinde aşağıdaki yapılandırmayı koruyun:
-
-- Repository: `YuanXiQWQ/heybox-topic-notifier`
-- App Directory: root directory
-- Entrypoint: `./src/deploy.ts`
-- Config Source: `deno.json deploy section`
-
-`deno.json` içindeki deploy yapılandırması, deployment entrypoint için repository tarafındaki tek yapılandırma kaynağıdır.
-
-## Veritabanı
-
-Deno Deploy App, Deno KV veritabanına bağlanmıştır. Kod, account, settings, history, polling state ve processed-post marker’larını okumak/yazmak için `Deno.openKv()`
-kullanır. Account password’leri salt eklenmiş PBKDF2 hash’leri olarak saklanır; user data user
-ID prefix’e göre izole edilir ve Deno Deploy, Production ile Git Branch verilerini timeline’a göre ayrıca izole eder.
+[systemd](../../ops/heybox-topic-notifier.service) · [Caddy](../../ops/Caddyfile)
 
 ## Runtime Environment Variables
 
-Deno Deploy App içinde ihtiyaca göre yapılandırın. Repository root içindeki `.env.example` senaryolara göre düzenlenmiştir: varsayılan olarak yalnızca minimum kullanılabilir configuration etkinleştirilir,
-diğer polling tuning, notification channel, relay ve security allowlist ayarları yorumda bırakılır; hangi senaryo kullanılacaksa yalnızca ilgili satırların yorumu kaldırılır.
+[`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
+
+```dotenv
+STORAGE_READ_BACKEND=turso
+TURSO_DATABASE_URL=libsql://YOUR_DATABASE.turso.io
+TURSO_AUTH_TOKEN=<TOKEN>
+PUBLIC_ORIGIN=https://YOUR_DOMAIN
+PORT=8000
+VM_POLLING_ENABLED=false
+```
+
+Test için ayrı bir veritabanı kullanın. Önce eski sunucudaki düzenli denetimi durdurun. Ardından üretim ortamında `VM_POLLING_ENABLED=true` ayarını yapıp hizmeti yeniden başlatın.
 
 - Temel varsayılanlar: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling tuning: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
@@ -70,21 +41,17 @@ HTTP redirect’leri hop bazında doğrulanır ve yalnızca same-origin redirect
 A/AAAA çözümleme sonucu da localhost, internal network, link-local, metadata service veya reserved address range içine düşmemesi için doğrulanır. `OUTBOUND_ALLOWED_HOSTS`
 administrator tarafından açıkça tanımlanan bir trust boundary’dir; wildcard yalnızca tamamen kontrol edilen domain’ler altında yapılandırılmalıdır.
 
-Uygulama registration ve login sayfaları sağlar. Account information, login sessions ve her account’un settings, match records, polling state, notification configuration verileri
-Deno KV içinde saklanır ve user ID’ye göre izole edilir. Browser Cookie yalnızca random session token saklar; server token
-hash ve expiry time saklar.
-
 Gerçek Heybox topic fetching şu anda tek runtime data source’tur. Varsayılan olarak `HEYBOX_SIGNATURE_MODE=app`, doğrulanmış App API
 publish-time list’i kullanır; `web` yalnızca diagnostic fallback olarak tutulur.
 Yeni account’lar polling kapalı olarak başlar ve yalnızca kendi settings page’inde “Enable polling” açıldıktan sonra fetch yapar.
 
 ## Notification Relay
 
-Deno Deploy, PushPlus, WxPusher veya Server酱’e doğrudan erişemiyorsa önce ücretsiz bir Cloudflare Worker
+Oracle Cloud, PushPlus, WxPusher veya Server酱’e doğrudan erişemiyorsa önce ücretsiz bir Cloudflare Worker
 relay deploy edebilirsiniz. Repository’deki `workers/notification-relay.js`, sabit olarak `/pushplus`, `/wxpusher` ve `/serverchan`
 adlı üç forwarding entry sağlar ve authentication için `Authorization: Bearer <token>` kullanır; tüm adımlar için [worker.md](worker.md) dosyasına bakın.
 
-Deno Deploy tarafı configuration örneği:
+`/etc/heybox-topic-notifier/heybox.env`
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
@@ -95,10 +62,7 @@ NOTIFIER_RELAY_TOKEN=<same-random-secret>
 
 ## Doğrulama
 
-Deployment tamamlandıktan sonra şu adrese gidin:
-
-```text
-/healthz
+```sh
+systemctl is-active heybox-topic-notifier.service
+curl --fail --silent --show-error -H "Host: YOUR_DOMAIN" http://127.0.0.1:8000/healthz
 ```
-
-`status: ok` dönmesi, service process’in başladığı ve health check’in Deno KV okumadığı anlamına gelir.

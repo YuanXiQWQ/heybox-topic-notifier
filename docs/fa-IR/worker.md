@@ -18,7 +18,7 @@ SendKey امن را می‌پذیرد و آدرس رسمی را مطابق قو�
 2. محتوای `workers/notification-relay.js` را در ویرایشگر Worker جای‌گذاری کنید، یا این اسکریپت را با Wrangler مستقر کنید.
 3. در متغیرها/رازهای Worker مقدار `RELAY_TOKEN` را اضافه کنید و مقدار آن را یک کلید تصادفی طولانی قرار دهید.
 4. پس از استقرار، `https://<your-worker>.workers.dev/healthz` را باز کنید و مطمئن شوید `{"status":"ok"}` برمی‌گرداند.
-5. در Deno Deploy پیکربندی کنید:
+5. `/etc/heybox-topic-notifier/heybox.env`
 
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher

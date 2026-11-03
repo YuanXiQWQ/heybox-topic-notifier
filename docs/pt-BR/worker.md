@@ -16,7 +16,7 @@ SendKey seguro e constrói o endereço oficial conforme as regras existentes do 
 2. Cole o conteúdo de `workers/notification-relay.js` no editor do Worker, ou implante o script com Wrangler.
 3. Adicione `RELAY_TOKEN` nas variáveis/segredos do Worker, usando uma chave aleatória longa como valor.
 4. Depois da implantação, acesse `https://<your-worker>.workers.dev/healthz` e confirme que retorna `{"status":"ok"}`.
-5. Configure o Deno Deploy:
+5. `/etc/heybox-topic-notifier/heybox.env`
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus

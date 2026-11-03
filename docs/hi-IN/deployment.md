@@ -1,52 +1,23 @@
 # Deployment निर्देश
 
-यह project Deno Deploy के GitHub integration से deploy होता है, और app deploy करने के लिए GitHub Actions का उपयोग नहीं करता। GitHub Actions केवल
-`deno task check` चलाता है; repository में push होने के बाद Deno Deploy app को build और route करता है।
+Deno सेवा Oracle Cloud पर चलती है और Caddy HTTPS संभालता है। खाते, सत्र और परिणाम Turso में सहेजे जाते हैं। रिलीज़ टैग से GitHub Actions Windows और Android के इंस्टॉलर बनाता है।
 
-## Branch deployment
-
-Deno Deploy एक ही App के लिए अलग-अलग timelines बनाता है:
-
-- `main`: official release deployment, Production URL पर route होता है
-- `dev`: release से पहले का test deployment, Git Branch / DEV URL पर route होता है
-
-जब मौजूदा App का नाम `heybox-topic-notifier` हो, तो URL convention लगभग यह है:
-
-```text
-https://heybox-topic-notifier.yuanxiqwq.deno.net
-https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
-```
-
-मौजूदा `dev` test deployment बन चुका है, और stable test entry Git Branch / DEV URL है। आगे `dev` पर push
-test deployment update करेगा, और `main` पर push Production update करेगा।
-
-Deno Deploy का GitHub integration feature branch push के लिए Git Branch timeline और Build बना सकता है। Preview
-और सामान्य feature branches को बार-बार KV पढ़ने, Heybox fetch करने या notification भेजने से बचाने के लिए, deployment entrypoint top level पर Cron declare करता है, लेकिन handler केवल तब आगे execution जारी रखेगा जब
-`DENO_TIMELINE=production` या `DENO_TIMELINE=git-branch/dev` हो। सामान्य page requests, root path,
-health check और Warm up
-requests automatic polling trigger नहीं करेंगे; frontend page पर एक minute से कम की due-time query controlled state API के माध्यम से current account scheduling trigger करेगी।
-
-## Deno Deploy configuration
-
-Deno Deploy App में निम्न configuration बनाए रखें:
-
-- Repository: `YuanXiQWQ/heybox-topic-notifier`
-- App Directory: root directory
-- Entrypoint: `./src/deploy.ts`
-- Config Source: `deno.json deploy section`
-
-`deno.json` में deploy configuration deployment entrypoint के लिए एकमात्र repository-side configuration source है।
-
-## Database
-
-Deno Deploy App से Deno KV database bound है। Code `Deno.openKv()`
-का उपयोग करके accounts, settings, history, polling state और processed-post markers read/write करता है। Account passwords salted PBKDF2 hashes के रूप में stored हैं; user data user
-ID prefix के अनुसार isolated है, और Deno Deploy timeline के अनुसार Production और Git Branch data को भी अलग रखता है।
+[systemd](../../ops/heybox-topic-notifier.service) · [Caddy](../../ops/Caddyfile)
 
 ## Runtime environment variables
 
-Deno Deploy App में ज़रूरत के अनुसार configure करें। Repository root में `.env.example` scenario के अनुसार व्यवस्थित है: default में केवल minimum usable configuration enabled है,
-जबकि अन्य polling tuning, notification channel, relay और security allowlist configuration commented रहते हैं; जिस scenario का उपयोग करना हो, उसी की संबंधित lines uncomment करें।
+[`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
+
+```dotenv
+STORAGE_READ_BACKEND=turso
+TURSO_DATABASE_URL=libsql://YOUR_DATABASE.turso.io
+TURSO_AUTH_TOKEN=<TOKEN>
+PUBLIC_ORIGIN=https://YOUR_DOMAIN
+PORT=8000
+VM_POLLING_ENABLED=false
+```
+
+परीक्षण के लिए अलग डेटाबेस रखें। पुराने सर्वर की नियमित जाँच बंद करने के बाद प्रोडक्शन सर्वर पर `VM_POLLING_ENABLED=true` सेट करें और सेवा फिर से शुरू करें।
 
 - Basic defaults: `APP_LOCALE`, `HEYBOX_TOPIC_ID`, `NOTIFIER_PROVIDER`
 - Polling tuning: `POLL_INTERVAL_MINUTES`, `POLL_POST_LIMIT`, `POLL_SORT`
@@ -70,21 +41,17 @@ HTTP redirects hop-by-hop validate होते हैं, और केवल s
 A/AAAA resolution result को भी validate किया जाता है कि वह localhost, private network, link-local, metadata service या reserved address ranges में न पड़े। `OUTBOUND_ALLOWED_HOSTS`
 administrator की explicit trust boundary है; wildcard केवल पूरी तरह controlled domains के अंतर्गत configure करना चाहिए।
 
-App registration और login pages प्रदान करता है। Account information, login sessions, और प्रत्येक account की settings, match records, polling state, notification configuration
-Deno KV में stored रहती हैं और user ID के अनुसार isolated रहती हैं। Browser Cookie केवल random session token store करता है; server token
-hash और expiry time store करता है।
-
 Real Heybox topic fetching वर्तमान में एकमात्र runtime data source है। Default `HEYBOX_SIGNATURE_MODE=app` verified App API
 publish-time list का उपयोग करता है; `web` केवल diagnostic fallback के रूप में रखा गया है।
 नए account polling बंद के साथ शुरू होते हैं और अपने settings page में “enable polling” चालू करने के बाद ही fetching करते हैं।
 
 ## Notification relay
 
-यदि Deno Deploy सीधे PushPlus, WxPusher या Server酱 access नहीं कर सकता, तो पहले free Cloudflare Worker
+यदि Oracle Cloud सीधे PushPlus, WxPusher या Server酱 access नहीं कर सकता, तो पहले free Cloudflare Worker
 relay deploy किया जा सकता है। Repository का `workers/notification-relay.js` fixed `/pushplus`, `/wxpusher` और `/serverchan`
 तीन forwarding entries प्रदान करता है, और `Authorization: Bearer <token>` authentication का उपयोग करता है; complete steps के लिए [worker.md](worker.md) देखें।
 
-Deno Deploy-side configuration example:
+`/etc/heybox-topic-notifier/heybox.env`
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus
@@ -95,10 +62,7 @@ NOTIFIER_RELAY_TOKEN=<same-random-secret>
 
 ## Verification
 
-Deployment पूरा होने के बाद visit करें:
-
-```text
-/healthz
+```sh
+systemctl is-active heybox-topic-notifier.service
+curl --fail --silent --show-error -H "Host: YOUR_DOMAIN" http://127.0.0.1:8000/healthz
 ```
-
-`status: ok` return होने का अर्थ है कि service process start हो चुका है, और health check Deno KV read नहीं करता।
