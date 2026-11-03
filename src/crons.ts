@@ -54,6 +54,9 @@ export function createPollScheduler(
   /** 已开始的轮询所属时段，避免跨边界完成的旧轮询吞掉新时段。 */
   const lastPollKeyByUserId = new Map<string, string>();
   let scheduling = false;
+  let stopping = false;
+  /** 等待后台及接口发起的调度任务全部结束的关闭回调。 */
+  const idleWaiters = new Set<() => void>();
 
   return {
     /**
@@ -62,7 +65,7 @@ export function createPollScheduler(
      * @return {Promise<boolean>} 本次检查是否触发过轮询。
      */
     async tick(): Promise<boolean> {
-      if (scheduling) return false;
+      if (stopping || scheduling) return false;
       scheduling = true;
       try {
         const schedule = await context.storage.listPollSchedule?.();
@@ -79,6 +82,7 @@ export function createPollScheduler(
         return didPoll;
       } finally {
         scheduling = false;
+        notifyIdle();
       }
     },
 
@@ -89,7 +93,24 @@ export function createPollScheduler(
      * @return {Promise<boolean>} 该用户是否执行了轮询。
      */
     tickUser,
+    /**
+     * 禁止新调度并等待正在执行的任务落盘，供受控重启使用。
+     * @return {Promise<void>} 所有本调度器任务结束后的 Promise。
+     */
+    stop(): Promise<void> {
+      stopping = true;
+      return !scheduling && pollingUserIds.size === 0
+        ? Promise.resolve()
+        : new Promise((resolve) => { idleWaiters.add(resolve); });
+    },
   };
+
+  /** 所有调度任务结束时唤醒等待关闭的调用方。 */
+  function notifyIdle(): void {
+    if (scheduling || pollingUserIds.size) return;
+    for (const resolve of idleWaiters) resolve();
+    idleWaiters.clear();
+  }
 
   /**
    * 按当前时段检查指定用户，跳过暂停时段，进入轮询时段时立即调度，未覆盖时间使用默认参数。
@@ -102,7 +123,7 @@ export function createPollScheduler(
     userId: string,
     snapshot?: PollScheduleEntry,
   ): Promise<boolean> {
-    if (pollingUserIds.has(userId)) {
+    if (stopping || pollingUserIds.has(userId)) {
       return false;
     }
 
@@ -148,6 +169,7 @@ export function createPollScheduler(
       return false;
     } finally {
       pollingUserIds.delete(userId);
+      notifyIdle();
     }
   }
 }
@@ -184,20 +206,22 @@ function storageForUser(storage: AppContext["storage"], userId: string) {
  *
  * @param context 应用运行时上下文。
  * @param options 定时任务注册选项。
+ * @return {() => void} 停止定时检查的清理函数。
  */
 export function registerCrons(
   context: AppContext,
   options: CronRegistrationOptions = {},
-): void {
+): () => void {
   const isDeploy = options.isDenoDeploy ?? isDenoDeploy;
   if (isDeploy()) {
-    return;
+    return () => {};
   }
 
   const registerInterval = options.setInterval ?? setInterval;
-  registerInterval(() => {
-    void context.scheduler.tick();
+  const timer = registerInterval(() => {
+    void context.scheduler.tick().catch((error) => console.error("Poll schedule refresh failed", error));
   }, pollSchedulerTickMs);
+  return () => clearInterval(timer);
 }
 
 /**

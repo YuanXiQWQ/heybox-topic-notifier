@@ -177,7 +177,7 @@ const testNotificationOverflowGuard = 300;
  * 测试通知中使用的示例帖子链接。
  */
 const testNotificationUrl =
-  "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/";
+  "https://heybox.yuanxiqwq.top/";
 /**
  * 测试通知可随机使用的命中位置。
  */

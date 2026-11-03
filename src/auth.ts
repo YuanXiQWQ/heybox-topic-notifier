@@ -4277,10 +4277,10 @@ function renderOtherLoginMethodsDialog(options: {
 }
 
 /**
- * 渲染 Google 官方登录按钮容器和 credential 提交表单。
+ * 在其它登录方式弹窗中渲染 Google 官方按钮容器和 credential 提交表单。
  *
- * @param options 认证页面渲染选项。
- * @return Google 登录 HTML。
+ * @param {{csrfToken: string, googleClientId?: string, locale: Locale, returnTo: string, syncLocale: boolean}} options 认证页面渲染选项。
+ * @return {string} Google 登录 HTML。
  */
 function renderGoogleLoginForm(options: {
   csrfToken: string;
@@ -4307,6 +4307,7 @@ function renderGoogleLoginForm(options: {
           data-google-client-id="${escapeHtml(options.googleClientId)}"
           hidden
         >
+          <div data-google-button></div>
           <form
             method="post"
             action="${escapeHtml(action)}"
@@ -5761,10 +5762,10 @@ function arrayBufferToBase64Url(value) {
 }
 
 /**
- * 渲染 Google Identity Services 登录交互脚本。
+ * 渲染 Google Identity Services 官方按钮及自动提示，原生端由系统浏览器完成登录。
  *
- * @param enabled 是否需要渲染脚本。
- * @return 交互脚本 HTML。
+ * @param {boolean} enabled 是否需要渲染脚本。
+ * @return {string} 交互脚本 HTML。
  */
 function authGoogleLoginScript(enabled: boolean): string {
   return enabled
@@ -5784,6 +5785,7 @@ function authGoogleLoginScript(enabled: boolean): string {
     credentialInput.value = credential;
     form.submit();
   };
+  /** 显示可主动点击的官方入口，并保留浏览器支持的自动登录提示。 */
   const initialize = () => {
     const googleIdentity = globalThis.google?.accounts?.id;
     if (!googleIdentity) return;
@@ -5794,14 +5796,17 @@ function authGoogleLoginScript(enabled: boolean): string {
     });
     if (button instanceof HTMLElement) {
       googleIdentity.renderButton(button, {
+        locale: document.documentElement.lang.replace("-", "_"),
         logo_alignment: "left",
         shape: "rectangular",
         size: "large",
         text: "continue_with",
         theme: "outline",
         type: "standard",
-        width: Math.min(320, Math.max(240, Math.floor(button.getBoundingClientRect().width || 320))),
+        // 弹窗保留两侧 32 像素外距及 42 像素内边距与边框，隐藏时也能计算窄屏宽度。
+        width: String(Math.min(318, Math.max(120, Math.floor(document.documentElement.clientWidth - 74)))),
       });
+      root.hidden = false;
     }
     googleIdentity.prompt();
   };

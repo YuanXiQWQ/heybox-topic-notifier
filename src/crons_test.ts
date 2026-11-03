@@ -20,6 +20,31 @@ const fiveMinutes = { intervalUnit: "minute" as const, intervalValue: 5 };
  */
 const threeSeconds = { intervalUnit: "second" as const, intervalValue: 3 };
 
+Deno.test("scheduler shutdown drains in-flight work and rejects new per-user and periodic starts", async () => {
+  const started = Promise.withResolvers<void>();
+  const finish = Promise.withResolvers<void>();
+  let runs = 0;
+  const scheduler = createPollScheduler({
+    storage: {
+      getSettings: () => Promise.resolve({ polling: { enabled: true, ...fiveMinutes } }),
+      getLastPollAt: () => Promise.resolve(undefined),
+    },
+    poller: { runOnce: async () => { runs++; started.resolve(); await finish.promise; } },
+  } as unknown as Parameters<typeof createPollScheduler>[0]);
+  const work = scheduler.tick();
+  await started.promise;
+  let stopped = false;
+  const shutdown = scheduler.stop().then(() => { stopped = true; });
+  assertEquals(await scheduler.tick(), false);
+  assertEquals(await scheduler.tickUser("other"), false);
+  assertEquals(stopped, false);
+  finish.resolve();
+  assertEquals(await work, true);
+  await shutdown;
+  assertEquals(stopped, true);
+  assertEquals(runs, 1);
+});
+
 Deno.test("shouldPoll runs when no previous poll exists", () => {
   assertEquals(
     shouldPoll(undefined, fiveMinutes, new Date("2026-06-30T12:00:00.000Z")),

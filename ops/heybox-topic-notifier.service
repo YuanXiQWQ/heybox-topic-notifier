@@ -1,0 +1,32 @@
+# 常驻生产服务通过回环端口交给 Caddy，环境文件不放入发布目录。
+[Unit]
+Description=Heybox Topic Notifier
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=heybox
+Group=heybox
+WorkingDirectory=/opt/heybox-topic-notifier/current
+EnvironmentFile=/etc/heybox-topic-notifier/heybox.env
+Environment=DENO_DIR=/var/cache/heybox
+Environment=HOME=/var/lib/heybox
+ExecStart=/usr/local/bin/deno task start:vm
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=180
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/cache/heybox /var/lib/heybox
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -9,6 +9,7 @@ import {
 import { normalizeSettings } from "./kv.ts";
 import type { UserSyncStore } from "./sync_types.ts";
 import { createTursoRecordSync } from "./sync_records_turso.ts";
+import type { MatchRecord } from "../models.ts";
 
 /**
  * 创建使用数据库事务保护的账号同步存储。
@@ -16,6 +17,7 @@ import { createTursoRecordSync } from "./sync_records_turso.ts";
  * @param {(statements: InStatement[]) => Promise<ResultSet[]>} batch 原子事务。
  * @param {string} userId 账号 ID。
  * @param {AppSettings} defaults 默认设置。
+ * @param {(record: MatchRecord) => InStatement[]} enqueue 新命中通知的同事务语句。
  * @return {UserSyncStore} 同步存储。
  */
 export function createTursoSyncStore(
@@ -23,6 +25,7 @@ export function createTursoSyncStore(
   batch: (statements: InStatement[]) => Promise<ResultSet[]>,
   userId: string,
   defaults: AppSettings,
+  enqueue?: (record: MatchRecord) => InStatement[],
 ): UserSyncStore {
   /**
    * 生成投影写入与迁移保护语句，必须与版本写入在同一事务执行。
@@ -44,7 +47,7 @@ export function createTursoSyncStore(
     ];
   }
   const store: UserSyncStore = {
-    ...createTursoRecordSync(execute, batch, userId),
+    ...createTursoRecordSync(execute, batch, userId, enqueue),
     /**
      * 从版本行读取快照，或读取还未参与同步的已有设置。
      * @return {Promise<SettingsSyncSnapshot>} 快照。

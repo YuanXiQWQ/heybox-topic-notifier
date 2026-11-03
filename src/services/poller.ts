@@ -23,6 +23,7 @@ type PollStorage = Pick<
   | "saveMatch"
   | "setLastPollAt"
   | "userId"
+  | "notificationOutbox"
 >;
 
 /**
@@ -240,23 +241,28 @@ async function saveAndNotifyMatches(
   await notifyMatchedRecords(storage, notifier, records, settings);
 }
 
+/**
+ * 保存新命中，支持的存储在同一事务内创建持久投递任务。
+ * @param {Pick<PollStorage, "saveMatch">} storage 用户存储。
+ * @param {MatchRecord} record 新命中记录。
+ */
 async function saveMatchRecord(
   storage: Pick<PollStorage, "saveMatch">,
   record: MatchRecord,
 ): Promise<void> {
-  await storage.saveMatch(record);
+  await storage.saveMatch(record, { notify: true });
 }
 
 /**
  * 向所属账号发送新命中，并记录至少一个通道受理通知的时间。
- * @param {Pick<PollStorage, "markMatchNotified" | "userId">} storage 用户存储。
+ * @param {Pick<PollStorage, "markMatchNotified" | "userId" | "notificationOutbox">} storage 用户存储，持久队列独立确认各条记录。
  * @param {PollNotifier} notifier 通知器。
  * @param {MatchRecord[]} records 新命中。
  * @param {AppSettings} settings 通知设置。
  * @return {Promise<boolean>} 是否至少一个通道受理命中通知。
  */
 async function notifyMatchedRecords(
-  storage: Pick<PollStorage, "markMatchNotified" | "userId">,
+  storage: Pick<PollStorage, "markMatchNotified" | "userId" | "notificationOutbox">,
   notifier: PollNotifier,
   records: MatchRecord[],
   settings: AppSettings,
@@ -269,7 +275,7 @@ async function notifyMatchedRecords(
   const notifiedAt = new Date().toISOString();
 
   for (const record of records) {
-    if (result.sent) {
+    if (result.sent && !storage.notificationOutbox) {
       await storage.markMatchNotified(record.id, notifiedAt);
     }
   }

@@ -6,6 +6,7 @@ import { sendIndependentNotifications } from "./application_notifier.ts";
 import type { enqueueNativeNotifications } from "./native_notifications.ts";
 import type { notifyBrowsers } from "./web_push.ts";
 import type { ServiceNotification } from "./service_notification.ts";
+import { deliverNotificationOutbox } from "./notification_outbox.ts";
 
 /** 可注入各通道以离线验证故障隔离，不实际发送通知。 */
 type Options = {
@@ -22,6 +23,42 @@ type Options = {
  */
 export function createPollingNotifier(storage: Storage, options: Options = {}) {
   let notifierPromise: Promise<ReturnType<typeof createNotifier>> | undefined;
+  /** 当前进程同账号的后台重试和新命中发送共享一轮投递。 */
+  const delivering = new Map<string, Promise<import("./notifier.ts").NotifyResult>>();
+  /**
+   * 延迟加载其它通知发送器，失败后允许后续重新加载。
+   * @param {NotificationRequest} request 通知载荷。
+   * @param {AppSettings} settings 通知设置。
+   * @return {Promise<import("./notifier.ts").NotifyResult>} 其它通道的受理结果。
+   */
+  async function sendOther(request: NotificationRequest, settings: AppSettings) {
+    notifierPromise ??= (options.other ? options.other() : import("./notifier.ts").then((module) => module.createNotifier()))
+      .catch((error) => { notifierPromise = undefined; throw error; });
+    return await (await notifierPromise).sendNotification(request, settings);
+  }
+
+  /**
+   * 消费一批持久化命中，单通道失败不撤销其它通道确认。
+   * @param {AppSettings} settings 当前账号设置。
+   * @param {string} userId 账号 ID。
+   * @return {Promise<import("./notifier.ts").NotifyResult>} 本批受理结果。
+   */
+  function flush(settings: AppSettings, userId: string): Promise<import("./notifier.ts").NotifyResult> {
+    const previous = delivering.get(userId);
+    if (previous) return previous;
+    const outbox = storage.forUser(userId).notificationOutbox;
+    if (!outbox) return Promise.resolve({ provider: settings.notificationProvider, sent: false });
+    const work = deliverNotificationOutbox(outbox, {
+      other: async (records) => (await sendOther({ type: "matches", records }, settings)).sent,
+      browser: async (records) => (options.browsers ?? (await import("./web_push.ts")).notifyBrowsers)(storage, userId, records, settings, { strict: true }),
+      native: async (records) => (options.native ?? (await import("./native_notifications.ts")).enqueueNativeNotifications)(storage, userId, records, settings),
+    }).then((result) => {
+      if (result.failed && !result.sent) throw new Error("Notification delivery is queued for retry.");
+      return { provider: settings.notificationProvider, sent: result.sent };
+    }).finally(() => { delivering.delete(userId); });
+    delivering.set(userId, work);
+    return work;
+  }
   /**
    * 独立尝试其它通知与各应用通道，任一受理即返回成功。
    * @param {NotificationRequest} request 邮件或 Webhook 载荷。
@@ -38,20 +75,7 @@ export function createPollingNotifier(storage: Storage, options: Options = {}) {
   ) {
     return await sendIndependentNotifications(
       settings.notificationProvider,
-      async () => {
-        notifierPromise ??=
-          (options.other
-            ? options.other()
-            : import("./notifier.ts").then((module) => module.createNotifier()))
-            .catch((error) => {
-              notifierPromise = undefined;
-              throw error;
-            });
-        return await (await notifierPromise).sendNotification(
-          request,
-          settings,
-        );
-      },
+      () => sendOther(request, settings),
       async () => {
         if (!userId) return false;
         const results = await Promise.allSettled([
@@ -88,6 +112,8 @@ export function createPollingNotifier(storage: Storage, options: Options = {}) {
     );
   }
   return {
+    /** 持久化队列的独立恢复入口，轮询暂停时也可补投。 */
+    flush,
     /**
      * 发送批量命中通知。
      * @param {MatchRecord[]} records 命中记录。
@@ -100,6 +126,7 @@ export function createPollingNotifier(storage: Storage, options: Options = {}) {
       settings: AppSettings,
       userId?: string,
     ) {
+      if (userId && storage.forUser(userId).notificationOutbox) return flush(settings, userId);
       return send({ type: "matches", records }, records, settings, userId);
     },
     /**

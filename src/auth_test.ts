@@ -192,7 +192,10 @@ Deno.test("auth routes render Google Identity Services when configured", async (
   const dialogStart = html.indexOf("<dialog");
   const dialogEnd = html.indexOf("</dialog>", dialogStart);
   const googleEntry = html.indexOf('class="auth-google-method"');
+  const googleButton = html.indexOf('<div data-google-button>');
   assert(googleEntry > dialogStart && googleEntry < dialogEnd);
+  assert(googleButton > googleEntry && googleButton < dialogEnd);
+  assertEquals(html.split('<div data-google-button>').length - 1, 1);
   assertEquals(html.split('class="auth-google-method"').length - 1, 1);
   assert(!(html.includes('class="auth-google-button"')));
   assertEquals(

@@ -352,3 +352,61 @@ async function assertRejects(
 
   throw new Error(`Expected ${expectedMessage}`);
 }
+
+for (const restriction of ["show_captcha", "http_429"]) {
+  Deno.test(`detail restriction ${restriction} pauses requests without treating incomplete content as success`, async () => {
+    let time = 1800000000000;
+    let details = 0;
+    const source = createHeyboxTopicSource({
+      now: () => new Date(time),
+      fetchFn: (input) => {
+        if (new URL(String(input)).pathname.endsWith("/feeds")) {
+          return Promise.resolve(
+            Response.json({
+              status: "ok",
+              result: { links: [{ linkid: "1", title: "hello" }] },
+            }),
+          );
+        }
+        details++;
+        return Promise.resolve(
+          details === 1
+            ? restriction === "http_429"
+              ? new Response("limited", { status: 429 })
+              : Response.json({ status: "show_captcha", result: {} })
+            : Response.json({
+              status: "ok",
+              result: {
+                link: { linkid: "1", title: "hello", description: "complete" },
+              },
+            }),
+        );
+      },
+    });
+    const posts = await source.listLatestPosts("12099", {
+      limit: 1,
+      sort: "smart",
+    });
+    assertEquals(
+      (await source.getPostDetails!(posts[0])).detailsComplete,
+      false,
+    );
+    time += 3 * 60000;
+    assertEquals(
+      (await source.getPostDetails!({ ...posts[0], id: "2" })).detailsComplete,
+      false,
+    );
+    assertEquals(details, 1);
+    assertEquals(
+      (await source.listLatestPosts("12099", { limit: 1, sort: "smart" }))
+        .length,
+      1,
+    );
+    time += 12 * 60000;
+    assertEquals(
+      (await source.getPostDetails!(posts[0])).detailsComplete,
+      true,
+    );
+    assertEquals(details, 2);
+  });
+}

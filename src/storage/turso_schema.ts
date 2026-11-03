@@ -6,7 +6,7 @@ import type { InStatement } from "@libsql/client";
 /**
  * 当前 Turso schema 版本。
  */
-export const TURSO_SCHEMA_VERSION = 10;
+export const TURSO_SCHEMA_VERSION = 12;
 /** 具备稳定游标和事件唯一键的原生通知收件箱。 */
 const nativeNotificationSchema = [
   `CREATE TABLE IF NOT EXISTS invitations (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, value_json TEXT NOT NULL)`,
@@ -46,8 +46,16 @@ function dashboardVersionTriggers(table: string): string[] {
  *
  * 业务对象保留 JSON 原文以兼容当前 TypeScript 数据结构，同时将查询、唯一性和
  * TTL 所需字段提升为关系列，避免把原有 KV prefix scan 原样搬到 SQL。
+ * 命中总数由数据库触发器维护，覆盖同步投影、批量删除及所有版本的业务写入。
  */
 export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
+  `CREATE TABLE IF NOT EXISTS notification_outbox (
+    user_id TEXT NOT NULL, id TEXT NOT NULL, channel TEXT NOT NULL,
+    record_json TEXT NOT NULL, retry_at INTEGER NOT NULL, attempts INTEGER NOT NULL,
+    lease_token TEXT, lease_until INTEGER NOT NULL,
+    PRIMARY KEY (user_id, id, channel)
+  )`,
+  `CREATE INDEX IF NOT EXISTS notification_outbox_due ON notification_outbox(user_id, retry_at, lease_until)`,
   `CREATE TABLE IF NOT EXISTS sync_settings (user_id TEXT PRIMARY KEY, revision TEXT NOT NULL, value_json TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS sync_records (user_id TEXT NOT NULL, id TEXT NOT NULL, value_json TEXT NOT NULL, PRIMARY KEY (user_id, id))`,
   `CREATE TABLE IF NOT EXISTS sync_transaction_guard (id INTEGER PRIMARY KEY CONSTRAINT sync_guard_valid CHECK (id = 1))`,
@@ -113,6 +121,31 @@ export const TURSO_SCHEMA_STATEMENTS: InStatement[] = [
     ON matches (user_id, completed_at, post_published_at DESC, matched_at DESC, id ASC)`,
   `CREATE INDEX IF NOT EXISTS matches_user_post_idx
     ON matches (user_id, json_extract(value_json, '$.post.id'))`,
+  `CREATE INDEX IF NOT EXISTS matches_user_latest_idx
+    ON matches (user_id, matched_at DESC, post_published_at DESC, id ASC)`,
+  `CREATE TABLE IF NOT EXISTS match_counts (
+    user_id TEXT PRIMARY KEY,
+    total_matches INTEGER NOT NULL CHECK (total_matches >= 0)
+  )`,
+  `DELETE FROM match_counts`,
+  `INSERT INTO match_counts (user_id, total_matches)
+    SELECT user_id, COUNT(*) FROM matches GROUP BY user_id`,
+  `CREATE TRIGGER IF NOT EXISTS matches_count_insert AFTER INSERT ON matches
+    BEGIN
+      INSERT INTO match_counts (user_id, total_matches) VALUES (NEW.user_id, 1)
+        ON CONFLICT(user_id) DO UPDATE SET total_matches = total_matches + 1;
+    END`,
+  `CREATE TRIGGER IF NOT EXISTS matches_count_delete AFTER DELETE ON matches
+    BEGIN
+      UPDATE match_counts SET total_matches = total_matches - 1 WHERE user_id = OLD.user_id;
+    END`,
+  `CREATE TRIGGER IF NOT EXISTS matches_count_move AFTER UPDATE OF user_id ON matches
+    WHEN OLD.user_id <> NEW.user_id
+    BEGIN
+      UPDATE match_counts SET total_matches = total_matches - 1 WHERE user_id = OLD.user_id;
+      INSERT INTO match_counts (user_id, total_matches) VALUES (NEW.user_id, 1)
+        ON CONFLICT(user_id) DO UPDATE SET total_matches = total_matches + 1;
+    END`,
   `CREATE TABLE IF NOT EXISTS dashboard_versions (
     user_id TEXT PRIMARY KEY,
     version TEXT NOT NULL

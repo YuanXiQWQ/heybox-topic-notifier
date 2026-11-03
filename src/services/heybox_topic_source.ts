@@ -38,6 +38,8 @@ const topicFeedsPath = "/bbs/app/topic/feeds";
  * 小黑盒帖子详情接口路径。
  */
 const linkTreePath = "/bbs/app/link/tree";
+/** 上游要求验证或限流后停止详情访问，避免逐帖重试继续增加负载。 */
+const detailRestrictionCooldownMs = 15 * 60 * 1000;
 /**
  * 小黑盒网页端可信来源。
  */
@@ -68,6 +70,7 @@ export function createHeyboxTopicSource(
   const deviceId = config.deviceId ?? crypto.randomUUID().replaceAll("-", "");
   const dw = config.dw ?? "393";
   const fetchFn = config.fetchFn ?? fetch;
+  let detailBlockedUntil = 0;
   const heyboxId = config.heyboxId ?? "";
   const osVersion = config.osVersion ?? "14";
   const signatureMode = config.signatureMode ?? "app";
@@ -199,7 +202,7 @@ export function createHeyboxTopicSource(
   }
 
   /**
-   * 在十秒请求期限内请求帖子详情并解析正文。
+   * 在十秒请求期限内请求帖子详情并解析正文；受限制后的冷却期间不发出请求。
    *
    * @param {TopicPost} post 列表接口返回的帖子。
    * @return {Promise<TopicPost | undefined>} 详情帖子，接口无可用内容时返回 undefined。
@@ -207,6 +210,9 @@ export function createHeyboxTopicSource(
   async function fetchLinkDetailPost(
     post: TopicPost,
   ): Promise<TopicPost | undefined> {
+    if ((config.now?.() ?? new Date()).getTime() < detailBlockedUntil) {
+      return undefined;
+    }
     const url = new URL(linkTreePath, apiBaseUrl);
     const params: Record<string, string> = {
       ...signedRequestParams(linkTreePath),
@@ -227,11 +233,21 @@ export function createHeyboxTopicSource(
       },
     });
 
+    if (response.status === 429) {
+      await response.body?.cancel();
+      pauseRestrictedDetails("http_429");
+      return undefined;
+    }
     if (!response.ok) {
+      await response.body?.cancel();
       return undefined;
     }
 
     const payload = await response.json();
+    if (asRecord(payload).status === "show_captcha") {
+      pauseRestrictedDetails("show_captcha");
+      return undefined;
+    }
     assertHeyboxOk(payload);
     const link = asRecord(asRecord(payload).result).link;
     const record = asRecord(link);
@@ -239,6 +255,20 @@ export function createHeyboxTopicSource(
     return Object.keys(record).length > 0
       ? postFromHeyboxRecord(record, topicIdFromPost(post))
       : undefined;
+  }
+
+  /**
+   * 暂停受限制的详情接口，并记录不含请求身份或帖子内容的诊断信息。
+   * @param {string} reason 上游返回的固定限制类型。
+   */
+  function pauseRestrictedDetails(reason: string): void {
+    detailBlockedUntil = (config.now?.() ?? new Date()).getTime() +
+      detailRestrictionCooldownMs;
+    console.warn(JSON.stringify({
+      event: "heybox_detail_restricted",
+      reason,
+      retryAt: new Date(detailBlockedUntil).toISOString(),
+    }));
   }
 }
 

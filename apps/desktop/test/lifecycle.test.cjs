@@ -24,7 +24,7 @@ function harness(options = {}) {
   const shown = [];
   const opened = [];
   const frame = {
-    url: "https://heybox-topic-notifier.yuanxiqwq.deno.net/settings",
+    url: "https://heybox.yuanxiqwq.top/settings",
   };
   const contents = {
     mainFrame: frame,

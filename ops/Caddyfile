@@ -1,0 +1,4 @@
+# 自有 HTTPS 入口直连同机服务，证书自动续期；源服务仅监听回环。
+heybox.yuanxiqwq.top {
+    reverse_proxy 127.0.0.1:8000
+}

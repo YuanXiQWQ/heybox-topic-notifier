@@ -1,7 +1,8 @@
 # 部署说明
 
-本项目使用 Deno Deploy 的 GitHub 集成部署，不使用 GitHub Actions 部署应用。GitHub Actions 只负责运行
-`deno task check`，Deno Deploy 负责在仓库 push 后构建并路由应用。
+本页介绍可选的 Deno Deploy 部署。使用 Linux 虚拟机、Turso 和 Caddy 的方式见
+[自托管部署](self-hosted.md)，其生产链路不依赖 Deno Deploy 的 CPU、KV 或 Cron 配额。
+Deno Deploy 方式通过 GitHub 集成构建并路由应用；GitHub Actions 负责检查及原生应用构建。
 
 ## 分支部署
 
