@@ -233,7 +233,6 @@ Deno.test({
     const script = await scriptResponse.text();
     const event = await eventResponse.text();
     const coordinator = await coordinatorResponse.text();
-    const normalizedEvent = event.replaceAll("\r\n", "\n");
     const stylesheet = await stylesheetResponse.text();
     const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
     const soundEffectBytes = new Uint8Array(
@@ -247,12 +246,7 @@ Deno.test({
       script.includes("ace-attorney-easter-egg-data"),
       true,
     );
-    assertEquals(
-      event.includes(
-        'continueButton.className = "username-easter-egg-continue"',
-      ),
-      true,
-    );
+    assert(/continueButton\.className\s*=\s*(['"])username-easter-egg-continue\1/.test(event));
     assertEquals(
       event.includes("username-easter-egg-theme-${character.theme}"),
       true,
@@ -261,16 +255,10 @@ Deno.test({
       event.includes("Common/Derived/images/interjections/${imageLocale}.png"),
       true,
     );
-    assertEquals(
-      normalizedEvent.includes(
-        'choiceLocked = true;\n        actions.hidden = true;\n        overlay.classList.remove("is-choosing");',
-      ),
-      true,
+    assert(
+      /choiceLocked\s*=\s*true;\s*actions\.hidden\s*=\s*true;\s*overlay\.classList\.remove\((['"])is-choosing\1\)/.test(event),
     );
-    assertEquals(
-      event.includes('soundEffectSource("sfx-pichoop")'),
-      true,
-    );
+    assert(/soundEffectSource\((['"])sfx-pichoop\1\)/.test(event));
     assertEquals(
       stylesheet.includes(".username-easter-egg-speaker"),
       true,
