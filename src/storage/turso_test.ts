@@ -779,3 +779,58 @@ Deno.test("Turso badge counts distinct pending posts within one account", async 
     assertEquals(await other.countPendingPosts!(),1);
   });
 });
+
+Deno.test("Turso dashboard totals survive edits, offline removal, restore and direct legacy writes", async () => {
+  await withStorage(async (storage, client) => {
+    const alice = storage.forUser("count-alice");
+    const bob = storage.forUser("count-bob");
+    const first = record("first", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z");
+    assertEquals((await alice.getAppState()).totalMatches, 0);
+    assertEquals((await alice.getAppState()).latestMatch, undefined);
+    await alice.saveMatch(first);
+    await alice.saveMatch({ ...first, id: "second", matchedAt: "2026-09-02T00:00:00.000Z" });
+    await bob.saveMatch(first);
+    await alice.saveMatch({ ...first, keyword: "updated" });
+    await alice.markMatchNotified(first.id, "2026-09-03T00:00:00.000Z");
+    await alice.completeMatches([first.id]);
+    assertEquals((await alice.getAppState()).totalMatches, 2);
+    assertEquals((await alice.getAppState()).latestMatch?.id, "second");
+    await alice.deleteMatches([first.id, first.id]);
+    assertEquals((await alice.getAppState()).totalMatches, 1);
+    await alice.sync!.applyRecord(first.id, "workspace", serverCountTestStamp());
+    assertEquals((await alice.getAppState()).totalMatches, 2);
+    await client.execute({ sql: "DELETE FROM matches WHERE user_id = ?", args: ["count-alice"] });
+    assertEquals((await alice.getAppState()).totalMatches, 0);
+    assertEquals((await alice.getAppState()).latestMatch, undefined);
+    assertEquals((await bob.getAppState()).totalMatches, 1);
+    const reopened = createTursoStorage(defaultSettings, { client });
+    assertEquals((await reopened.forUser("count-bob").getAppState()).totalMatches, 1);
+  });
+});
+
+Deno.test("Turso upgrade backfills existing totals and dashboard reads use the latest-match index", async () => {
+  await withStorage(async (storage, client) => {
+    await storage.saveMatch(record("kept", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z"));
+    for (const suffix of ["insert", "delete", "move"]) await client.execute(`DROP TRIGGER matches_count_${suffix}`);
+    await client.execute("DROP TABLE match_counts");
+    await client.execute("DROP INDEX matches_user_latest_idx");
+    await client.execute("DELETE FROM schema_migrations WHERE version > 10");
+    const upgraded = createTursoStorage(defaultSettings, { client });
+    assertEquals((await upgraded.getAppState()).totalMatches, 1);
+    const query = client.statements.findLast((sql) => sql.includes("SELECT p.last_poll_at, c.total_matches"))!;
+    const plan = await client.execute({ sql: `EXPLAIN QUERY PLAN ${query}`, args: ["default"] });
+    const details = plan.rows.map((row) => String(row.detail)).join("\n");
+    assertEquals(details.includes("matches_user_latest_idx"), true);
+    assertEquals(details.includes("USE TEMP B-TREE"), false);
+    await upgraded.deleteMatches(["kept"]);
+    assertEquals((await upgraded.getAppState()).totalMatches, 0);
+  });
+});
+
+/**
+ * 生成晚于在线操作的离线编辑时间戳，以验证被删记录恢复时的总数。
+ * @return {import("../sync/protocol.ts").EditStamp} 测试编辑时间戳。
+ */
+function serverCountTestStamp(): import("../sync/protocol.ts").EditStamp {
+  return { editedAt: Date.now() + 60_000, counter: 0, deviceId: "count-test", operationId: crypto.randomUUID() };
+}

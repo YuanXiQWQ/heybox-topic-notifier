@@ -308,26 +308,23 @@ export function createTursoStorage(
         });
       },
       /**
-       * 获取当前用户应用状态。
+       * 在同一查询快照内读取轮询时间、持久化总数与最新命中，避免扫描整份历史。
        *
        * @return {Promise<AppState>} 应用状态。
        */
       async getAppState(): Promise<AppState> {
-        const [stateResult, matchResult] = await Promise.all([
-          execute({
-            sql: "SELECT last_poll_at FROM app_states WHERE user_id = ?",
-            args: [userId],
-          }),
-          execute({
-            sql: `SELECT value_json, COUNT(*) OVER () AS total_matches
-              FROM matches
-              WHERE user_id = ?
-              ORDER BY matched_at DESC, post_published_at DESC, id ASC
-              LIMIT 1`,
-            args: [userId],
-          }),
-        ]);
-        return appStateFromRows(stateResult.rows[0], matchResult.rows[0]);
+        const result = await execute({
+          sql: `SELECT p.last_poll_at, c.total_matches, m.value_json
+            FROM (SELECT ? AS user_id) u
+            LEFT JOIN app_states p ON p.user_id = u.user_id
+            LEFT JOIN match_counts c ON c.user_id = u.user_id
+            LEFT JOIN matches m ON m.user_id = u.user_id AND m.id = (
+              SELECT id FROM matches WHERE user_id = u.user_id
+              ORDER BY matched_at DESC, post_published_at DESC, id ASC LIMIT 1
+            )`,
+          args: [userId],
+        });
+        return appStateFromRows(result.rows[0], result.rows[0]);
       },
       /**
        * 获取当前用户最后轮询时间。
@@ -1934,7 +1931,7 @@ function appStateFromRows(
   stateRow: Row | undefined,
   matchRow: Row | undefined,
 ): AppState {
-  const latestMatch = matchRow
+  const latestMatch = matchRow?.value_json != null
     ? latestMatchByMatchedTime([parseJsonRow<MatchRecord>(matchRow)])
     : undefined;
   return {
