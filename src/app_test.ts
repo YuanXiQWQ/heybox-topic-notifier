@@ -95,6 +95,11 @@ Deno.test("login theme compatibility script is available without a session", asy
   assert((await compatibility.text()).includes("crypto.randomUUID"));
   const login = await (await app.request("/login")).text();
   assert(login.includes('/static/theme-compat.js'));
+  const appearance = await app.request("/static/device-preferences.js");
+  assertEquals(appearance.status, 200);
+  assertEquals(appearance.headers.get("content-type"), "text/javascript; charset=utf-8");
+  assert((await appearance.text()).includes("applicationAppearance"));
+  assert(login.includes('<script src="/static/device-preferences.js"></script>'));
 });
 
 Deno.test("application omits HSTS for non-HTTPS requests", async () => {

@@ -15,6 +15,7 @@ import {
   normalizeInvitation,
   secretDigest,
 } from "./auth/roles.ts";
+import { settingsForDevice } from "./services/device_settings.ts";
 import { getMessages, localeFromRequest } from "./locales/index.ts";
 import type { UserAccount } from "./models.ts";
 import { parseCookies } from "./security/cookies.ts";
@@ -68,7 +69,7 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
     error = "",
   ): Promise<Response> {
     const account = c.get("account") as UserAccount,
-      settings = await storage.forUser(account.id).getSettings();
+      settings = settingsForDevice(await storage.forUser(account.id).getSettings(), c.req.raw);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     const canManageUsers = await unlocked(c, account);
     let users: AdminUser[] | undefined;

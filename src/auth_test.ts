@@ -718,7 +718,7 @@ Deno.test("auth routes sign in with email verification and create a passwordless
   assertEquals(storage.savedSessions[0]?.userId, account?.id);
   assertEquals(
     storage.settingsByUserId.get(account?.id ?? "")?.locale,
-    "en-US",
+    undefined,
   );
   assertEquals(
     await storage.getPendingEmailVerification("email-login-verification"),
@@ -778,7 +778,7 @@ Deno.test("auth routes sign in with Google credential and create a passwordless 
   assertEquals(storage.savedSessions[0]?.userId, account?.id);
   assertEquals(
     storage.settingsByUserId.get(account?.id ?? "")?.locale,
-    "en-US",
+    undefined,
   );
 });
 
@@ -988,7 +988,7 @@ Deno.test("auth routes sign in with a Passkey credential", async () => {
   );
   assertEquals(
     storage.settingsByUserId.get(account.id)?.locale,
-    "en-US",
+    undefined,
   );
 });
 
@@ -1119,7 +1119,7 @@ Deno.test("auth routes reject email login with an incorrect code", async () => {
   assertEquals(storage.savedSessions.length, 0);
 });
 
-Deno.test("auth routes save selected registration locale in user settings", async () => {
+Deno.test("auth routes keep registration language out of account settings", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
   const form = new URLSearchParams({
@@ -1140,7 +1140,7 @@ Deno.test("auth routes save selected registration locale in user settings", asyn
   const settings = await storage.forUser(account.id).getSettings();
 
   assertEquals(response.status, 303);
-  assertEquals(settings.locale, "en-US");
+  assertEquals(settings.locale, "zh-CN");
 });
 
 Deno.test("auth routes reject duplicate registrations", async () => {
@@ -1932,7 +1932,7 @@ Deno.test("auth routes preserve explicit locale selection across login errors", 
   );
 });
 
-Deno.test("auth routes sync selected login locale into user settings", async () => {
+Deno.test("auth routes keep selected login locale out of account settings", async () => {
   const storage = createMemoryStorage();
   const app = createTestApp(storage);
   await register(app, "alice", "correct-password");
@@ -1958,8 +1958,21 @@ Deno.test("auth routes sync selected login locale into user settings", async () 
   const settings = await storage.forUser(account.id).getSettings();
 
   assertEquals(response.status, 303);
-  assertEquals(settings.locale, "en-US");
+  assertEquals(settings.locale, "zh-CN");
   assertEquals(settings.themeColor, "#112233");
+});
+
+Deno.test("auth pages use the current device language without saving system defaults", async () => {
+  const app = createTestApp(createMemoryStorage());
+  const automatic = await app.request("/login", { headers: { "accept-language": "ja-JP" } });
+  assert((await automatic.text()).includes('lang="ja-JP"'));
+  assert(!(automatic.headers.get("set-cookie") ?? "").includes("heybox-device-"));
+  const manual = await app.request("/login?locale=en-US", { headers: {
+    "accept-language": "ja-JP", cookie: "heybox-device-locale=ar-SA",
+  } });
+  const html = await manual.text();
+  assert(html.includes('lang="ar-SA"'));
+  assert(html.includes('dir="rtl"'));
 });
 
 Deno.test("auth routes keep saved locale without explicit login locale change", async () => {

@@ -3,6 +3,33 @@
  */
 import { assertEquals } from "./test_helpers.ts";
 
+Deno.test("settings form signatures exclude device preferences in both sync and direct requests", () => {
+  /** 提供浏览器 FormData 的表单构造能力。 */
+  class BrowserFormData extends FormData {
+    /** @param {{values: Record<string, string>}} form 测试表单值。 */
+    constructor(form: { values: Record<string, string> }) {
+      super();
+      for (const [key, value] of Object.entries(form.values)) this.set(key, value);
+    }
+  }
+  const source = Deno.readTextFileSync(new URL("../static/settings.js", import.meta.url));
+  const client = new Function("document", "FormData", `${source}\nreturn {formDataFromForm, formSignature};`)(
+    { addEventListener() {} }, BrowserFormData,
+  );
+  const form = {
+    id: "settings-autosave-form",
+    values: { darkMode: "on", locale: "ja-JP", themeColor: "#123abc", pollEnabled: "on" },
+    querySelectorAll: () => [{ name: "pollIntervalValue", value: "5" }],
+  };
+  assertEquals([...client.formDataFromForm(form)], [["pollEnabled", "on"], ["pollIntervalValue", "5"]]);
+  const initial = client.formSignature(form);
+  form.values.locale = "ar-SA";
+  form.values.darkMode = "";
+  assertEquals(client.formSignature(form), initial);
+  form.id = "another-form";
+  assertEquals(client.formDataFromForm(form).get("locale"), "ar-SA");
+});
+
 /** 密钥编辑测试使用的输入框替身。 */
 class SecretInputMock {
   /** 提交字段名称。 */

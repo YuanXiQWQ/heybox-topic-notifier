@@ -46,10 +46,6 @@ let testNotifyStatusTimer;
  */
 let lastSavedSignature = '';
 /**
- * 保存成功后是否需要刷新页面。
- */
-let reloadAfterSave = false;
-/**
  * 通知和轮询设置行展开收起动画时间。
  */
 const notificationTransitionMs = 190;
@@ -5711,30 +5707,28 @@ function findActiveTopicRow(topicEditor, activeTarget) {
 }
 
 /**
- * 初始化主题色和暗色模式控件。
+ * 保存本设备的手动显示选择，失败时保留既有错误反馈。
+ * @param {string} field 显示偏好字段。
+ * @param {string | boolean} value 用户选择的值。
+ * @return {Promise<void>} 本机保存及必要的语言刷新已完成。
  */
+async function saveDeviceAppearance(field, value) {
+  try {
+    const appearance = globalThis.applicationAppearance || await globalThis.applicationAppearanceReady;
+    appearance.save(field, value);
+    setAutoSaveStatus('saved');
+    if (field === 'locale') await appearance.refreshLanguage();
+  } catch { setAutoSaveStatus('error'); }
+}
+
+/** 初始化本机显示控件，系统变化不会触发保存。 */
 function initThemePicker() {
   const colorInput = document.querySelector('[data-theme-color-input]');
   const darkModeInput = document.querySelector('[data-dark-mode-input]');
-
-  if (colorInput instanceof HTMLInputElement) {
-    colorInput.addEventListener('input', () => {
-      document.documentElement.style.setProperty(
-          '--theme-color',
-          colorInput.value,
-      );
-      scheduleAutoSave();
-    });
-  }
-
-  if (darkModeInput instanceof HTMLInputElement) {
-    darkModeInput.addEventListener('change', () => {
-      document.documentElement.dataset.colorMode = darkModeInput.checked
-          ? 'dark'
-          : 'light';
-      scheduleAutoSave();
-    });
-  }
+  const localeInput = document.querySelector('select[name="locale"]');
+  colorInput?.addEventListener('input', () => void saveDeviceAppearance('themeColor', colorInput.value));
+  darkModeInput?.addEventListener('change', () => void saveDeviceAppearance('darkMode', darkModeInput.checked));
+  localeInput?.addEventListener('change', () => void saveDeviceAppearance('locale', localeInput.value));
 }
 
 /**
@@ -5760,7 +5754,7 @@ function initAutoSave(form, topicEditor, keywordEditor) {
   });
 
   const handleInput = (event) => {
-    if (isEditorEvent(event)) {
+    if (isEditorEvent(event) || ['darkMode', 'themeColor', 'locale'].includes(event.target?.name)) {
       return;
     }
 
@@ -5768,13 +5762,8 @@ function initAutoSave(form, topicEditor, keywordEditor) {
   };
 
   const handleChange = (event) => {
-    if (isEditorEvent(event)) {
+    if (isEditorEvent(event) || ['darkMode', 'themeColor', 'locale'].includes(event.target?.name)) {
       return;
-    }
-
-    const target = event.target;
-    if (target instanceof HTMLSelectElement && target.name === 'locale') {
-      reloadAfterSave = true;
     }
 
     scheduleAutoSave();
@@ -5945,9 +5934,6 @@ async function persistSettingsNow() {
       return true;
     }
     setAutoSaveStatus(response.headers.get('x-app-local') === '1' ? 'pending' : 'saved');
-    if (reloadAfterSave && response.headers.get('x-app-local') !== '1') {
-      location.reload();
-    }
     return true;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -5959,11 +5945,10 @@ async function persistSettingsNow() {
   }
 }
 
-/** 同步完成后清除本地待同步状态，语言切换在服务端接受后刷新。 */
+/** 业务同步完成后清除本地待同步状态。 */
 document.addEventListener('application-sync-complete', () => {
   if (autoSaveForm && settingsSignature() === lastSavedSignature) {
     setAutoSaveStatus('saved');
-    if (reloadAfterSave) location.reload();
   }
 });
 
@@ -6103,7 +6088,7 @@ function updateTestNotifyErrorLink(status, errorDetails) {
 }
 
 /**
- * 渲染测试通知错误详情页面。
+ * 按当前设备实际主题渲染测试通知错误详情页面。
  *
  * @param {HTMLAnchorElement} errorLink 错误详情链接元素。
  * @param {string} errorDetails 错误详情文本。
@@ -6113,9 +6098,9 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   const appName = errorLink.dataset.errorAppName || document.title ||
       'Heybox Topic Notifier';
   const appOrigin = globalThis.location?.origin || '';
-  const colorMode = errorLink.dataset.errorDarkMode === 'true'
+  const colorMode = document.documentElement.dataset.colorMode || (errorLink.dataset.errorDarkMode === 'true'
       ? 'dark'
-      : 'light';
+      : 'light');
   const direction = errorLink.dataset.errorDirection === 'rtl' ? 'rtl' : 'ltr';
   const errorTitle = errorLink.dataset.errorTitle || 'Error message';
   const locale = errorLink.dataset.errorLocale ||
@@ -6126,7 +6111,7 @@ function renderTestNotifyErrorPage(errorLink, errorDetails) {
   const navSettings = errorLink.dataset.errorNavSettings || 'Settings';
   const returnLabel = errorLink.dataset.errorReturnLabel || navSettings;
   const summary = errorLink.dataset.errorSummary || errorTitle;
-  const themeColor = errorLink.dataset.errorThemeColor || '#BD7FFF';
+  const themeColor = document.documentElement.style.getPropertyValue('--theme-color') || errorLink.dataset.errorThemeColor || '#BD7FFF';
 
   return `<!doctype html>
 <html
@@ -6254,7 +6239,7 @@ function formSignature(form) {
 }
 
 /**
- * 从浏览器表单创建 FormData，保留分时段覆盖时锁定的默认参数。
+ * 创建业务表单数据，排除设备外观并保留分时段覆盖时锁定的默认参数。
  *
  * 此脚本在浏览器执行；Deno 的 FormData 类型声明缺少 HTMLFormElement 重载。
  *
@@ -6264,6 +6249,9 @@ function formSignature(form) {
 function formDataFromForm(form) {
   // noinspection JSCheckFunctionSignatures
   const data = new FormData(form);
+  if (form.id === 'settings-autosave-form') {
+    for (const field of ['darkMode', 'themeColor', 'locale']) data.delete(field);
+  }
   for (const control of form.querySelectorAll('[data-schedule-locked][name]')) data.set(control.name, control.value);
   return data;
 }

@@ -1,6 +1,7 @@
 /**
  * @file 本文件负责创建应用业务路由并解析设置表单。
  */
+import { settingsForDevice } from "./services/device_settings.ts";
 import { testAiConnection } from "./services/ai_connection.ts";
 import { readNativeBadge } from "./services/native_badge.ts";
 import { fetchAiModels } from "./services/ai_models.ts";
@@ -54,7 +55,6 @@ import {
 import {
   getMessages,
   localeFromRequest,
-  normalizeLocale,
 } from "./locales/index.ts";
 import {
   csrfForbiddenResponse,
@@ -194,6 +194,8 @@ export function createRoutes(
   app.get("/static/settings-navigation.js", async () => new Response(await Deno.readTextFile(new URL("../static/settings-navigation.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
   /** 提供共享原生桥接和应用更新界面脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  /** @return {Promise<Response>} 登录前后共用的设备显示偏好脚本。 */
+  app.get("/static/device-preferences.js", async () => new Response(await Deno.readTextFile(new URL("../static/device-preferences.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
   /** 提供历史表格增量同步脚本。 @return {Promise<Response>} 同源脚本。 */
@@ -2436,11 +2438,11 @@ export function createRoutes(
 }
 
 /**
- * 获取当前请求对应的用户存储，缺失存储时抛错。
+ * 获取当前请求的存储，为显示读取投影设备偏好；设置写入保留账号原值。
  *
- * @param c Hono 请求上下文的最小结构。
- * @param context 应用运行时上下文。
- * @return 当前请求用户作用域存储。
+ * @param {{req: {header(name: string): string | undefined; raw: Request}}} c 请求上下文。
+ * @param {AppContext} context 应用运行时上下文。
+ * @return {Promise<UserStorage>} 当前请求用户作用域存储。
  */
 async function storageForRequest(
   c: { req: { header(name: string): string | undefined; raw: Request } },
@@ -2450,7 +2452,25 @@ async function storageForRequest(
   if (!storage) {
     throw new Error("Storage is not configured for this route.");
   }
-  return storage;
+  // 设置写入只读取账号业务值；显示投影不进入持久化路径。
+  if (new URL(c.req.raw.url).pathname === "/settings" && c.req.raw.method === "POST") return storage;
+  return new Proxy(storage, {
+    /**
+     * 为显示读取提供设备投影，其它存储能力保持原有接收对象。
+     * @param {UserStorage} target 用户作用域存储。
+     * @param {string | symbol} property 访问的能力名称。
+     * @return {unknown} 请求作用域能力或存储属性。
+     */
+    get(target, property) {
+      if (property === "getSettings") return async () => settingsForDevice(await target.getSettings(), c.req.raw);
+      if (property === "getDashboardSnapshot") return async () => {
+        const snapshot = await target.getDashboardSnapshot();
+        return { ...snapshot, settings: settingsForDevice(snapshot.settings, c.req.raw) };
+      };
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }
 
 /**
@@ -3662,7 +3682,7 @@ async function formDataOrEmpty(request: Request): Promise<FormData> {
 }
 
 /**
- * 从表单生成设置，保留密钥与时段草稿，仅允许完整时段由关闭切换为开启。
+ * 从表单生成业务设置，忽略设备外观、保留密钥与时段草稿，仅允许完整时段开启。
  *
  * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
  * @param {AppSettings} currentSettings 当前应用设置。
@@ -3687,7 +3707,7 @@ export function settingsFromForm(
     activeKeywordTarget,
     keywordRules,
   );
-  const locale = normalizeLocale(String(form.locale ?? currentSettings.locale));
+  const locale = currentSettings.locale;
   const schedule = form.pollSchedule !== undefined
     ? normalizeSchedule(parseScheduleForm(String(form.pollSchedule)), locale)
     : currentSettings.polling.schedule ? normalizeSchedule(currentSettings.polling.schedule, locale) : undefined;
@@ -3718,7 +3738,7 @@ export function settingsFromForm(
       : {}),
     activeKeywordTarget,
     commonKeywordRules,
-    darkMode: form.darkMode === "on",
+    darkMode: currentSettings.darkMode,
     locale,
     notificationEmailAddress: String(form.notificationEmailAddress ?? "")
       .trim(),
@@ -3781,10 +3801,7 @@ export function settingsFromForm(
       ),
       sort: normalizePollSort(form.pollSort, currentSettings.polling.sort),
     },
-    themeColor: normalizeThemeColor(
-      form.themeColor,
-      currentSettings.themeColor,
-    ),
+    themeColor: currentSettings.themeColor,
     topics,
   };
 }
@@ -4051,21 +4068,6 @@ function normalizePollIntervalValue(
 ): number {
   const intervalValue = normalizePositiveInteger(value, fallback);
   return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
-}
-
-/**
- * 规范化主题颜色。
- *
- * @param value 表单字段值。
- * @param fallback 兜底主题颜色。
- * @return 合法主题颜色。
- */
-function normalizeThemeColor(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  fallback: string,
-): string {
-  const color = typeof value === "string" ? value.trim() : "";
-  return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
 }
 
 /**

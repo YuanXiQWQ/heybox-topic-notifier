@@ -26,18 +26,18 @@ export async function verifySettingsSync(storage: Storage): Promise<void> {
   };
   const phone = {
     ...initial,
-    themeColor: "#123456",
-    darkMode: !initial.darkMode,
+    notificationEmailAddress: "phone@example.com",
+    notificationEmailFrom: "phone-sender@example.com",
   };
-  const web = { ...initial, themeColor: "#654321" };
+  const web = { ...initial, notificationEmailAddress: "web@example.com" };
   await alice.sync!.applySettings(settingsEdits(initial, web, late));
   const result = await alice.sync!.applySettings(
     settingsEdits(initial, phone, early),
   );
-  assertEquals(result.superseded, ["setting/themeColor"]);
-  assertEquals((await alice.getSettings()).themeColor, "#654321");
-  assertEquals((await alice.getSettings()).darkMode, !initial.darkMode);
-  assertEquals((await bob.getSettings()).themeColor, initial.themeColor);
+  assertEquals(result.superseded, ["setting/notificationEmailAddress"]);
+  assertEquals((await alice.getSettings()).notificationEmailAddress, "web@example.com");
+  assertEquals((await alice.getSettings()).notificationEmailFrom, "phone-sender@example.com");
+  assertEquals((await bob.getSettings()).notificationEmailAddress, initial.notificationEmailAddress);
   const beforeDuplicate = await alice.sync!.readSettings();
   await alice.sync!.applySettings(settingsEdits(initial, web, late));
   assertEquals(
@@ -79,26 +79,26 @@ export async function verifySettingsSync(storage: Storage): Promise<void> {
   );
 
   const edits = [
-    "themeColor",
-    "darkMode",
+    "notificationWebhookUrl",
+    "notificationWxPusherSpt",
     "notificationEmailAddress",
     "notificationEmailFrom",
   ].map((field, index) => ({
     region: `setting/${field}`,
-    value: ["#abcdef", true, "alice@example.com", "sender@example.com"][index],
+    value: ["https://example.com/webhook", "fixture-spt", "alice@example.com", "sender@example.com"][index],
     stamp: { ...late, editedAt: 7000, operationId: `parallel-${index}` },
   }));
   await Promise.all(edits.map((edit) => alice.sync!.applySettings([edit])));
   const merged = await alice.getSettings();
-  assertEquals(merged.themeColor, "#abcdef");
+  assertEquals(merged.notificationWebhookUrl, "https://example.com/webhook");
   assertEquals(merged.notificationEmailFrom, "sender@example.com");
   assertEquals(merged.notificationEmailAddress, "alice@example.com");
   const latest = await alice.sync!.readSettings();
   await bob.sync!.replaceSettings(latest);
   await bob.sync!.replaceSettings(beforeDuplicate);
   assertEquals(
-    (await bob.getSettings()).themeColor,
-    latest.settings.themeColor,
+    (await bob.getSettings()).notificationEmailAddress,
+    latest.settings.notificationEmailAddress,
   );
   const record = {
     id: "record",
