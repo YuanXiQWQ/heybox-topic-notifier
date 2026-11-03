@@ -204,7 +204,7 @@ Deno.test("storage, form validation and independent sync preserve enabled drafts
     rows: [{ ...row("1951-01-01T00:00", "1951-01-02T23:59"), era: "roc" }],
   });
   const translated = settingsFromForm({ locale: "zh-CN" }, base);
-  assertEquals(translated.polling.schedule?.rows[0].era, "ce");
+  assertEquals(translated.polling.schedule?.rows[0].era, "roc");
   assertEquals(translated.polling.schedule?.rows[0].start, "1951-01-01T00:00");
   assertEquals(translated.polling.schedule?.enabled, true);
   assertEquals(
@@ -223,7 +223,7 @@ Deno.test("storage, form validation and independent sync preserve enabled drafts
         operationId: "locale",
       },
     }]).snapshot.settings.polling.schedule?.rows[0].era,
-    "ce",
+    "roc",
   );
 });
 
