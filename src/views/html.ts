@@ -413,3 +413,31 @@ export function renderAvatar(
     escapeHtml(alt)
   }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>`;
 }
+
+/**
+ * 渲染外联表单控件属性。
+ *
+ * @param {string} formId 表单 ID。
+ * @return {string} form 属性 HTML。
+ */
+export function formControlAttribute(formId: string): string {
+  return `form="${escapeHtml(formId)}"`;
+}
+
+/**
+ * 渲染 select 选项。
+ *
+ * @param {string} value 选项值。
+ * @param {string} current 当前选中值。
+ * @param {string} label 选项文案。
+ * @return {string} option HTML。
+ */
+export function renderSelectOption(
+  value: string,
+  current: string,
+  label: string,
+): string {
+  return `<option value="${escapeHtml(value)}" ${
+    value === current ? "selected" : ""
+  }>${escapeHtml(label)}</option>`;
+}

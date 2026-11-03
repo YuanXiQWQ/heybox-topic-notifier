@@ -8,7 +8,7 @@ import { type Locale, locales, type Messages } from "../locales/types.ts";
 import type { MatchResultLocation } from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { plainTextFromHeyboxContent } from "../services/heybox_topic_source.ts";
-import { escapeHtml } from "./html.ts";
+import { escapeHtml, renderSelectOption } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import {
   buildMatchTableUrl,
@@ -326,11 +326,11 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
         <label class="table-filter-field">
           <span>${escapeHtml(messages.filterRange)}</span>
           <select name="range" data-match-filter-control>
-            ${option("all", table.range, messages.filterAll)}
-            ${option("hour", table.range, messages.filterHour)}
-            ${option("day", table.range, messages.filterDay)}
-            ${option("week", table.range, messages.filterWeek)}
-            ${option("custom", table.range, messages.filterCustom)}
+            ${renderSelectOption("all", table.range, messages.filterAll)}
+            ${renderSelectOption("hour", table.range, messages.filterHour)}
+            ${renderSelectOption("day", table.range, messages.filterDay)}
+            ${renderSelectOption("week", table.range, messages.filterWeek)}
+            ${renderSelectOption("custom", table.range, messages.filterCustom)}
           </select>
         </label>
         <label class="table-filter-field table-filter-date-field">
@@ -702,20 +702,6 @@ function locationLabel(
     default:
       return "-";
   }
-}
-
-/**
- * 渲染 select 选项。
- *
- * @param value 选项值。
- * @param current 当前选中值。
- * @param label 选项文案。
- * @return option HTML。
- */
-function option(value: string, current: string, label: string): string {
-  return `<option value="${escapeHtml(value)}" ${
-    value === current ? "selected" : ""
-  }>${escapeHtml(label)}</option>`;
 }
 
 /**

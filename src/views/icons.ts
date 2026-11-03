@@ -398,3 +398,15 @@ function strokedIcon(
     : "";
   return `<svg class="${className}"${slotAttribute} aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${content}</svg>`;
 }
+
+/**
+ * 渲染删除图标。
+ *
+ * @return {string} 删除图标 SVG。
+ */
+export function trashIcon(): string {
+  return `<svg aria-hidden="true" viewBox="0 0 24 24">
+    <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z"></path>
+    <path d="M6 9h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"></path>
+  </svg>`;
+}
