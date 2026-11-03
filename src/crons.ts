@@ -314,32 +314,6 @@ export function shouldPollFromLastStart(
 }
 
 /**
- * 根据最近轮询完成时间判断是否应执行轮询。
- *
- * @param lastPollAt 最近轮询完成时间。
- * @param polling 轮询间隔设置。
- * @param now 当前时间。
- * @return 应执行轮询时返回 true。
- */
-export function shouldPoll(
-  lastPollAt: string | undefined,
-  polling: Pick<
-    PollingSettings,
-    "intervalStartedAt" | "intervalUnit" | "intervalValue"
-  >,
-  now: Date = new Date(),
-): boolean {
-  const latestPollBaseline = latestValidTimestamp(
-    Date.parse(lastPollAt ?? ""),
-    Date.parse(polling.intervalStartedAt ?? ""),
-  );
-
-  const intervalMs = pollingIntervalMs(polling);
-  return latestPollBaseline === undefined ||
-    now.getTime() - latestPollBaseline >= intervalMs;
-}
-
-/**
  * 从候选时间戳中获取最新的合法值。
  *
  * @param values 候选毫秒时间戳。
