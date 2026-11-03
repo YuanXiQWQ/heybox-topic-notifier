@@ -12,10 +12,11 @@ import {
 } from "../../static/polling-schedule-core.js";
 import { defaultAppSettingsFromEnv } from "./default_settings.ts";
 import { createPollScheduler } from "../crons.ts";
-import { createRoutes, settingsFromForm } from "../routes.ts";
+import { createRoutes } from "../routes.ts";
+import { settingsFromForm } from "./settings_form.ts";
 import type { AppSettings } from "../models.ts";
 import type { Storage } from "../storage/types.ts";
-import { normalizeSettings } from "../storage/kv.ts";
+import { normalizeSettings } from "../storage/stored_settings.ts";
 import {
   initialSettingsSnapshot,
   mergeSettings,

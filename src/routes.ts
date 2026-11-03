@@ -1,21 +1,15 @@
 /**
- * @file 本文件负责创建应用业务路由并解析设置表单。
+ * @file 本文件负责创建应用业务路由。
  */
+import { isRecord, passkeyChallengeMaxAttempts, passkeyJsonPayload, passkeyOptionsResponse, recordPasskeyChallengeFailure } from "./auth/passkey_request.ts";
 import { settingsForDevice } from "./services/device_settings.ts";
 import { testAiConnection } from "./services/ai_connection.ts";
 import { readNativeBadge } from "./services/native_badge.ts";
 import { fetchAiModels } from "./services/ai_models.ts";
 import { type Context, Hono } from "@hono/hono";
-import {
-  hashPassword,
-  normalizeDisplayName,
-  normalizeUsername,
-  readAuthSession,
-  saveAccountPasswordCredential,
-  validDisplayName,
-  validUsername,
-  verifyAccountPassword,
-} from "./auth.ts";
+import { hashPassword, saveAccountPasswordCredential, verifyAccountPassword } from "./auth/password.ts";
+import { normalizeDisplayName, normalizeUsername, validAccountName } from "./auth/account_names.ts";
+import { readAuthSession } from "./auth/session.ts";
 import { normalizeEmailAddress } from "./auth/email.ts";
 import { verifyEmailVerificationCode } from "./auth/email_verification.ts";
 import {
@@ -30,6 +24,7 @@ import {
   TotpConfigError,
   totpOtpAuthUri,
   verifyEncryptedTotpCode,
+  verifyTotpCodeAgainstCredentials,
 } from "./auth/totp.ts";
 import {
   createRecoveryCodes,
@@ -41,10 +36,8 @@ import {
   createPasskeyAuthenticationOptions,
   createPasskeyRegistrationOptions,
   defaultPasskeyRpName,
-  type PasskeyAuthenticationOptionsResult,
   passkeyCredentialAfterAuthentication,
   passkeyCredentialFromRegistration,
-  type PasskeyRegistrationOptionsResult,
   verifyPasskeyAuthenticationResponse,
   verifyPasskeyRegistrationResponse,
 } from "./auth/passkey.ts";
@@ -70,25 +63,15 @@ import {
   userRateLimitIdentifier,
 } from "./security/rate_limit.ts";
 import type {
-  AppSettings,
   AuthenticationEventMethod,
   AuthenticationEventPurpose,
   EmailCredential,
-  KeywordRule,
-  MatchLocation,
   PendingEmailVerification,
   PendingPasskeyChallenge,
-  PollIntervalUnit,
-  PollSort,
   SecondFactorMethod,
-  TopicRule,
   TotpCredential,
   UserSecuritySettings,
 } from "./models.ts";
-import {
-  normalizeNotificationEmailService,
-  normalizeNotificationWebhookService,
-} from "./notification_services.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderPendingMatches } from "./views/dashboard.ts";
@@ -100,8 +83,6 @@ import {
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
 import {
-  canEnableSchedule,
-  normalizeSchedule,
   resolvePolling,
 } from "../static/polling-schedule-core.js";
 import type { PollingSettings } from "./models.ts";
@@ -118,10 +99,7 @@ import {
   createReleaseCatalogReader,
   type ReleaseCatalog,
 } from "./services/releases.ts";
-import {
-  type MatchingSettings,
-  normalizeMatchingSettings,
-} from "./services/matching_settings.ts";
+import { matchingSettingsFromForm, settingsFromForm } from "./services/settings_form.ts";
 import {
   createRandomTestMatchRecord,
   NotificationConfigError,
@@ -129,25 +107,12 @@ import {
 } from "./services/notifier.ts";
 
 /**
- * 设置表单中支持的关键词匹配位置。
- */
-const matchLocations: MatchLocation[] = [
-  "title",
-  "body",
-  "comments",
-  "replies",
-];
-/**
  * 单次请求内的认证会话读取缓存。
  */
 const authSessionPromisesByRequest = new WeakMap<
   Request,
   ReturnType<typeof readAuthSession>
 >();
-/**
- * Passkey challenge 单次最多允许的失败次数。
- */
-const passkeyChallengeMaxAttempts = 5;
 /**
  * 手动轮询后用于触发前端进度条重置的查询参数名。
  */
@@ -846,7 +811,7 @@ export function createRoutes(
     }
 
     if (accountAction === "displayName") {
-      if (!validDisplayName(displayName)) {
+      if (!validAccountName(displayName)) {
         return c.redirect(
           accountSettingsRedirect("displayName", "displayName"),
           303,
@@ -884,7 +849,7 @@ export function createRoutes(
     }
 
     if (accountAction === "username") {
-      if (!validUsername(username)) {
+      if (!validAccountName(username)) {
         return c.redirect(accountSettingsRedirect("username", "username"), 303);
       }
 
@@ -1763,7 +1728,7 @@ export function createRoutes(
       authentication.challenge,
     );
 
-    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+    return c.json(passkeyOptionsResponse(authentication));
   });
 
   app.post("/account/passkeys/reauth", async (c) => {
@@ -1821,7 +1786,7 @@ export function createRoutes(
       credentialId,
     );
     if (!credential) {
-      await recordPasskeyChallengeFailure(context, activeChallenge);
+      await recordPasskeyChallengeFailure(context.storage, activeChallenge);
       logSecurityAuditEvent({
         code: "reauth_failed",
         details: { credentialId, method: "passkey", reason: "credential" },
@@ -1844,7 +1809,7 @@ export function createRoutes(
       response: credentialResponse as never,
     });
     if (!verification.verified) {
-      await recordPasskeyChallengeFailure(context, activeChallenge);
+      await recordPasskeyChallengeFailure(context.storage, activeChallenge);
       logSecurityAuditEvent({
         code: "reauth_failed",
         details: { credentialId, method: "passkey", reason: "assertion" },
@@ -1925,7 +1890,7 @@ export function createRoutes(
       registration.challenge,
     );
 
-    return c.json(passkeyRegistrationOptionsResponse(registration));
+    return c.json(passkeyOptionsResponse(registration));
   });
 
   app.post("/account/passkeys/register", async (c) => {
@@ -1985,7 +1950,7 @@ export function createRoutes(
     });
 
     if (!verification.verified) {
-      await recordPasskeyChallengeFailure(context, activeChallenge);
+      await recordPasskeyChallengeFailure(context.storage, activeChallenge);
       logSecurityAuditEvent({
         code: "passkey_credential_verification_failed",
         level: "warn",
@@ -3283,63 +3248,6 @@ function isGoogleBindingErrorCode(
 }
 
 /**
- * 生成 Passkey 注册 options 接口响应。
- *
- * @param registration Passkey 注册 options 结果。
- * @return 可序列化响应体。
- */
-function passkeyRegistrationOptionsResponse(
-  registration: PasskeyRegistrationOptionsResult,
-) {
-  return {
-    challengeId: registration.challenge.id,
-    optionsJSON: registration.optionsJSON,
-  };
-}
-
-/**
- * 生成 Passkey 认证 options 接口响应。
- *
- * @param authentication Passkey 认证 options 结果。
- * @return 可序列化响应体。
- */
-function passkeyAuthenticationOptionsResponse(
-  authentication: PasskeyAuthenticationOptionsResult,
-) {
-  return {
-    challengeId: authentication.challenge.id,
-    optionsJSON: authentication.optionsJSON,
-  };
-}
-
-/**
- * 读取 Passkey JSON 请求体。
- *
- * @param c Hono 请求上下文。
- * @return JSON 对象，请求体无效时返回空对象。
- */
-async function passkeyJsonPayload(
-  c: Context,
-): Promise<Record<string, unknown>> {
-  try {
-    const payload = await c.req.json();
-    return isRecord(payload) ? payload : {};
-  } catch {
-    return {};
-  }
-}
-
-/**
- * 判断值是否为普通对象。
- *
- * @param value 待判断值。
- * @return 值为普通对象时返回 true。
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
  * 检查 Passkey 注册 challenge 是否仍可使用。
  *
  * @param challenge 待检查 challenge。
@@ -3404,26 +3312,6 @@ function passkeyReauthChallengeError(
 }
 
 /**
- * 记录一次 Passkey challenge 失败尝试。
- *
- * @param context 应用运行时上下文。
- * @param challenge 待更新 challenge。
- * @return 更新完成后的 Promise。
- */
-async function recordPasskeyChallengeFailure(
-  context: AppContext,
-  challenge: PendingPasskeyChallenge,
-): Promise<void> {
-  const attempts = Math.max(0, challenge.attempts) + 1;
-  if (attempts >= passkeyChallengeMaxAttempts) {
-    await context.storage.deletePendingPasskeyChallenge(challenge.id);
-    return;
-  }
-
-  await context.storage.savePendingPasskeyChallenge({ ...challenge, attempts });
-}
-
-/**
  * 规范化 Passkey 凭证标签。
  *
  * @param {unknown} value 用户提交的标签。
@@ -3451,30 +3339,6 @@ function totpCredentialLabel(value: unknown): string | undefined {
 
   const label = value.trim().replaceAll(/\s+/g, " ");
   return label ? label.slice(0, 80) : undefined;
-}
-
-/**
- * 使用任一已绑定验证器校验动态码。
- *
- * @param {string} code 用户提交的动态码。
- * @param {readonly TotpCredential[]} credentials 已绑定验证器凭证。
- * @param {Parameters<typeof verifyEncryptedTotpCode>[2]} config 验证器动态码配置。
- * @return {Promise<boolean>} 任一验证器校验成功时返回 true。
- */
-async function verifyTotpCodeAgainstCredentials(
-  code: string,
-  credentials: readonly TotpCredential[],
-  config: Parameters<typeof verifyEncryptedTotpCode>[2],
-): Promise<boolean> {
-  for (const credential of credentials) {
-    if (
-      credential.secretEncrypted &&
-      await verifyEncryptedTotpCode(code, credential.secretEncrypted, config)
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**
@@ -3966,409 +3830,6 @@ async function formDataOrEmpty(request: Request): Promise<FormData> {
 }
 
 /**
- * 从表单生成业务设置，忽略设备外观、保留密钥与时段草稿，仅允许完整时段开启。
- *
- * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
- * @param {AppSettings} currentSettings 当前应用设置。
- * @param {Date} now 当前时间。
- * @return {AppSettings} 新的应用设置。
- */
-export function settingsFromForm(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  currentSettings: AppSettings,
-  now: Date = new Date(),
-): AppSettings {
-  const activeKeywordTarget =
-    String(form.activeKeywordTarget ?? "common").trim() || "common";
-  const keywordRules = keywordRulesFromForm(form);
-  const commonKeywordRules = activeKeywordTarget === "common"
-    ? keywordRules
-    : keywordRulesFromJson(form.commonKeywordRulesJson) ??
-      currentSettings.commonKeywordRules;
-  const topics = topicsFromForm(
-    form,
-    currentSettings,
-    activeKeywordTarget,
-    keywordRules,
-  );
-  const locale = currentSettings.locale;
-  const schedule = form.pollSchedule !== undefined
-    ? normalizeSchedule(parseScheduleForm(String(form.pollSchedule)), locale)
-    : currentSettings.polling.schedule
-    ? normalizeSchedule(currentSettings.polling.schedule, locale)
-    : undefined;
-  if (
-    schedule?.enabled && !currentSettings.polling.schedule?.enabled &&
-    !canEnableSchedule(schedule)
-  ) schedule.enabled = false;
-  const pollingEnabled = form.pollEnabled === "on";
-  const pollIntervalUnit = normalizePollIntervalUnit(
-    form.pollIntervalUnit,
-    currentSettings.polling.intervalUnit,
-  );
-  const pollIntervalValue = normalizePollIntervalValue(
-    form.pollIntervalValue,
-    pollIntervalUnit,
-    currentSettings.polling.intervalValue,
-  );
-  const pollingIntervalChanged =
-    pollIntervalUnit !== currentSettings.polling.intervalUnit ||
-    pollIntervalValue !== currentSettings.polling.intervalValue;
-  const pollingWasEnabled = currentSettings.polling.enabled;
-  const intervalStartedAt = pollingIntervalChanged ||
-      (pollingEnabled && !pollingWasEnabled)
-    ? now.toISOString()
-    : currentSettings.polling.intervalStartedAt;
-
-  return {
-    ...currentSettings,
-    ...(form.matchingMode !== undefined
-      ? { matching: matchingSettingsFromForm(form, currentSettings.matching) }
-      : {}),
-    activeKeywordTarget,
-    commonKeywordRules,
-    darkMode: currentSettings.darkMode,
-    locale,
-    notificationEmailAddress: String(form.notificationEmailAddress ?? "")
-      .trim(),
-    notificationEmailApiToken: secretValueFromForm(
-      form.notificationEmailApiToken,
-      currentSettings.notificationEmailApiToken,
-    ),
-    notificationEmailApiUrl: String(form.notificationEmailApiUrl ?? "").trim(),
-    notificationEmailFrom: String(form.notificationEmailFrom ?? "").trim(),
-    notificationEmailService: normalizeNotificationEmailService(
-      form.notificationEmailService,
-    ),
-    notificationProvider: normalizeNotificationProvider(
-      form.notificationProvider,
-    ),
-    notificationPushPlusToken: secretValueFromForm(
-      form.notificationPushPlusSecret ?? form.notificationPushPlusToken,
-      currentSettings.notificationPushPlusToken,
-      true,
-    ),
-    notificationServerChanSendKey: secretValueFromForm(
-      form.notificationServerChanSendKey,
-      currentSettings.notificationServerChanSendKey,
-      true,
-    ),
-    notificationSmtpHost: String(form.notificationSmtpHost ?? "").trim(),
-    notificationSmtpPassword: secretValueFromForm(
-      form.notificationSmtpPassword,
-      currentSettings.notificationSmtpPassword,
-    ),
-    notificationSmtpPort: normalizePositiveInteger(
-      form.notificationSmtpPort,
-      currentSettings.notificationSmtpPort,
-    ),
-    notificationSmtpSecure: form.notificationSmtpSecure === "on",
-    notificationSmtpUsername: String(form.notificationSmtpUsername ?? "")
-      .trim(),
-    notificationWebhookService: normalizeNotificationWebhookService(
-      form.notificationWebhookService,
-    ),
-    notificationWebhookUrl: secretValueFromForm(
-      form.notificationWebhookUrl,
-      currentSettings.notificationWebhookUrl,
-      true,
-    ),
-    notificationWxPusherSpt: secretValueFromForm(
-      form.notificationWxPusherSpt,
-      currentSettings.notificationWxPusherSpt,
-      true,
-    ),
-    polling: {
-      ...(schedule ? { schedule } : {}),
-      enabled: pollingEnabled,
-      intervalStartedAt,
-      intervalUnit: pollIntervalUnit,
-      intervalValue: pollIntervalValue,
-      postLimit: normalizePositiveInteger(
-        form.pollPostLimit,
-        currentSettings.polling.postLimit,
-      ),
-      sort: normalizePollSort(form.pollSort, currentSettings.polling.sort),
-    },
-    themeColor: currentSettings.themeColor,
-    topics,
-  };
-}
-
-/**
- * 从表单读取敏感配置，空提交时保留当前值。
- *
- * @param value 表单提交值。
- * @param currentValue 当前已保存的敏感配置。
- * @param trim 是否在判断前后去除首尾空白。
- * @return 新的敏感配置值。
- */
-function secretValueFromForm(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  currentValue: string,
-  trim = false,
-): string {
-  const submitted = String(value ?? "");
-  const normalized = trim ? submitted.trim() : submitted;
-  return normalized.length > 0 ? normalized : currentValue;
-}
-
-/**
- * 读取匹配表单并限制长度和数值；仅在公司和接口一致时沿用保存的密钥。
- *
- * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 设置表单。
- * @param {MatchingSettings | undefined} current 当前匹配设置。
- * @return {MatchingSettings} 规范化的匹配设置。
- */
-function matchingSettingsFromForm(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  current?: MatchingSettings,
-): MatchingSettings {
-  const previous = normalizeMatchingSettings(current);
-  const target = normalizeMatchingSettings({
-    provider: String(
-      form.matchingProvider ?? previous.provider,
-    ) as MatchingSettings["provider"],
-    apiUrl: String(form.matchingApiUrl ?? previous.apiUrl),
-  });
-  const sameEndpoint = target.provider === previous.provider &&
-    target.apiUrl === previous.apiUrl;
-  return normalizeMatchingSettings({
-    provider: target.provider,
-    mode: String(form.matchingMode) as MatchingSettings["mode"],
-    apiUrl: target.apiUrl,
-    apiKey: secretValueFromForm(
-      form.matchingApiKey,
-      sameEndpoint ? previous.apiKey : "",
-      true,
-    ),
-    model: String(form.matchingModel ?? previous.model),
-    prompt: String(form.matchingPrompt ?? previous.prompt),
-    includeComments: form.matchingIncludeComments === "on",
-    disableThinking: form.matchingEnableThinking !== "on",
-    dailyLimit: Number(form.matchingDailyLimit ?? previous.dailyLimit),
-    maxInputChars: Number(form.matchingMaxInputChars ?? previous.maxInputChars),
-    maxOutputTokens: Number(
-      form.matchingMaxOutputTokens ?? previous.maxOutputTokens,
-    ),
-    cacheMaxEntries: Number(
-      form.matchingCacheMaxEntries ?? previous.cacheMaxEntries,
-    ),
-    inputPrice: Number(form.matchingInputPrice ?? previous.inputPrice),
-    outputPrice: Number(form.matchingOutputPrice ?? previous.outputPrice),
-  });
-}
-
-/**
- * 从表单字段中解析关键词规则。
- *
- * @param form 表单数据。
- * @return 关键词规则列表。
- */
-function keywordRulesFromForm(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-): KeywordRule[] {
-  return formIndexes(form, /^keyword_(\d+)$/).map((index) => {
-    const keyword = String(form[`keyword_${index}`] ?? "").trim();
-    const locations = matchLocations.filter((location) =>
-      form[`keyword_${index}_location_${location}`] === "on"
-    );
-    const caseSensitive = form[`keyword_${index}_caseSensitive`] === "on";
-    const useRegex = form[`keyword_${index}_useRegex`] === "on";
-
-    return { caseSensitive, keyword, locations, useRegex };
-  }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
-}
-
-/**
- * 从表单字段中解析话题规则。
- *
- * @param form 表单数据。
- * @param currentSettings 当前应用设置。
- * @param activeKeywordTarget 当前正在编辑关键词的目标。
- * @param activeKeywordRules 当前活动关键词规则。
- * @return 话题规则列表。
- */
-function topicsFromForm(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  currentSettings: AppSettings,
-  activeKeywordTarget: string,
-  activeKeywordRules: KeywordRule[],
-): TopicRule[] {
-  const existingTopics = new Map(
-    currentSettings.topics.map((topic) => [topic.id, topic]),
-  );
-
-  return formIndexes(form, /^topic_(\d+)_id$/).map((index) => {
-    const id = String(form[`topic_${index}_id`] ?? "").trim();
-    const existingTopic = existingTopics.get(id);
-    const submittedKeywordRules = keywordRulesFromJson(
-      form[`topic_${index}_keywordRulesJson`],
-    );
-    const keywordRules = activeKeywordTarget === id
-      ? activeKeywordRules
-      : submittedKeywordRules ?? existingTopic?.keywordRules ?? [];
-
-    return {
-      enabled: form[`topic_${index}_enabled`] === "on",
-      id,
-      keywordRules,
-      note: String(form[`topic_${index}_note`] ?? "").trim(),
-    };
-  }).filter((topic) => topic.id.length > 0);
-}
-
-/**
- * 从 JSON 字符串中解析关键词规则。
- *
- * @param value 表单中的 JSON 字段值。
- * @return 关键词规则列表，无法解析时返回 undefined。
- */
-function keywordRulesFromJson(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-): KeywordRule[] | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    if (!Array.isArray(parsed)) {
-      return undefined;
-    }
-
-    return parsed.map((rule) => {
-      const keyword = typeof rule?.keyword === "string"
-        ? rule.keyword.trim()
-        : "";
-      const locations = Array.isArray(rule?.locations)
-        ? rule.locations.filter(isMatchLocation)
-        : [];
-      const caseSensitive = rule?.caseSensitive === true;
-      const useRegex = rule?.useRegex === true;
-
-      return { caseSensitive, keyword, locations, useRegex };
-    }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * 判断值是否为合法匹配位置。
- *
- * @param value 待判断值。
- * @return 是合法匹配位置时返回 true。
- */
-function isMatchLocation(value: unknown): value is MatchLocation {
-  return value === "title" || value === "body" || value === "comments" ||
-    value === "replies";
-}
-
-/**
- * 从表单字段名中提取索引列表。
- *
- * @param form 表单数据。
- * @param pattern 字段名匹配正则。
- * @return 按升序排列的索引列表。
- */
-function formIndexes(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  pattern: RegExp,
-): number[] {
-  return Array.from(
-    new Set(
-      Object.keys(form)
-        .map((key) => key.match(pattern)?.[1])
-        .filter((value): value is string => value !== undefined)
-        .map(Number),
-    ),
-  ).toSorted((left, right) => left - right);
-}
-
-/**
- * 规范化通知渠道。
- *
- * @param value 表单字段值。
- * @return 合法通知渠道。
- */
-function normalizeNotificationProvider(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-): AppSettings["notificationProvider"] {
-  return value === "disabled" || value === "email" || value === "webhook"
-    ? value
-    : "webhook";
-}
-
-/**
- * 规范化正整数表单字段。
- *
- * @param value 表单字段值。
- * @param fallback 兜底值。
- * @return 合法正整数。
- */
-function normalizePositiveInteger(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  fallback: number,
-): number {
-  const numericValue = Number(typeof value === "string" ? value : undefined);
-  return Number.isInteger(numericValue) && numericValue > 0
-    ? numericValue
-    : fallback;
-}
-
-/**
- * 规范化轮询排序方式。
- *
- * @param value 表单字段值。
- * @param fallback 兜底排序方式。
- * @return 合法轮询排序方式。
- */
-function normalizePollSort(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  fallback: PollSort,
-): PollSort {
-  return value === "publishTime" || value === "smart" || value === "replyTime"
-    ? value
-    : fallback;
-}
-
-/**
- * 规范化轮询间隔单位。
- *
- * @param value 表单字段值。
- * @param fallback 兜底轮询间隔单位。
- * @return 合法轮询间隔单位。
- */
-function normalizePollIntervalUnit(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  fallback: PollIntervalUnit,
-): PollIntervalUnit {
-  return value === "second" || value === "minute" || value === "hour" ||
-      value === "day" ||
-      value === "week" || value === "month"
-    ? value
-    : fallback;
-}
-
-/**
- * 规范化轮询间隔数值。
- *
- * @param value 表单字段值。
- * @param unit 轮询间隔单位。
- * @param fallback 兜底间隔数值。
- * @return 合法轮询间隔数值。
- */
-function normalizePollIntervalValue(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  unit: PollIntervalUnit,
-  fallback: number,
-): number {
-  const intervalValue = normalizePositiveInteger(value, fallback);
-  return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
-}
-
-/**
  * 将数据版本、表格查询与 CSRF 令牌绑定为响应版本，避免复用其它视图的 HTML。
  *
  * @param {string} dataVersion 用户持久化数据版本。
@@ -4390,17 +3851,4 @@ async function dashboardResponseVersion(
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
-}
-
-/**
- * 解析独立的时段草稿字段，拒绝损坏 JSON 而不影响其它设置。
- * @param {string} value 表单中的时段 JSON。
- * @return {unknown} 配置对象或空配置。
- */
-function parseScheduleForm(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return {};
-  }
 }

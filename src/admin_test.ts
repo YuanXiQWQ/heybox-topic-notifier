@@ -11,13 +11,9 @@ import {
   generateTotpCode,
   totpConfigFromEnv,
 } from "./auth/totp.ts";
-import {
-  createAuthRoutes,
-  hashPassword,
-  readAuthSession,
-  verifyAccountPassword,
-} from "./auth.ts";
-import { redirectWithSession } from "./auth/session.ts";
+import { createAuthRoutes } from "./auth.ts";
+import { hashPassword, verifyAccountPassword } from "./auth/password.ts";
+import { readAuthSession, redirectWithSession } from "./auth/session.ts";
 import {
   newInvitationCode,
   normalizeInvitation,

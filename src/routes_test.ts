@@ -3,7 +3,8 @@
  */
 import { installTestInvitations } from "./invitation_test_helpers.ts";
 import { Hono } from "@hono/hono";
-import { createRoutes, settingsFromForm } from "./routes.ts";
+import { createRoutes } from "./routes.ts";
+import { settingsFromForm } from "./services/settings_form.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
 import { createEmailVerificationChallenge } from "./auth/email_verification.ts";
 import { decryptTotpSecret, generateTotpCode } from "./auth/totp.ts";

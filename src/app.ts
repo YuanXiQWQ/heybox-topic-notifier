@@ -4,12 +4,8 @@
 import { settingsForDevice } from "./services/device_settings.ts";
 import { createAdminRoutes } from "./admin_routes.ts";
 import { Hono } from "@hono/hono";
-import {
-  type AuthOptions,
-  createAuthMiddleware,
-  createAuthRoutes,
-  readAuthSession,
-} from "./auth.ts";
+import { type AuthOptions, createAuthMiddleware, createAuthRoutes } from "./auth.ts";
+import { readAuthSession } from "./auth/session.ts";
 import {
   aceAttorneyAssetResponse,
   aceAttorneyScriptResponse,

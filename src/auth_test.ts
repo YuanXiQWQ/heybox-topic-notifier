@@ -3,15 +3,10 @@
  */
 import { installTestInvitations } from "./invitation_test_helpers.ts";
 import { Hono } from "@hono/hono";
-import {
-  type AuthOptions,
-  createAuthMiddleware,
-  createAuthRoutes,
-  hashPassword,
-  readAuthSession,
-  validDisplayName,
-  validUsername,
-} from "./auth.ts";
+import { type AuthOptions, createAuthMiddleware, createAuthRoutes } from "./auth.ts";
+import { hashPassword } from "./auth/password.ts";
+import { readAuthSession } from "./auth/session.ts";
+import { validAccountName } from "./auth/account_names.ts";
 import { turnstileResponseFieldName } from "./auth/turnstile.ts";
 import { altchaResponseFieldName } from "./auth/altcha.ts";
 import { solveChallenge } from "npm:altcha-lib@^2.4.0";
@@ -391,26 +386,26 @@ Deno.test("auth routes ignore supplied display names during registration", async
 });
 
 Deno.test("username validation accepts Unicode and injection-like visible text", () => {
-  assertStrictEquals(validUsername("蔚蓝社区"), true);
-  assertStrictEquals(validUsername("O'Connor"), true);
-  assertStrictEquals(validUsername('<script>alert("x")</script>'), true);
-  assertStrictEquals(validUsername("😀".repeat(80)), true);
+  assertStrictEquals(validAccountName("蔚蓝社区"), true);
+  assertStrictEquals(validAccountName("O'Connor"), true);
+  assertStrictEquals(validAccountName('<script>alert("x")</script>'), true);
+  assertStrictEquals(validAccountName("😀".repeat(80)), true);
 });
 
 Deno.test("username validation rejects empty, oversized, and control text", () => {
-  assertStrictEquals(validUsername(""), false);
-  assertStrictEquals(validUsername("   "), false);
-  assertStrictEquals(validUsername("a".repeat(81)), false);
-  assertStrictEquals(validUsername("line\nbreak"), false);
-  assertStrictEquals(validUsername("zero\u200Bwidth"), false);
+  assertStrictEquals(validAccountName(""), false);
+  assertStrictEquals(validAccountName("   "), false);
+  assertStrictEquals(validAccountName("a".repeat(81)), false);
+  assertStrictEquals(validAccountName("line\nbreak"), false);
+  assertStrictEquals(validAccountName("zero\u200Bwidth"), false);
 });
 
 Deno.test("display name validation preserves case and rejects unsafe text", () => {
-  assertStrictEquals(validDisplayName("Alice Wonderland"), true);
-  assertStrictEquals(validDisplayName("成步堂龙一"), true);
-  assertStrictEquals(validDisplayName("   "), false);
-  assertStrictEquals(validDisplayName("line\nbreak"), false);
-  assertStrictEquals(validDisplayName("a".repeat(81)), false);
+  assertStrictEquals(validAccountName("Alice Wonderland"), true);
+  assertStrictEquals(validAccountName("成步堂龙一"), true);
+  assertStrictEquals(validAccountName("   "), false);
+  assertStrictEquals(validAccountName("line\nbreak"), false);
+  assertStrictEquals(validAccountName("a".repeat(81)), false);
 });
 
 Deno.test("auth routes reject registration without Turnstile token when enabled", async () => {
