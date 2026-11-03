@@ -2682,10 +2682,6 @@ function createMemoryStorage(): Storage & {
       );
       return Promise.resolve();
     },
-    deleteEmailCredential: (userId: string, email: string) => {
-      emailCredentialsByKey.delete(emailCredentialKey(userId, email));
-      return Promise.resolve();
-    },
     getPasskeyCredential: (userId: string, credentialId: string) =>
       Promise.resolve(
         passkeyCredentialsByKey.get(passkeyCredentialKey(userId, credentialId)),

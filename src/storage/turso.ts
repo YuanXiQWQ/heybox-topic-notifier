@@ -1390,26 +1390,6 @@ export function createTursoStorage(
     },
 
     /**
-     * 删除邮箱凭证。
-     *
-     * @param {string} userId 用户 ID。
-     * @param {string} email 邮箱地址。
-     * @return {Promise<void>} 删除完成后的 Promise。
-     */
-    async deleteEmailCredential(userId: string, email: string): Promise<void> {
-      const normalizedEmail = emailKey(email);
-      await deleteEntity(
-        "email-credential",
-        entityKey(userId, normalizedEmail),
-        {
-          sql: `DELETE FROM email_credentials
-            WHERE user_id = ? AND email_normalized = ?`,
-          args: [userId, normalizedEmail],
-        },
-      );
-    },
-
-    /**
      * 获取待处理邮箱验证。
      *
      * @param {string} id 验证 ID。

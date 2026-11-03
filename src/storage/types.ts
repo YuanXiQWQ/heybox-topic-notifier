@@ -445,13 +445,6 @@ export type Storage = UserStorage & {
    */
   saveEmailCredential(credential: EmailCredential): Promise<void>;
   /**
-   * 删除邮箱凭证。
-   *
-   * @param {string} userId 用户 ID。
-   * @param {string} email 邮箱地址。
-   */
-  deleteEmailCredential(userId: string, email: string): Promise<void>;
-  /**
    * 获取待处理邮箱验证。
    *
    * @param {string} id 验证 ID。

@@ -796,19 +796,6 @@ Deno.test("email credential storage normalizes addresses under user scope", asyn
   assertEquals(await storage.listEmailCredentials("alice-id"), [
     normalizedCredential,
   ]);
-
-  await storage.deleteEmailCredential(
-    "alice-id",
-    "alice.alerts+app@example.com",
-  );
-
-  assertEquals(
-    await storage.getEmailCredential(
-      "alice-id",
-      "alice.alerts+app@example.com",
-    ),
-    undefined,
-  );
 });
 
 Deno.test("pending email verification storage preserves attempts and purpose", async () => {

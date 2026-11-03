@@ -32,7 +32,6 @@ const storageWriteMethods = new Set<PropertyKey>([
   "consumeAuthenticationEvent",
   "createAccount",
   "deleteAuthIdentity",
-  "deleteEmailCredential",
   "deleteMatches",
   "deletePasskeyCredential",
   "deletePendingEmailVerification",

@@ -1122,18 +1122,6 @@ export function createKvStorage(
     },
 
     /**
-     * 删除指定用户的邮箱凭证。
-     *
-     * @param userId 用户 ID。
-     * @param email 邮箱地址。
-     * @return 删除完成后的 Promise。
-     */
-    async deleteEmailCredential(userId: string, email: string): Promise<void> {
-      const store = await kv();
-      await store.delete(keys.emailCredential(userId, email));
-    },
-
-    /**
      * 获取待完成的邮箱验证码挑战。
      *
      * @param id 验证码挑战 ID。
