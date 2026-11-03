@@ -1,6 +1,6 @@
 /** @file 验证测试通知的独立投递、错误保留和完整等待。 */
 import { assertEquals, assertRejects, assertStrictEquals } from "@std/assert";
-import { sendNotificationTest } from "./notification_test.ts";
+import { sendNotificationTest } from "./notification_probe.ts";
 
 Deno.test("notification test attempts every channel and waits even when one throws synchronously", async () => {
   const failure = new Error("upstream failure");

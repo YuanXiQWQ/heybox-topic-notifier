@@ -106,7 +106,7 @@ import {
 } from "../static/polling-schedule-core.js";
 import type { PollingSettings } from "./models.ts";
 import { renderAbout } from "./views/about.ts";
-import { sendNotificationTest } from "./services/notification_test.ts";
+import { sendNotificationTest } from "./services/notification_probe.ts";
 import { enqueueNativeNotifications } from "./services/native_notifications.ts";
 import { readActiveNativeNotifications } from "./services/native_inbox.ts";
 import { notifyBrowsers } from "./services/web_push.ts";
