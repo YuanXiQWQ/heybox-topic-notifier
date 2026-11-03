@@ -5,7 +5,10 @@ import { renderPollingSchedule } from "./polling_schedule.ts";
 import { getMessages } from "../locales/index.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type { MatchingRuntime } from "../storage/matching_types.ts";
-import { renderMatchingSection, renderMatchingAdvanced } from "./matching_settings.ts";
+import {
+  renderMatchingAdvanced,
+  renderMatchingSection,
+} from "./matching_settings.ts";
 import { renderDrawerHeading } from "./settings_drawer.ts";
 import { languageOptions } from "../locales/languages.ts";
 import { isRtlLocale, type Locale } from "../locales/types.ts";
@@ -296,7 +299,17 @@ export function renderSettings(options: {
     ${renderAceAttorneyEasterEggData(options.settings.locale)}
     <script src="/static/fun/ace-attorney/Events/CourtroomNameChange.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
     <script src="/static/fun/ace-attorney/ace-attorney.js?v=${aceAttorneyEasterEggScriptVersion}" defer></script>
-    ${["polling-schedule-core.js", "polling-calendar.js", "polling-calendar-picker.js", "polling-calendar-profiles.js", "vendor/lunar/lunar.js"].map((file) => `<link rel="modulepreload" href="/static/${file}">`).join("")}
+    ${
+    [
+      "polling-schedule-core.js",
+      "polling-calendar.js",
+      "polling-calendar-picker.js",
+      "polling-calendar-profiles.js",
+      "vendor/lunar/lunar.js",
+    ].map((file) => `<link rel="modulepreload" href="/static/${file}">`).join(
+      "",
+    )
+  }
     <script type="module" src="/static/polling-schedule.js"></script>
     <script src="/static/settings.js?v=20261026-settings-header-key" defer></script>
   `;
@@ -439,30 +452,44 @@ function renderGlobalSettingsSection(
           <div data-app-device-platform="windows" hidden>
             ${settingLabel("toggle_on", messages.desktopCloseWindow)}
             <dd class="desktop-close-options">
-              <label><input type="radio" name="desktopCloseAction" value="minimize" form="application-device-form" data-app-preference="closeAction">${escapeHtml(messages.desktopCloseMinimize)}</label>
-              <label><input type="radio" name="desktopCloseAction" value="quit" form="application-device-form" data-app-preference="closeAction">${escapeHtml(messages.desktopCloseQuit)}</label>
+              <label><input type="radio" name="desktopCloseAction" value="minimize" form="application-device-form" data-app-preference="closeAction">${
+    escapeHtml(messages.desktopCloseMinimize)
+  }</label>
+              <label><input type="radio" name="desktopCloseAction" value="quit" form="application-device-form" data-app-preference="closeAction">${
+    escapeHtml(messages.desktopCloseQuit)
+  }</label>
               <span class="inline-action-status" data-app-preference-status role="status" hidden></span>
             </dd>
           </div>
           <div class="settings-compact-row" data-app-device-platform="windows" hidden>
             ${settingLabel("timer", messages.desktopLaunchAtLogin)}
-            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="launchAtLogin" aria-label="${escapeHtml(messages.desktopLaunchAtLogin)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="launchAtLogin" aria-label="${
+    escapeHtml(messages.desktopLaunchAtLogin)
+  }"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
           <div class="settings-compact-row" data-app-device-platform="windows" hidden>
             ${settingLabel("download", messages.desktopAutoUpdate)}
-            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="autoUpdate" aria-label="${escapeHtml(messages.desktopAutoUpdate)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="autoUpdate" aria-label="${
+    escapeHtml(messages.desktopAutoUpdate)
+  }"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
           <div data-app-device-platform="windows" hidden>
             ${settingLabel("app_window", messages.desktopResetWindow)}
-            <dd><button type="button" class="text-action-button" data-app-reset-window>${escapeHtml(messages.desktopResetWindowAction)}</button><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+            <dd><button type="button" class="text-action-button" data-app-reset-window>${
+    escapeHtml(messages.desktopResetWindowAction)
+  }</button><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
           <div class="settings-compact-row" data-app-device-platform="android" hidden>
             ${settingLabel("notifications", messages.applicationBadge)}
-            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="badgeEnabled" aria-label="${escapeHtml(messages.applicationBadge)}"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
+            <dd><label class="switch-control"><input type="checkbox" form="application-device-form" data-app-preference="badgeEnabled" aria-label="${
+    escapeHtml(messages.applicationBadge)
+  }"></label><span class="inline-action-status" data-app-preference-status role="status" hidden></span></dd>
           </div>
           <div class="settings-navigation-row">
             <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/about" data-settings-subpage data-app-about-link>
-              <span class="settings-label-with-icon">${materialSymbolIcon("info", "settings-label-icon")}<span>${escapeHtml(messages.aboutProject)}</span></span>
+              <span class="settings-label-with-icon">${
+    materialSymbolIcon("info", "settings-label-icon")
+  }<span>${escapeHtml(messages.aboutProject)}</span></span>
               <span class="settings-navigation-chevron" aria-hidden="true"></span>
             </a></dt>
             <dd hidden></dd>
@@ -677,7 +704,9 @@ function renderAccountSection(
               <span class="account-avatar-picker-text">${
     escapeHtml(messages.accountAvatarChoose)
   }</span>
-              <span class="account-avatar-picker-touch">${escapeHtml(messages.accountAvatarSelect)}</span>
+              <span class="account-avatar-picker-touch">${
+    escapeHtml(messages.accountAvatarSelect)
+  }</span>
             </label>
             <span class="inline-action-status" data-avatar-upload-status hidden role="status"></span>
           </div></dd>
@@ -1249,11 +1278,13 @@ function renderAuthMethodRow(options: {
         <div class="auth-method-row ${open ? "is-open" : ""}"${
     options.rowId ? ` id="${escapeHtml(options.rowId)}"` : ""
   }>
-          ${authSettingLabel(
-    options.icon,
-    options.label,
-    options.blackForestSlot,
-  )}
+          ${
+    authSettingLabel(
+      options.icon,
+      options.label,
+      options.blackForestSlot,
+    )
+  }
           <dd>
             <div class="auth-method-summary-row">
               <span class="field-hint auth-method-summary">${
@@ -2486,7 +2517,9 @@ function renderTwoStepVerificationSection(options: {
     escapeHtml(messages.accountTwoStepSettings)
   }</h2>
       <dl class="settings-list">
-        <div class="auth-method-row settings-compact-row ${securityReauthOpen ? "is-open" : ""}">
+        <div class="auth-method-row settings-compact-row ${
+    securityReauthOpen ? "is-open" : ""
+  }">
           ${
     authSettingLabel(
       "two-factor",
@@ -3017,9 +3050,7 @@ function turnstileWidgetHtml(siteKey: string | undefined): string {
       class="settings-turnstile cf-turnstile"
       data-turnstile-mode="interaction"
       data-turnstile-widget
-      data-sitekey="${
-      escapeHtml(siteKey)
-    }" data-response-field-name="${
+      data-sitekey="${escapeHtml(siteKey)}" data-response-field-name="${
       escapeHtml(turnstileResponseFieldName)
     }" data-expired-callback="revealTurnstileWidgets" data-error-callback="revealTurnstileWidgets"></div>`
     : "";
@@ -3184,16 +3215,30 @@ function renderNotificationSection(settings: AppSettings): string {
               <label class="switch-control">
                 <input type="checkbox" form="application-notifications-form" data-app-notifications disabled
                   aria-label="${escapeHtml(messages.applicationNotifications)}"
-                  data-unsupported="${escapeHtml(messages.applicationNotificationsUnsupported)}"
-                  data-unavailable="${escapeHtml(messages.applicationNotificationsUnavailable)}"
-                  data-unconfigured="${escapeHtml(messages.applicationNotificationsUnconfigured)}"
-                  data-loading="${escapeHtml(messages.applicationNotificationsLoading)}"
-                  data-background-unavailable="${escapeHtml(messages.applicationNotificationsBackgroundUnavailable)}"
-                  data-denied="${escapeHtml(messages.applicationNotificationsDenied)}"
+                  data-unsupported="${
+    escapeHtml(messages.applicationNotificationsUnsupported)
+  }"
+                  data-unavailable="${
+    escapeHtml(messages.applicationNotificationsUnavailable)
+  }"
+                  data-unconfigured="${
+    escapeHtml(messages.applicationNotificationsUnconfigured)
+  }"
+                  data-loading="${
+    escapeHtml(messages.applicationNotificationsLoading)
+  }"
+                  data-background-unavailable="${
+    escapeHtml(messages.applicationNotificationsBackgroundUnavailable)
+  }"
+                  data-denied="${
+    escapeHtml(messages.applicationNotificationsDenied)
+  }"
                   data-failed="${escapeHtml(messages.autoSaveError)}">
               </label>
               <span class="inline-action-status" data-app-notifications-status role="status" hidden></span>
-              <button type="button" class="settings-row-action-button" data-app-notifications-retry hidden>${escapeHtml(messages.applicationNotificationsRetry)}</button>
+              <button type="button" class="settings-row-action-button" data-app-notifications-retry hidden>${
+    escapeHtml(messages.applicationNotificationsRetry)
+  }</button>
             </dd>
           </div>
           <div>
@@ -3679,8 +3724,12 @@ function renderPollingSection(settings: AppSettings): string {
             </dd>
           </div>
           <div class="settings-navigation-row schedule-navigation-row" data-polling-field="schedule">
-            <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/settings?panel=polling" data-settings-subpage><span class="settings-label-with-icon">${materialSymbolIcon("timer", "settings-label-icon")}<span>${escapeHtml(messages.scheduleEnabled)}</span></span></a></dt>
-            <dd><label class="switch-control"><input type="checkbox" disabled data-schedule-toggle aria-label="${escapeHtml(messages.scheduleEnabled)}"></label></dd>
+            <dt class="settings-navigation-label"><a class="settings-navigation-link" href="/settings?panel=polling" data-settings-subpage><span class="settings-label-with-icon">${
+    materialSymbolIcon("timer", "settings-label-icon")
+  }<span>${escapeHtml(messages.scheduleEnabled)}</span></span></a></dt>
+            <dd><label class="switch-control"><input type="checkbox" disabled data-schedule-toggle aria-label="${
+    escapeHtml(messages.scheduleEnabled)
+  }"></label></dd>
           </div>
           <div class="polling-option-row" data-polling-field="interval">
             ${
@@ -3803,7 +3852,18 @@ function renderTopicSection(settings: AppSettings): string {
       data-topic-editor
       data-delete-message="${escapeHtml(messages.selectTopicToDelete)}"
     >
-      ${renderDrawerHeading("topics", "topic-rules-panel", messages.topic, "topic", `<span data-topic-summary data-common-label="${escapeHtml(messages.commonTopic)}">${escapeHtml(summary)}</span>`, "settings.post.topic")}
+      ${
+    renderDrawerHeading(
+      "topics",
+      "topic-rules-panel",
+      messages.topic,
+      "topic",
+      `<span data-topic-summary data-common-label="${
+        escapeHtml(messages.commonTopic)
+      }">${escapeHtml(summary)}</span>`,
+      "settings.post.topic",
+    )
+  }
       <dd class="dropdown-panel topic-rules-panel" id="topic-rules-panel" data-topic-panel hidden>
         <div class="dropdown-panel-inner">
         <input type="hidden" name="activeKeywordTarget" value="${
@@ -3851,11 +3911,23 @@ function renderKeywordSection(settings: AppSettings): string {
   return `
     <div
       class="dropdown-settings-row keyword-settings-row matching-conditional-row"
-      ${normalizeMatchingSettings(settings.matching).mode === "ai" ? "hidden" : ""}
+      ${
+    normalizeMatchingSettings(settings.matching).mode === "ai" ? "hidden" : ""
+  }
       data-keyword-editor
       data-delete-message="${escapeHtml(messages.selectKeywordToDelete)}"
     >
-      ${renderDrawerHeading("keywords", "keyword-rules-panel", messages.keywords, "sell", `<span class="keyword-summary" data-keyword-summary>${renderKeywordSummary(summaryKeywords)}</span>`)}
+      ${
+    renderDrawerHeading(
+      "keywords",
+      "keyword-rules-panel",
+      messages.keywords,
+      "sell",
+      `<span class="keyword-summary" data-keyword-summary>${
+        renderKeywordSummary(summaryKeywords)
+      }</span>`,
+    )
+  }
       <dd class="dropdown-panel keyword-rules-panel" id="keyword-rules-panel" data-keyword-panel hidden>
         <div class="dropdown-panel-inner">
           <div class="keyword-rule-grid" role="table">

@@ -2,7 +2,7 @@
 name: Check Windows and Android applications
 on:
   push:
-    branches: [main, dev]
+    branches: [ main, dev ]
     paths: [
       "apps/**",
       "static/**",

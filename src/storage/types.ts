@@ -8,7 +8,10 @@ import type { UserSyncStore } from "./sync_types.ts";
 import type { NativeNotificationStore } from "./native_notifications.ts";
 import type { NativeLoginStore } from "./native_login.ts";
 import type { NativePushStore } from "./native_push_types.ts";
-import type { MatchSaveOptions, NotificationOutbox } from "./notification_outbox.ts";
+import type {
+  MatchSaveOptions,
+  NotificationOutbox,
+} from "./notification_outbox.ts";
 import type {
   AppSettings,
   AppState,

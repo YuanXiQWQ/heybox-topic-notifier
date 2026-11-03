@@ -567,7 +567,7 @@ export function installLobotomyCorpAlertHarness(
      * @return {Event} 已派发的事件。
      */
     dispatchDocumentEvent: (name: string) => {
-      const event = new Event(name, {cancelable: true});
+      const event = new Event(name, { cancelable: true });
       [...(documentListeners.get(name) ?? [])].forEach((listener) =>
         listener(event)
       );

@@ -6,14 +6,29 @@ Deno.test("notification test attempts every channel and waits even when one thro
   const failure = new Error("upstream failure");
   const calls: string[] = [];
   let release!: () => void;
-  const waiting = new Promise<void>((resolve) => { release = resolve; });
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   const result = sendNotificationTest([
-    () => { calls.push("webhook"); throw failure; },
-    async () => { calls.push("native"); await waiting; calls.push("saved"); },
-    () => { calls.push("browser"); return Promise.resolve(); },
+    () => {
+      calls.push("webhook");
+      throw failure;
+    },
+    async () => {
+      calls.push("native");
+      await waiting;
+      calls.push("saved");
+    },
+    () => {
+      calls.push("browser");
+      return Promise.resolve();
+    },
   ]);
   let settled = false;
-  const outcome = result.catch((error) => { settled = true; return error; });
+  const outcome = result.catch((error) => {
+    settled = true;
+    return error;
+  });
   await Promise.resolve();
   assertEquals(calls, ["webhook", "native", "browser"]);
   assertEquals(settled, false);
@@ -24,9 +39,17 @@ Deno.test("notification test attempts every channel and waits even when one thro
 
 Deno.test("application failure cannot skip the other test notification", async () => {
   let sent = false;
-  await assertRejects(() => sendNotificationTest([
-    () => Promise.reject(new Error("application delivery")),
-    () => { sent = true; return Promise.resolve(); },
-  ]), Error, "application delivery");
+  await assertRejects(
+    () =>
+      sendNotificationTest([
+        () => Promise.reject(new Error("application delivery")),
+        () => {
+          sent = true;
+          return Promise.resolve();
+        },
+      ]),
+    Error,
+    "application delivery",
+  );
   assertEquals(sent, true);
 });

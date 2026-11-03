@@ -8,18 +8,16 @@ import { createTursoNativePushStore } from "./native_push_turso.ts";
 import { createTursoSyncStore } from "./sync_turso.ts";
 import { createTursoNativeNotifications } from "./native_notifications_turso.ts";
 import { createTursoNativeLogin } from "./native_login_turso.ts";
-import { createTursoNotificationOutbox, notificationEnqueueStatements } from "./notification_outbox_turso.ts";
+import {
+  createTursoNotificationOutbox,
+  notificationEnqueueStatements,
+} from "./notification_outbox_turso.ts";
 import type { MatchSaveOptions } from "./notification_outbox.ts";
 import { serverEditStamp } from "../sync/protocol.ts";
 import { settingsEdits } from "../sync/settings.ts";
 import type { SettingsSyncSnapshot } from "../sync/settings.ts";
 import type { RecordSyncSnapshot } from "../sync/records.ts";
-import type {
-  InArgs,
-  InStatement,
-  ResultSet,
-  Row,
-} from "@libsql/client/web";
+import type { InArgs, InStatement, ResultSet, Row } from "@libsql/client/web";
 import { normalizeEmailAddress } from "../auth/email.ts";
 import {
   normalizePendingMfaChallenge,
@@ -89,7 +87,11 @@ export type TursoStorageOptions = {
  */
 export type TursoStorage = Storage & {
   /** 原子导入同步版本及投影；存在实时变更时抛出回填保护错误。 */
-  importKvSync?(userId: string, kind: "settings" | "record", value: SettingsSyncSnapshot | RecordSyncSnapshot): Promise<void>;
+  importKvSync?(
+    userId: string,
+    kind: "settings" | "record",
+    value: SettingsSyncSnapshot | RecordSyncSnapshot,
+  ): Promise<void>;
   /**
    * 判断 KV 实体是否可以安全回填。
    *
@@ -268,10 +270,19 @@ export function createTursoStorage(
    * @return {UserStorage} 指定用户的数据存储操作集合。
    */
   function forUser(userId: string): UserStorage {
-    const sync = createTursoSyncStore(execute, batch, userId, defaultSettings,
-      options.notificationOutbox ? (record) => notificationEnqueueStatements(userId, record) : undefined);
+    const sync = createTursoSyncStore(
+      execute,
+      batch,
+      userId,
+      defaultSettings,
+      options.notificationOutbox
+        ? (record) => notificationEnqueueStatements(userId, record)
+        : undefined,
+    );
     return {
-      notificationOutbox: options.notificationOutbox ? createTursoNotificationOutbox(execute, batch, userId) : undefined,
+      notificationOutbox: options.notificationOutbox
+        ? createTursoNotificationOutbox(execute, batch, userId)
+        : undefined,
       sync,
       userId,
       matching: createTursoMatchingStore(execute, userId),
@@ -302,7 +313,9 @@ export function createTursoStorage(
       async saveSettings(settings: AppSettings): Promise<void> {
         if (writeMode !== "kv-import") {
           const current = await sync.readSettings();
-          await sync.applySettings(settingsEdits(current.settings, settings, serverEditStamp()));
+          await sync.applySettings(
+            settingsEdits(current.settings, settings, serverEditStamp()),
+          );
           return;
         }
         await writeEntity("settings", userId, {
@@ -388,18 +401,28 @@ export function createTursoStorage(
        * 在数据库内投影角标所需标识，避免传输和解析帖子正文。
        * @return {Promise<Array<{id: string, postId: string}>>} 当前账号工作区的精简记录。
        */
-      async listPendingMatchReferences(): Promise<Array<{ id: string; postId: string }>> {
+      async listPendingMatchReferences(): Promise<
+        Array<{ id: string; postId: string }>
+      > {
         const result = await execute({
-          sql: `SELECT id, json_extract(value_json, '$.post.id') AS post_id FROM matches
+          sql:
+            `SELECT id, json_extract(value_json, '$.post.id') AS post_id FROM matches
             WHERE user_id = ? AND completed_at IS NULL
             ORDER BY post_published_at DESC, matched_at DESC, id ASC`,
           args: [userId],
         });
-        return result.rows.map((row) => ({ id: String(row.id), postId: String(row.post_id) }));
+        return result.rows.map((row) => ({
+          id: String(row.id),
+          postId: String(row.post_id),
+        }));
       },
       /** 按用户与完成状态统计不重复的帖子数量，不向客户端传输帖子正文。 @return {Promise<number>} 未确认数量。 */
       async countPendingPosts(): Promise<number> {
-        const result = await execute({sql:"SELECT COUNT(DISTINCT json_extract(value_json, '$.post.id')) AS count FROM matches WHERE user_id = ? AND completed_at IS NULL", args:[userId]});
+        const result = await execute({
+          sql:
+            "SELECT COUNT(DISTINCT json_extract(value_json, '$.post.id')) AS count FROM matches WHERE user_id = ? AND completed_at IS NULL",
+          args: [userId],
+        });
         return Number(result.rows[0]?.count ?? 0);
       },
       /**
@@ -465,7 +488,10 @@ export function createTursoStorage(
        * @param {MatchSaveOptions} options 新命中投递选项。
        * @return {Promise<void>} 保存完成后的 Promise。
        */
-      async saveMatch(record: MatchRecord, options?: MatchSaveOptions): Promise<void> {
+      async saveMatch(
+        record: MatchRecord,
+        options?: MatchSaveOptions,
+      ): Promise<void> {
         if (writeMode !== "kv-import") {
           await sync.saveRecordContent(record, options);
           return;
@@ -500,8 +526,16 @@ export function createTursoStorage(
        * @return {Promise<void>} 更新完成后的 Promise。
        */
       async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
-        const result = await execute({ sql: "SELECT value_json FROM matches WHERE user_id = ? AND id = ?", args: [userId, id] });
-        if (result.rows[0]) await sync.saveRecordContent({ ...parseJsonRow<MatchRecord>(result.rows[0]), notifiedAt });
+        const result = await execute({
+          sql: "SELECT value_json FROM matches WHERE user_id = ? AND id = ?",
+          args: [userId, id],
+        });
+        if (result.rows[0]) {
+          await sync.saveRecordContent({
+            ...parseJsonRow<MatchRecord>(result.rows[0]),
+            notifiedAt,
+          });
+        }
       },
       /**
        * 用同一个在线编辑版本完成指定记录。
@@ -515,7 +549,9 @@ export function createTursoStorage(
           return;
         }
         const stamp = serverEditStamp();
-        for (const id of uniqueIds) await sync.applyRecord(id, "history", stamp);
+        for (const id of uniqueIds) {
+          await sync.applyRecord(id, "history", stamp);
+        }
       },
       /**
        * 删除可见记录并保留同步及迁移墓碑。
@@ -529,7 +565,9 @@ export function createTursoStorage(
           return;
         }
         const stamp = serverEditStamp();
-        for (const id of uniqueIds) await sync.applyRecord(id, "deleted", stamp);
+        for (const id of uniqueIds) {
+          await sync.applyRecord(id, "deleted", stamp);
+        }
       },
       /**
        * 保存当前用户最后轮询时间。
@@ -565,26 +603,70 @@ export function createTursoStorage(
      * @param {SettingsSyncSnapshot | RecordSyncSnapshot} value 源快照。
      */
     async importKvSync(userId, kind, value) {
-      const settings = kind === "settings" ? value as SettingsSyncSnapshot : undefined;
-      const record = kind === "record" ? value as RecordSyncSnapshot : undefined;
+      const settings = kind === "settings"
+        ? value as SettingsSyncSnapshot
+        : undefined;
+      const record = kind === "record"
+        ? value as RecordSyncSnapshot
+        : undefined;
       const entityType = settings ? "settings" : "match";
-      const entityKey = settings ? userId : JSON.stringify([userId, record!.id]);
-      const statements: InStatement[] = ["DELETE FROM storage_import_guard", claimKvImportStatement(entityType, entityKey), "INSERT INTO storage_import_guard (id) VALUES (CASE WHEN changes() = 1 THEN 1 ELSE 0 END)"];
-      if (settings) statements.push(
-        { sql: "INSERT INTO sync_settings (user_id, revision, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET revision = excluded.revision, value_json = excluded.value_json", args: [userId, settings.revision, JSON.stringify(settings)] },
-        { sql: "INSERT INTO user_settings (user_id, value_json) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET value_json = excluded.value_json", args: [userId, JSON.stringify(settings.settings)] },
-      );
+      const entityKey = settings
+        ? userId
+        : JSON.stringify([userId, record!.id]);
+      const statements: InStatement[] = [
+        "DELETE FROM storage_import_guard",
+        claimKvImportStatement(entityType, entityKey),
+        "INSERT INTO storage_import_guard (id) VALUES (CASE WHEN changes() = 1 THEN 1 ELSE 0 END)",
+      ];
+      if (settings) {
+        statements.push(
+          {
+            sql:
+              "INSERT INTO sync_settings (user_id, revision, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET revision = excluded.revision, value_json = excluded.value_json",
+            args: [userId, settings.revision, JSON.stringify(settings)],
+          },
+          {
+            sql:
+              "INSERT INTO user_settings (user_id, value_json) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET value_json = excluded.value_json",
+            args: [userId, JSON.stringify(settings.settings)],
+          },
+        );
+      }
       if (record) {
-        statements.push({ sql: "INSERT INTO sync_records (user_id, id, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET value_json = excluded.value_json", args: [userId, record.id, JSON.stringify(record)] });
-        if (record.status === "deleted") statements.push({ sql: "DELETE FROM matches WHERE user_id = ? AND id = ?", args: [userId, record.id] });
-        else if (record.record) {
+        statements.push({
+          sql:
+            "INSERT INTO sync_records (user_id, id, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET value_json = excluded.value_json",
+          args: [userId, record.id, JSON.stringify(record)],
+        });
+        if (record.status === "deleted") {
+          statements.push({
+            sql: "DELETE FROM matches WHERE user_id = ? AND id = ?",
+            args: [userId, record.id],
+          });
+        } else if (record.record) {
           const visible = record.record;
-          statements.push({ sql: "INSERT INTO matches (user_id, id, matched_at, post_published_at, completed_at, notified_at, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET matched_at = excluded.matched_at, post_published_at = excluded.post_published_at, completed_at = excluded.completed_at, notified_at = excluded.notified_at, value_json = excluded.value_json", args: [userId, visible.id, visible.matchedAt, visible.post.publishedAt, visible.completedAt ?? null, visible.notifiedAt ?? null, JSON.stringify(visible)] });
+          statements.push({
+            sql:
+              "INSERT INTO matches (user_id, id, matched_at, post_published_at, completed_at, notified_at, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET matched_at = excluded.matched_at, post_published_at = excluded.post_published_at, completed_at = excluded.completed_at, notified_at = excluded.notified_at, value_json = excluded.value_json",
+            args: [
+              userId,
+              visible.id,
+              visible.matchedAt,
+              visible.post.publishedAt,
+              visible.completedAt ?? null,
+              visible.notifiedAt ?? null,
+              JSON.stringify(visible),
+            ],
+          });
         }
       }
       statements.push("DELETE FROM storage_import_guard");
-      try { await batch(statements); }
-      catch (error) { if (isImportGuardConstraintError(error)) throw kvImportBlockedError(); throw error; }
+      try {
+        await batch(statements);
+      } catch (error) {
+        if (isImportGuardConstraintError(error)) throw kvImportBlockedError();
+        throw error;
+      }
     },
 
     /**
@@ -700,7 +782,10 @@ export function createTursoStorage(
             sql: `INSERT INTO user_accounts
                 (id, username, username_normalized, created_at, value_json)
               SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?)`,
-            args: [...accountArgs(account) as import("@libsql/client").InValue[], account.id],
+            args: [
+              ...accountArgs(account) as import("@libsql/client").InValue[],
+              account.id,
+            ],
           },
           mutationStatement("account", account.id, true),
         ]);
@@ -748,7 +833,8 @@ export function createTursoStorage(
     /** 获取用户头像。 */
     async getUserAvatar(userId: string): Promise<UserAvatar | undefined> {
       const result = await execute({
-        sql: "SELECT content_type, data_blob, updated_at FROM user_avatars WHERE user_id = ?",
+        sql:
+          "SELECT content_type, data_blob, updated_at FROM user_avatars WHERE user_id = ?",
         args: [userId],
       });
       const row = result.rows[0];
@@ -763,11 +849,17 @@ export function createTursoStorage(
     /** 保存用户头像。 */
     async saveUserAvatar(avatar: UserAvatar): Promise<void> {
       await writeEntity("avatar", avatar.userId, {
-        sql: `INSERT INTO user_avatars (user_id, content_type, data_blob, updated_at)
+        sql:
+          `INSERT INTO user_avatars (user_id, content_type, data_blob, updated_at)
           VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET
           content_type = excluded.content_type, data_blob = excluded.data_blob,
           updated_at = excluded.updated_at`,
-        args: [avatar.userId, avatar.contentType, avatar.data, avatar.updatedAt],
+        args: [
+          avatar.userId,
+          avatar.contentType,
+          avatar.data,
+          avatar.updatedAt,
+        ],
       });
     },
 
@@ -1963,7 +2055,10 @@ function accountUpsert(account: UserAccount): InStatement {
         username_normalized = excluded.username_normalized,
         created_at = excluded.created_at,
         value_json = json_set(excluded.value_json, '$.role', COALESCE(json_extract(user_accounts.value_json, '$.role'), 'user'), '$.roleVersion', COALESCE(json_extract(user_accounts.value_json, '$.roleVersion'), 0))`,
-    args: [...accountArgs(account) as import("@libsql/client").InValue[], account.id],
+    args: [
+      ...accountArgs(account) as import("@libsql/client").InValue[],
+      account.id,
+    ],
   };
 }
 
@@ -1991,7 +2086,9 @@ function avatarBytes(value: unknown): Uint8Array | undefined {
 }
 
 /** 判断是否为允许保存的头像 MIME 类型。 */
-function isAvatarType(value: string | undefined): value is UserAvatar["contentType"] {
+function isAvatarType(
+  value: string | undefined,
+): value is UserAvatar["contentType"] {
   return value === "image/gif" || value === "image/jpeg" ||
     value === "image/png" || value === "image/webp";
 }

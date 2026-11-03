@@ -86,7 +86,11 @@ Deno.test("Advent dial switches CJK text to a system font as a whole run", () =>
       "아포슬 1",
     ]
   ) {
-    assertStrictEquals(adventTextNeedsCjkFont(text), false, `${text} 不该换字体`);
+    assertStrictEquals(
+      adventTextNeedsCjkFont(text),
+      false,
+      `${text} 不该换字体`,
+    );
   }
 
   const css = Deno.readTextFileSync(
@@ -162,7 +166,13 @@ Deno.test("Simple Advent marks CJK names for the system font", () => {
     "이상:",
     "Gregor:",
     "良秀:1",
-    ":", ":", ":", ":", ":", ":", ":",
+    ":",
+    ":",
+    ":",
+    ":",
+    ":",
+    ":",
+    ":",
     "十二:1",
   ]);
 });

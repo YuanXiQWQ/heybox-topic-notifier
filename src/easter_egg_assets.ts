@@ -164,7 +164,9 @@ export async function lobotomyCorpDangerScoreResponse(): Promise<Response> {
  *
  * @return {Promise<Response>} JavaScript 模块响应。
  */
-export async function lobotomyCorpBlackForestEventResponse(): Promise<Response> {
+export async function lobotomyCorpBlackForestEventResponse(): Promise<
+  Response
+> {
   const script = await Deno.readTextFile(
     new URL(
       "../static/fun/lobotomy-corp/Events/BlackForest.js",
@@ -184,7 +186,9 @@ export async function lobotomyCorpBlackForestEventResponse(): Promise<Response> 
  *
  * @return {Promise<Response>} JavaScript 模块响应。
  */
-export async function lobotomyCorpDontTouchMeEventResponse(): Promise<Response> {
+export async function lobotomyCorpDontTouchMeEventResponse(): Promise<
+  Response
+> {
   const script = await Deno.readTextFile(
     new URL(
       "../static/fun/lobotomy-corp/Events/DontTouchMe.js",

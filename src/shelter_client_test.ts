@@ -29,7 +29,7 @@ async function flushMicrotasks(): Promise<void> {
  *
  * @return {Record<string, {canBreach?: boolean}>} 异想体资料。
  */
-function readAbnormalities(): Record<string, {canBreach?: boolean}> {
+function readAbnormalities(): Record<string, { canBreach?: boolean }> {
   return JSON.parse(Deno.readTextFileSync(
     new URL(
       "../static/fun/lobotomy-corp/Data/Abnormalities.json",

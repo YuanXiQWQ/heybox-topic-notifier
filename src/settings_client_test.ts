@@ -9,19 +9,36 @@ Deno.test("settings form signatures exclude device preferences in both sync and 
     /** @param {{values: Record<string, string>}} form 测试表单值。 */
     constructor(form: { values: Record<string, string> }) {
       super();
-      for (const [key, value] of Object.entries(form.values)) this.set(key, value);
+      for (const [key, value] of Object.entries(form.values)) {
+        this.set(key, value);
+      }
     }
   }
-  const source = Deno.readTextFileSync(new URL("../static/settings.js", import.meta.url));
-  const client = new Function("document", "FormData", `${source}\nreturn {formDataFromForm, formSignature};`)(
-    { addEventListener() {} }, BrowserFormData,
+  const source = Deno.readTextFileSync(
+    new URL("../static/settings.js", import.meta.url),
+  );
+  const client = new Function(
+    "document",
+    "FormData",
+    `${source}\nreturn {formDataFromForm, formSignature};`,
+  )(
+    { addEventListener() {} },
+    BrowserFormData,
   );
   const form = {
     id: "settings-autosave-form",
-    values: { darkMode: "on", locale: "ja-JP", themeColor: "#123abc", pollEnabled: "on" },
+    values: {
+      darkMode: "on",
+      locale: "ja-JP",
+      themeColor: "#123abc",
+      pollEnabled: "on",
+    },
     querySelectorAll: () => [{ name: "pollIntervalValue", value: "5" }],
   };
-  assertEquals([...client.formDataFromForm(form)], [["pollEnabled", "on"], ["pollIntervalValue", "5"]]);
+  assertEquals([...client.formDataFromForm(form)], [["pollEnabled", "on"], [
+    "pollIntervalValue",
+    "5",
+  ]]);
   const initial = client.formSignature(form);
   form.values.locale = "ar-SA";
   form.values.darkMode = "";
@@ -58,10 +75,17 @@ Deno.test("secret blur preserves pending keys and never submits the readonly mas
   const hidden = new SecretInputMock();
   const input = new SecretInputMock();
   input.hidden = hidden;
-  const source = Deno.readTextFileSync(new URL("../static/settings.js", import.meta.url));
-  const client = new Function("document", "HTMLInputElement", "HTMLButtonElement", `${source}
+  const source = Deno.readTextFileSync(
+    new URL("../static/settings.js", import.meta.url),
+  );
+  const client = new Function(
+    "document",
+    "HTMLInputElement",
+    "HTMLButtonElement",
+    `${source}
     return {lockSecretEditorAfterEdit, clearSecretSubmissionValues};
-  `)(
+  `,
+  )(
     { addEventListener() {}, querySelectorAll: () => [hidden] },
     SecretInputMock,
     ElementMock,
@@ -90,8 +114,17 @@ Deno.test("autosave responses preserve newer model and key edits for the next sa
   const form = { model: "" };
   let complete!: (value: Response) => void;
   let scheduled = 0;
-  const source = Deno.readTextFileSync(new URL("../static/settings.js", import.meta.url));
-  const client = new Function("document", "HTMLInputElement", "fetch", "form", "key", "schedule", `${source}
+  const source = Deno.readTextFileSync(
+    new URL("../static/settings.js", import.meta.url),
+  );
+  const client = new Function(
+    "document",
+    "HTMLInputElement",
+    "fetch",
+    "form",
+    "key",
+    "schedule",
+    `${source}
     autoSaveForm = autoSaveTopicEditor = autoSaveKeywordEditor = form;
     pruneIncompleteDraftRows = persistCurrentKeywordRows = setAutoSaveStatus = () => {};
     csrfRequestHeaders = () => ({});
@@ -103,13 +136,19 @@ Deno.test("autosave responses preserve newer model and key edits for the next sa
       return data;
     };
     return {saveSettingsNow, saved: () => lastSavedSignature};
-  `)(
+  `,
+  )(
     { addEventListener() {}, querySelectorAll: () => [key] },
     SecretInputMock,
-    () => new Promise<Response>((resolve) => { complete = resolve; }),
+    () =>
+      new Promise<Response>((resolve) => {
+        complete = resolve;
+      }),
     form,
     key,
-    () => { scheduled++; },
+    () => {
+      scheduled++;
+    },
   );
   const first = client.saveSettingsNow();
   key.value = "new-fixture-key";
@@ -131,28 +170,56 @@ Deno.test("overlapping offline saves advance the edit baseline in durable order"
   const form = { model: "first" };
   const calls: Array<{ body: FormData; base: string }> = [];
   let complete!: (value: Response) => void;
-  const source = Deno.readTextFileSync(new URL("../static/settings.js", import.meta.url));
-  const client = new Function("document", "HTMLInputElement", "globalThis", "form", `${source}
+  const source = Deno.readTextFileSync(
+    new URL("../static/settings.js", import.meta.url),
+  );
+  const client = new Function(
+    "document",
+    "HTMLInputElement",
+    "globalThis",
+    "form",
+    `${source}
     autoSaveForm = autoSaveTopicEditor = autoSaveKeywordEditor = form;
     pruneIncompleteDraftRows = persistCurrentKeywordRows = setAutoSaveStatus = scheduleAutoSave = () => {};
     formDataFromForm = () => { const value = new FormData(); value.set('matchingModel', form.model); return value; };
     return {saveSettingsNow};
-  `)(
-    { addEventListener() {}, querySelectorAll: () => [key] }, SecretInputMock,
-    { applicationSync: { submitSettings: (body: FormData, base: string) => {
-      calls.push({ body, base });
-      if (calls.length === 1) return new Promise<Response>((resolve) => { complete = resolve; });
-      return Promise.resolve(new Response(null, { status: 202, headers: { "x-app-local": "1" } }));
-    } } }, form,
+  `,
+  )(
+    { addEventListener() {}, querySelectorAll: () => [key] },
+    SecretInputMock,
+    {
+      applicationSync: {
+        submitSettings: (body: FormData, base: string) => {
+          calls.push({ body, base });
+          if (calls.length === 1) {
+            return new Promise<Response>((resolve) => {
+              complete = resolve;
+            });
+          }
+          return Promise.resolve(
+            new Response(null, {
+              status: 202,
+              headers: { "x-app-local": "1" },
+            }),
+          );
+        },
+      },
+    },
+    form,
   );
   const first = client.saveSettingsNow();
   form.model = "second";
   const second = client.saveSettingsNow();
   assertEquals(calls.length, 1);
-  complete(new Response(null, { status: 202, headers: { "x-app-local": "1" } }));
+  complete(
+    new Response(null, { status: 202, headers: { "x-app-local": "1" } }),
+  );
   await Promise.all([first, second]);
   assertEquals(calls.length, 2);
-  assertEquals(new URLSearchParams(calls[1].base).get("matchingModel"), "first");
+  assertEquals(
+    new URLSearchParams(calls[1].base).get("matchingModel"),
+    "first",
+  );
   assertEquals(calls[1].body.get("matchingModel"), "second");
 });
 

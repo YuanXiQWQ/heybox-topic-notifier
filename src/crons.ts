@@ -101,7 +101,9 @@ export function createPollScheduler(
       stopping = true;
       return !scheduling && pollingUserIds.size === 0
         ? Promise.resolve()
-        : new Promise((resolve) => { idleWaiters.add(resolve); });
+        : new Promise((resolve) => {
+          idleWaiters.add(resolve);
+        });
     },
   };
 
@@ -146,9 +148,16 @@ export function createPollScheduler(
         lastPollKeyByUserId.set(userId, effective.key);
         return false;
       }
-      const previous = Math.max(lastPollStartedAtByUserId.get(userId) ?? 0, Date.parse(lastPollAt ?? "") || 0);
-      const previousKey = lastPollKeyByUserId.get(userId) ?? (previous > 0 ? resolvePolling(settings.polling, new Date(previous)).key : undefined);
-      const entered = previousKey !== undefined && effective.key !== previousKey;
+      const previous = Math.max(
+        lastPollStartedAtByUserId.get(userId) ?? 0,
+        Date.parse(lastPollAt ?? "") || 0,
+      );
+      const previousKey = lastPollKeyByUserId.get(userId) ??
+        (previous > 0
+          ? resolvePolling(settings.polling, new Date(previous)).key
+          : undefined);
+      const entered = previousKey !== undefined &&
+        effective.key !== previousKey;
       if (
         !entered && !shouldPollFromLastStart(
           lastPollStartedAtByUserId.get(userId),
@@ -162,7 +171,12 @@ export function createPollScheduler(
 
       lastPollStartedAtByUserId.set(userId, now.getTime());
       lastPollKeyByUserId.set(userId, effective.key);
-      await context.poller.runOnce(storage, effective.polling === settings.polling ? settings : {...settings, polling: effective.polling as PollingSettings});
+      await context.poller.runOnce(
+        storage,
+        effective.polling === settings.polling
+          ? settings
+          : { ...settings, polling: effective.polling as PollingSettings },
+      );
       return true;
     } catch (error) {
       console.error(`Scheduled poll failed for user ${userId}`, error);
@@ -219,7 +233,9 @@ export function registerCrons(
 
   const registerInterval = options.setInterval ?? setInterval;
   const timer = registerInterval(() => {
-    void context.scheduler.tick().catch((error) => console.error("Poll schedule refresh failed", error));
+    void context.scheduler.tick().catch((error) =>
+      console.error("Poll schedule refresh failed", error)
+    );
   }, pollSchedulerTickMs);
   return () => clearInterval(timer);
 }

@@ -76,8 +76,8 @@ export function shelterAbnormalityForRandomValue(
 ) {
   if (canonicalIds.length === 0) return undefined;
   const normalized = Number.isFinite(randomValue)
-    ? Math.max(0, Math.min(0.9999999999999999, randomValue))
-    : 0;
+      ? Math.max(0, Math.min(0.9999999999999999, randomValue))
+      : 0;
   return canonicalIds[Math.floor(normalized * canonicalIds.length)];
 }
 
@@ -113,7 +113,7 @@ export function createShelterEvent(shared) {
    * @return {ShelterEventStorage[]} 可用存储。
    */
   const storages = () =>
-    Array.isArray(shared.storages?.()) ? shared.storages() : [];
+      Array.isArray(shared.storages?.()) ? shared.storages() : [];
 
   /** 清除事件的持久化状态。 */
   const clearPersisted = () => {
@@ -131,7 +131,7 @@ export function createShelterEvent(shared) {
       nextReleaseAt,
     });
     storages().forEach((storage) =>
-      storage.setItem(shared.storageKey, serialized)
+        storage.setItem(shared.storageKey, serialized)
     );
   };
 
@@ -142,14 +142,14 @@ export function createShelterEvent(shared) {
    */
   const persisted = () => {
     const serialized = storages().map((storage) =>
-      storage.getItem(shared.storageKey)
+        storage.getItem(shared.storageKey)
     ).find(Boolean);
     if (!serialized) return undefined;
     try {
       const saved = JSON.parse(serialized);
       if (
-        saved?.id !== shelterEventId ||
-        !Number.isFinite(saved.nextReleaseAt)
+          saved?.id !== shelterEventId ||
+          !Number.isFinite(saved.nextReleaseAt)
       ) {
         clearPersisted();
         return undefined;

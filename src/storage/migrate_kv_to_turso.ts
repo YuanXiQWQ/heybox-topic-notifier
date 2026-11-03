@@ -146,11 +146,35 @@ async function migrateKvEntry(
   }
   const [family, first, second, third] = parts;
   if (family === "userSync" && first && target.importKvSync) {
-    if (second === "settings" && !third) return await importEntity(target, "settings", first, async () => target.importKvSync!(first, "settings", await decodeSettingsSync(entry.value as StoredSettingsSync)));
-    if (second === "record" && third) return await importEntity(target, "match", entityKey(first, third), () => target.importKvSync!(first, "record", entry.value as RecordSyncSnapshot));
+    if (second === "settings" && !third) {
+      return await importEntity(target, "settings", first, async () =>
+        target.importKvSync!(
+          first,
+          "settings",
+          await decodeSettingsSync(entry.value as StoredSettingsSync),
+        ));
+    }
+    if (second === "record" && third) {
+      return await importEntity(target, "match", entityKey(first, third), () =>
+        target.importKvSync!(
+          first,
+          "record",
+          entry.value as RecordSyncSnapshot,
+        ));
+    }
   }
-  if (family === "deletedAccounts" && first && target.administration) { await target.administration.applySnapshot({deletedId:first}); return "imported"; }
-  if (family === "invitations" && first && target.administration) { await target.administration.applySnapshot({invitations:[entry.value as import("./administration_types.ts").Invitation]}); return "imported"; }
+  if (family === "deletedAccounts" && first && target.administration) {
+    await target.administration.applySnapshot({ deletedId: first });
+    return "imported";
+  }
+  if (family === "invitations" && first && target.administration) {
+    await target.administration.applySnapshot({
+      invitations: [
+        entry.value as import("./administration_types.ts").Invitation,
+      ],
+    });
+    return "imported";
+  }
   if (family === "accounts" && first && !second) {
     return await importEntity(
       target,
@@ -160,8 +184,12 @@ async function migrateKvEntry(
     );
   }
   if (family === "userAvatars" && first && !second) {
-    return await importEntity(target, "avatar", first, () =>
-      target.saveUserAvatar(entry.value as UserAvatar));
+    return await importEntity(
+      target,
+      "avatar",
+      first,
+      () => target.saveUserAvatar(entry.value as UserAvatar),
+    );
   }
   if (family === "userData" && first && second === "settings" && !third) {
     return await importEntity(

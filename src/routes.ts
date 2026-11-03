@@ -52,10 +52,7 @@ import {
   createStrongAuthenticationEvent,
   isRecentStrongAuthenticationEvent,
 } from "./auth/reauth.ts";
-import {
-  getMessages,
-  localeFromRequest,
-} from "./locales/index.ts";
+import { getMessages, localeFromRequest } from "./locales/index.ts";
 import {
   csrfForbiddenResponse,
   csrfHeaderName,
@@ -102,7 +99,11 @@ import {
   parseMatchTableQuery,
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
-import { canEnableSchedule, normalizeSchedule, resolvePolling } from "../static/polling-schedule-core.js";
+import {
+  canEnableSchedule,
+  normalizeSchedule,
+  resolvePolling,
+} from "../static/polling-schedule-core.js";
 import type { PollingSettings } from "./models.ts";
 import { renderAbout } from "./views/about.ts";
 import { sendNotificationTest } from "./services/notification_test.ts";
@@ -113,7 +114,10 @@ import { projectVersion } from "./project.ts";
 import { parseEditStamp, serverEditStamp } from "./sync/protocol.ts";
 import { settingsEdits } from "./sync/settings.ts";
 import { createNativePushRoutes } from "./native_push_routes.ts";
-import { createReleaseCatalogReader, type ReleaseCatalog } from "./services/releases.ts";
+import {
+  createReleaseCatalogReader,
+  type ReleaseCatalog,
+} from "./services/releases.ts";
 import {
   type MatchingSettings,
   normalizeMatchingSettings,
@@ -187,19 +191,120 @@ export function createRoutes(
   const app = new Hono();
   app.route("/api/native/push", createNativePushRoutes(context.storage));
   /** 提供前后端共用的时段计算和编辑器脚本。 @param {Context} c 固定脚本路径请求。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/:scheduleScript{polling-(?:schedule(?:-core)?|calendar(?:-profiles|-picker)?)\\.js}", async (c) => new Response(await Deno.readTextFile(new URL("../static/" + c.req.param("scheduleScript"), import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/:scheduleScript{polling-(?:schedule(?:-core)?|calendar(?:-profiles|-picker)?)\\.js}",
+    async (c) =>
+      new Response(
+        await Deno.readTextFile(
+          new URL(
+            "../static/" + c.req.param("scheduleScript"),
+            import.meta.url,
+          ),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供固定版本的离线农历模块。 @return {Promise<Response>} 同源历法脚本。 */
-  app.get("/static/vendor/lunar/lunar.js", async () => new Response(await Deno.readTextFile(new URL("../static/vendor/lunar/lunar.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/vendor/lunar/lunar.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/vendor/lunar/lunar.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供设置子页的返回位置保存脚本。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/settings-navigation.js", async () => new Response(await Deno.readTextFile(new URL("../static/settings-navigation.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  app.get(
+    "/static/settings-navigation.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/settings-navigation.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供共享原生桥接和应用更新界面脚本。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  app.get(
+    "/static/app-native.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/app-native.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** @return {Promise<Response>} 登录前后共用的设备显示偏好脚本。 */
-  app.get("/static/device-preferences.js", async () => new Response(await Deno.readTextFile(new URL("../static/device-preferences.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/device-preferences.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/device-preferences.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/app-device-settings.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/app-device-settings.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供历史表格增量同步脚本。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/history-sync.js", async () => new Response(await Deno.readTextFile(new URL("../static/history-sync.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  app.get(
+    "/static/history-sync.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/history-sync.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /**
    * 返回当前账号角标数量或可按版本复用的离线基线，不包含通知测试事件或历史记录。
    * @param {Context} c 请求上下文。
@@ -208,13 +313,19 @@ export function createRoutes(
   app.get("/api/native/badge", async (c) => {
     c.header("cache-control", "no-store");
     const session = await authSessionForRequest(c, context);
-    if (!session) return c.json({error:"unauthorized"},401);
+    if (!session) return c.json({ error: "unauthorized" }, 401);
     const storage = context.storage.forUser(session.userId);
     if (c.req.query("records") === "1") {
-      return c.json(await readNativeBadge(storage, session.userId, c.req.query("version")));
+      return c.json(
+        await readNativeBadge(storage, session.userId, c.req.query("version")),
+      );
     }
-    const count = storage.countPendingPosts ? await storage.countPendingPosts() : new Set((await storage.listPendingMatches()).map((record) => record.post.id)).size;
-    return c.json({userId:session.userId,count});
+    const count = storage.countPendingPosts
+      ? await storage.countPendingPosts()
+      : new Set(
+        (await storage.listPendingMatches()).map((record) => record.post.id),
+      ).size;
+    return c.json({ userId: session.userId, count });
   });
   /**
    * 返回当前账号通知增量，可在同次鉴权后独立读取角标；旧客户端仍获得原有通知响应。
@@ -226,7 +337,10 @@ export function createRoutes(
     const session = await authSessionForRequest(c, context);
     if (!session) return c.json({ error: "unauthorized" }, 401);
     const after = c.req.query("after");
-    if (after !== undefined && after !== "" && !/^\d{16}:[A-Za-z0-9_-]{43}$/.test(after)) return c.json({ error: "invalidCursor" }, 400);
+    if (
+      after !== undefined && after !== "" &&
+      !/^\d{16}:[A-Za-z0-9_-]{43}$/.test(after)
+    ) return c.json({ error: "invalidCursor" }, 400);
     const userStorage = context.storage.forUser(session.userId);
     const inbox = userStorage.nativeNotifications;
     if (c.req.query("badge") === "1") {
@@ -235,12 +349,20 @@ export function createRoutes(
           if (!inbox) throw new Error("Notifications unavailable");
           return readActiveNativeNotifications(userStorage, after);
         }),
-        readNativeBadge(userStorage, session.userId, c.req.query("badgeVersion") ?? ""),
+        readNativeBadge(
+          userStorage,
+          session.userId,
+          c.req.query("badgeVersion") ?? "",
+        ),
       ]);
       return c.json({
         userId: session.userId,
-        ...(notifications.status === "fulfilled" ? notifications.value : { error: "unavailable" }),
-        badge: badge.status === "fulfilled" ? badge.value : { error: "unavailable" },
+        ...(notifications.status === "fulfilled"
+          ? notifications.value
+          : { error: "unavailable" }),
+        badge: badge.status === "fulfilled"
+          ? badge.value
+          : { error: "unavailable" },
       });
     }
     if (!inbox) return c.json({ error: "unavailable" }, 503);
@@ -257,7 +379,14 @@ export function createRoutes(
     if (!session) return c.json({ error: "unauthorized" }, 401);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     c.header("cache-control", "no-store");
-    return withCsrfCookie(c.json({ userId: session.userId, serverTime: Date.now(), csrfToken: csrf.token }), csrf);
+    return withCsrfCookie(
+      c.json({
+        userId: session.userId,
+        serverTime: Date.now(),
+        csrfToken: csrf.token,
+      }),
+      csrf,
+    );
   });
   /**
    * 提供共享离线存储与队列脚本，不允许动态路径读取。
@@ -267,16 +396,34 @@ export function createRoutes(
   app.get("/static/app-sync/:file", async (c) => {
     const file = c.req.param("file");
     if (!["store.js", "client.js"].includes(file)) return c.notFound();
-    return new Response(await Deno.readTextFile(new URL(`../static/app-sync/${file}`, import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } });
+    return new Response(
+      await Deno.readTextFile(
+        new URL(`../static/app-sync/${file}`, import.meta.url),
+      ),
+      {
+        headers: {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+      },
+    );
   });
   /**
    * 提供设备通知开关的浏览器脚本。
    * @return {Promise<Response>} 同源脚本响应。
    */
-  app.get("/static/app-notifications.js", async () => new Response(
-    await Deno.readTextFile(new URL("../static/app-notifications.js", import.meta.url)),
-    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } },
-  ));
+  app.get("/static/app-notifications.js", async () =>
+    new Response(
+      await Deno.readTextFile(
+        new URL("../static/app-notifications.js", import.meta.url),
+      ),
+      {
+        headers: {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+      },
+    ));
 
   /**
    * 使用当前账号的主题与语言显示项目信息及真实发行附件。
@@ -287,17 +434,22 @@ export function createRoutes(
   app.get("/about", async (c) => {
     const storage = await storageForRequest(c, context);
     const session = await authSessionForRequest(c, context);
-    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    const account = session
+      ? await context.storage.getAccountById(session.userId)
+      : undefined;
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     c.header("cache-control", "no-store");
-    return withCsrfCookie(c.html(renderAbout({
-      account,
-      csrfToken: csrf.token,
-      loginSession: session?.createdAt,
-      settings: await storage.getSettings(),
-      version: projectVersion(Deno.env.get("APP_VERSION")),
-      catalog: await (options.releaseCatalog ?? readReleaseCatalog)(),
-    })), csrf);
+    return withCsrfCookie(
+      c.html(renderAbout({
+        account,
+        csrfToken: csrf.token,
+        loginSession: session?.createdAt,
+        settings: await storage.getSettings(),
+        version: projectVersion(Deno.env.get("APP_VERSION")),
+        catalog: await (options.releaseCatalog ?? readReleaseCatalog)(),
+      })),
+      csrf,
+    );
   });
 
   app.get("/healthz", (c) =>
@@ -311,7 +463,9 @@ export function createRoutes(
     const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
     const session = await authSessionForRequest(c, context);
-    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    const account = session
+      ? await context.storage.getAccountById(session.userId)
+      : undefined;
     const { pendingMatches, settings, state } = await storage
       .getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
@@ -400,7 +554,8 @@ export function createRoutes(
     // 版本先于数据读取，期间发生的更新会在下次检查中产生不同版本。
     const { pendingMatches, settings, state } = await storage
       .getDashboardSnapshot();
-    const effectivePolling = resolvePolling(settings.polling).polling as PollingSettings;
+    const effectivePolling = resolvePolling(settings.polling)
+      .polling as PollingSettings;
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       query,
@@ -618,10 +773,13 @@ export function createRoutes(
     if (!avatar) return c.redirect(defaultAvatarPath(session.userId), 302);
     const bytes = new Uint8Array(avatar.data.byteLength);
     bytes.set(avatar.data);
-    return new Response(new Blob([bytes]), { headers: {
-      "cache-control": "private, no-store", "content-type": avatar.contentType,
-      "x-content-type-options": "nosniff",
-    } });
+    return new Response(new Blob([bytes]), {
+      headers: {
+        "cache-control": "private, no-store",
+        "content-type": avatar.contentType,
+        "x-content-type-options": "nosniff",
+      },
+    });
   });
 
   app.post("/account/avatar", async (c) => {
@@ -630,12 +788,21 @@ export function createRoutes(
     const form = await c.req.parseBody();
     if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
     const file = form.avatar;
-    if (!(file instanceof File) || file.size === 0) return c.redirect("/settings?avatarError=missing", 303);
-    if (file.size > avatarMaxBytes) return c.redirect("/settings?avatarError=size", 303);
+    if (!(file instanceof File) || file.size === 0) {
+      return c.redirect("/settings?avatarError=missing", 303);
+    }
+    if (file.size > avatarMaxBytes) {
+      return c.redirect("/settings?avatarError=size", 303);
+    }
     const data = new Uint8Array(await file.arrayBuffer());
     const contentType = avatarContentType(data);
     if (!contentType) return c.redirect("/settings?avatarError=type", 303);
-    await context.storage.saveUserAvatar({ contentType, data, updatedAt: new Date().toISOString(), userId: session.userId });
+    await context.storage.saveUserAvatar({
+      contentType,
+      data,
+      updatedAt: new Date().toISOString(),
+      userId: session.userId,
+    });
     return c.redirect("/settings?avatar=updated", 303);
   });
 
@@ -2097,7 +2264,9 @@ export function createRoutes(
     const form = await c.req.parseBody();
     if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
     const limited = await rateLimitResponseForRequest(c, context, {
-      scope: "test-ai", limit: 6, windowMs: 60000,
+      scope: "test-ai",
+      limit: 6,
+      windowMs: 60000,
     });
     if (limited) return limited;
     const storage = await storageForRequest(c, context);
@@ -2116,7 +2285,9 @@ export function createRoutes(
     const form = await c.req.parseBody();
     if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
     const limited = await rateLimitResponseForRequest(c, context, {
-      scope: "matching-models", limit: 30, windowMs: 60000,
+      scope: "matching-models",
+      limit: 30,
+      windowMs: 60000,
     });
     if (limited) return limited;
     const storage = await storageForRequest(c, context);
@@ -2147,10 +2318,23 @@ export function createRoutes(
       let base;
       try {
         stamp = parseEditStamp(JSON.parse(String(form.syncStamp)));
-        if (typeof form.syncBase !== "string" || form.syncBase.length > 128000) throw new Error("Invalid settings base");
-        base = settingsFromForm(Object.fromEntries(new URLSearchParams(form.syncBase)), currentSettings, new Date(stamp.editedAt));
-      } catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
-      const result = await storage.sync.applySettings(settingsEdits(base, nextSettings, stamp));
+        if (
+          typeof form.syncBase !== "string" || form.syncBase.length > 128000
+        ) throw new Error("Invalid settings base");
+        base = settingsFromForm(
+          Object.fromEntries(new URLSearchParams(form.syncBase)),
+          currentSettings,
+          new Date(stamp.editedAt),
+        );
+      } catch {
+        return c.json(
+          { error: "invalidSyncEdit", serverTime: Date.now() },
+          400,
+        );
+      }
+      const result = await storage.sync.applySettings(
+        settingsEdits(base, nextSettings, stamp),
+      );
       nextSettings = result.snapshot.settings;
       syncResult = { applied: result.applied, superseded: result.superseded };
     } else await storage.saveSettings(nextSettings);
@@ -2183,14 +2367,22 @@ export function createRoutes(
       const params = new URL(c.req.url).searchParams;
       const query = parseMatchTableQuery(params);
       const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-      const revision = ["hour", "day", "week"].includes(query.range) ? undefined : await storage.getDashboardVersion?.();
-      const version = revision ? await dashboardResponseVersion(revision, params, csrf.token) : undefined;
+      const revision = ["hour", "day", "week"].includes(query.range)
+        ? undefined
+        : await storage.getDashboardVersion?.();
+      const version = revision
+        ? await dashboardResponseVersion(revision, params, csrf.token)
+        : undefined;
       if (version) c.header("x-history-version", version);
-      if (version && c.req.header("x-history-version") === version) return c.body(null, 304);
+      if (version && c.req.header("x-history-version") === version) {
+        return c.body(null, 304);
+      }
       return historyTableResponse(c, storage, c.req.url);
     }
     const session = await authSessionForRequest(c, context);
-    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    const account = session
+      ? await context.storage.getAccountById(session.userId)
+      : undefined;
     const settings = await storage.getSettings();
     const history = await storage.listHistory();
     const historyTable = applyMatchTableQuery(
@@ -2272,25 +2464,55 @@ export function createRoutes(
     const settings = await storage.getSettings();
     try {
       const channels: Array<() => Promise<unknown>> = [];
-      if (settings.notificationProvider !== "disabled") channels.push(() => context.notifier.sendTest(settings));
+      if (settings.notificationProvider !== "disabled") {
+        channels.push(() => context.notifier.sendTest(settings));
+      }
       if (form.get("applicationNotifications") === "true" && storage.userId) {
         const userId = storage.userId;
         const record = createRandomTestMatchRecord(settings, 1, "simulation");
         record.post.title = getMessages(settings.locale).notificationTestTitle;
-        const nativePlatform = ["windows", "android"].includes(String(form.get("applicationPlatform")));
+        const nativePlatform = ["windows", "android"].includes(
+          String(form.get("applicationPlatform")),
+        );
         channels.push(async () => {
-          const sent = await notifyBrowsers(context.storage, userId, [record], settings, { strict: true });
-          if (!nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
+          const sent = await notifyBrowsers(
+            context.storage,
+            userId,
+            [record],
+            settings,
+            { strict: true },
+          );
+          if (!nativePlatform && !sent) {
+            throw new NotificationConfigError(
+              getMessages(settings.locale).testNotifyFailed,
+            );
+          }
         });
         channels.push(async () => {
-          const sent = await enqueueNativeNotifications(context.storage, userId, {
-            id: record.id, title: getMessages(settings.locale).appName,
-            body: record.post.title, path: "/settings",
-          }, settings);
-          if (nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
+          const sent = await enqueueNativeNotifications(
+            context.storage,
+            userId,
+            {
+              id: record.id,
+              title: getMessages(settings.locale).appName,
+              body: record.post.title,
+              path: "/settings",
+            },
+            settings,
+          );
+          if (nativePlatform && !sent) {
+            throw new NotificationConfigError(
+              getMessages(settings.locale).testNotifyFailed,
+            );
+          }
         });
       }
-      if (!channels.length) return c.text(getMessages(settings.locale).notificationTestNoChannels, 400);
+      if (!channels.length) {
+        return c.text(
+          getMessages(settings.locale).notificationTestNoChannels,
+          400,
+        );
+      }
       await sendNotificationTest(channels);
       if (c.req.header("x-test-notify") === "1") {
         return c.text(getMessages(settings.locale).testNotifySent);
@@ -2312,11 +2534,18 @@ export function createRoutes(
     if (c.req.header("x-record-sync") === "1") {
       if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
       let stamp;
-      try { stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp")))); }
-      catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
-      for (const id of new Set(ids)) await storage.sync.applyRecord(id, "history", stamp);
-    } else
-    if (ids.length > 0) {
+      try {
+        stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp"))));
+      } catch {
+        return c.json(
+          { error: "invalidSyncEdit", serverTime: Date.now() },
+          400,
+        );
+      }
+      for (const id of new Set(ids)) {
+        await storage.sync.applyRecord(id, "history", stamp);
+      }
+    } else if (ids.length > 0) {
       await storage.completeMatches(ids);
     }
     const returnTo = safeRedirectPath(form.get("returnTo"), "/");
@@ -2337,11 +2566,18 @@ export function createRoutes(
     if (c.req.header("x-record-sync") === "1") {
       if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
       let stamp;
-      try { stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp")))); }
-      catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
-      for (const id of new Set(ids)) await storage.sync.applyRecord(id, "deleted", stamp);
-    } else
-    if (ids.length > 0) {
+      try {
+        stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp"))));
+      } catch {
+        return c.json(
+          { error: "invalidSyncEdit", serverTime: Date.now() },
+          400,
+        );
+      }
+      for (const id of new Set(ids)) {
+        await storage.sync.applyRecord(id, "deleted", stamp);
+      }
+    } else if (ids.length > 0) {
       await storage.deleteMatches(ids);
     }
     const returnTo = safeRedirectPath(form.get("returnTo"), "/history");
@@ -2362,11 +2598,20 @@ export function createRoutes(
     if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
     if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
     let stamp;
-    try { stamp = c.req.header("x-record-sync") === "1" ? parseEditStamp(JSON.parse(String(form.get("syncStamp")))) : serverEditStamp(); }
-    catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
-    for (const id of new Set(form.getAll("matchId").map(String))) await storage.sync.applyRecord(id, "workspace", stamp);
+    try {
+      stamp = c.req.header("x-record-sync") === "1"
+        ? parseEditStamp(JSON.parse(String(form.get("syncStamp"))))
+        : serverEditStamp();
+    } catch {
+      return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400);
+    }
+    for (const id of new Set(form.getAll("matchId").map(String))) {
+      await storage.sync.applyRecord(id, "workspace", stamp);
+    }
     const returnTo = safeRedirectPath(form.get("returnTo"), "/history");
-    if (isMatchTableRefreshRequest(c)) return await historyTableResponse(c, storage, returnTo);
+    if (isMatchTableRefreshRequest(c)) {
+      return await historyTableResponse(c, storage, returnTo);
+    }
     return c.redirect(returnTo);
   });
 
@@ -2383,7 +2628,19 @@ export function createRoutes(
   });
 
   /** @return {Promise<Response>} 管理页面表单脚本，不包含账号资料。 */
-  app.get("/static/admin.js", async () => new Response(await Deno.readTextFile(new URL("../static/admin.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/admin.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(new URL("../static/admin.js", import.meta.url)),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
 
   app.get("/static/settings.js", async () => {
     const script = await Deno.readTextFile(
@@ -2453,7 +2710,10 @@ async function storageForRequest(
     throw new Error("Storage is not configured for this route.");
   }
   // 设置写入只读取账号业务值；显示投影不进入持久化路径。
-  if (new URL(c.req.raw.url).pathname === "/settings" && c.req.raw.method === "POST") return storage;
+  if (
+    new URL(c.req.raw.url).pathname === "/settings" &&
+    c.req.raw.method === "POST"
+  ) return storage;
   return new Proxy(storage, {
     /**
      * 为显示读取提供设备投影，其它存储能力保持原有接收对象。
@@ -2462,11 +2722,19 @@ async function storageForRequest(
      * @return {unknown} 请求作用域能力或存储属性。
      */
     get(target, property) {
-      if (property === "getSettings") return async () => settingsForDevice(await target.getSettings(), c.req.raw);
-      if (property === "getDashboardSnapshot") return async () => {
-        const snapshot = await target.getDashboardSnapshot();
-        return { ...snapshot, settings: settingsForDevice(snapshot.settings, c.req.raw) };
-      };
+      if (property === "getSettings") {
+        return async () =>
+          settingsForDevice(await target.getSettings(), c.req.raw);
+      }
+      if (property === "getDashboardSnapshot") {
+        return async () => {
+          const snapshot = await target.getDashboardSnapshot();
+          return {
+            ...snapshot,
+            settings: settingsForDevice(snapshot.settings, c.req.raw),
+          };
+        };
+      }
       const value = Reflect.get(target, property);
       return typeof value === "function" ? value.bind(target) : value;
     },
@@ -2668,11 +2936,25 @@ function accountSettingsRedirect(
  * @param {Uint8Array} data 图片二进制数据。
  * @return {"image/gif" | "image/jpeg" | "image/png" | "image/webp" | undefined} 允许的 MIME 类型。
  */
-function avatarContentType(data: Uint8Array): "image/gif" | "image/jpeg" | "image/png" | "image/webp" | undefined {
-  if (data.length >= 8 && data[0] === 137 && data[1] === 80 && data[2] === 78 && data[3] === 71 && data[4] === 13 && data[5] === 10 && data[6] === 26 && data[7] === 10) return "image/png";
-  if (data.length >= 3 && data[0] === 255 && data[1] === 216 && data[2] === 255) return "image/jpeg";
-  if (data.length >= 6 && String.fromCharCode(...data.slice(0, 6)).match(/^GIF8[79]a$/)) return "image/gif";
-  if (data.length >= 12 && String.fromCharCode(...data.slice(0, 4)) === "RIFF" && String.fromCharCode(...data.slice(8, 12)) === "WEBP") return "image/webp";
+function avatarContentType(
+  data: Uint8Array,
+): "image/gif" | "image/jpeg" | "image/png" | "image/webp" | undefined {
+  if (
+    data.length >= 8 && data[0] === 137 && data[1] === 80 && data[2] === 78 &&
+    data[3] === 71 && data[4] === 13 && data[5] === 10 && data[6] === 26 &&
+    data[7] === 10
+  ) return "image/png";
+  if (
+    data.length >= 3 && data[0] === 255 && data[1] === 216 && data[2] === 255
+  ) return "image/jpeg";
+  if (
+    data.length >= 6 &&
+    String.fromCharCode(...data.slice(0, 6)).match(/^GIF8[79]a$/)
+  ) return "image/gif";
+  if (
+    data.length >= 12 && String.fromCharCode(...data.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...data.slice(8, 12)) === "WEBP"
+  ) return "image/webp";
   return undefined;
 }
 
@@ -2683,8 +2965,10 @@ function avatarContentType(data: Uint8Array): "image/gif" | "image/jpeg" | "imag
  * @return {string} 默认头像的公开资源路径。
  */
 function defaultAvatarPath(userId: string): string {
-  const hash = Array.from(userId).reduce((total, character) =>
-    (total * 31 + character.codePointAt(0)!) >>> 0, 0);
+  const hash = Array.from(userId).reduce(
+    (total, character) => (total * 31 + character.codePointAt(0)!) >>> 0,
+    0,
+  );
   return `/static/fun/default-avatar/avatar${hash % 5 + 1}.png`;
 }
 
@@ -3710,8 +3994,13 @@ export function settingsFromForm(
   const locale = currentSettings.locale;
   const schedule = form.pollSchedule !== undefined
     ? normalizeSchedule(parseScheduleForm(String(form.pollSchedule)), locale)
-    : currentSettings.polling.schedule ? normalizeSchedule(currentSettings.polling.schedule, locale) : undefined;
-  if (schedule?.enabled && !currentSettings.polling.schedule?.enabled && !canEnableSchedule(schedule)) schedule.enabled = false;
+    : currentSettings.polling.schedule
+    ? normalizeSchedule(currentSettings.polling.schedule, locale)
+    : undefined;
+  if (
+    schedule?.enabled && !currentSettings.polling.schedule?.enabled &&
+    !canEnableSchedule(schedule)
+  ) schedule.enabled = false;
   const pollingEnabled = form.pollEnabled === "on";
   const pollIntervalUnit = normalizePollIntervalUnit(
     form.pollIntervalUnit,
@@ -3790,7 +4079,7 @@ export function settingsFromForm(
       true,
     ),
     polling: {
-      ...(schedule ? {schedule} : {}),
+      ...(schedule ? { schedule } : {}),
       enabled: pollingEnabled,
       intervalStartedAt,
       intervalUnit: pollIntervalUnit,
@@ -3837,22 +4126,31 @@ function matchingSettingsFromForm(
 ): MatchingSettings {
   const previous = normalizeMatchingSettings(current);
   const target = normalizeMatchingSettings({
-    provider: String(form.matchingProvider ?? previous.provider) as MatchingSettings["provider"],
+    provider: String(
+      form.matchingProvider ?? previous.provider,
+    ) as MatchingSettings["provider"],
     apiUrl: String(form.matchingApiUrl ?? previous.apiUrl),
   });
-  const sameEndpoint = target.provider === previous.provider && target.apiUrl === previous.apiUrl;
+  const sameEndpoint = target.provider === previous.provider &&
+    target.apiUrl === previous.apiUrl;
   return normalizeMatchingSettings({
     provider: target.provider,
     mode: String(form.matchingMode) as MatchingSettings["mode"],
     apiUrl: target.apiUrl,
-    apiKey: secretValueFromForm(form.matchingApiKey, sameEndpoint ? previous.apiKey : "", true),
+    apiKey: secretValueFromForm(
+      form.matchingApiKey,
+      sameEndpoint ? previous.apiKey : "",
+      true,
+    ),
     model: String(form.matchingModel ?? previous.model),
     prompt: String(form.matchingPrompt ?? previous.prompt),
     includeComments: form.matchingIncludeComments === "on",
     disableThinking: form.matchingEnableThinking !== "on",
     dailyLimit: Number(form.matchingDailyLimit ?? previous.dailyLimit),
     maxInputChars: Number(form.matchingMaxInputChars ?? previous.maxInputChars),
-    maxOutputTokens: Number(form.matchingMaxOutputTokens ?? previous.maxOutputTokens),
+    maxOutputTokens: Number(
+      form.matchingMaxOutputTokens ?? previous.maxOutputTokens,
+    ),
     cacheMaxEntries: Number(
       form.matchingCacheMaxEntries ?? previous.cacheMaxEntries,
     ),
@@ -4100,5 +4398,9 @@ async function dashboardResponseVersion(
  * @return {unknown} 配置对象或空配置。
  */
 function parseScheduleForm(value: string): unknown {
-  try { return JSON.parse(value); } catch { return {}; }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
 }

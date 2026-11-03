@@ -3,12 +3,12 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 |                 **简体中文**                 | [正體中文（臺灣）](docs/zh-TW/README.md) |     [English](#heybox-topic-notifier)      |
-| :------------------------------------------: | :--------------------------------------: | :----------------------------------------: |
+|:--------------------------------------------:|:----------------------------------------:|:------------------------------------------:|
 |   [English (Canada)](docs/en-CA/README.md)   |   [English (UK)](docs/en-GB/README.md)   |       [日本語](docs/ja-JP/README.md)       |
 |        [한국어](docs/ko-KR/README.md)        |     [Français](docs/fr-FR/README.md)     |      [Deutsch](docs/de-DE/README.md)       |
 |       [Español](docs/es-ES/README.md)        |     [Italiano](docs/it-IT/README.md)     | [Português (Brasil)](docs/pt-BR/README.md) |
 | [Português (Portugal)](docs/pt-PT/README.md) |     [Русский](docs/ru-RU/README.md)      |      [العربية](docs/ar-SA/README.md)       |
-|        [हिन्दी](docs/hi-IN/README.md)         |       [বাংলা](docs/bn-BD/README.md)        |       [فارسی](docs/fa-IR/README.md)        |
+|          [हिन्दी](docs/hi-IN/README.md)          |        [বাংলা](docs/bn-BD/README.md)        |       [فارسی](docs/fa-IR/README.md)        |
 |        [עברית](docs/he-IL/README.md)         |       [اردو](docs/ur-PK/README.md)       |     [Tiếng Việt](docs/vi-VN/README.md)     |
 |         [ไทย](docs/th-TH/README.md)          | [Bahasa Indonesia](docs/id-ID/README.md) |       [Türkçe](docs/tr-TR/README.md)       |
 |   [繁體中文（香港）](docs/zh-HK/README.md)   | [繁體中文（澳門）](docs/zh-MO/README.md) | [简体中文（新加坡）](docs/zh-SG/README.md) |
@@ -56,7 +56,7 @@ deno task dev
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 | [简体中文](#小黑盒话题提醒) | **English** |
-| :-------------------------: | :---------: |
+|:---------------------------:|:-----------:|
 
 [Web](https://heybox.yuanxiqwq.top/) · [Windows x64](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-windows-x64-setup.exe) · [Android APK](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-android-universal.apk)
 

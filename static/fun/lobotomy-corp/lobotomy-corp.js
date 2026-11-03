@@ -885,8 +885,8 @@ function pauseLobotomyCorpDangerDecay() {
  */
 function ensureLobotomyCorpDayCoordinator() {
   if (
-    lobotomyCorpDangerScore > 0 ||
-    lobotomyCorpShelterEvent?.isActive()
+      lobotomyCorpDangerScore > 0 ||
+      lobotomyCorpShelterEvent?.isActive()
   ) {
     globalThis.easterEggCoordinator?.start(
         lobotomyCorpEasterEggGameId,
@@ -1498,9 +1498,9 @@ async function saveLobotomyCorpDisplayNameInBackground(value) {
   const document = globalThis.document;
   const form = document?.querySelector?.('[data-account-form]');
   if (
-    typeof value !== 'string' || value.length === 0 || !form ||
-    typeof globalThis.fetch !== 'function' ||
-    typeof globalThis.FormData !== 'function'
+      typeof value !== 'string' || value.length === 0 || !form ||
+      typeof globalThis.fetch !== 'function' ||
+      typeof globalThis.FormData !== 'function'
   ) {
     return false;
   }
@@ -1677,8 +1677,8 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
       lobotomyCorpBlackForestEvent?.recordSubmission(match.canonicalId) === true;
   // 直接召唤的四笔贡献由事件 CG 时间线结算，不再经过普通异想体分支。
   if (
-    startedBlackForestEvent &&
-    match.canonicalId === blackForestAbnormalityIds.apocalypseBird
+      startedBlackForestEvent &&
+      match.canonicalId === blackForestAbnormalityIds.apocalypseBird
   ) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
@@ -1713,8 +1713,8 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
   const isWhiteNightSubmission = match.canonicalId === 'T-03-46';
   // 疫医转变与白夜是直接互斥关系：转变演出期间不启动第二条白夜入口。
   if (
-    isWhiteNightSubmission &&
-    lobotomyCorpPlagueDoctorEvent?.isTransforming()
+      isWhiteNightSubmission &&
+      lobotomyCorpPlagueDoctorEvent?.isTransforming()
   ) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
@@ -2231,8 +2231,8 @@ function mountLobotomyCorpRestartButton() {
  */
 function finishLobotomyCorpRestartButtonIfUnused() {
   if (
-    lobotomyCorpWhiteNightEvent?.hasEventState?.() ||
-    lobotomyCorpBlackForestEvent?.isActive?.()
+      lobotomyCorpWhiteNightEvent?.hasEventState?.() ||
+      lobotomyCorpBlackForestEvent?.isActive?.()
   ) {
     return;
   }
@@ -3458,7 +3458,7 @@ function lobotomyCorpEscapeAllDangerContribution(departmentCount) {
  *
  * 一个部门满编 5 人，且这笔贡献不除以部门数。
  *
- * @param {"death"|"panic"} kind 事件类型。
+ * @param {'death'|'panic'} kind 事件类型。
  */
 function applyLobotomyCorpDontTouchMeWorkerDanger(kind) {
   const contribution = employeeDangerContribution(
@@ -3652,7 +3652,7 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
   // 记录期间提交异想体编号（或其别名）时，疫医不接管这次保存：编号交给该异想体
   // 自己的彩蛋，只有其它文本才绑定成使徒。
   submittedAbnormalityId: (value) =>
-    matchingLobotomyCorpAbnormality(value)?.canonicalId,
+      matchingLobotomyCorpAbnormality(value)?.canonicalId,
   applyDisplayName: applyLobotomyCorpDisplayName,
   assetRoot: lobotomyCorpAssetRoot,
   loginSession: lobotomyCorpLoginSession,
@@ -3662,8 +3662,8 @@ const lobotomyCorpPlagueDoctorEvent = createPlagueDoctorEvent({
       // 首次转变由疫医的完整降临顶替入场演出；已经转变过时没有再演一遍完整降临，
       // 白夜要按 normal 入口补上 Simple Advent（转盘 + 逐名使徒的台词）。
       source: info?.firstTime === false
-        ? 'plague-doctor-transformation-replay'
-        : 'plague-doctor-transformation',
+          ? 'plague-doctor-transformation-replay'
+          : 'plague-doctor-transformation',
     });
   },
   settleDanger: (amount) => {
@@ -3692,8 +3692,8 @@ function settleLobotomyCorpBlackForestDanger(canonicalIds, preparedMedia) {
   let contribution = 0;
   [...new Set(canonicalIds)].forEach((canonicalId) => {
     if (
-      typeof canonicalId !== 'string' ||
-      lobotomyCorpBreachedAbnormalitiesThisDay.has(canonicalId)
+        typeof canonicalId !== 'string' ||
+        lobotomyCorpBreachedAbnormalitiesThisDay.has(canonicalId)
     ) {
       return;
     }
@@ -3712,7 +3712,7 @@ function settleLobotomyCorpBlackForestDanger(canonicalIds, preparedMedia) {
     return Promise.resolve(true);
   }
   pendingIds.forEach((canonicalId) =>
-    lobotomyCorpBreachedAbnormalitiesThisDay.add(canonicalId)
+      lobotomyCorpBreachedAbnormalitiesThisDay.add(canonicalId)
   );
   return setLobotomyCorpDangerScore(
       clampDangerScore(lobotomyCorpDangerScore + contribution),
@@ -3726,9 +3726,9 @@ const lobotomyCorpBlackForestEvent = createBlackForestEvent({
   applyDisplayName: applyLobotomyCorpDisplayName,
   assetRoot: lobotomyCorpAssetRoot,
   eggSlotPages: () =>
-    lobotomyCorpWhiteNightEvent.hasEventState()
-      ? ['settings', 'nav']
-      : undefined,
+      lobotomyCorpWhiteNightEvent.hasEventState()
+          ? ['settings', 'nav']
+          : undefined,
   ensureCoordinator: ensureLobotomyCorpDayCoordinator,
   finishRestartButton: finishLobotomyCorpRestartButtonIfUnused,
   messages: () => lobotomyCorpMessages,
@@ -3736,7 +3736,7 @@ const lobotomyCorpBlackForestEvent = createBlackForestEvent({
   pauseDangerDecay: pauseLobotomyCorpDangerDecay,
   resumeDangerDecay: restoreLobotomyCorpDangerDecay,
   settleBlackForestDanger: (canonicalIds, preparedMedia) =>
-    settleLobotomyCorpBlackForestDanger(canonicalIds, preparedMedia),
+      settleLobotomyCorpBlackForestDanger(canonicalIds, preparedMedia),
   storageKey: lobotomyCorpBlackForestSessionKey,
   storages: lobotomyCorpAlertStorages,
 });
@@ -3749,7 +3749,7 @@ const lobotomyCorpShelterEvent = createShelterEvent({
   isReload: isLobotomyCorpAlertPageReload,
   random: () => Math.random(),
   releaseAbnormality: (canonicalId) =>
-    void handleLobotomyCorpAbnormalitySubmitted(canonicalId),
+      void handleLobotomyCorpAbnormalitySubmitted(canonicalId),
   setTimer: (callback, delay) => setTimeout(callback, delay),
   storageKey: shelterStorageKey,
   storages: lobotomyCorpAlertStorages,
@@ -3870,8 +3870,8 @@ if (restoredLobotomyCorpSpecialEvent?.id === lobotomyCorpWhiteNightEventId) {
   lobotomyCorpWhiteNightEvent.restore();
 }
 if (
-  lobotomyCorpWhiteNightEvent.hasEventState() &&
-  lobotomyCorpBlackForestEvent.isActive()
+    lobotomyCorpWhiteNightEvent.hasEventState() &&
+    lobotomyCorpBlackForestEvent.isActive()
 ) {
   lobotomyCorpBlackForestEvent.restrictHuntToWhiteNightPages();
 }

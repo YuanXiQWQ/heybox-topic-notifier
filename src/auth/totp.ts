@@ -1,10 +1,7 @@
 /**
  * @file 本文件提供 Authenticator / TOTP 密钥生成、加密、URI 生成和验证码校验能力。
  */
-import {
-  base64UrlEncode,
-  constantTimeEquals,
-} from "../security/crypto_utils.ts";
+import {base64UrlEncode, constantTimeEquals,} from '../security/crypto_utils.ts';
 
 /**
  * 默认 TOTP 发行方名称。

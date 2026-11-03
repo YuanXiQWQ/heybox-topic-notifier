@@ -4599,8 +4599,8 @@ function emailBindingErrorMessage(form, error) {
 function resetTurnstileWidget() {
   const turnstileRuntime = globalThis.WarmNestTurnstile;
   if (
-    turnstileRuntime &&
-    typeof turnstileRuntime.resetAll === 'function'
+      turnstileRuntime &&
+      typeof turnstileRuntime.resetAll === 'function'
   ) {
     turnstileRuntime.resetAll();
     return;
@@ -5718,7 +5718,9 @@ async function saveDeviceAppearance(field, value) {
     appearance.save(field, value);
     setAutoSaveStatus('saved');
     if (field === 'locale') await appearance.refreshLanguage();
-  } catch { setAutoSaveStatus('error'); }
+  } catch {
+    setAutoSaveStatus('error');
+  }
 }
 
 /** 初始化本机显示控件，系统变化不会触发保存。 */
@@ -5825,7 +5827,9 @@ function scheduleAutoSave() {
  */
 function saveSettingsNow() {
   if (settingsSaveTask) return settingsSaveTask.then(() => saveSettingsNow());
-  const pending = persistSettingsNow().finally(() => { if (settingsSaveTask === pending) settingsSaveTask = undefined; });
+  const pending = persistSettingsNow().finally(() => {
+    if (settingsSaveTask === pending) settingsSaveTask = undefined;
+  });
   settingsSaveTask = pending;
   return pending;
 }
@@ -5911,13 +5915,13 @@ async function persistSettingsNow() {
 
   try {
     const response = globalThis.applicationSync
-      ? await globalThis.applicationSync.submitSettings(submitted, lastSavedSignature)
-      : await fetch(autoSaveForm.action, {
-      body: submitted,
-      headers: csrfRequestHeaders({'x-autosave': '1'}),
-      method: autoSaveForm.method || 'post',
-      signal: controller.signal,
-    });
+        ? await globalThis.applicationSync.submitSettings(submitted, lastSavedSignature)
+        : await fetch(autoSaveForm.action, {
+          body: submitted,
+          headers: csrfRequestHeaders({'x-autosave': '1'}),
+          method: autoSaveForm.method || 'post',
+          signal: controller.signal,
+        });
 
     if (controller !== autoSaveController || controller.signal.aborted) return false;
 
@@ -7093,6 +7097,7 @@ function initMatchingPicker(root) {
   const search = root.querySelector('[data-picker-search]');
   const list = root.querySelector('[role="listbox"]');
   let active = -1;
+
   /**
    * 获取当前过滤后的选项。
    * @return {HTMLButtonElement[]} 可见选项。
@@ -7100,6 +7105,7 @@ function initMatchingPicker(root) {
   function options() {
     return [...list.querySelectorAll('[role="option"]')].filter((item) => !item.hidden);
   }
+
   /**
    * 应用搜索词并重置键盘选中项。
    */
@@ -7113,6 +7119,7 @@ function initMatchingPicker(root) {
     active = -1;
     search.removeAttribute('aria-activedescendant');
   }
+
   /**
    * 展开或收起选择菜单。
    * @param {boolean} open 是否展开。
@@ -7130,6 +7137,7 @@ function initMatchingPicker(root) {
       root.dispatchEvent(new Event('picker-open'));
     } else if (restore) toggle.focus();
   }
+
   /**
    * 更新提交值及按钮文本，不将搜索词作为配置值。
    * @param {string} value 配置值。
@@ -7144,8 +7152,12 @@ function initMatchingPicker(root) {
     });
     if (notify) input.dispatchEvent(new Event('change', {bubbles: true}));
   }
+
   toggle.addEventListener('click', () => setOpen(menu.hidden));
-  search.addEventListener('input', (event) => { event.stopPropagation(); filter(); });
+  search.addEventListener('input', (event) => {
+    event.stopPropagation();
+    filter();
+  });
   search.addEventListener('change', (event) => event.stopPropagation());
   list.addEventListener('click', (event) => {
     const option = event.target.closest('[role="option"]');
@@ -7154,8 +7166,14 @@ function initMatchingPicker(root) {
     setOpen(false, true);
   });
   root.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') { event.preventDefault(); setOpen(false, true); }
-    if (event.key === 'Tab') { setOpen(false); return; }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setOpen(false, true);
+    }
+    if (event.key === 'Tab') {
+      setOpen(false);
+      return;
+    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       if (menu.hidden) setOpen(true);
@@ -7169,7 +7187,10 @@ function initMatchingPicker(root) {
     if (event.key === 'Enter' && event.target === search) {
       event.preventDefault();
       const option = options()[active < 0 ? 0 : active];
-      if (option) { select(option.dataset.value, option.textContent); setOpen(false, true); }
+      if (option) {
+        select(option.dataset.value, option.textContent);
+        setOpen(false, true);
+      }
     }
   });
   document.addEventListener('click', (event) => {
@@ -7189,6 +7210,7 @@ function initAiConnectionTest(section) {
   let request;
   let revision = 0;
   let timer;
+
   /**
    * 清除不再对应当前配置的测试状态。
    * @param {Event} event 配置编辑事件。
@@ -7202,6 +7224,7 @@ function initAiConnectionTest(section) {
     button.removeAttribute('aria-busy');
     status.hidden = true;
   }
+
   section.addEventListener('input', invalidate);
   section.addEventListener('change', invalidate);
   button.addEventListener('click', async () => {
@@ -7228,9 +7251,11 @@ function initAiConnectionTest(section) {
       status.dataset.state = success ? 'success' : 'error';
       status.textContent = success ? button.dataset.connected
           : result.error === 'limit' ? button.dataset.limit
-          : result.error === 'busy' ? button.dataset.busy
-          : button.dataset.failed + (result.detail ? '（' + result.detail + '）' : '');
-      if (success) timer = setTimeout(() => { if (current === revision) status.hidden = true; }, 3000);
+              : result.error === 'busy' ? button.dataset.busy
+                  : button.dataset.failed + (result.detail ? '（' + result.detail + '）' : '');
+      if (success) timer = setTimeout(() => {
+        if (current === revision) status.hidden = true;
+      }, 3000);
     } catch (error) {
       if (current !== revision || error.name === 'AbortError') return;
       status.dataset.state = 'error';
@@ -7267,6 +7292,7 @@ function initMatchingSettings() {
   let loaded = false;
   let previousProvider = provider.input.value;
   let previousUrl = apiUrl.value;
+
   /**
    * 根据模式、公司和模型能力同步条件抽屉。
    * @param {boolean} animate 是否播放动画。
@@ -7284,8 +7310,13 @@ function initMatchingSettings() {
     setMatchingRowVisible(document.querySelector('[data-keyword-editor]'), mode.value !== 'ai', animate);
     setMatchingRowVisible(advanced, ai, animate);
     document.querySelector('[data-topic-editor]')?.classList.toggle('matching-without-keywords', mode.value === 'ai');
-    if (!ai) { provider.setOpen(false); model.setOpen(false); request?.abort(); }
+    if (!ai) {
+      provider.setOpen(false);
+      model.setOpen(false);
+      request?.abort();
+    }
   }
+
   /** 清理与供应商或接口绑定的密钥、模型和未完成请求。 */
   function resetConnection() {
     revision++;
@@ -7299,6 +7330,7 @@ function initMatchingSettings() {
     thinking.checked = false;
     status.hidden = true;
   }
+
   /**
    * 查询模型元数据；旧请求和已切换公司的响应不会覆盖当前选择。
    * @return {Promise<void>} 查询完成后更新列表。
@@ -7352,6 +7384,7 @@ function initMatchingSettings() {
       status.hidden = false;
     }
   }
+
   mode.addEventListener('change', () => update());
   provider.input.addEventListener('change', () => {
     if (provider.input.value === previousProvider) return;
@@ -7367,12 +7400,24 @@ function initMatchingSettings() {
     resetConnection();
     update();
   });
-  model.input.addEventListener('change', () => { thinking.checked = false; update(); });
-  secret.addEventListener('blur', () => { loaded = false; void loadModels(); });
-  modelRoot.addEventListener('picker-open', () => { void loadModels(); });
+  model.input.addEventListener('change', () => {
+    thinking.checked = false;
+    update();
+  });
+  secret.addEventListener('blur', () => {
+    loaded = false;
+    void loadModels();
+  });
+  modelRoot.addEventListener('picker-open', () => {
+    void loadModels();
+  });
   update(false);
 }
 
 document.addEventListener('DOMContentLoaded', initSettingsEditors);
-document.addEventListener('click', (event) => { void guardSettingsNavigation(event).catch(() => setAutoSaveStatus('error')); });
-document.addEventListener('submit', (event) => { void guardSettingsFormNavigation(event).catch(() => setAutoSaveStatus('error')); });
+document.addEventListener('click', (event) => {
+  void guardSettingsNavigation(event).catch(() => setAutoSaveStatus('error'));
+});
+document.addEventListener('submit', (event) => {
+  void guardSettingsFormNavigation(event).catch(() => setAutoSaveStatus('error'));
+});

@@ -1,10 +1,7 @@
 /**
  * @file 本文件验证“3月27日的避难所”随机释放调度、恢复与清理规则。
  */
-import {
-  assertEquals,
-  assertStrictEquals,
-} from "./test_helpers.ts";
+import { assertEquals, assertStrictEquals } from "./test_helpers.ts";
 import { StorageMock } from "./test_harness.ts";
 import {
   createShelterEvent,
@@ -18,7 +15,7 @@ import {
 
 /** 避难所单测的初始配置。 */
 type ShelterTestOptions = {
-  abnormalities?: Record<string, {canBreach?: boolean}>;
+  abnormalities?: Record<string, { canBreach?: boolean }>;
   now?: number;
   randomValues?: number[];
   reload?: boolean;
@@ -61,11 +58,11 @@ function createShelterTestHarness(
   const controller = createShelterEvent({
     abnormalities: () =>
       options.abnormalities ?? {
-        "O-01-45": {canBreach: false},
-        "O-02-40": {canBreach: true},
-        "O-02-56": {canBreach: true},
-        "O-05-47": {canBreach: false},
-        "T-03-46": {canBreach: true},
+        "O-01-45": { canBreach: false },
+        "O-02-40": { canBreach: true },
+        "O-02-56": { canBreach: true },
+        "O-05-47": { canBreach: false },
+        "T-03-46": { canBreach: true },
       },
     clearTimer: (timer) => {
       const pending = timers.get(timer);
@@ -78,7 +75,7 @@ function createShelterTestHarness(
     releaseAbnormality: (canonicalId) => releases.push(canonicalId),
     setTimer: (callback, delay) => {
       const id = ++nextTimerId;
-      timers.set(id, {callback, cleared: false, delay, fired: false});
+      timers.set(id, { callback, cleared: false, delay, fired: false });
       return id;
     },
     storageKey: shelterStorageKey,
@@ -97,11 +94,11 @@ function createShelterTestHarness(
 
 Deno.test("避难所：只有可出逃异想体进入随机候选", () => {
   const ids = escapableAbnormalityIds({
-    "O-01-45": {canBreach: false},
-    "O-02-40": {canBreach: true},
-    "O-02-56": {canBreach: true},
-    "O-05-47": {canBreach: false},
-    "T-03-46": {canBreach: true},
+    "O-01-45": { canBreach: false },
+    "O-02-40": { canBreach: true },
+    "O-02-56": { canBreach: true },
+    "O-05-47": { canBreach: false },
+    "T-03-46": { canBreach: true },
   });
   assertEquals(ids, ["O-02-40", "O-02-56", "T-03-46"]);
   assertEquals(shelterAbnormalityForRandomValue(ids, 0), "O-02-40");
@@ -128,7 +125,7 @@ Deno.test("避难所：首次等待 30 秒，之后每 5 秒释放一个异想�
     );
     assertEquals(
       JSON.parse(harness.storage.getItem(shelterStorageKey) ?? "{}"),
-      {id: shelterEventId, nextReleaseAt: shelterInitialReleaseDelayMs},
+      { id: shelterEventId, nextReleaseAt: shelterInitialReleaseDelayMs },
     );
 
     harness.setNow(shelterInitialReleaseDelayMs);
@@ -170,11 +167,11 @@ Deno.test("避难所：结束会取消计时器并清除持久化状态", () => 
 });
 
 Deno.test("避难所：内部导航恢复剩余等待，浏览器刷新直接终止", () => {
-  const harness = createShelterTestHarness({now: 5000});
+  const harness = createShelterTestHarness({ now: 5000 });
   try {
     harness.storage.setItem(
       shelterStorageKey,
-      JSON.stringify({id: shelterEventId, nextReleaseAt: 12000}),
+      JSON.stringify({ id: shelterEventId, nextReleaseAt: 12000 }),
     );
     assertStrictEquals(harness.controller.restore(), true);
     assertEquals(harness.controller.getNextReleaseAt(), 12000);
@@ -183,7 +180,7 @@ Deno.test("避难所：内部导航恢复剩余等待，浏览器刷新直接终
 
     harness.storage.setItem(
       shelterStorageKey,
-      JSON.stringify({id: shelterEventId, nextReleaseAt: 12000}),
+      JSON.stringify({ id: shelterEventId, nextReleaseAt: 12000 }),
     );
     harness.setReload(true);
     assertStrictEquals(harness.controller.restore(), false);

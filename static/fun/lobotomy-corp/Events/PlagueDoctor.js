@@ -39,7 +39,7 @@ import {
   lobotomyCorpReferenceCanvasWidth,
   lobotomyCorpViewportSize,
 } from './CanvasScaler.js';
-import { createPlagueDoctorSpineStage } from './PlagueDoctorSpine.js';
+import {createPlagueDoctorSpineStage} from './PlagueDoctorSpine.js';
 
 /** 疫医 canonical 编号。 */
 export const plagueDoctorAbnormalityId = 'O-01-45';
@@ -67,7 +67,7 @@ export const plagueDoctorTransformationDanger = 98;
 
 /** 网页宿主隔离层的类名（属于网页，不属于《脑叶公司》原作素材）。 */
 export const plagueDoctorAdventWorldClassName =
-  'lobotomy-corp-plague-doctor-advent-world';
+    'lobotomy-corp-plague-doctor-advent-world';
 
 /**
  * 每个宿主 document 的滚动 inline 原值。
@@ -189,11 +189,11 @@ export const plagueDoctorClockFactor = -30;
  * 播放，动画相位、两次睁眼与白夜换场就都与原作一致。
  */
 export const plagueDoctorAdventEntityClassName =
-  'lobotomy-corp-plague-doctor-advent-spine';
+    'lobotomy-corp-plague-doctor-advent-spine';
 
 /** 镜头聚焦的「显示名称输入框」视图类名（属于网页宿主界面，不是原作素材）。 */
 export const plagueDoctorAdventFocusClassName =
-  'lobotomy-corp-plague-doctor-advent-focus';
+    'lobotomy-corp-plague-doctor-advent-focus';
 
 /**
  * 镜头交接的时序（毫秒）：疫医变成白夜的那一瞬间镜头就开始移向使徒。
@@ -256,7 +256,7 @@ export const plagueDoctorDescText = Object.freeze({
 
 /** Clock Center Sprite（Circle 节点）的原始裁切参数。 */
 export const plagueDoctorClockCenterSprite =
-  whiteNightSimpleAdventClockCenterSprite;
+    whiteNightSimpleAdventClockCenterSprite;
 
 /**
  * ClockFrame 圆环内孔的实测像素范围（在 508×512 的 ClockFrame 贴图内）。
@@ -355,16 +355,16 @@ export const plagueDoctorBlackShaderSize = Object.freeze({
  */
 export function plagueDoctorDescTopForViewport(input) {
   const scale = Number.isFinite(input.canvasScale) && input.canvasScale > 0
-    ? input.canvasScale
-    : 1;
+      ? input.canvasScale
+      : 1;
   const desc = plagueDoctorStageGeometry.desc;
   /** 台词下边缘离画面底的画布像素数（prefab：1080 - 1068 = 12）。 */
   const bottomMargin =
-    lobotomyCorpReferenceCanvasHeight - (desc.top + desc.height);
+      lobotomyCorpReferenceCanvasHeight - (desc.top + desc.height);
   // 画布上下居中：画布中心到画面底的距离是 viewportHeight / (2 × scale) 画布像素，
   // 再减去画布中心到台词下边缘的距离（540 - 12 - 180）。
   return input.viewportHeight / (2 * scale) +
-    (lobotomyCorpReferenceCanvasHeight / 2 - bottomMargin - desc.height);
+      (lobotomyCorpReferenceCanvasHeight / 2 - bottomMargin - desc.height);
 }
 
 /**
@@ -388,8 +388,8 @@ export function plagueDoctorDescTopForViewport(input) {
  */
 export function plagueDoctorBlackShaderLayout(input) {
   const scale = Number.isFinite(input.canvasScale) && input.canvasScale > 0
-    ? input.canvasScale
-    : 1;
+      ? input.canvasScale
+      : 1;
   const textureScale = input.dialWidth / plagueDoctorClockReferenceSize;
   const width = plagueDoctorBlackShaderSize.width * textureScale;
   const height = plagueDoctorBlackShaderSize.height * textureScale;
@@ -432,31 +432,31 @@ export function plagueDoctorBlackShaderLayout(input) {
   const bands = [
     // 上
     band(
-      -margin,
-      -margin,
-      viewportWidth + margin * 2,
-      textureTop + overlap + margin,
+        -margin,
+        -margin,
+        viewportWidth + margin * 2,
+        textureTop + overlap + margin,
     ),
     // 下
     band(
-      -margin,
-      textureBottom - overlap,
-      viewportWidth + margin * 2,
-      viewportHeight + margin - (textureBottom - overlap),
+        -margin,
+        textureBottom - overlap,
+        viewportWidth + margin * 2,
+        viewportHeight + margin - (textureBottom - overlap),
     ),
     // 左
     band(
-      -margin,
-      textureTop + overlap,
-      textureLeft + overlap + margin,
-      height - overlap * 2,
+        -margin,
+        textureTop + overlap,
+        textureLeft + overlap + margin,
+        height - overlap * 2,
     ),
     // 右
     band(
-      textureRight - overlap,
-      textureTop + overlap,
-      viewportWidth + margin - (textureRight - overlap),
-      height - overlap * 2,
+        textureRight - overlap,
+        textureTop + overlap,
+        viewportWidth + margin - (textureRight - overlap),
+        height - overlap * 2,
     ),
   ];
   return {
@@ -509,7 +509,7 @@ export const plagueDoctorStageGeometry = Object.freeze({
   circle: Object.freeze({
     ...plagueDoctorClockCenter,
     left: (lobotomyCorpReferenceCanvasWidth - 819) / 2 + 819 / 2 -
-      plagueDoctorClockCenter.width / 2,
+        plagueDoctorClockCenter.width / 2,
     rotation: 179.51292,
     top: 25 + 819 / 2 - plagueDoctorClockCenter.height / 2,
   }),
@@ -646,9 +646,9 @@ function placeBox(element, box) {
  * @return {any} 图层句柄。
  */
 function buildAdventStage(options) {
-  const { assetRoot, document } = options;
+  const {assetRoot, document} = options;
   const spriteRoot =
-    `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock`;
+      `${assetRoot}/Resources/sprites/creaturesprite/deathangel/clock`;
   const root = document.createElement('section');
   const canvas = document.createElement('div');
   const addApostle = document.createElement('div');
@@ -656,9 +656,9 @@ function buildAdventStage(options) {
   const namesLayer = document.createElement('div');
   const point = document.createElement('div');
   const arrow = createSprite(
-    document,
-    'lobotomy-corp-plague-doctor-advent-arrow',
-    `${spriteRoot}/ClockArrow.png`,
+      document,
+      'lobotomy-corp-plague-doctor-advent-arrow',
+      `${spriteRoot}/ClockArrow.png`,
   );
   const shader = document.createElement('div');
   // BlackShader 在 prefab 中引用的是 DeathAngelClockDark 这张暗角图（2112×1188，比画布大）。
@@ -666,8 +666,8 @@ function buildAdventStage(options) {
   blackShader.className = 'lobotomy-corp-plague-doctor-advent-black-shader';
   blackShader.setAttribute('aria-hidden', 'true');
   blackShader.style.setProperty(
-    'background-image',
-    `url("${spriteRoot}/DeathAngelClockDark.png")`,
+      'background-image',
+      `url("${spriteRoot}/DeathAngelClockDark.png")`,
   );
   // 画布之外那圈用四条同色延伸带补齐，它们排在贴图下面（详见 layout 函数的说明）。
   const blackShaderBands = [0, 1, 2, 3].map(() => {
@@ -677,14 +677,14 @@ function buildAdventStage(options) {
     return element;
   });
   const clockShader = createSprite(
-    document,
-    'lobotomy-corp-plague-doctor-advent-clock-shader',
-    `${spriteRoot}/ClockShader.png`,
+      document,
+      'lobotomy-corp-plague-doctor-advent-clock-shader',
+      `${spriteRoot}/ClockShader.png`,
   );
   const lowerShader = createSprite(
-    document,
-    'lobotomy-corp-plague-doctor-advent-lower-shader',
-    `${spriteRoot}/LowerShader.png`,
+      document,
+      'lobotomy-corp-plague-doctor-advent-lower-shader',
+      `${spriteRoot}/LowerShader.png`,
   );
   const circle = document.createElement('div');
   const desc = document.createElement('div');
@@ -693,28 +693,28 @@ function buildAdventStage(options) {
   // 底色由 CSS 取宿主页面底色：DeathAngelClockDark 的盘心开口按设计要露出后面的
   // 世界，铺纯黑会把那块开口也糊成黑圆。
   const world = options.hostWorld === true
-    ? document.createElement('div')
-    : undefined;
+      ? document.createElement('div')
+      : undefined;
   // 使徒转化光效是独立的 AdventLight 视觉层：原作里它在世界层（Particle
   // 排序层，Order 10），因此网页把它排在表盘 UI 之前，靠圆环内孔露出光斑。
-  const adventLight = createDeathAngelAdventLight({ assetRoot, document });
+  const adventLight = createDeathAngelAdventLight({assetRoot, document});
   // 原作里圆盘开口后面是收容单元与疫医实体本身；网页用解包骨架实时渲染它，同样挂在
   // 世界层（表盘 UI 之前），由 DeathAngelClockDark 的开口露出。
   const worldEntity = options.hostWorld === true
-    ? document.createElement('div')
-    : undefined;
+      ? document.createElement('div')
+      : undefined;
   const worldEntityStage = worldEntity
-    ? createPlagueDoctorSpineStage({
-      assetRoot,
-      document,
-      globalObject: globalThis,
-    })
-    : undefined;
+      ? createPlagueDoctorSpineStage({
+        assetRoot,
+        document,
+        globalObject: globalThis,
+      })
+      : undefined;
   // 原作镜头接着会移到（本次转变的）使徒身上；网页没有员工，于是把「显示名称」
   // 输入框当作那个被聚焦的对象：它是网页自己的界面，不是原作素材。
   const focus = options.hostWorld === true
-    ? document.createElement('div')
-    : undefined;
+      ? document.createElement('div')
+      : undefined;
   const focusInput = focus ? document.createElement('input') : undefined;
 
   root.className = 'lobotomy-corp-plague-doctor-advent';
@@ -753,12 +753,12 @@ function buildAdventStage(options) {
     focusInput.setAttribute('tabindex', '-1');
     focusInput.setAttribute('aria-hidden', 'true');
     focus.style.setProperty(
-      '--lobotomy-corp-advent-focus-alpha',
-      '0',
+        '--lobotomy-corp-advent-focus-alpha',
+        '0',
     );
     focusInput.style.setProperty(
-      '--lobotomy-corp-advent-focus-text-alpha',
-      '0',
+        '--lobotomy-corp-advent-focus-text-alpha',
+        '0',
     );
     focus.append(focusInput);
   }
@@ -771,56 +771,56 @@ function buildAdventStage(options) {
   // 贴图按 prefab 尺寸居中画，尺寸只跟圆盘走（不由 viewport 决定，空洞比例才恒定）；
   // 画布之外那圈延伸带的尺寸在 fitShaderLayer 里按 viewport 给。
   blackShader.style.setProperty(
-    'width',
-    `${plagueDoctorBlackShaderSize.width * blackShaderScale}px`,
+      'width',
+      `${plagueDoctorBlackShaderSize.width * blackShaderScale}px`,
   );
   blackShader.style.setProperty(
-    'height',
-    `${plagueDoctorBlackShaderSize.height * blackShaderScale}px`,
+      'height',
+      `${plagueDoctorBlackShaderSize.height * blackShaderScale}px`,
   );
   blackShader.style.setProperty(
-    'background-size',
-    `${
-      plagueDoctorBlackShaderSize.width * blackShaderScale
-    }px ${plagueDoctorBlackShaderSize.height * blackShaderScale}px`,
+      'background-size',
+      `${
+          plagueDoctorBlackShaderSize.width * blackShaderScale
+      }px ${plagueDoctorBlackShaderSize.height * blackShaderScale}px`,
   );
   // Shader 节点自身就是 GlobalShader（preserveAspect=0，铺满 1920×1080）。
   shader.style.setProperty(
-    'background-image',
-    `url("${spriteRoot}/GlobalShader.png")`,
+      'background-image',
+      `url("${spriteRoot}/GlobalShader.png")`,
   );
   namesLayer.style.setProperty(
-    '--lobotomy-corp-advent-name-parent-y',
-    `${geometry.nameParentOffsetY}px`,
+      '--lobotomy-corp-advent-name-parent-y',
+      `${geometry.nameParentOffsetY}px`,
   );
   arrow.style.setProperty(
-    '--lobotomy-corp-advent-arrow-offset-x',
-    `${geometry.arrow.offsetX}px`,
+      '--lobotomy-corp-advent-arrow-offset-x',
+      `${geometry.arrow.offsetX}px`,
   );
   arrow.style.setProperty(
-    '--lobotomy-corp-advent-arrow-offset-y',
-    `${-geometry.arrow.offsetY}px`,
+      '--lobotomy-corp-advent-arrow-offset-y',
+      `${-geometry.arrow.offsetY}px`,
   );
   arrow.style.setProperty(
-    '--lobotomy-corp-advent-arrow-width',
-    `${geometry.arrow.width}px`,
+      '--lobotomy-corp-advent-arrow-width',
+      `${geometry.arrow.width}px`,
   );
   arrow.style.setProperty(
-    '--lobotomy-corp-advent-arrow-height',
-    `${geometry.arrow.height}px`,
+      '--lobotomy-corp-advent-arrow-height',
+      `${geometry.arrow.height}px`,
   );
   const circleBox = geometry.circle;
   circle.style.setProperty(
-    'background-image',
-    `url("${spriteRoot}/ClockCenter.png")`,
+      'background-image',
+      `url("${spriteRoot}/ClockCenter.png")`,
   );
   circle.style.setProperty(
-    'background-size',
-    `${circleBox.backgroundSizeWidth}px ${circleBox.backgroundSizeHeight}px`,
+      'background-size',
+      `${circleBox.backgroundSizeWidth}px ${circleBox.backgroundSizeHeight}px`,
   );
   circle.style.setProperty(
-    'background-position',
-    `${circleBox.backgroundPositionX}px ${circleBox.backgroundPositionY}px`,
+      'background-position',
+      `${circleBox.backgroundPositionX}px ${circleBox.backgroundPositionY}px`,
   );
   circle.style.setProperty('left', `${circleBox.left}px`);
   circle.style.setProperty('top', `${circleBox.top}px`);
@@ -828,19 +828,19 @@ function buildAdventStage(options) {
   circle.style.setProperty('height', `${circleBox.height}px`);
   circle.style.setProperty('transform', `rotate(${circleBox.rotation}deg)`);
   circle.style.setProperty(
-    '--lobotomy-corp-advent-center-opacity',
-    String(plagueDoctorCenterImageOpacity),
+      '--lobotomy-corp-advent-center-opacity',
+      String(plagueDoctorCenterImageOpacity),
   );
 
   point.append(arrow);
   clock.append(
-    createSprite(
-      document,
-      'lobotomy-corp-plague-doctor-advent-frame',
-      `${spriteRoot}/ClockFrame.png`,
-    ),
-    point,
-    namesLayer,
+      createSprite(
+          document,
+          'lobotomy-corp-plague-doctor-advent-frame',
+          `${spriteRoot}/ClockFrame.png`,
+      ),
+      point,
+      namesLayer,
   );
   // 顺序与 prefab 一致：Clock → Shader（含黑幕与两层 shader）→ Circle →
   // ApostleDesc；AdventLight 作为世界层先于整块 UI 绘制。
@@ -863,7 +863,7 @@ function buildAdventStage(options) {
   } else {
     root.append(canvas);
   }
-  options.nameNodes.forEach(({ element }) => namesLayer.append(element));
+  options.nameNodes.forEach(({element}) => namesLayer.append(element));
   document.body.append(root);
   return {
     adventLight,
@@ -915,7 +915,7 @@ function createPlagueDoctorClock(options) {
    * @return {number} 帧句柄。
    */
   const requestFrame = (callback) =>
-    host.requestAnimationFrame?.(callback) ??
+      host.requestAnimationFrame?.(callback) ??
       setTimeout(() => callback(now()), 16);
   /**
    * 取消一帧动画。
@@ -943,19 +943,19 @@ function createPlagueDoctorClock(options) {
     // 中日文名字整段换系统字体（原版这两支韩文字体缺字形，且一个 Text 只用一支字体）。
     name.dataset.cjk = adventTextNeedsCjkFont(supplied) ? '1' : '';
     name.style.setProperty(
-      '--lobotomy-corp-advent-name-x',
-      `${slot.anchoredPosition.x}px`,
+        '--lobotomy-corp-advent-name-x',
+        `${slot.anchoredPosition.x}px`,
     );
     name.style.setProperty(
-      '--lobotomy-corp-advent-name-y',
-      `${-slot.anchoredPosition.y}px`,
+        '--lobotomy-corp-advent-name-y',
+        `${-slot.anchoredPosition.y}px`,
     );
     name.style.setProperty(
-      '--lobotomy-corp-advent-name-rotation',
-      `${slot.rotation}deg`,
+        '--lobotomy-corp-advent-name-rotation',
+        `${slot.rotation}deg`,
     );
     name.style.setProperty('--lobotomy-corp-advent-name-alpha', '0');
-    return { element: name, slot };
+    return {element: name, slot};
   });
   const layers = buildAdventStage({
     assetRoot,
@@ -982,8 +982,8 @@ function createPlagueDoctorClock(options) {
    */
   const fitShaderLayer = (viewportWidth, viewportHeight, canvasScale) => {
     const scale = Number.isFinite(canvasScale) && canvasScale > 0
-      ? canvasScale
-      : 1;
+        ? canvasScale
+        : 1;
     layers.shader.style.setProperty('width', `${viewportWidth / scale}px`);
     layers.shader.style.setProperty('height', `${viewportHeight / scale}px`);
     // 黑幕：贴图保持 prefab 比例居中，画布之外用四条同色延伸带补齐（边界在视口之外），
@@ -1037,12 +1037,12 @@ function createPlagueDoctorClock(options) {
       const limitX = live.width / 4;
       const limitY = live.height / 4;
       panTargetX = Math.max(
-        -limitX,
-        Math.min(limitX, rect.left + rect.width / 2 - live.width / 2),
+          -limitX,
+          Math.min(limitX, rect.left + rect.width / 2 - live.width / 2),
       );
       panTargetY = Math.max(
-        -limitY,
-        Math.min(limitY, rect.top + rect.height / 2 - live.height / 2),
+          -limitY,
+          Math.min(limitY, rect.top + rect.height / 2 - live.height / 2),
       );
       panDistance = Math.max(1, Math.hypot(panTargetX, panTargetY));
       return;
@@ -1059,27 +1059,27 @@ function createPlagueDoctorClock(options) {
     const live = viewport();
     stableViewport = lobotomyCorpCanvasViewportForUpdate(stableViewport, live);
     const base = lobotomyCorpCanvasScaleForViewport(
-      stableViewport.width,
-      stableViewport.height,
+        stableViewport.width,
+        stableViewport.height,
     );
     // 表盘是 1920×1080 的固定构图：只按宽度适配时，超宽屏会把圆盘顶出屏幕、
     // 台词沉到底部之外；这里再取一次“整块构图完整装进 viewport”的上限。
     const fit = Math.min(live.width / 1920, live.height / 1080);
     const scale = Number.isFinite(fit) && fit > 0 ? Math.min(base, fit) : base;
     layers.canvas.style.setProperty(
-      '--lobotomy-corp-advent-canvas-scale',
-      String(scale),
+        '--lobotomy-corp-advent-canvas-scale',
+        String(scale),
     );
     // 台词钉在可见画面底部上方 12 画布像素：16:9 时等于 prefab 的 888，比例不对时
     // 也不会跟着画布往上飘。
     layers.desc.style.setProperty(
-      'top',
-      `${
-        plagueDoctorDescTopForViewport({
-          canvasScale: scale,
-          viewportHeight: live.height,
-        })
-      }px`,
+        'top',
+        `${
+            plagueDoctorDescTopForViewport({
+              canvasScale: scale,
+              viewportHeight: live.height,
+            })
+        }px`,
     );
     fitShaderLayer(live.width, live.height, scale);
     // 聚焦视图跟着画布一起缩放：它按画布尺寸摆放，中心对齐圆盘中心
@@ -1098,9 +1098,9 @@ function createPlagueDoctorClock(options) {
     measurePanTarget();
   };
   const fitNames = () =>
-    nameNodes.forEach(({ element, slot }) =>
-      fitWhiteNightSimpleAdventName(element, slot.minSize, options.measureName)
-    );
+      nameNodes.forEach(({element, slot}) =>
+          fitWhiteNightSimpleAdventName(element, slot.minSize, options.measureName)
+      );
   const resizeTarget = host.visualViewport ?? host;
   resizeTarget?.addEventListener?.('resize', updateCanvasScale);
   updateCanvasScale();
@@ -1131,23 +1131,23 @@ function createPlagueDoctorClock(options) {
      */
     setAdventMode: (advent) => {
       layers.circle.style.setProperty(
-        '--lobotomy-corp-advent-layer-alpha',
-        advent ? '0' : '1',
+          '--lobotomy-corp-advent-layer-alpha',
+          advent ? '0' : '1',
       );
       layers.point.style.setProperty(
-        '--lobotomy-corp-advent-layer-alpha',
-        advent ? '0' : '1',
+          '--lobotomy-corp-advent-layer-alpha',
+          advent ? '0' : '1',
       );
       layers.blackShader.style.setProperty(
-        '--lobotomy-corp-advent-layer-alpha',
-        advent ? '1' : '0',
+          '--lobotomy-corp-advent-layer-alpha',
+          advent ? '1' : '0',
       );
       // 延伸带属于黑幕：绑定阶段黑幕关掉时它们也必须一起收起，
       // 否则窄屏下画布之外的上下两边会被填成深色。
       for (let index = 0; index < layers.blackShaderBands.length; index++) {
         layers.blackShaderBands[index].style.setProperty(
-          '--lobotomy-corp-advent-layer-alpha',
-          advent ? '1' : '0',
+            '--lobotomy-corp-advent-layer-alpha',
+            advent ? '1' : '0',
         );
       }
     },
@@ -1162,21 +1162,21 @@ function createPlagueDoctorClock(options) {
       // 台词槽位是 NanumMyeongjo（韩文衬线，实测一个汉字都没有），中日文整段换系统衬线字体。
       layers.desc.dataset.cjk = adventTextNeedsCjkFont(text) ? '1' : '';
       for (
-        let size = plagueDoctorDescText.maxSize;
-        size >= plagueDoctorDescText.minSize;
-        size--
+          let size = plagueDoctorDescText.maxSize;
+          size >= plagueDoctorDescText.minSize;
+          size--
       ) {
         layers.desc.style.setProperty(
-          '--lobotomy-corp-advent-desc-font-size',
-          `${size}px`,
+            '--lobotomy-corp-advent-desc-font-size',
+            `${size}px`,
         );
         const fitsHeight = !(layers.desc.scrollHeight > layers.desc.clientHeight);
         const fitsWidth = !(layers.desc.scrollWidth > layers.desc.clientWidth);
         if (fitsHeight && fitsWidth) return;
       }
       layers.desc.style.setProperty(
-        '--lobotomy-corp-advent-desc-font-size',
-        `${plagueDoctorDescText.minSize}px`,
+          '--lobotomy-corp-advent-desc-font-size',
+          `${plagueDoctorDescText.minSize}px`,
       );
     },
     /** 图层句柄。 */
@@ -1233,7 +1233,7 @@ export function playPlagueDoctorBinding(options) {
     document: options.document,
     names: options.names,
   });
-  const { layers } = clock;
+  const {layers} = clock;
   layers.root.style.setProperty('--lobotomy-corp-advent-root-alpha', '1');
   layers.clock.style.setProperty('--lobotomy-corp-advent-clock-alpha', '1');
   clock.setAdventMode(false);
@@ -1241,39 +1241,40 @@ export function playPlagueDoctorBinding(options) {
   layers.desc.style.setProperty('--lobotomy-corp-advent-desc-alpha', '0');
   const nameNode = layers.namesLayer.children[options.index];
   Array.from(layers.namesLayer.children ?? []).forEach(
-    (/** @type {any} */ node, /** @type {number} */ index) => {
-      if (index < options.index) {
-        node.style.setProperty('--lobotomy-corp-advent-name-alpha', '1');
-      }
-    },
+      (/** @type {any} */ node, /** @type {number} */ index) => {
+        if (index < options.index) {
+          node.style.setProperty('--lobotomy-corp-advent-name-alpha', '1');
+        }
+      },
   );
   const initialAngle = plagueDoctorCssArrowAngle(options.index);
   const goalAngle = plagueDoctorCssArrowAngle(options.index + 1);
   layers.point.style.setProperty(
-    '--lobotomy-corp-advent-arrow-angle',
-    `${initialAngle}deg`,
+      '--lobotomy-corp-advent-arrow-angle',
+      `${initialAngle}deg`,
   );
   let bellPlayed = false;
   options.playSound?.(plagueDoctorSoundPaths.tick);
   /** @type {() => void} */
-  let resolveFinished = () => {};
+  let resolveFinished = () => {
+  };
   /** @type {Promise<void>} */
   const finished = new Promise((resolve) => {
     resolveFinished = () => resolve();
   });
   clock.run((elapsed) => {
-    const { arrowMoveMs, descEnableMs, nameEffectMs, nameRevealMs } =
-      plagueDoctorBindingTimings;
+    const {arrowMoveMs, descEnableMs, nameEffectMs, nameRevealMs} =
+        plagueDoctorBindingTimings;
     layers.desc.style.setProperty(
-      '--lobotomy-corp-advent-desc-alpha',
-      String(clamp(elapsed / descEnableMs, 0, 1)),
+        '--lobotomy-corp-advent-desc-alpha',
+        String(clamp(elapsed / descEnableMs, 0, 1)),
     );
     const arrowRate = clamp((elapsed - descEnableMs) / arrowMoveMs, 0, 1);
     const angle = initialAngle + (goalAngle - initialAngle) *
-      plagueDoctorArrowCurveValue(arrowRate);
+        plagueDoctorArrowCurveValue(arrowRate);
     layers.point.style.setProperty(
-      '--lobotomy-corp-advent-arrow-angle',
-      `${angle}deg`,
+        '--lobotomy-corp-advent-arrow-angle',
+        `${angle}deg`,
     );
     if (elapsed >= descEnableMs + arrowMoveMs) {
       if (!bellPlayed) {
@@ -1281,10 +1282,10 @@ export function playPlagueDoctorBinding(options) {
         options.playSound?.(plagueDoctorSoundPaths.bell);
       }
       nameNode?.style.setProperty(
-        '--lobotomy-corp-advent-name-alpha',
-        String(
-          clamp((elapsed - descEnableMs - arrowMoveMs) / nameRevealMs, 0, 1),
-        ),
+          '--lobotomy-corp-advent-name-alpha',
+          String(
+              clamp((elapsed - descEnableMs - arrowMoveMs) / nameRevealMs, 0, 1),
+          ),
       );
     }
     if (elapsed < nameEffectMs) return true;
@@ -1315,11 +1316,11 @@ export function playPlagueDoctorBinding(options) {
  * @return {{steps: Array<{at: number, index: number, kind: string, startedAt: number}>, totalMs: number}} 各步起始毫秒与总时长。
  */
 export function plagueDoctorAdventSchedule(count) {
-  const { adventAnimMs, cameraMoveMs, plagueDoctorAdventMs } =
-    plagueDoctorAdventTimings;
+  const {adventAnimMs, cameraMoveMs, plagueDoctorAdventMs} =
+      plagueDoctorAdventTimings;
   const apostleCount = Number.isFinite(count) && count > 0
-    ? Math.floor(count)
-    : 0;
+      ? Math.floor(count)
+      : 0;
   /** @type {Array<{at: number, index: number, kind: string, startedAt: number}>} */
   const steps = [{
     at: 0,
@@ -1336,12 +1337,12 @@ export function plagueDoctorAdventSchedule(count) {
   });
   cursor += plagueDoctorAdventMs;
   for (let index = 0; index < apostleCount; index++) {
-    steps.push({ at: cursor, index, kind: 'cameraFocus', startedAt: 0 });
+    steps.push({at: cursor, index, kind: 'cameraFocus', startedAt: 0});
     cursor += cameraMoveMs;
-    steps.push({ at: cursor, index, kind: 'adventAnim', startedAt: 0 });
+    steps.push({at: cursor, index, kind: 'adventAnim', startedAt: 0});
     cursor += adventAnimMs;
   }
-  return { steps, totalMs: cursor };
+  return {steps, totalMs: cursor};
 }
 
 /**
@@ -1369,11 +1370,11 @@ export function playPlagueDoctorAdvent(options) {
     hostWorld: true,
     names: options.names,
   });
-  const { layers } = clock;
+  const {layers} = clock;
   const names = Array.isArray(options.names) ? options.names : [];
   const originalColor = whiteNightSimpleAdventOriginalColor;
   const adventColor = whiteNightSimpleAdventColor;
-  const { adventAnimMs, adventMaxMs } = plagueDoctorAdventTimings;
+  const {adventAnimMs, adventMaxMs} = plagueDoctorAdventTimings;
   const schedule = plagueDoctorAdventSchedule(names.length);
   const steps = schedule.steps;
   const totalMs = Math.min(schedule.totalMs, adventMaxMs);
@@ -1388,8 +1389,8 @@ export function playPlagueDoctorAdvent(options) {
   layers.desc.style.setProperty('--lobotomy-corp-advent-desc-alpha', '0');
   // 12 个名字在各自的绑定演出里已经揭示，完整降临只负责逐个变红。
   Array.from(layers.namesLayer.children ?? []).forEach(
-    (/** @type {any} */ node) =>
-      node.style.setProperty('--lobotomy-corp-advent-name-alpha', '1'),
+      (/** @type {any} */ node) =>
+          node.style.setProperty('--lobotomy-corp-advent-name-alpha', '1'),
   );
   let index = 0;
   /** @type {{index: number, kind: string, startedAt: number}|undefined} */
@@ -1404,12 +1405,13 @@ export function playPlagueDoctorAdvent(options) {
   let focusTextStartedAt = -Infinity;
   let focusTextApplied = true;
   const entityHandoffStartAt = plagueDoctorAdventTimings.cameraMoveMs +
-    plagueDoctorAdventTimings.plagueDoctorAdventMs;
+      plagueDoctorAdventTimings.plagueDoctorAdventMs;
   const entityHideAt = entityHandoffStartAt +
-    plagueDoctorAdventFocusTimings.handoffMs;
+      plagueDoctorAdventFocusTimings.handoffMs;
   let finished = false;
   /** @type {() => void} */
-  let resolveFinished = () => {};
+  let resolveFinished = () => {
+  };
   /** @type {Promise<void>} */
   const finishedPromise = new Promise((resolve) => {
     resolveFinished = () => resolve();
@@ -1429,11 +1431,11 @@ export function playPlagueDoctorAdvent(options) {
         // 等光球开始时再被清零，变成「字幕先出现又消失再淡入」）。
         currentAdvent = undefined;
         clock.setDesc(
-          refineApostleDesc(options.messages, step.index + 1, names),
+            refineApostleDesc(options.messages, step.index + 1, names),
         );
         layers.desc.style.setProperty(
-          '--lobotomy-corp-advent-desc-alpha',
-          '0',
+            '--lobotomy-corp-advent-desc-alpha',
+            '0',
         );
         // ExecuteNextAdventTarget() 先敲钟，再让这名使徒 Escape()；Escape() 里的
         // MakeAdventSound() 会再放一首合唱与一句随机低语，两者是同一刻。
@@ -1452,7 +1454,7 @@ export function playPlagueDoctorAdvent(options) {
           options.playSound?.(plagueDoctorSoundPaths.choir);
           const whispers = plagueDoctorSoundPaths.whispers;
           options.playSound?.(
-            whispers[Math.floor(Math.random() * whispers.length)],
+              whispers[Math.floor(Math.random() * whispers.length)],
           );
         }
       } else if (step.kind === 'adventAnim') {
@@ -1483,70 +1485,70 @@ export function playPlagueDoctorAdvent(options) {
     // 视图淡入，表示镜头正在离开收容单元、对准被聚焦的对象。
     if (layers.focus) {
       const handoffRate = clamp(
-        (elapsed - entityHandoffStartAt) /
+          (elapsed - entityHandoffStartAt) /
           plagueDoctorAdventFocusTimings.handoffMs,
-        0,
-        1,
+          0,
+          1,
       );
       // 镜头移动：白夜本体平移出画面、输入框从另一侧移进来，两者始终不透明。
       layers.focus.style.setProperty(
-        '--lobotomy-corp-advent-focus-alpha',
-        elapsed >= entityHandoffStartAt ? '1' : '0',
+          '--lobotomy-corp-advent-focus-alpha',
+          elapsed >= entityHandoffStartAt ? '1' : '0',
       );
       const targetX = clock.panTargetX?.() ?? 0;
       const targetY = clock.panTargetY?.() ?? 0;
       layers.focus.style.setProperty(
-        'transform',
-        `translate(${Math.round(targetX * (1 - handoffRate))}px, ${
-          Math.round(targetY * (1 - handoffRate))
-        }px)`,
+          'transform',
+          `translate(${Math.round(targetX * (1 - handoffRate))}px, ${
+              Math.round(targetY * (1 - handoffRate))
+          }px)`,
       );
       if (layers.worldEntity) {
         layers.worldEntity.style?.setProperty?.(
-          'transform',
-          `translate(${-Math.round(targetX * handoffRate)}px, ${
-            -Math.round(targetY * handoffRate)
-          }px)`,
+            'transform',
+            `translate(${-Math.round(targetX * handoffRate)}px, ${
+                -Math.round(targetY * handoffRate)
+            }px)`,
         );
       }
       if (layers.focusInput) {
         const textElapsed = elapsed - focusTextStartedAt;
         const textAlpha = textElapsed <
-            plagueDoctorAdventFocusTimings.textFadeOutMs
-          ? 1 -
+        plagueDoctorAdventFocusTimings.textFadeOutMs
+            ? 1 -
             clamp(
-              textElapsed / plagueDoctorAdventFocusTimings.textFadeOutMs,
-              0,
-              1,
+                textElapsed / plagueDoctorAdventFocusTimings.textFadeOutMs,
+                0,
+                1,
             )
-          : clamp(
-            (textElapsed - plagueDoctorAdventFocusTimings.textFadeOutMs) /
-              plagueDoctorAdventFocusTimings.textFadeInMs,
-            0,
-            1,
-          );
+            : clamp(
+                (textElapsed - plagueDoctorAdventFocusTimings.textFadeOutMs) /
+                plagueDoctorAdventFocusTimings.textFadeInMs,
+                0,
+                1,
+            );
         if (
-          !focusTextApplied &&
-          textElapsed >= plagueDoctorAdventFocusTimings.textFadeOutMs
+            !focusTextApplied &&
+            textElapsed >= plagueDoctorAdventFocusTimings.textFadeOutMs
         ) {
           focusTextApplied = true;
           layers.focusInput.value = focusText;
         }
         layers.focusInput.style.setProperty(
-          '--lobotomy-corp-advent-focus-text-alpha',
-          String(textAlpha),
+            '--lobotomy-corp-advent-focus-text-alpha',
+            String(textAlpha),
         );
         layers.focusInput.style.color = textAlpha >= 1
-          ? ''
-          : `color-mix(in srgb, var(--muted) ${
-            (textAlpha * 100).toFixed(1)
-          }%, transparent)`;
+            ? ''
+            : `color-mix(in srgb, var(--muted) ${
+                (textAlpha * 100).toFixed(1)
+            }%, transparent)`;
       }
     }
     if (
-      layers.worldEntity &&
-      !layers.worldEntity.hidden &&
-      elapsed >= entityHideAt
+        layers.worldEntity &&
+        !layers.worldEntity.hidden &&
+        elapsed >= entityHideAt
     ) {
       layers.worldEntityStage?.stop?.();
       layers.worldEntity.hidden = true;
@@ -1555,26 +1557,26 @@ export function playPlagueDoctorAdvent(options) {
     layers.adventLight.render(elapsed);
     if (currentAdvent) {
       const rate = clamp(
-        (elapsed - currentAdvent.startedAt) / adventAnimMs,
-        0,
-        1,
+          (elapsed - currentAdvent.startedAt) / adventAnimMs,
+          0,
+          1,
       );
       const colorRate = Math.min(rate * 2, 1);
       const red = originalColor.red +
-        (adventColor.red - originalColor.red) * colorRate;
+          (adventColor.red - originalColor.red) * colorRate;
       const green = originalColor.green +
-        (adventColor.green - originalColor.green) * colorRate;
+          (adventColor.green - originalColor.green) * colorRate;
       const blue = originalColor.blue +
-        (adventColor.blue - originalColor.blue) * colorRate;
+          (adventColor.blue - originalColor.blue) * colorRate;
       layers.namesLayer.children[currentAdvent.index]?.style.setProperty(
-        '--lobotomy-corp-advent-name-color',
-        toCssColor({ blue, green, red }),
+          '--lobotomy-corp-advent-name-color',
+          toCssColor({blue, green, red}),
       );
       layers.desc.style.setProperty(
-        '--lobotomy-corp-advent-desc-alpha',
-        // AdventClockUI.Update 里 Desc 的 alpha 直接取 AdventTimer.Rate，
-        // 没有额外平滑曲线。
-        String(rate),
+          '--lobotomy-corp-advent-desc-alpha',
+          // AdventClockUI.Update 里 Desc 的 alpha 直接取 AdventTimer.Rate，
+          // 没有额外平滑曲线。
+          String(rate),
       );
     }
     if (elapsed < totalMs || finished) return !finished;
@@ -1652,7 +1654,7 @@ export function createPlagueDoctorEvent(shared) {
     }
     blockingInteraction = true;
     blockedInteractionEvents.forEach((type) =>
-      document.addEventListener(type, blockInteraction, true)
+        document.addEventListener(type, blockInteraction, true)
     );
   };
 
@@ -1666,7 +1668,7 @@ export function createPlagueDoctorEvent(shared) {
     if (!blockingInteraction) return;
     blockingInteraction = false;
     blockedInteractionEvents.forEach((type) =>
-      document.removeEventListener(type, blockInteraction, true)
+        document.removeEventListener(type, blockInteraction, true)
     );
   };
 
@@ -1718,25 +1720,25 @@ export function createPlagueDoctorEvent(shared) {
     const loginSession = shared.loginSession?.();
     // 每次登录都会生成新的会话标识：标识变化即视为重新登录，已绑定的使徒必须清空。
     const savedSession = typeof saved?.loginSession === 'string'
-      ? saved.loginSession
-      : undefined;
+        ? saved.loginSession
+        : undefined;
     const relogged = typeof loginSession === 'string' && loginSession.length > 0 &&
-      savedSession !== undefined && savedSession !== loginSession;
+        savedSession !== undefined && savedSession !== loginSession;
     state = {
       apostles: Array.isArray(saved?.apostles)
-        ? (relogged
-          ? []
-          : saved.apostles.filter((/** @type {unknown} */ name) =>
-              typeof name === 'string'
-            )
-            .slice(0, plagueDoctorApostleCount))
-        : [],
+          ? (relogged
+              ? []
+              : saved.apostles.filter((/** @type {unknown} */ name) =>
+                      typeof name === 'string'
+                  )
+                  .slice(0, plagueDoctorApostleCount))
+          : [],
       recording: saved?.recording === true,
       transformed: relogged ? false : saved?.transformed === true,
     };
     state.pausedByWhiteNight = relogged
-      ? false
-      : saved?.pausedByWhiteNight === true;
+        ? false
+        : saved?.pausedByWhiteNight === true;
     if (relogged) {
       state.recording = false;
       state.pausedByWhiteNight = false;
@@ -1755,7 +1757,7 @@ export function createPlagueDoctorEvent(shared) {
    * @return {string[]} 每名使徒对应的文本。
    */
   const apostleFocusTexts = () =>
-    [...(state?.apostles ?? [])];
+      [...(state?.apostles ?? [])];
   /** @return {boolean} 是否正在记录使徒。 */
   const isRecording = () => state?.recording === true;
   /** @return {boolean} 本次会话内是否已经完成过一次转变。 */
@@ -1775,7 +1777,8 @@ export function createPlagueDoctorEvent(shared) {
     audio.hidden = true;
     audio.preload = 'auto';
     audio.setAttribute?.('aria-hidden', 'true');
-    void audio.play?.().catch(() => {});
+    void audio.play?.().catch(() => {
+    });
     return audio;
   };
 
@@ -1830,10 +1833,10 @@ export function createPlagueDoctorEvent(shared) {
     busy = true;
     const firstTime = state?.transformed !== true;
     if (
-      !firstTime || shared.whiteNightRunning?.() === true ||
-      typeof globalThis.document?.createElement !== 'function'
+        !firstTime || shared.whiteNightRunning?.() === true ||
+        typeof globalThis.document?.createElement !== 'function'
     ) {
-      completeTransformation({ firstTime: false });
+      completeTransformation({firstTime: false});
       return;
     }
     // `StartAdventEvent()` 先起 UniqueBgm，再开黑幕与镜头，所以 BGM 要早于演出脚本。
@@ -1844,7 +1847,7 @@ export function createPlagueDoctorEvent(shared) {
       focusTexts: apostleFocusTexts(),
       messages: shared.messages?.(),
       names: apostleNames(),
-      onAdventEnd: () => completeTransformation({ firstTime: true }),
+      onAdventEnd: () => completeTransformation({firstTime: true}),
       playSound,
     });
     activeClock = clock;
@@ -1872,9 +1875,9 @@ export function createPlagueDoctorEvent(shared) {
       const clock = playPlagueDoctorBinding({
         assetRoot: shared.assetRoot,
         desc: refineApostleDesc(
-          shared.messages?.(),
-          index + 1,
-          current.apostles,
+            shared.messages?.(),
+            index + 1,
+            current.apostles,
         ),
         document: globalThis.document,
         index,
@@ -1909,7 +1912,7 @@ export function createPlagueDoctorEvent(shared) {
    */
   const claim = (value) => {
     const normalized = String(value).normalize('NFKC').trim()
-      .toLocaleLowerCase('en-US');
+        .toLocaleLowerCase('en-US');
     const submittedId = shared.submittedAbnormalityId?.(value);
     if (shared.whiteNightRunning?.() === true) {
       if (normalized === plagueDoctorAbnormalityId.toLowerCase()) return true;

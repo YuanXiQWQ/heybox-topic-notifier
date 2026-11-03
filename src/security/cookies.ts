@@ -15,7 +15,10 @@ export function parseCookies(value: string | undefined): Map<string, string> {
     if (separatorIndex < 0) {
       continue;
     }
-    cookies.set(part.slice(0, separatorIndex).trim(), part.slice(separatorIndex + 1).trim());
+    cookies.set(
+      part.slice(0, separatorIndex).trim(),
+      part.slice(separatorIndex + 1).trim(),
+    );
   }
   return cookies;
 }

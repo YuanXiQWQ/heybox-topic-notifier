@@ -34,8 +34,8 @@ import {
   blackForestGift,
   blackForestIconSlots,
   blackForestNarrationCanvas,
-  blackForestNarrationSequence,
   blackForestNarrations,
+  blackForestNarrationSequence,
   blackForestSoundPaths,
   createBlackForestCgPlayer,
   createBlackForestEvent,
@@ -86,14 +86,38 @@ Deno.test("Black Forest CG uses the prefab narration images and durations", () =
     },
   );
   // prefab 的 narrationImages：ESCAPE / 三只鸟抵达 / 终末鸟出现 / 三个蛋碎 / 镇压。
-  assertEquals(blackForestNarrations.bigBirdArrive.image, "Texture2D/BigBirdArrived.png");
-  assertEquals(blackForestNarrations.longBirdArrive.image, "Texture2D/LongBirdArrived.png");
-  assertEquals(blackForestNarrations.smallBirdArrive.image, "Texture2D/SmallBirdArrived.png");
-  assertEquals(blackForestNarrations.bossBirdAppear.image, "Texture2D/BossBirdAppear.png");
-  assertEquals(blackForestNarrations.bigBirdBreak.image, "Texture2D/BigBirdDead.png");
-  assertEquals(blackForestNarrations.longBirdBreak.image, "Texture2D/LongBirdDead.png");
-  assertEquals(blackForestNarrations.smallBirdBreak.image, "Texture2D/SmallBirdDead.png");
-  assertEquals(blackForestNarrations.suppressed.image, "Texture2D/BossBirdDead.png");
+  assertEquals(
+    blackForestNarrations.bigBirdArrive.image,
+    "Texture2D/BigBirdArrived.png",
+  );
+  assertEquals(
+    blackForestNarrations.longBirdArrive.image,
+    "Texture2D/LongBirdArrived.png",
+  );
+  assertEquals(
+    blackForestNarrations.smallBirdArrive.image,
+    "Texture2D/SmallBirdArrived.png",
+  );
+  assertEquals(
+    blackForestNarrations.bossBirdAppear.image,
+    "Texture2D/BossBirdAppear.png",
+  );
+  assertEquals(
+    blackForestNarrations.bigBirdBreak.image,
+    "Texture2D/BigBirdDead.png",
+  );
+  assertEquals(
+    blackForestNarrations.longBirdBreak.image,
+    "Texture2D/LongBirdDead.png",
+  );
+  assertEquals(
+    blackForestNarrations.smallBirdBreak.image,
+    "Texture2D/SmallBirdDead.png",
+  );
+  assertEquals(
+    blackForestNarrations.suppressed.image,
+    "Texture2D/BossBirdDead.png",
+  );
   assertEquals(blackForestNarrations.bossBirdAppear.durationMs, 2000);
   assertEquals(blackForestNarrations.suppressed.durationMs, 6000);
   // NarrationCanvas 的三张静态图层与 DisplayImage 的横向压扁。
@@ -120,7 +144,10 @@ Deno.test("Black Forest CG uses the prefab narration images and durations", () =
   // 事件奖励：Equipment.txt 的 400038（破晓）使用 BossBirdWing 贴图。
   assertEquals(blackForestGift.equipmentId, 400038);
   assertEquals(blackForestGift.nameKey, "BossBird_Special_name");
-  assertEquals(blackForestGift.sprite, "Resources/sprites/worker/equipment/attachment/BossBirdWing.png");
+  assertEquals(
+    blackForestGift.sprite,
+    "Resources/sprites/worker/equipment/attachment/BossBirdWing.png",
+  );
 });
 
 /** 三只鸟、三颗蛋与编号的对应关系必须是原作的那套。 */
@@ -233,7 +260,7 @@ Deno.test("Black Forest egg camera uses the sampled animation bounds", () => {
       this.y = y;
     }
   }
-  const runtime = {Vector2};
+  const runtime = { Vector2 };
   let clearCount = 0;
   const sampledAnimations: string[] = [];
   const animationState = {
@@ -264,9 +291,9 @@ Deno.test("Black Forest egg camera uses the sampled animation bounds", () => {
       runtime,
       animationState,
       skeleton,
-      [{duration: 1, name: "full"}, {duration: 2, name: "dead"}],
+      [{ duration: 1, name: "full" }, { duration: 2, name: "dead" }],
     ),
-    {maxX: 20, maxY: 30, minX: -10, minY: -20},
+    { maxX: 20, maxY: 30, minX: -10, minY: -20 },
   );
   assertEquals(sampledAnimations, ["full", "dead"]);
   assertEquals(clearCount, 2);
@@ -285,7 +312,9 @@ Deno.test("Black Forest plays the birds in the submitted order", () => {
     "bigBird",
   ]);
   assertEquals(
-    blackForestNarrationSequence(blackForestBirdOrderFor(["smallBird", "bigBird"])),
+    blackForestNarrationSequence(
+      blackForestBirdOrderFor(["smallBird", "bigBird"]),
+    ),
     [
       "escape",
       "smallBirdArrive",
@@ -417,7 +446,21 @@ Deno.test("Black Forest CG text layout adapts to every viewport ratio", () => {
 
 /** 任意窗口比例下，台词都完整落在可见画面内。 */
 Deno.test("Black Forest CG text layout keeps the line inside the viewport", () => {
-  const widths = [320, 390, 480, 640, 768, 900, 1024, 1280, 1440, 1600, 1920, 2560, 3440];
+  const widths = [
+    320,
+    390,
+    480,
+    640,
+    768,
+    900,
+    1024,
+    1280,
+    1440,
+    1600,
+    1920,
+    2560,
+    3440,
+  ];
   const heights = [320, 480, 640, 720, 900, 1024, 1080, 1233, 1440, 1600];
   widths.forEach((width) => {
     heights.forEach((height) => {
@@ -547,7 +590,10 @@ Deno.test("Black Forest validates persisted state", () => {
     true,
   );
   assertEquals(isValidBlackForestState({ phase: "unknown" }), false);
-  assertEquals(isValidBlackForestState({ phase: "hunt", birds: ["bird"] }), false);
+  assertEquals(
+    isValidBlackForestState({ phase: "hunt", birds: ["bird"] }),
+    false,
+  );
   assertEquals(
     isValidBlackForestState({ phase: "hunt", eggs: { nope: "bigEyes" } }),
     false,
@@ -827,12 +873,18 @@ Deno.test("Black Forest hunts the eggs and ends with the EGO gift", () => {
   event.recordSubmission("O-02-56");
   event.recordSubmission("O-02-62");
   // 跳过开场 CG：直接把存档改成寻找阶段并恢复。
-  const saved = JSON.parse(harness.storage.getItem("test.black-forest") ?? "{}");
+  const saved = JSON.parse(
+    harness.storage.getItem("test.black-forest") ?? "{}",
+  );
   harness.storage.setItem(
     "test.black-forest",
     JSON.stringify({
       ...saved,
-      eggs: { "nav.history": "bigEyes", "nav.dashboard": "longArms", "nav.settings": "smallBeak" },
+      eggs: {
+        "nav.history": "bigEyes",
+        "nav.dashboard": "longArms",
+        "nav.settings": "smallBeak",
+      },
       phase: "hunt",
     }),
   );
@@ -853,65 +905,116 @@ Deno.test("Black Forest hunts the eggs and ends with the EGO gift", () => {
     (egg as ClickableElement).click();
   }
   assertEquals(restored.getPhase(), "suppress");
-  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 0);
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length,
+    0,
+  );
   // 演出结束后（测试里直接调用 finish）挂上「破晓」，并把奖励写进存档。
   restored.finish({ completed: true });
-  const finished = JSON.parse(harness.storage.getItem("test.black-forest") ?? "{}");
+  const finished = JSON.parse(
+    harness.storage.getItem("test.black-forest") ?? "{}",
+  );
   assertEquals(finished.phase, "done");
   assertEquals(finished.gift, true);
-  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-gift").length, 0);
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-gift").length,
+    0,
+  );
 });
 
 /** 表格刷新重新挂载筛选图标中的鸟蛋，不重置已找到进度或在 CG 中重新挂蛋。 */
 Deno.test("Black Forest rebinds replaced table slots without losing hunt progress", () => {
   const harness = createBlackForestHarness();
-  const saved = { birds: [], eggs: { "history.filter": "bigEyes", "nav.settings": "longArms", "nav.history": "smallBeak" },
-    found: ["longArms"], gift: false, id: "black-forest", order: [...blackForestDefaultBirdOrder], phase: "hunt" };
+  const saved = {
+    birds: [],
+    eggs: {
+      "history.filter": "bigEyes",
+      "nav.settings": "longArms",
+      "nav.history": "smallBeak",
+    },
+    found: ["longArms"],
+    gift: false,
+    id: "black-forest",
+    order: [...blackForestDefaultBirdOrder],
+    phase: "hunt",
+  };
   harness.storage.setItem("test.black-forest", JSON.stringify(saved));
   const event = createBlackForestEvent(harness.shared);
   event.restore();
-  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 2);
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length,
+    2,
+  );
   const selector = '[data-lobotomy-corp-black-forest-slot="history.filter"]';
   harness.body.querySelector(selector)!.remove();
-  const next = new ClickableElement(); next.className = "ui-icon"; next.selectors.add(selector); harness.body.append(next);
+  const next = new ClickableElement();
+  next.className = "ui-icon";
+  next.selectors.add(selector);
+  harness.body.append(next);
   event.refreshSlots();
-  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 2);
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length,
+    2,
+  );
   assertEquals(next.styleProperties.get("display"), "none");
-  assertEquals(JSON.parse(harness.storage.getItem("test.black-forest")!).found, ["longArms"]);
+  assertEquals(
+    JSON.parse(harness.storage.getItem("test.black-forest")!).found,
+    ["longArms"],
+  );
   void event.activateEgg("bigEyes");
   event.refreshSlots();
-  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 0);
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length,
+    0,
+  );
   event.finish();
 });
 
 /** 匹配标题和模式行可挂蛋；旧条件槽位中的未发现鸟蛋迁移，已发现进度保留。 */
 Deno.test("Black Forest restores accessible matching slots and migrates conditional slots", () => {
   const harness = createBlackForestHarness();
-  harness.storage.setItem("test.black-forest", JSON.stringify({
-    id: "black-forest",
-    phase: "hunt",
-    eggs: {
-      "settings.post.matching": "bigEyes",
-      "settings.matching.mode": "longArms",
-      "settings.notification.smtpPassword": "smallBeak",
-    },
-    found: [],
-  }));
+  harness.storage.setItem(
+    "test.black-forest",
+    JSON.stringify({
+      id: "black-forest",
+      phase: "hunt",
+      eggs: {
+        "settings.post.matching": "bigEyes",
+        "settings.matching.mode": "longArms",
+        "settings.notification.smtpPassword": "smallBeak",
+      },
+      found: [],
+    }),
+  );
   const event = createBlackForestEvent(harness.shared);
   assertEquals(event.restore(), true);
   const migrated = JSON.parse(harness.storage.getItem("test.black-forest")!);
   assertEquals(migrated.eggs["settings.post.matching"], "bigEyes");
   assertEquals(migrated.eggs["settings.matching.mode"], "longArms");
   assertEquals(migrated.eggs["settings.notification.smtpPassword"], undefined);
-  assertEquals(Object.values(migrated.eggs).sort(), ["bigEyes", "longArms", "smallBeak"]);
-  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 3);
+  assertEquals(Object.values(migrated.eggs).sort(), [
+    "bigEyes",
+    "longArms",
+    "smallBeak",
+  ]);
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length,
+    3,
+  );
   event.finish();
 
-  harness.storage.setItem("test.black-forest", JSON.stringify({
-    ...migrated,
-    eggs: { "settings.post.keywords": "bigEyes", "settings.poll.interval": "longArms", "nav.history": "smallBeak" },
-    found: ["bigEyes"],
-  }));
+  harness.storage.setItem(
+    "test.black-forest",
+    JSON.stringify({
+      ...migrated,
+      eggs: {
+        "settings.post.keywords": "bigEyes",
+        "settings.poll.interval": "longArms",
+        "nav.history": "smallBeak",
+      },
+      found: ["bigEyes"],
+    }),
+  );
   const continued = createBlackForestEvent(harness.shared);
   assertEquals(continued.restore(), true);
   const progress = JSON.parse(harness.storage.getItem("test.black-forest")!);
@@ -919,7 +1022,10 @@ Deno.test("Black Forest restores accessible matching slots and migrates conditio
   assertEquals(progress.eggs["settings.post.keywords"], "bigEyes");
   assertEquals(progress.eggs["settings.poll.interval"], undefined);
   assertEquals(progress.eggs["nav.history"], "smallBeak");
-  assertEquals(findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length, 2);
+  assertEquals(
+    findAllByClass(harness.body, "lobotomy-corp-black-forest-egg").length,
+    2,
+  );
   continued.finish();
 });
 
@@ -964,7 +1070,7 @@ Deno.test("Black Forest restores icons and keeps the gift", () => {
 Deno.test("Black Forest clears the EGO gift and its reward save", () => {
   const harness = createBlackForestHarness();
   const avatarWrapper = new ClickableElement();
-  avatarWrapper.selectors.add('[data-lobotomy-corp-risk-host]');
+  avatarWrapper.selectors.add("[data-lobotomy-corp-risk-host]");
   harness.body.append(avatarWrapper);
   harness.storage.setItem(
     "test.black-forest",
@@ -1027,7 +1133,10 @@ Deno.test("Black Forest styles follow the prefab layers and gift slot", () => {
   assert(
     css.includes('.lobotomy-corp-black-forest-cg-text[data-cjk="1"]'),
   );
-  const gift = cssRule(css, "account-avatar-risk-wrapper .lobotomy-corp-black-forest-gift");
+  const gift = cssRule(
+    css,
+    "account-avatar-risk-wrapper .lobotomy-corp-black-forest-gift",
+  );
   assert(gift.includes("position: absolute"));
   assert(gift.includes("right: -38%"));
   assert(gift.includes("bottom: -14%"));
@@ -1079,7 +1188,8 @@ Deno.test("Black Forest locale text matches the game narration", () => {
     });
     Object.values(blackForestEggs).forEach((egg) => {
       assert(
-        typeof locale[egg.labelKey] === "string" && locale[egg.labelKey].length > 0,
+        typeof locale[egg.labelKey] === "string" &&
+          locale[egg.labelKey].length > 0,
         `${file} 缺少 ${egg.labelKey}`,
       );
     });

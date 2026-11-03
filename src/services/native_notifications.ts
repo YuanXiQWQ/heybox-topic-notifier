@@ -4,7 +4,10 @@ import type { Storage } from "../storage/types.ts";
 import { getMessages } from "../locales/index.ts";
 import { sessionTokenHash } from "../auth/session.ts";
 import { notifyHonorDevices } from "./honor_push.ts";
-import { aiFallbackNotice, type ServiceNotification } from "./service_notification.ts";
+import {
+  aiFallbackNotice,
+  type ServiceNotification,
+} from "./service_notification.ts";
 
 /**
  * 先持久保存整批事件，再发送一次厂商唤醒，客户端可从原游标继续消费。
@@ -23,15 +26,20 @@ export async function enqueueNativeNotifications(
   const inbox = storage.forUser(userId).nativeNotifications;
   if (!inbox || (Array.isArray(records) && !records.length)) return false;
   const createdAt = Date.now();
-  const notifications = Array.isArray(records) ? records.map((record) => ({
-    id: record.id,
-    kind: "match" as const,
-    matchId: record.id,
-    postId: record.post.id,
-    title: getMessages(settings.locale).appName,
-    body: [aiFallbackNotice([record], settings), record.post.title.slice(0, 240)].filter(Boolean).join("\n"),
-    path: "/history",
-  })) : [{ ...records, kind: "service" as const }];
+  const notifications = Array.isArray(records)
+    ? records.map((record) => ({
+      id: record.id,
+      kind: "match" as const,
+      matchId: record.id,
+      postId: record.post.id,
+      title: getMessages(settings.locale).appName,
+      body: [
+        aiFallbackNotice([record], settings),
+        record.post.title.slice(0, 240),
+      ].filter(Boolean).join("\n"),
+      path: "/history",
+    }))
+    : [{ ...records, kind: "service" as const }];
   let latest;
   for (const notification of notifications) {
     const id = await sessionTokenHash(notification.id);

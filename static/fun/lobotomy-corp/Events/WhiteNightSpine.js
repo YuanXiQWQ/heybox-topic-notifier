@@ -125,10 +125,10 @@ export const whiteNightSpineModuleRoot = spineModuleRoot;
  */
 export function whiteNightSpineAssetPaths(moduleRoot) {
   return spineAssetPaths(
-    whiteNightSpineAssetDirectory,
-    whiteNightSpineSkeletonFile,
-    whiteNightSpineAtlasFile,
-    moduleRoot,
+      whiteNightSpineAssetDirectory,
+      whiteNightSpineSkeletonFile,
+      whiteNightSpineAtlasFile,
+      moduleRoot,
   );
 }
 
@@ -151,8 +151,8 @@ export function whiteNightSpineViewportLayout(
     padding = whiteNightSpineViewportPadding,
 ) {
   if (
-    ![viewportWidth, viewportHeight, bounds?.minX, bounds?.minY, bounds?.maxX,
-      bounds?.maxY].every((value) => Number.isFinite(value))
+      ![viewportWidth, viewportHeight, bounds?.minX, bounds?.minY, bounds?.maxX,
+        bounds?.maxY].every((value) => Number.isFinite(value))
   ) {
     return undefined;
   }
@@ -186,9 +186,9 @@ export function whiteNightSpineViewportLayout(
  * @return {number|undefined} 1 世界单位对应的 vh 数；参数无效时返回 undefined。
  */
 export function whiteNightSpineWorldUnitToVh(
-  bounds,
-  viewportWidth,
-  viewportHeight,
+    bounds,
+    viewportWidth,
+    viewportHeight,
 ) {
   const layout = whiteNightSpineViewportLayout(
       viewportWidth,
@@ -210,12 +210,12 @@ export function whiteNightSpineWorldUnitToVh(
  * @return {{alpha: number, scale: number}|undefined} 该时刻的 alpha 与缩放；未点亮或已结束时返回 undefined。
  */
 export function whiteNightRangeEffectFrame(
-  elapsedSeconds,
-  effect = whiteNightSpineRangeEffect,
+    elapsedSeconds,
+    effect = whiteNightSpineRangeEffect,
 ) {
   if (
-    !Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 ||
-    elapsedSeconds >= effect.durationSeconds
+      !Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 ||
+      elapsedSeconds >= effect.durationSeconds
   ) {
     return undefined;
   }
@@ -310,14 +310,14 @@ export const loadWhiteNightSpineRuntime = loadSpineRuntime;
  * @return {{minX: number, minY: number, maxX: number, maxY: number}|undefined} 动画包围盒。
  */
 export function measureWhiteNightSpineBounds(
-  runtime,
-  animationState,
-  skeleton,
-  animation,
+    runtime,
+    animationState,
+    skeleton,
+    animation,
 ) {
   const sampleCount = Math.max(
-    2,
-    Math.round(animation.duration * whiteNightSpineBoundsSampleRate),
+      2,
+      Math.round(animation.duration * whiteNightSpineBoundsSampleRate),
   );
   const step = animation.duration / sampleCount;
   const offset = new runtime.Vector2();
@@ -606,23 +606,23 @@ export function createWhiteNightSpineStage(options) {
    * @return {Promise<object|undefined>} 贴图对象；加载失败时返回 undefined。
    */
   const loadRangeTexture = () =>
-    new Promise((resolve) => {
-      const image = hostDocument.createElement('img');
-      image.addEventListener?.('load', () => {
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-        const texture = new runtime.webgl.GLTexture(gl, image);
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-        resolve(texture);
+      new Promise((resolve) => {
+        const image = hostDocument.createElement('img');
+        image.addEventListener?.('load', () => {
+          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+          const texture = new runtime.webgl.GLTexture(gl, image);
+          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+          resolve(texture);
+        });
+        image.addEventListener?.('error', () => {
+          // 白圈贴图缺失时特技没有光圈，这里留下控制台痕迹便于排查。
+          hostGlobal.console?.warn?.(
+              `[WhiteNight] range effect texture failed: ${image.src}`,
+          );
+          resolve(undefined);
+        });
+        image.src = `${assetsRoot}/${whiteNightSpineRangeTexture}`;
       });
-      image.addEventListener?.('error', () => {
-        // 白圈贴图缺失时特技没有光圈，这里留下控制台痕迹便于排查。
-        hostGlobal.console?.warn?.(
-            `[WhiteNight] range effect texture failed: ${image.src}`,
-        );
-        resolve(undefined);
-      });
-      image.src = `${assetsRoot}/${whiteNightSpineRangeTexture}`;
-    });
 
   /**
    * 测量出逃待机的包围盒，作为所有白夜动画共用的取景。

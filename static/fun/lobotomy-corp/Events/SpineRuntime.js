@@ -99,10 +99,10 @@ export function waitForSpineAssets(assetManager, globalObject, isDisposed) {
  * @return {{assetDirectory: string, atlasPath: string, pathPrefix: string, skeletonPath: string}} 资源目录、目录前缀与文件相对路径。
  */
 export function spineAssetPaths(
-  assetDirectory,
-  skeletonFile,
-  atlasFile,
-  moduleRoot,
+    assetDirectory,
+    skeletonFile,
+    atlasFile,
+    moduleRoot,
 ) {
   const separator = assetDirectory.lastIndexOf('/');
   const parentDirectory = assetDirectory.slice(0, separator + 1);

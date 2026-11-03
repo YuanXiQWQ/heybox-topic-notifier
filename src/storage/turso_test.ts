@@ -21,7 +21,9 @@ import { initialSettingsSnapshot } from "../sync/settings.ts";
 import { assertEquals, assertStrictEquals } from "../test_helpers.ts";
 
 Deno.test("Turso web push isolates and rebinds browser devices", async () => {
-  await withStorage(async (storage) => await verifyWebPushStore(storage.webPush!));
+  await withStorage(async (storage) =>
+    await verifyWebPushStore(storage.webPush!)
+  );
 });
 
 Deno.test("Turso native events and login handoffs remain isolated and atomic", async () => {
@@ -30,26 +32,68 @@ Deno.test("Turso native events and login handoffs remain isolated and atomic", a
 
 Deno.test("Turso imports sync metadata and projection together and rejects stale backfills", async () => {
   await withStorage(async (storage, client) => {
-    const importer = createTursoStorage(defaultSettings, { client, writeMode: "kv-import" });
-    const snapshot = initialSettingsSnapshot({ ...defaultSettings, notificationEmailAddress: "first@example.com" });
+    const importer = createTursoStorage(defaultSettings, {
+      client,
+      writeMode: "kv-import",
+    });
+    const snapshot = initialSettingsSnapshot({
+      ...defaultSettings,
+      notificationEmailAddress: "first@example.com",
+    });
     snapshot.revision = "migrated";
     snapshot.sequence = 1;
     await importer.importKvSync!("imported-sync", "settings", snapshot);
     const user = storage.forUser("imported-sync");
-    assertEquals((await user.getSettings()).notificationEmailAddress, "first@example.com");
+    assertEquals(
+      (await user.getSettings()).notificationEmailAddress,
+      "first@example.com",
+    );
     assertEquals(await user.sync!.readSettings(), snapshot);
-    await assertRejects(() => importer.forUser("imported-sync").saveSettings(defaultSettings));
-    await user.saveSettings({ ...snapshot.settings, notificationEmailAddress: "second@example.com" });
+    await assertRejects(() =>
+      importer.forUser("imported-sync").saveSettings(defaultSettings)
+    );
+    await user.saveSettings({
+      ...snapshot.settings,
+      notificationEmailAddress: "second@example.com",
+    });
     const live = await user.sync!.readSettings();
-    await assertRejects(() => importer.importKvSync!("imported-sync", "settings", snapshot));
+    await assertRejects(() =>
+      importer.importKvSync!("imported-sync", "settings", snapshot)
+    );
     assertEquals(await user.sync!.readSettings(), live);
-    assertEquals((await user.getSettings()).notificationEmailAddress, "second@example.com");
-    const entry = record("deleted-sync", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z");
-    await importer.importKvSync!("imported-sync", "record", { id: entry.id, status: "deleted", stamp: { editedAt: 1000, counter: 0, deviceId: "phone", operationId: "delete" }, record: entry });
-    await assertRejects(() => importer.forUser("imported-sync").saveMatch(entry));
+    assertEquals(
+      (await user.getSettings()).notificationEmailAddress,
+      "second@example.com",
+    );
+    const entry = record(
+      "deleted-sync",
+      "2026-09-01T00:00:00.000Z",
+      "2026-09-01T01:00:00.000Z",
+    );
+    await importer.importKvSync!("imported-sync", "record", {
+      id: entry.id,
+      status: "deleted",
+      stamp: {
+        editedAt: 1000,
+        counter: 0,
+        deviceId: "phone",
+        operationId: "delete",
+      },
+      record: entry,
+    });
+    await assertRejects(() =>
+      importer.forUser("imported-sync").saveMatch(entry)
+    );
     assertEquals(await user.listHistory(), []);
-    await user.sync!.applyRecord(entry.id, "workspace", { editedAt: 2000, counter: 0, deviceId: "phone", operationId: "restore" });
-    assertEquals((await user.listPendingMatches()).map((item) => item.id), [entry.id]);
+    await user.sync!.applyRecord(entry.id, "workspace", {
+      editedAt: 2000,
+      counter: 0,
+      deviceId: "phone",
+      operationId: "restore",
+    });
+    assertEquals((await user.listPendingMatches()).map((item) => item.id), [
+      entry.id,
+    ]);
   });
 });
 
@@ -59,7 +103,10 @@ Deno.test("Turso settings sync resolves offline edits atomically by edit time", 
 
 Deno.test("Turso matching cache persists, isolates leases and bounds pending storage", async () => {
   await withStorage(async (storage, client) => {
-    await verifyMatchingStore(storage.matching!, storage.forUser("other").matching!);
+    await verifyMatchingStore(
+      storage.matching!,
+      storage.forUser("other").matching!,
+    );
     const reopened = createTursoStorage(defaultSettings, { client });
     assertEquals((await reopened.matching!.get("keep"))?.result, null);
   });
@@ -122,7 +169,17 @@ Deno.test("Turso storage updates and deletes matches without changing records", 
 
 Deno.test("Turso preserves AI match metadata across updates and history reads", async () => {
   await withStorage(async (storage) => {
-    const ai: MatchRecord = { ...record("ai-record", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z"), kind: "ai", keyword: "", aiReason: "摘要描述了求助问题", location: "excerpt" };
+    const ai: MatchRecord = {
+      ...record(
+        "ai-record",
+        "2026-09-01T00:00:00.000Z",
+        "2026-09-01T01:00:00.000Z",
+      ),
+      kind: "ai",
+      keyword: "",
+      aiReason: "摘要描述了求助问题",
+      location: "excerpt",
+    };
     await storage.saveMatch(ai);
     await storage.markMatchNotified(ai.id, "2026-09-01T02:00:00.000Z");
     const stored = (await storage.listHistory())[0];
@@ -766,17 +823,22 @@ Deno.test("Turso schema upgrade preserves records and installs version triggers"
 
 Deno.test("Turso badge counts distinct pending posts within one account", async () => {
   await withStorage(async (storage) => {
-    const user = storage.forUser("badge-user"), other = storage.forUser("badge-other");
-    const match = record("badge-a", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z");
+    const user = storage.forUser("badge-user"),
+      other = storage.forUser("badge-other");
+    const match = record(
+      "badge-a",
+      "2026-09-01T00:00:00.000Z",
+      "2026-09-01T01:00:00.000Z",
+    );
     await user.saveMatch(match);
-    await user.saveMatch({...match, id:"badge-b"});
-    await other.saveMatch({...match, id:"other-post"});
-    assertEquals(await user.countPendingPosts!(),1);
+    await user.saveMatch({ ...match, id: "badge-b" });
+    await other.saveMatch({ ...match, id: "other-post" });
+    assertEquals(await user.countPendingPosts!(), 1);
     await user.completeMatches(["badge-a"]);
-    assertEquals(await user.countPendingPosts!(),1);
+    assertEquals(await user.countPendingPosts!(), 1);
     await user.completeMatches(["badge-b"]);
-    assertEquals(await user.countPendingPosts!(),0);
-    assertEquals(await other.countPendingPosts!(),1);
+    assertEquals(await user.countPendingPosts!(), 0);
+    assertEquals(await other.countPendingPosts!(), 1);
   });
 });
 
@@ -784,11 +846,19 @@ Deno.test("Turso dashboard totals survive edits, offline removal, restore and di
   await withStorage(async (storage, client) => {
     const alice = storage.forUser("count-alice");
     const bob = storage.forUser("count-bob");
-    const first = record("first", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z");
+    const first = record(
+      "first",
+      "2026-09-01T00:00:00.000Z",
+      "2026-09-01T01:00:00.000Z",
+    );
     assertEquals((await alice.getAppState()).totalMatches, 0);
     assertEquals((await alice.getAppState()).latestMatch, undefined);
     await alice.saveMatch(first);
-    await alice.saveMatch({ ...first, id: "second", matchedAt: "2026-09-02T00:00:00.000Z" });
+    await alice.saveMatch({
+      ...first,
+      id: "second",
+      matchedAt: "2026-09-02T00:00:00.000Z",
+    });
     await bob.saveMatch(first);
     await alice.saveMatch({ ...first, keyword: "updated" });
     await alice.markMatchNotified(first.id, "2026-09-03T00:00:00.000Z");
@@ -797,28 +867,47 @@ Deno.test("Turso dashboard totals survive edits, offline removal, restore and di
     assertEquals((await alice.getAppState()).latestMatch?.id, "second");
     await alice.deleteMatches([first.id, first.id]);
     assertEquals((await alice.getAppState()).totalMatches, 1);
-    await alice.sync!.applyRecord(first.id, "workspace", serverCountTestStamp());
+    await alice.sync!.applyRecord(
+      first.id,
+      "workspace",
+      serverCountTestStamp(),
+    );
     assertEquals((await alice.getAppState()).totalMatches, 2);
-    await client.execute({ sql: "DELETE FROM matches WHERE user_id = ?", args: ["count-alice"] });
+    await client.execute({
+      sql: "DELETE FROM matches WHERE user_id = ?",
+      args: ["count-alice"],
+    });
     assertEquals((await alice.getAppState()).totalMatches, 0);
     assertEquals((await alice.getAppState()).latestMatch, undefined);
     assertEquals((await bob.getAppState()).totalMatches, 1);
     const reopened = createTursoStorage(defaultSettings, { client });
-    assertEquals((await reopened.forUser("count-bob").getAppState()).totalMatches, 1);
+    assertEquals(
+      (await reopened.forUser("count-bob").getAppState()).totalMatches,
+      1,
+    );
   });
 });
 
 Deno.test("Turso upgrade backfills existing totals and dashboard reads use the latest-match index", async () => {
   await withStorage(async (storage, client) => {
-    await storage.saveMatch(record("kept", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z"));
-    for (const suffix of ["insert", "delete", "move"]) await client.execute(`DROP TRIGGER matches_count_${suffix}`);
+    await storage.saveMatch(
+      record("kept", "2026-09-01T00:00:00.000Z", "2026-09-01T01:00:00.000Z"),
+    );
+    for (const suffix of ["insert", "delete", "move"]) {
+      await client.execute(`DROP TRIGGER matches_count_${suffix}`);
+    }
     await client.execute("DROP TABLE match_counts");
     await client.execute("DROP INDEX matches_user_latest_idx");
     await client.execute("DELETE FROM schema_migrations WHERE version > 10");
     const upgraded = createTursoStorage(defaultSettings, { client });
     assertEquals((await upgraded.getAppState()).totalMatches, 1);
-    const query = client.statements.findLast((sql) => sql.includes("SELECT p.last_poll_at, c.total_matches"))!;
-    const plan = await client.execute({ sql: `EXPLAIN QUERY PLAN ${query}`, args: ["default"] });
+    const query = client.statements.findLast((sql) =>
+      sql.includes("SELECT p.last_poll_at, c.total_matches")
+    )!;
+    const plan = await client.execute({
+      sql: `EXPLAIN QUERY PLAN ${query}`,
+      args: ["default"],
+    });
     const details = plan.rows.map((row) => String(row.detail)).join("\n");
     assertEquals(details.includes("matches_user_latest_idx"), true);
     assertEquals(details.includes("USE TEMP B-TREE"), false);
@@ -832,5 +921,10 @@ Deno.test("Turso upgrade backfills existing totals and dashboard reads use the l
  * @return {import("../sync/protocol.ts").EditStamp} 测试编辑时间戳。
  */
 function serverCountTestStamp(): import("../sync/protocol.ts").EditStamp {
-  return { editedAt: Date.now() + 60_000, counter: 0, deviceId: "count-test", operationId: crypto.randomUUID() };
+  return {
+    editedAt: Date.now() + 60_000,
+    counter: 0,
+    deviceId: "count-test",
+    operationId: crypto.randomUUID(),
+  };
 }

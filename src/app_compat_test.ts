@@ -6,14 +6,21 @@ Deno.test("legacy timeout cancels a signal and UUID uses secure random bytes", a
   const timers: { callback: () => void; delay: number }[] = [];
   let randomCalls = 0;
   const api = runInNewContext(
-    await Deno.readTextFile(new URL("../static/app-compat.js", import.meta.url)) + "\n({timeout:AbortSignal.timeout,uuid:crypto.randomUUID})",
+    await Deno.readTextFile(
+      new URL("../static/app-compat.js", import.meta.url),
+    ) + "\n({timeout:AbortSignal.timeout,uuid:crypto.randomUUID})",
     {
-      AbortSignal: {}, AbortController,
-      setTimeout(callback: () => void, delay: number) { timers.push({ callback, delay }); },
-      crypto: { getRandomValues(bytes: Uint8Array) {
-        randomCalls++;
-        return crypto.getRandomValues(bytes);
-      } },
+      AbortSignal: {},
+      AbortController,
+      setTimeout(callback: () => void, delay: number) {
+        timers.push({ callback, delay });
+      },
+      crypto: {
+        getRandomValues(bytes: Uint8Array) {
+          randomCalls++;
+          return crypto.getRandomValues(bytes);
+        },
+      },
     },
   );
   const signal = api.timeout(123);
@@ -24,12 +31,26 @@ Deno.test("legacy timeout cancels a signal and UUID uses secure random bytes", a
   const identifiers = Array.from({ length: 100 }, () => api.uuid());
   assertEquals(randomCalls, 100);
   assertEquals(new Set(identifiers).size, 100);
-  assert(identifiers.every((id) => /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id)));
+  assert(
+    identifiers.every((id) =>
+      /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(
+        id,
+      )
+    ),
+  );
 });
 
 Deno.test("modern engines retain their native timeout and UUID implementations", async () => {
-  const scope = { AbortSignal: { timeout: AbortSignal.timeout }, crypto: { randomUUID: crypto.randomUUID } };
-  runInNewContext(await Deno.readTextFile(new URL("../static/app-compat.js", import.meta.url)), scope);
+  const scope = {
+    AbortSignal: { timeout: AbortSignal.timeout },
+    crypto: { randomUUID: crypto.randomUUID },
+  };
+  runInNewContext(
+    await Deno.readTextFile(
+      new URL("../static/app-compat.js", import.meta.url),
+    ),
+    scope,
+  );
   assertEquals(scope.AbortSignal.timeout, AbortSignal.timeout);
   assertEquals(scope.crypto.randomUUID, crypto.randomUUID);
 });

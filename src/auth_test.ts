@@ -192,10 +192,10 @@ Deno.test("auth routes render Google Identity Services when configured", async (
   const dialogStart = html.indexOf("<dialog");
   const dialogEnd = html.indexOf("</dialog>", dialogStart);
   const googleEntry = html.indexOf('class="auth-google-method"');
-  const googleButton = html.indexOf('<div data-google-button>');
+  const googleButton = html.indexOf("<div data-google-button>");
   assert(googleEntry > dialogStart && googleEntry < dialogEnd);
   assert(googleButton > googleEntry && googleButton < dialogEnd);
-  assertEquals(html.split('<div data-google-button>').length - 1, 1);
+  assertEquals(html.split("<div data-google-button>").length - 1, 1);
   assertEquals(html.split('class="auth-google-method"').length - 1, 1);
   assert(!(html.includes('class="auth-google-button"')));
   assertEquals(
@@ -705,7 +705,7 @@ Deno.test("auth routes sign in with email verification and create a passwordless
     method: "POST",
   });
   assertEquals((await storage.listAccounts()).length, 0);
-  response = await completeTestInvitation(app,response);
+  response = await completeTestInvitation(app, response);
   const account = await storage.getAccountByUsername("alice");
   const credential = account
     ? await storage.getEmailCredential(account.id, "alice@example.com")
@@ -748,7 +748,7 @@ Deno.test("auth routes sign in with Google credential and create a passwordless 
     },
   );
   assertEquals((await storage.listAccounts()).length, 0);
-  response = await completeTestInvitation(app,response);
+  response = await completeTestInvitation(app, response);
   const identity = await storage.getAuthIdentity(
     "google",
     "google-subject-id",
@@ -900,7 +900,7 @@ Deno.test("auth routes do not merge Google sign-in into an existing same-email a
     method: "POST",
   });
   assertEquals((await storage.listAccounts()).length, 1);
-  response = await completeTestInvitation(app,response);
+  response = await completeTestInvitation(app, response);
   const identity = await storage.getAuthIdentity(
     "google",
     "google-subject-id",
@@ -1967,12 +1967,19 @@ Deno.test("auth routes keep selected login locale out of account settings", asyn
 
 Deno.test("auth pages use the current device language without saving system defaults", async () => {
   const app = createTestApp(createMemoryStorage());
-  const automatic = await app.request("/login", { headers: { "accept-language": "ja-JP" } });
+  const automatic = await app.request("/login", {
+    headers: { "accept-language": "ja-JP" },
+  });
   assert((await automatic.text()).includes('lang="ja-JP"'));
-  assert(!(automatic.headers.get("set-cookie") ?? "").includes("heybox-device-"));
-  const manual = await app.request("/login?locale=en-US", { headers: {
-    "accept-language": "ja-JP", cookie: "heybox-device-locale=ar-SA",
-  } });
+  assert(
+    !(automatic.headers.get("set-cookie") ?? "").includes("heybox-device-"),
+  );
+  const manual = await app.request("/login?locale=en-US", {
+    headers: {
+      "accept-language": "ja-JP",
+      cookie: "heybox-device-locale=ar-SA",
+    },
+  });
   const html = await manual.text();
   assert(html.includes('lang="ar-SA"'));
   assert(html.includes('dir="rtl"'));
@@ -2374,7 +2381,7 @@ function submitGoogleLogin(
       headers: testCsrfHeaders(),
       method: "POST",
     }),
-  ).then(response => completeTestInvitation(app,response));
+  ).then((response) => completeTestInvitation(app, response));
 }
 
 /**
@@ -2935,9 +2942,17 @@ const defaultSettings: AppSettings = {
 };
 
 /** @param {Hono} app 测试应用。 @param {Response} response 身份验证响应。 @return {Promise<Response>} 显式提交邀请码后的响应。 */
-async function completeTestInvitation(app:Hono,response:Response):Promise<Response>{
- if(response.status!==200)return response;
- const html=await response.clone().text(),pending=/name="pending" value="([^"]+)"/.exec(html)?.[1];
- if(!pending)return response;
- return await app.request('/register/invitation?locale=en-US',{method:'POST',headers:testCsrfHeaders(),body:testCsrfForm(new URLSearchParams({pending}))});
+async function completeTestInvitation(
+  app: Hono,
+  response: Response,
+): Promise<Response> {
+  if (response.status !== 200) return response;
+  const html = await response.clone().text(),
+    pending = /name="pending" value="([^"]+)"/.exec(html)?.[1];
+  if (!pending) return response;
+  return await app.request("/register/invitation?locale=en-US", {
+    method: "POST",
+    headers: testCsrfHeaders(),
+    body: testCsrfForm(new URLSearchParams({ pending })),
+  });
 }

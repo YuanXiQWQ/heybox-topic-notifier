@@ -12,7 +12,7 @@
  */
 
 /** 当前设置页以内联 JSON 提供的角色资料与交互文本。 */
-const aceAttorneyDataElementId = "ace-attorney-easter-egg-data";
+const aceAttorneyDataElementId = 'ace-attorney-easter-egg-data';
 
 /**
  * 读取服务端渲染的《逆转裁判》资料，保持 JSON 文件作为唯一数据来源。
@@ -21,10 +21,10 @@ const aceAttorneyDataElementId = "ace-attorney-easter-egg-data";
  */
 function embeddedAceAttorneyData() {
   const serialized = globalThis.document?.getElementById?.(
-    aceAttorneyDataElementId,
+      aceAttorneyDataElementId,
   )?.textContent;
   if (!serialized) {
-    throw new Error("《逆转裁判》彩蛋资料尚未注入页面。");
+    throw new Error('《逆转裁判》彩蛋资料尚未注入页面。');
   }
   return JSON.parse(serialized);
 }
@@ -36,9 +36,9 @@ function initializeAceAttorneyEasterEgg() {
   const host = /** @type {AceAttorneyEasterEggHost} */ (globalThis);
   const courtroomNameChange = host.aceAttorneyCourtroomNameChange;
   if (!courtroomNameChange) {
-    throw new Error("《逆转裁判》法庭改名事件尚未加载。");
+    throw new Error('《逆转裁判》法庭改名事件尚未加载。');
   }
-  const { characters, messages } = embeddedAceAttorneyData();
+  const {characters, messages} = embeddedAceAttorneyData();
   host.usernameEasterEgg = courtroomNameChange.create({
     characters,
     messages,

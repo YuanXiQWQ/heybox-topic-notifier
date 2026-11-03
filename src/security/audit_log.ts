@@ -86,7 +86,9 @@ function requestAuditFields(request: Request): Record<string, string> {
  * @param details 原始详情。
  * @return 清理后的详情。
  */
-function sanitizeAuditDetails(details: Record<string, unknown>): Record<string, unknown> {
+function sanitizeAuditDetails(
+  details: Record<string, unknown>,
+): Record<string, unknown> {
   const sanitized: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(details)) {
@@ -107,7 +109,9 @@ function sanitizeAuditValue(value: unknown): unknown {
     return auditText(value);
   }
 
-  if (typeof value === "number" || typeof value === "boolean" || value === null) {
+  if (
+    typeof value === "number" || typeof value === "boolean" || value === null
+  ) {
     return value;
   }
 

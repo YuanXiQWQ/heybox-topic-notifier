@@ -5,8 +5,12 @@
  * @param {Array<() => Promise<unknown>>} channels 已开启的通知通道。
  * @return {Promise<void>} 全部通道已受理；失败时保留原错误类型及状态码。
  */
-export async function sendNotificationTest(channels: Array<() => Promise<unknown>>): Promise<void> {
-  const results = await Promise.allSettled(channels.map((send) => Promise.resolve().then(send)));
+export async function sendNotificationTest(
+  channels: Array<() => Promise<unknown>>,
+): Promise<void> {
+  const results = await Promise.allSettled(
+    channels.map((send) => Promise.resolve().then(send)),
+  );
   const failed = results.find((result) => result.status === "rejected");
   if (failed?.status === "rejected") throw failed.reason;
 }

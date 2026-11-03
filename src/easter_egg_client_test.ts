@@ -39,9 +39,9 @@ import {
   dontTouchMeRecoilAmplitudeRatio,
   dontTouchMeRecoilArrowCount,
   dontTouchMeRecoilStepMs,
+  dontTouchMeShoutSoundPath,
   dontTouchMeShutdownSoundPath,
   dontTouchMeShutdownVideoPath,
-  dontTouchMeShoutSoundPath,
   dontTouchMeVideoClassName,
 } from "../static/fun/lobotomy-corp/Events/DontTouchMe.js";
 
@@ -525,7 +525,9 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     const api = browser.lobotomyCorpEasterEgg!;
     const observedCanonicalIds: string[] = [];
     api.onAbnormalitySubmitted((id) => observedCanonicalIds.push(id));
-    const form = { action: "https://warmnest.test/settings", method: "post",
+    const form = {
+      action: "https://warmnest.test/settings",
+      method: "post",
       /** @return {Element[]} 账户表单没有被时段覆盖的轮询控件。 */
       querySelectorAll: () => [],
     };
@@ -730,7 +732,10 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
   );
   const storage = new StorageMock();
   for (const [name] of originalStorages) {
-    Object.defineProperty(browser, name, { configurable: true, value: storage });
+    Object.defineProperty(browser, name, {
+      configurable: true,
+      value: storage,
+    });
   }
   const originalApi = Object.getOwnPropertyDescriptor(
     browser,
@@ -807,11 +812,13 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
     );
     assertEquals(browser.lobotomyCorpEasterEgg!.getDangerScore(), 0);
     await browser.lobotomyCorpEasterEgg!.commitDisplayName("O-03-03");
-    for (const [locale, name] of [
-      ["fr-FR", "Un Péché et des Centaines de Bonnes Actions"],
-      ["pt-BR", "Um Pecado e Centenas de Boas Ações"],
-      ["pt-PT", "Um Pecado e Centenas de Bons Atos"],
-    ]) {
+    for (
+      const [locale, name] of [
+        ["fr-FR", "Un Péché et des Centaines de Bonnes Actions"],
+        ["pt-BR", "Um Pecado e Centenas de Boas Ações"],
+        ["pt-PT", "Um Pecado e Centenas de Bons Atos"],
+      ]
+    ) {
       documentElement.lang = locale;
       await browser.lobotomyCorpEasterEgg!.commitDisplayName("O-03-03");
       assertEquals(label.textContent, name);
@@ -3234,7 +3241,9 @@ Deno.test("DontTouchMe derives camera recoil from CameraMover and RecoilEffect",
 
 Deno.test("DontTouchMe plays one impact per click and only shuts down on the fifth", async () => {
   // 轮询数值 3 表示本 Day 有 3 个部门：满编共 15 人，全员死亡 15 × 4 = 60。
-  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const harness = installLobotomyCorpAlertHarness({
+    pollingIntervalValue: "3",
+  });
   const originalRandom = Math.random;
   try {
     // 固定选中 touchKill 分支，让两次点击的断言可预期。
@@ -3281,7 +3290,8 @@ Deno.test("DontTouchMe plays one impact per click and only shuts down on the fif
     }
     assertEquals(effectVideos().length, 4);
     assertEquals(
-      AudioMock.items.filter((audio) => audio.src.includes("touch_dead")).length,
+      AudioMock.items.filter((audio) => audio.src.includes("touch_dead"))
+        .length,
       4,
     );
     assertEquals(
@@ -3381,7 +3391,10 @@ Deno.test("DontTouchMe plays one impact per click and only shuts down on the fif
     // 关服即游戏崩溃：危急值清空、当天持久化状态一并清除，404 页面不会接着响警报。
     assertEquals(api.getDangerScore(), 0);
     assertEquals(harness.storage.getItem("warmnest.lobotomy-corp-day"), null);
-    assertEquals(harness.dispatchDocumentEvent("click").defaultPrevented, false);
+    assertEquals(
+      harness.dispatchDocumentEvent("click").defaultPrevented,
+      false,
+    );
     assertEquals(
       harness.body.children.some((element) =>
         element.className === dontTouchMeOverlayClassName
@@ -3395,7 +3408,9 @@ Deno.test("DontTouchMe plays one impact per click and only shuts down on the fif
 });
 
 Deno.test("DontTouchMe derives escapable danger from Abnormalities.json", async () => {
-  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const harness = installLobotomyCorpAlertHarness({
+    pollingIntervalValue: "3",
+  });
   try {
     await harness.reload();
     const api = harness.api() as unknown as {
@@ -3480,7 +3495,9 @@ Deno.test("DontTouchMe panics every worker with the original recoil and no seque
 });
 
 Deno.test("DontTouchMe escapes every abnormality with the WARNING sequence", async () => {
-  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const harness = installLobotomyCorpAlertHarness({
+    pollingIntervalValue: "3",
+  });
   const originalRandom = Math.random;
   try {
     // 固定选中 SetAllQliphothCounter 分支（三选一里的第 3 个）。

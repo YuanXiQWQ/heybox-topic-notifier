@@ -35,13 +35,13 @@ Android `versionCode` 自动使用 `major × 1,000,000 + minor × 1,000 + patch 
 
 首次启用前，在仓库 **Settings → Secrets and variables → Actions** 配置：
 
-| 类型 | 名称 | 用途 |
-| --- | --- | --- |
-| Secret | `ANDROID_KEYSTORE_BASE64` | 正式 Android keystore 的 Base64 内容 |
-| Secret | `ANDROID_KEYSTORE_PASSWORD` | keystore 密码 |
-| Secret | `ANDROID_KEY_ALIAS` | 签名密钥别名 |
-| Secret | `ANDROID_KEY_PASSWORD` | 签名密钥密码 |
-| Variable（可选） | `HONOR_PUSH_APP_ID` | 荣耀推送公开应用 ID；未设置时不初始化厂商通道 |
+| 类型             | 名称                        | 用途                                          |
+|------------------|-----------------------------|-----------------------------------------------|
+| Secret           | `ANDROID_KEYSTORE_BASE64`   | 正式 Android keystore 的 Base64 内容          |
+| Secret           | `ANDROID_KEYSTORE_PASSWORD` | keystore 密码                                 |
+| Secret           | `ANDROID_KEY_ALIAS`         | 签名密钥别名                                  |
+| Secret           | `ANDROID_KEY_PASSWORD`      | 签名密钥密码                                  |
+| Variable（可选） | `HONOR_PUSH_APP_ID`         | 荣耀推送公开应用 ID；未设置时不初始化厂商通道 |
 
 发行使用当前任务的 `GITHUB_TOKEN`，准备草稿与上传 job 获得 `contents: write`，构建 job 保持只读，无需另存个人访问令牌。Android 签名配置缺失、检查失败或任一平台构建失败都会阻止上传和公开草稿；Android 不降级为调试签名。Windows 没有证书不会阻止构建或发布。
 

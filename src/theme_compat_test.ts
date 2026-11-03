@@ -8,33 +8,56 @@ import { assertEquals } from "@std/assert";
  * @return {Promise<object>} 主题输入、输出和属性变更回调。
  */
 async function themeHarness(modern = false) {
-  const root = { dataset: { colorMode: "light" }, style: {
-    setProperty(name: string, value: string) { values.set(name, value); writes++; },
-  } };
+  const root = {
+    dataset: { colorMode: "light" },
+    style: {
+      setProperty(name: string, value: string) {
+        values.set(name, value);
+        writes++;
+      },
+    },
+  };
   let theme = "#BD7FFF", writes = 0;
   const values = new Map<string, string>();
   let change = () => {};
-  runInNewContext(await Deno.readTextFile(new URL("../static/theme-compat.js", import.meta.url)), {
-    CSS: { supports: () => modern },
-    document: { documentElement: root },
-    getComputedStyle: () => ({ getPropertyValue(name: string) {
-      if (name === "--theme-color") return theme;
-      const colors: Record<string, [string, string]> = {
-        "--ink": ["#1D232A", "#E7EBEF"],
-        "--link-base": ["#0B4F87", "#B9D9FF"],
-        "--surface-soft-base": ["#F6F7F8", "#1F252D"],
-        "--border": ["#DFE4EA", "#313842"],
-        "--muted-strong": ["#405060", "#C4CBD3"],
-      };
-      return colors[name][root.dataset.colorMode === "dark" ? 1 : 0];
-    } }),
-    MutationObserver: class {
-      constructor(callback: () => void) { change = callback; }
-      observe() {}
+  runInNewContext(
+    await Deno.readTextFile(
+      new URL("../static/theme-compat.js", import.meta.url),
+    ),
+    {
+      CSS: { supports: () => modern },
+      document: { documentElement: root },
+      getComputedStyle: () => ({
+        getPropertyValue(name: string) {
+          if (name === "--theme-color") return theme;
+          const colors: Record<string, [string, string]> = {
+            "--ink": ["#1D232A", "#E7EBEF"],
+            "--link-base": ["#0B4F87", "#B9D9FF"],
+            "--surface-soft-base": ["#F6F7F8", "#1F252D"],
+            "--border": ["#DFE4EA", "#313842"],
+            "--muted-strong": ["#405060", "#C4CBD3"],
+          };
+          return colors[name][root.dataset.colorMode === "dark" ? 1 : 0];
+        },
+      }),
+      MutationObserver: class {
+        constructor(callback: () => void) {
+          change = callback;
+        }
+        observe() {}
+      },
     },
-  });
-  return { values, root, change, writes: () => writes,
-    setTheme(value: string) { theme = value; change(); } };
+  );
+  return {
+    values,
+    root,
+    change,
+    writes: () => writes,
+    setTheme(value: string) {
+      theme = value;
+      change();
+    },
+  };
 }
 
 Deno.test("legacy theme retains opaque controls across custom color and dark mode changes", async () => {

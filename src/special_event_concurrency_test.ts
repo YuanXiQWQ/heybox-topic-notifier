@@ -1,9 +1,5 @@
 /** @file 脑叶公司多个特殊事件并发、终止与标签页限制回归测试。 */
-import {
-  assert,
-  assertEquals,
-  assertStrictEquals,
-} from "./test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "./test_helpers.ts";
 import { installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   plagueDoctorAdventSchedule,
@@ -43,9 +39,9 @@ Deno.test("特殊事件：白夜进行期间可以启动终末鸟和别碰我", 
   try {
     await harness.reload();
     const api = harness.api();
-    const clock = {value: 0};
+    const clock = { value: 0 };
     assertStrictEquals(
-      api.startWhiteNight({source: "direct-submission"}),
+      api.startWhiteNight({ source: "direct-submission" }),
       true,
     );
     assertStrictEquals(api.getSpecialEvent(), "white-night");
@@ -75,14 +71,16 @@ Deno.test("特殊事件：白夜进行期间可以启动终末鸟和别碰我", 
 });
 
 Deno.test("特殊事件：别碰我全部出逃等待白夜转盘隐藏后再启动终末鸟", async () => {
-  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const harness = installLobotomyCorpAlertHarness({
+    pollingIntervalValue: "3",
+  });
   const originalRandom = Math.random;
   try {
     // 固定选中“所有异想体出逃”的第三支演出。
     Math.random = () => 0.9;
     await harness.reload();
     const api = harness.api();
-    const clock = {value: 0};
+    const clock = { value: 0 };
     const playback = api.playDontTouchMe();
     const effectVideo = harness.createdElements().find((element) =>
       element.className === "lobotomy-corp-dont-touch-me-effect-video"
@@ -144,14 +142,16 @@ Deno.test("特殊事件：别碰我全部出逃等待白夜转盘隐藏后再启
 });
 
 Deno.test("特殊事件：别碰我全部出逃不重复开启已运行事件", async () => {
-  const harness = installLobotomyCorpAlertHarness({pollingIntervalValue: "3"});
+  const harness = installLobotomyCorpAlertHarness({
+    pollingIntervalValue: "3",
+  });
   const originalRandom = Math.random;
   try {
     Math.random = () => 0.9;
     await harness.reload();
     const api = harness.api();
     assertStrictEquals(
-      api.startWhiteNight({source: "direct-submission"}),
+      api.startWhiteNight({ source: "direct-submission" }),
       true,
     );
     await api.handleAbnormalitySubmitted("O-02-63");
@@ -210,7 +210,7 @@ Deno.test("特殊事件：疫医转变进入白夜时保留终末鸟并迁移未
       plagueDoctorStorageKey,
       JSON.stringify({
         apostles: Array.from(
-          {length: plagueDoctorApostleCount},
+          { length: plagueDoctorApostleCount },
           (_value, index) => `apostle-${index + 1}`,
         ),
         recording: true,
@@ -219,7 +219,7 @@ Deno.test("特殊事件：疫医转变进入白夜时保留终末鸟并迁移未
     );
     await harness.reload();
     const api = harness.api();
-    const clock = {value: 0};
+    const clock = { value: 0 };
     await api.handleAbnormalitySubmitted("O-02-63");
     assertStrictEquals(api.blackForestActive(), true);
 
@@ -258,7 +258,7 @@ Deno.test("特殊事件：白夜已运行时疫医不再并发播放完整降临
       plagueDoctorStorageKey,
       JSON.stringify({
         apostles: Array.from(
-          {length: plagueDoctorApostleCount},
+          { length: plagueDoctorApostleCount },
           (_value, index) => `apostle-${index + 1}`,
         ),
         recording: true,
@@ -268,7 +268,7 @@ Deno.test("特殊事件：白夜已运行时疫医不再并发播放完整降临
     await harness.reload();
     const api = harness.api();
     assertStrictEquals(
-      api.startWhiteNight({source: "direct-submission"}),
+      api.startWhiteNight({ source: "direct-submission" }),
       true,
     );
 
@@ -292,11 +292,11 @@ Deno.test("特殊事件：白夜中断绑定并保留使徒，结束后需重新
   try {
     await harness.reload();
     const api = harness.api();
-    const clock = {value: 0};
+    const clock = { value: 0 };
     await api.commitDisplayName("O-01-45");
     await api.commitDisplayName("使徒甲");
     assertStrictEquals(
-      api.startWhiteNight({source: "direct-submission"}),
+      api.startWhiteNight({ source: "direct-submission" }),
       true,
     );
     await advance(harness, clock, 4000);
@@ -333,7 +333,7 @@ Deno.test("特殊事件：疫医完整降临期间保存白夜编号只保存名
       plagueDoctorStorageKey,
       JSON.stringify({
         apostles: Array.from(
-          {length: plagueDoctorApostleCount},
+          { length: plagueDoctorApostleCount },
           (_value, index) => `apostle-${index + 1}`,
         ),
         recording: true,
@@ -366,9 +366,9 @@ Deno.test("特殊事件：白夜自身结束不会终止并发中的终末鸟", 
   try {
     await harness.reload();
     const api = harness.api();
-    const clock = {value: 0};
+    const clock = { value: 0 };
     assertStrictEquals(
-      api.startWhiteNight({source: "direct-submission"}),
+      api.startWhiteNight({ source: "direct-submission" }),
       true,
     );
     await advance(harness, clock, 4000);
@@ -394,7 +394,7 @@ Deno.test("特殊事件：别碰我假关服终止全部事件", async () => {
     await harness.reload();
     const api = harness.api();
     assertStrictEquals(
-      api.startWhiteNight({source: "direct-submission"}),
+      api.startWhiteNight({ source: "direct-submission" }),
       true,
     );
     await api.handleAbnormalitySubmitted("O-02-63");

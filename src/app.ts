@@ -60,23 +60,52 @@ export function createApplication(pollingContext?: PollingContext) {
 
   app.use("*", createSecurityHeadersMiddleware());
   /** @return {Promise<Response>} 应用页面在认证前可加载的兼容脚本。 */
-  app.get("/static/app-compat.js", async () => new Response(
-    await Deno.readTextFile(new URL("../static/app-compat.js", import.meta.url)),
-    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } },
-  ));
+  app.get("/static/app-compat.js", async () =>
+    new Response(
+      await Deno.readTextFile(
+        new URL("../static/app-compat.js", import.meta.url),
+      ),
+      {
+        headers: {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+      },
+    ));
   /**
    * 公开提供无用户数据的离线存储脚本，供 Service Worker 启动时加载。
    * @return {Promise<Response>} 同源脚本。
    */
-  app.get("/static/app-sync/store.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-sync/store.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  app.get(
+    "/static/app-sync/store.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/app-sync/store.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /**
    * 向浏览器提供可在登录会话外启动的通知 Service Worker。
    * @return {Promise<Response>} 禁止长期缓存的脚本。
    */
-  app.get("/app-sw.js", async () => new Response(
-    await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url)),
-    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache", "service-worker-allowed": "/" } },
-  ));
+  app.get("/app-sw.js", async () =>
+    new Response(
+      await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url)),
+      {
+        headers: {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-cache",
+          "service-worker-allowed": "/",
+        },
+      },
+    ));
   app.get("/favicon.ico", () => faviconResponse());
   app.get(
     "/static/fun/coordinator.js",
@@ -154,7 +183,21 @@ export function createApplication(pollingContext?: PollingContext) {
    * 登录页原生入口脚本不包含账号内容，可在认证前读取。
    * @return {Promise<Response>} 同源登录桥脚本。
    */
-  app.get("/static/app-native-auth.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native-auth.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  app.get(
+    "/static/app-native-auth.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/app-native-auth.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   app.route("/", createAuthRoutes(context.storage, authOptions));
   app.use("*", createAuthMiddleware(context.storage, authOptions));
   /**
@@ -165,7 +208,10 @@ export function createApplication(pollingContext?: PollingContext) {
   app.use("*", async (c, next) => {
     await next();
     if (c.res.headers.get("content-type")?.includes("text/html")) {
-      const session = await readAuthSession(c.req.header("cookie"), context.storage);
+      const session = await readAuthSession(
+        c.req.header("cookie"),
+        context.storage,
+      );
       if (session) c.header("x-app-user", session.userId);
     }
   });
@@ -184,7 +230,10 @@ export function createApplication(pollingContext?: PollingContext) {
     const account = session
       ? await context.storage.getAccountById(session.userId)
       : undefined;
-    const settings = settingsForDevice(await context.storage.getSettings(), c.req.raw);
+    const settings = settingsForDevice(
+      await context.storage.getSettings(),
+      c.req.raw,
+    );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     return withCsrfCookie(
       c.html(

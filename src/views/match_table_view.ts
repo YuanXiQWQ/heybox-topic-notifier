@@ -74,14 +74,16 @@ export function renderMatchRecordsSection(
   }</h2>
         ${renderTableFilters(options)}
       </div>
-      <p data-match-empty-message ${options.table.totalRecords === 0 ? "" : "hidden"}>${escapeHtml(options.emptyMessage)}</p>
+      <p data-match-empty-message ${
+    options.table.totalRecords === 0 ? "" : "hidden"
+  }>${escapeHtml(options.emptyMessage)}</p>
         <form method="post" action="${
-        escapeHtml(options.formAction)
-      }" data-match-table-form ${options.table.totalRecords === 0 ? "hidden" : ""}>
+    escapeHtml(options.formAction)
+  }" data-match-table-form ${options.table.totalRecords === 0 ? "hidden" : ""}>
           ${csrfHiddenInput(options.csrfToken)}
           <input type="hidden" name="returnTo" value="${
-        escapeHtml(buildMatchTableUrl(options.path, options.table, {}))
-      }">
+    escapeHtml(buildMatchTableUrl(options.path, options.table, {}))
+  }">
           <table class="match-table">
             ${renderMatchTableColumns(options.allowRestore)}
             <thead>
@@ -94,7 +96,15 @@ export function renderMatchRecordsSection(
                 <th>${escapeHtml(options.messages.postTitle)}</th>
                 <th>${escapeHtml(options.messages.postContent)}</th>
                 <th>${escapeHtml(options.messages.matchDetails)}</th>
-                ${options.allowRestore ? `<th class="table-action-cell"><button type="submit" class="icon-button" formaction="/matches/restore" data-match-secondary-bulk data-tooltip="${escapeHtml(options.messages.restoreMatch)}" aria-label="${escapeHtml(options.messages.restoreMatch)}">${materialSymbolIcon("refresh")}</button></th>` : ""}
+                ${
+    options.allowRestore
+      ? `<th class="table-action-cell"><button type="submit" class="icon-button" formaction="/matches/restore" data-match-secondary-bulk data-tooltip="${
+        escapeHtml(options.messages.restoreMatch)
+      }" aria-label="${escapeHtml(options.messages.restoreMatch)}">${
+        materialSymbolIcon("refresh")
+      }</button></th>`
+      : ""
+  }
                 <th class="table-action-cell">
                   <button
                     type="submit"
@@ -109,13 +119,15 @@ export function renderMatchRecordsSection(
             <tbody>${renderRows(options)}</tbody>
           </table>
           ${
-        options.table.totalRecords > 0 ? renderPagination(
-          options.path,
-          options.table,
-          options.messages,
-          options.headingId,
-        ) : ""
-      }
+    options.table.totalRecords > 0
+      ? renderPagination(
+        options.path,
+        options.table,
+        options.messages,
+        options.headingId,
+      )
+      : ""
+  }
         </form>
     </section>
     ${renderFilterScript()}
@@ -145,7 +157,9 @@ function renderRows(options: MatchRecordsSectionOptions): string {
     );
 
     return `
-    <tr data-record-id="${escapeHtml(record.id)}" data-record-post-id="${escapeHtml(record.post.id)}" data-record-status="${record.completedAt ? "history" : "workspace"}">
+    <tr data-record-id="${escapeHtml(record.id)}" data-record-post-id="${
+      escapeHtml(record.post.id)
+    }" data-record-status="${record.completedAt ? "history" : "workspace"}">
       <td>
         <label class="checkbox-cell">
           <input
@@ -169,7 +183,19 @@ function renderRows(options: MatchRecordsSectionOptions): string {
       <td>${
       renderMatchDetails(record, now, options.locale, options.messages)
     }</td>
-      ${options.allowRestore ? `<td class="table-action-cell"><button type="submit" class="icon-button" name="matchId" value="${escapeHtml(record.id)}" formaction="/matches/restore" data-match-restore ${record.completedAt ? "" : "hidden"} data-tooltip="${escapeHtml(options.messages.restoreMatch)}" aria-label="${escapeHtml(options.messages.restoreMatch)}">${materialSymbolIcon("refresh")}</button></td>` : ""}
+      ${
+      options.allowRestore
+        ? `<td class="table-action-cell"><button type="submit" class="icon-button" name="matchId" value="${
+          escapeHtml(record.id)
+        }" formaction="/matches/restore" data-match-restore ${
+          record.completedAt ? "" : "hidden"
+        } data-tooltip="${
+          escapeHtml(options.messages.restoreMatch)
+        }" aria-label="${escapeHtml(options.messages.restoreMatch)}">${
+          materialSymbolIcon("refresh")
+        }</button></td>`
+        : ""
+    }
       <td class="table-action-cell">
         <button
           type="submit"
@@ -231,8 +257,14 @@ function renderMatchDetails(
       renderRelativeTimeCell(record.matchedAt, now, locale),
     ],
     [
-      result.kind === "ai" ? messages.matchDetailAi : messages.matchDetailKeyword,
-      `<span class="match-detail-value">${escapeHtml(result.kind === "ai" ? result.aiReason || "—" : result.keyword)}</span>`,
+      result.kind === "ai"
+        ? messages.matchDetailAi
+        : messages.matchDetailKeyword,
+      `<span class="match-detail-value">${
+        escapeHtml(
+          result.kind === "ai" ? result.aiReason || "—" : result.keyword,
+        )
+      }</span>`,
     ],
     [
       messages.matchDetailLocation,
@@ -333,7 +365,9 @@ function renderTableFilters(options: MatchRecordsSectionOptions): string {
         aria-label="${escapeHtml(messages.filter)}"
       >
         ${
-    filterIcon(options.path === "/history" ? "history.filter" : "dashboard.filter")
+    filterIcon(
+      options.path === "/history" ? "history.filter" : "dashboard.filter",
+    )
   }
       </label>
     </div>
@@ -367,9 +401,9 @@ function renderPagination(
 
     const href = buildMatchTableUrl(path, table, { page }) + headingHash;
     const isCurrent = page === table.page;
-    return `<a class="${isCurrent ? "is-current" : ""}" data-lobotomy-corp-black-forest-slot="${
-      slotPrefix
-    }.page.${page}" href="${
+    return `<a class="${
+      isCurrent ? "is-current" : ""
+    }" data-lobotomy-corp-black-forest-slot="${slotPrefix}.page.${page}" href="${
       escapeHtml(href)
     }">${page}</a>`;
   }).join("");
@@ -379,9 +413,9 @@ function renderPagination(
     const label = pageSize === "all" ? messages.allRows : String(pageSize);
     return `<a class="${
       pageSize === table.pageSize ? "is-current" : ""
-    }" data-lobotomy-corp-black-forest-slot="${
-      slotPrefix
-    }.pageSize.${pageSize}" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
+    }" data-lobotomy-corp-black-forest-slot="${slotPrefix}.pageSize.${pageSize}" href="${
+      escapeHtml(href)
+    }">${escapeHtml(label)}</a>`;
   }).join("");
 
   return `
@@ -1267,7 +1301,8 @@ function filterIcon(blackForestSlot?: string): string {
 function renderSelectionScript(action: MatchTableAction): string {
   const selectAllSelector = `[${action.selectAllAttribute}]`;
   const rowCheckboxSelector = `[${action.rowCheckboxAttribute}]`;
-  const bulkButtonSelector = `[${action.bulkButtonAttribute}], [data-match-secondary-bulk]`;
+  const bulkButtonSelector =
+    `[${action.bulkButtonAttribute}], [data-match-secondary-bulk]`;
 
   return `<script>
     (() => {

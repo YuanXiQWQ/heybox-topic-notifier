@@ -128,7 +128,9 @@ Deno.test("WhiteNight Spine：三条动画名与解包骨架一致", () => {
   // 时长与 Animator 状态里的 Unity 剪辑一一对应：出逃待机 5 秒循环，
   // 特技 7 秒、镇压 7 秒（Dead_23.anim）各播一次。
   assertEquals(
-    animationDuration(skeleton.animations[whiteNightSpineAnimations.escapeIdle]),
+    animationDuration(
+      skeleton.animations[whiteNightSpineAnimations.escapeIdle],
+    ),
     5,
   );
   assertEquals(
@@ -145,9 +147,7 @@ Deno.test("WhiteNight Spine：三条动画名与解包骨架一致", () => {
 
 Deno.test("WhiteNight Spine：Atlas 分页与运行时随仓库分发", () => {
   const atlas = readAsset(`${assetDirectory}/${whiteNightSpineAtlasFile}`);
-  const pages = atlas.split(/\r?\n/u).filter((line) =>
-    line.endsWith(".png")
-  );
+  const pages = atlas.split(/\r?\n/u).filter((line) => line.endsWith(".png"));
   assertEquals(pages, [
     "skeleton.png",
     "skeleton2.png",
@@ -230,7 +230,7 @@ Deno.test("WhiteNight Spine：运行时只注入一次脚本", async () => {
     scripts[0].src,
     `${moduleRoot}/${whiteNightSpineRuntimePath}`,
   );
-  globalObject.spine = {webgl: {}};
+  globalObject.spine = { webgl: {} };
   scripts[0].dispatch("load");
   assertStrictEquals(await pending, globalObject.spine);
 
@@ -335,8 +335,11 @@ Deno.test("WhiteNight Spine：白圈贴图与特技音效随仓库分发", () =>
     ),
   );
   // PNG 的 IHDR 紧随 8 字节签名，宽高各占 4 字节大端。
-  const view = new DataView(texture.buffer, texture.byteOffset,
-    texture.byteLength);
+  const view = new DataView(
+    texture.buffer,
+    texture.byteOffset,
+    texture.byteLength,
+  );
   assertEquals(view.getUint32(16), whiteNightSpineRangeEffect.spriteSize);
   assertEquals(view.getUint32(20), whiteNightSpineRangeEffect.spriteSize);
 
@@ -356,13 +359,13 @@ Deno.test("WhiteNight Spine：白圈贴图与特技音效随仓库分发", () =>
 Deno.test("WhiteNight Spine：出逃特技按 60 秒间隔与动画事件调度", () => {
   assertEquals(whiteNightEscapeSkillIntervalSeconds, 60);
   assertEquals(whiteNightEscapeSpecialDurationSeconds, 7);
-  assertEquals(whiteNightEscapeSpecialEventSeconds, {range: 4, sound: 3.5});
+  assertEquals(whiteNightEscapeSpecialEventSeconds, { range: 4, sound: 3.5 });
 
   let state: {
     idleSeconds: number;
     rangeSeconds: number | undefined;
     specialSeconds: number | undefined;
-  } = {idleSeconds: 0, rangeSeconds: undefined, specialSeconds: undefined};
+  } = { idleSeconds: 0, rangeSeconds: undefined, specialSeconds: undefined };
   let step = advanceWhiteNightSpineSkill(state, 59.5);
   assertEquals(step.startSpecial, false);
   state = step.state;
@@ -443,13 +446,15 @@ Deno.test("WhiteNight Spine：白圈缩放与不透明度按 WhiteNightSkill 曲
   const middle = whiteNightRangeEffectFrame(2.5)!;
   assertClose(
     middle.scale,
-    (whiteNightSpineRangeEffect.scaleFrom + whiteNightSpineRangeEffect.scaleTo) /
+    (whiteNightSpineRangeEffect.scaleFrom +
+      whiteNightSpineRangeEffect.scaleTo) /
       2,
     1e-9,
   );
   assertClose(
     middle.alpha,
-    (whiteNightSpineRangeEffect.alphaFrom + whiteNightSpineRangeEffect.alphaTo) /
+    (whiteNightSpineRangeEffect.alphaFrom +
+      whiteNightSpineRangeEffect.alphaTo) /
       2,
     1e-9,
   );

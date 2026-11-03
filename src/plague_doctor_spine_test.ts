@@ -348,7 +348,7 @@ function fakeSpineRuntime(): {
     /** @return {object} 任意 slot。 */
     findSlot(): object {
       return {
-        data: {index: 0},
+        data: { index: 0 },
         getAttachment: () => null,
         setAttachment: () => {},
       };
@@ -360,7 +360,7 @@ function fakeSpineRuntime(): {
     /** @return {void} 空实现。 */
     updateWorldTransform(): void {}
   }
-  const page = {height: 512, name: "skeleton2.png", texture: {}, width: 1024};
+  const page = { height: 512, name: "skeleton2.png", texture: {}, width: 1024 };
   return {
     frames,
     runtime: {
@@ -373,7 +373,7 @@ function fakeSpineRuntime(): {
         scale = 1;
         /** @return {{findAnimation: () => object}} 骨架数据。 */
         readSkeletonData(): object {
-          return {findAnimation: () => ({})};
+          return { findAnimation: () => ({}) };
         }
       },
       webgl: {
@@ -382,7 +382,7 @@ function fakeSpineRuntime(): {
           get(path: string): object | string {
             // 骨架走 `JSON.parse`，Atlas 走运行时对象，与真实 AssetManager 一致。
             return path.includes("atlas")
-              ? {pages: [page]}
+              ? { pages: [page] }
               : '{"animations":{},"slots":[]}';
           }
           /** @return {{pages: object[]}} Atlas。 */
@@ -402,7 +402,7 @@ function fakeSpineRuntime(): {
           /** @return {void} 空实现。 */
           loadTextureAtlas(): void {}
         },
-        ResizeMode: {Expand: 1},
+        ResizeMode: { Expand: 1 },
         SceneRenderer: class {
           QUAD_TRIANGLES = [0, 1, 2, 2, 3, 0];
           batcher = {
@@ -410,7 +410,7 @@ function fakeSpineRuntime(): {
             setBlendMode: () => {},
           };
           camera = {
-            position: {x: 0, y: 0},
+            position: { x: 0, y: 0 },
             update: () => {},
             zoom: 1,
           };
@@ -431,7 +431,7 @@ function fakeSpineRuntime(): {
 }
 
 Deno.test("Plague Doctor Spine：骨架就绪前调 play 也要在就绪后自动开演", async () => {
-  const {frames, runtime} = fakeSpineRuntime();
+  const { frames, runtime } = fakeSpineRuntime();
   const canvas = Object.assign(new Element(), {
     clientHeight: 1080,
     clientWidth: 1920,
@@ -449,7 +449,7 @@ Deno.test("Plague Doctor Spine：骨架就绪前调 play 也要在就绪后自�
   });
   const globalObject: Record<string, unknown> = {
     cancelAnimationFrame: () => {},
-    performance: {now: () => 0},
+    performance: { now: () => 0 },
     requestAnimationFrame: () => frames.push(1),
     spine: runtime,
   };

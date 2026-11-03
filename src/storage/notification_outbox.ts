@@ -4,7 +4,13 @@ import type { MatchRecord } from "../models.ts";
 /** 分别确认投递的通道；已成功通道不随其它通道重试。 */
 export type NotificationChannel = "other" | "browser" | "native";
 /** 由持有租约的发送者处理的持久化任务。 */
-export type NotificationJob = { id: string; channel: NotificationChannel; token: string; attempts: number; record: MatchRecord };
+export type NotificationJob = {
+  id: string;
+  channel: NotificationChannel;
+  token: string;
+  attempts: number;
+  record: MatchRecord;
+};
 /** 新命中记录的原子投递选项，普通详情刷新不创建任务。 */
 export type MatchSaveOptions = { notify?: boolean };
 /** 账号隔离的通知持久化接口。 */

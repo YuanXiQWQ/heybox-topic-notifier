@@ -40,7 +40,10 @@ function post(id = "p1", body = "关卡问题"): TopicPost {
  * @param {(id: string) => Promise<boolean>} notifyAiFailure 故障投递器。
  * @return {Promise<object>} 测试上下文。
  */
-async function fixture(notifyAiFailure: (id: string) => Promise<boolean> = () => Promise.resolve(false)) {
+async function fixture(
+  notifyAiFailure: (id: string) => Promise<boolean> = () =>
+    Promise.resolve(false),
+) {
   const kv = await Deno.openKv(":memory:");
   const app: AppSettings = {
     ...defaultAppSettingsFromEnv(),
@@ -365,7 +368,10 @@ Deno.test("queued AI snapshots keep original fingerprints while continuing AI at
   const f = await fixture();
   try {
     f.app.matching!.mode = "ai";
-    f.app.commonKeywordRules = [{ keyword: "不存在的关键词", locations: ["body"] }];
+    f.app.commonKeywordRules = [{
+      keyword: "不存在的关键词",
+      locations: ["body"],
+    }];
     f.app.matching!.maxInputChars = 200;
     f.decide({
       error: "AI HTTP 503",
@@ -397,33 +403,78 @@ Deno.test("queued AI snapshots keep original fingerprints while continuing AI at
 Deno.test("AI errors fall back per post without a circuit, preserve mode, and resume AI decisions", async () => {
   for (const mode of ["ai", "hybrid"] as const) {
     const notices: string[] = [];
-    const f = await fixture((id) => { notices.push(id); return Promise.resolve(true); });
+    const f = await fixture((id) => {
+      notices.push(id);
+      return Promise.resolve(true);
+    });
     try {
       f.app.matching!.mode = mode;
-      f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+      f.decide({
+        error: "AI HTTP 402",
+        inputTokens: 0,
+        outputTokens: 0,
+        usageKnown: false,
+      });
       const results = await f.run([post("p1", "求助"), post("p2", "求助")]);
       assertEquals(results, [
-        { keyword: "求助", location: "body", kind: "keyword", aiFallback: true },
-        { keyword: "求助", location: "body", kind: "keyword", aiFallback: true },
+        {
+          keyword: "求助",
+          location: "body",
+          kind: "keyword",
+          aiFallback: true,
+        },
+        {
+          keyword: "求助",
+          location: "body",
+          kind: "keyword",
+          aiFallback: true,
+        },
       ]);
       assertEquals(f.calls(), 2);
       assertEquals(notices.length, 1);
       assertEquals((await f.store.runtime())?.pendingCount, 0);
       assertEquals(f.app.matching!.mode, mode);
-      assertEquals(normalizeMatchResult(results[0] as import("../models.ts").MatchResult, mode), results[0]);
-      f.decide({ decision: "no_match", inputTokens: 1, outputTokens: 1, usageKnown: true });
-      assertEquals(await f.run([post("p1", "求助"), post("p2", "求助")]), [undefined, undefined]);
+      assertEquals(
+        normalizeMatchResult(
+          results[0] as import("../models.ts").MatchResult,
+          mode,
+        ),
+        results[0],
+      );
+      f.decide({
+        decision: "no_match",
+        inputTokens: 1,
+        outputTokens: 1,
+        usageKnown: true,
+      });
+      assertEquals(await f.run([post("p1", "求助"), post("p2", "求助")]), [
+        undefined,
+        undefined,
+      ]);
       assertEquals(f.calls(), 4);
       assertEquals((await f.store.runtime())?.aiFailure, undefined);
-      assertEquals((await f.store.get(await matchingHash(["topic", "p1"])))?.result, null);
-    } finally { f.close(); }
+      assertEquals(
+        (await f.store.get(await matchingHash(["topic", "p1"])))?.result,
+        null,
+      );
+    } finally {
+      f.close();
+    }
   }
 });
 
 Deno.test("AI outage notices survive new sessions, reset daily and reset after a successful AI call", async () => {
   const notices: string[] = [];
-  const f = await fixture((id) => { notices.push(id); return Promise.resolve(true); });
-  const failure = { error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false };
+  const f = await fixture((id) => {
+    notices.push(id);
+    return Promise.resolve(true);
+  });
+  const failure = {
+    error: "AI HTTP 402",
+    inputTokens: 0,
+    outputTokens: 0,
+    usageKnown: false,
+  };
   try {
     f.decide(failure);
     for (let i = 0; i < 4; i++) await f.run();
@@ -435,20 +486,36 @@ Deno.test("AI outage notices survive new sessions, reset daily and reset after a
     await f.run();
     assertEquals(notices.length, 2);
     assert(notices[0] !== notices[1]);
-    f.decide({ decision: "no_match", inputTokens: 1, outputTokens: 1, usageKnown: true });
+    f.decide({
+      decision: "no_match",
+      inputTokens: 1,
+      outputTokens: 1,
+      usageKnown: true,
+    });
     await f.run();
     f.decide(failure);
     await f.run([post("p2")]);
     assertEquals(notices.length, 3);
     assertEquals(new Set(notices).size, 3);
-  } finally { f.close(); }
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("valid insufficient decisions neither report service faults nor fall back to keyword matches", async () => {
   const notices: string[] = [];
-  const f = await fixture((id) => { notices.push(id); return Promise.resolve(true); });
+  const f = await fixture((id) => {
+    notices.push(id);
+    return Promise.resolve(true);
+  });
   try {
-    f.decide({ decision: "insufficient", reason: "信息不足", inputTokens: 714, outputTokens: 23, usageKnown: true });
+    f.decide({
+      decision: "insufficient",
+      reason: "信息不足",
+      inputTokens: 714,
+      outputTokens: 23,
+      usageKnown: true,
+    });
     const sample = post("p1", "求助");
     assertEquals(await f.run([sample]), [undefined]);
     await f.run([sample]);
@@ -478,18 +545,33 @@ Deno.test("valid insufficient decisions neither report service faults nor fall b
     assertEquals(notices, []);
     await f.run([post("p1", "求助，补充了内容")]);
     assertEquals(f.calls(), 4);
-  } finally { f.close(); }
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("a valid insufficient response clears service outage state and actual HTTP failures still notify", async () => {
   const notices: string[] = [];
-  const f = await fixture((id) => { notices.push(id); return Promise.resolve(true); });
+  const f = await fixture((id) => {
+    notices.push(id);
+    return Promise.resolve(true);
+  });
   try {
-    const failure = { error: "AI HTTP 503", inputTokens: 0, outputTokens: 0, usageKnown: false };
+    const failure = {
+      error: "AI HTTP 503",
+      inputTokens: 0,
+      outputTokens: 0,
+      usageKnown: false,
+    };
     f.decide(failure);
     await f.run();
     assertEquals(notices.length, 1);
-    f.decide({ decision: "insufficient", inputTokens: 2, outputTokens: 2, usageKnown: true });
+    f.decide({
+      decision: "insufficient",
+      inputTokens: 2,
+      outputTokens: 2,
+      usageKnown: true,
+    });
     await f.run();
     assertEquals((await f.store.runtime())?.aiFailure, undefined);
     assertEquals((await f.store.runtime())?.lastError, undefined);
@@ -498,14 +580,24 @@ Deno.test("a valid insufficient response clears service outage state and actual 
     f.decide(failure);
     await f.run();
     assertEquals(notices.length, 2);
-    assertEquals((await f.store.get(await matchingHash(["topic", "p1"])))?.insufficient, undefined);
-  } finally { f.close(); }
+    assertEquals(
+      (await f.store.get(await matchingHash(["topic", "p1"])))?.insufficient,
+      undefined,
+    );
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("AI retries frozen pending posts even after they leave the feed", async () => {
   const f = await fixture();
   try {
-    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    f.decide({
+      error: "AI HTTP 402",
+      inputTokens: 0,
+      outputTokens: 0,
+      usageKnown: false,
+    });
     await f.run();
     const key = await matchingHash(["topic", "p1"]);
     const entry = (await f.store.get(key))!;
@@ -513,7 +605,9 @@ Deno.test("AI retries frozen pending posts even after they leave the feed", asyn
     await f.run([]);
     assertEquals(f.calls(), 2);
     assertEquals((await f.store.get(key))?.attempts, 0);
-  } finally { f.close(); }
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("failed alert delivery does not block fallback and retries once in a later run", async () => {
@@ -524,7 +618,12 @@ Deno.test("failed alert delivery does not block fallback and retries once in a l
     return Promise.resolve(true);
   });
   try {
-    f.decide({ error: "AI HTTP 503", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    f.decide({
+      error: "AI HTTP 503",
+      inputTokens: 0,
+      outputTokens: 0,
+      usageKnown: false,
+    });
     const posts = [post("p1", "求助"), post("p2", "求助")];
     assert((await f.run(posts)).every(Boolean));
     assertEquals(notices.length, 1);
@@ -533,7 +632,9 @@ Deno.test("failed alert delivery does not block fallback and retries once in a l
     await f.run(posts);
     assertEquals(notices.length, 2);
     assertEquals(notices[0], notices[1]);
-  } finally { f.close(); }
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("poller merges failure notices into fallback matches without sending an extra fault message", async () => {
@@ -541,14 +642,27 @@ Deno.test("poller merges failure notices into fallback matches without sending a
   try {
     let posts = [post("p1", "求助"), post("p2", "没有关键词")];
     f.source.listLatestPosts = () => Promise.resolve(posts);
-    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    f.decide({
+      error: "AI HTTP 402",
+      inputTokens: 0,
+      outputTokens: 0,
+      usageKnown: false,
+    });
     const batches: import("../models.ts").MatchRecord[][] = [];
-    const alerts: import("./service_notification.ts").ServiceNotification[] = [];
+    const alerts: import("./service_notification.ts").ServiceNotification[] =
+      [];
     const poller = createPoller({
-      ...f, matcher: createMatcher(),
+      ...f,
+      matcher: createMatcher(),
       notifier: {
-        sendService: (notice) => { alerts.push(notice); return Promise.resolve({ provider: "webhook", sent: true }); },
-        sendMatches: (records) => { batches.push(records); return Promise.resolve({ provider: "webhook", sent: true }); },
+        sendService: (notice) => {
+          alerts.push(notice);
+          return Promise.resolve({ provider: "webhook", sent: true });
+        },
+        sendMatches: (records) => {
+          batches.push(records);
+          return Promise.resolve({ provider: "webhook", sent: true });
+        },
       },
     });
     await poller.runOnce();
@@ -558,16 +672,27 @@ Deno.test("poller merges failure notices into fallback matches without sending a
     assertEquals(batches[0].length, 1);
     assertEquals(batches[0][0].aiFallback, true);
     assertEquals(batches[0][0].kind, "keyword");
-    assertEquals((await f.storage.listMatchesForPost("p1"))[0].aiFallback, true);
+    assertEquals(
+      (await f.storage.listMatchesForPost("p1"))[0].aiFallback,
+      true,
+    );
     assertEquals(await f.storage.listMatchesForPost("p2"), []);
-    f.decide({ decision: "match", reason: "符合提示词", inputTokens: 1, outputTokens: 1, usageKnown: true });
+    f.decide({
+      decision: "match",
+      reason: "符合提示词",
+      inputTokens: 1,
+      outputTokens: 1,
+      usageKnown: true,
+    });
     posts = [post("p2", "没有关键词")];
     await poller.runOnce();
     assertEquals(batches.length, 2);
     assertEquals(batches[1][0].kind, "ai");
     assertEquals(batches[1][0].aiFallback, undefined);
     assertEquals((await f.store.runtime())?.aiFailure, undefined);
-  } finally { f.close(); }
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("polling sends one complete PushPlus match message and one native match event with fallback text", async () => {
@@ -577,22 +702,31 @@ Deno.test("polling sends one complete PushPlus match message and one native matc
     f.app.notificationProvider = "webhook";
     f.app.notificationWebhookService = "pushPlus";
     f.app.notificationPushPlusToken = "fixture-token";
-    let posts = [post("miss", "无关正文"), post("p1", "求助：请问这一关应该怎么打？")];
+    let posts = [
+      post("miss", "无关正文"),
+      post("p1", "求助：请问这一关应该怎么打？"),
+    ];
     f.source.listLatestPosts = () => Promise.resolve(posts);
-    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    f.decide({
+      error: "AI HTTP 402",
+      inputTokens: 0,
+      outputTokens: 0,
+      usageKnown: false,
+    });
     const requests: { title: string; content: string }[] = [];
     const account = f.storage.forUser("alice");
     const messages = getMessages(f.app.locale);
     let browserCalls = 0;
     const notifier = createPollingNotifier(f.storage, {
-      other: () => Promise.resolve(createNotifier({
-        deliveryLogger: () => {},
-        resolveDns: () => Promise.resolve(["93.184.216.34"]),
-        fetch: (_input, init) => {
-          requests.push(JSON.parse(String(init?.body)));
-          return Promise.resolve(new Response(JSON.stringify({ code: 200 })));
-        },
-      })),
+      other: () =>
+        Promise.resolve(createNotifier({
+          deliveryLogger: () => {},
+          resolveDns: () => Promise.resolve(["93.184.216.34"]),
+          fetch: (_input, init) => {
+            requests.push(JSON.parse(String(init?.body)));
+            return Promise.resolve(new Response(JSON.stringify({ code: 200 })));
+          },
+        })),
       browsers: (_storage, _userId, content) => {
         browserCalls++;
         assert(Array.isArray(content));
@@ -605,8 +739,14 @@ Deno.test("polling sends one complete PushPlus match message and one native matc
     await poller.runOnce(account, f.app);
     assertEquals(requests.length, 1);
     assertEquals(requests[0].title, messages.notificationBatchTitle);
-    assert(requests[0].content.startsWith(messages.notificationAiFallback + "\n\n"));
-    assert(requests[0].content.includes("[需要帮助](https://www.xiaoheihe.cn/app/bbs/link/p1)"));
+    assert(
+      requests[0].content.startsWith(messages.notificationAiFallback + "\n\n"),
+    );
+    assert(
+      requests[0].content.includes(
+        "[需要帮助](https://www.xiaoheihe.cn/app/bbs/link/p1)",
+      ),
+    );
     assert(requests[0].content.includes("请问这一关应该怎么打？"));
     assert(requests[0].content.includes("命中关键词：求助"));
     assert(requests[0].content.includes("匹配位置：正文"));
@@ -614,29 +754,58 @@ Deno.test("polling sends one complete PushPlus match message and one native matc
     const events = (await account.nativeNotifications!.read("")).events;
     assertEquals(events.length, 1);
     assertEquals(events[0].title, messages.appName);
-    assertEquals(events[0].body, messages.notificationAiFallback + "\n需要帮助");
+    assertEquals(
+      events[0].body,
+      messages.notificationAiFallback + "\n需要帮助",
+    );
     assertEquals(events[0].path, "/history");
-    assertEquals((await account.matching!.runtime())?.aiFailure?.notified, true);
+    assertEquals(
+      (await account.matching!.runtime())?.aiFailure?.notified,
+      true,
+    );
     posts = [post("p2", "求助：第二条帖子")];
     await poller.runOnce(account, f.app);
     assertEquals(requests.length, 2);
     assertEquals(browserCalls, 2);
-    assert(requests[1].content.startsWith(messages.notificationAiFallback + "\n\n"));
+    assert(
+      requests[1].content.startsWith(messages.notificationAiFallback + "\n\n"),
+    );
     assert(requests[1].content.includes("第二条帖子"));
-    assertEquals((await account.nativeNotifications!.read("")).events.length, 2);
-  } finally { f.close(); }
+    assertEquals(
+      (await account.nativeNotifications!.read("")).events.length,
+      2,
+    );
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("poller only sends standalone failure reminders when no fallback matches exist", async () => {
   const f = await fixture();
   try {
-    f.source.listLatestPosts = () => Promise.resolve([post("miss", "无关正文")]);
-    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    f.source.listLatestPosts = () =>
+      Promise.resolve([post("miss", "无关正文")]);
+    f.decide({
+      error: "AI HTTP 402",
+      inputTokens: 0,
+      outputTokens: 0,
+      usageKnown: false,
+    });
     let alerts = 0, batches = 0;
-    const poller = createPoller({ ...f, matcher: createMatcher(), notifier: {
-      sendService: () => { alerts++; return Promise.resolve({ provider: "webhook", sent: true }); },
-      sendMatches: () => { batches++; return Promise.resolve({ provider: "webhook", sent: true }); },
-    } });
+    const poller = createPoller({
+      ...f,
+      matcher: createMatcher(),
+      notifier: {
+        sendService: () => {
+          alerts++;
+          return Promise.resolve({ provider: "webhook", sent: true });
+        },
+        sendMatches: () => {
+          batches++;
+          return Promise.resolve({ provider: "webhook", sent: true });
+        },
+      },
+    });
     await poller.runOnce();
     await poller.runOnce();
     assertEquals([alerts, batches], [1, 0]);
@@ -645,23 +814,40 @@ Deno.test("poller only sends standalone failure reminders when no fallback match
     await poller.runOnce();
     assertEquals([alerts, batches], [2, 0]);
     assertEquals(await f.storage.listMatchesForPost("miss"), []);
-  } finally { f.close(); }
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("failed merged match delivery never sends a body-only fault message in its place", async () => {
   const f = await fixture();
   try {
     f.source.listLatestPosts = () => Promise.resolve([post("p1", "求助")]);
-    f.decide({ error: "AI HTTP 402", inputTokens: 0, outputTokens: 0, usageKnown: false });
+    f.decide({
+      error: "AI HTTP 402",
+      inputTokens: 0,
+      outputTokens: 0,
+      usageKnown: false,
+    });
     let alerts = 0;
-    const poller = createPoller({ ...f, matcher: createMatcher(), notifier: {
-      sendService: () => { alerts++; return Promise.resolve({ provider: "webhook", sent: true }); },
-      sendMatches: () => Promise.resolve({ provider: "webhook", sent: false }),
-    } });
+    const poller = createPoller({
+      ...f,
+      matcher: createMatcher(),
+      notifier: {
+        sendService: () => {
+          alerts++;
+          return Promise.resolve({ provider: "webhook", sent: true });
+        },
+        sendMatches: () =>
+          Promise.resolve({ provider: "webhook", sent: false }),
+      },
+    });
     await poller.runOnce();
     assertEquals(alerts, 0);
     assertEquals((await f.store.runtime())?.aiFailure?.notified, false);
-  } finally { f.close(); }
+  } finally {
+    f.close();
+  }
 });
 
 Deno.test("persisted user leases prevent concurrent matching and isolate users", async () => {

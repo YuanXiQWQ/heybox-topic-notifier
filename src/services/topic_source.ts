@@ -22,5 +22,8 @@ export type TopicSource = {
   /**
    * 拉取指定话题的最新帖子列表。
    */
-  listLatestPosts(topicId: string, options: TopicListOptions): Promise<TopicPost[]>;
+  listLatestPosts(
+    topicId: string,
+    options: TopicListOptions,
+  ): Promise<TopicPost[]>;
 };

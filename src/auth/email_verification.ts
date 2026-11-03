@@ -5,8 +5,7 @@ import type {
   EmailVerificationPurpose,
   PendingEmailVerification,
 } from "../models.ts";
-import type { Locale } from "../locales/types.ts";
-import type { Messages } from "../locales/types.ts";
+import type { Locale, Messages } from "../locales/types.ts";
 import { getMessages } from "../locales/index.ts";
 import {
   base64UrlEncode,

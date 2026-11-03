@@ -1,6 +1,6 @@
 /** @file 读取安装器的失败标记，防止回滚后再次自动安装同一失败版本。 */
-const fs = require("node:fs/promises");
-const path = require("node:path");
+const fs = require('node:fs/promises');
+const path = require('node:path');
 
 /**
  * 返回与安装器约定的专用检查点文件，不接受外部提供的恢复路径。
@@ -8,7 +8,7 @@ const path = require("node:path");
  * @return {string} 安装目录旁的失败标记路径。
  */
 function failurePath(executable) {
-  return path.join(path.dirname(executable) + ".heybox-update-backup", "failure.json");
+  return path.join(path.dirname(executable) + '.heybox-update-backup', 'failure.json');
 }
 
 /**
@@ -20,14 +20,14 @@ async function readInstallFailure(executable) {
   try {
     const file = failurePath(executable);
     const stat = await fs.lstat(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024) throw new Error("Invalid update failure marker");
-    const value = JSON.parse(await fs.readFile(file, "utf8"));
-    if (!value || typeof value.version !== "string" || !/^\d+\.\d+\.\d+$/.test(value.version)) {
-      throw new Error("Invalid failed update version");
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024) throw new Error('Invalid update failure marker');
+    const value = JSON.parse(await fs.readFile(file, 'utf8'));
+    if (!value || typeof value.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(value.version)) {
+      throw new Error('Invalid failed update version');
     }
     return value.version;
   } catch (error) {
-    if (error.code === "ENOENT") return undefined;
+    if (error.code === 'ENOENT') return undefined;
     throw error;
   }
 }
@@ -40,7 +40,8 @@ async function readInstallFailure(executable) {
  */
 async function clearInstallFailure(executable) {
   await fs.unlink(failurePath(executable)).catch(error => {
-    if (!["ENOENT", "EACCES", "EPERM"].includes(error.code)) throw error;
+    if (!['ENOENT', 'EACCES', 'EPERM'].includes(error.code)) throw error;
   });
 }
-module.exports = { readInstallFailure, clearInstallFailure };
+
+module.exports = {readInstallFailure, clearInstallFailure};

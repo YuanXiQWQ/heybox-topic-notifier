@@ -111,7 +111,8 @@ Deno.test("AdventLight：AnimationClip 关键帧与原始 .anim 完全一致", (
         value: number;
       }>;
     },
-  ) => curve.keys.map((key) => [key.time, key.value, key.inSlope, key.outSlope]);
+  ) =>
+    curve.keys.map((key) => [key.time, key.value, key.inSlope, key.outSlope]);
   const curves = apostleAdventLightClip.curves;
   // ParticlePretend 的缩放：4.309822 → 1 → 10。
   assertEquals(frames(curves.scale), [
@@ -173,7 +174,7 @@ Deno.test("AdventLight：Animator 状态机与原始 controller 完全一致", (
   assertEquals(apostleAdventEffectAnimator.states[0].motion, null);
   // AnyState 收到 Trigger Run：零时长过渡进入 ApostleAdventLight。
   assertEquals(
-    {...apostleAdventEffectAnimator.anyStateTransition},
+    { ...apostleAdventEffectAnimator.anyStateTransition },
     {
       condition: "Run",
       destination: "ApostleAdventLight",
@@ -183,7 +184,7 @@ Deno.test("AdventLight：Animator 状态机与原始 controller 完全一致", (
   );
   // 播完按 Exit Time 1、零时长回到空状态。
   assertEquals(
-    {...apostleAdventEffectAnimator.exitTransition},
+    { ...apostleAdventEffectAnimator.exitTransition },
     {
       destination: "New State",
       exitTime: 1,
@@ -206,17 +207,17 @@ Deno.test("AdventLight：prefab 结构与 SpriteRenderer 参数与原始 prefab 
     -355962239,
   );
   assertEquals(
-    {...deathAngelAdventLightPrefab.particle.localPosition},
+    { ...deathAngelAdventLightPrefab.particle.localPosition },
     { x: 0, y: 0, z: 0 },
   );
   // prefab 里的默认缩放（Run 状态下由 .anim 的 m_LocalScale 覆盖，不参与相乘）。
   assertEquals(
-    {...deathAngelAdventLightPrefab.particle.localScale},
+    { ...deathAngelAdventLightPrefab.particle.localScale },
     { x: 5.5, y: 5.5, z: 1 },
   );
   // 挂点：使徒动画 prefab 里 AdventLight 相对单位原点 localPosition = (0, 2, 0)。
   assertEquals(
-    {...deathAngelAdventLightPrefab.localPosition},
+    { ...deathAngelAdventLightPrefab.localPosition },
     { x: 0, y: 2, z: 0 },
   );
   // Animator 使用 UnscaledTime（m_UpdateMode: 2）。
@@ -228,16 +229,16 @@ Deno.test("AdventLight：Sprite Copy 的几何与贴图和原始资源一致", (
   // （GUID c99b947dc65009e4ab96decbeff05da6），贴图是 Copy.png。
   assertEquals(deathAngelAdventLightSprite.name, "Copy");
   assertEquals(
-    {...deathAngelAdventLightSprite.rect},
+    { ...deathAngelAdventLightSprite.rect },
     { height: 247.84775, width: 247.84775, x: 4.0761204, y: 4.0761204 },
   );
   assertEquals(deathAngelAdventLightSprite.pixelsToUnits, 100);
   assertEquals(
-    {...deathAngelAdventLightSprite.pivot},
+    { ...deathAngelAdventLightSprite.pivot },
     { x: 0.50000006, y: 0.50000006 },
   );
   assertEquals(
-    {...deathAngelAdventLightSprite.texture},
+    { ...deathAngelAdventLightSprite.texture },
     { height: 256, width: 256 },
   );
   assertEquals(

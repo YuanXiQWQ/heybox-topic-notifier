@@ -20,8 +20,12 @@ export function renderDrawerHeading(
   summaryHtml: string,
   blackForestSlot?: string,
 ): string {
-  return `<dt class="dropdown-heading"><button type="button" class="dropdown-toggle" data-action="toggle-${name}" aria-expanded="false" aria-controls="${panelId}" aria-label="${escapeHtml(label)}">
-    <span class="settings-label-with-icon">${materialSymbolIcon(icon, "settings-label-icon", blackForestSlot)}<span>${escapeHtml(label)}</span></span>
+  return `<dt class="dropdown-heading"><button type="button" class="dropdown-toggle" data-action="toggle-${name}" aria-expanded="false" aria-controls="${panelId}" aria-label="${
+    escapeHtml(label)
+  }">
+    <span class="settings-label-with-icon">${
+    materialSymbolIcon(icon, "settings-label-icon", blackForestSlot)
+  }<span>${escapeHtml(label)}</span></span>
     <span class="dropdown-summary-cell">${summaryHtml}<span class="dropdown-indicator" aria-hidden="true"><span class="dropdown-chevron"></span></span></span>
   </button></dt>`;
 }

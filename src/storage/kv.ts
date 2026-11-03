@@ -156,7 +156,9 @@ export type KvStore = {
   /**
    * 按前缀列出 KV 条目。
    */
-  list<T>(selector: { prefix: Deno.KvKey }): AsyncIterable<{ value: T; key?: Deno.KvKey }>;
+  list<T>(
+    selector: { prefix: Deno.KvKey },
+  ): AsyncIterable<{ value: T; key?: Deno.KvKey }>;
   /**
    * 写入指定 KV 键值。
    */
@@ -266,7 +268,9 @@ export function createKvStorage(
        */
       async saveSettings(settings: AppSettings): Promise<void> {
         const current = await sync.readSettings();
-        await sync.applySettings(settingsEdits(current.settings, settings, serverEditStamp()));
+        await sync.applySettings(
+          settingsEdits(current.settings, settings, serverEditStamp()),
+        );
       },
 
       /**
@@ -541,11 +545,26 @@ export function createKvStorage(
      */
     async saveAccount(account: UserAccount): Promise<void> {
       const store = await kv();
-      const key=keys.account(account.id),current=await store.get<UserAccount>(key);
-      if ((await store.get(["deletedAccounts",account.id])).value) throw new Error("Deleted account cannot be restored");
-      const result=await store.atomic().check({key,versionstamp:current.versionstamp}).check({key:["deletedAccounts",account.id],versionstamp:null})
-        .set(key,current.value?{...account,role:current.value.role,roleVersion:current.value.roleVersion}:account).set(keys.accountUsername(account.username),account.id).commit();
-      if(!result.ok)throw new Error("Concurrent account save");
+      const key = keys.account(account.id),
+        current = await store.get<UserAccount>(key);
+      if ((await store.get(["deletedAccounts", account.id])).value) {
+        throw new Error("Deleted account cannot be restored");
+      }
+      const result = await store.atomic().check({
+        key,
+        versionstamp: current.versionstamp,
+      }).check({ key: ["deletedAccounts", account.id], versionstamp: null })
+        .set(
+          key,
+          current.value
+            ? {
+              ...account,
+              role: current.value.role,
+              roleVersion: current.value.roleVersion,
+            }
+            : account,
+        ).set(keys.accountUsername(account.username), account.id).commit();
+      if (!result.ok) throw new Error("Concurrent account save");
     },
 
     /**
@@ -620,7 +639,11 @@ export function createKvStorage(
         }
 
         const updateResult = await operation
-          .set(accountKey, { ...account, role: currentAccount.role, roleVersion: currentAccount.roleVersion })
+          .set(accountKey, {
+            ...account,
+            role: currentAccount.role,
+            roleVersion: currentAccount.roleVersion,
+          })
           .commit();
         if (updateResult.ok) {
           return true;
@@ -2056,7 +2079,11 @@ export function normalizeSettings(
     notificationWxPusherSpt: typeof value.notificationWxPusherSpt === "string"
       ? value.notificationWxPusherSpt
       : defaultSettings.notificationWxPusherSpt,
-    polling: normalizePollingSettings(value.polling, defaultSettings.polling, value.locale ?? defaultSettings.locale),
+    polling: normalizePollingSettings(
+      value.polling,
+      defaultSettings.polling,
+      value.locale ?? defaultSettings.locale,
+    ),
     themeColor: normalizeThemeColor(
       value.themeColor,
       defaultSettings.themeColor,
@@ -2102,7 +2129,9 @@ function normalizePollingSettings(
       intervalUnit,
       fallback.intervalValue,
     ),
-    ...(value?.schedule ? { schedule: normalizeSchedule(value.schedule, locale) } : {}),
+    ...(value?.schedule
+      ? { schedule: normalizeSchedule(value.schedule, locale) }
+      : {}),
     postLimit: normalizePositiveInteger(value?.postLimit, fallback.postLimit),
     sort: normalizePollSort(value?.sort, fallback.sort),
   };

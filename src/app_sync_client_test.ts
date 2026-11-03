@@ -4,38 +4,72 @@ import { IDBFactory } from "fake-indexeddb";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 
 Deno.test("edits queued during an active sync upload immediately after that request", async () => {
-  const source = await Deno.readTextFile(new URL("../static/app-sync/client.js", import.meta.url));
+  const source = await Deno.readTextFile(
+    new URL("../static/app-sync/client.js", import.meta.url),
+  );
   const start = source.indexOf("  async function drain(reason)");
   const end = source.indexOf("  async function applyPendingRecords()", start);
   const functions = source.slice(start, source.lastIndexOf("  /**", end));
-  const queue: Array<{ kind: string; target: string; body: string; stamp: { operationId: string } }> = [];
+  const queue: Array<
+    {
+      kind: string;
+      target: string;
+      body: string;
+      stamp: { operationId: string };
+    }
+  > = [];
   let release!: () => void;
-  const held = new Promise<void>((resolve) => { release = resolve; });
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   let requests = 0;
   const submitted: string[] = [];
-  const context = runInNewContext(`let flushing, requestedFlush; const responses = new Map(); ${functions}; ({flush, responses})`, {
-    userId: "alice", metadata: {}, URLSearchParams, AbortSignal,
-    navigator: {}, document: { dispatchEvent() {} }, CustomEvent,
-    compareStamp: () => 0,
-    store: {
-      pending: () => Promise.resolve([...queue]),
-      writeState: () => Promise.resolve(),
-      acknowledge: () => { queue.shift(); return Promise.resolve(); },
+  const context = runInNewContext(
+    `let flushing, requestedFlush; const responses = new Map(); ${functions}; ({flush, responses})`,
+    {
+      userId: "alice",
+      metadata: {},
+      URLSearchParams,
+      AbortSignal,
+      navigator: {},
+      document: { dispatchEvent() {} },
+      CustomEvent,
+      compareStamp: () => 0,
+      store: {
+        pending: () => Promise.resolve([...queue]),
+        writeState: () => Promise.resolve(),
+        acknowledge: () => {
+          queue.shift();
+          return Promise.resolve();
+        },
+      },
+      fetch: async (path: string) => {
+        if (path === "/api/sync/session") {
+          if (++requests === 1) await held;
+          return Response.json({
+            userId: "alice",
+            serverTime: Date.now(),
+            csrfToken: "test",
+          });
+        }
+        submitted.push(path);
+        return new Response("saved");
+      },
     },
-    fetch: async (path: string) => {
-      if (path === "/api/sync/session") {
-        if (++requests === 1) await held;
-        return Response.json({ userId: "alice", serverTime: Date.now(), csrfToken: "test" });
-      }
-      submitted.push(path); return new Response("saved");
-    },
-  });
+  );
   const first = context.flush();
   while (!requests) await new Promise((resolve) => setTimeout(resolve, 0));
-  queue.push({ kind: "record", target: "/matches/complete", body: "matchId=one", stamp: { operationId: "one" } });
+  queue.push({
+    kind: "record",
+    target: "/matches/complete",
+    body: "matchId=one",
+    stamp: { operationId: "one" },
+  });
   const second = context.flush("submit");
-  context.flush(); context.flush();
-  release(); await Promise.all([first, second]);
+  context.flush();
+  context.flush();
+  release();
+  await Promise.all([first, second]);
   assertEquals(submitted, ["/matches/complete"]);
   assertEquals(queue.length, 0);
   assertEquals(requests, 2);
@@ -43,25 +77,41 @@ Deno.test("edits queued during an active sync upload immediately after that requ
 });
 
 Deno.test("cached scripts survive service failures without hiding missing resources", async () => {
-  const source = await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url));
+  const source = await Deno.readTextFile(
+    new URL("../static/app-sw.js", import.meta.url),
+  );
   let status = 503;
   let saved = "cached-script";
   const api = runInNewContext(source + "\n({applicationResource})", {
-    URL, Request, Response, Headers,
+    URL,
+    Request,
+    Response,
+    Headers,
     self: { addEventListener() {} },
     fetch: () => Promise.resolve(new Response("online-resource", { status })),
-    caches: { open: () => Promise.resolve({
-      match: () => Promise.resolve(new Response(saved)),
-      put: async (_request: Request, response: Response) => { saved = await response.text(); },
-    }) },
+    caches: {
+      open: () =>
+        Promise.resolve({
+          match: () => Promise.resolve(new Response(saved)),
+          put: async (_request: Request, response: Response) => {
+            saved = await response.text();
+          },
+        }),
+    },
   });
   const request = new Request("https://example.com/static/settings.js?v=1");
-  assertEquals(await (await api.applicationResource(request)).text(), "cached-script");
+  assertEquals(
+    await (await api.applicationResource(request)).text(),
+    "cached-script",
+  );
   assertEquals(saved, "cached-script");
   status = 404;
   assertEquals((await api.applicationResource(request)).status, 404);
   status = 200;
-  assertEquals(await (await api.applicationResource(request)).text(), "online-resource");
+  assertEquals(
+    await (await api.applicationResource(request)).text(),
+    "online-resource",
+  );
   assertEquals(saved, "online-resource");
 });
 
@@ -69,25 +119,43 @@ Deno.test("worker navigation fetches online pages without AbortSignal.timeout", 
   const timers: { callback: () => void; delay: number }[] = [];
   const requests: AbortSignal[] = [];
   const api = runInNewContext(
-    await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url)) + "\n({applicationPage})",
+    await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url)) +
+      "\n({applicationPage})",
     {
-      URL, Request, Response, Headers, AbortController,
+      URL,
+      Request,
+      Response,
+      Headers,
+      AbortController,
       AbortSignal: {},
-      setTimeout(callback: () => void, delay: number) { timers.push({ callback, delay }); },
-      self: { addEventListener() {}, AppLocalStore: {
-        readState: () => Promise.resolve(undefined),
-        writeState: () => Promise.resolve(),
-        pending: () => Promise.resolve([]),
-      } },
+      setTimeout(callback: () => void, delay: number) {
+        timers.push({ callback, delay });
+      },
+      self: {
+        addEventListener() {},
+        AppLocalStore: {
+          readState: () => Promise.resolve(undefined),
+          writeState: () => Promise.resolve(),
+          pending: () => Promise.resolve([]),
+        },
+      },
       fetch(input: string | Request, options?: RequestInit) {
-        requests.push(input instanceof Request ? input.signal : options!.signal as AbortSignal);
-        return Promise.resolve(input === "/api/sync/session"
-          ? Response.json({ userId: "alice" })
-          : new Response("online-workspace"));
+        requests.push(
+          input instanceof Request
+            ? input.signal
+            : options!.signal as AbortSignal,
+        );
+        return Promise.resolve(
+          input === "/api/sync/session"
+            ? Response.json({ userId: "alice" })
+            : new Response("online-workspace"),
+        );
       },
     },
   );
-  const response = await api.applicationPage(new Request("https://example.com/"));
+  const response = await api.applicationPage(
+    new Request("https://example.com/"),
+  );
   assertEquals(await response.text(), "online-workspace");
   assertEquals(timers.map((timer) => timer.delay), [5000, 10000]);
   assertEquals(requests.every((signal) => !signal.aborted), true);

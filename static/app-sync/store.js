@@ -2,20 +2,21 @@
 (() => {
   /** 本地数据库连接的共享初始化任务。 */
   let database;
+
   /**
    * 打开持久数据库，页面和 Service Worker 使用同一数据布局。
    * @return {Promise<IDBDatabase>} 数据库连接。
    */
   function open() {
     database = database ?? new Promise((resolve, reject) => {
-      const request = indexedDB.open("heybox-app-local", 1);
+      const request = indexedDB.open('heybox-app-local', 1);
       request.onupgradeneeded = () => {
         const db = request.result;
-        db.createObjectStore("state");
-        const operations = db.createObjectStore("operations", {
-          keyPath: "id",
+        db.createObjectStore('state');
+        const operations = db.createObjectStore('operations', {
+          keyPath: 'id',
         });
-        operations.createIndex("userId", "userId");
+        operations.createIndex('userId', 'userId');
       };
       request.onsuccess = () => {
         request.result.onversionchange = () => {
@@ -26,13 +27,14 @@
       };
       request.onerror = () => reject(request.error);
       request.onblocked = () =>
-        reject(new Error("Local database upgrade blocked"));
+          reject(new Error('Local database upgrade blocked'));
     }).catch((error) => {
       database = undefined;
       throw error;
     });
     return database;
   }
+
   /**
    * 等待一次数据库请求。
    * @param {IDBRequest} request 请求。
@@ -44,6 +46,7 @@
       request.onerror = () => reject(request.error);
     });
   }
+
   /**
    * 等待事务提交，不能把单个请求成功当作可靠落盘。
    * @param {IDBTransaction} transaction 数据库事务。
@@ -53,9 +56,10 @@
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => resolve();
       transaction.onabort = transaction.onerror = () =>
-        reject(transaction.error ?? new Error("Local transaction aborted"));
+          reject(transaction.error ?? new Error('Local transaction aborted'));
     });
   }
+
   /**
    * 读取内部状态，不向其它账号使用同一密钥。
    * @param {string} name 完整内部键。
@@ -64,9 +68,10 @@
   async function readRaw(name) {
     const db = await open();
     return await requested(
-      db.transaction("state").objectStore("state").get(name),
+        db.transaction('state').objectStore('state').get(name),
     );
   }
+
   /**
    * 获取账号独有的不可导出加密密钥；竞争创建时读取事务赢家。
    * @param {string} userId 账号 ID。
@@ -77,14 +82,14 @@
     const existing = await readRaw(name);
     if (existing) return existing;
     const key = await crypto.subtle.generateKey(
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt", "decrypt"],
+        {name: 'AES-GCM', length: 256},
+        false,
+        ['encrypt', 'decrypt'],
     );
     const db = await open();
-    const tx = db.transaction("state", "readwrite");
+    const tx = db.transaction('state', 'readwrite');
     const done = committed(tx);
-    tx.objectStore("state").add(key, name);
+    tx.objectStore('state').add(key, name);
     try {
       await done;
       return key;
@@ -94,6 +99,7 @@
       throw error;
     }
   }
+
   /**
    * 加密业务内容，并用账号标识绑定附加认证数据。
    * @param {string} userId 账号 ID。
@@ -104,12 +110,13 @@
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await encryptionKey(userId);
     const data = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(userId) },
-      key,
-      new TextEncoder().encode(JSON.stringify(value)),
+        {name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(userId)},
+        key,
+        new TextEncoder().encode(JSON.stringify(value)),
     );
-    return { iv, data };
+    return {iv, data};
   }
+
   /**
    * 用当前账号密钥读取本地业务内容，解密失败不返回空成功。
    * @param {string} userId 账号 ID。
@@ -118,16 +125,17 @@
    */
   async function decrypt(userId, envelope) {
     const data = await crypto.subtle.decrypt(
-      {
-        name: "AES-GCM",
-        iv: envelope.iv,
-        additionalData: new TextEncoder().encode(userId),
-      },
-      await encryptionKey(userId),
-      envelope.data,
+        {
+          name: 'AES-GCM',
+          iv: envelope.iv,
+          additionalData: new TextEncoder().encode(userId),
+        },
+        await encryptionKey(userId),
+        envelope.data,
     );
     return JSON.parse(new TextDecoder().decode(data));
   }
+
   /**
    * 原子追加编辑和对应本地快照，事务失败时两者都不生效。
    * @param {string} userId 账号 ID。
@@ -140,16 +148,17 @@
     const payload = await encrypt(userId, operation);
     const snapshot = await encrypt(userId, state);
     const db = await open();
-    const tx = db.transaction(["state", "operations"], "readwrite");
+    const tx = db.transaction(['state', 'operations'], 'readwrite');
     const done = committed(tx);
-    tx.objectStore("operations").add({
+    tx.objectStore('operations').add({
       id: `${userId}:${operation.stamp.operationId}`,
       userId,
       payload,
     });
-    tx.objectStore("state").put(snapshot, `${userId}:${stateName}`);
+    tx.objectStore('state').put(snapshot, `${userId}:${stateName}`);
     await done;
   }
+
   /**
    * 读取账号待同步操作，保留最初的编辑版本。
    * @param {string} userId 账号 ID。
@@ -158,13 +167,14 @@
   async function pending(userId) {
     const db = await open();
     const entries = await requested(
-      db.transaction("operations").objectStore("operations").index("userId")
-        .getAll(userId),
+        db.transaction('operations').objectStore('operations').index('userId')
+            .getAll(userId),
     );
     return await Promise.all(
-      entries.map((entry) => decrypt(userId, entry.payload)),
+        entries.map((entry) => decrypt(userId, entry.payload)),
     );
   }
+
   /**
    * 仅在服务器确认后移除对应操作。
    * @param {string} userId 账号 ID。
@@ -173,11 +183,12 @@
    */
   async function acknowledge(userId, operationId) {
     const db = await open();
-    const tx = db.transaction("operations", "readwrite");
+    const tx = db.transaction('operations', 'readwrite');
     const done = committed(tx);
-    tx.objectStore("operations").delete(`${userId}:${operationId}`);
+    tx.objectStore('operations').delete(`${userId}:${operationId}`);
     await done;
   }
+
   /**
    * 读取账号的加密快照。
    * @param {string} userId 账号 ID。
@@ -188,6 +199,7 @@
     const stored = await readRaw(`${userId}:${name}`);
     return stored ? await decrypt(userId, stored) : undefined;
   }
+
   /**
    * 保存不涉及新增操作的账号快照。
    * @param {string} userId 账号 ID。
@@ -198,11 +210,12 @@
   async function writeState(userId, name, state) {
     const payload = await encrypt(userId, state);
     const db = await open();
-    const tx = db.transaction("state", "readwrite");
+    const tx = db.transaction('state', 'readwrite');
     const done = committed(tx);
-    tx.objectStore("state").put(payload, `${userId}:${name}`);
+    tx.objectStore('state').put(payload, `${userId}:${name}`);
     await done;
   }
+
   globalThis.AppLocalStore = {
     append,
     pending,

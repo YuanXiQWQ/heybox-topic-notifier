@@ -24,17 +24,28 @@ Deno.test("scheduler shutdown drains in-flight work and rejects new per-user and
   const started = Promise.withResolvers<void>();
   const finish = Promise.withResolvers<void>();
   let runs = 0;
-  const scheduler = createPollScheduler({
-    storage: {
-      getSettings: () => Promise.resolve({ polling: { enabled: true, ...fiveMinutes } }),
-      getLastPollAt: () => Promise.resolve(undefined),
-    },
-    poller: { runOnce: async () => { runs++; started.resolve(); await finish.promise; } },
-  } as unknown as Parameters<typeof createPollScheduler>[0]);
+  const scheduler = createPollScheduler(
+    {
+      storage: {
+        getSettings: () =>
+          Promise.resolve({ polling: { enabled: true, ...fiveMinutes } }),
+        getLastPollAt: () => Promise.resolve(undefined),
+      },
+      poller: {
+        runOnce: async () => {
+          runs++;
+          started.resolve();
+          await finish.promise;
+        },
+      },
+    } as unknown as Parameters<typeof createPollScheduler>[0],
+  );
   const work = scheduler.tick();
   await started.promise;
   let stopped = false;
-  const shutdown = scheduler.stop().then(() => { stopped = true; });
+  const shutdown = scheduler.stop().then(() => {
+    stopped = true;
+  });
   assertEquals(await scheduler.tick(), false);
   assertEquals(await scheduler.tickUser("other"), false);
   assertEquals(stopped, false);

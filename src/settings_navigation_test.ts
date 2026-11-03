@@ -27,9 +27,13 @@ function harness() {
   class NavigationForm {
     method = "get";
     /** @return {boolean} 属于导航栏表单。 */
-    matches() { return true; }
+    matches() {
+      return true;
+    }
     /** 保存后恢复原生提交。 */
-    requestSubmit() { visited.push("form:/history"); }
+    requestSubmit() {
+      visited.push("form:/history");
+    }
   }
   const source = Deno.readTextFileSync(
     new URL("../static/settings.js", import.meta.url),

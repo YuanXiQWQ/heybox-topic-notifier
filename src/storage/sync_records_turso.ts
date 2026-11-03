@@ -106,8 +106,15 @@ export function createTursoRecordSync(
         sql: "DELETE FROM matches WHERE user_id = ? AND id = ?",
         args: [userId, id],
       });}
-    if (notify && record && !before.record && !before.state) statements.push(...enqueue?.(record) ?? []);
-    if (!record) statements.push({ sql: "DELETE FROM notification_outbox WHERE user_id = ? AND id = ?", args: [userId, id] });
+    if (notify && record && !before.record && !before.state) {
+      statements.push(...enqueue?.(record) ?? []);
+    }
+    if (!record) {
+      statements.push({
+        sql: "DELETE FROM notification_outbox WHERE user_id = ? AND id = ?",
+        args: [userId, id],
+      });
+    }
     const key = JSON.stringify([userId, id]);
     statements.push({
       sql:

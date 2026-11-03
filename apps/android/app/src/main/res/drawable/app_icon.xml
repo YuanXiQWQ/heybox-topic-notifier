@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 应用标志的单色轮廓，供 Android 状态栏按系统主题着色。 -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="251" android:viewportHeight="251">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M114,40L191,84Q194,86 194,90L194,162Q194,165 191,167L169,179Q166,181 166,177L166,106Q166,103 163,101L142,89Q139,88 139,91L139,109Q139,112 136,112L115,112Q112,112 112,109L112,43Q112,39 114,40ZM82,72Q85,70 85,74L85,145Q85,148 88,150L109,162Q112,163 112,160L112,142Q112,139 115,139L136,139Q139,139 139,142L139,208Q139,212 136,210L60,167Q57,165 57,161L57,90Q57,86 60,84Z" />
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp"
+        android:viewportWidth="251" android:viewportHeight="251">
+    <path android:fillColor="#FFFFFFFF"
+          android:pathData="M114,40L191,84Q194,86 194,90L194,162Q194,165 191,167L169,179Q166,181 166,177L166,106Q166,103 163,101L142,89Q139,88 139,91L139,109Q139,112 136,112L115,112Q112,112 112,109L112,43Q112,39 114,40ZM82,72Q85,70 85,74L85,145Q85,148 88,150L109,162Q112,163 112,160L112,142Q112,139 115,139L136,139Q139,139 139,142L139,208Q139,212 136,210L60,167Q57,165 57,161L57,90Q57,86 60,84Z"/>
 </vector>

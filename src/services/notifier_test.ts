@@ -11,7 +11,10 @@ import {
 import { createNotifier as createRealNotifier } from "./notifier.ts";
 import type { DeliveryLogEntry } from "./notifier.ts";
 import type { DnsRecordType } from "./outbound_security.ts";
-import { aiFailureNotification, aiFallbackNotice } from "./service_notification.ts";
+import {
+  aiFailureNotification,
+  aiFallbackNotice,
+} from "./service_notification.ts";
 
 /**
  * 通知器测试使用的基础应用设置。
@@ -147,11 +150,19 @@ Deno.test("sendMatch posts a JSON webhook payload", async () => {
 
 Deno.test("AI notifications preserve reasons and locations without keyword labels", async () => {
   const requests: Request[] = [];
-  const notifier = createNotifier({ fetch: (input, init) => {
-    requests.push(new Request(input, init));
-    return Promise.resolve(new Response(null, { status: 204 }));
-  } });
-  const aiRecord: MatchRecord = { ...record, kind: "ai", keyword: "", aiReason: "评论正在求助", location: "comments" };
+  const notifier = createNotifier({
+    fetch: (input, init) => {
+      requests.push(new Request(input, init));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  });
+  const aiRecord: MatchRecord = {
+    ...record,
+    kind: "ai",
+    keyword: "",
+    aiReason: "评论正在求助",
+    location: "comments",
+  };
   await notifier.sendMatch(aiRecord, settings);
   const single = await requests[0].json();
   assertEquals(single.match.kind, "ai");
@@ -165,27 +176,46 @@ Deno.test("AI notifications preserve reasons and locations without keyword label
 });
 
 Deno.test("all webhook formats carry service faults and prefix fallback match notices", async () => {
-  for (const service of ["custom", "pushPlus", "wxPusher", "serverChan"] as const) {
+  for (
+    const service of ["custom", "pushPlus", "wxPusher", "serverChan"] as const
+  ) {
     const requests: Request[] = [];
-    const notifier = createNotifier({ fetch: (input, init) => {
-      requests.push(new Request(input, init));
-      return Promise.resolve(new Response(JSON.stringify({ code: service === "wxPusher" ? 1000 : 200 })));
-    } });
+    const notifier = createNotifier({
+      fetch: (input, init) => {
+        requests.push(new Request(input, init));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ code: service === "wxPusher" ? 1000 : 200 }),
+          ),
+        );
+      },
+    });
     const config = { ...settings, notificationWebhookService: service };
     const notice = aiFailureNotification("outage", config);
     const fallback = { ...record, aiFallback: true, kind: "keyword" as const };
     const prefix = aiFallbackNotice([fallback], config);
-    await notifier.sendNotification({ type: "service", notification: notice }, config);
+    await notifier.sendNotification(
+      { type: "service", notification: notice },
+      config,
+    );
     await notifier.sendMatches([fallback, secondRecord], config);
     await notifier.sendMatch(fallback, config);
     await notifier.sendMatches([record], config);
-    const [fault, batch, single, normal] = await Promise.all(requests.map((request) => request.json()));
+    const [fault, batch, single, normal] = await Promise.all(
+      requests.map((request) => request.json()),
+    );
     assertEquals(fault.text ?? fault.content ?? fault.desp, notice.body);
     assertEquals(fault.title ?? fault.summary, notice.title);
     assertEquals(fault.matches, undefined);
     assertEquals(fault.match, undefined);
-    assert((batch.text ?? batch.content ?? batch.desp).startsWith(prefix + "\n\n"));
-    assert((single.text ?? single.content ?? single.desp).startsWith(prefix + "\n\n"));
+    assert(
+      (batch.text ?? batch.content ?? batch.desp).startsWith(prefix + "\n\n"),
+    );
+    assert(
+      (single.text ?? single.content ?? single.desp).startsWith(
+        prefix + "\n\n",
+      ),
+    );
     assert(!(normal.text ?? normal.content ?? normal.desp).includes(prefix));
     if (service === "custom") assert(batch.html.startsWith(`<p>${prefix}</p>`));
   }
@@ -193,12 +223,20 @@ Deno.test("all webhook formats carry service faults and prefix fallback match no
 
 Deno.test("email fault notices and fallback notices contain localized text and HTML", async () => {
   const sent: { subject: string; text: string; html: string }[] = [];
-  const notifier = createNotifier({ emailSender: (message) => { sent.push(message); return Promise.resolve(); } });
+  const notifier = createNotifier({
+    emailSender: (message) => {
+      sent.push(message);
+      return Promise.resolve();
+    },
+  });
   const config = { ...settings, notificationProvider: "email" as const };
   const notice = aiFailureNotification("outage", config);
   const fallback = { ...record, aiFallback: true };
   const prefix = aiFallbackNotice([fallback], config);
-  await notifier.sendNotification({ type: "service", notification: notice }, config);
+  await notifier.sendNotification(
+    { type: "service", notification: notice },
+    config,
+  );
   await notifier.sendMatches([fallback], config);
   assertEquals(sent[0].subject, notice.title);
   assertEquals(sent[0].text, notice.body);

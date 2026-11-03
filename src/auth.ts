@@ -337,7 +337,12 @@ export function createAuthMiddleware(
     }
 
     const loginUrl = new URL(config.loginPath, url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     loginUrl.searchParams.set("locale", locale);
     if (c.req.method === "GET") {
       loginUrl.searchParams.set("returnTo", pathWithSearch(url));
@@ -362,7 +367,12 @@ export function createAuthRoutes(
 
   app.get(config.loginPath, (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
@@ -406,7 +416,12 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url);
     if (String(form.authMethod ?? "password") === "email") {
       return await handleEmailLogin(c, storage, config, form, {
@@ -549,7 +564,12 @@ export function createAuthRoutes(
 
   app.get(config.registerPath, (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url);
     const messages = getMessages(locale);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
@@ -587,7 +607,12 @@ export function createAuthRoutes(
     ) {
       return csrfForbiddenResponse(c.req.raw);
     }
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url);
     const username = normalizeUsername(String(form.username ?? ""));
     const displayName = username;
@@ -648,11 +673,20 @@ export function createAuthRoutes(
       ...(await hashPassword(password)),
     };
 
-    const invitationResult = await storage.administration?.register({ account, password: passwordCredentialFromAccount(account) }, await secretDigest(normalizeInvitation(String(form.invitationCode ?? ""))));
+    const invitationResult = await storage.administration?.register(
+      { account, password: passwordCredentialFromAccount(account) },
+      await secretDigest(
+        normalizeInvitation(String(form.invitationCode ?? "")),
+      ),
+    );
     if (invitationResult !== "ok") {
       return c.redirect(
         authPagePath(config.registerPath, locale, {
-          error: invitationResult === "conflict" && await storage.getAccountByUsername(username) ? "exists" : "invitation",
+          error:
+            invitationResult === "conflict" &&
+              await storage.getAccountByUsername(username)
+              ? "exists"
+              : "invitation",
           [authLocaleChangedParam]: syncLocale
             ? authLocaleChangedValue
             : undefined,
@@ -671,21 +705,77 @@ export function createAuthRoutes(
   });
 
   /** @param {Context} c 注册提交。 @return {Promise<Response>} 邀请核销后的登录结果。 */
-  app.post("/register/invitation", bodyLimit({ maxSize: 16_384, onError: (c) => c.text(getMessages(localeFromRequest(c.req.raw)).adminInputInvalid, 413) }), async (c) => {
-    c.header("cache-control", "no-store");
-    const form = await c.req.parseBody();
-    if (!verifyCsrfToken(c.req.header("cookie"), form.csrfToken)) return csrfForbiddenResponse(c.req.raw);
-    const limited = await rateLimitExceededResponseFor(storage, publicRateLimitPolicies.registration, clientRateLimitIdentifier((name) => c.req.header(name)), { request: c.req.raw });
-    if (limited) return limited;
-    const pending = String(form.pending ?? ""), id = await secretDigest(pending);
-    const record = await storage.administration?.getTemporary(id);
-    const locale = authPageLocale(new URL(c.req.url), c.req.header("accept-language"), config, c.req.header("cookie"));
-    const messages = getMessages(locale);
-    if (!record?.creation || record.binding !== await secretDigest(String(form.csrfToken))) return c.redirect("/login",303);
-    const result = await storage.administration!.register(record.creation, await secretDigest(normalizeInvitation(String(form.invitationCode ?? ""))), id);
-    if (result !== "ok") return c.html(renderAuthPage({ action: "/register/invitation", csrfToken: String(form.csrfToken), error: messages.invitationInvalid, heading: messages.authRegister, locale, messages, mode: "register", pendingRegistration: pending, returnTo: record.returnTo ?? "/", submitLabel: messages.authCreateAccount, syncLocale: false }),400);
-    return await redirectWithSession(c.req.url, safeReturnTo(record.returnTo ?? null), record.creation.account, storage, config);
-  });
+  app.post(
+    "/register/invitation",
+    bodyLimit({
+      maxSize: 16_384,
+      onError: (c) =>
+        c.text(
+          getMessages(localeFromRequest(c.req.raw)).adminInputInvalid,
+          413,
+        ),
+    }),
+    async (c) => {
+      c.header("cache-control", "no-store");
+      const form = await c.req.parseBody();
+      if (
+        !verifyCsrfToken(c.req.header("cookie"), form.csrfToken)
+      ) return csrfForbiddenResponse(c.req.raw);
+      const limited = await rateLimitExceededResponseFor(
+        storage,
+        publicRateLimitPolicies.registration,
+        clientRateLimitIdentifier((name) => c.req.header(name)),
+        { request: c.req.raw },
+      );
+      if (limited) return limited;
+      const pending = String(form.pending ?? ""),
+        id = await secretDigest(pending);
+      const record = await storage.administration?.getTemporary(id);
+      const locale = authPageLocale(
+        new URL(c.req.url),
+        c.req.header("accept-language"),
+        config,
+        c.req.header("cookie"),
+      );
+      const messages = getMessages(locale);
+      if (
+        !record?.creation ||
+        record.binding !== await secretDigest(String(form.csrfToken))
+      ) return c.redirect("/login", 303);
+      const result = await storage.administration!.register(
+        record.creation,
+        await secretDigest(
+          normalizeInvitation(String(form.invitationCode ?? "")),
+        ),
+        id,
+      );
+      if (result !== "ok") {
+        return c.html(
+          renderAuthPage({
+            action: "/register/invitation",
+            csrfToken: String(form.csrfToken),
+            error: messages.invitationInvalid,
+            heading: messages.authRegister,
+            locale,
+            messages,
+            mode: "register",
+            pendingRegistration: pending,
+            returnTo: record.returnTo ?? "/",
+            submitLabel: messages.authCreateAccount,
+            syncLocale: false,
+          }),
+          400,
+        );
+      }
+      return await redirectWithSession(
+        c.req.url,
+        safeReturnTo(record.returnTo ?? null),
+        record.creation.account,
+        storage,
+        config,
+      );
+    },
+  );
 
   app.post(emailVerificationPath, async (c) => {
     const url = new URL(c.req.url);
@@ -699,7 +789,12 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const email = normalizeEmailAddress(String(form.email ?? ""));
     const purpose = emailVerificationPurposeFromForm(form);
     if (!email || !purpose) {
@@ -936,7 +1031,12 @@ export function createAuthRoutes(
       return rateLimitResponse;
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url) ||
       String(payload[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
     return await handlePasskeyLogin(c, storage, config, payload, {
@@ -1024,7 +1124,12 @@ export function createAuthRoutes(
       return rateLimitResponse;
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     return await handlePasskeySecondFactor(
       c,
       storage,
@@ -1047,7 +1152,12 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const syncLocale = shouldSyncAuthLocale(url) ||
       String(form[authLocaleChangedParam] ?? "") === authLocaleChangedValue;
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
@@ -1113,7 +1223,12 @@ export function createAuthRoutes(
 
   app.get(mfaPath, async (c) => {
     const url = new URL(c.req.url);
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const messages = getMessages(locale);
     const returnTo = safeReturnTo(url.searchParams.get("returnTo"));
     const challenge = await getRenderableMfaChallenge(
@@ -1171,7 +1286,12 @@ export function createAuthRoutes(
       return csrfForbiddenResponse(c.req.raw);
     }
 
-    const locale = authPageLocale(url, c.req.header("accept-language"), config, c.req.header("cookie"));
+    const locale = authPageLocale(
+      url,
+      c.req.header("accept-language"),
+      config,
+      c.req.header("cookie"),
+    );
     const returnTo = safeReturnTo(String(form.returnTo ?? "/"));
     const challengeId = String(form.challengeId ?? "").trim();
     const method = secondFactorMethodFromForm(form.method);
@@ -1608,10 +1728,35 @@ async function handleGoogleCredentialLogin(
 
   const knownIdentity = await storage.getAuthIdentity("google", claims.sub);
   if (!knownIdentity || !(await storage.getAccountById(knownIdentity.userId))) {
-    const now = new Date().toISOString(), account = googleAccountFromClaims(claims, now, 0);
-    for (let attempt=1; await storage.getAccountByUsername(account.username); attempt++) account.username = googleUsernameCandidate(claims, attempt);
+    const now = new Date().toISOString(),
+      account = googleAccountFromClaims(claims, now, 0);
+    for (
+      let attempt = 1;
+      await storage.getAccountByUsername(account.username);
+      attempt++
+    ) account.username = googleUsernameCandidate(claims, attempt);
     const email = verifiedGoogleEmail(claims);
-    return await beginInvitationRegistration(c, storage, config, { account, identity: { provider: "google", providerUserId: claims.sub, userId: account.id, createdAt: now, ...(email ? { email, emailVerified: true } : {}) }, ...(email ? { email: { userId: account.id, email, verified: true, createdAt: now, lastVerifiedAt: now } } : {}) }, options);
+    return await beginInvitationRegistration(c, storage, config, {
+      account,
+      identity: {
+        provider: "google",
+        providerUserId: claims.sub,
+        userId: account.id,
+        createdAt: now,
+        ...(email ? { email, emailVerified: true } : {}),
+      },
+      ...(email
+        ? {
+          email: {
+            userId: account.id,
+            email,
+            verified: true,
+            createdAt: now,
+            lastVerifiedAt: now,
+          },
+        }
+        : {}),
+    }, options);
   }
   const result = await findGoogleAccount(storage, claims);
 
@@ -2124,9 +2269,29 @@ async function handleEmailLogin(
   if (!existingEmailAccount) {
     await storage.deletePendingEmailVerification(activeVerification.id);
     const now = new Date().toISOString();
-    const account: UserAccount = { authVersion: 2, id: crypto.randomUUID(), username: emailLoginUsernameCandidate(email, 0), primaryEmail: email, emailVerified: true, createdAt: now };
-    for (let attempt=1; await storage.getAccountByUsername(account.username); attempt++) account.username = emailLoginUsernameCandidate(email, attempt);
-    return await beginInvitationRegistration(c, storage, config, { account, email: { userId: account.id, email, verified: true, createdAt: now, lastVerifiedAt: now } }, options);
+    const account: UserAccount = {
+      authVersion: 2,
+      id: crypto.randomUUID(),
+      username: emailLoginUsernameCandidate(email, 0),
+      primaryEmail: email,
+      emailVerified: true,
+      createdAt: now,
+    };
+    for (
+      let attempt = 1;
+      await storage.getAccountByUsername(account.username);
+      attempt++
+    ) account.username = emailLoginUsernameCandidate(email, attempt);
+    return await beginInvitationRegistration(c, storage, config, {
+      account,
+      email: {
+        userId: account.id,
+        email,
+        verified: true,
+        createdAt: now,
+        lastVerifiedAt: now,
+      },
+    }, options);
   }
   const account = existingEmailAccount;
   const verifiedAccount = await ensureEmailLoginCredential(
@@ -2135,7 +2300,6 @@ async function handleEmailLogin(
     email,
   );
   await storage.deletePendingEmailVerification(activeVerification.id);
-
 
   logSecurityAuditEvent({
     code: "email_login_succeeded",
@@ -4114,36 +4278,48 @@ function renderAuthPage(options: {
           <input type="hidden" name="returnTo" value="${
     escapeHtml(options.returnTo)
   }">
-${options.pendingRegistration ? `<input type="hidden" name="pending" value="${escapeHtml(options.pendingRegistration)}">` : `          <div class="auth-fields">
+${
+    options.pendingRegistration
+      ? `<input type="hidden" name="pending" value="${
+        escapeHtml(options.pendingRegistration)
+      }">`
+      : `          <div class="auth-fields">
             <label>
               ${
-    escapeHtml(
-      options.mode === "login"
-        ? options.messages.authUsernameOrEmail
-        : options.messages.authUsername,
-    )
-  }
+        escapeHtml(
+          options.mode === "login"
+            ? options.messages.authUsernameOrEmail
+            : options.messages.authUsername,
+        )
+      }
               <input name="username" dir="ltr" autocomplete="${
-    options.mode === "login" ? "username webauthn" : "username"
-  }" required ${emailLoginInitiallyVisible ? "" : "autofocus"}>
+        options.mode === "login" ? "username webauthn" : "username"
+      }" required ${emailLoginInitiallyVisible ? "" : "autofocus"}>
             </label>
             <label>
               ${escapeHtml(options.messages.authPassword)}
               <input name="password" type="password" dir="ltr" autocomplete="${
-    options.mode === "login" ? "current-password" : "new-password"
-  }" required>
+        options.mode === "login" ? "current-password" : "new-password"
+      }" required>
             </label>
             ${
-    options.mode === "register"
-      ? `<label>
+        options.mode === "register"
+          ? `<label>
               ${escapeHtml(options.messages.authConfirmPassword)}
               <input name="confirmPassword" type="password" dir="ltr" autocomplete="new-password" required>
             </label>`
-      : ""
-  }
+          : ""
+      }
           </div>
-       `}
-${options.mode === "register" ? `<label>${escapeHtml(options.messages.invitationCode)}<input name="invitationCode" dir="ltr" autocomplete="off" maxlength="80" required></label>` : ""}   ${
+       `
+  }
+${
+    options.mode === "register"
+      ? `<label>${
+        escapeHtml(options.messages.invitationCode)
+      }<input name="invitationCode" dir="ltr" autocomplete="off" maxlength="80" required></label>`
+      : ""
+  }   ${
     options.mode === "login"
       ? renderLoginLinkRow({
         emailLoginHref,
@@ -4302,8 +4478,12 @@ function renderGoogleLoginForm(options: {
   return `<div
           class="auth-google-method"
           data-google-login
-          data-google-label="${escapeHtml(getMessages(options.locale).accountGoogle)}"
-          data-google-failed="${escapeHtml(getMessages(options.locale).authGoogleUnavailable)}"
+          data-google-label="${
+    escapeHtml(getMessages(options.locale).accountGoogle)
+  }"
+          data-google-failed="${
+    escapeHtml(getMessages(options.locale).authGoogleUnavailable)
+  }"
           data-google-client-id="${escapeHtml(options.googleClientId)}"
           hidden
         >
@@ -6001,7 +6181,9 @@ function authPageLocale(
   config: AuthConfig,
   cookies?: string,
 ): Locale {
-  const manual = localeFromLanguageTag(devicePreferenceCookie(cookies, "locale"));
+  const manual = localeFromLanguageTag(
+    devicePreferenceCookie(cookies, "locale"),
+  );
   if (manual && !shouldSyncAuthLocale(url)) return manual;
   const queryLocale = localeFromLanguageTag(url.searchParams.get("locale"));
   if (queryLocale) {
@@ -6432,12 +6614,39 @@ function escapeHtml(value: string): string {
  * @param {object} options 登录目的地及语言。
  * @return {Promise<Response>} 邀请码表单。
  */
-async function beginInvitationRegistration(c: Context, storage: Storage, _config: AuthConfig, creation: AccountCreation, options: { locale: Locale; returnTo: string; syncLocale: boolean }): Promise<Response> {
-  if (!storage.administration) return c.text("Registration unavailable",503);
+async function beginInvitationRegistration(
+  c: Context,
+  storage: Storage,
+  _config: AuthConfig,
+  creation: AccountCreation,
+  options: { locale: Locale; returnTo: string; syncLocale: boolean },
+): Promise<Response> {
+  if (!storage.administration) return c.text("Registration unavailable", 503);
   const pending = crypto.randomUUID() + crypto.randomUUID();
   const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-  await storage.administration.putTemporary({ id: await secretDigest(pending), expiresAt: new Date(Date.now()+600_000).toISOString(), binding: await secretDigest(csrf.token), creation, returnTo: options.returnTo, ...(options.syncLocale ? { locale: options.locale } : {}) });
+  await storage.administration.putTemporary({
+    id: await secretDigest(pending),
+    expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    binding: await secretDigest(csrf.token),
+    creation,
+    returnTo: options.returnTo,
+    ...(options.syncLocale ? { locale: options.locale } : {}),
+  });
   const messages = getMessages(options.locale);
   c.header("cache-control", "no-store");
-  return withCsrfCookie(c.html(renderAuthPage({ action: "/register/invitation", csrfToken: csrf.token, heading: messages.authRegister, locale: options.locale, messages, mode: "register", pendingRegistration: pending, returnTo: options.returnTo, submitLabel: messages.authCreateAccount, syncLocale: false })),csrf);
+  return withCsrfCookie(
+    c.html(renderAuthPage({
+      action: "/register/invitation",
+      csrfToken: csrf.token,
+      heading: messages.authRegister,
+      locale: options.locale,
+      messages,
+      mode: "register",
+      pendingRegistration: pending,
+      returnTo: options.returnTo,
+      submitLabel: messages.authCreateAccount,
+      syncLocale: false,
+    })),
+    csrf,
+  );
 }
