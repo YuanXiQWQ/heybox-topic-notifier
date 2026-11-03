@@ -19,7 +19,7 @@ const {CancellationToken} = require('builder-util-runtime');
 const {repairUpdateCache} = require('./update-cache.cjs');
 const {readInstallFailure, clearInstallFailure} = require('./update-recovery.cjs');
 const {installResumableDownload, restoreResume} = require('./resumable-download.cjs');
-const {createHash} = require('node:crypto');
+const {createNotificationInbox} = require('./notification-inbox.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
@@ -49,8 +49,7 @@ let webSession;
 let quitting = false;
 /** 防止重复退出事件同时执行持久化屏障。 */
 let preparingExit;
-/** 通知轮询与更新检查各自合并并发触发。 */
-let polling;
+/** 合并并发的更新检查。 */
 let checking;
 /** 启动前已完整下载的自动更新，只在再次启动并校验缓存后安装。 */
 let installCachedUpdateOnStart = false;
@@ -63,10 +62,6 @@ let stoppingUpdates = false;
 /** 恢复标记不可读取时暂停自动安装，防止反复覆盖未恢复完整的安装。 */
 let recoveryReadFailed = false;
 let updateTransfer;
-/** 设备开关变更序号使旧的开启请求不能覆盖较新的关闭操作。 */
-let notificationRevision = 0;
-/** 当前会话展示的通知，退出登录时撤回。 */
-const visibleNotifications = new Set();
 /** 原生更新进度不依赖服务器部署版本。 */
 let update = {status: 'idle', version: undefined, progress: 0};
 
@@ -191,12 +186,8 @@ async function start() {
       callback(false)
   );
   webSession.setPermissionCheckHandler(() => false);
-  webSession.cookies.on('changed', (_event, cookie, _cause, removed) => {
-    if (
-        cookie.name === 'heybox_session' &&
-        (removed ||
-            device.value.notifications?.session !== cookieFingerprint(cookie.value))
-    ) void disableNotifications();
+  const inbox = createNotificationInbox({
+    webSession, device, origin, Notification, icon: path.join(resources, 'favicon.png'), emitState, showWindow,
   });
   window = new BrowserWindow({
     width: 1200,
@@ -247,9 +238,11 @@ async function start() {
   );
   tray.on('double-click', () => showWindow());
   installJumpList();
-  installBridge();
+  installBridge(inbox);
   installUpdater();
   void checkUpdate();
+  /** 暂时无法投递时保留消费游标，下一轮再次尝试。 @return {Promise<void>} 本轮尝试结束。 */
+  const pollNotifications = () => inbox.poll().catch(() => {});
   powerMonitor.on('resume', () => {
     void pollNotifications();
     void checkUpdate();
@@ -406,8 +399,9 @@ function authorize(event) {
 /**
  * 注册固定原生功能，页面只能调用有限的业务能力。
  * 重启更新先保存本地编辑，再静默安装并重新启动应用。
+ * @param {object} inbox 当前会话的设备通知收件箱。
  */
-function installBridge() {
+function installBridge(inbox) {
   /**
    * 为每个处理器统一验证调用来源。
    * @param {string} name 通道。
@@ -430,7 +424,10 @@ function installBridge() {
         complete: () => showWindow('/'),
       }),
   );
-  handle('app:notifications', setNotifications);
+  handle('app:notifications', async (enabled) => {
+    await inbox.setEnabled(enabled);
+    return info();
+  });
   handle('app:preferences', setPreferences);
   handle('app:reset-window', resetWindow);
   handle('app:check-update', checkUpdate);
@@ -534,248 +531,6 @@ async function showWindow(route, allowed) {
     } catch { /* 保存失败时保留编辑页，由现有保存状态反馈错误。 */
     }
   }
-}
-
-/**
- * 生成会话绑定摘要，不把 Cookie 明文保存到设备设置。
- * @param {string} value 会话令牌。
- * @return {string} 摘要。
- */
-function cookieFingerprint(value) {
-  return createHash('sha256').update(value).digest('hex');
-}
-
-/**
- * 读取当前认证会话摘要。
- * @return {Promise<string>} 摘要或空值。
- */
-async function sessionFingerprint() {
-  const cookies = await webSession.cookies.get({
-    url: origin,
-    name: 'heybox_session',
-  });
-  return cookies[0] ? cookieFingerprint(cookies[0].value) : '';
-}
-
-/**
- * 读取账号通知接口，拒绝跳转到登录页后误当作 JSON 成功。
- * @param {string | undefined} after 消费游标。
- * @return {Promise<object>} 服务端通知批次。
- */
-async function readNotifications(after) {
-  const url = origin + '/api/native/notifications' +
-      (after === undefined ? '' : '?after=' + encodeURIComponent(after));
-  const response = await webSession.fetch(url, {
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok) throw new Error('Notifications unavailable');
-  return response.json();
-}
-
-/**
- * 开启时绑定当前账号和会话，并从当前游标开始；关闭时立即撤回可见通知。
- * @param {boolean} enabled 当前设备开关。
- * @return {Promise<object>} 原生状态。
- */
-async function setNotifications(enabled) {
-  if (typeof enabled !== 'boolean') {
-    throw new Error('Invalid notification preference');
-  }
-  if (!enabled) {
-    await disableNotifications();
-    return info();
-  }
-  if (!Notification.isSupported()) throw new Error('Notifications unsupported');
-  const revision = ++notificationRevision;
-  const before = await sessionFingerprint();
-  const batch = await readNotifications();
-  const fingerprint = await sessionFingerprint();
-  if (
-      !fingerprint || fingerprint !== before ||
-      revision !== notificationRevision || typeof batch.userId !== 'string'
-  ) {
-    throw new Error('Authentication required');
-  }
-  device.value.notifications = {
-    enabled: true,
-    userId: batch.userId,
-    session: fingerprint,
-    cursor: batch.cursor,
-    seen: [],
-  };
-  await device.save();
-  emitState();
-  return info();
-}
-
-/**
- * 停用设备通知并撤回当前进程创建的系统提示。
- * @return {Promise<void>} 设备偏好已保存。
- */
-async function disableNotifications() {
-  if (!device) return;
-  notificationRevision++;
-  device.value.notifications = {enabled: false};
-  for (const notification of visibleNotifications) notification.close();
-  visibleNotifications.clear();
-  await device.save();
-  emitState();
-}
-
-/**
- * 合并通知补取，关窗驻留和休眠恢复使用同一消费游标。
- * @return {Promise<void>} 本次读取结束。
- */
-function pollNotifications() {
-  polling ??= consumeNotifications().catch(() => {
-  }).finally(() => {
-    polling = undefined;
-  });
-  return polling;
-}
-
-/**
- * 在账号和会话仍相同时合并分页积压；成功展示摘要后确认事件和已过滤项。
- * @return {Promise<void>} 通知处理结束。
- */
-async function consumeNotifications() {
-  const binding = device.value.notifications;
-  if (!binding?.enabled) return;
-  const initialSession = await sessionFingerprint();
-  if (device.value.notifications !== binding) return;
-  if (initialSession !== binding.session) {
-    await disableNotifications();
-    return;
-  }
-  let cursor = binding.cursor;
-  const events = [], ids = new Set(binding.seen), posts = new Set();
-  // 一次补取最多十页，所有可见积压合为一条系统通知。
-  for (let page = 0; page < 10; page++) {
-    const batch = await readNotifications(cursor);
-    const fingerprint = await sessionFingerprint();
-    if (device.value.notifications !== binding) return;
-    if (batch.userId !== binding.userId || fingerprint !== binding.session) {
-      await disableNotifications();
-      return;
-    }
-    for (const event of batch.events) {
-      if (!ids.has(event.id)) {
-        const key = event.kind === 'match' && event.postId ? 'post:' + event.postId : 'event:' + event.id;
-        if (!posts.has(key)) {
-          events.push(event);
-          posts.add(key);
-        }
-        ids.add(event.id);
-      }
-    }
-    const next = batch.cursor ?? batch.events.at(-1)?.cursor ?? cursor;
-    if (next < cursor || (next === cursor && batch.events.length)) throw new Error('Invalid notification cursor');
-    cursor = next;
-    if (!(batch.hasMore ?? batch.events.length === 100)) break;
-  }
-  if (device.value.notifications !== binding) return;
-  const fingerprint = await sessionFingerprint();
-  if (device.value.notifications !== binding) return;
-  if (fingerprint !== binding.session) {
-    await disableNotifications();
-    return;
-  }
-  if (events.length) {
-    const event = events[0];
-    const current = await sessionFingerprint();
-    if (device.value.notifications !== binding) return;
-    if (current !== binding.session) {
-      await disableNotifications();
-      return;
-    }
-    if (!binding.seen.includes(event.id)) {
-      const notification = new Notification({
-        title: String(event.title).slice(0, 120) + (events.length > 1 ? ` (${events.length})` : ''),
-        body: events.slice(0, 3).map((item) => String(item.body)).join('\n').slice(0, 300),
-        icon: path.join(resources, 'favicon.png'),
-        silent: false,
-      });
-      notification.on('click', async () => {
-        try {
-          const current = await sessionFingerprint();
-          if (
-              device.value.notifications === binding &&
-              current === binding.session
-          ) {
-            await showWindow(
-                events.length > 1 ? '/' : event.path,
-                async () =>
-                    device.value.notifications === binding &&
-                    await sessionFingerprint() === binding.session,
-            );
-          }
-        } catch { /* 已过期通知的点击不切换当前账号页面。 */
-        }
-      });
-      notification.on('close', () => visibleNotifications.delete(notification));
-      visibleNotifications.add(notification);
-      await showNotification(notification);
-      if (device.value.notifications !== binding || await sessionFingerprint() !== binding.session) {
-        notification.close();
-        return;
-      }
-      for (const previous of visibleNotifications) if (previous !== notification) {
-        previous.close();
-        visibleNotifications.delete(previous);
-      }
-    }
-  }
-  if (device.value.notifications !== binding) return;
-  if (cursor === binding.cursor && !events.length) return;
-  const previousCursor = binding.cursor, previousSeen = binding.seen;
-  binding.cursor = cursor;
-  binding.seen = [...ids].slice(-2048);
-  try {
-    await device.save();
-  } catch (error) {
-    binding.cursor = previousCursor;
-    binding.seen = previousSeen;
-    throw error;
-  }
-}
-
-/**
- * 等待系统确认展示；失败或超时保留游标，下轮可重新投递。
- * @param {Notification} notification 系统通知实例。
- * @return {Promise<void>} 系统已接受展示。
- */
-function showNotification(notification) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    /** @param {Error | undefined} error 展示失败原因。 */
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (error) {
-        visibleNotifications.delete(notification);
-        notification.close();
-        reject(error);
-      } else resolve();
-    };
-    const timer = setTimeout(
-        () => finish(new Error('Notification timed out')),
-        10000,
-    );
-    notification.once('show', () => finish());
-    notification.once('failed', () => finish(new Error('Notification failed')));
-    notification.once(
-        'close',
-        () => finish(new Error('Notification closed before display')),
-    );
-    try {
-      notification.show();
-    } catch (error) {
-      finish(error);
-    }
-  });
 }
 
 /**
