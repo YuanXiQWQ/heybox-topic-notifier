@@ -1,0 +1,27 @@
+# 独立候选进程使用候选环境与端口，不替换现有生产或验证进程。
+[Unit]
+Description=Heybox Topic Notifier Candidate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heybox
+Group=heybox
+WorkingDirectory=/opt/heybox-topic-notifier/candidate
+EnvironmentFile=/etc/heybox-topic-notifier/candidate.env
+Environment=DENO_DIR=/var/cache/heybox
+Environment=HOME=/var/lib/heybox
+ExecStart=/usr/local/bin/deno task start:vm
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=180
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/cache/heybox /var/lib/heybox
+
+[Install]
+WantedBy=multi-user.target

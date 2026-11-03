@@ -1,0 +1,2 @@
+# Linux 部署文件在 Windows 检出时仍保留 LF。
+ops/* text eol=lf
