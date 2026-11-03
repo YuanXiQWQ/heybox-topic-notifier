@@ -8,6 +8,7 @@ import type { UserSyncStore } from "./sync_types.ts";
 import type { NativeNotificationStore } from "./native_notifications.ts";
 import type { NativeLoginStore } from "./native_login.ts";
 import type { NativePushStore } from "./native_push_types.ts";
+import type { MatchSaveOptions, NotificationOutbox } from "./notification_outbox.ts";
 import type {
   AppSettings,
   AppState,
@@ -71,6 +72,8 @@ export type PollScheduleEntry = {
  * 指定用户作用域下的数据存储契约。
  */
 export type UserStorage = {
+  /** 与新命中原子保存的通道投递任务，仅常驻 Turso 模式启用。 */
+  notificationOutbox?: NotificationOutbox;
   /** 可在应用恢复联网后继续消费的通知收件箱。 */
   nativeNotifications?: NativeNotificationStore;
   /** 区域版本和业务数据在同一事务内保存的同步接口。 */
@@ -154,8 +157,9 @@ export type UserStorage = {
    * 保存当前用户命中记录。
    *
    * @param {MatchRecord} record 命中记录。
+   * @param {MatchSaveOptions} options 新命中是否需要原子创建投递任务。
    */
-  saveMatch(record: MatchRecord): Promise<void>;
+  saveMatch(record: MatchRecord, options?: MatchSaveOptions): Promise<void>;
   /**
    * 标记当前用户命中记录已经通知。
    *

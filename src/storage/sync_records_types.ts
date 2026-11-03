@@ -1,6 +1,7 @@
 /** @file 定义记录生命周期的原子同步接口。 */
 import type { MatchRecord } from "../models.ts";
 import type { EditStamp } from "../sync/protocol.ts";
+import type { MatchSaveOptions } from "./notification_outbox.ts";
 import type {
   RecordMerge,
   RecordStatus,
@@ -24,8 +25,9 @@ export type RecordSyncStore = {
   /**
    * 刷新正文或通知元数据，保持已裁决的用户管理状态。
    * @param {MatchRecord} record 内容。
+   * @param {MatchSaveOptions} options 新记录的原子投递选项。
    */
-  saveRecordContent(record: MatchRecord): Promise<void>;
+  saveRecordContent(record: MatchRecord, options?: MatchSaveOptions): Promise<void>;
   /**
    * 读取已管理记录的版本，包含删除墓碑。
    * @return {Promise<RecordSyncSnapshot[]>} 管理状态。

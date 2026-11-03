@@ -10,7 +10,7 @@ android {
         testInstrumentationRunner 'io.github.yuanxiqwq.heyboxnotifier.NativeSmokeRunner'
         versionCode = (System.getenv('APP_VERSION_CODE') ?: '1').toInteger()
         versionName = (System.getenv('APP_VERSION') ?: '0.1.0')
-        buildConfigField 'String', 'APP_ORIGIN', '"https://heybox-topic-notifier.yuanxiqwq.deno.net"'
+        buildConfigField 'String', 'APP_ORIGIN', '"https://heybox.yuanxiqwq.top"'
         def honorAppId = System.getenv('HONOR_PUSH_APP_ID') ?: ''
         if (honorAppId && !(honorAppId ==~ /[0-9]+/)) throw new GradleException('Invalid Honor app ID')
         buildConfigField 'String', 'HONOR_APP_ID', '"' + honorAppId + '"'

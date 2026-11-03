@@ -19,6 +19,7 @@ export type StorageEnvironment = {
  * 存储工厂测试与依赖注入选项。
  */
 export type StorageFactoryOptions = {
+  notificationOutbox?: boolean;
   environment?: StorageEnvironment;
   kvStorage?: Storage;
   tursoStorage?: Storage;
@@ -60,6 +61,7 @@ export function createAppStorage(
   const tursoStorage = options.tursoStorage ??
     (needsTurso
       ? createTursoStorage(defaultSettings, {
+        notificationOutbox: options.notificationOutbox,
         authToken: environment.get("TURSO_AUTH_TOKEN"),
         url: environment.get("TURSO_DATABASE_URL"),
       })

@@ -329,6 +329,8 @@ export function createTursoAdministration(
           "user_settings",
           "app_states",
           "matches",
+          "match_counts",
+          "notification_outbox",
           "sync_records",
           "sync_settings",
           "dashboard_versions",

@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- 本页向用户说明账号数据与可选 Google Drive 加密备份的使用方式。 -->
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>小黑盒话题提醒 · 隐私说明 / Privacy</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.8; }
+  body { max-width: 52rem; margin: 3rem auto; padding: 0 1.25rem; }
+  a { color: LinkText; }
+</style>
+<main>
+  <h1>小黑盒话题提醒 · 隐私说明</h1>
+  <p>账号身份、设置、关注规则、工作区、历史和通知设备信息用于登录、跨端同步、帖子匹配和通知投递。服务端业务数据保存在运营者配置的数据库中；离线编辑和缓存还会保存在当前设备。通知和可选 AI 匹配会按用户启用的功能向相应服务发送必要内容。</p>
+  <p>使用 Google 登录时，应用接收 Google 返回的账号标识和所授权的基本资料，用于识别或绑定项目账号。Google 登录不授予读取 Google Drive 文件的权限。</p>
+  <h2>运营者可选的 Google Drive 备份</h2>
+  <p>备份上传程序单独请求 <code>drive.file</code> 权限，只访问该程序创建或用户明确交给它的文件。数据库快照在上传前加密；Oracle 服务器只保存加密公钥，恢复所需的私钥由运营者另行保管。备份不会因为撤销 Google 授权而自动删除。</p>
+  <p>备份文件存入运营者自己的 Google Drive，并占用该账号的存储空间。备份程序不会主动公开分享文件，不会读取无关的 Drive 文件，也不将 Drive 数据用于广告或 AI 训练。运营者可在 Google 账号的第三方连接设置中撤销授权，并在 Drive 中删除备份；撤销后自动上传停止。</p>
+  <p>如需查询或删除某个部署中的账号数据，请联系该部署的运营者。开源代码和问题反馈见 <a href="https://github.com/YuanXiQWQ/heybox-topic-notifier">项目仓库</a>。不同运营者自行配置的数据库、通知服务和备份目的地可能不同。</p>
+  <hr>
+  <section lang="en">
+    <h1>Heybox Topic Notifier · Privacy</h1>
+    <p>Account identities, settings, matching rules, workspace records, history and notification device information support sign-in, synchronization, matching and notifications. Server data is stored in the operator's configured database. Offline edits and caches also remain on the current device. Enabled notification and optional AI services receive the content needed for those features.</p>
+    <p>Google sign-in supplies an account identifier and authorized basic profile information to identify or link an application account. Signing in with Google does not grant access to Google Drive files.</p>
+    <h2>Optional Google Drive backups for the operator</h2>
+    <p>The separate backup uploader requests only <code>drive.file</code> access: files it creates or files explicitly selected for it. Database snapshots are encrypted before upload. The Oracle server holds the public encryption key; the operator keeps the private recovery key separately. Revoking authorization does not automatically delete existing backups.</p>
+    <p>Backups use the operator's own Google Drive storage quota. The uploader does not publicly share files, read unrelated Drive files, or use Drive data for advertising or AI training. The operator can revoke access in Google Account third-party connections and delete backups in Drive. Revocation stops automatic uploads.</p>
+    <p>Contact your deployment's operator to access or delete account data. Source code and issue reporting are available in the <a href="https://github.com/YuanXiQWQ/heybox-topic-notifier">project repository</a>. Operators configure their own database, notification services and backup destination.</p>
+  </section>
+</main>
+</html>

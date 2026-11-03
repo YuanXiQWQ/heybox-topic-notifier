@@ -2680,7 +2680,7 @@ Deno.test("simulate match records one randomized pending match through poller", 
   };
   assertEquals(
     record.post.url,
-    "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/",
+    "https://heybox.yuanxiqwq.top/",
   );
   assert(record.post.title.startsWith("模拟命中帖（测试 "));
   assert(record.post.excerpt.startsWith("模拟命中帖，随机样本 "));

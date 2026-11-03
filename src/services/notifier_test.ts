@@ -744,7 +744,7 @@ Deno.test("server chan 3 webhook receives title and desp fields", async () => {
   assert(body.desp.includes("帖子 "));
   assertEquals(
     body.desp.includes(
-      "https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/",
+      "https://heybox.yuanxiqwq.top/",
     ),
     true,
   );
