@@ -1,4 +1,5 @@
 /** @file 将设置拆成独立区域，并按编辑版本合并，保留被删除话题的生命周期标记。 */
+import { devicePreferenceFields } from "../device_preferences.ts";
 import type { AppSettings, TopicRule } from "../models.ts";
 import { normalizeSchedule } from "../../static/polling-schedule-core.js";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
@@ -36,7 +37,7 @@ const groups = {
 const aiConnectionFields = ["provider", "apiUrl", "apiKey", "model"] as const;
 
 /**
- * 展开完整设置，话题按稳定 ID 隔离，删除通过 present 区域表达。
+ * 展开可同步的业务设置，排除设备偏好；话题按稳定 ID 隔离，删除通过 present 表达。
  * @param {AppSettings} settings 完整应用设置。
  * @return {Record<string, unknown>} 区域和值。
  */
@@ -44,7 +45,7 @@ export function splitSettings(settings: AppSettings): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   const grouped = new Set<string>(Object.values(groups).flat());
   for (const [key, value] of Object.entries(settings)) {
-    if (!["topics", "polling", "matching"].includes(key) && !grouped.has(key)) {
+    if (!["topics", "polling", "matching", ...devicePreferenceFields].includes(key) && !grouped.has(key)) {
       values[`setting/${key}`] = value;
     }
   }
@@ -134,7 +135,7 @@ export function settingsEdits(
 }
 
 /**
- * 将所有获胜区域重建成业务设置，并保持话题删除与较晚修改的确定性。
+ * 将获胜的业务区域重建为设置，忽略设备偏好区域，并保留话题生命周期顺序。
  * @param {SettingsSyncSnapshot} snapshot 待投影的区域快照。
  * @return {AppSettings} 对业务层可见的设置。
  */
@@ -152,7 +153,7 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
   >();
   for (const [region, entry] of Object.entries(snapshot.regions)) {
     const [kind, field, part] = region.split("/");
-    if (kind === "setting") {
+    if (kind === "setting" && !(devicePreferenceFields as readonly string[]).includes(field)) {
       Object.assign(result, { [field]: structuredClone(entry.value) });
     }
     if (kind === "group") Object.assign(result, structuredClone(entry.value));
@@ -202,7 +203,7 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
 }
 
 /**
- * 合并区域编辑，重复上传保持幂等，乱序上传不改变最终赢家。
+ * 合并业务区域编辑并忽略设备偏好，重复上传保持幂等，乱序上传不改变最终赢家。
  * @param {SettingsSyncSnapshot} current 数据库当前快照。
  * @param {readonly SettingsEdit[]} edits 待重放编辑。
  * @return {SettingsMerge} 新快照和区域裁决。
@@ -215,6 +216,7 @@ export function mergeSettings(
   const applied: string[] = [];
   const superseded: string[] = [];
   for (const edit of edits) {
+    if (devicePreferenceFields.some((field) => edit.region === `setting/${field}`)) continue;
     const previous = snapshot.regions[edit.region];
     const comparison = compareEdits(
       edit.stamp,

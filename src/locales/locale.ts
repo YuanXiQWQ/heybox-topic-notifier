@@ -1,6 +1,7 @@
 /**
  * @file 本文件提供不依赖翻译文案的语言标识归一化与请求语言选择。
  */
+import { devicePreferenceCookie } from "../device_preferences.ts";
 import { isLocale, type Locale, locales } from "./types.ts";
 
 /**
@@ -66,7 +67,7 @@ export function normalizeLocale(value: string | undefined): Locale {
 }
 
 /**
- * 从请求查询参数和浏览器语言头中解析应用支持的语言。
+ * 优先读取本设备手动选择的语言，再从请求参数和浏览器语言头解析。
  *
  * @param {Request} request 当前 HTTP 请求。
  * @param {Locale} fallback 无法识别请求语言时使用的兜底语言。
@@ -76,6 +77,8 @@ export function localeFromRequest(
   request: Request,
   fallback: Locale = "zh-CN",
 ): Locale {
+  const manual = devicePreferenceCookie(request.headers.get("cookie"), "locale");
+  if (isLocale(manual)) return manual;
   const url = new URL(request.url);
   const queryLocale = supportedLocaleFromLanguageTag(
     url.searchParams.get("locale"),

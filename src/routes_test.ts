@@ -269,6 +269,29 @@ Deno.test("root page does not tick scheduler", async () => {
   assertEquals(ticks, 0);
 });
 
+Deno.test("account pages follow each device instead of stored account appearance", async () => {
+  const stored = { ...currentSettings, locale: "fr-FR" as const, darkMode: true, themeColor: "#123abc" };
+  const app = createRoutes({ storage: {
+    getDashboardSnapshot: () => Promise.resolve({ pendingMatches: [], settings: stored, state: { totalMatches: 0 } }),
+  } } as unknown as AppContext);
+  const phone = await (await app.request("/", { headers: { "accept-language": "ja-JP" } })).text();
+  const desktop = await (await app.request("/", { headers: { "accept-language": "en-GB" } })).text();
+  const web = await (await app.request("/", { headers: {
+    "accept-language": "ko-KR",
+    cookie: "heybox-device-locale=ar-SA; heybox-device-darkMode=false; heybox-device-themeColor=%23654321",
+  } })).text();
+  assert(phone.includes('lang="ja-JP"'));
+  assert(desktop.includes('lang="en-GB"'));
+  assert(phone.includes('--theme-color: #bd7fff'));
+  assert(web.includes('lang="ar-SA"'));
+  assert(web.includes('dir="rtl"'));
+  assert(web.includes('data-color-mode="light"'));
+  assert(web.includes('--theme-color: #654321'));
+  assertEquals(stored.locale, "fr-FR");
+  assertEquals(stored.darkMode, true);
+  assertEquals(stored.themeColor, "#123abc");
+});
+
 Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => {
   const settings = settingsFromForm(
     {
@@ -349,7 +372,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
       useRegex: true,
     },
   ]);
-  assertStrictEquals(settings.darkMode, true);
+  assertStrictEquals(settings.darkMode, currentSettings.darkMode);
   assertEquals(settings.notificationEmailAddress, "new@example.com");
   assertEquals(settings.notificationEmailApiToken, "new-api-token");
   assertEquals(
@@ -380,7 +403,7 @@ Deno.test("settingsFromForm preserves submitted inactive keyword groups", () => 
     postLimit: 50,
     sort: "replyTime",
   });
-  assertEquals(settings.themeColor, "#123abc");
+  assertEquals(settings.themeColor, currentSettings.themeColor);
 });
 
 Deno.test("settingsFromForm disables polling when switch is off", () => {
@@ -1963,14 +1986,14 @@ Deno.test("account Passkey route localizes the default RP name", async () => {
   });
   const registerResponse = await register(app, "alice", "correct-password");
   const cookie = registerResponse.headers.get("set-cookie") ?? "";
-  await storage.saveSettings({ ...currentSettings, locale: "en-US" });
+  await storage.saveSettings({ ...currentSettings, locale: "zh-CN" });
 
   const response = await app.request("/account/passkeys/register-options", {
     body: "{}",
     headers: testCsrfHeaders({
       "content-type": "application/json",
       "x-csrf-token": testCsrfToken,
-      cookie,
+      cookie: `${cookie}; heybox-device-locale=en-US`,
     }),
     method: "POST",
   });

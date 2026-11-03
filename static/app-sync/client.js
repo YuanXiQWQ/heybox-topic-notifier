@@ -5,6 +5,11 @@
   if (!userId || !globalThis.AppLocalStore || !globalThis.crypto?.subtle) {
     return;
   }
+  /** 旧离线 HTML 也加载本机偏好入口，安装包资源可在断网升级后提供该脚本。 */
+  globalThis.applicationAppearanceReady = globalThis.applicationAppearance
+    ? Promise.resolve(globalThis.applicationAppearance)
+    : import("/static/device-preferences.js").then(() => globalThis.applicationAppearance);
+  void globalThis.applicationAppearanceReady.catch(() => {});
   /** 当前设备的持久元数据和时钟校准。 */
   let metadata;
   /** 当前页面最后生成的编辑，时钟倒退不会改变本机操作顺序。 */
@@ -32,7 +37,6 @@
     metadata = await store.readState(userId, "device") ??
       { deviceId: crypto.randomUUID(), offset: 0 };
     const pending = await store.pending(userId);
-    applyPendingAppearance(pending);
     previous =
       pending.filter((operation) =>
         operation.stamp.deviceId === metadata.deviceId
@@ -58,32 +62,6 @@
       ).catch(() => {});
     }
     void flush("background");
-  }
-  /**
-   * 将尚未同步的主题修改应用到其它缓存页面，不覆盖未编辑的主题字段。
-   * @param {Array<object>} pending 当前账号的离线操作。
-   */
-  function applyPendingAppearance(pending) {
-    for (
-      const operation of pending.filter((item) => item.kind === "settings")
-        .sort((a, b) => compareStamp(a.stamp, b.stamp))
-    ) {
-      const next = new URLSearchParams(operation.body),
-        base = new URLSearchParams(operation.base);
-      if (
-        next.get("themeColor") !== base.get("themeColor") &&
-        /^#[a-f0-9]{6}$/i.test(next.get("themeColor") ?? "")
-      ) {
-        document.documentElement.style.setProperty(
-          "--theme-color",
-          next.get("themeColor"),
-        );
-      }
-      if (next.get("darkMode") !== base.get("darkMode")) {
-        document.documentElement.dataset.colorMode =
-          next.get("darkMode") === "on" ? "dark" : "light";
-      }
-    }
   }
   /**
    * 对本地操作使用与服务端一致的版本顺序。
@@ -115,14 +93,14 @@
     return previous;
   }
   /**
-   * 序列化普通业务表单，不把 CSRF 令牌写进离线队列。
+   * 序列化业务表单，不把设备显示偏好或 CSRF 令牌写进离线队列。
    * @param {FormData | URLSearchParams} form 表单快照。
    * @return {string} 可重放的业务字段。
    */
   function serialize(form) {
     const params = new URLSearchParams();
     for (const [name, value] of form) {
-      if (name !== "csrfToken" && !name.startsWith("sync")) {
+      if (!["csrfToken", "darkMode", "themeColor", "locale"].includes(name) && !name.startsWith("sync")) {
         params.append(name, String(value));
       }
     }

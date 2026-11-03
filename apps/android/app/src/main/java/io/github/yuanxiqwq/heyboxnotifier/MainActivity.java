@@ -71,10 +71,12 @@ public final class MainActivity extends ComponentActivity {
     private final Runnable updateTask = this::checkForUpdates;
 
     /**
-     * 初始化保持完整网页能力的 WebView，并限制桥接来源和子框架。
+     * 按系统明暗创建 WebView 宿主，并限制桥接来源和子框架。
      * @param {Bundle} saved 进程恢复状态。
      */
     @Override public void onCreate(Bundle saved) {
+        boolean dark = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        setTheme(dark ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
         super.onCreate(saved);
         try { device = DeviceState.get(this); notifications = Notifications.get(this, device); updates = Updates.get(this, device, updateListener); }
         catch (Exception error) { finish(); return; }
@@ -200,11 +202,11 @@ public final class MainActivity extends ComponentActivity {
         });
     }
     /**
-     * 返回不含令牌和文件路径的设备状态。
+     * 返回系统明暗、设备偏好和运行状态，不包含令牌和文件路径。
      * @return {JSONObject} 页面可见信息。
      * @throws Exception 状态不可用。
      */
-    private JSONObject state() throws Exception { return new JSONObject().put("platform", "android").put("version", BuildConfig.VERSION_NAME).put("preferences", new JSONObject().put("badgeEnabled", device.read().optBoolean("badgeEnabled", true))).put("notifications", notifications.state()).put("update", updates.state()); }
+    private JSONObject state() throws Exception { return new JSONObject().put("platform", "android").put("systemDarkMode", (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES).put("version", BuildConfig.VERSION_NAME).put("preferences", new JSONObject().put("badgeEnabled", device.read().optBoolean("badgeEnabled", true))).put("notifications", notifications.state()).put("update", updates.state()); }
     /**
      * 仅向提出请求的页面端口发送结果，跨页面后丢弃回复。
      * @param {JavaScriptReplyProxy} target 页面端口。
@@ -215,8 +217,8 @@ public final class MainActivity extends ComponentActivity {
     private void respond(JavaScriptReplyProxy target, String id, Object value, String error) { handler.post(() -> { if (reply != target) return; try { target.postMessage(new JSONObject().put("id", id).put("value", value).put("error", error).toString()); } catch (Exception ignored) { /* 导航后的端口不可复用。 */ } }); }
     /** 广播原生进度，已离开的页面不会收到更新。 */
     private void emit() { handler.post(() -> { if (reply != null) try { reply.postMessage(new JSONObject().put("type", "state").put("value", state()).toString()); } catch (Exception ignored) { /* 页面可在下次加载重新读取状态。 */ } }); }
-    /** 恢复界面时补取通知；后台厂商推送与前台补取保持相同事件 ID。 */
-    @Override public void onResume() { super.onResume(); resumed = true; if (device != null) NotificationService.maintainFromVisible(this, device); if (updates != null) updates.resume(worker); handler.removeCallbacks(pollTask); handler.post(pollTask); handler.removeCallbacks(updateTask); handler.post(updateTask); }
+    /** 恢复界面时刷新系统外观并补取通知；后台推送与前台补取保持相同事件 ID。 */
+    @Override public void onResume() { super.onResume(); resumed = true; if (device != null && updates != null) emit(); if (device != null) NotificationService.maintainFromVisible(this, device); if (updates != null) updates.resume(worker); handler.removeCallbacks(pollTask); handler.post(pollTask); handler.removeCallbacks(updateTask); handler.post(updateTask); }
     /** 页面暂停后停止界面轮询，常驻服务和系统任务继续处理后台事件。 */
     @Override public void onPause() { resumed = false; handler.removeCallbacks(pollTask); handler.removeCallbacks(updateTask); CookieManager.getInstance().flush(); super.onPause(); }
     /** 前台按固定周期合并补取通知与角标，网络错误不重置游标。 */
