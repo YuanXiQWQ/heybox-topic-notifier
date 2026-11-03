@@ -36,7 +36,7 @@ function harness() {
     }
   }
   const source = Deno.readTextFileSync(
-    new URL("../static/settings.js", import.meta.url),
+    new URL("../../static/settings.js", import.meta.url),
   );
   const api = new Function(
     "document",

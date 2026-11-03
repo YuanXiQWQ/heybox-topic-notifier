@@ -1,7 +1,7 @@
 /**
  * @file 本文件提供《脑叶公司》Alert 测试所需的浏览器替身与受控时钟。
  */
-import { findByClass, requireByClass } from "./test_helpers.ts";
+import { findByClass, requireByClass } from "./event_test_helpers.ts";
 
 /**
  * 内存版 Web Storage 替身，供测试中的 localStorage / sessionStorage 使用。
@@ -391,11 +391,11 @@ export function installLobotomyCorpAlertHarness(
     }
   >();
   const localeData = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   );
@@ -529,7 +529,7 @@ export function installLobotomyCorpAlertHarness(
       browser.lobotomyCorpEasterEgg!,
     /** 重新导入模块，模拟内部导航或完整刷新。 */ reload: () =>
       import(
-        `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+        `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
       ),
     /** @param {number} value 可控时钟。 */ setNow: (value: number) => {
       now = value;

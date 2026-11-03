@@ -1,5 +1,5 @@
 /** @file 白夜 Spine 舞台的资源、取景与降级回归测试。 */
-import { assert, assertEquals, assertStrictEquals } from "./test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
 import { Element } from "./test_harness.ts";
 import {
   advanceWhiteNightSpineSkill,
@@ -19,7 +19,7 @@ import {
   whiteNightSpineSkeletonFile,
   whiteNightSpineViewportLayout,
   whiteNightSpineViewportPadding,
-} from "../static/fun/lobotomy-corp/Events/WhiteNightSpine.js";
+} from "../../../static/fun/lobotomy-corp/Events/WhiteNightSpine.js";
 
 /** static 下彩蛋模块的公开根路径。 */
 const moduleRoot = "/static/fun/lobotomy-corp";
@@ -35,7 +35,7 @@ const assetDirectory = `Assets/${whiteNightSpineAssetDirectory}`;
  */
 function readAsset(relativePath: string): string {
   return Deno.readTextFileSync(
-    new URL(`../static/fun/lobotomy-corp/${relativePath}`, import.meta.url),
+    new URL(`../../../static/fun/lobotomy-corp/${relativePath}`, import.meta.url),
   );
 }
 
@@ -159,7 +159,7 @@ Deno.test("WhiteNight Spine：Atlas 分页与运行时随仓库分发", () => {
   for (const page of pages) {
     const bytes = Deno.readFileSync(
       new URL(
-        `../static/fun/lobotomy-corp/${assetDirectory}/${page}`,
+        `../../../static/fun/lobotomy-corp/${assetDirectory}/${page}`,
         import.meta.url,
       ),
     );
@@ -330,7 +330,7 @@ Deno.test("WhiteNight Spine：有 WebGL 时先交出画布再异步建骨架", (
 Deno.test("WhiteNight Spine：白圈贴图与特技音效随仓库分发", () => {
   const texture = Deno.readFileSync(
     new URL(
-      `../static/fun/lobotomy-corp/Assets/${whiteNightSpineRangeTexture}`,
+      `../../../static/fun/lobotomy-corp/Assets/${whiteNightSpineRangeTexture}`,
       import.meta.url,
     ),
   );
@@ -345,7 +345,7 @@ Deno.test("WhiteNight Spine：白圈贴图与特技音效随仓库分发", () =>
 
   const sound = Deno.readFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Assets/Resources/sounds/creature/whitenight/WhiteNight_Atk.ogg",
+      "../../../static/fun/lobotomy-corp/Assets/Resources/sounds/creature/whitenight/WhiteNight_Atk.ogg",
       import.meta.url,
     ),
   );
@@ -466,7 +466,7 @@ Deno.test("WhiteNight Spine：白圈缩放与不透明度按 WhiteNightSkill 曲
 
 Deno.test("WhiteNight Spine：画布样式铺满视口", async () => {
   const css = await Deno.readTextFile(
-    new URL("../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
   );
   const rule =
     css.match(/\.lobotomy-corp-white-night-spine\s*\{[^}]*\}/s)?.[0] ?? "";

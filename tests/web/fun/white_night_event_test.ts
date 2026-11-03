@@ -1,11 +1,9 @@
 /** @file 白夜特殊事件的状态、媒体与动画事件回归测试。 */
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
 import {
-  assert,
-  assertEquals,
-  assertStrictEquals,
   requireByClass,
   stripJavaScriptCommentsAndStrings,
-} from "./test_helpers.ts";
+} from "./event_test_helpers.ts";
 import { AudioMock, Element } from "./test_harness.ts";
 import {
   createWhiteNightEvent,
@@ -14,7 +12,7 @@ import {
   whiteNightDeathSequenceDurationMs,
   whiteNightDeathSounds,
   whiteNightStageMusicAudibleMs,
-} from "../static/fun/lobotomy-corp/Events/WhiteNight.js";
+} from "../../../static/fun/lobotomy-corp/Events/WhiteNight.js";
 
 /**
  * 创建足以驱动白夜 Event 的最小 DOM 节点。
@@ -495,7 +493,7 @@ Deno.test("WhiteNight stage Trumpet follows each settlement result even when it 
 Deno.test("WhiteNight stage music never hardcodes a Trumpet level", async () => {
   const source = await Deno.readTextFile(
     new URL(
-      "../static/fun/lobotomy-corp/Events/WhiteNight.js",
+      "../../../static/fun/lobotomy-corp/Events/WhiteNight.js",
       import.meta.url,
     ),
   );
@@ -1147,7 +1145,7 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
 
 Deno.test("WhiteNight refresh message is deliberately layered above the Trumpet HUD", async () => {
   const css = await Deno.readTextFile(
-    new URL("../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
   );
   const messageRule =
     css.match(/\.lobotomy-corp-white-night-message\s*\{[^}]*\}/s)
@@ -1159,7 +1157,7 @@ Deno.test("WhiteNight refresh message is deliberately layered above the Trumpet 
 Deno.test("WhiteNight Confess 只保留 Confess 粒子层，本体交给 Spine 骨架", async () => {
   const source = await Deno.readTextFile(
     new URL(
-      "../static/fun/lobotomy-corp/Events/WhiteNight.js",
+      "../../../static/fun/lobotomy-corp/Events/WhiteNight.js",
       import.meta.url,
     ),
   );

@@ -4,7 +4,7 @@ import { assertEquals } from "@std/assert";
 
 Deno.test("history sync preserves selection and rejects responses during edits", async () => {
   const source = await Deno.readTextFile(
-    new URL("../static/history-sync.js", import.meta.url),
+    new URL("../../static/history-sync.js", import.meta.url),
   );
   const location = new URL("https://example.com/history");
   const input = { value: "record", checked: false };

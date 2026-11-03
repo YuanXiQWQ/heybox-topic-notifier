@@ -2,13 +2,13 @@
  * @file 本文件执行仪表盘生成的客户端脚本，验证增量刷新及查询切换时的响应隔离。
  */
 import { runInNewContext } from "node:vm";
-import { assertEquals } from "./test_helpers.ts";
-import { defaultAppSettingsFromEnv } from "./services/default_settings.ts";
-import { renderDashboard } from "./views/dashboard.ts";
+import { assertEquals } from "@std/assert";
+import { defaultAppSettingsFromEnv } from "../../src/services/default_settings.ts";
+import { renderDashboard } from "../../src/views/dashboard.ts";
 import {
   applyMatchTableQuery,
   parseMatchTableQuery,
-} from "./views/match_table.ts";
+} from "../../src/views/match_table.ts";
 
 /** 测试页面中的 CSRF 隐藏输入框。 */
 class InputMock {

@@ -1,5 +1,5 @@
 /** @file 疫医转变演出的实时骨架资源、时序与降级回归测试。 */
-import { assert, assertEquals, assertStrictEquals } from "./test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
 import { Element } from "./test_harness.ts";
 import {
   createPlagueDoctorSpineStage,
@@ -25,7 +25,7 @@ import {
   plagueDoctorSpineRuntimePath,
   plagueDoctorSpineSkeletonFile,
   plagueDoctorSpineWingSlots,
-} from "../static/fun/lobotomy-corp/Events/PlagueDoctorSpine.js";
+} from "../../../static/fun/lobotomy-corp/Events/PlagueDoctorSpine.js";
 
 /** static 下彩蛋模块的公开根路径。 */
 const moduleRoot = "/static/fun/lobotomy-corp";
@@ -41,7 +41,7 @@ const assetDirectory = `Assets/${plagueDoctorSpineAssetDirectory}`;
  */
 function readAsset(relativePath: string): string {
   return Deno.readTextFileSync(
-    new URL(`../static/fun/lobotomy-corp/${relativePath}`, import.meta.url),
+    new URL(`../../../static/fun/lobotomy-corp/${relativePath}`, import.meta.url),
   );
 }
 
@@ -109,7 +109,7 @@ Deno.test("Plague Doctor Spine：Atlas 分页与骨架动画随仓库分发", ()
   for (const page of pages) {
     const bytes = Deno.readFileSync(
       new URL(
-        `../static/fun/lobotomy-corp/${assetDirectory}/${page}`,
+        `../../../static/fun/lobotomy-corp/${assetDirectory}/${page}`,
         import.meta.url,
       ),
     );
@@ -473,7 +473,7 @@ Deno.test("Plague Doctor Spine：骨架就绪前调 play 也要在就绪后自�
 
 Deno.test("Plague Doctor Spine：画布样式铺满逻辑画布", async () => {
   const css = await Deno.readTextFile(
-    new URL("../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
   );
   const rule =
     css.match(/\.lobotomy-corp-plague-doctor-advent-spine\s*\{[^}]*\}/s)?.[0] ??

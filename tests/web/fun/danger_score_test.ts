@@ -1,7 +1,7 @@
 /**
  * @file 本文件验证《脑叶公司》彩蛋集中定义的危急值规则。
  */
-import { assertEquals } from "./test_helpers.ts";
+import { assertEquals } from "@std/assert";
 import {
   abnormalityCapacity,
   abnormalityDangerPoints,
@@ -16,13 +16,13 @@ import {
   specialEventDangerAbnormalityIds,
   whiteNightApostleCount,
   whiteNightDangerPoints,
-} from "../static/fun/lobotomy-corp/Events/DangerScore.js";
+} from "../../../static/fun/lobotomy-corp/Events/DangerScore.js";
 
 /** 页面注入页使用的异想体资料，与运行时来源一致。 */
 const abnormalities = JSON.parse(
   Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   ),

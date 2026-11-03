@@ -41,7 +41,7 @@ Deno.test("offline badge sends the latest per-record edit without network and se
   };
   runInNewContext(
     await Deno.readTextFile(
-      new URL("../static/app-device-settings.js", import.meta.url),
+      new URL("../../static/app-device-settings.js", import.meta.url),
     ),
     scope,
   );

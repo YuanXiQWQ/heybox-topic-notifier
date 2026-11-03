@@ -1,12 +1,12 @@
 /** @file 脑叶公司多个特殊事件并发、终止与标签页限制回归测试。 */
-import { assert, assertEquals, assertStrictEquals } from "./test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
 import { installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   plagueDoctorAdventSchedule,
   plagueDoctorApostleCount,
   plagueDoctorBindingTimings,
   plagueDoctorStorageKey,
-} from "../static/fun/lobotomy-corp/Events/PlagueDoctor.js";
+} from "../../../static/fun/lobotomy-corp/Events/PlagueDoctor.js";
 
 /** 让等待中的微任务全部执行。 */
 async function flushMicrotasks(): Promise<void> {

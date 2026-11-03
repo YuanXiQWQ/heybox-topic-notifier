@@ -1,35 +1,33 @@
 /**
  * @file 本文件验证彩蛋前端的协调及《脑叶公司》Trumpet 警报生命周期。
  */
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
+import { assertRejects } from "../../../src/test_helpers.ts";
 import {
-  assert,
-  assertEquals,
-  assertRejects,
-  assertStrictEquals,
   findAllByClass,
   findByClass,
   requireByClass,
   stripCssComments,
   stripJavaScriptCommentsAndStrings,
-} from "./test_helpers.ts";
+} from "./event_test_helpers.ts";
 import {
   AudioMock,
   Element,
   installLobotomyCorpAlertHarness,
   StorageMock,
 } from "./test_harness.ts";
-import { renderLayout } from "./views/html.ts";
-import type { Locale } from "./locales/types.ts";
+import { renderLayout } from "../../../src/views/html.ts";
+import type { Locale } from "../../../src/locales/types.ts";
 import {
   whiteNightConfessionSuppressionDelayMs,
   whiteNightDeathSequenceDurationMs,
   whiteNightStageMusicAudibleMs,
-} from "../static/fun/lobotomy-corp/Events/WhiteNight.js";
-import { whiteNightSimpleAdventDurationMs } from "../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
+} from "../../../static/fun/lobotomy-corp/Events/WhiteNight.js";
+import { whiteNightSimpleAdventDurationMs } from "../../../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
 import {
   blackForestCgTimeline,
   blackForestNarrationSequence,
-} from "../static/fun/lobotomy-corp/Events/BlackForest.js";
+} from "../../../static/fun/lobotomy-corp/Events/BlackForest.js";
 import {
   dontTouchMeEffectVideoClassName,
   dontTouchMeExitDelayMs,
@@ -43,7 +41,7 @@ import {
   dontTouchMeShutdownSoundPath,
   dontTouchMeShutdownVideoPath,
   dontTouchMeVideoClassName,
-} from "../static/fun/lobotomy-corp/Events/DontTouchMe.js";
+} from "../../../static/fun/lobotomy-corp/Events/DontTouchMe.js";
 
 /**
  * 派发顶部 Restart 面板的反向动画结束事件，模拟面板收起动画完成。
@@ -301,10 +299,10 @@ Deno.test("Lobotomy Corporation injects the saved display name for nav identity 
 
 Deno.test("game entries use embedded data without synchronous requests", () => {
   const aceAttorneyEntry = Deno.readTextFileSync(
-    new URL("../static/fun/ace-attorney/ace-attorney.js", import.meta.url),
+    new URL("../../../static/fun/ace-attorney/ace-attorney.js", import.meta.url),
   );
   const lobotomyCorpEntry = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/lobotomy-corp.js", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.js", import.meta.url),
   );
 
   assert(!(aceAttorneyEntry.includes("XMLHttpRequest")));
@@ -329,11 +327,11 @@ Deno.test("Lobotomy Corporation CanvasScaler keeps portrait HUDs legible", async
     ) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
   );
   const localeData = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   );
@@ -351,7 +349,7 @@ Deno.test("Lobotomy Corporation CanvasScaler keeps portrait HUDs legible", async
   });
   try {
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     const scale = browser.lobotomyCorpEasterEgg!.canvasScaleForViewport;
     assertEquals(scale(1920, 1080), 1);
@@ -453,11 +451,11 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
   displayNameLabel.textContent = "Original display name";
   const storage = new StorageMock();
   const localeData = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   );
@@ -504,7 +502,7 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     sessionStorage: { configurable: true, value: storage },
   });
   const settingsClient = Deno.readTextFileSync(
-    new URL("../static/settings.js", import.meta.url),
+    new URL("../../../static/settings.js", import.meta.url),
   );
   type SaveTransaction = (
     easterEgg: {
@@ -517,7 +515,7 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
   ) => Promise<{ responseUrl: URL; saved: boolean }>;
   try {
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     const transaction = new Function(
       `${settingsClient}\nreturn submitLobotomyCorpAccountSaveTransaction;`,
@@ -635,7 +633,7 @@ Deno.test("Easter egg coordinator interrupts only a different game", async () =>
   const original = browser.easterEggCoordinator;
   const stopped: string[] = [];
   try {
-    await import(`../static/fun/coordinator.js?test=${crypto.randomUUID()}`);
+    await import(`../../../static/fun/coordinator.js?test=${crypto.randomUUID()}`);
     browser.easterEggCoordinator!.start("ace", () => stopped.push("ace"));
     browser.easterEggCoordinator!.start("ace", () => stopped.push("duplicate"));
     browser.easterEggCoordinator!.start(
@@ -667,12 +665,12 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
   const aceAttorneyData = JSON.stringify({
     characters: JSON.parse(Deno.readTextFileSync(
       new URL(
-        "../static/fun/ace-attorney/Data/Characters.json",
+        "../../../static/fun/ace-attorney/Data/Characters.json",
         import.meta.url,
       ),
     )),
     messages: JSON.parse(Deno.readTextFileSync(
-      new URL("../static/fun/ace-attorney/Locales/zh-CN.json", import.meta.url),
+      new URL("../../../static/fun/ace-attorney/Locales/zh-CN.json", import.meta.url),
     )),
   });
   const documentMock = {
@@ -689,10 +687,10 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
   });
   try {
     await import(
-      `../static/fun/ace-attorney/Events/CourtroomNameChange.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/ace-attorney/Events/CourtroomNameChange.js?test=${crypto.randomUUID()}`
     );
     await import(
-      `../static/fun/ace-attorney/ace-attorney.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/ace-attorney/ace-attorney.js?test=${crypto.randomUUID()}`
     );
     const api = browser.usernameEasterEgg!;
     ["Phoenix Wright", "成步堂龙一", "御剑怜侍", "王泥喜法介"].forEach(
@@ -751,11 +749,11 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
   const settingsAvatar = new Element();
   settingsAvatarWrapper.append(settingsAvatar);
   const localeData = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   );
@@ -782,7 +780,7 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
   });
   try {
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     assertEquals(label.textContent, "白夜");
     assertEquals(navAvatar.children.length, 0);
@@ -915,13 +913,13 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
   >();
   const lobotomyCorpLocaleData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Locales/zh-CN.json",
+      "../../../static/fun/lobotomy-corp/Locales/zh-CN.json",
       import.meta.url,
     ),
   );
   const lobotomyCorpAbnormalitiesData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   );
@@ -1005,7 +1003,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       );
   try {
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     const api = browser.lobotomyCorpEasterEgg!;
     assertEquals(
@@ -1403,7 +1401,7 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
     AudioMock.resetTrumpetPositionOnPlay = true;
     const reloadAudioStart = AudioMock.items.length;
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     const reloadedApi = browser.lobotomyCorpEasterEgg!;
     const reloadedTrumpet = AudioMock.items.slice(reloadAudioStart).find(
@@ -1499,11 +1497,11 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
   );
   const storage = new StorageMock();
   const localeData = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   );
@@ -1539,7 +1537,7 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
   });
   try {
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     let api = browser.lobotomyCorpEasterEgg!;
     const cancelledTrumpet = api.prepareDisplayName("third trumpet");
@@ -1567,7 +1565,7 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
     );
 
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     api = browser.lobotomyCorpEasterEgg!;
     assert(Math.abs(api.getDangerScore() - 20 / 11) < 1e-10);
@@ -1595,7 +1593,7 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
     const reloadAudioStart = AudioMock.items.length;
     navigationType = "reload";
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     api = browser.lobotomyCorpEasterEgg!;
     assertEquals(api.getSpecialEvent(), "white-night");
@@ -1632,7 +1630,7 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
     await api.handleAbnormalitySubmitted("T-01-54");
     navigationType = "reload";
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     assertEquals(browser.lobotomyCorpEasterEgg!.getDangerScore(), 0);
     assertEquals(storage.getItem("warmnest.lobotomy-corp-day"), null);
@@ -1882,11 +1880,11 @@ Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", 
   const storage = new StorageMock();
   const pollingValue = { value: "5" };
   const localeData = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   );
@@ -1916,7 +1914,7 @@ Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", 
   });
   try {
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     let api = browser.lobotomyCorpEasterEgg!;
     await api.handleAbnormalitySubmitted("D-01-106");
@@ -1930,7 +1928,7 @@ Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", 
     );
     pollingValue.value = "1";
     await import(
-      `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+      `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
     );
     api = browser.lobotomyCorpEasterEgg!;
     await api.handleAbnormalitySubmitted("F-01-02");
@@ -1982,11 +1980,11 @@ Deno.test("WhiteNight freezes and resumes the exact remaining Danger decay time"
   );
   const storage = new StorageMock();
   const localeData = Deno.readTextFileSync(
-    new URL("../static/fun/lobotomy-corp/Locales/en-US.json", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/Locales/en-US.json", import.meta.url),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   );
@@ -2049,7 +2047,7 @@ Deno.test("WhiteNight freezes and resumes the exact remaining Danger decay time"
     Date.now = () => now;
     try {
       await import(
-        `../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
+        `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
       );
       const api = browser.lobotomyCorpEasterEgg!;
       await api.handleAbnormalitySubmitted("D-01-106");
@@ -2956,9 +2954,9 @@ Deno.test("WhiteNight stage Trumpet takes over lower or equal Direct owners but 
 Deno.test("WhiteNight has no Alert INGAMEEFFECT Pause plumbing", async () => {
   const [script, css, whiteNight] = await Promise.all(
     [
-      "../static/fun/lobotomy-corp/lobotomy-corp.js",
-      "../static/fun/lobotomy-corp/lobotomy-corp.css",
-      "../static/fun/lobotomy-corp/Events/WhiteNight.js",
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.js",
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.css",
+      "../../../static/fun/lobotomy-corp/Events/WhiteNight.js",
     ].map((path) => Deno.readTextFile(new URL(path, import.meta.url))),
   );
   // 注释或字符串里出现这些名字（例如兼容读取的旧状态值）不算违规，

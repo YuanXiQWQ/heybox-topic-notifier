@@ -1,6 +1,6 @@
 /** @file 验证通知开关的初始化反馈、失败重试、权限请求和 Service Worker 的账号隔离。 */
 import { runInNewContext } from "node:vm";
-import { assertEquals } from "./test_helpers.ts";
+import { assertEquals } from "@std/assert";
 
 /** 测试通知行需要的最小可见控件。 */
 class NotificationControl {
@@ -34,7 +34,7 @@ class NotificationControl {
 
 Deno.test("browser notification switch reflects server state and preserves state after failed saves", async () => {
   const source = (await Deno.readTextFile(
-    new URL("../static/app-notifications.js", import.meta.url),
+    new URL("../../static/app-notifications.js", import.meta.url),
   ))
     .replace("void initializeApplicationNotifications();", "");
   const toggle = new NotificationControl();
@@ -127,7 +127,7 @@ Deno.test("browser notification switch reflects server state and preserves state
  */
 async function notificationFixture(overrides: Record<string, unknown> = {}) {
   const source = (await Deno.readTextFile(
-    new URL("../static/app-notifications.js", import.meta.url),
+    new URL("../../static/app-notifications.js", import.meta.url),
   )).replace("void initializeApplicationNotifications();", "");
   const toggle = new NotificationControl();
   const status = new NotificationControl();
@@ -333,7 +333,7 @@ Deno.test("native initialization failure can retry through the native bridge wit
 
 Deno.test("push worker suppresses notifications for a different logged-in account", async () => {
   const source = await Deno.readTextFile(
-    new URL("../static/app-sw.js", import.meta.url),
+    new URL("../../static/app-sw.js", import.meta.url),
   );
   const shown: unknown[] = [];
   const opened: string[] = [];

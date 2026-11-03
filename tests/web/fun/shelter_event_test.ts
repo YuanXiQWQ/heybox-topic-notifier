@@ -1,7 +1,7 @@
 /**
  * @file 本文件验证“3月27日的避难所”随机释放调度、恢复与清理规则。
  */
-import { assertEquals, assertStrictEquals } from "./test_helpers.ts";
+import { assertEquals, assertStrictEquals } from "@std/assert";
 import { StorageMock } from "./test_harness.ts";
 import {
   createShelterEvent,
@@ -11,7 +11,7 @@ import {
   shelterInitialReleaseDelayMs,
   shelterReleaseIntervalMs,
   shelterStorageKey,
-} from "../static/fun/lobotomy-corp/Events/Shelter.js";
+} from "../../../static/fun/lobotomy-corp/Events/Shelter.js";
 
 /** 避难所单测的初始配置。 */
 type ShelterTestOptions = {

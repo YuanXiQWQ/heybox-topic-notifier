@@ -2,11 +2,11 @@
  * @file 执行表格时间脚本，验证显示边界、局部失效及大列表空闲刷新开销。
  */
 import { runInNewContext } from "node:vm";
-import { assertEquals } from "./test_helpers.ts";
-import { getMessages } from "./locales/index.ts";
-import { type Locale, locales } from "./locales/types.ts";
-import { renderMatchRecordsSection } from "./views/match_table_view.ts";
-import { formatHeyboxRelativeTime } from "./views/time.ts";
+import { assertEquals } from "@std/assert";
+import { getMessages } from "../../src/locales/index.ts";
+import { type Locale, locales } from "../../src/locales/types.ts";
+import { renderMatchRecordsSection } from "../../src/views/match_table_view.ts";
+import { formatHeyboxRelativeTime } from "../../src/views/time.ts";
 
 /** 带有文本写入计数的相对时间节点。 */
 class TimeElement {

@@ -22,7 +22,7 @@ async function themeHarness(modern = false) {
   let change = () => {};
   runInNewContext(
     await Deno.readTextFile(
-      new URL("../static/theme-compat.js", import.meta.url),
+      new URL("../../static/theme-compat.js", import.meta.url),
     ),
     {
       CSS: { supports: () => modern },

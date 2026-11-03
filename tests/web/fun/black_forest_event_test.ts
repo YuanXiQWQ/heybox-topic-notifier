@@ -1,13 +1,8 @@
 /**
  * @file 终末鸟（黑森林）事件的原作参数与网页流程回归测试。
  */
-import {
-  assert,
-  assertEquals,
-  assertStrictEquals,
-  findAllByClass,
-  requireByClass,
-} from "./test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
+import { findAllByClass, requireByClass } from "./event_test_helpers.ts";
 import { Element, StorageMock } from "./test_harness.ts";
 import {
   blackForestEggCanvasScale,
@@ -18,7 +13,7 @@ import {
   blackForestEggSpineLayout,
   blackForestEggTransitionSeconds,
   measureBlackForestEggSpineBounds,
-} from "../static/fun/lobotomy-corp/Events/BlackForestEggSpine.js";
+} from "../../../static/fun/lobotomy-corp/Events/BlackForestEggSpine.js";
 import {
   blackForestActivePhases,
   blackForestBirdOrderFor,
@@ -41,7 +36,7 @@ import {
   createBlackForestEvent,
   isValidBlackForestState,
   relocateUnfoundBlackForestEggs,
-} from "../static/fun/lobotomy-corp/Events/BlackForest.js";
+} from "../../../static/fun/lobotomy-corp/Events/BlackForest.js";
 
 /** 提取 CSS 中一个明确类选择器的规则体。 */
 function cssRule(css: string, className: string): string {
@@ -53,7 +48,7 @@ function cssRule(css: string, className: string): string {
 function lobotomyCorpCss(): string {
   return Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/lobotomy-corp.css",
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.css",
       import.meta.url,
     ),
   );
@@ -1174,7 +1169,7 @@ Deno.test("Black Forest locale text matches the game narration", () => {
     const locale = JSON.parse(
       Deno.readTextFileSync(
         new URL(
-          `../static/fun/lobotomy-corp/Locales/${file}.json`,
+          `../../../static/fun/lobotomy-corp/Locales/${file}.json`,
           import.meta.url,
         ),
       ),
@@ -1197,7 +1192,7 @@ Deno.test("Black Forest locale text matches the game narration", () => {
   const chinese = JSON.parse(
     Deno.readTextFileSync(
       new URL(
-        "../static/fun/lobotomy-corp/Locales/zh-CN.json",
+        "../../../static/fun/lobotomy-corp/Locales/zh-CN.json",
         import.meta.url,
       ),
     ),

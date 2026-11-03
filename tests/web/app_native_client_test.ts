@@ -75,7 +75,7 @@ async function harness(updateControls = false) {
   };
   const api = runInNewContext(
     await Deno.readTextFile(
-      new URL("../static/app-native.js", import.meta.url),
+      new URL("../../static/app-native.js", import.meta.url),
     ) +
       "\n({native:appNative,ready:applicationNativeReady,navigate:applicationNavigate})",
     context,
@@ -202,7 +202,7 @@ Deno.test("native Google login button uses the shared Android dispatcher without
     append() {},
   };
   const source = await Deno.readTextFile(
-    new URL("../static/app-native-auth.js", import.meta.url),
+    new URL("../../static/app-native-auth.js", import.meta.url),
   );
   runInNewContext(source, {
     appNative: bridge.api,
@@ -248,7 +248,7 @@ Deno.test("standalone Android login forwards unrelated messages and restores its
   };
   runInNewContext(
     await Deno.readTextFile(
-      new URL("../static/app-native-auth.js", import.meta.url),
+      new URL("../../static/app-native-auth.js", import.meta.url),
     ),
     {
       HeyboxNative: native,

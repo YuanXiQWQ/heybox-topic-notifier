@@ -1,7 +1,7 @@
 /**
  * @file 本文件验证 Turnstile 共用加载器的按需加载行为。
  */
-import { assertEquals } from "./test_helpers.ts";
+import { assertEquals } from "@std/assert";
 
 /**
  * Turnstile 客户端测试使用的最小元素替身。
@@ -116,7 +116,7 @@ Deno.test("Turnstile loader waits for an explicit mount request", async () => {
 
   try {
     const turnstileClient = Deno.readTextFileSync(
-      new URL("../static/turnstile.js", import.meta.url),
+      new URL("../../static/turnstile.js", import.meta.url),
     );
     new Function(`${turnstileClient}\n`)();
 

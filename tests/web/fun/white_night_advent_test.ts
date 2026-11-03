@@ -1,11 +1,6 @@
 /** @file 白夜后续出逃 Simple Advent 页面原始参数回归测试。 */
-import {
-  assert,
-  assertEquals,
-  assertStrictEquals,
-  findAllByClass,
-  requireByClass,
-} from "./test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
+import { findAllByClass, requireByClass } from "./event_test_helpers.ts";
 import { Element } from "./test_harness.ts";
 import {
   adventTextNeedsCjkFont,
@@ -21,7 +16,7 @@ import {
   whiteNightSimpleAdventPresentationForViewport,
   whiteNightSimpleAdventShowDurationMs,
   whiteNightSimpleAdventSmoothstep,
-} from "../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
+} from "../../../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
 
 /** Simple Advent 帧调度器使用的最小回调签名。 */
 type AdventFrameCallback = (timestamp: number) => void;
@@ -95,7 +90,7 @@ Deno.test("Advent dial switches CJK text to a system font as a whole run", () =>
 
   const css = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/lobotomy-corp.css",
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.css",
       import.meta.url,
     ),
   );
@@ -311,7 +306,7 @@ Deno.test("Simple Advent uses literal prefab layout, visible sprites, and Best F
   assertStrictEquals(controller.isFinished(), false);
 
   const css = await Deno.readTextFile(
-    new URL("../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
+    new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
   );
   assertEquals(
     /object-fit:\s*contain/.test(

@@ -7,7 +7,7 @@ Deno.test("legacy timeout cancels a signal and UUID uses secure random bytes", a
   let randomCalls = 0;
   const api = runInNewContext(
     await Deno.readTextFile(
-      new URL("../static/app-compat.js", import.meta.url),
+      new URL("../../static/app-compat.js", import.meta.url),
     ) + "\n({timeout:AbortSignal.timeout,uuid:crypto.randomUUID})",
     {
       AbortSignal: {},
@@ -47,7 +47,7 @@ Deno.test("modern engines retain their native timeout and UUID implementations",
   };
   runInNewContext(
     await Deno.readTextFile(
-      new URL("../static/app-compat.js", import.meta.url),
+      new URL("../../static/app-compat.js", import.meta.url),
     ),
     scope,
   );

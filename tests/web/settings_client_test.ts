@@ -1,7 +1,7 @@
 /**
  * @file 验证设置页客户端初始化、密钥编辑和自动保存快照。
  */
-import { assertEquals } from "./test_helpers.ts";
+import { assertEquals } from "@std/assert";
 
 Deno.test("settings form signatures exclude device preferences in both sync and direct requests", () => {
   /** 提供浏览器 FormData 的表单构造能力。 */
@@ -15,7 +15,7 @@ Deno.test("settings form signatures exclude device preferences in both sync and 
     }
   }
   const source = Deno.readTextFileSync(
-    new URL("../static/settings.js", import.meta.url),
+    new URL("../../static/settings.js", import.meta.url),
   );
   const client = new Function(
     "document",
@@ -76,7 +76,7 @@ Deno.test("secret blur preserves pending keys and never submits the readonly mas
   const input = new SecretInputMock();
   input.hidden = hidden;
   const source = Deno.readTextFileSync(
-    new URL("../static/settings.js", import.meta.url),
+    new URL("../../static/settings.js", import.meta.url),
   );
   const client = new Function(
     "document",
@@ -115,7 +115,7 @@ Deno.test("autosave responses preserve newer model and key edits for the next sa
   let complete!: (value: Response) => void;
   let scheduled = 0;
   const source = Deno.readTextFileSync(
-    new URL("../static/settings.js", import.meta.url),
+    new URL("../../static/settings.js", import.meta.url),
   );
   const client = new Function(
     "document",
@@ -171,7 +171,7 @@ Deno.test("overlapping offline saves advance the edit baseline in durable order"
   const calls: Array<{ body: FormData; base: string }> = [];
   let complete!: (value: Response) => void;
   const source = Deno.readTextFileSync(
-    new URL("../static/settings.js", import.meta.url),
+    new URL("../../static/settings.js", import.meta.url),
   );
   const client = new Function(
     "document",
@@ -283,7 +283,7 @@ Deno.test(
     section.querySelector = (selector: string) =>
       selector === "[data-totp-binding-form]" ? form : null;
     const settingsClient = Deno.readTextFileSync(
-      new URL("../static/settings.js", import.meta.url),
+      new URL("../../static/settings.js", import.meta.url),
     );
 
     Object.defineProperties(browser, {

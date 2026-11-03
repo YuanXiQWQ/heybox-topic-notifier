@@ -4,8 +4,7 @@
  * 期望值全部抄自《脑叶公司》解包资源，原文件路径与 GUID 写在对应断言上方；
  * 仓库里只保留运行时真正会加载的 Copy.png，不再存放用不到的 Unity 引擎文件。
  */
-import { assert, assertEquals, assertStrictEquals } from "./test_helpers.ts";
-import { assertThrows } from "@std/assert";
+import { assert, assertEquals, assertStrictEquals, assertThrows } from "@std/assert";
 import { Element } from "./test_harness.ts";
 import {
   adventLightAssetSources,
@@ -23,7 +22,7 @@ import {
   deathAngelAdventLightPrefab,
   deathAngelAdventLightSprite,
   sampleAdventLightCurve,
-} from "../static/fun/lobotomy-corp/Events/AdventLight.js";
+} from "../../../static/fun/lobotomy-corp/Events/AdventLight.js";
 
 /** 断言数值与期望值的误差在容差内。 */
 function assertClose(actual: number, expected: number, tolerance = 1e-6): void {
@@ -41,7 +40,7 @@ function assertClose(actual: number, expected: number, tolerance = 1e-6): void {
  */
 function readLobotomyAsset(relativePath: string): string {
   return Deno.readTextFileSync(
-    new URL(`../static/fun/lobotomy-corp/${relativePath}`, import.meta.url),
+    new URL(`../../../static/fun/lobotomy-corp/${relativePath}`, import.meta.url),
   );
 }
 
@@ -249,7 +248,7 @@ Deno.test("AdventLight：Sprite Copy 的几何与贴图和原始资源一致", (
   // 项目内的 Copy.png 就是这张 Sprite 引用的贴图：读 IHDR 核对尺寸。
   const png = Deno.readFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Assets/Resources/texture/particle/Copy.png",
+      "../../../static/fun/lobotomy-corp/Assets/Resources/texture/particle/Copy.png",
       import.meta.url,
     ),
   );

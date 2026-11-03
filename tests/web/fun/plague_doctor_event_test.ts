@@ -1,14 +1,10 @@
 /** @file 疫医转变事件的使徒记录、绑定演出与白夜接管回归测试。 */
-import {
-  assert,
-  assertEquals,
-  assertStrictEquals,
-  stripJavaScriptCommentsAndStrings,
-} from "./test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
+import { stripJavaScriptCommentsAndStrings } from "./event_test_helpers.ts";
 import { AudioMock, installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   apostleAdventLightClip,
-} from "../static/fun/lobotomy-corp/Events/AdventLight.js";
+} from "../../../static/fun/lobotomy-corp/Events/AdventLight.js";
 import {
   plagueDoctorAdventEntityClassName,
   plagueDoctorAdventFocusClassName,
@@ -31,12 +27,12 @@ import {
   plagueDoctorStageGeometry,
   plagueDoctorStorageKey,
   plagueDoctorTransformationDanger,
-} from "../static/fun/lobotomy-corp/Events/PlagueDoctor.js";
+} from "../../../static/fun/lobotomy-corp/Events/PlagueDoctor.js";
 import {
   whiteNightSimpleAdventClockCenterSprite,
   whiteNightSimpleAdventColor,
   whiteNightSimpleAdventDurationMs,
-} from "../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
+} from "../../../static/fun/lobotomy-corp/Events/WhiteNightAdvent.js";
 
 /** 断言数值与期望值的误差在容差内。 */
 function assertClose(actual: number, expected: number, tolerance = 0.01): void {
@@ -144,7 +140,7 @@ Deno.test("疫医：指针从垂直向上开始顺时针转动", () => {
   assertClose(plagueDoctorCssArrowAngle(12), 360);
   const css = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/lobotomy-corp.css",
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.css",
       import.meta.url,
     ),
   );
@@ -185,7 +181,7 @@ Deno.test("疫医：黑幕尺寸由圆盘算出，空洞与圆盘比例恒定", 
   // 注释里会提到被禁止的写法，断言前先去注释。
   const css = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/lobotomy-corp.css",
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.css",
       import.meta.url,
     ),
   ).replace(/\/\*[\s\S]*?\*\//gu, "");
@@ -238,7 +234,7 @@ Deno.test("疫医：黑幕尺寸由圆盘算出，空洞与圆盘比例恒定", 
     !css.includes("black-backdrop") &&
       !Deno.readTextFileSync(
         new URL(
-          "../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
+          "../../../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
           import.meta.url,
         ),
       ).includes("blackBackdrop"),
@@ -386,7 +382,7 @@ Deno.test("疫医：黑幕延伸带覆盖整个 viewport，并与贴图重叠", 
 Deno.test("疫医：表盘只引用 prefab 里真实连接的 sprite 与字体", () => {
   const source = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
+      "../../../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
       import.meta.url,
     ),
   );
@@ -407,7 +403,7 @@ Deno.test("疫医：表盘只引用 prefab 里真实连接的 sprite 与字体",
   }
   const css = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/lobotomy-corp.css",
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.css",
       import.meta.url,
     ),
   );
@@ -418,7 +414,7 @@ Deno.test("疫医：表盘只引用 prefab 里真实连接的 sprite 与字体",
 
 Deno.test("彩蛋演出代码不依赖 HTMLCollection 上的数组方法", () => {
   const eventsRoot = new URL(
-    "../static/fun/lobotomy-corp/Events/",
+    "../../../static/fun/lobotomy-corp/Events/",
     import.meta.url,
   );
   const entries = [...Deno.readDirSync(eventsRoot)]
@@ -599,7 +595,7 @@ Deno.test("疫医：绑定阶段不创建 world 层", async () => {
 Deno.test("疫医：world 层是 viewport-space 固定底面，且不含遮挡补丁", () => {
   const css = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/lobotomy-corp.css",
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.css",
       import.meta.url,
     ),
   );
@@ -642,7 +638,7 @@ Deno.test("疫医：world 层是 viewport-space 固定底面，且不含遮挡�
 Deno.test("疫医：world 层不影响原作 Shader 链", async () => {
   const source = Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
+      "../../../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
       import.meta.url,
     ),
   );
@@ -1744,7 +1740,7 @@ Deno.test("疫医：白夜进行期间再次提交 O-01-45 不重复结算", asy
 Deno.test("疫医转变：本体画面交给实时骨架，不再切换视频素材", async () => {
   const source = await Deno.readTextFile(
     new URL(
-      "../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
+      "../../../static/fun/lobotomy-corp/Events/PlagueDoctor.js",
       import.meta.url,
     ),
   );
@@ -1756,7 +1752,7 @@ Deno.test("疫医转变：本体画面交给实时骨架，不再切换视频素
   assert(!code.includes("createElement('video')"));
   const assetDirectory = await Deno.readDir(
     new URL(
-      "../static/fun/lobotomy-corp/Assets/Resources/sprites/creaturesprite/deathangel/",
+      "../../../static/fun/lobotomy-corp/Assets/Resources/sprites/creaturesprite/deathangel/",
       import.meta.url,
     ),
   );

@@ -5,7 +5,7 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 
 Deno.test("edits queued during an active sync upload immediately after that request", async () => {
   const source = await Deno.readTextFile(
-    new URL("../static/app-sync/client.js", import.meta.url),
+    new URL("../../static/app-sync/client.js", import.meta.url),
   );
   const start = source.indexOf("  async function drain(reason)");
   const end = source.indexOf("  async function applyPendingRecords()", start);
@@ -78,7 +78,7 @@ Deno.test("edits queued during an active sync upload immediately after that requ
 
 Deno.test("cached scripts survive service failures without hiding missing resources", async () => {
   const source = await Deno.readTextFile(
-    new URL("../static/app-sw.js", import.meta.url),
+    new URL("../../static/app-sw.js", import.meta.url),
   );
   let status = 503;
   let saved = "cached-script";
@@ -119,7 +119,7 @@ Deno.test("worker navigation fetches online pages without AbortSignal.timeout", 
   const timers: { callback: () => void; delay: number }[] = [];
   const requests: AbortSignal[] = [];
   const api = runInNewContext(
-    await Deno.readTextFile(new URL("../static/app-sw.js", import.meta.url)) +
+    await Deno.readTextFile(new URL("../../static/app-sw.js", import.meta.url)) +
       "\n({applicationPage})",
     {
       URL,
@@ -165,7 +165,7 @@ Deno.test("worker navigation fetches online pages without AbortSignal.timeout", 
 
 Deno.test("local sync queue encrypts snapshots and atomically survives reloads", async () => {
   const source = await Deno.readTextFile(
-    new URL("../static/app-sync/store.js", import.meta.url),
+    new URL("../../static/app-sync/store.js", import.meta.url),
   );
   const indexedDB = new IDBFactory();
   const globals = {
@@ -213,7 +213,7 @@ Deno.test("local sync queue encrypts snapshots and atomically survives reloads",
 
 Deno.test("offline page cache verifies account changes and media byte ranges", async () => {
   const source = await Deno.readTextFile(
-    new URL("../static/app-sw.js", import.meta.url),
+    new URL("../../static/app-sw.js", import.meta.url),
   );
   const values = new Map<string, unknown>([["__device:active-user", "alice"], [
     "alice:page:/settings",

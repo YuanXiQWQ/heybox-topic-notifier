@@ -1,19 +1,15 @@
 /**
  * @file 本文件验证“3月27日的避难所”与现有异想体提交、特殊事件及生命周期联动。
  */
-import {
-  assert,
-  assertEquals,
-  assertStrictEquals,
-  findByClass,
-} from "./test_helpers.ts";
+import { assert, assertEquals, assertStrictEquals } from "@std/assert";
+import { findByClass } from "./event_test_helpers.ts";
 import { installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   escapableAbnormalityIds,
   shelterInitialReleaseDelayMs,
   shelterReleaseIntervalMs,
   shelterStorageKey,
-} from "../static/fun/lobotomy-corp/Events/Shelter.js";
+} from "../../../static/fun/lobotomy-corp/Events/Shelter.js";
 
 /**
  * 等待当前排队的微任务完成。
@@ -32,7 +28,7 @@ async function flushMicrotasks(): Promise<void> {
 function readAbnormalities(): Record<string, { canBreach?: boolean }> {
   return JSON.parse(Deno.readTextFileSync(
     new URL(
-      "../static/fun/lobotomy-corp/Data/Abnormalities.json",
+      "../../../static/fun/lobotomy-corp/Data/Abnormalities.json",
       import.meta.url,
     ),
   ));
