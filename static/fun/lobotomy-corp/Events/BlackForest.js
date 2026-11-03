@@ -283,14 +283,6 @@ export const blackForestIconSlots = Object.freeze(
     ),
 );
 
-/** 候选页面；鸟蛋可从这些页面汇总出的槽位中随机出现。 */
-export const blackForestIconPages = Object.freeze([
-  'nav',
-  'dashboard',
-  'settings',
-  'history',
-]);
-
 /** 终末鸟事件持久化时允许出现的阶段。 */
 export const blackForestPhases = Object.freeze([
   'recording',

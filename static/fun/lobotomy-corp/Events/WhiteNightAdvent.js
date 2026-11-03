@@ -10,14 +10,8 @@ import {
   lobotomyCorpCanvasScaleForViewport,
   lobotomyCorpCanvasViewportForUpdate,
   lobotomyCorpReferenceCanvasHeight,
-  lobotomyCorpReferenceCanvasWidth,
   lobotomyCorpViewportSize,
 } from './CanvasScaler.js';
-
-/** AdventClockUI.prefab 的原始画布尺寸。 */
-export const whiteNightSimpleAdventCanvas = Object.freeze({
-  height: lobotomyCorpReferenceCanvasHeight, width: lobotomyCorpReferenceCanvasWidth,
-});
 
 /**
  * AdventClockUI.prefab 中 Clock RectTransform 相对 1920×1080 逻辑画布的几何。
@@ -94,9 +88,6 @@ export const whiteNightSimpleAdventClockCenterSprite = Object.freeze({
     height: 257.9327, width: 259.85663, x: 380.0761, y: 0,
   }), texture: Object.freeze({height: 383, width: 1024}),
 });
-
-/** Simple Advent 实际可见的 prefab Sprite，保持父子 sibling 顺序。 */
-export const whiteNightSimpleAdventSprites = Object.freeze(['ClockFrame.png', 'GlobalShader.png', 'ClockShader.png', 'LowerShader.png',]);
 
 /** AdventClockUI.Names[] 的明确 index → RectTransform 映射。 */
 export const whiteNightSimpleAdventNameSlots = Object.freeze([[129.96, 239.4, 29.999994], [227.28, 132.72, 60], [260.52, -6.72, 90], [227.04, -128.4, 121.44615], [128.4, -220.8, 154.99998], [-12.96, -252, 180], [-142.8, -212.4, -150.00002], [-229.2, -124.8, -119.99999], [-260.4, 1.2, -90], [-225.6, 141.6, -60.000023], [-132, 241.2, -30.000015], [0, 275.4, 0],].map(([x, y, rotation], index) => Object.freeze({

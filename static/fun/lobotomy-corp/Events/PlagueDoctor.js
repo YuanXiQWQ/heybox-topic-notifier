@@ -28,10 +28,7 @@ import {
   whiteNightSimpleAdventNameSlots,
   whiteNightSimpleAdventOriginalColor,
 } from './WhiteNightAdvent.js';
-import {
-  createDeathAngelAdventLight,
-  deathAngelAdventLightPrefab,
-} from './AdventLight.js';
+import {createDeathAngelAdventLight} from './AdventLight.js';
 import {
   lobotomyCorpCanvasScaleForViewport,
   lobotomyCorpCanvasViewportForUpdate,
@@ -141,14 +138,6 @@ export const plagueDoctorAdventTimings = Object.freeze({
   /** `PlagueDoctorAnim.OnStartAdvent()` 的 `_adventEffectTimer`。 */
   plagueDoctorAdventMs: 3000,
 });
-
-/**
- * 使徒转化光效的挂点，取自 AdventLight.prefab 与使徒动画 prefab。
- *
- * 光效本身由 `AdventLight.js` 按原始 `.anim` 播放，这里只暴露 prefab 记录，
- * 供测试核对网页使用的挂点与 prefab 一致。
- */
-export const plagueDoctorAdventLightPrefab = deathAngelAdventLightPrefab;
 
 /** 疫医事件使用的媒体路径。 */
 export const plagueDoctorSoundPaths = Object.freeze({
