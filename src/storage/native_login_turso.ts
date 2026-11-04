@@ -11,7 +11,10 @@ export function createTursoNativeLogin(
   execute: (statement: InStatement) => Promise<ResultSet>,
 ): NativeLoginStore {
   return {
-    /** @param {NativeLogin} value 待授权交接。 @return {Promise<boolean>} 是否创建成功。 */
+    /**
+     * @param {NativeLogin} value 待授权交接。
+     * @return {Promise<boolean>} 是否创建成功。
+     */
     async create(value) {
       await execute({
         sql: "DELETE FROM native_login WHERE expires_at <= ?",
@@ -23,7 +26,10 @@ export function createTursoNativeLogin(
         args: [value.id, value.challenge, value.expiresAt],
       })).rowsAffected === 1;
     },
-    /** @param {string} id 交接 ID。 @return {Promise<NativeLogin | undefined>} 当前未过期状态。 */
+    /**
+     * @param {string} id 交接 ID。
+     * @return {Promise<NativeLogin | undefined>} 当前未过期状态。
+     */
     async read(id) {
       const result = await execute({
         sql: "SELECT * FROM native_login WHERE id = ? AND expires_at > ?",
@@ -40,7 +46,11 @@ export function createTursoNativeLogin(
         }
         : undefined;
     },
-    /** @param {string} id 交接 ID。 @param {string} userId 授权账号。 @return {Promise<boolean>} 是否成功。 */
+    /**
+     * @param {string} id 交接 ID。
+     * @param {string} userId 授权账号。
+     * @return {Promise<boolean>} 是否成功。
+     */
     async approve(id, userId) {
       return (await execute({
         sql:
@@ -48,7 +58,11 @@ export function createTursoNativeLogin(
         args: [userId, id, Date.now()],
       })).rowsAffected === 1;
     },
-    /** @param {string} id 交接 ID。 @param {string} challenge PKCE 摘要。 @return {Promise<string | undefined>} 单次授权账号。 */
+    /**
+     * @param {string} id 交接 ID。
+     * @param {string} challenge PKCE 摘要。
+     * @return {Promise<string | undefined>} 单次授权账号。
+     */
     async consume(id, challenge) {
       const result = await execute({
         sql:

@@ -6,6 +6,11 @@
  * 舞台再用解包工程里的骨架数据复刻同一条动画调用链。
  */
 
+/**
+ * 动态加载的 Spine 3.6 WebGL 命名空间。
+ * @typedef {typeof import('../vendor/spine-webgl-3.6.d.ts')} SpineRuntime
+ */
+
 /** Spine WebGL 运行时相对彩蛋模块根路径的位置。 */
 export const spineRuntimePath = 'vendor/spine-webgl-3.6.53.js';
 
@@ -32,7 +37,7 @@ export function spineModuleRoot(assetRoot) {
  * @param {Document} [options.document] 当前文档。
  * @param {object} [options.globalObject] 全局对象。
  * @param {string} [options.path] 运行时脚本的公开路径。
- * @return {Promise<object|undefined>} 运行时命名空间。
+ * @return {Promise<SpineRuntime|undefined>} 运行时命名空间。
  */
 export function loadSpineRuntime({document, globalObject, path}) {
   if (globalObject?.spine?.webgl) {
@@ -69,7 +74,7 @@ export function loadSpineRuntime({document, globalObject, path}) {
 /**
  * 等待 AssetManager 结算所有排队资源。
  *
- * @param {object} assetManager 已排队的资源管理器。
+ * @param {import('../vendor/spine-webgl-3.6.d.ts').AssetManager} assetManager 已排队的资源管理器。
  * @param {object} globalObject 全局对象（提供定时器）。
  * @param {() => boolean} isDisposed 判断调用方是否已经释放。
  * @return {Promise<void>} 加载结束时兑现。
@@ -99,10 +104,10 @@ export function waitForSpineAssets(assetManager, globalObject, isDisposed) {
  * @return {{assetDirectory: string, atlasPath: string, pathPrefix: string, skeletonPath: string}} 资源目录、目录前缀与文件相对路径。
  */
 export function spineAssetPaths(
-  assetDirectory,
-  skeletonFile,
-  atlasFile,
-  moduleRoot,
+    assetDirectory,
+    skeletonFile,
+    atlasFile,
+    moduleRoot,
 ) {
   const separator = assetDirectory.lastIndexOf('/');
   const parentDirectory = assetDirectory.slice(0, separator + 1);
@@ -114,4 +119,46 @@ export function spineAssetPaths(
     pathPrefix: `${moduleRoot}/Assets/${parentDirectory}`,
     skeletonPath: `${leafDirectory}/${skeletonFile}`,
   };
+}
+
+/**
+ * 逐帧采样当前轨道的附件世界边界，保留调用方指定的采样密度。
+ * @template {{x: number, y: number}} Point
+ * @template {{updateWorldTransform(): void, getBounds(offset: Point, size: Point, temp: number[]): void}} Skeleton
+ * @param {{Vector2: new () => Point}} runtime Spine 运行时。
+ * @param {{update(delta: number): void, apply(skeleton: Skeleton): unknown}} animationState 当前动画轨道。
+ * @param {Skeleton} skeleton 当前骨架。
+ * @param {number} duration 动画时长（秒）。
+ * @param {number} sampleCount 采样间隔数量。
+ * @return {{minX:number,minY:number,maxX:number,maxY:number}} 采样边界；没有有限样本时保留无穷边界。
+ */
+export function sampleSpineAnimationBounds(runtime, animationState, skeleton, duration, sampleCount) {
+  const offset = new runtime.Vector2(), size = new runtime.Vector2(), temp = new Array(8);
+  const step = duration / sampleCount;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let index = 0; index <= sampleCount; index++) {
+    if (index > 0) animationState.update(step);
+    animationState.apply(skeleton);
+    skeleton.updateWorldTransform();
+    // 两个向量由同一个 Point 构造器创建；IDE 会将泛型约束中的 Point 识别为另一类型。
+    // noinspection JSCheckFunctionSignatures
+    skeleton.getBounds(offset, size, temp);
+    if (!Number.isFinite(size.x) || !Number.isFinite(size.y)) continue;
+    minX = Math.min(minX, offset.x);
+    minY = Math.min(minY, offset.y);
+    maxX = Math.max(maxX, offset.x + size.x);
+    maxY = Math.max(maxY, offset.y + size.y);
+  }
+  return {minX, minY, maxX, maxY};
+}
+
+/**
+ * 优先预约浏览器动画帧，缺少帧接口时使用同一宿主的定时器与时钟。
+ * @param {{requestAnimationFrame?: (callback: (timestamp: number) => void) => number, setTimeout?: (callback: () => void, delay: number) => number, performance?: {now: () => number}}} host 舞台宿主。
+ * @param {(timestamp: number) => void} callback 帧回调。
+ * @return {number|undefined} 可由宿主取消的帧或定时器句柄。
+ */
+export function requestSpineFrame(host, callback) {
+  if (typeof host.requestAnimationFrame === 'function') return host.requestAnimationFrame(callback);
+  return host.setTimeout?.(() => callback(host.performance?.now?.() ?? Date.now()), 16);
 }

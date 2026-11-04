@@ -7,11 +7,10 @@ import {
   type AuthOptions,
   createAuthMiddleware,
   createAuthRoutes,
-  hashPassword,
-  readAuthSession,
-  validDisplayName,
-  validUsername,
 } from "./auth.ts";
+import { hashPassword } from "./auth/password.ts";
+import { readAuthSession } from "./auth/session.ts";
+import { validAccountName } from "./auth/account_names.ts";
 import { turnstileResponseFieldName } from "./auth/turnstile.ts";
 import { altchaResponseFieldName } from "./auth/altcha.ts";
 import { solveChallenge } from "npm:altcha-lib@^2.4.0";
@@ -192,10 +191,10 @@ Deno.test("auth routes render Google Identity Services when configured", async (
   const dialogStart = html.indexOf("<dialog");
   const dialogEnd = html.indexOf("</dialog>", dialogStart);
   const googleEntry = html.indexOf('class="auth-google-method"');
-  const googleButton = html.indexOf('<div data-google-button>');
+  const googleButton = html.indexOf("<div data-google-button>");
   assert(googleEntry > dialogStart && googleEntry < dialogEnd);
   assert(googleButton > googleEntry && googleButton < dialogEnd);
-  assertEquals(html.split('<div data-google-button>').length - 1, 1);
+  assertEquals(html.split("<div data-google-button>").length - 1, 1);
   assertEquals(html.split('class="auth-google-method"').length - 1, 1);
   assert(!(html.includes('class="auth-google-button"')));
   assertEquals(
@@ -391,26 +390,26 @@ Deno.test("auth routes ignore supplied display names during registration", async
 });
 
 Deno.test("username validation accepts Unicode and injection-like visible text", () => {
-  assertStrictEquals(validUsername("蔚蓝社区"), true);
-  assertStrictEquals(validUsername("O'Connor"), true);
-  assertStrictEquals(validUsername('<script>alert("x")</script>'), true);
-  assertStrictEquals(validUsername("😀".repeat(80)), true);
+  assertStrictEquals(validAccountName("蔚蓝社区"), true);
+  assertStrictEquals(validAccountName("O'Connor"), true);
+  assertStrictEquals(validAccountName('<script>alert("x")</script>'), true);
+  assertStrictEquals(validAccountName("😀".repeat(80)), true);
 });
 
 Deno.test("username validation rejects empty, oversized, and control text", () => {
-  assertStrictEquals(validUsername(""), false);
-  assertStrictEquals(validUsername("   "), false);
-  assertStrictEquals(validUsername("a".repeat(81)), false);
-  assertStrictEquals(validUsername("line\nbreak"), false);
-  assertStrictEquals(validUsername("zero\u200Bwidth"), false);
+  assertStrictEquals(validAccountName(""), false);
+  assertStrictEquals(validAccountName("   "), false);
+  assertStrictEquals(validAccountName("a".repeat(81)), false);
+  assertStrictEquals(validAccountName("line\nbreak"), false);
+  assertStrictEquals(validAccountName("zero\u200Bwidth"), false);
 });
 
 Deno.test("display name validation preserves case and rejects unsafe text", () => {
-  assertStrictEquals(validDisplayName("Alice Wonderland"), true);
-  assertStrictEquals(validDisplayName("成步堂龙一"), true);
-  assertStrictEquals(validDisplayName("   "), false);
-  assertStrictEquals(validDisplayName("line\nbreak"), false);
-  assertStrictEquals(validDisplayName("a".repeat(81)), false);
+  assertStrictEquals(validAccountName("Alice Wonderland"), true);
+  assertStrictEquals(validAccountName("成步堂龙一"), true);
+  assertStrictEquals(validAccountName("   "), false);
+  assertStrictEquals(validAccountName("line\nbreak"), false);
+  assertStrictEquals(validAccountName("a".repeat(81)), false);
 });
 
 Deno.test("auth routes reject registration without Turnstile token when enabled", async () => {
@@ -705,7 +704,7 @@ Deno.test("auth routes sign in with email verification and create a passwordless
     method: "POST",
   });
   assertEquals((await storage.listAccounts()).length, 0);
-  response = await completeTestInvitation(app,response);
+  response = await completeTestInvitation(app, response);
   const account = await storage.getAccountByUsername("alice");
   const credential = account
     ? await storage.getEmailCredential(account.id, "alice@example.com")
@@ -748,7 +747,7 @@ Deno.test("auth routes sign in with Google credential and create a passwordless 
     },
   );
   assertEquals((await storage.listAccounts()).length, 0);
-  response = await completeTestInvitation(app,response);
+  response = await completeTestInvitation(app, response);
   const identity = await storage.getAuthIdentity(
     "google",
     "google-subject-id",
@@ -900,7 +899,7 @@ Deno.test("auth routes do not merge Google sign-in into an existing same-email a
     method: "POST",
   });
   assertEquals((await storage.listAccounts()).length, 1);
-  response = await completeTestInvitation(app,response);
+  response = await completeTestInvitation(app, response);
   const identity = await storage.getAuthIdentity(
     "google",
     "google-subject-id",
@@ -1474,17 +1473,7 @@ Deno.test("auth routes complete email MFA and create a session", async () => {
   }
   await enableEmailSecondFactor(storage, account.id);
 
-  const loginResponse = await app.request("/login", {
-    body: testCsrfForm(
-      new URLSearchParams({
-        password: "correct-password",
-        returnTo: "/history",
-        username: "alice",
-      }),
-    ),
-    headers: testCsrfHeaders(),
-    method: "POST",
-  });
+  const loginResponse = await submitAliceLogin(app);
   const challengeId = mfaChallengeIdFromLocation(
     loginResponse.headers.get("location"),
   );
@@ -1543,17 +1532,7 @@ Deno.test("auth routes complete TOTP MFA and create a session", async () => {
   }
   const material = await enableTotpSecondFactor(storage, account.id);
 
-  const loginResponse = await app.request("/login", {
-    body: testCsrfForm(
-      new URLSearchParams({
-        password: "correct-password",
-        returnTo: "/history",
-        username: "alice",
-      }),
-    ),
-    headers: testCsrfHeaders(),
-    method: "POST",
-  });
+  const loginResponse = await submitAliceLogin(app);
   const location = loginResponse.headers.get("location") ?? "";
   const challengeId = mfaChallengeIdFromLocation(location);
   const pageResponse = await app.request(location);
@@ -1617,17 +1596,7 @@ Deno.test("auth routes consume a one-time recovery code for MFA", async () => {
     userId: account.id,
   });
 
-  const loginResponse = await app.request("/login", {
-    body: testCsrfForm(
-      new URLSearchParams({
-        password: "correct-password",
-        returnTo: "/history",
-        username: "alice",
-      }),
-    ),
-    headers: testCsrfHeaders(),
-    method: "POST",
-  });
+  const loginResponse = await submitAliceLogin(app);
   const location = loginResponse.headers.get("location") ?? "";
   const challengeId = mfaChallengeIdFromLocation(location);
   const pageHtml = await (await app.request(location)).text();
@@ -1728,17 +1697,7 @@ Deno.test("auth routes complete Passkey MFA and create a session", async () => {
   }
   await enablePasskeySecondFactor(storage, account.id);
 
-  const loginResponse = await app.request("/login", {
-    body: testCsrfForm(
-      new URLSearchParams({
-        password: "correct-password",
-        returnTo: "/history",
-        username: "alice",
-      }),
-    ),
-    headers: testCsrfHeaders(),
-    method: "POST",
-  });
+  const loginResponse = await submitAliceLogin(app);
   const location = loginResponse.headers.get("location") ?? "";
   const mfaChallengeId = mfaChallengeIdFromLocation(location);
   const pageResponse = await app.request(location);
@@ -1967,12 +1926,19 @@ Deno.test("auth routes keep selected login locale out of account settings", asyn
 
 Deno.test("auth pages use the current device language without saving system defaults", async () => {
   const app = createTestApp(createMemoryStorage());
-  const automatic = await app.request("/login", { headers: { "accept-language": "ja-JP" } });
+  const automatic = await app.request("/login", {
+    headers: { "accept-language": "ja-JP" },
+  });
   assert((await automatic.text()).includes('lang="ja-JP"'));
-  assert(!(automatic.headers.get("set-cookie") ?? "").includes("heybox-device-"));
-  const manual = await app.request("/login?locale=en-US", { headers: {
-    "accept-language": "ja-JP", cookie: "heybox-device-locale=ar-SA",
-  } });
+  assert(
+    !(automatic.headers.get("set-cookie") ?? "").includes("heybox-device-"),
+  );
+  const manual = await app.request("/login?locale=en-US", {
+    headers: {
+      "accept-language": "ja-JP",
+      cookie: "heybox-device-locale=ar-SA",
+    },
+  });
   const html = await manual.text();
   assert(html.includes('lang="ar-SA"'));
   assert(html.includes('dir="rtl"'));
@@ -2097,8 +2063,9 @@ Deno.test("auth middleware accepts a valid session cookie", async () => {
 /**
  * 创建认证测试应用。
  *
- * @param storage 测试存储。
- * @return Hono 测试应用。
+ * @param {Storage} [storage] 测试存储。
+ * @param {AuthOptions} [options] 认证能力与请求依赖配置。
+ * @return {Hono} 测试应用。
  */
 function createTestApp(
   storage = createMemoryStorage(),
@@ -2135,8 +2102,7 @@ function turnstileAuthOptions(options: {
 /**
  * 创建开启 ALTCHA 自动降级的认证测试配置。
  *
- * @param options ALTCHA 验证码测试选项。
- * @return 认证测试配置。
+ * @return {AuthOptions} 认证测试配置。
  */
 function altchaAuthOptions(): AuthOptions {
   return {
@@ -2374,7 +2340,7 @@ function submitGoogleLogin(
       headers: testCsrfHeaders(),
       method: "POST",
     }),
-  ).then(response => completeTestInvitation(app,response));
+  ).then((response) => completeTestInvitation(app, response));
 }
 
 /**
@@ -2675,10 +2641,6 @@ function createMemoryStorage(): Storage & {
       );
       return Promise.resolve();
     },
-    deleteEmailCredential: (userId: string, email: string) => {
-      emailCredentialsByKey.delete(emailCredentialKey(userId, email));
-      return Promise.resolve();
-    },
     getPasskeyCredential: (userId: string, credentialId: string) =>
       Promise.resolve(
         passkeyCredentialsByKey.get(passkeyCredentialKey(userId, credentialId)),
@@ -2934,10 +2896,43 @@ const defaultSettings: AppSettings = {
   topics: [],
 };
 
-/** @param {Hono} app 测试应用。 @param {Response} response 身份验证响应。 @return {Promise<Response>} 显式提交邀请码后的响应。 */
-async function completeTestInvitation(app:Hono,response:Response):Promise<Response>{
- if(response.status!==200)return response;
- const html=await response.clone().text(),pending=/name="pending" value="([^"]+)"/.exec(html)?.[1];
- if(!pending)return response;
- return await app.request('/register/invitation?locale=en-US',{method:'POST',headers:testCsrfHeaders(),body:testCsrfForm(new URLSearchParams({pending}))});
+/**
+ * @param {Hono} app 测试应用。
+ * @param {Response} response 身份验证响应。
+ * @return {Promise<Response>} 显式提交邀请码后的响应。
+ */
+async function completeTestInvitation(
+  app: Hono,
+  response: Response,
+): Promise<Response> {
+  if (response.status !== 200) return response;
+  const html = await response.clone().text(),
+    pending = /name="pending" value="([^"]+)"/.exec(html)?.[1];
+  if (!pending) return response;
+  return await app.request("/register/invitation?locale=en-US", {
+    method: "POST",
+    headers: testCsrfHeaders(),
+    body: testCsrfForm(new URLSearchParams({ pending })),
+  });
+}
+
+/**
+ * 以测试账号提交密码登录，并指定认证后返回历史页。
+ * @param {ReturnType<typeof createTestApp>} app 认证测试应用。
+ * @return {Promise<Response>} 登录流程响应。
+ */
+async function submitAliceLogin(
+  app: ReturnType<typeof createTestApp>,
+): Promise<Response> {
+  return await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
+  });
 }

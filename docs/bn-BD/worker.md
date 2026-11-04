@@ -16,7 +16,7 @@ SendKey গ্রহণ করে এবং project-এর existing rules অন
 2. `workers/notification-relay.js`-এর content Worker editor-এ paste করুন, অথবা Wrangler দিয়ে script deploy করুন।
 3. Worker variables/secrets-এ `RELAY_TOKEN` যোগ করুন, value হিসেবে একটি long random secret ব্যবহার করুন।
 4. Deployment-এর পর `https://<your-worker>.workers.dev/healthz` visit করে `{"status":"ok"}` return হচ্ছে কি না নিশ্চিত করুন।
-5. Deno Deploy-এ configure করুন:
+5. `/etc/heybox-topic-notifier/heybox.env`
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus

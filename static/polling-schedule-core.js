@@ -52,6 +52,7 @@ export function rowPaused(row) {
  */
 function civilInstant(wall, timeZone, end) {
   const target = new Date(wall).toISOString().slice(0, 16);
+  /** @type {number[]} */
   const candidates = [-129600000, 0, 129600000].map((offset) => {
     const probe = wall + offset;
     return wall -
@@ -296,20 +297,17 @@ export function normalizeSchedule(input, locale = "") {
   const ids = new Set();
   const rows = (Array.isArray(value.rows) ? value.rows : []).slice(0, 200).map(
     (item, index) => {
-      const row = {};
-      for (
-        const field of [
-          "id",
-          "start",
-          "end",
-          "intervalValue",
-          "intervalUnit",
-          "postLimit",
-          "sort",
-          "referenceStart",
-          "referenceEnd",
-        ]
-      ) row[field] = String(item?.[field] ?? "").slice(0, 80);
+      const row = {
+        id: String(item?.id ?? "").slice(0, 80),
+        start: String(item?.start ?? "").slice(0, 80),
+        end: String(item?.end ?? "").slice(0, 80),
+        intervalValue: String(item?.intervalValue ?? "").slice(0, 80),
+        intervalUnit: String(item?.intervalUnit ?? "").slice(0, 80),
+        postLimit: String(item?.postLimit ?? "").slice(0, 80),
+        sort: String(item?.sort ?? "").slice(0, 80),
+        referenceStart: String(item?.referenceStart ?? "").slice(0, 80),
+        referenceEnd: String(item?.referenceEnd ?? "").slice(0, 80),
+      };
       row.calendar = ["gregory", "chinese"].includes(item?.calendar)
         ? item.calendar
         : "gregory";

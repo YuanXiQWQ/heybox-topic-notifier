@@ -49,7 +49,11 @@ function harness() {
     exists: true,
     readStatus: 0,
   };
-  /** @param {string} path API 路径。 @param {RequestInit} init 请求数据。 @return {Promise<unknown>} 虚构 GitHub 响应。 */
+  /**
+   * @param {string} path API 路径。
+   * @param {RequestInit} init 请求数据。
+   * @return {Promise<unknown>} 虚构 GitHub 响应。
+   */
   const request: GitHubRequest = (path, init) => {
     if (path === "/releases" && init?.method === "POST") {
       const body = JSON.parse(String(init.body));
@@ -121,9 +125,15 @@ function harness() {
     remote,
     writes,
     state,
-    /** @param {number} id 目标发行 ID。 @return {Promise<object>} 已验证的草稿或发行。 */
+    /**
+     * @param {number} id 目标发行 ID。
+     * @return {Promise<object>} 已验证的草稿或发行。
+     */
     ensure: (id?: number) => ensureRelease(request, "3.8.2", commit, id),
-    /** @param {boolean} publishDraft 是否公开草稿。 @return {Promise<void>} 上传与公开流程完成。 */
+    /**
+     * @param {boolean} publishDraft 是否公开草稿。
+     * @return {Promise<void>} 上传与公开流程完成。
+     */
     publish: (publishDraft = true) =>
       publishRelease({
         request,

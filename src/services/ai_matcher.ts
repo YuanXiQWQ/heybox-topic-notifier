@@ -115,6 +115,8 @@ export function createAiMatcher(options: AiMatcherOptions = {}) {
       const timeout = setTimeout(() => controller.abort(), 12000);
       try {
         if (!settings.apiKey || !settings.model || !settings.prompt) {
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
           throw new Error("configuration");
         }
         const url = aiEndpoint(settings.apiUrl);
@@ -133,7 +135,10 @@ export function createAiMatcher(options: AiMatcherOptions = {}) {
             );
           }),
         ]);
-        if (!resolved.ok) throw new Error("endpoint");
+        if (!resolved.ok)
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
+          throw new Error("endpoint");
         const response = await (options.fetch ?? fetch)(url, {
           method: "POST",
           redirect: "error",
@@ -166,7 +171,10 @@ export function createAiMatcher(options: AiMatcherOptions = {}) {
           return { ...result, error: `AI HTTP ${response.status}` };
         }
         const reader = response.body?.getReader();
-        if (!reader) throw new Error("body");
+        if (!reader)
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
+          throw new Error("body");
         let text = "", bytes = 0;
         const decoder = new TextDecoder();
         try {
@@ -174,7 +182,10 @@ export function createAiMatcher(options: AiMatcherOptions = {}) {
             const chunk = await reader.read();
             if (chunk.done) break;
             bytes += chunk.value.length;
-            if (bytes > 65536) throw new Error("size");
+            if (bytes > 65536)
+              // 校验失败沿用当前 catch 的错误反馈与清理路径。
+              // noinspection ExceptionCaughtLocallyJS
+              throw new Error("size");
             text += decoder.decode(chunk.value, { stream: true });
           }
           text += decoder.decode();

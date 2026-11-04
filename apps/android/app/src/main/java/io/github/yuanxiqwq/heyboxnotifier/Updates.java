@@ -19,7 +19,6 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -264,7 +263,7 @@ final class Updates {
         if (size <= 0 || size > 600L * 1024 * 1024 || !file.isFile() || file.length() != size || !expected.matches("sha256:[a-f0-9]{64}")) throw new SecurityException("Invalid downloaded update");
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         try (InputStream input = new FileInputStream(file)) { byte[] bytes = new byte[65536]; int count; while ((count = input.read(bytes)) != -1) digest.update(bytes, 0, count); }
-        if (!hex(digest.digest()).equals(expected.substring(7))) throw new SecurityException("Update digest mismatch");
+        if (!DigestHex.encode(digest.digest()).equals(expected.substring(7))) throw new SecurityException("Update digest mismatch");
     }
     /**
      * 校验包名、单调版本号及发行签名与已安装应用相同。
@@ -328,10 +327,4 @@ final class Updates {
         for (int i = 0; i < 3; i++) { int order = new java.math.BigInteger(a[i]).compareTo(new java.math.BigInteger(b[i])); if (order != 0) return order > 0; }
         return false;
     }
-    /**
-     * 将摘要转换成小写十六进制。
-     * @param {byte[]} bytes 摘要。
-     * @return {String} 十六进制文本。
-     */
-    static String hex(byte[] bytes) { StringBuilder result = new StringBuilder(); for (byte value : bytes) result.append(String.format(Locale.ROOT, "%02x", value & 255)); return result.toString(); }
 }

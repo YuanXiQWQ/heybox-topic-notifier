@@ -159,6 +159,7 @@ function renderLobotomyCorpAbnormalitiesData(): string {
  * 渲染当前已登录账户的显示名称，供异想体身份装饰在任意页面重新派生。
  *
  * @param {Pick<UserAccount, "displayName" | "username">|undefined} account 当前账户。
+ * @param {string} [loginSession] 用于隔离彩蛋身份状态的当前登录会话标识。
  * @return {string} 安全内联的账户身份资料；匿名页面为空。
  */
 function renderLobotomyCorpAccountIdentityData(
@@ -199,7 +200,9 @@ export function renderAceAttorneyEasterEggData(locale: Locale): string {
  * @return {string} 完整 HTML 页面。
  */
 export function renderLayout(options: {
-  account?: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string };
+  account?: Pick<UserAccount, "displayName" | "username" | "role"> & {
+    id?: string;
+  };
   body: string;
   csrfToken: string;
   darkMode: boolean;
@@ -229,9 +232,20 @@ export function renderLayout(options: {
     <meta charset="utf-8">
     <script src="/static/device-preferences.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    ${renderEasterEggJsonData("application-messages", Object.fromEntries(Object.entries(messages).filter(([name]) => name.startsWith("update") || name === "checkUpdate" || name === "autoSaveError" || name === "accountCancel")))}
+    ${
+    renderEasterEggJsonData(
+      "application-messages",
+      Object.fromEntries(
+        Object.entries(messages).filter(([name]) =>
+          name.startsWith("update") || name === "checkUpdate" ||
+          name === "autoSaveError" || name === "accountCancel"
+        ),
+      ),
+    )
+  }
     <script src="/static/app-compat.js" defer></script>
     <script src="/static/app-native.js" defer></script>
+    <script src="/static/app-navigation.js" defer></script>
     <script src="/static/app-device-settings.js" defer></script>
     <script src="/static/settings-navigation.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
@@ -243,18 +257,28 @@ export function renderLayout(options: {
     <script src="/static/tooltip.js" defer></script>
     <script src="/static/app-sync/store.js" defer></script>
     <script src="/static/app-sync/client.js" defer></script>
-    ${options.disableEasterEggs ? "" : `<script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
+    ${
+    options.disableEasterEggs
+      ? ""
+      : `<script src="/static/fun/coordinator.js?v=20260905-cross-game-interruption" defer></script>
     ${renderLobotomyCorpLocaleData(options.locale)}
     ${renderLobotomyCorpConfessionAliasesData()}
     ${renderLobotomyCorpAbnormalitiesData()}
-    ${renderLobotomyCorpAccountIdentityData(options.account, options.loginSession)}
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>`}
+    ${
+        renderLobotomyCorpAccountIdentityData(
+          options.account,
+          options.loginSession,
+        )
+      }
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>`
+  }
     ${renderMatchTableRowLinkStyle()}
   </head>
   <body data-app-user-id="${escapeHtml(options.account?.id ?? "")}">
     <header class="topbar">
+      ${renderApplicationBack(messages)}
       <a class="brand" href="/">${escapeHtml(messages.appName)}</a>
-      <nav class="primary-nav" aria-label="Primary">
+      <nav class="primary-nav" aria-label="Primary" data-app-navigation>
         <form class="nav-item" method="get" action="/">
           <button class="nav-link-button" type="submit">${
     renderNavItem(
@@ -308,6 +332,19 @@ export function renderLayout(options: {
 }
 
 /**
+ * 渲染仅在原生应用展示的返回按钮和保存失败反馈，不注册彩蛋候选槽位。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 初始禁用的图标按钮与状态区域。
+ */
+export function renderApplicationBack(messages: ReturnType<typeof getMessages>): string {
+  return `<button class="icon-button app-back-button" type="button" data-app-back disabled aria-label="${
+    escapeHtml(messages.navBack)
+  }" data-tooltip="${escapeHtml(messages.navBack)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg></button><span class="app-navigation-status" data-app-navigation-status data-save-error="${
+    escapeHtml(messages.autoSaveError)
+  }" role="status" hidden></span>`;
+}
+
+/**
  * 渲染导航项的图标和文本。
  *
  * @param icon 图标 SVG。
@@ -328,7 +365,9 @@ function renderNavItem(icon: string, label: string): string {
  * @return {string} 账户菜单 HTML。
  */
 function renderAccountMenu(
-  account: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string },
+  account: Pick<UserAccount, "displayName" | "username" | "role"> & {
+    id?: string;
+  },
   csrfToken: string,
   locale: Locale,
   messages: ReturnType<typeof getMessages>,
@@ -339,11 +378,13 @@ function renderAccountMenu(
     renderAvatar(account, messages)
   }</summary><div class="nav-account-dropdown"><a class="nav-account-menu-action" href="/settings">${
     authIcon("username", "nav-account-menu-icon", "nav.accountSettings")
-  }<span>${
-    escapeHtml(messages.accountSettings)
-  }</span></a>${isAdministrator(account) ? `<a class="nav-account-menu-action" href="/admin">${materialSymbolIcon("badge","nav-account-menu-icon")}<span>${escapeHtml(messages.adminPanel)}</span></a>` : ""}<form method="post" action="/logout?locale=${
-    encodeURIComponent(locale)
-  }">${
+  }<span>${escapeHtml(messages.accountSettings)}</span></a>${
+    isAdministrator(account)
+      ? `<a class="nav-account-menu-action" href="/admin">${
+        materialSymbolIcon("badge", "nav-account-menu-icon")
+      }<span>${escapeHtml(messages.adminPanel)}</span></a>`
+      : ""
+  }<form method="post" action="/logout?locale=${encodeURIComponent(locale)}">${
     csrfHiddenInput(csrfToken)
   }<button class="nav-account-menu-action nav-account-logout" type="submit">${
     logoutIcon("nav-account-menu-icon", "nav.logout")
@@ -375,7 +416,9 @@ export function defaultAvatarUrl(userId: string | undefined): string {
  * @return {string} 头像 HTML。
  */
 export function renderAvatar(
-  account: Pick<UserAccount, "displayName" | "username" | "role"> & { id?: string },
+  account: Pick<UserAccount, "displayName" | "username" | "role"> & {
+    id?: string;
+  },
   messages: ReturnType<typeof getMessages>,
 ): string {
   const name = account.displayName ?? account.username;
@@ -385,4 +428,32 @@ export function renderAvatar(
   }" alt="${
     escapeHtml(alt)
   }"><img class="account-avatar-uploaded" src="/account/avatar" alt="" hidden data-reveal-on-load></span></span>`;
+}
+
+/**
+ * 渲染外联表单控件属性。
+ *
+ * @param {string} formId 表单 ID。
+ * @return {string} form 属性 HTML。
+ */
+export function formControlAttribute(formId: string): string {
+  return `form="${escapeHtml(formId)}"`;
+}
+
+/**
+ * 渲染 select 选项。
+ *
+ * @param {string} value 选项值。
+ * @param {string} current 当前选中值。
+ * @param {string} label 选项文案。
+ * @return {string} option HTML。
+ */
+export function renderSelectOption(
+  value: string,
+  current: string,
+  label: string,
+): string {
+  return `<option value="${escapeHtml(value)}" ${
+    value === current ? "selected" : ""
+  }>${escapeHtml(label)}</option>`;
 }

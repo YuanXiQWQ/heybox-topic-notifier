@@ -1,21 +1,15 @@
 /**
- * @file 本文件负责创建应用业务路由并解析设置表单。
+ * @file 本文件负责创建应用业务路由。
  */
+import { isRecord, passkeyChallengeMaxAttempts, passkeyJsonPayload, passkeyOptionsResponse, recordPasskeyChallengeFailure } from "./auth/passkey_request.ts";
 import { settingsForDevice } from "./services/device_settings.ts";
 import { testAiConnection } from "./services/ai_connection.ts";
 import { readNativeBadge } from "./services/native_badge.ts";
 import { fetchAiModels } from "./services/ai_models.ts";
 import { type Context, Hono } from "@hono/hono";
-import {
-  hashPassword,
-  normalizeDisplayName,
-  normalizeUsername,
-  readAuthSession,
-  saveAccountPasswordCredential,
-  validDisplayName,
-  validUsername,
-  verifyAccountPassword,
-} from "./auth.ts";
+import { hashPassword, saveAccountPasswordCredential, verifyAccountPassword } from "./auth/password.ts";
+import { normalizeDisplayName, normalizeUsername, validAccountName } from "./auth/account_names.ts";
+import { readAuthSession } from "./auth/session.ts";
 import { normalizeEmailAddress } from "./auth/email.ts";
 import { verifyEmailVerificationCode } from "./auth/email_verification.ts";
 import {
@@ -30,6 +24,7 @@ import {
   TotpConfigError,
   totpOtpAuthUri,
   verifyEncryptedTotpCode,
+  verifyTotpCodeAgainstCredentials,
 } from "./auth/totp.ts";
 import {
   createRecoveryCodes,
@@ -41,10 +36,8 @@ import {
   createPasskeyAuthenticationOptions,
   createPasskeyRegistrationOptions,
   defaultPasskeyRpName,
-  type PasskeyAuthenticationOptionsResult,
   passkeyCredentialAfterAuthentication,
   passkeyCredentialFromRegistration,
-  type PasskeyRegistrationOptionsResult,
   verifyPasskeyAuthenticationResponse,
   verifyPasskeyRegistrationResponse,
 } from "./auth/passkey.ts";
@@ -52,10 +45,7 @@ import {
   createStrongAuthenticationEvent,
   isRecentStrongAuthenticationEvent,
 } from "./auth/reauth.ts";
-import {
-  getMessages,
-  localeFromRequest,
-} from "./locales/index.ts";
+import { getMessages, localeFromRequest } from "./locales/index.ts";
 import {
   csrfForbiddenResponse,
   csrfHeaderName,
@@ -73,25 +63,15 @@ import {
   userRateLimitIdentifier,
 } from "./security/rate_limit.ts";
 import type {
-  AppSettings,
   AuthenticationEventMethod,
   AuthenticationEventPurpose,
   EmailCredential,
-  KeywordRule,
-  MatchLocation,
   PendingEmailVerification,
   PendingPasskeyChallenge,
-  PollIntervalUnit,
-  PollSort,
   SecondFactorMethod,
-  TopicRule,
   TotpCredential,
   UserSecuritySettings,
 } from "./models.ts";
-import {
-  normalizeNotificationEmailService,
-  normalizeNotificationWebhookService,
-} from "./notification_services.ts";
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderPendingMatches } from "./views/dashboard.ts";
@@ -102,10 +82,12 @@ import {
   parseMatchTableQuery,
 } from "./views/match_table.ts";
 import { renderSettings } from "./views/settings.ts";
-import { canEnableSchedule, normalizeSchedule, resolvePolling } from "../static/polling-schedule-core.js";
+import {
+  resolvePolling,
+} from "../static/polling-schedule-core.js";
 import type { PollingSettings } from "./models.ts";
 import { renderAbout } from "./views/about.ts";
-import { sendNotificationTest } from "./services/notification_test.ts";
+import { sendNotificationTest } from "./services/notification_probe.ts";
 import { enqueueNativeNotifications } from "./services/native_notifications.ts";
 import { readActiveNativeNotifications } from "./services/native_inbox.ts";
 import { notifyBrowsers } from "./services/web_push.ts";
@@ -113,11 +95,11 @@ import { projectVersion } from "./project.ts";
 import { parseEditStamp, serverEditStamp } from "./sync/protocol.ts";
 import { settingsEdits } from "./sync/settings.ts";
 import { createNativePushRoutes } from "./native_push_routes.ts";
-import { createReleaseCatalogReader, type ReleaseCatalog } from "./services/releases.ts";
 import {
-  type MatchingSettings,
-  normalizeMatchingSettings,
-} from "./services/matching_settings.ts";
+  createReleaseCatalogReader,
+  type ReleaseCatalog,
+} from "./services/releases.ts";
+import { matchingSettingsFromForm, settingsFromForm } from "./services/settings_form.ts";
 import {
   createRandomTestMatchRecord,
   NotificationConfigError,
@@ -125,25 +107,12 @@ import {
 } from "./services/notifier.ts";
 
 /**
- * 设置表单中支持的关键词匹配位置。
- */
-const matchLocations: MatchLocation[] = [
-  "title",
-  "body",
-  "comments",
-  "replies",
-];
-/**
  * 单次请求内的认证会话读取缓存。
  */
 const authSessionPromisesByRequest = new WeakMap<
   Request,
   ReturnType<typeof readAuthSession>
 >();
-/**
- * Passkey challenge 单次最多允许的失败次数。
- */
-const passkeyChallengeMaxAttempts = 5;
 /**
  * 手动轮询后用于触发前端进度条重置的查询参数名。
  */
@@ -187,19 +156,125 @@ export function createRoutes(
   const app = new Hono();
   app.route("/api/native/push", createNativePushRoutes(context.storage));
   /** 提供前后端共用的时段计算和编辑器脚本。 @param {Context} c 固定脚本路径请求。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/:scheduleScript{polling-(?:schedule(?:-core)?|calendar(?:-profiles|-picker)?)\\.js}", async (c) => new Response(await Deno.readTextFile(new URL("../static/" + c.req.param("scheduleScript"), import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/:scheduleScript{polling-(?:schedule(?:-core)?|calendar(?:-profiles|-picker)?)\\.js}",
+    async (c) =>
+      new Response(
+        await Deno.readTextFile(
+          new URL(
+            "../static/" + c.req.param("scheduleScript"),
+            import.meta.url,
+          ),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供固定版本的离线农历模块。 @return {Promise<Response>} 同源历法脚本。 */
-  app.get("/static/vendor/lunar/lunar.js", async () => new Response(await Deno.readTextFile(new URL("../static/vendor/lunar/lunar.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/vendor/lunar/lunar.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/vendor/lunar/lunar.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供设置子页的返回位置保存脚本。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/settings-navigation.js", async () => new Response(await Deno.readTextFile(new URL("../static/settings-navigation.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  app.get(
+    "/static/settings-navigation.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/settings-navigation.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
+  /** 提供应用导航的历史状态、返回与保存屏障。 @return {Promise<Response>} 同源脚本。 */
+  app.get("/static/app-navigation.js", async () => new Response(
+    await Deno.readTextFile(new URL("../static/app-navigation.js", import.meta.url)),
+    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } },
+  ));
   /** 提供共享原生桥接和应用更新界面脚本。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/app-native.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-native.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  app.get(
+    "/static/app-native.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/app-native.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** @return {Promise<Response>} 登录前后共用的设备显示偏好脚本。 */
-  app.get("/static/device-preferences.js", async () => new Response(await Deno.readTextFile(new URL("../static/device-preferences.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/device-preferences.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/device-preferences.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供仅操作当前设备偏好的原生设置脚本。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/app-device-settings.js", async () => new Response(await Deno.readTextFile(new URL("../static/app-device-settings.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/app-device-settings.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/app-device-settings.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /** 提供历史表格增量同步脚本。 @return {Promise<Response>} 同源脚本。 */
-  app.get("/static/history-sync.js", async () => new Response(await Deno.readTextFile(new URL("../static/history-sync.js", import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }));
+  app.get(
+    "/static/history-sync.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(
+          new URL("../static/history-sync.js", import.meta.url),
+        ),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
   /**
    * 返回当前账号角标数量或可按版本复用的离线基线，不包含通知测试事件或历史记录。
    * @param {Context} c 请求上下文。
@@ -208,13 +283,19 @@ export function createRoutes(
   app.get("/api/native/badge", async (c) => {
     c.header("cache-control", "no-store");
     const session = await authSessionForRequest(c, context);
-    if (!session) return c.json({error:"unauthorized"},401);
+    if (!session) return c.json({ error: "unauthorized" }, 401);
     const storage = context.storage.forUser(session.userId);
     if (c.req.query("records") === "1") {
-      return c.json(await readNativeBadge(storage, session.userId, c.req.query("version")));
+      return c.json(
+        await readNativeBadge(storage, session.userId, c.req.query("version")),
+      );
     }
-    const count = storage.countPendingPosts ? await storage.countPendingPosts() : new Set((await storage.listPendingMatches()).map((record) => record.post.id)).size;
-    return c.json({userId:session.userId,count});
+    const count = storage.countPendingPosts
+      ? await storage.countPendingPosts()
+      : new Set(
+        (await storage.listPendingMatches()).map((record) => record.post.id),
+      ).size;
+    return c.json({ userId: session.userId, count });
   });
   /**
    * 返回当前账号通知增量，可在同次鉴权后独立读取角标；旧客户端仍获得原有通知响应。
@@ -226,7 +307,10 @@ export function createRoutes(
     const session = await authSessionForRequest(c, context);
     if (!session) return c.json({ error: "unauthorized" }, 401);
     const after = c.req.query("after");
-    if (after !== undefined && after !== "" && !/^\d{16}:[A-Za-z0-9_-]{43}$/.test(after)) return c.json({ error: "invalidCursor" }, 400);
+    if (
+      after !== undefined && after !== "" &&
+      !/^\d{16}:[A-Za-z0-9_-]{43}$/.test(after)
+    ) return c.json({ error: "invalidCursor" }, 400);
     const userStorage = context.storage.forUser(session.userId);
     const inbox = userStorage.nativeNotifications;
     if (c.req.query("badge") === "1") {
@@ -235,12 +319,20 @@ export function createRoutes(
           if (!inbox) throw new Error("Notifications unavailable");
           return readActiveNativeNotifications(userStorage, after);
         }),
-        readNativeBadge(userStorage, session.userId, c.req.query("badgeVersion") ?? ""),
+        readNativeBadge(
+          userStorage,
+          session.userId,
+          c.req.query("badgeVersion") ?? "",
+        ),
       ]);
       return c.json({
         userId: session.userId,
-        ...(notifications.status === "fulfilled" ? notifications.value : { error: "unavailable" }),
-        badge: badge.status === "fulfilled" ? badge.value : { error: "unavailable" },
+        ...(notifications.status === "fulfilled"
+          ? notifications.value
+          : { error: "unavailable" }),
+        badge: badge.status === "fulfilled"
+          ? badge.value
+          : { error: "unavailable" },
       });
     }
     if (!inbox) return c.json({ error: "unavailable" }, 503);
@@ -257,7 +349,14 @@ export function createRoutes(
     if (!session) return c.json({ error: "unauthorized" }, 401);
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     c.header("cache-control", "no-store");
-    return withCsrfCookie(c.json({ userId: session.userId, serverTime: Date.now(), csrfToken: csrf.token }), csrf);
+    return withCsrfCookie(
+      c.json({
+        userId: session.userId,
+        serverTime: Date.now(),
+        csrfToken: csrf.token,
+      }),
+      csrf,
+    );
   });
   /**
    * 提供共享离线存储与队列脚本，不允许动态路径读取。
@@ -267,16 +366,34 @@ export function createRoutes(
   app.get("/static/app-sync/:file", async (c) => {
     const file = c.req.param("file");
     if (!["store.js", "client.js"].includes(file)) return c.notFound();
-    return new Response(await Deno.readTextFile(new URL(`../static/app-sync/${file}`, import.meta.url)), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } });
+    return new Response(
+      await Deno.readTextFile(
+        new URL(`../static/app-sync/${file}`, import.meta.url),
+      ),
+      {
+        headers: {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+      },
+    );
   });
   /**
    * 提供设备通知开关的浏览器脚本。
    * @return {Promise<Response>} 同源脚本响应。
    */
-  app.get("/static/app-notifications.js", async () => new Response(
-    await Deno.readTextFile(new URL("../static/app-notifications.js", import.meta.url)),
-    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } },
-  ));
+  app.get("/static/app-notifications.js", async () =>
+    new Response(
+      await Deno.readTextFile(
+        new URL("../static/app-notifications.js", import.meta.url),
+      ),
+      {
+        headers: {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+      },
+    ));
 
   /**
    * 使用当前账号的主题与语言显示项目信息及真实发行附件。
@@ -287,17 +404,22 @@ export function createRoutes(
   app.get("/about", async (c) => {
     const storage = await storageForRequest(c, context);
     const session = await authSessionForRequest(c, context);
-    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    const account = session
+      ? await context.storage.getAccountById(session.userId)
+      : undefined;
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     c.header("cache-control", "no-store");
-    return withCsrfCookie(c.html(renderAbout({
-      account,
-      csrfToken: csrf.token,
-      loginSession: session?.createdAt,
-      settings: await storage.getSettings(),
-      version: projectVersion(Deno.env.get("APP_VERSION")),
-      catalog: await (options.releaseCatalog ?? readReleaseCatalog)(),
-    })), csrf);
+    return withCsrfCookie(
+      c.html(renderAbout({
+        account,
+        csrfToken: csrf.token,
+        loginSession: session?.createdAt,
+        settings: await storage.getSettings(),
+        version: projectVersion(Deno.env.get("APP_VERSION")),
+        catalog: await (options.releaseCatalog ?? readReleaseCatalog)(),
+      })),
+      csrf,
+    );
   });
 
   app.get("/healthz", (c) =>
@@ -311,7 +433,9 @@ export function createRoutes(
     const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
     const session = await authSessionForRequest(c, context);
-    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    const account = session
+      ? await context.storage.getAccountById(session.userId)
+      : undefined;
     const { pendingMatches, settings, state } = await storage
       .getDashboardSnapshot();
     const pendingTable = applyMatchTableQuery(
@@ -400,7 +524,8 @@ export function createRoutes(
     // 版本先于数据读取，期间发生的更新会在下次检查中产生不同版本。
     const { pendingMatches, settings, state } = await storage
       .getDashboardSnapshot();
-    const effectivePolling = resolvePolling(settings.polling).polling as PollingSettings;
+    const effectivePolling = resolvePolling(settings.polling)
+      .polling as PollingSettings;
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       query,
@@ -618,10 +743,13 @@ export function createRoutes(
     if (!avatar) return c.redirect(defaultAvatarPath(session.userId), 302);
     const bytes = new Uint8Array(avatar.data.byteLength);
     bytes.set(avatar.data);
-    return new Response(new Blob([bytes]), { headers: {
-      "cache-control": "private, no-store", "content-type": avatar.contentType,
-      "x-content-type-options": "nosniff",
-    } });
+    return new Response(new Blob([bytes]), {
+      headers: {
+        "cache-control": "private, no-store",
+        "content-type": avatar.contentType,
+        "x-content-type-options": "nosniff",
+      },
+    });
   });
 
   app.post("/account/avatar", async (c) => {
@@ -630,12 +758,21 @@ export function createRoutes(
     const form = await c.req.parseBody();
     if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
     const file = form.avatar;
-    if (!(file instanceof File) || file.size === 0) return c.redirect("/settings?avatarError=missing", 303);
-    if (file.size > avatarMaxBytes) return c.redirect("/settings?avatarError=size", 303);
+    if (!(file instanceof File) || file.size === 0) {
+      return c.redirect("/settings?avatarError=missing", 303);
+    }
+    if (file.size > avatarMaxBytes) {
+      return c.redirect("/settings?avatarError=size", 303);
+    }
     const data = new Uint8Array(await file.arrayBuffer());
     const contentType = avatarContentType(data);
     if (!contentType) return c.redirect("/settings?avatarError=type", 303);
-    await context.storage.saveUserAvatar({ contentType, data, updatedAt: new Date().toISOString(), userId: session.userId });
+    await context.storage.saveUserAvatar({
+      contentType,
+      data,
+      updatedAt: new Date().toISOString(),
+      userId: session.userId,
+    });
     return c.redirect("/settings?avatar=updated", 303);
   });
 
@@ -679,7 +816,7 @@ export function createRoutes(
     }
 
     if (accountAction === "displayName") {
-      if (!validDisplayName(displayName)) {
+      if (!validAccountName(displayName)) {
         return c.redirect(
           accountSettingsRedirect("displayName", "displayName"),
           303,
@@ -717,7 +854,7 @@ export function createRoutes(
     }
 
     if (accountAction === "username") {
-      if (!validUsername(username)) {
+      if (!validAccountName(username)) {
         return c.redirect(accountSettingsRedirect("username", "username"), 303);
       }
 
@@ -1596,7 +1733,7 @@ export function createRoutes(
       authentication.challenge,
     );
 
-    return c.json(passkeyAuthenticationOptionsResponse(authentication));
+    return c.json(passkeyOptionsResponse(authentication));
   });
 
   app.post("/account/passkeys/reauth", async (c) => {
@@ -1654,7 +1791,7 @@ export function createRoutes(
       credentialId,
     );
     if (!credential) {
-      await recordPasskeyChallengeFailure(context, activeChallenge);
+      await recordPasskeyChallengeFailure(context.storage, activeChallenge);
       logSecurityAuditEvent({
         code: "reauth_failed",
         details: { credentialId, method: "passkey", reason: "credential" },
@@ -1677,7 +1814,7 @@ export function createRoutes(
       response: credentialResponse as never,
     });
     if (!verification.verified) {
-      await recordPasskeyChallengeFailure(context, activeChallenge);
+      await recordPasskeyChallengeFailure(context.storage, activeChallenge);
       logSecurityAuditEvent({
         code: "reauth_failed",
         details: { credentialId, method: "passkey", reason: "assertion" },
@@ -1758,7 +1895,7 @@ export function createRoutes(
       registration.challenge,
     );
 
-    return c.json(passkeyRegistrationOptionsResponse(registration));
+    return c.json(passkeyOptionsResponse(registration));
   });
 
   app.post("/account/passkeys/register", async (c) => {
@@ -1818,7 +1955,7 @@ export function createRoutes(
     });
 
     if (!verification.verified) {
-      await recordPasskeyChallengeFailure(context, activeChallenge);
+      await recordPasskeyChallengeFailure(context.storage, activeChallenge);
       logSecurityAuditEvent({
         code: "passkey_credential_verification_failed",
         level: "warn",
@@ -2097,7 +2234,9 @@ export function createRoutes(
     const form = await c.req.parseBody();
     if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
     const limited = await rateLimitResponseForRequest(c, context, {
-      scope: "test-ai", limit: 6, windowMs: 60000,
+      scope: "test-ai",
+      limit: 6,
+      windowMs: 60000,
     });
     if (limited) return limited;
     const storage = await storageForRequest(c, context);
@@ -2116,7 +2255,9 @@ export function createRoutes(
     const form = await c.req.parseBody();
     if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
     const limited = await rateLimitResponseForRequest(c, context, {
-      scope: "matching-models", limit: 30, windowMs: 60000,
+      scope: "matching-models",
+      limit: 30,
+      windowMs: 60000,
     });
     if (limited) return limited;
     const storage = await storageForRequest(c, context);
@@ -2147,10 +2288,26 @@ export function createRoutes(
       let base;
       try {
         stamp = parseEditStamp(JSON.parse(String(form.syncStamp)));
-        if (typeof form.syncBase !== "string" || form.syncBase.length > 128000) throw new Error("Invalid settings base");
-        base = settingsFromForm(Object.fromEntries(new URLSearchParams(form.syncBase)), currentSettings, new Date(stamp.editedAt));
-      } catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
-      const result = await storage.sync.applySettings(settingsEdits(base, nextSettings, stamp));
+        if (
+          typeof form.syncBase !== "string" || form.syncBase.length > 128000
+        )
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
+          throw new Error("Invalid settings base");
+        base = settingsFromForm(
+          Object.fromEntries(new URLSearchParams(form.syncBase)),
+          currentSettings,
+          new Date(stamp.editedAt),
+        );
+      } catch {
+        return c.json(
+          { error: "invalidSyncEdit", serverTime: Date.now() },
+          400,
+        );
+      }
+      const result = await storage.sync.applySettings(
+        settingsEdits(base, nextSettings, stamp),
+      );
       nextSettings = result.snapshot.settings;
       syncResult = { applied: result.applied, superseded: result.superseded };
     } else await storage.saveSettings(nextSettings);
@@ -2183,14 +2340,22 @@ export function createRoutes(
       const params = new URL(c.req.url).searchParams;
       const query = parseMatchTableQuery(params);
       const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
-      const revision = ["hour", "day", "week"].includes(query.range) ? undefined : await storage.getDashboardVersion?.();
-      const version = revision ? await dashboardResponseVersion(revision, params, csrf.token) : undefined;
+      const revision = ["hour", "day", "week"].includes(query.range)
+        ? undefined
+        : await storage.getDashboardVersion?.();
+      const version = revision
+        ? await dashboardResponseVersion(revision, params, csrf.token)
+        : undefined;
       if (version) c.header("x-history-version", version);
-      if (version && c.req.header("x-history-version") === version) return c.body(null, 304);
+      if (version && c.req.header("x-history-version") === version) {
+        return c.body(null, 304);
+      }
       return historyTableResponse(c, storage, c.req.url);
     }
     const session = await authSessionForRequest(c, context);
-    const account = session ? await context.storage.getAccountById(session.userId) : undefined;
+    const account = session
+      ? await context.storage.getAccountById(session.userId)
+      : undefined;
     const settings = await storage.getSettings();
     const history = await storage.listHistory();
     const historyTable = applyMatchTableQuery(
@@ -2272,25 +2437,55 @@ export function createRoutes(
     const settings = await storage.getSettings();
     try {
       const channels: Array<() => Promise<unknown>> = [];
-      if (settings.notificationProvider !== "disabled") channels.push(() => context.notifier.sendTest(settings));
+      if (settings.notificationProvider !== "disabled") {
+        channels.push(() => context.notifier.sendTest(settings));
+      }
       if (form.get("applicationNotifications") === "true" && storage.userId) {
         const userId = storage.userId;
         const record = createRandomTestMatchRecord(settings, 1, "simulation");
         record.post.title = getMessages(settings.locale).notificationTestTitle;
-        const nativePlatform = ["windows", "android"].includes(String(form.get("applicationPlatform")));
+        const nativePlatform = ["windows", "android"].includes(
+          String(form.get("applicationPlatform")),
+        );
         channels.push(async () => {
-          const sent = await notifyBrowsers(context.storage, userId, [record], settings, { strict: true });
-          if (!nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
+          const sent = await notifyBrowsers(
+            context.storage,
+            userId,
+            [record],
+            settings,
+            { strict: true },
+          );
+          if (!nativePlatform && !sent) {
+            throw new NotificationConfigError(
+              getMessages(settings.locale).testNotifyFailed,
+            );
+          }
         });
         channels.push(async () => {
-          const sent = await enqueueNativeNotifications(context.storage, userId, {
-            id: record.id, title: getMessages(settings.locale).appName,
-            body: record.post.title, path: "/settings",
-          }, settings);
-          if (nativePlatform && !sent) throw new NotificationConfigError(getMessages(settings.locale).testNotifyFailed);
+          const sent = await enqueueNativeNotifications(
+            context.storage,
+            userId,
+            {
+              id: record.id,
+              title: getMessages(settings.locale).appName,
+              body: record.post.title,
+              path: "/settings",
+            },
+            settings,
+          );
+          if (nativePlatform && !sent) {
+            throw new NotificationConfigError(
+              getMessages(settings.locale).testNotifyFailed,
+            );
+          }
         });
       }
-      if (!channels.length) return c.text(getMessages(settings.locale).notificationTestNoChannels, 400);
+      if (!channels.length) {
+        return c.text(
+          getMessages(settings.locale).notificationTestNoChannels,
+          400,
+        );
+      }
       await sendNotificationTest(channels);
       if (c.req.header("x-test-notify") === "1") {
         return c.text(getMessages(settings.locale).testNotifySent);
@@ -2312,11 +2507,18 @@ export function createRoutes(
     if (c.req.header("x-record-sync") === "1") {
       if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
       let stamp;
-      try { stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp")))); }
-      catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
-      for (const id of new Set(ids)) await storage.sync.applyRecord(id, "history", stamp);
-    } else
-    if (ids.length > 0) {
+      try {
+        stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp"))));
+      } catch {
+        return c.json(
+          { error: "invalidSyncEdit", serverTime: Date.now() },
+          400,
+        );
+      }
+      for (const id of new Set(ids)) {
+        await storage.sync.applyRecord(id, "history", stamp);
+      }
+    } else if (ids.length > 0) {
       await storage.completeMatches(ids);
     }
     const returnTo = safeRedirectPath(form.get("returnTo"), "/");
@@ -2337,11 +2539,18 @@ export function createRoutes(
     if (c.req.header("x-record-sync") === "1") {
       if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
       let stamp;
-      try { stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp")))); }
-      catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
-      for (const id of new Set(ids)) await storage.sync.applyRecord(id, "deleted", stamp);
-    } else
-    if (ids.length > 0) {
+      try {
+        stamp = parseEditStamp(JSON.parse(String(form.get("syncStamp"))));
+      } catch {
+        return c.json(
+          { error: "invalidSyncEdit", serverTime: Date.now() },
+          400,
+        );
+      }
+      for (const id of new Set(ids)) {
+        await storage.sync.applyRecord(id, "deleted", stamp);
+      }
+    } else if (ids.length > 0) {
       await storage.deleteMatches(ids);
     }
     const returnTo = safeRedirectPath(form.get("returnTo"), "/history");
@@ -2362,11 +2571,20 @@ export function createRoutes(
     if (!validCsrfForRequest(c, form)) return csrfForbiddenResponse(c.req.raw);
     if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
     let stamp;
-    try { stamp = c.req.header("x-record-sync") === "1" ? parseEditStamp(JSON.parse(String(form.get("syncStamp")))) : serverEditStamp(); }
-    catch { return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400); }
-    for (const id of new Set(form.getAll("matchId").map(String))) await storage.sync.applyRecord(id, "workspace", stamp);
+    try {
+      stamp = c.req.header("x-record-sync") === "1"
+        ? parseEditStamp(JSON.parse(String(form.get("syncStamp"))))
+        : serverEditStamp();
+    } catch {
+      return c.json({ error: "invalidSyncEdit", serverTime: Date.now() }, 400);
+    }
+    for (const id of new Set(form.getAll("matchId").map(String))) {
+      await storage.sync.applyRecord(id, "workspace", stamp);
+    }
     const returnTo = safeRedirectPath(form.get("returnTo"), "/history");
-    if (isMatchTableRefreshRequest(c)) return await historyTableResponse(c, storage, returnTo);
+    if (isMatchTableRefreshRequest(c)) {
+      return await historyTableResponse(c, storage, returnTo);
+    }
     return c.redirect(returnTo);
   });
 
@@ -2383,7 +2601,19 @@ export function createRoutes(
   });
 
   /** @return {Promise<Response>} 管理页面表单脚本，不包含账号资料。 */
-  app.get("/static/admin.js", async () => new Response(await Deno.readTextFile(new URL("../static/admin.js", import.meta.url)), {headers:{"content-type":"text/javascript; charset=utf-8","cache-control":"no-cache"}}));
+  app.get(
+    "/static/admin.js",
+    async () =>
+      new Response(
+        await Deno.readTextFile(new URL("../static/admin.js", import.meta.url)),
+        {
+          headers: {
+            "content-type": "text/javascript; charset=utf-8",
+            "cache-control": "no-cache",
+          },
+        },
+      ),
+  );
 
   app.get("/static/settings.js", async () => {
     const script = await Deno.readTextFile(
@@ -2453,7 +2683,10 @@ async function storageForRequest(
     throw new Error("Storage is not configured for this route.");
   }
   // 设置写入只读取账号业务值；显示投影不进入持久化路径。
-  if (new URL(c.req.raw.url).pathname === "/settings" && c.req.raw.method === "POST") return storage;
+  if (
+    new URL(c.req.raw.url).pathname === "/settings" &&
+    c.req.raw.method === "POST"
+  ) return storage;
   return new Proxy(storage, {
     /**
      * 为显示读取提供设备投影，其它存储能力保持原有接收对象。
@@ -2462,11 +2695,19 @@ async function storageForRequest(
      * @return {unknown} 请求作用域能力或存储属性。
      */
     get(target, property) {
-      if (property === "getSettings") return async () => settingsForDevice(await target.getSettings(), c.req.raw);
-      if (property === "getDashboardSnapshot") return async () => {
-        const snapshot = await target.getDashboardSnapshot();
-        return { ...snapshot, settings: settingsForDevice(snapshot.settings, c.req.raw) };
-      };
+      if (property === "getSettings") {
+        return async () =>
+          settingsForDevice(await target.getSettings(), c.req.raw);
+      }
+      if (property === "getDashboardSnapshot") {
+        return async () => {
+          const snapshot = await target.getDashboardSnapshot();
+          return {
+            ...snapshot,
+            settings: settingsForDevice(snapshot.settings, c.req.raw),
+          };
+        };
+      }
       const value = Reflect.get(target, property);
       return typeof value === "function" ? value.bind(target) : value;
     },
@@ -2668,11 +2909,25 @@ function accountSettingsRedirect(
  * @param {Uint8Array} data 图片二进制数据。
  * @return {"image/gif" | "image/jpeg" | "image/png" | "image/webp" | undefined} 允许的 MIME 类型。
  */
-function avatarContentType(data: Uint8Array): "image/gif" | "image/jpeg" | "image/png" | "image/webp" | undefined {
-  if (data.length >= 8 && data[0] === 137 && data[1] === 80 && data[2] === 78 && data[3] === 71 && data[4] === 13 && data[5] === 10 && data[6] === 26 && data[7] === 10) return "image/png";
-  if (data.length >= 3 && data[0] === 255 && data[1] === 216 && data[2] === 255) return "image/jpeg";
-  if (data.length >= 6 && String.fromCharCode(...data.slice(0, 6)).match(/^GIF8[79]a$/)) return "image/gif";
-  if (data.length >= 12 && String.fromCharCode(...data.slice(0, 4)) === "RIFF" && String.fromCharCode(...data.slice(8, 12)) === "WEBP") return "image/webp";
+function avatarContentType(
+  data: Uint8Array,
+): "image/gif" | "image/jpeg" | "image/png" | "image/webp" | undefined {
+  if (
+    data.length >= 8 && data[0] === 137 && data[1] === 80 && data[2] === 78 &&
+    data[3] === 71 && data[4] === 13 && data[5] === 10 && data[6] === 26 &&
+    data[7] === 10
+  ) return "image/png";
+  if (
+    data.length >= 3 && data[0] === 255 && data[1] === 216 && data[2] === 255
+  ) return "image/jpeg";
+  if (
+    data.length >= 6 &&
+    String.fromCharCode(...data.slice(0, 6)).match(/^GIF8[79]a$/)
+  ) return "image/gif";
+  if (
+    data.length >= 12 && String.fromCharCode(...data.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...data.slice(8, 12)) === "WEBP"
+  ) return "image/webp";
   return undefined;
 }
 
@@ -2683,8 +2938,10 @@ function avatarContentType(data: Uint8Array): "image/gif" | "image/jpeg" | "imag
  * @return {string} 默认头像的公开资源路径。
  */
 function defaultAvatarPath(userId: string): string {
-  const hash = Array.from(userId).reduce((total, character) =>
-    (total * 31 + character.codePointAt(0)!) >>> 0, 0);
+  const hash = Array.from(userId).reduce(
+    (total, character) => (total * 31 + character.codePointAt(0)!) >>> 0,
+    0,
+  );
   return `/static/fun/default-avatar/avatar${hash % 5 + 1}.png`;
 }
 
@@ -2999,63 +3256,6 @@ function isGoogleBindingErrorCode(
 }
 
 /**
- * 生成 Passkey 注册 options 接口响应。
- *
- * @param registration Passkey 注册 options 结果。
- * @return 可序列化响应体。
- */
-function passkeyRegistrationOptionsResponse(
-  registration: PasskeyRegistrationOptionsResult,
-) {
-  return {
-    challengeId: registration.challenge.id,
-    optionsJSON: registration.optionsJSON,
-  };
-}
-
-/**
- * 生成 Passkey 认证 options 接口响应。
- *
- * @param authentication Passkey 认证 options 结果。
- * @return 可序列化响应体。
- */
-function passkeyAuthenticationOptionsResponse(
-  authentication: PasskeyAuthenticationOptionsResult,
-) {
-  return {
-    challengeId: authentication.challenge.id,
-    optionsJSON: authentication.optionsJSON,
-  };
-}
-
-/**
- * 读取 Passkey JSON 请求体。
- *
- * @param c Hono 请求上下文。
- * @return JSON 对象，请求体无效时返回空对象。
- */
-async function passkeyJsonPayload(
-  c: Context,
-): Promise<Record<string, unknown>> {
-  try {
-    const payload = await c.req.json();
-    return isRecord(payload) ? payload : {};
-  } catch {
-    return {};
-  }
-}
-
-/**
- * 判断值是否为普通对象。
- *
- * @param value 待判断值。
- * @return 值为普通对象时返回 true。
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
  * 检查 Passkey 注册 challenge 是否仍可使用。
  *
  * @param challenge 待检查 challenge。
@@ -3120,26 +3320,6 @@ function passkeyReauthChallengeError(
 }
 
 /**
- * 记录一次 Passkey challenge 失败尝试。
- *
- * @param context 应用运行时上下文。
- * @param challenge 待更新 challenge。
- * @return 更新完成后的 Promise。
- */
-async function recordPasskeyChallengeFailure(
-  context: AppContext,
-  challenge: PendingPasskeyChallenge,
-): Promise<void> {
-  const attempts = Math.max(0, challenge.attempts) + 1;
-  if (attempts >= passkeyChallengeMaxAttempts) {
-    await context.storage.deletePendingPasskeyChallenge(challenge.id);
-    return;
-  }
-
-  await context.storage.savePendingPasskeyChallenge({ ...challenge, attempts });
-}
-
-/**
  * 规范化 Passkey 凭证标签。
  *
  * @param {unknown} value 用户提交的标签。
@@ -3167,30 +3347,6 @@ function totpCredentialLabel(value: unknown): string | undefined {
 
   const label = value.trim().replaceAll(/\s+/g, " ");
   return label ? label.slice(0, 80) : undefined;
-}
-
-/**
- * 使用任一已绑定验证器校验动态码。
- *
- * @param {string} code 用户提交的动态码。
- * @param {readonly TotpCredential[]} credentials 已绑定验证器凭证。
- * @param {Parameters<typeof verifyEncryptedTotpCode>[2]} config 验证器动态码配置。
- * @return {Promise<boolean>} 任一验证器校验成功时返回 true。
- */
-async function verifyTotpCodeAgainstCredentials(
-  code: string,
-  credentials: readonly TotpCredential[],
-  config: Parameters<typeof verifyEncryptedTotpCode>[2],
-): Promise<boolean> {
-  for (const credential of credentials) {
-    if (
-      credential.secretEncrypted &&
-      await verifyEncryptedTotpCode(code, credential.secretEncrypted, config)
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**
@@ -3682,395 +3838,6 @@ async function formDataOrEmpty(request: Request): Promise<FormData> {
 }
 
 /**
- * 从表单生成业务设置，忽略设备外观、保留密钥与时段草稿，仅允许完整时段开启。
- *
- * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 表单数据。
- * @param {AppSettings} currentSettings 当前应用设置。
- * @param {Date} now 当前时间。
- * @return {AppSettings} 新的应用设置。
- */
-export function settingsFromForm(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  currentSettings: AppSettings,
-  now: Date = new Date(),
-): AppSettings {
-  const activeKeywordTarget =
-    String(form.activeKeywordTarget ?? "common").trim() || "common";
-  const keywordRules = keywordRulesFromForm(form);
-  const commonKeywordRules = activeKeywordTarget === "common"
-    ? keywordRules
-    : keywordRulesFromJson(form.commonKeywordRulesJson) ??
-      currentSettings.commonKeywordRules;
-  const topics = topicsFromForm(
-    form,
-    currentSettings,
-    activeKeywordTarget,
-    keywordRules,
-  );
-  const locale = currentSettings.locale;
-  const schedule = form.pollSchedule !== undefined
-    ? normalizeSchedule(parseScheduleForm(String(form.pollSchedule)), locale)
-    : currentSettings.polling.schedule ? normalizeSchedule(currentSettings.polling.schedule, locale) : undefined;
-  if (schedule?.enabled && !currentSettings.polling.schedule?.enabled && !canEnableSchedule(schedule)) schedule.enabled = false;
-  const pollingEnabled = form.pollEnabled === "on";
-  const pollIntervalUnit = normalizePollIntervalUnit(
-    form.pollIntervalUnit,
-    currentSettings.polling.intervalUnit,
-  );
-  const pollIntervalValue = normalizePollIntervalValue(
-    form.pollIntervalValue,
-    pollIntervalUnit,
-    currentSettings.polling.intervalValue,
-  );
-  const pollingIntervalChanged =
-    pollIntervalUnit !== currentSettings.polling.intervalUnit ||
-    pollIntervalValue !== currentSettings.polling.intervalValue;
-  const pollingWasEnabled = currentSettings.polling.enabled;
-  const intervalStartedAt = pollingIntervalChanged ||
-      (pollingEnabled && !pollingWasEnabled)
-    ? now.toISOString()
-    : currentSettings.polling.intervalStartedAt;
-
-  return {
-    ...currentSettings,
-    ...(form.matchingMode !== undefined
-      ? { matching: matchingSettingsFromForm(form, currentSettings.matching) }
-      : {}),
-    activeKeywordTarget,
-    commonKeywordRules,
-    darkMode: currentSettings.darkMode,
-    locale,
-    notificationEmailAddress: String(form.notificationEmailAddress ?? "")
-      .trim(),
-    notificationEmailApiToken: secretValueFromForm(
-      form.notificationEmailApiToken,
-      currentSettings.notificationEmailApiToken,
-    ),
-    notificationEmailApiUrl: String(form.notificationEmailApiUrl ?? "").trim(),
-    notificationEmailFrom: String(form.notificationEmailFrom ?? "").trim(),
-    notificationEmailService: normalizeNotificationEmailService(
-      form.notificationEmailService,
-    ),
-    notificationProvider: normalizeNotificationProvider(
-      form.notificationProvider,
-    ),
-    notificationPushPlusToken: secretValueFromForm(
-      form.notificationPushPlusSecret ?? form.notificationPushPlusToken,
-      currentSettings.notificationPushPlusToken,
-      true,
-    ),
-    notificationServerChanSendKey: secretValueFromForm(
-      form.notificationServerChanSendKey,
-      currentSettings.notificationServerChanSendKey,
-      true,
-    ),
-    notificationSmtpHost: String(form.notificationSmtpHost ?? "").trim(),
-    notificationSmtpPassword: secretValueFromForm(
-      form.notificationSmtpPassword,
-      currentSettings.notificationSmtpPassword,
-    ),
-    notificationSmtpPort: normalizePositiveInteger(
-      form.notificationSmtpPort,
-      currentSettings.notificationSmtpPort,
-    ),
-    notificationSmtpSecure: form.notificationSmtpSecure === "on",
-    notificationSmtpUsername: String(form.notificationSmtpUsername ?? "")
-      .trim(),
-    notificationWebhookService: normalizeNotificationWebhookService(
-      form.notificationWebhookService,
-    ),
-    notificationWebhookUrl: secretValueFromForm(
-      form.notificationWebhookUrl,
-      currentSettings.notificationWebhookUrl,
-      true,
-    ),
-    notificationWxPusherSpt: secretValueFromForm(
-      form.notificationWxPusherSpt,
-      currentSettings.notificationWxPusherSpt,
-      true,
-    ),
-    polling: {
-      ...(schedule ? {schedule} : {}),
-      enabled: pollingEnabled,
-      intervalStartedAt,
-      intervalUnit: pollIntervalUnit,
-      intervalValue: pollIntervalValue,
-      postLimit: normalizePositiveInteger(
-        form.pollPostLimit,
-        currentSettings.polling.postLimit,
-      ),
-      sort: normalizePollSort(form.pollSort, currentSettings.polling.sort),
-    },
-    themeColor: currentSettings.themeColor,
-    topics,
-  };
-}
-
-/**
- * 从表单读取敏感配置，空提交时保留当前值。
- *
- * @param value 表单提交值。
- * @param currentValue 当前已保存的敏感配置。
- * @param trim 是否在判断前后去除首尾空白。
- * @return 新的敏感配置值。
- */
-function secretValueFromForm(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  currentValue: string,
-  trim = false,
-): string {
-  const submitted = String(value ?? "");
-  const normalized = trim ? submitted.trim() : submitted;
-  return normalized.length > 0 ? normalized : currentValue;
-}
-
-/**
- * 读取匹配表单并限制长度和数值；仅在公司和接口一致时沿用保存的密钥。
- *
- * @param {Record<string, FormDataEntryValue | FormDataEntryValue[]>} form 设置表单。
- * @param {MatchingSettings | undefined} current 当前匹配设置。
- * @return {MatchingSettings} 规范化的匹配设置。
- */
-function matchingSettingsFromForm(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  current?: MatchingSettings,
-): MatchingSettings {
-  const previous = normalizeMatchingSettings(current);
-  const target = normalizeMatchingSettings({
-    provider: String(form.matchingProvider ?? previous.provider) as MatchingSettings["provider"],
-    apiUrl: String(form.matchingApiUrl ?? previous.apiUrl),
-  });
-  const sameEndpoint = target.provider === previous.provider && target.apiUrl === previous.apiUrl;
-  return normalizeMatchingSettings({
-    provider: target.provider,
-    mode: String(form.matchingMode) as MatchingSettings["mode"],
-    apiUrl: target.apiUrl,
-    apiKey: secretValueFromForm(form.matchingApiKey, sameEndpoint ? previous.apiKey : "", true),
-    model: String(form.matchingModel ?? previous.model),
-    prompt: String(form.matchingPrompt ?? previous.prompt),
-    includeComments: form.matchingIncludeComments === "on",
-    disableThinking: form.matchingEnableThinking !== "on",
-    dailyLimit: Number(form.matchingDailyLimit ?? previous.dailyLimit),
-    maxInputChars: Number(form.matchingMaxInputChars ?? previous.maxInputChars),
-    maxOutputTokens: Number(form.matchingMaxOutputTokens ?? previous.maxOutputTokens),
-    cacheMaxEntries: Number(
-      form.matchingCacheMaxEntries ?? previous.cacheMaxEntries,
-    ),
-    inputPrice: Number(form.matchingInputPrice ?? previous.inputPrice),
-    outputPrice: Number(form.matchingOutputPrice ?? previous.outputPrice),
-  });
-}
-
-/**
- * 从表单字段中解析关键词规则。
- *
- * @param form 表单数据。
- * @return 关键词规则列表。
- */
-function keywordRulesFromForm(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-): KeywordRule[] {
-  return formIndexes(form, /^keyword_(\d+)$/).map((index) => {
-    const keyword = String(form[`keyword_${index}`] ?? "").trim();
-    const locations = matchLocations.filter((location) =>
-      form[`keyword_${index}_location_${location}`] === "on"
-    );
-    const caseSensitive = form[`keyword_${index}_caseSensitive`] === "on";
-    const useRegex = form[`keyword_${index}_useRegex`] === "on";
-
-    return { caseSensitive, keyword, locations, useRegex };
-  }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
-}
-
-/**
- * 从表单字段中解析话题规则。
- *
- * @param form 表单数据。
- * @param currentSettings 当前应用设置。
- * @param activeKeywordTarget 当前正在编辑关键词的目标。
- * @param activeKeywordRules 当前活动关键词规则。
- * @return 话题规则列表。
- */
-function topicsFromForm(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  currentSettings: AppSettings,
-  activeKeywordTarget: string,
-  activeKeywordRules: KeywordRule[],
-): TopicRule[] {
-  const existingTopics = new Map(
-    currentSettings.topics.map((topic) => [topic.id, topic]),
-  );
-
-  return formIndexes(form, /^topic_(\d+)_id$/).map((index) => {
-    const id = String(form[`topic_${index}_id`] ?? "").trim();
-    const existingTopic = existingTopics.get(id);
-    const submittedKeywordRules = keywordRulesFromJson(
-      form[`topic_${index}_keywordRulesJson`],
-    );
-    const keywordRules = activeKeywordTarget === id
-      ? activeKeywordRules
-      : submittedKeywordRules ?? existingTopic?.keywordRules ?? [];
-
-    return {
-      enabled: form[`topic_${index}_enabled`] === "on",
-      id,
-      keywordRules,
-      note: String(form[`topic_${index}_note`] ?? "").trim(),
-    };
-  }).filter((topic) => topic.id.length > 0);
-}
-
-/**
- * 从 JSON 字符串中解析关键词规则。
- *
- * @param value 表单中的 JSON 字段值。
- * @return 关键词规则列表，无法解析时返回 undefined。
- */
-function keywordRulesFromJson(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-): KeywordRule[] | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    if (!Array.isArray(parsed)) {
-      return undefined;
-    }
-
-    return parsed.map((rule) => {
-      const keyword = typeof rule?.keyword === "string"
-        ? rule.keyword.trim()
-        : "";
-      const locations = Array.isArray(rule?.locations)
-        ? rule.locations.filter(isMatchLocation)
-        : [];
-      const caseSensitive = rule?.caseSensitive === true;
-      const useRegex = rule?.useRegex === true;
-
-      return { caseSensitive, keyword, locations, useRegex };
-    }).filter((rule) => rule.keyword.length > 0 && rule.locations.length > 0);
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * 判断值是否为合法匹配位置。
- *
- * @param value 待判断值。
- * @return 是合法匹配位置时返回 true。
- */
-function isMatchLocation(value: unknown): value is MatchLocation {
-  return value === "title" || value === "body" || value === "comments" ||
-    value === "replies";
-}
-
-/**
- * 从表单字段名中提取索引列表。
- *
- * @param form 表单数据。
- * @param pattern 字段名匹配正则。
- * @return 按升序排列的索引列表。
- */
-function formIndexes(
-  form: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
-  pattern: RegExp,
-): number[] {
-  return Array.from(
-    new Set(
-      Object.keys(form)
-        .map((key) => key.match(pattern)?.[1])
-        .filter((value): value is string => value !== undefined)
-        .map(Number),
-    ),
-  ).toSorted((left, right) => left - right);
-}
-
-/**
- * 规范化通知渠道。
- *
- * @param value 表单字段值。
- * @return 合法通知渠道。
- */
-function normalizeNotificationProvider(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-): AppSettings["notificationProvider"] {
-  return value === "disabled" || value === "email" || value === "webhook"
-    ? value
-    : "webhook";
-}
-
-/**
- * 规范化正整数表单字段。
- *
- * @param value 表单字段值。
- * @param fallback 兜底值。
- * @return 合法正整数。
- */
-function normalizePositiveInteger(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  fallback: number,
-): number {
-  const numericValue = Number(typeof value === "string" ? value : undefined);
-  return Number.isInteger(numericValue) && numericValue > 0
-    ? numericValue
-    : fallback;
-}
-
-/**
- * 规范化轮询排序方式。
- *
- * @param value 表单字段值。
- * @param fallback 兜底排序方式。
- * @return 合法轮询排序方式。
- */
-function normalizePollSort(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  fallback: PollSort,
-): PollSort {
-  return value === "publishTime" || value === "smart" || value === "replyTime"
-    ? value
-    : fallback;
-}
-
-/**
- * 规范化轮询间隔单位。
- *
- * @param value 表单字段值。
- * @param fallback 兜底轮询间隔单位。
- * @return 合法轮询间隔单位。
- */
-function normalizePollIntervalUnit(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  fallback: PollIntervalUnit,
-): PollIntervalUnit {
-  return value === "second" || value === "minute" || value === "hour" ||
-      value === "day" ||
-      value === "week" || value === "month"
-    ? value
-    : fallback;
-}
-
-/**
- * 规范化轮询间隔数值。
- *
- * @param value 表单字段值。
- * @param unit 轮询间隔单位。
- * @param fallback 兜底间隔数值。
- * @return 合法轮询间隔数值。
- */
-function normalizePollIntervalValue(
-  value: FormDataEntryValue | FormDataEntryValue[] | undefined,
-  unit: PollIntervalUnit,
-  fallback: number,
-): number {
-  const intervalValue = normalizePositiveInteger(value, fallback);
-  return unit === "second" ? Math.max(3, intervalValue) : intervalValue;
-}
-
-/**
  * 将数据版本、表格查询与 CSRF 令牌绑定为响应版本，避免复用其它视图的 HTML。
  *
  * @param {string} dataVersion 用户持久化数据版本。
@@ -4092,13 +3859,4 @@ async function dashboardResponseVersion(
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
-}
-
-/**
- * 解析独立的时段草稿字段，拒绝损坏 JSON 而不影响其它设置。
- * @param {string} value 表单中的时段 JSON。
- * @return {unknown} 配置对象或空配置。
- */
-function parseScheduleForm(value: string): unknown {
-  try { return JSON.parse(value); } catch { return {}; }
 }

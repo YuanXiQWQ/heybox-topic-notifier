@@ -3,7 +3,8 @@
  */
 import { installTestInvitations } from "./invitation_test_helpers.ts";
 import { Hono } from "@hono/hono";
-import { createRoutes, settingsFromForm } from "./routes.ts";
+import { createRoutes } from "./routes.ts";
+import { settingsFromForm } from "./services/settings_form.ts";
 import { createAuthMiddleware, createAuthRoutes } from "./auth.ts";
 import { createEmailVerificationChallenge } from "./auth/email_verification.ts";
 import { decryptTotpSecret, generateTotpCode } from "./auth/totp.ts";
@@ -270,23 +271,42 @@ Deno.test("root page does not tick scheduler", async () => {
 });
 
 Deno.test("account pages follow each device instead of stored account appearance", async () => {
-  const stored = { ...currentSettings, locale: "fr-FR" as const, darkMode: true, themeColor: "#123abc" };
-  const app = createRoutes({ storage: {
-    getDashboardSnapshot: () => Promise.resolve({ pendingMatches: [], settings: stored, state: { totalMatches: 0 } }),
-  } } as unknown as AppContext);
-  const phone = await (await app.request("/", { headers: { "accept-language": "ja-JP" } })).text();
-  const desktop = await (await app.request("/", { headers: { "accept-language": "en-GB" } })).text();
-  const web = await (await app.request("/", { headers: {
-    "accept-language": "ko-KR",
-    cookie: "heybox-device-locale=ar-SA; heybox-device-darkMode=false; heybox-device-themeColor=%23654321",
-  } })).text();
+  const stored = {
+    ...currentSettings,
+    locale: "fr-FR" as const,
+    darkMode: true,
+    themeColor: "#123abc",
+  };
+  const app = createRoutes({
+    storage: {
+      getDashboardSnapshot: () =>
+        Promise.resolve({
+          pendingMatches: [],
+          settings: stored,
+          state: { totalMatches: 0 },
+        }),
+    },
+  } as unknown as AppContext);
+  const phone =
+    await (await app.request("/", { headers: { "accept-language": "ja-JP" } }))
+      .text();
+  const desktop =
+    await (await app.request("/", { headers: { "accept-language": "en-GB" } }))
+      .text();
+  const web = await (await app.request("/", {
+    headers: {
+      "accept-language": "ko-KR",
+      cookie:
+        "heybox-device-locale=ar-SA; heybox-device-darkMode=false; heybox-device-themeColor=%23654321",
+    },
+  })).text();
   assert(phone.includes('lang="ja-JP"'));
   assert(desktop.includes('lang="en-GB"'));
-  assert(phone.includes('--theme-color: #bd7fff'));
+  assert(phone.includes("--theme-color: #bd7fff"));
   assert(web.includes('lang="ar-SA"'));
   assert(web.includes('dir="rtl"'));
   assert(web.includes('data-color-mode="light"'));
-  assert(web.includes('--theme-color: #654321'));
+  assert(web.includes("--theme-color: #654321"));
   assertEquals(stored.locale, "fr-FR");
   assertEquals(stored.darkMode, true);
   assertEquals(stored.themeColor, "#123abc");
@@ -3019,8 +3039,9 @@ Deno.test("match redirects reject paths outside their table", async () => {
 /**
  * 创建包含认证和业务路由的测试应用。
  *
- * @param storage 账户与路由测试使用的内存存储。
- * @return 配置完成的 Hono 测试应用。
+ * @param {AccountRouteStorage} storage 账户与路由测试使用的内存存储。
+ * @param {{passkeyAuthenticationVerifier?: unknown, passkeyConfig?: typeof testPasskeyConfig, passkeyRegistrationVerifier?: unknown}} [options] Passkey 配置与测试验证器。
+ * @return {Hono} 配置完成的 Hono 测试应用。
  */
 function createAccountRouteApp(
   storage: AccountRouteStorage,
@@ -3498,26 +3519,44 @@ Deno.test("dashboard versions skip unchanged snapshots and bind filters and CSRF
 
 Deno.test("history versions skip unchanged tables but follow remote mutations and query changes", async () => {
   let reads = 0, version = "alice:1";
-  const app = createRoutes({ storage: {
-    getDashboardVersion: () => Promise.resolve(version),
-    getSettings: () => Promise.resolve(currentSettings),
-    listHistory: () => { reads++; return Promise.resolve([]); },
-  } } as unknown as AppContext);
+  const app = createRoutes({
+    storage: {
+      getDashboardVersion: () => Promise.resolve(version),
+      getSettings: () => Promise.resolve(currentSettings),
+      listHistory: () => {
+        reads++;
+        return Promise.resolve([]);
+      },
+    },
+  } as unknown as AppContext);
   const headers = testCsrfHeaders({ "x-match-table-refresh": "1" });
   const first = await app.request("/history?range=all", { headers });
   assertEquals(first.status, 200);
   assertIncludes(await first.text(), "data-match-table-section");
   const revision = first.headers.get("x-history-version")!;
   const conditional = { ...headers, "x-history-version": revision };
-  assertEquals((await app.request("/history?range=all", { headers: conditional })).status, 304);
+  assertEquals(
+    (await app.request("/history?range=all", { headers: conditional })).status,
+    304,
+  );
   assertEquals(reads, 1);
   version = "alice:2";
-  assertEquals((await app.request("/history?range=all", { headers: conditional })).status, 200);
+  assertEquals(
+    (await app.request("/history?range=all", { headers: conditional })).status,
+    200,
+  );
   assertEquals(reads, 2);
   version = "alice:1";
-  assertEquals((await app.request("/history?range=all&page=2", { headers: conditional })).status, 200);
+  assertEquals(
+    (await app.request("/history?range=all&page=2", { headers: conditional }))
+      .status,
+    200,
+  );
   assertEquals(reads, 3);
-  assertEquals((await app.request("/history?range=day", { headers: conditional })).status, 200);
+  assertEquals(
+    (await app.request("/history?range=day", { headers: conditional })).status,
+    200,
+  );
 });
 
 Deno.test("dashboard mutations during snapshot reads remain visible on the next refresh", async () => {

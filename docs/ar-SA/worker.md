@@ -1,3 +1,5 @@
+<!-- GitHub 文档用 align 保持 RTL 对齐，代码块单独采用 LTR。 -->
+<!--suppress HtmlDeprecatedAttribute -->
 <div dir="rtl" lang="ar-SA" align="right">
 
 # Worker لترحيل الإشعارات
@@ -18,8 +20,9 @@
 2. الصق محتوى `workers/notification-relay.js` في محرر Worker، أو انشر هذا السكربت باستخدام Wrangler.
 3. أضف `RELAY_TOKEN` إلى متغيرات/أسرار Worker، واجعل قيمته مفتاحًا عشوائيًا طويلًا.
 4. بعد النشر، افتح `https://<your-worker>.workers.dev/healthz` وتأكد من أنه يعيد `{"status":"ok"}`.
-5. اضبط Deno Deploy:
+5. `/etc/heybox-topic-notifier/heybox.env`
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
 NOTIFIER_SERVER_CHAN_SEND_URL=https://&lt;your-worker&gt;.workers.dev/serverchan
@@ -28,11 +31,13 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 لن يرسل جانب المشروع ما يلي إلا عندما يتم تغيير عنوان إرسال PushPlus أو WxPusher أو Server酱 إلى عنوان الترحيل:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-http'>Authorization: Bearer &lt;NOTIFIER_RELAY_TOKEN&gt;
 </code></pre>
 
 كما يمرر ترحيل Server酱 قيمة SendKey عبر ترويسة طلب مخصصة:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-http'>X-ServerChan-Send-Key: &lt;serverchan-send-key&gt;
 </code></pre>
 
@@ -40,6 +45,7 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 يمكنك أولًا اختبار ما إذا كانت المصادقة تعمل من وحدة تحكم Worker أو باستخدام curl محليًا:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/pushplus" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "Content-Type: application/json" \
@@ -48,6 +54,7 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 اختبار WxPusher:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/wxpusher" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "Content-Type: application/json" \
@@ -56,6 +63,7 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 اختبار Server酱:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/serverchan" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "X-ServerChan-Send-Key: &lt;serverchan-send-key&gt;" \

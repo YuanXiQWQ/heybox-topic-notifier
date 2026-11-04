@@ -123,6 +123,7 @@ export function createShadowReadStorage(
 /**
  * 包装对象中的读方法并保留权威写方法。
  *
+ * @template T 业务对象类型。
  * @param {T} authoritative 权威对象。
  * @param {T} shadow 影子对象。
  * @param {ReadonlySet<PropertyKey>} readMethods 读方法集合。
@@ -141,7 +142,7 @@ function shadowReads<T extends object>(
     /**
      * 读取对象属性，并在需要时返回影子读取方法。
      *
-     * @param {T} target 权威对象。
+     * @param {object} target 权威对象。
      * @param {PropertyKey} property 属性名。
      * @param {unknown} receiver 属性接收者。
      * @return {unknown} 原始属性或影子读取方法。

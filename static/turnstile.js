@@ -4,6 +4,10 @@
 
 (() => {
   /**
+   * 单个验证组件的挂载状态及等待队列。
+   * @typedef {{failed: boolean, renderPromise?: Promise<void>, token: string, waiters: Array<(ready: boolean) => void>, widgetId?: string}} TurnstileWidgetState
+   */
+  /**
    * Turnstile 官方脚本地址；显式渲染避免脚本自动扫描隐藏组件。
    */
   const turnstileApiUrl =
@@ -29,7 +33,7 @@
    * 获取或创建指定组件的挂载状态。
    *
    * @param {HTMLElement} widget Turnstile 组件容器。
-   * @return {{failed: boolean, renderPromise?: Promise<void>, token: string, waiters: Array<(ready: boolean) => void>, widgetId?: string}} 组件挂载状态。
+   * @return {TurnstileWidgetState} 组件挂载状态。
    */
   function stateFor(widget) {
     let state = widgetStates.get(widget);
@@ -60,7 +64,7 @@
   /**
    * 结束当前等待 Turnstile token 的调用方。
    *
-   * @param {ReturnType<typeof stateFor>} state 组件挂载状态。
+   * @param {TurnstileWidgetState} state 组件挂载状态。
    * @param {boolean} ready Turnstile 是否已经生成可用 token。
    */
   function resolveWaiters(state, ready) {
@@ -236,7 +240,7 @@
           state.widgetId = turnstile.render(widget, {
             callback: (token) => finishVerification(widget, token),
             'error-callback': (code) =>
-              failVerification(widget, 'turnstileErrorCallback', code),
+                failVerification(widget, 'turnstileErrorCallback', code),
             'expired-callback': () => {
               state.failed = false;
               state.token = '';
@@ -338,6 +342,8 @@
     });
   }
 
+  // 公开的宿主接口按需或经动态脚本调用，保留已声明的控制能力。
+  // noinspection JSUnusedGlobalSymbols
   globalThis.WarmNestTurnstile = {
     collapseAll,
     mount,

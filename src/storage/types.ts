@@ -8,7 +8,10 @@ import type { UserSyncStore } from "./sync_types.ts";
 import type { NativeNotificationStore } from "./native_notifications.ts";
 import type { NativeLoginStore } from "./native_login.ts";
 import type { NativePushStore } from "./native_push_types.ts";
-import type { MatchSaveOptions, NotificationOutbox } from "./notification_outbox.ts";
+import type {
+  MatchSaveOptions,
+  NotificationOutbox,
+} from "./notification_outbox.ts";
 import type {
   AppSettings,
   AppState,
@@ -441,13 +444,6 @@ export type Storage = UserStorage & {
    * @param {EmailCredential} credential 邮箱凭证。
    */
   saveEmailCredential(credential: EmailCredential): Promise<void>;
-  /**
-   * 删除邮箱凭证。
-   *
-   * @param {string} userId 用户 ID。
-   * @param {string} email 邮箱地址。
-   */
-  deleteEmailCredential(userId: string, email: string): Promise<void>;
   /**
    * 获取待处理邮箱验证。
    *

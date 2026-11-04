@@ -1,7 +1,10 @@
 /** @file 以 libSQL 事务维护通知任务及通道租约，确认和重试均校验领取者。 */
 import type { InStatement, ResultSet } from "@libsql/client/web";
 import type { MatchRecord } from "../models.ts";
-import type { NotificationChannel, NotificationOutbox } from "./notification_outbox.ts";
+import type {
+  NotificationChannel,
+  NotificationOutbox,
+} from "./notification_outbox.ts";
 
 /** 一次领取的任务数上限，每条命中包含三个独立通道任务。 */
 const claimLimit = 150;
@@ -14,7 +17,10 @@ const deliveryLeaseMs = 5 * 60_000;
  * @param {MatchRecord} record 新命中快照。
  * @return {InStatement[]} 原子入队 SQL。
  */
-export function notificationEnqueueStatements(userId: string, record: MatchRecord): InStatement[] {
+export function notificationEnqueueStatements(
+  userId: string,
+  record: MatchRecord,
+): InStatement[] {
   return (["other", "browser", "native"] as const).map((channel) => ({
     sql: `INSERT OR IGNORE INTO notification_outbox
       (user_id, id, channel, record_json, retry_at, attempts, lease_until)
@@ -36,7 +42,10 @@ export function createTursoNotificationOutbox(
   userId: string,
 ): NotificationOutbox {
   return {
-    /** @param {number} now 当前时间。 @return {Promise<NotificationJob[]>} 原子领取的任务。 */
+    /**
+     * @param {number} now 当前时间。
+     * @return {Promise<NotificationJob[]>} 原子领取的任务。
+     */
     async claim(now) {
       const token = crypto.randomUUID();
       const result = await execute({
@@ -46,11 +55,28 @@ export function createTursoNotificationOutbox(
             WHERE user_id = ? AND retry_at <= ? AND lease_until <= ?
             ORDER BY retry_at, id, channel LIMIT ?
           ) RETURNING id, channel, record_json, attempts`,
-        args: [token, now + deliveryLeaseMs, userId, userId, now, now, claimLimit],
+        args: [
+          token,
+          now + deliveryLeaseMs,
+          userId,
+          userId,
+          now,
+          now,
+          claimLimit,
+        ],
       });
-      return result.rows.map((row) => ({ id: String(row.id), channel: String(row.channel) as NotificationChannel, token, attempts: Number(row.attempts), record: JSON.parse(String(row.record_json)) }));
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        channel: String(row.channel) as NotificationChannel,
+        token,
+        attempts: Number(row.attempts),
+        record: JSON.parse(String(row.record_json)),
+      }));
     },
-    /** @param {NotificationJob[]} jobs 本领取者的任务。 @param {string | undefined} acceptedAt 受理时间。 */
+    /**
+     * @param {NotificationJob[]} jobs 本领取者的任务。
+     * @param {string | undefined} acceptedAt 受理时间。
+     */
     async complete(jobs, acceptedAt) {
       if (!jobs.length) return;
       const statements: InStatement[] = [];
@@ -66,24 +92,39 @@ export function createTursoNotificationOutbox(
             args: [acceptedAt, acceptedAt, userId, job.id, ...args],
           });
           statements.push({
-            sql: `UPDATE sync_records SET value_json = json_set(value_json, '$.record.notifiedAt', COALESCE(json_extract(value_json, '$.record.notifiedAt'), ?))
+            sql:
+              `UPDATE sync_records SET value_json = json_set(value_json, '$.record.notifiedAt', COALESCE(json_extract(value_json, '$.record.notifiedAt'), ?))
               WHERE user_id = ? AND id = ? AND json_type(value_json, '$.record') = 'object' AND EXISTS (
                 SELECT 1 FROM notification_outbox WHERE user_id = ? AND id = ? AND channel = ? AND lease_token = ?
               )`,
             args: [acceptedAt, userId, job.id, ...args],
           });
         }
-        statements.push({ sql: "DELETE FROM notification_outbox WHERE user_id = ? AND id = ? AND channel = ? AND lease_token = ?", args });
+        statements.push({
+          sql:
+            "DELETE FROM notification_outbox WHERE user_id = ? AND id = ? AND channel = ? AND lease_token = ?",
+          args,
+        });
       }
       await batch(statements);
     },
-    /** @param {NotificationJob[]} jobs 失败任务。 @param {number} now 失败时间。 */
+    /**
+     * @param {NotificationJob[]} jobs 失败任务。
+     * @param {number} now 失败时间。
+     */
     async retry(jobs, now) {
       if (!jobs.length) return;
       await batch(jobs.map((job) => ({
-        sql: `UPDATE notification_outbox SET attempts = attempts + 1, retry_at = ?, lease_until = 0, lease_token = NULL
+        sql:
+          `UPDATE notification_outbox SET attempts = attempts + 1, retry_at = ?, lease_until = 0, lease_token = NULL
           WHERE user_id = ? AND id = ? AND channel = ? AND lease_token = ?`,
-        args: [now + Math.min(300_000, 5000 * 2 ** Math.min(job.attempts, 6)), userId, job.id, job.channel, job.token],
+        args: [
+          now + Math.min(300_000, 5000 * 2 ** Math.min(job.attempts, 6)),
+          userId,
+          job.id,
+          job.channel,
+          job.token,
+        ],
       })));
     },
   };

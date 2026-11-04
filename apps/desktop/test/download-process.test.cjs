@@ -19,14 +19,28 @@ const bytes = Buffer.alloc(12 * 1024 * 1024, 73);
  */
 function transfer(options, mode) {
   return new Promise((resolve, reject) => {
-    const child = fork(path.join(__dirname,'fixtures/download-process.cjs'), [JSON.stringify(options)], {windowsHide:true, stdio:['ignore','ignore','pipe','ipc']});
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
+    const child = fork(path.join(__dirname, 'fixtures/download-process.cjs'), [JSON.stringify(options)], {
+      windowsHide: true,
+      stdio: ['ignore', 'ignore', 'pipe', 'ipc']
+    });
     let requested = false, outcome, stderr = '';
-    const timeout = setTimeout(() => { child.kill(); reject(new Error('Download child timeout')); }, 20000);
-    child.stderr.on('data', chunk => { stderr += chunk; });
-    child.on('error', error => { clearTimeout(timeout); reject(error); });
+    const timeout = setTimeout(() => {
+      child.kill();
+      reject(new Error('Download child timeout'));
+    }, 20000);
+    child.stderr.on('data', chunk => {
+      stderr += chunk;
+    });
+    child.on('error', error => {
+      clearTimeout(timeout);
+      reject(error);
+    });
     child.on('message', message => {
+      if (!message || typeof message !== 'object' || !('type' in message) || typeof message.type !== 'string') return;
       if (message.type !== 'progress') outcome = message.type;
-      if (mode !== 'complete' && !requested && message.transferred >= 6 * 1024 * 1024) {
+      if (mode !== 'complete' && !requested && 'transferred' in message && typeof message.transferred === 'number' && message.transferred >= 6 * 1024 * 1024) {
         requested = true;
         if (mode === 'kill') child.kill('SIGKILL'); else child.send('pause');
       }
@@ -35,48 +49,75 @@ function transfer(options, mode) {
       clearTimeout(timeout);
       try {
         if (mode === 'kill') assert.equal(requested, true);
-        else { assert.equal(code, 0, stderr); assert.equal(outcome, mode === 'pause' ? 'paused' : 'complete'); }
+        else {
+          assert.equal(code, 0, stderr);
+          assert.equal(outcome, mode === 'pause' ? 'paused' : 'complete');
+        }
         resolve();
-      } catch (error) { reject(error); }
+      } catch (error) {
+        reject(error);
+      }
     });
   });
 }
 
-for (const mode of ['pause','kill']) {
+for (const mode of ['pause', 'kill']) {
   test(`real HTTP download resumes after process ${mode}`, async () => {
-    const base = await fs.mkdtemp(path.join(os.tmpdir(),'heybox-download-process-'));
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), 'heybox-download-process-'));
     const ranges = [];
     const server = createServer((request, response) => {
       const start = Number(/^bytes=(\d+)-$/.exec(request.headers.range || '')?.[1] || 0);
       ranges.push(start);
-      response.writeHead(start ? 206 : 200, {'content-length':bytes.length-start, ...(start ? {'content-range':`bytes ${start}-${bytes.length-1}/${bytes.length}`} : {})});
+      // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+      // noinspection JSUnresolvedReference
+      response.writeHead(start ? 206 : 200, {'content-length': bytes.length - start, ...(start ? {'content-range': `bytes ${start}-${bytes.length - 1}/${bytes.length}`} : {})});
       let offset = start;
       const timer = setInterval(() => {
         const end = Math.min(offset + 256 * 1024, bytes.length);
-        response.write(bytes.subarray(offset,end)); offset = end;
-        if (offset === bytes.length) { clearInterval(timer); response.end(); }
+        // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+        // noinspection JSUnresolvedReference
+        response.write(bytes.subarray(offset, end));
+        offset = end;
+        if (offset === bytes.length) {
+          clearInterval(timer);
+          // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+          // noinspection JSUnresolvedReference
+          response.end();
+        }
       }, 8);
+      // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+      // noinspection JSUnresolvedReference
       response.on('close', () => clearInterval(timer));
     });
-    await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
-    const options = {root:path.join(base,'resume'), destination:path.join(base,'setup.exe'), url:'https://github.com/owner/repo/releases/download/test/setup.exe', sha512:createHash('sha512').update(bytes).digest('base64'), endpoint:`http://127.0.0.1:${server.address().port}/setup.exe`};
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
+    const options = {
+      root: path.join(base, 'resume'),
+      destination: path.join(base, 'setup.exe'),
+      url: 'https://github.com/owner/repo/releases/download/test/setup.exe',
+      sha512: createHash('sha512').update(bytes).digest('base64'),
+      endpoint: `http://127.0.0.1:${server.address().port}/setup.exe`
+    };
     try {
-      await transfer(options,mode);
-      const before = (await fs.stat(path.join(options.root,'installer.part'))).size;
+      await transfer(options, mode);
+      const before = (await fs.stat(path.join(options.root, 'installer.part'))).size;
       const saved = await restoreResume(options.root);
       assert.ok(saved.offset >= 4 * 1024 * 1024);
       assert.ok(saved.offset < bytes.length);
       if (mode === 'kill') assert.ok(before > saved.offset);
-      assert.equal((await fs.stat(path.join(options.root,'installer.part'))).size,saved.offset);
-      await transfer(options,'complete');
-      assert.deepEqual(ranges,[0,saved.offset]);
-      assert.deepEqual(await fs.readFile(options.destination),bytes);
+      assert.equal((await fs.stat(path.join(options.root, 'installer.part'))).size, saved.offset);
+      await transfer(options, 'complete');
+      assert.deepEqual(ranges, [0, saved.offset]);
+      assert.deepEqual(await fs.readFile(options.destination), bytes);
     } finally {
       server.closeAllConnections();
       await new Promise(resolve => server.close(resolve));
-      assert.equal(path.dirname(base),path.resolve(os.tmpdir()));
-      assert.match(path.basename(base),/^heybox-download-process-/);
-      await fs.rm(base,{recursive:true,force:true});
+      assert.equal(path.dirname(base), path.resolve(os.tmpdir()));
+      assert.match(path.basename(base), /^heybox-download-process-/);
+      await fs.rm(base, {recursive: true, force: true});
     }
   });
 }

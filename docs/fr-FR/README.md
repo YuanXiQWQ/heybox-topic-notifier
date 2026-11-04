@@ -1,21 +1,15 @@
 # Notificateur de sujets Heybox
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
-[![Deno](https://img.shields.io/badge/Deno-2.x-000?logo=deno&logoColor=white)](https://deno.com/)
-[![Production](https://img.shields.io/badge/Production-online-brightgreen)](https://heybox-topic-notifier.yuanxiqwq.deno.net/)
-[![Dev](https://img.shields.io/badge/Dev-preview-blue)](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
 
 | [简体中文](../../README.md) | **Français** |
-|:-----------------------:|:------------:|
+| :-------------------------: | :----------: |
 
----
+[Web](https://heybox.yuanxiqwq.top/) · [Windows x64](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-windows-x64-setup.exe) · [Android APK](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-android-universal.apk)
 
-<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
-est une application Deno légère destinée à surveiller les publications de sujets Heybox. Elle lit
-périodiquement les publications réelles des sujets selon les paramètres de chaque compte, vérifie les
-titres, les corps de texte, les commentaires et les réponses à l’aide de règles de mots-clés, enregistre
-les correspondances dans les vues en attente et historique, puis envoie des notifications via le canal
-configuré.
+Ajoutez un sujet Heybox dans les réglages, choisissez des mots-clés, une expression régulière ou un filtre IA, puis activez la vérification périodique. Vous pouvez déplacer les résultats vers l’historique et les restaurer dans l’espace de travail.
+
+Un code d’invitation est nécessaire pour créer un compte. Les notifications de l’application se règlent par appareil et peuvent accompagner les e-mails ou un webhook. Les modifications hors ligne sont synchronisées à la reconnexion. La langue et le mode sombre suivent par défaut les réglages de l’appareil.
 
 ## Fonctionnalités
 
@@ -28,73 +22,23 @@ configuré.
   de passe ; les données de compte sont isolées par ID utilisateur
 - Règles de mots-clés : prise en charge des règles partagées, des règles propres à un sujet, des
   emplacements de correspondance, de la sensibilité à la casse et des expressions régulières
-- Tableaux de correspondances : les enregistrements en attente et historiques prennent tous deux en
-  charge les filtres par plage temporelle, la pagination, la finalisation par lot et les actions de
-  suppression
-- Entrées de débogage : correspondances simulées et tests de notification, avec des limites de débit côté
-  serveur pour le polling manuel et les opérations de débogage
+- Paramètres → Paramètres de notification → Tester la notification
 - Canaux de notification : Webhook personnalisé, ServerChan, PushPlus, WxPusher, API e-mail et SMTP
 - Relais de notification : relais Cloudflare Worker optionnel pour PushPlus, WxPusher et ServerChan
-- Sécurité : hachages de mots de passe PBKDF2, sessions adossées à KV, jetons CSRF, en-têtes de sécurité,
-  journaux d’audit et liste d’autorisation sortante avec validation DNS
-
-## Stack technique
-
-- Deno 2 + TypeScript
-- Hono
-- Deno KV
-- Deno.cron + planificateur local par minuteur
-- HTML rendu côté serveur + JavaScript/CSS natifs
-- Script Cloudflare Workers de relais de notifications
 
 ## Développement local
 
-Démarrez le serveur de développement :
-
-```powershell
+```sh
 deno task dev
 ```
 
-Puis ouvrez :
-
-```text
-http://localhost:8000
-```
-
-Pour remplacer les valeurs par défaut, utilisez `.env.example` comme référence et définissez les variables
-d’environnement correspondantes dans votre environnement d’exécution. Inscrivez un compte lors de la
-première visite ; les variables d’environnement ne servent qu’à initialiser les valeurs par défaut pour
-les nouveaux comptes ou les données par défaut, puis la page de paramètres de chaque compte devient la
-source de vérité.
-
-L’application fournit des pages d’inscription et de connexion. Chaque compte possède des paramètres, un
-historique de correspondances, un état de polling et une configuration de notification isolés, de sorte
-que les utilisateurs partageant la même URL de déploiement ne partagent pas leurs données. Les mots de
-passe des utilisateurs sont stockés dans Deno KV sous forme de hachages PBKDF2 salés, et non en clair.
-Les sessions de connexion sont stockées dans Deno KV, et le cookie du navigateur ne contient qu’un jeton
-de session aléatoire. Les modifications des paramètres, du compte et du débogage valident un jeton CSRF,
-et les opérations sensibles sont soumises à des limites de débit sur les déploiements publics.
-
-## Commandes
-
-```powershell
-deno task dev
-deno task start
-deno task check
-deno task clear-seen
-```
-
-`clear-seen` efface les marqueurs de publications traitées afin que les mêmes publications puissent être
-vérifiées à nouveau ; utilisez-le avec prudence en production.
+[localhost:8000](http://localhost:8000) · [`.env.example`](../../.env.example) · `deno task check`
 
 ## Déploiement
 
-Consultez [deployment](./deployment.md) pour la configuration de Deno Deploy. Le point d’entrée de
-l’application est défini par la section `deploy` dans `deno.json` ; GitHub Actions exécute uniquement les
-vérifications et ne déploie pas l’application. Le point d’entrée de déploiement dans `src/deploy.ts`
-déclare le Cron Deno Deploy, et le polling réel ne s’exécute que sur Production et sur la chronologie de
-la branche Git `dev`. Consultez [worker](./worker.md) pour la configuration du Worker de relais de
-notifications.
+Le service Deno tourne sur Oracle Cloud derrière Caddy. Turso conserve les comptes, les sessions et les résultats. GitHub Actions construit les programmes d’installation Windows et Android à partir des tags de version.
+
+[Auto-hébergement](./deployment.md) · [Cloudflare Worker](./worker.md)
 
 ## Licence
 

@@ -1,28 +1,28 @@
 /** @file 仅向可信顶层页面暴露固定原生操作，不暴露 IPC、文件系统或进程对象。 */
-const { contextBridge, ipcRenderer } = require("electron");
+const {contextBridge, ipcRenderer} = require('electron');
 /** 原生操作只接受有限参数，主进程再次验证来源和内容。 */
 const api = Object.freeze({
   /** @return {Promise<object>} 当前应用和设备状态。 */
-  info: () => ipcRenderer.invoke("app:info"),
+  info: () => ipcRenderer.invoke('app:info'),
   /** @return {Promise<object>} 系统浏览器登录的配对码。 */
-  signIn: () => ipcRenderer.invoke("app:sign-in"),
+  signIn: () => ipcRenderer.invoke('app:sign-in'),
   /** @param {boolean} enabled 通知开关。 @return {Promise<object>} 实际启用状态。 */
-  notifications: (enabled) => ipcRenderer.invoke("app:notifications", enabled),
+  notifications: (enabled) => ipcRenderer.invoke('app:notifications', enabled),
   /** @param {object} values 本设备设置。 @return {Promise<object>} 保存后的设备状态。 */
-  preferences: (values) => ipcRenderer.invoke("app:preferences", values),
+  preferences: (values) => ipcRenderer.invoke('app:preferences', values),
   /** @return {Promise<object>} 窗口恢复后的设备状态。 */
-  resetWindow: () => ipcRenderer.invoke("app:reset-window"),
+  resetWindow: () => ipcRenderer.invoke('app:reset-window'),
   /** @return {Promise<object>} 发行检查状态。 */
-  checkUpdate: () => ipcRenderer.invoke("app:check-update"),
+  checkUpdate: () => ipcRenderer.invoke('app:check-update'),
   /** @return {Promise<object>} 下载状态。 */
-  downloadUpdate: () => ipcRenderer.invoke("app:download-update"),
+  downloadUpdate: () => ipcRenderer.invoke('app:download-update'),
   /** @return {Promise<void>} 退出并执行已校验更新。 */
-  installUpdate: () => ipcRenderer.invoke("app:install-update"),
+  installUpdate: () => ipcRenderer.invoke('app:install-update'),
   /** @param {string} section 已查看层级。 @return {Promise<object>} 更新提示状态。 */
-  seenUpdate: (section) => ipcRenderer.invoke("app:seen-update", section),
+  seenUpdate: (section) => ipcRenderer.invoke('app:seen-update', section),
   /** @param {Function} listener 原生状态变化回调。 */
   onState: (listener) => {
-    ipcRenderer.on("app:state", (_event, state) => listener(state));
+    ipcRenderer.on('app:state', (_event, state) => listener(state));
   },
 });
-contextBridge.exposeInMainWorld("appNative", api);
+contextBridge.exposeInMainWorld('appNative', api);

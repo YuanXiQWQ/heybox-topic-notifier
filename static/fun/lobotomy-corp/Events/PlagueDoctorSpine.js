@@ -21,6 +21,7 @@
 
 import {
   loadSpineRuntime,
+  requestSpineFrame,
   spineAssetPaths,
   spineModuleRoot,
   spineRuntimePath,
@@ -34,7 +35,7 @@ import {
 
 /** 疫医骨架数据在 `Assets` 下的相对目录。 */
 export const plagueDoctorSpineAssetDirectory =
-  'Resources/spinedata/plaguedoctor';
+    'Resources/spinedata/plaguedoctor';
 
 /** 骨架 JSON 文件名（`TextAsset/skeleton_15.json`）。 */
 export const plagueDoctorSpineSkeletonFile = 'skeleton_15.json';
@@ -127,8 +128,8 @@ export const plagueDoctorAdventEyeTimings = Object.freeze({
 
 /** 白夜本体登场的时刻（秒）：镜头到位后满 3 秒。 */
 export const plagueDoctorAdventWhiteNightSeconds =
-  plagueDoctorAdventEyeTimings.cameraMoveSeconds +
-  plagueDoctorAdventEyeTimings.adventSeconds;
+    plagueDoctorAdventEyeTimings.cameraMoveSeconds +
+    plagueDoctorAdventEyeTimings.adventSeconds;
 
 /**
  * `SetState(12)` 之后不再绘制的 slot。
@@ -239,10 +240,10 @@ const plagueDoctorSpineMaxFrameStepSeconds = 0.1;
  */
 export function plagueDoctorSpineAssetPaths(moduleRoot) {
   const paths = spineAssetPaths(
-    plagueDoctorSpineAssetDirectory,
-    plagueDoctorSpineSkeletonFile,
-    plagueDoctorSpineAtlasFile,
-    moduleRoot,
+      plagueDoctorSpineAssetDirectory,
+      plagueDoctorSpineSkeletonFile,
+      plagueDoctorSpineAtlasFile,
+      moduleRoot,
   );
   const relativeDirectory = paths.assetDirectory.replace(/^Assets\//u, '');
   return {
@@ -261,10 +262,10 @@ export function plagueDoctorSpineAssetPaths(moduleRoot) {
  */
 export function plagueDoctorAdventWhiteNightAssetPaths(moduleRoot) {
   const paths = spineAssetPaths(
-    whiteNightSpineAssetDirectory,
-    whiteNightSpineSkeletonFile,
-    whiteNightSpineAtlasFile,
-    moduleRoot,
+      whiteNightSpineAssetDirectory,
+      whiteNightSpineSkeletonFile,
+      whiteNightSpineAtlasFile,
+      moduleRoot,
   );
   const relativeDirectory = paths.assetDirectory.replace(/^Assets\//u, '');
   return {
@@ -281,8 +282,8 @@ export function plagueDoctorAdventWhiteNightAssetPaths(moduleRoot) {
  * @return {number} 0~1 的进度；镜头还没到位时为 0。
  */
 export function plagueDoctorAdventEyeRate(
-  elapsedSeconds,
-  timings = plagueDoctorAdventEyeTimings,
+    elapsedSeconds,
+    timings = plagueDoctorAdventEyeTimings,
 ) {
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) return 0;
   const rate = (elapsedSeconds - timings.cameraMoveSeconds) / timings.adventSeconds;
@@ -297,8 +298,8 @@ export function plagueDoctorAdventEyeRate(
  * @return {{firstHalf: boolean, rate: number, secondHalf: boolean}} 该时刻的睁眼状态。
  */
 export function plagueDoctorAdventEyeState(
-  elapsedSeconds,
-  timings = plagueDoctorAdventEyeTimings,
+    elapsedSeconds,
+    timings = plagueDoctorAdventEyeTimings,
 ) {
   const rate = plagueDoctorAdventEyeRate(elapsedSeconds, timings);
   return {
@@ -320,9 +321,9 @@ export function plagueDoctorAdventEyeState(
  * @return {{x: number, y: number}} 镜头目标位置。
  */
 export function plagueDoctorAdventCameraTarget(
-  boneX,
-  boneY,
-  camera = plagueDoctorAdventCamera,
+    boneX,
+    boneY,
+    camera = plagueDoctorAdventCamera,
 ) {
   return {
     x: boneX + camera.focusOffsetX,
@@ -345,11 +346,11 @@ export function plagueDoctorAdventCameraTarget(
  * @return {{angle: number, height: number, pivotX: number, pivotY: number, width: number, x: number, y: number}} 精灵四边形的尺寸、轴心与轴心所在位置。
  */
 export function plagueDoctorAdventEyeSpritePlacement(
-  boneX,
-  boneY,
-  boneRotation,
-  sprite = plagueDoctorSpineEyeSprite,
-  rigScale = plagueDoctorSpineRig.scale,
+    boneX,
+    boneY,
+    boneRotation,
+    sprite = plagueDoctorSpineEyeSprite,
+    rigScale = plagueDoctorSpineRig.scale,
 ) {
   const width = sprite.rectWidth / sprite.pixelsToUnits * rigScale;
   const height = sprite.rectHeight / sprite.pixelsToUnits * rigScale;
@@ -382,14 +383,14 @@ export function plagueDoctorAdventEyeSpritePlacement(
  * @return {{u1: number, u2: number, vBottom: number, vTop: number}|undefined} 四边形四角的 UV；参数无效时返回 undefined。
  */
 export function plagueDoctorAdventEyeSpriteUv(
-  pageWidth,
-  pageHeight,
-  sprite = plagueDoctorSpineEyeSprite,
+    pageWidth,
+    pageHeight,
+    sprite = plagueDoctorSpineEyeSprite,
 ) {
   if (
-    ![pageWidth, pageHeight, sprite.rectX, sprite.rectY, sprite.rectWidth,
-      sprite.rectHeight].every((value) => Number.isFinite(value)) ||
-    !(pageWidth > 0) || !(pageHeight > 0)
+      ![pageWidth, pageHeight, sprite.rectX, sprite.rectY, sprite.rectWidth,
+        sprite.rectHeight].every((value) => Number.isFinite(value)) ||
+      !(pageWidth > 0) || !(pageHeight > 0)
   ) {
     return undefined;
   }
@@ -421,7 +422,7 @@ export function createPlagueDoctorSpineStage(options) {
   const hostDocument = document;
   const hostGlobal = globalObject;
   const moduleRoot = options.moduleRoot ?? spineModuleRoot(
-    options.assetRoot ?? '',
+      options.assetRoot ?? '',
   );
   const plagueDoctorPaths = plagueDoctorSpineAssetPaths(moduleRoot);
   const whiteNightPaths = plagueDoctorAdventWhiteNightAssetPaths(moduleRoot);
@@ -461,7 +462,7 @@ export function createPlagueDoctorSpineStage(options) {
 
   /** @return {number} 宿主时间（秒）。 */
   const hostSeconds = () =>
-    (hostGlobal.performance?.now?.() ?? Date.now()) / 1000;
+      (hostGlobal.performance?.now?.() ?? Date.now()) / 1000;
 
   /**
    * 按画布尺寸同步像素与相机映射。
@@ -481,7 +482,7 @@ export function createPlagueDoctorSpineStage(options) {
     if (!sceneRenderer) return;
     sceneRenderer.resize(runtime.webgl.ResizeMode.Expand);
     sceneRenderer.camera.zoom =
-      2 * plagueDoctorAdventCamera.orthographicSize / height;
+        2 * plagueDoctorAdventCamera.orthographicSize / height;
     if (cameraTarget) {
       sceneRenderer.camera.position.x = cameraTarget.x;
       sceneRenderer.camera.position.y = cameraTarget.y;
@@ -590,23 +591,23 @@ export function createPlagueDoctorSpineStage(options) {
     if (secondHalf) {
       secondHalf.setAttachment(
           eyes.secondHalf
-            ? skeleton.getAttachment(
-                secondHalf.data.index,
-                plagueDoctorSpineEyeSlots.secondHalf,
-            )
-            : null,
+              ? skeleton.getAttachment(
+                  secondHalf.data.index,
+                  plagueDoctorSpineEyeSlots.secondHalf,
+              )
+              : null,
       );
     }
     plagueDoctor.eyeVisible = eyes.firstHalf;
     plagueDoctor.eyePlacement = plagueDoctor.eyeVisible
-      ? plagueDoctorAdventEyeSpritePlacement(
-          plagueDoctor.bone.worldX,
-          plagueDoctor.bone.worldY,
-          // `BoneFollower.followBoneRotation` 取的是骨骼的**世界**旋转，不是局部旋转；
-          // bone136 挂在有旋转的父骨骼下，用局部旋转会让精灵整整歪 90°。
-          plagueDoctor.bone.getWorldRotationX(),
-      )
-      : undefined;
+        ? plagueDoctorAdventEyeSpritePlacement(
+            plagueDoctor.bone.worldX,
+            plagueDoctor.bone.worldY,
+            // `BoneFollower.followBoneRotation` 取的是骨骼的**世界**旋转，不是局部旋转；
+            // bone136 挂在有旋转的父骨骼下，用局部旋转会让精灵整整歪 90°。
+            plagueDoctor.bone.getWorldRotationX(),
+        )
+        : undefined;
   };
 
   /**
@@ -637,10 +638,10 @@ export function createPlagueDoctorSpineStage(options) {
     if (disposed) return;
     const seconds = timestamp / 1000;
     const step = lastTimestamp === undefined
-      ? 0
-      : Math.min(
-          plagueDoctorSpineMaxFrameStepSeconds,
-          Math.max(0, seconds - lastTimestamp),
+        ? 0
+        : Math.min(
+            plagueDoctorSpineMaxFrameStepSeconds,
+            Math.max(0, seconds - lastTimestamp),
         );
     lastTimestamp = seconds;
     elapsedSeconds += step;
@@ -669,17 +670,10 @@ export function createPlagueDoctorSpineStage(options) {
    */
   const scheduleFrame = () => {
     if (disposed || frame !== undefined) return;
-    if (typeof hostGlobal.requestAnimationFrame === 'function') {
-      frame = hostGlobal.requestAnimationFrame((timestamp) => {
-        frame = undefined;
-        tick(timestamp);
-      });
-      return;
-    }
-    frame = hostGlobal.setTimeout?.(() => {
+    frame = requestSpineFrame(hostGlobal, (timestamp) => {
       frame = undefined;
-      tick(hostGlobal.performance?.now?.() ?? Date.now());
-    }, 16);
+      tick(timestamp);
+    });
   };
 
   /**
@@ -689,7 +683,7 @@ export function createPlagueDoctorSpineStage(options) {
    * 读取时把骨骼位移与附件尺寸一起乘上去），3.6 的 `SkeletonJson.scale` 就是同一件事；
    * 预制体的局部缩放也一起折进去，画出来的尺寸才与游戏一致。
    *
-   * @param {object} spine Spine 运行时命名空间。
+   * @param {import('./SpineRuntime.js').SpineRuntime} spine Spine 运行时命名空间。
    * @param {string} skeletonJson 骨架 JSON 文本。
    * @param {object} atlas 骨架 Atlas。
    * @param {object} rig 骨骼根的局部变换与缩放。
@@ -903,6 +897,8 @@ export function createPlagueDoctorSpineStage(options) {
      * 释放 WebGL 资源并停止渲染循环。
      */
     dispose: () => {
+      // 当前舞台独立持有和释放渲染资源。
+      // noinspection DuplicatedCode
       disposed = true;
       if (frame !== undefined) {
         hostGlobal.cancelAnimationFrame?.(frame);

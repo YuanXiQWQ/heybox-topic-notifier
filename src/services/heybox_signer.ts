@@ -26,7 +26,8 @@ const appHkeyAlphabet = "23456789BCDFGHJKMNPQRTVWXY";
 /**
  * 随机 nonce 允许使用的字符表。
  */
-const randomNonceAlphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const randomNonceAlphabet =
+  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 /**
  * 复用的 UTF-8 文本编码器。
  */
@@ -53,7 +54,9 @@ export function createHeyboxSignatureParams(
     : md5Hex(`${time}${random()}`).toUpperCase();
 
   return {
-    hkey: mode === "app" ? buildAppHkey(path, time, nonce) : buildHkey(path, time, nonce),
+    hkey: mode === "app"
+      ? buildAppHkey(path, time, nonce)
+      : buildHkey(path, time, nonce),
     nonce,
     time,
   };
@@ -79,7 +82,9 @@ export function buildHkey(path: string, time: number, nonce: string): string {
   const checksumValues = mixBytes(
     digest.slice(-6).split("").map((char) => char.charCodeAt(0)),
   );
-  const checksum = String(checksumValues.reduce((sum, value) => sum + value, 0) % 100)
+  const checksum = String(
+    checksumValues.reduce((sum, value) => sum + value, 0) % 100,
+  )
     .padStart(2, "0");
 
   return `${encodeByPrefix(digest.slice(0, 5), hkeyAlphabet, -4)}${checksum}`;
@@ -93,7 +98,11 @@ export function buildHkey(path: string, time: number, nonce: string): string {
  * @param nonce 请求随机串。
  * @return App 模式 hkey。
  */
-export function buildAppHkey(path: string, time: number, nonce: string): string {
+export function buildAppHkey(
+  path: string,
+  time: number,
+  nonce: string,
+): string {
   const normalizedPath = normalizeHkeyPath(path);
   const key = encoder.encode(base64Encode(encoder.encode(normalizedPath)));
   const timeWithNonceDigits = BigInt(time + countDigits(nonce));
@@ -109,7 +118,9 @@ export function buildAppHkey(path: string, time: number, nonce: string): string 
   const positiveValue = value & 0x7fffffff;
   const alphabet = `${appHkeyAlphabet}${nonce.toUpperCase()}`;
   const quotient = Math.trunc(positiveValue / 0x3a);
-  const hmacDerivedIndex = Number((1307386003n * BigInt((value >> 2) & 0x1fffffff) >> 40n) % 0x3an);
+  const hmacDerivedIndex = Number(
+    (1307386003n * BigInt((value >> 2) & 0x1fffffff) >> 40n) % 0x3an,
+  );
   const prefix = [
     alphabet[positiveValue - 0x3a * quotient],
     alphabet[quotient % 0x3a],
@@ -120,7 +131,9 @@ export function buildAppHkey(path: string, time: number, nonce: string): string 
   const checksumValues = mixBytes(
     prefix.slice(1).split("").map((char) => char.charCodeAt(0)),
   );
-  const checksum = String(checksumValues.reduce((sum, value) => sum + value, 0) % 100)
+  const checksum = String(
+    checksumValues.reduce((sum, value) => sum + value, 0) % 100,
+  )
     .padStart(2, "0");
 
   return `${prefix}${checksum}`;
@@ -173,7 +186,8 @@ function countDigits(value: string): number {
  */
 function encodeByPrefix(value: string, alphabet: string, end: number): string {
   const prefix = alphabet.slice(0, end);
-  return Array.from(value, (char) => prefix[char.charCodeAt(0) % prefix.length]).join("");
+  return Array.from(value, (char) => prefix[char.charCodeAt(0) % prefix.length])
+    .join("");
 }
 
 /**
@@ -184,7 +198,10 @@ function encodeByPrefix(value: string, alphabet: string, end: number): string {
  * @return 编码后的字符串。
  */
 function encodeByAlphabet(value: string, alphabet: string): string {
-  return Array.from(value, (char) => alphabet[char.charCodeAt(0) % alphabet.length]).join("");
+  return Array.from(
+    value,
+    (char) => alphabet[char.charCodeAt(0) % alphabet.length],
+  ).join("");
 }
 
 /**
@@ -216,10 +233,14 @@ function interleave(parts: string[]): string {
  */
 function mixBytes(values: number[]): number[] {
   const mixed = [0, 0, 0, 0];
-  mixed[0] = mixG(values[0]) ^ mixY(values[1]) ^ mixD(values[2]) ^ mixQ(values[3]);
-  mixed[1] = mixQ(values[0]) ^ mixG(values[1]) ^ mixY(values[2]) ^ mixD(values[3]);
-  mixed[2] = mixD(values[0]) ^ mixQ(values[1]) ^ mixG(values[2]) ^ mixY(values[3]);
-  mixed[3] = mixY(values[0]) ^ mixD(values[1]) ^ mixQ(values[2]) ^ mixG(values[3]);
+  mixed[0] = mixG(values[0]) ^ mixY(values[1]) ^ mixD(values[2]) ^
+    mixQ(values[3]);
+  mixed[1] = mixQ(values[0]) ^ mixG(values[1]) ^ mixY(values[2]) ^
+    mixD(values[3]);
+  mixed[2] = mixD(values[0]) ^ mixQ(values[1]) ^ mixG(values[2]) ^
+    mixY(values[3]);
+  mixed[3] = mixY(values[0]) ^ mixD(values[1]) ^ mixQ(values[2]) ^
+    mixG(values[3]);
   values[0] = mixed[0];
   values[1] = mixed[1];
   values[2] = mixed[2];
@@ -332,7 +353,8 @@ function sha1(bytes: Uint8Array): Uint8Array {
     }
     for (let index = 16; index < 80; index += 1) {
       words[index] = rotateLeft(
-        words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16],
+        words[index - 3] ^ words[index - 8] ^ words[index - 14] ^
+          words[index - 16],
         1,
       );
     }
@@ -377,7 +399,9 @@ function sha1(bytes: Uint8Array): Uint8Array {
 
   const digest = new Uint8Array(20);
   const digestView = new DataView(digest.buffer);
-  [h0, h1, h2, h3, h4].forEach((value, index) => digestView.setUint32(index * 4, value));
+  [h0, h1, h2, h3, h4].forEach((value, index) =>
+    digestView.setUint32(index * 4, value)
+  );
   return digest;
 }
 
@@ -402,7 +426,9 @@ function sha1PaddedLength(inputLength: number): number {
  * @return 拼接后的字节数组。
  */
 function concatBytes(...chunks: Uint8Array[]): Uint8Array {
-  const bytes = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  const bytes = new Uint8Array(
+    chunks.reduce((sum, chunk) => sum + chunk.length, 0),
+  );
   let offset = 0;
   for (const chunk of chunks) {
     bytes.set(chunk, offset);
@@ -432,7 +458,8 @@ function base64Encode(bytes: Uint8Array): string {
  * @return 读取出的有符号整数。
  */
 function signedInt32FromBigEndian(bytes: Uint8Array): number {
-  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getInt32(0);
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    .getInt32(0);
 }
 
 /**
@@ -491,7 +518,10 @@ function md5Hex(value: string): string {
       c = b;
       b = unsignedAdd(
         b,
-        rotateLeft(unsignedAdd(a, f, md5K[index], words[wordIndex]), md5S[index]),
+        rotateLeft(
+          unsignedAdd(a, f, md5K[index], words[wordIndex]),
+          md5S[index],
+        ),
       );
       a = next;
     }

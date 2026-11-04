@@ -85,6 +85,7 @@ export async function aceAttorneyStyleResponse(): Promise<Response> {
  * 创建《逆转裁判》彩蛋资源响应。
  *
  * @param {string} assetPath 请求的媒体资源相对路径。
+ * @param {string} [rangeHeader] 客户端请求的字节范围。
  * @return {Promise<Response>} 媒体资源响应；路径无效或文件不存在时返回 404。
  */
 export async function aceAttorneyAssetResponse(
@@ -164,7 +165,9 @@ export async function lobotomyCorpDangerScoreResponse(): Promise<Response> {
  *
  * @return {Promise<Response>} JavaScript 模块响应。
  */
-export async function lobotomyCorpBlackForestEventResponse(): Promise<Response> {
+export async function lobotomyCorpBlackForestEventResponse(): Promise<
+  Response
+> {
   const script = await Deno.readTextFile(
     new URL(
       "../static/fun/lobotomy-corp/Events/BlackForest.js",
@@ -184,7 +187,9 @@ export async function lobotomyCorpBlackForestEventResponse(): Promise<Response> 
  *
  * @return {Promise<Response>} JavaScript 模块响应。
  */
-export async function lobotomyCorpDontTouchMeEventResponse(): Promise<Response> {
+export async function lobotomyCorpDontTouchMeEventResponse(): Promise<
+  Response
+> {
   const script = await Deno.readTextFile(
     new URL(
       "../static/fun/lobotomy-corp/Events/DontTouchMe.js",
@@ -223,6 +228,7 @@ export async function lobotomyCorpStyleResponse(): Promise<Response> {
  * 创建《脑叶公司》彩蛋资源响应。
  *
  * @param {string} assetPath 请求的媒体资源相对路径。
+ * @param {string} [rangeHeader] 客户端请求的字节范围。
  * @return {Promise<Response>} 媒体资源响应；路径无效或文件不存在时返回 404。
  */
 export async function lobotomyCorpAssetResponse(
@@ -419,7 +425,7 @@ function isLobotomyCorpAssetPath(assetPath: string): boolean {
     /^Assets\/Resources\/spinedata\/[A-Za-z0-9_]+(?:\/[A-Za-z0-9_.]+)*\.(?:json|txt)$/u
       .test(assetPath) ||
     assetPath === "Data/Abnormalities.json" ||
-    /^(?:Events\/(?:AdventLight|BlackForest|BlackForestEggSpine|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|PlagueDoctorSpine|Shelter|SpineRuntime|WhiteNight|WhiteNightAdvent|WhiteNightSpine))\.js$/u
+    /^Events\/(?:AdventLight|BlackForest|BlackForestEggSpine|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|PlagueDoctorSpine|Shelter|SpineRuntime|WhiteNight|WhiteNightAdvent|WhiteNightSpine)\.js$/u
       .test(assetPath) ||
     // 骨架运行时使用的官方 Spine WebGL 构建。
     /^vendor\/spine-webgl-[0-9.]+\.js$/u.test(assetPath) ||

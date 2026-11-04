@@ -473,6 +473,7 @@ export type Messages = {
   matchTitle: string;
   matchedKeyword: string;
   navDashboard: string;
+  navBack: string;
   navAccountMenu: string;
   navHistory: string;
   navLogout: string;

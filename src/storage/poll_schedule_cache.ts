@@ -32,8 +32,12 @@ export function cachePollSchedule(
    * @return {Promise<PollScheduleEntry[]>} 独立副本，调用方修改不会污染后续调度。
    */
   async function readSchedule(): Promise<PollScheduleEntry[]> {
-    if (snapshot && snapshot.expiresAt > now()) return structuredClone(snapshot.entries);
-    loading ??= loadSchedule().finally(() => { loading = undefined; });
+    if (snapshot && snapshot.expiresAt > now()) {
+      return structuredClone(snapshot.entries);
+    }
+    loading ??= loadSchedule().finally(() => {
+      loading = undefined;
+    });
     return structuredClone(await loading);
   }
 
@@ -46,7 +50,10 @@ export function cachePollSchedule(
       const expected = revision;
       const entries = await storage.listPollSchedule!();
       if (revision !== expected) continue;
-      snapshot = { entries: structuredClone(entries), expiresAt: now() + refreshMs };
+      snapshot = {
+        entries: structuredClone(entries),
+        expiresAt: now() + refreshMs,
+      };
       return entries;
     }
   }
@@ -64,28 +71,52 @@ export function cachePollSchedule(
 
   /**
    * 拦截可影响调度的成功或不确定写入；其余方法保持原始接收者。
+   * @template T 业务对象类型。
    * @param {T} target 根存储、用户存储或嵌套事务接口。
    * @param {string} userId 用户作用域。
    * @param {boolean} administration 是否为账号管理接口。
    * @return {T} 共享缓存失效规则的接口。
    */
-  function wrap<T extends object>(target: T, userId: string, administration = false): T {
+  function wrap<T extends object>(
+    target: T,
+    userId: string,
+    administration = false,
+  ): T {
     return new Proxy(target, {
-      /** @param {T} object 原接口。 @param {string | symbol} key 成员名。 @return {unknown} 原成员或委托函数。 */
+      /**
+       * @param {object} object 原接口。
+       * @param {string | symbol} key 成员名。
+       * @return {unknown} 原成员或委托函数。
+       */
       get(object, key) {
         const member = Reflect.get(object, key);
         if (key === "listPollSchedule") return readSchedule;
         if (key === "sync" && member) return wrap(member, userId);
-        if (key === "administration" && member) return wrap(member, userId, true);
-        if (key === "forUser") return (id: string): UserStorage => wrap(storage.forUser(id), id);
+        if (key === "administration" && member) {
+          return wrap(member, userId, true);
+        }
+        if (key === "forUser") {
+          return (id: string): UserStorage => wrap(storage.forUser(id), id);
+        }
         if (typeof member !== "function") return member;
-        const changesSchedule = administration || ["saveSettings", "applySettings", "replaceSettings", "saveAccount", "createAccount", "updateAccount"].includes(String(key));
-        if (!changesSchedule && key !== "setLastPollAt") return member.bind(object);
+        const changesSchedule = administration ||
+          [
+            "saveSettings",
+            "applySettings",
+            "replaceSettings",
+            "saveAccount",
+            "createAccount",
+            "updateAccount",
+          ].includes(String(key));
+        if (!changesSchedule && key !== "setLastPollAt") {
+          return member.bind(object);
+        }
         return async (...args: unknown[]) => {
           try {
             const result = await member.apply(object, args);
-            if (key === "setLastPollAt") updateLastPoll(userId, String(args[0]));
-            else invalidate();
+            if (key === "setLastPollAt") {
+              updateLastPoll(userId, String(args[0]));
+            } else invalidate();
             return result;
           } catch (error) {
             invalidate();

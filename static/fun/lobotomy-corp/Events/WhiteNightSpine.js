@@ -9,6 +9,8 @@
 
 import {
   loadSpineRuntime,
+  requestSpineFrame,
+  sampleSpineAnimationBounds,
   spineAssetPaths,
   spineModuleRoot,
   spineRuntimePath,
@@ -125,10 +127,10 @@ export const whiteNightSpineModuleRoot = spineModuleRoot;
  */
 export function whiteNightSpineAssetPaths(moduleRoot) {
   return spineAssetPaths(
-    whiteNightSpineAssetDirectory,
-    whiteNightSpineSkeletonFile,
-    whiteNightSpineAtlasFile,
-    moduleRoot,
+      whiteNightSpineAssetDirectory,
+      whiteNightSpineSkeletonFile,
+      whiteNightSpineAtlasFile,
+      moduleRoot,
   );
 }
 
@@ -151,8 +153,8 @@ export function whiteNightSpineViewportLayout(
     padding = whiteNightSpineViewportPadding,
 ) {
   if (
-    ![viewportWidth, viewportHeight, bounds?.minX, bounds?.minY, bounds?.maxX,
-      bounds?.maxY].every((value) => Number.isFinite(value))
+      ![viewportWidth, viewportHeight, bounds?.minX, bounds?.minY, bounds?.maxX,
+        bounds?.maxY].every((value) => Number.isFinite(value))
   ) {
     return undefined;
   }
@@ -186,9 +188,9 @@ export function whiteNightSpineViewportLayout(
  * @return {number|undefined} 1 世界单位对应的 vh 数；参数无效时返回 undefined。
  */
 export function whiteNightSpineWorldUnitToVh(
-  bounds,
-  viewportWidth,
-  viewportHeight,
+    bounds,
+    viewportWidth,
+    viewportHeight,
 ) {
   const layout = whiteNightSpineViewportLayout(
       viewportWidth,
@@ -210,12 +212,12 @@ export function whiteNightSpineWorldUnitToVh(
  * @return {{alpha: number, scale: number}|undefined} 该时刻的 alpha 与缩放；未点亮或已结束时返回 undefined。
  */
 export function whiteNightRangeEffectFrame(
-  elapsedSeconds,
-  effect = whiteNightSpineRangeEffect,
+    elapsedSeconds,
+    effect = whiteNightSpineRangeEffect,
 ) {
   if (
-    !Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 ||
-    elapsedSeconds >= effect.durationSeconds
+      !Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 ||
+      elapsedSeconds >= effect.durationSeconds
   ) {
     return undefined;
   }
@@ -303,43 +305,23 @@ export const loadWhiteNightSpineRuntime = loadSpineRuntime;
  * 与 Unity 导出脚本测量 `Renderer.bounds` 的方式一致：逐帧更新骨架，取所有附件
  * 世界顶点的并集。测量会占用同一个 AnimationState，调用方随后需要自行清空轨道。
  *
- * @param {object} runtime Spine 运行时命名空间。
- * @param {object} animationState 用于采样的动画状态。
- * @param {object} skeleton 用于采样的骨架实例。
+ * @template {{x: number, y: number}} Point
+ * @template {{updateWorldTransform(): void, getBounds(offset: Point, size: Point, temp: number[]): void}} Skeleton
+ * @param {{Vector2: new () => Point}} runtime Spine 运行时命名空间。
+ * @param {{update(delta: number): void, apply(skeleton: Skeleton): unknown}} animationState 用于采样的动画状态。
+ * @param {Skeleton} skeleton 用于采样的骨架实例。
  * @param {object} animation 要测量的动画。
  * @return {{minX: number, minY: number, maxX: number, maxY: number}|undefined} 动画包围盒。
  */
 export function measureWhiteNightSpineBounds(
-  runtime,
-  animationState,
-  skeleton,
-  animation,
+    runtime,
+    animationState,
+    skeleton,
+    animation,
 ) {
-  const sampleCount = Math.max(
-    2,
-    Math.round(animation.duration * whiteNightSpineBoundsSampleRate),
-  );
-  const step = animation.duration / sampleCount;
-  const offset = new runtime.Vector2();
-  const size = new runtime.Vector2();
-  const temp = new Array(8);
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  for (let index = 0; index <= sampleCount; index++) {
-    if (index > 0) animationState.update(step);
-    animationState.apply(skeleton);
-    skeleton.updateWorldTransform();
-    skeleton.getBounds(offset, size, temp);
-    if (!Number.isFinite(size.x) || !Number.isFinite(size.y)) continue;
-    minX = Math.min(minX, offset.x);
-    minY = Math.min(minY, offset.y);
-    maxX = Math.max(maxX, offset.x + size.x);
-    maxY = Math.max(maxY, offset.y + size.y);
-  }
-  if (!(maxX > minX) || !(maxY > minY)) return undefined;
-  return {maxX, maxY, minX, minY};
+  const sampleCount = Math.max(2, Math.round(animation.duration * whiteNightSpineBoundsSampleRate));
+  const bounds = sampleSpineAnimationBounds(runtime, animationState, skeleton, animation.duration, sampleCount);
+  return bounds.maxX > bounds.minX && bounds.maxY > bounds.minY ? bounds : undefined;
 }
 
 /**
@@ -355,7 +337,7 @@ export function measureWhiteNightSpineBounds(
  * @param {string} [options.moduleRoot] 彩蛋模块根路径。
  * @param {boolean} [options.hidden] 是否先以隐藏状态创建画布。
  * @param {() => void} [options.onSkillSound] 特技第 3.5 秒的音效事件回调。
- * @return {{canvas: object, currentAnimation: string|undefined, viewBounds: {minX: number, minY: number, maxX: number, maxY: number}|undefined, ready: Promise<boolean>, isReady: () => boolean, playEscapeIdle: () => boolean, playEscapeSpecial: () => boolean, playDeath: () => boolean, resize: () => void, dispose: () => void}|undefined} 舞台控制器。
+ * @return {{canvas: HTMLCanvasElement, currentAnimation: string|undefined, viewBounds: {minX: number, minY: number, maxX: number, maxY: number}|undefined, ready: Promise<boolean>, isReady: () => boolean, playEscapeIdle: () => boolean, playEscapeSpecial: () => boolean, playDeath: () => boolean, resize: () => void, dispose: () => void}|undefined} 舞台控制器。
  */
 export function createWhiteNightSpineStage(options) {
   const {document, globalObject} = options ?? {};
@@ -383,6 +365,7 @@ export function createWhiteNightSpineStage(options) {
   let disposed = false;
   let frame = undefined;
   let lastTimestamp = undefined;
+  /** @type {{minX: number, minY: number, maxX: number, maxY: number}|undefined} */
   let bounds;
   let layout;
   let runtime;
@@ -391,6 +374,7 @@ export function createWhiteNightSpineStage(options) {
   let animationState;
   let sceneRenderer;
   let assetManager;
+  /** @type {string|undefined} */
   let currentAnimation;
   let rangeTexture;
   let rangeColor;
@@ -503,17 +487,10 @@ export function createWhiteNightSpineStage(options) {
    */
   const scheduleFrame = () => {
     if (disposed || frame !== undefined) return;
-    if (typeof hostGlobal.requestAnimationFrame === 'function') {
-      frame = hostGlobal.requestAnimationFrame((timestamp) => {
-        frame = undefined;
-        tick(timestamp);
-      });
-      return;
-    }
-    frame = hostGlobal.setTimeout?.(() => {
+    frame = requestSpineFrame(hostGlobal, (timestamp) => {
       frame = undefined;
-      tick(hostGlobal.performance?.now?.() ?? Date.now());
-    }, 16);
+      tick(timestamp);
+    });
   };
 
   /**
@@ -606,28 +583,28 @@ export function createWhiteNightSpineStage(options) {
    * @return {Promise<object|undefined>} 贴图对象；加载失败时返回 undefined。
    */
   const loadRangeTexture = () =>
-    new Promise((resolve) => {
-      const image = hostDocument.createElement('img');
-      image.addEventListener?.('load', () => {
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-        const texture = new runtime.webgl.GLTexture(gl, image);
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-        resolve(texture);
+      new Promise((resolve) => {
+        const image = hostDocument.createElement('img');
+        image.addEventListener?.('load', () => {
+          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+          const texture = new runtime.webgl.GLTexture(gl, image);
+          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+          resolve(texture);
+        });
+        image.addEventListener?.('error', () => {
+          // 白圈贴图缺失时特技没有光圈，这里留下控制台痕迹便于排查。
+          hostGlobal.console?.warn?.(
+              `[WhiteNight] range effect texture failed: ${image.src}`,
+          );
+          resolve(undefined);
+        });
+        image.src = `${assetsRoot}/${whiteNightSpineRangeTexture}`;
       });
-      image.addEventListener?.('error', () => {
-        // 白圈贴图缺失时特技没有光圈，这里留下控制台痕迹便于排查。
-        hostGlobal.console?.warn?.(
-            `[WhiteNight] range effect texture failed: ${image.src}`,
-        );
-        resolve(undefined);
-      });
-      image.src = `${assetsRoot}/${whiteNightSpineRangeTexture}`;
-    });
 
   /**
    * 测量出逃待机的包围盒，作为所有白夜动画共用的取景。
    *
-   * @param {object} spine Spine 运行时命名空间。
+   * @param {import('./SpineRuntime.js').SpineRuntime} spine Spine 运行时命名空间。
    * @param {object} data 骨架数据。
    * @return {{minX: number, minY: number, maxX: number, maxY: number}} 动画包围盒。
    */
@@ -661,17 +638,24 @@ export function createWhiteNightSpineStage(options) {
 
   const ready = start().then(() => true);
 
+  // 公开的宿主接口按需或经动态脚本调用，保留已声明的控制能力。
+  // noinspection JSUnusedGlobalSymbols
   return {
     canvas,
 
-    /** 当前播放的动画名。 */
+    /** @return {string|undefined} 当前播放的动画名。 */
     get currentAnimation() {
       return currentAnimation;
     },
 
-    /** 出逃待机包围盒；所有白夜动画共用这一份取景。 */
+    /** @return {{minX: number, minY: number, maxX: number, maxY: number}|undefined} 出逃待机包围盒；所有白夜动画共用这一份取景。 */
     get viewBounds() {
-      return bounds ? {...bounds} : undefined;
+      return bounds ? {
+        minX: bounds.minX,
+        minY: bounds.minY,
+        maxX: bounds.maxX,
+        maxY: bounds.maxY,
+      } : undefined;
     },
 
     ready,

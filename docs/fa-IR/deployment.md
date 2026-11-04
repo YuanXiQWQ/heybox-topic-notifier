@@ -1,53 +1,25 @@
+<!-- GitHub 文档用 align 保持 RTL 对齐，代码块单独采用 LTR。 -->
+<!--suppress HtmlDeprecatedAttribute -->
 <div dir="rtl" lang="fa-IR" align="right">
 
-# راهنمای استقرار
+سرویس Deno روی Oracle Cloud اجرا می‌شود و Caddy اتصال HTTPS را فراهم می‌کند. حساب‌ها، نشست‌ها و نتایج در Turso ذخیره می‌شوند. GitHub Actions بسته‌های نصب Windows و Android را از برچسب‌های انتشار می‌سازد.
 
-این پروژه با یکپارچه‌سازی GitHub در Deno Deploy مستقر می‌شود و از GitHub Actions برای استقرار برنامه استفاده نمی‌کند. GitHub Actions فقط
-`deno task check` را اجرا می‌کند، و Deno Deploy پس از push به مخزن، ساخت و مسیریابی برنامه را انجام می‌دهد.
-
-## استقرار شاخه‌ها
-
-Deno Deploy برای یک App واحد timelineهای متفاوت ایجاد می‌کند:
-
-- &rlm;`main`: استقرار انتشار رسمی، مسیریابی‌شده به Production URL
-- &rlm;`dev`: استقرار آزمایشی پیش از انتشار، مسیریابی‌شده به Git Branch / DEV URL
-
-وقتی نام App فعلی `heybox-topic-notifier` باشد، قرارداد URL تقریباً چنین است:
-
-<pre dir='ltr' align='left'><code class='language-text'>https://heybox-topic-notifier.yuanxiqwq.deno.net
-https://heybox-topic-notifier--dev.yuanxiqwq.deno.net
-</code></pre>
-
-استقرار آزمایشی فعلی `dev` ایجاد شده است و ورودی پایدار آزمایش همان Git Branch / DEV URL است. pushهای بعدی به `dev`
-باعث به‌روزرسانی استقرار آزمایشی می‌شوند، و push به `main` باعث به‌روزرسانی Production می‌شود.
-
-یکپارچه‌سازی GitHub در Deno Deploy ممکن است برای push شاخه‌های feature، Git Branch timeline و Build ایجاد کند. برای جلوگیری از این‌که Preview
-و شاخه‌های معمولی feature به‌صورت تکراری KV را بخوانند، Heybox را واکشی کنند یا اعلان بفرستند، نقطهٔ ورود استقرار Cron را در سطح بالا اعلام می‌کند، اما handler فقط زمانی ادامه می‌دهد که
-`DENO_TIMELINE=production` یا `DENO_TIMELINE=git-branch/dev` باشد. درخواست‌های عادی صفحه، مسیر ریشه،
-بررسی سلامت و درخواست‌های Warm up
-باعث polling خودکار نمی‌شوند؛ پرس‌وجوهای زمان‌رسیدهٔ صفحهٔ جلویی با کمتر از یک دقیقه، زمان‌بندی حساب فعلی را از طریق یک رابط وضعیت کنترل‌شده فعال می‌کنند.
-
-## پیکربندی Deno Deploy
-
-در Deno Deploy App پیکربندی زیر را حفظ کنید:
-
-- &rlm;Repository: `YuanXiQWQ/heybox-topic-notifier`
-- &rlm;App Directory: root directory
-- &rlm;Entrypoint: `./src/deploy.ts`
-- &rlm;Config Source: `deno.json deploy section`
-
-پیکربندی deploy در `deno.json` تنها منبع پیکربندی مخزن برای نقطهٔ ورود استقرار است.
-
-## پایگاه داده
-
-Deno Deploy App به پایگاه دادهٔ Deno KV متصل شده است. کد با `Deno.openKv()`
-حساب‌ها، تنظیمات، تاریخچه، وضعیت polling و نشانگرهای پست‌های پردازش‌شده را می‌خواند و می‌نویسد. گذرواژه‌های حساب به‌صورت هش‌های PBKDF2 نمک‌گذاری‌شده ذخیره می‌شوند؛ داده‌های کاربر بر اساس پیشوند user
-ID جدا می‌شوند، و Deno Deploy نیز داده‌های Production و Git Branch را بر اساس timeline جدا می‌کند.
+[systemd](../../ops/heybox-topic-notifier.service) · [Caddy](../../ops/Caddyfile)
 
 ## متغیرهای محیط اجرای برنامه
 
-در Deno Deploy App بر اساس نیاز پیکربندی کنید. فایل `.env.example` در ریشهٔ مخزن بر اساس سناریوها مرتب شده است: به‌صورت پیش‌فرض فقط حداقل پیکربندی قابل استفاده فعال است،
-و سایر تنظیمات بهینه‌سازی polling، کانال‌های اعلان، رله و allowlist امنیتی به‌صورت comment باقی می‌مانند؛ برای هر سناریو فقط خط‌های مربوط را از حالت comment خارج کنید.
+[`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
+
+```dotenv
+STORAGE_READ_BACKEND=turso
+TURSO_DATABASE_URL=libsql://YOUR_DATABASE.turso.io
+TURSO_AUTH_TOKEN=<TOKEN>
+PUBLIC_ORIGIN=https://YOUR_DOMAIN
+PORT=8000
+VM_POLLING_ENABLED=false
+```
+
+برای آزمایش از پایگاه دادهٔ جداگانه استفاده کنید. پس از توقف بررسی‌های دوره‌ای سرور قبلی، در محیط عملیاتی `VM_POLLING_ENABLED=true` را تنظیم و سرویس را دوباره اجرا کنید.
 
 - مقدارهای پیش‌فرض پایه: `APP_LOCALE`، `HEYBOX_TOPIC_ID`، `NOTIFIER_PROVIDER`
 - بهینه‌سازی polling: `POLL_INTERVAL_MINUTES`، `POLL_POST_LIMIT`، `POLL_SORT`
@@ -71,22 +43,19 @@ HTTP redirectها گام‌به‌گام اعتبارسنجی می‌شوند و
 A/AAAA میزبان مقصد نیز بررسی می‌شود تا در محدودهٔ localhost، شبکهٔ داخلی، link-local، سرویس metadata یا آدرس‌های رزرو‌شده قرار نگیرد. `OUTBOUND_ALLOWED_HOSTS`
 مرز اعتماد صریحی است که مدیر تعیین می‌کند، و wildcard فقط باید زیر دامنه‌هایی پیکربندی شود که کاملاً تحت کنترل شما هستند.
 
-برنامه صفحه‌های ثبت‌نام و ورود ارائه می‌دهد. اطلاعات حساب، نشست‌های ورود، و تنظیمات، رکوردهای تطابق، وضعیت polling و پیکربندی اعلان هر حساب در
-Deno KV ذخیره می‌شوند و بر اساس user ID جدا هستند. کوکی مرورگر فقط یک session token تصادفی ذخیره می‌کند؛ سرور hash توکن
-و زمان انقضا را ذخیره می‌کند.
-
 واکشی واقعی موضوعات Heybox در حال حاضر تنها منبع دادهٔ در حال اجرا است. به‌صورت پیش‌فرض، `HEYBOX_SIGNATURE_MODE=app` از فهرست زمان انتشار App API تأییدشده استفاده می‌کند؛
 `web` فقط به‌عنوان fallback تشخیصی نگه داشته شده است.
 حساب‌های جدید با polling غیرفعال شروع می‌کنند و تنها پس از فعال‌کردن «فعال‌سازی polling» در صفحهٔ تنظیمات خودشان واکشی می‌کنند.
 
 ## رلهٔ اعلان
 
-اگر Deno Deploy نتواند مستقیماً به PushPlus، WxPusher یا Server酱 دسترسی داشته باشد، می‌توانید ابتدا یک Cloudflare Worker رایگان
+اگر Oracle Cloud نتواند مستقیماً به PushPlus، WxPusher یا Server酱 دسترسی داشته باشد، می‌توانید ابتدا یک Cloudflare Worker رایگان
 برای رله مستقر کنید. فایل `workers/notification-relay.js` در مخزن سه ورودی ثابت `/pushplus`، `/wxpusher` و `/serverchan`
 را برای forward فراهم می‌کند و برای احراز هویت از `Authorization: Bearer <token>` استفاده می‌کند؛ مراحل کامل را در [worker.md](worker.md) ببینید.
 
-نمونهٔ پیکربندی سمت Deno Deploy:
+نمونهٔ پیکربندی سمت Oracle Cloud:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
 NOTIFIER_SERVER_CHAN_SEND_URL=https://&lt;your-worker&gt;.workers.dev/serverchan
@@ -95,11 +64,9 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 ## اعتبارسنجی
 
-پس از تکمیل استقرار، باز کنید:
-
-<pre dir='ltr' align='left'><code class='language-text'>/healthz
-</code></pre>
-
-بازگشت `status: ok` یعنی فرایند سرویس شروع شده است و بررسی سلامت Deno KV را نمی‌خواند.
+```sh
+systemctl is-active heybox-topic-notifier.service
+curl --fail --silent --show-error -H "Host: YOUR_DOMAIN" http://127.0.0.1:8000/healthz
+```
 
 </div>

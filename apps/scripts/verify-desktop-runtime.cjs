@@ -1,10 +1,10 @@
 /** @file 核对实际打包的 Electron 和 Node.js 版本，拒绝包含已知未修复运行时的发行。 */
-const fs = require("node:fs");
-const path = require("node:path");
-const { execFileSync } = require("node:child_process");
+const fs = require('node:fs');
+const path = require('node:path');
+const {execFileSync} = require('node:child_process');
 
 /** Node.js 2026 年 10 月安全公告中各维护分支的最低修复版本。 */
-const minimumNodeVersions = {22: "22.23.4", 24: "24.22.1", 26: "26.12.1"};
+const minimumNodeVersions = {22: '22.23.4', 24: '24.22.1', 26: '26.12.1'};
 
 /**
  * 比较正式运行时版本，不把未知主版本或预发行版本当作已验证的安全版本。
@@ -13,8 +13,8 @@ const minimumNodeVersions = {22: "22.23.4", 24: "24.22.1", 26: "26.12.1"};
  */
 function hasSecurityFix(version) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) return false;
-  const actual = version.split(".").map(Number);
-  const minimum = minimumNodeVersions[actual[0]]?.split(".").map(Number);
+  const actual = version.split('.').map(Number);
+  const minimum = minimumNodeVersions[actual[0]]?.split('.').map(Number);
   if (!minimum) return false;
   for (let index = 0; index < actual.length; index++) {
     if (actual[index] !== minimum[index]) return actual[index] > minimum[index];
@@ -29,12 +29,12 @@ function hasSecurityFix(version) {
  */
 function verify(executable) {
   const target = path.resolve(executable);
-  if (!fs.statSync(target).isFile()) throw new Error("Packaged executable is missing");
-  const versions = JSON.parse(execFileSync(target, ["-p", "JSON.stringify(process.versions)"], {
-    encoding: "utf8", windowsHide: true, timeout: 30000,
-    env: {...process.env, ELECTRON_RUN_AS_NODE: "1", NODE_OPTIONS: ""},
+  if (!fs.statSync(target).isFile()) throw new Error('Packaged executable is missing');
+  const versions = JSON.parse(execFileSync(target, ['-p', 'JSON.stringify(process.versions)'], {
+    encoding: 'utf8', windowsHide: true, timeout: 30000,
+    env: {...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: ''},
   }).trim());
-  const expected = require("../desktop/package.json").devDependencies.electron;
+  const expected = require('../desktop/package.json').devDependencies.electron;
   if (versions.electron !== expected) throw new Error(`Expected Electron ${expected}, found ${versions.electron}`);
   if (!hasSecurityFix(versions.node)) throw new Error(`Node.js security baseline is not satisfied: ${versions.node}`);
   return {electron: versions.electron, node: versions.node, chrome: versions.chrome};
@@ -43,7 +43,10 @@ function verify(executable) {
 module.exports = {hasSecurityFix, verify};
 if (require.main === module) {
   try {
-    if (!process.argv[2]) throw new Error("Pass the packaged executable path");
+    if (!process.argv[2])
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error('Pass the packaged executable path');
     console.log(JSON.stringify(verify(process.argv[2])));
   } catch (error) {
     console.error(error.message);

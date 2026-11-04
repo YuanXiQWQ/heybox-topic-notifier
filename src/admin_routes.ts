@@ -1,12 +1,9 @@
 /** @file 管理员面板：邀请码管理及经过再认证的超级管理员用户操作。 */
 import { bodyLimit } from "@hono/hono/body-limit";
 import { Hono } from "@hono/hono";
-import {
-  hashPassword,
-  readAuthSession,
-  validDisplayName,
-  validUsername,
-} from "./auth.ts";
+import { hashPassword } from "./auth/password.ts";
+import { readAuthSession } from "./auth/session.ts";
+import { normalizeDisplayName, normalizeUsername, validAccountName } from "./auth/account_names.ts";
 import { type TotpConfig, verifyEncryptedTotpCode } from "./auth/totp.ts";
 import {
   accountRole,
@@ -28,17 +25,28 @@ import { logSecurityAuditEvent } from "./security/audit_log.ts";
 import type { Storage } from "./storage/types.ts";
 import { type AdminUser, renderAdmin } from "./views/admin.ts";
 
-/** @param {Storage} storage 权威存储。 @param {TotpConfig} totp 验证器配置；缺失时禁止解锁。 @return {Hono} 管理路由，所有写操作再次在存储事务中校验身份。 */
+/**
+ * @param {Storage} storage 权威存储。
+ * @param {TotpConfig} totp 验证器配置；缺失时禁止解锁。
+ * @return {Hono} 管理路由，所有写操作再次在存储事务中校验身份。
+ */
 export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
   const app = new Hono<{ Variables: { account: UserAccount } }>();
-  /** @param {import("@hono/hono").Context} c 当前请求。 @return {Promise<string>} 绑定当前登录令牌的授权索引。 */
+  /**
+   * @param {import("@hono/hono").Context} c 当前请求。
+   * @return {Promise<string>} 绑定当前登录令牌的授权索引。
+   */
   async function grantId(c: import("@hono/hono").Context): Promise<string> {
     return await secretDigest(
       "admin:" +
         (parseCookies(c.req.header("cookie")).get("heybox_session") ?? ""),
     );
   }
-  /** @param {import("@hono/hono").Context} c 当前请求。 @param {UserAccount} account 数据库账号。 @return {Promise<boolean>} 当前会话是否完成短期再认证。 */
+  /**
+   * @param {import("@hono/hono").Context} c 当前请求。
+   * @param {UserAccount} account 数据库账号。
+   * @return {Promise<boolean>} 当前会话是否完成短期再认证。
+   */
   async function unlocked(
     c: import("@hono/hono").Context,
     account: UserAccount,
@@ -62,14 +70,22 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
     }
     return false;
   }
-  /** @param {import("@hono/hono").Context} c 当前请求。 @param {string[]} codes 刚生成的邀请码。 @param {string} error 操作错误。 @return {Promise<Response>} 管理页面。 */
+  /**
+   * @param {import("@hono/hono").Context} c 当前请求。
+   * @param {string[]} codes 刚生成的邀请码。
+   * @param {string} error 操作错误。
+   * @return {Promise<Response>} 管理页面。
+   */
   async function page(
     c: import("@hono/hono").Context,
     codes: string[] = [],
     error = "",
   ): Promise<Response> {
     const account = c.get("account") as UserAccount,
-      settings = settingsForDevice(await storage.forUser(account.id).getSettings(), c.req.raw);
+      settings = settingsForDevice(
+        await storage.forUser(account.id).getSettings(),
+        c.req.raw,
+      );
     const csrf = csrfTokenForRequest(c.req.header("cookie"), c.req.url);
     const canManageUsers = await unlocked(c, account);
     let users: AdminUser[] | undefined;
@@ -113,7 +129,11 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
       csrf,
     );
   }
-  /** @param {Error} error 内部失败。 @param {import("@hono/hono").Context} c 请求。 @return {Response} 不泄露数据库参数的错误反馈。 */
+  /**
+   * @param {Error} error 内部失败。
+   * @param {import("@hono/hono").Context} c 请求。
+   * @return {Response} 不泄露数据库参数的错误反馈。
+   */
   app.onError((_error, c) => {
     logSecurityAuditEvent({
       code: "admin_operation_failed",
@@ -204,9 +224,15 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
       });
     }
   });
-  /** @param {import("@hono/hono").Context} c 当前请求。 @return {Promise<Response>} 按身份和再验证状态展示面板。 */
+  /**
+   * @param {import("@hono/hono").Context} c 当前请求。
+   * @return {Promise<Response>} 按身份和再验证状态展示面板。
+   */
   app.get("/", (c) => page(c));
-  /** @param {import("@hono/hono").Context} c 当前请求。 @return {Promise<Response>} 当前会话的短期管理授权。 */
+  /**
+   * @param {import("@hono/hono").Context} c 当前请求。
+   * @return {Promise<Response>} 当前会话的短期管理授权。
+   */
   app.post("/unlock", async (c) => {
     const account = c.get("account"), form = await c.req.parseBody();
     if (accountRole(account) !== "superadmin") {
@@ -280,7 +306,10 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
     });
     return c.redirect("/admin", 303);
   });
-  /** @param {import("@hono/hono").Context} c 当前请求。 @return {Promise<Response>} 仅展示一次的邀请码原文。 */
+  /**
+   * @param {import("@hono/hono").Context} c 当前请求。
+   * @return {Promise<Response>} 仅展示一次的邀请码原文。
+   */
   app.post("/invitations", async (c) => {
     const form = await c.req.parseBody(),
       account = c.get("account"),
@@ -311,7 +340,10 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
     });
     return result === "ok" ? page(c, codes) : page(c, [], result);
   });
-  /** @param {import("@hono/hono").Context} c 当前请求。 @return {Promise<Response>} 权限校验后的撤销结果。 */
+  /**
+   * @param {import("@hono/hono").Context} c 当前请求。
+   * @return {Promise<Response>} 权限校验后的撤销结果。
+   */
   app.post("/invitations/:id/revoke", async (c) => {
     const account = c.get("account"), id = c.req.param("id");
     const value = (await storage.administration!.listInvitations()).find(
@@ -337,7 +369,10 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
       ? c.redirect("/admin?saved=1", 303)
       : page(c, [], result);
   });
-  /** @param {import("@hono/hono").Context} c 当前请求。 @return {Promise<Response>} 超级管理员的字段白名单操作结果。 */
+  /**
+   * @param {import("@hono/hono").Context} c 当前请求。
+   * @return {Promise<Response>} 超级管理员的字段白名单操作结果。
+   */
   app.post("/users/:action", async (c) => {
     const actor = c.get("account");
     if (!(await unlocked(c, actor))) {
@@ -365,12 +400,12 @@ export function createAdminRoutes(storage: Storage, totp?: TotpConfig) {
         version,
       );
     } else if (action === "create" || action === "edit") {
-      const username = String(form.username ?? "").trim().toLowerCase(),
-        displayName = String(form.displayName ?? "").trim(),
+      const username = normalizeUsername(String(form.username ?? "")),
+        displayName = normalizeDisplayName(String(form.displayName ?? "")),
         role = String(form.role ?? "user");
       if (
-        !validUsername(username) ||
-        (displayName && !validDisplayName(displayName)) ||
+        !validAccountName(username) ||
+        (displayName && !validAccountName(displayName)) ||
         !["user", "admin", "superadmin"].includes(role)
       ) return page(c, [], "invalid");
       const typedRole = role as NonNullable<UserAccount["role"]>;

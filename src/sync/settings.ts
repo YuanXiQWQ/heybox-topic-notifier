@@ -45,7 +45,11 @@ export function splitSettings(settings: AppSettings): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   const grouped = new Set<string>(Object.values(groups).flat());
   for (const [key, value] of Object.entries(settings)) {
-    if (!["topics", "polling", "matching", ...devicePreferenceFields].includes(key) && !grouped.has(key)) {
+    if (
+      !["topics", "polling", "matching", ...devicePreferenceFields].includes(
+        key,
+      ) && !grouped.has(key)
+    ) {
       values[`setting/${key}`] = value;
     }
   }
@@ -153,7 +157,10 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
   >();
   for (const [region, entry] of Object.entries(snapshot.regions)) {
     const [kind, field, part] = region.split("/");
-    if (kind === "setting" && !(devicePreferenceFields as readonly string[]).includes(field)) {
+    if (
+      kind === "setting" &&
+      !(devicePreferenceFields as readonly string[]).includes(field)
+    ) {
       Object.assign(result, { [field]: structuredClone(entry.value) });
     }
     if (kind === "group") Object.assign(result, structuredClone(entry.value));
@@ -198,7 +205,12 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
       a.order - b.order ||
       (a.topic.id < b.topic.id ? -1 : a.topic.id === b.topic.id ? 0 : 1)
     ).map((item) => item.topic);
-  if (result.polling.schedule) result.polling.schedule = normalizeSchedule(result.polling.schedule, result.locale);
+  if (result.polling.schedule) {
+    result.polling.schedule = normalizeSchedule(
+      result.polling.schedule,
+      result.locale,
+    );
+  }
   return result;
 }
 
@@ -216,7 +228,9 @@ export function mergeSettings(
   const applied: string[] = [];
   const superseded: string[] = [];
   for (const edit of edits) {
-    if (devicePreferenceFields.some((field) => edit.region === `setting/${field}`)) continue;
+    if (
+      devicePreferenceFields.some((field) => edit.region === `setting/${field}`)
+    ) continue;
     const previous = snapshot.regions[edit.region];
     const comparison = compareEdits(
       edit.stamp,

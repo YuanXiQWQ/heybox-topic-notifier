@@ -85,7 +85,8 @@ export async function startMatchingRun(
   source: TopicSource,
   ai = createAiMatcher(),
   now = Date.now,
-  sendAiFailure: (id: string) => Promise<boolean> = () => Promise.resolve(false),
+  sendAiFailure: (id: string) => Promise<boolean> = () =>
+    Promise.resolve(false),
 ) {
   const token = crypto.randomUUID();
   if (!await store.acquire(token, now())) return undefined;
@@ -277,7 +278,10 @@ export async function startMatchingRun(
       if (visibleIds.get(topic.id)?.has(post.id)) entry.lastSeenAt = timestamp;
       const live = old && old.expiresAt > timestamp;
       // 兼容把三次失败冻结至过期时间的条目，使仍有效的帖子恢复 AI 尝试。
-      if (!entry.insufficient && entry.attempts >= 3 && entry.retryAt === entry.expiresAt) {
+      if (
+        !entry.insufficient && entry.attempts >= 3 &&
+        entry.retryAt === entry.expiresAt
+      ) {
         entry.attempts = 0;
         entry.retryAt = 0;
       }
@@ -294,11 +298,14 @@ export async function startMatchingRun(
         runtime.hits++;
         if (activity) activity.hits++;
         await saveEntry(entry);
-        return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;
+        return entry.result
+          ? normalizeMatchResult(entry.result, settings.mode)
+          : undefined;
       }
       if (
         same && live && entry.result === undefined &&
-        (entry.retryAt > timestamp || (entry.insufficient && entry.attempts >= 3))
+        (entry.retryAt > timestamp ||
+          (entry.insufficient && entry.attempts >= 3))
       ) {
         await saveEntry(entry);
         return undefined;
@@ -311,7 +318,9 @@ export async function startMatchingRun(
         entry.result = await rulesMatcher.findMatch(post, rules) ?? null;
         entry.evaluatedAt = timestamp;
         await saveEntry(entry);
-        return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;
+        return entry.result
+          ? normalizeMatchResult(entry.result, settings.mode)
+          : undefined;
       }
       const limited = JSON.parse(aiPostText(post, settings));
       entry.pendingPost = {
@@ -338,7 +347,10 @@ export async function startMatchingRun(
       let detailed = post;
       try {
         if (source.getPostDetails) detailed = await source.getPostDetails(post);
-        if (detailed.detailsComplete === false) throw new Error("detail");
+        if (detailed.detailsComplete === false)
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
+          throw new Error("detail");
       } catch {
         entry.attempts++;
         entry.retryAt = now() + 300000 * entry.attempts;
@@ -368,7 +380,9 @@ export async function startMatchingRun(
         runtime.hits++;
         if (activity) activity.hits++;
         await saveEntry(entry);
-        return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;
+        return entry.result
+          ? normalizeMatchResult(entry.result, settings.mode)
+          : undefined;
       }
       entry.detailFingerprint = detailedHash;
       const ruleMatch = settings.mode === "hybrid"
@@ -384,11 +398,15 @@ export async function startMatchingRun(
       try {
         aiEndpoint(settings.apiUrl);
         if (!settings.apiKey || !settings.model || !settings.prompt) {
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
           throw new Error("config");
         }
       } catch {
         return await fallback(
-          entry, detailed, rules,
+          entry,
+          detailed,
+          rules,
           "请完整配置有效的 AI 接口、密钥、模型和提示词。",
         );
       }
@@ -406,7 +424,9 @@ export async function startMatchingRun(
       if (decision.usageKnown) runtime.unknownUsage--;
       if (decision.error || !decision.decision) {
         return await fallback(
-          entry, detailed, rules,
+          entry,
+          detailed,
+          rules,
           decision.error ?? "AI 返回的分类格式无效。",
         );
       }
@@ -423,7 +443,12 @@ export async function startMatchingRun(
         delete entry.insufficient;
         entry.result = decision.decision === "match"
           ? ruleMatch ??
-            { kind: "ai", keyword: "", aiReason: shortAiReason(decision.reason || "符合匹配提示词"), location: decision.location ?? "unknown" }
+            {
+              kind: "ai",
+              keyword: "",
+              aiReason: shortAiReason(decision.reason || "符合匹配提示词"),
+              location: decision.location ?? "unknown",
+            }
           : null;
         entry.evaluatedAt = now();
         entry.attempts = 0;
@@ -432,7 +457,9 @@ export async function startMatchingRun(
       }
       await saveEntry(entry);
       await store.saveRuntime(runtime);
-      return entry.result ? normalizeMatchResult(entry.result, settings.mode) : undefined;
+      return entry.result
+        ? normalizeMatchResult(entry.result, settings.mode)
+        : undefined;
     },
 
     /** 保存统计、清理过期和超量缓存，并释放本次租约。 */

@@ -10,14 +10,8 @@ import {
   lobotomyCorpCanvasScaleForViewport,
   lobotomyCorpCanvasViewportForUpdate,
   lobotomyCorpReferenceCanvasHeight,
-  lobotomyCorpReferenceCanvasWidth,
   lobotomyCorpViewportSize,
 } from './CanvasScaler.js';
-
-/** AdventClockUI.prefab 的原始画布尺寸。 */
-export const whiteNightSimpleAdventCanvas = Object.freeze({
-  height: lobotomyCorpReferenceCanvasHeight, width: lobotomyCorpReferenceCanvasWidth,
-});
 
 /**
  * AdventClockUI.prefab 中 Clock RectTransform 相对 1920×1080 逻辑画布的几何。
@@ -54,30 +48,30 @@ export const whiteNightSimpleAdventColor = Object.freeze({
   alpha: 1, blue: 0.11978597, green: 0, red: 0.7058823,
 });
 
-  /** Names[] Legacy Text 的 BMDOHYEON Best Fit 参数。 */
-  export const whiteNightSimpleAdventNameText = Object.freeze({
-    fontFamily: 'LobotomyAdventNames', maxSize: 40, normalMinSize: 14, twelfthMinSize: 12,
-  });
+/** Names[] Legacy Text 的 BMDOHYEON Best Fit 参数。 */
+export const whiteNightSimpleAdventNameText = Object.freeze({
+  fontFamily: 'LobotomyAdventNames', maxSize: 40, normalMinSize: 14, twelfthMinSize: 12,
+});
 
-  /**
-   * 这段文字是否需要改用系统中日韩字体。
-   *
-   * 原版 AdventClockUI 的 12 个名字用 BMDOHYEON、台词用 NanumMyeongjo，都是韩文字体，
-   * 中日文字形不全（实测 12 条中文台词共 142 个汉字：BMDOHYEON 缺 32 个，NanumMyeongjo
-   * 一个都没有），而这两支字体也不在游戏的语言字体表里（`GlobalGameManager.fontList`
-   * 只有 kr/en/ru/es），中文只能落到系统字体。
-   *
-   * 原作一个 Legacy Text 只用一支字体，所以这里也是**整段**切换，而不是让浏览器逐字回退
-   * （逐字回退会把一个名字拼成两种字体）。
-   *
-   * @param {unknown} text 待渲染文本。
-   * @return {boolean} 出现中日文（汉字、假名、日文标点）时返回 true。
-   */
-  export function adventTextNeedsCjkFont(text) {
-    return /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u.test(
+/**
+ * 这段文字是否需要改用系统中日韩字体。
+ *
+ * 原版 AdventClockUI 的 12 个名字用 BMDOHYEON、台词用 NanumMyeongjo，都是韩文字体，
+ * 中日文字形不全（实测 12 条中文台词共 142 个汉字：BMDOHYEON 缺 32 个，NanumMyeongjo
+ * 一个都没有），而这两支字体也不在游戏的语言字体表里（`GlobalGameManager.fontList`
+ * 只有 kr/en/ru/es），中文只能落到系统字体。
+ *
+ * 原作一个 Legacy Text 只用一支字体，所以这里也是**整段**切换，而不是让浏览器逐字回退
+ * （逐字回退会把一个名字拼成两种字体）。
+ *
+ * @param {unknown} text 待渲染文本。
+ * @return {boolean} 出现中日文（汉字、假名、日文标点）时返回 true。
+ */
+export function adventTextNeedsCjkFont(text) {
+  return /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u.test(
       typeof text === 'string' ? text : '',
-    );
-  }
+  );
+}
 
 /** SimpleAdventStart() 的 _advent_adventAnim 时长。 */
 export const whiteNightSimpleAdventDurationMs = 4000;
@@ -94,9 +88,6 @@ export const whiteNightSimpleAdventClockCenterSprite = Object.freeze({
     height: 257.9327, width: 259.85663, x: 380.0761, y: 0,
   }), texture: Object.freeze({height: 383, width: 1024}),
 });
-
-/** Simple Advent 实际可见的 prefab Sprite，保持父子 sibling 顺序。 */
-export const whiteNightSimpleAdventSprites = Object.freeze(['ClockFrame.png', 'GlobalShader.png', 'ClockShader.png', 'LowerShader.png',]);
 
 /** AdventClockUI.Names[] 的明确 index → RectTransform 映射。 */
 export const whiteNightSimpleAdventNameSlots = Object.freeze([[129.96, 239.4, 29.999994], [227.28, 132.72, 60], [260.52, -6.72, 90], [227.04, -128.4, 121.44615], [128.4, -220.8, 154.99998], [-12.96, -252, 180], [-142.8, -212.4, -150.00002], [-229.2, -124.8, -119.99999], [-260.4, 1.2, -90], [-225.6, 141.6, -60.000023], [-132, 241.2, -30.000015], [0, 275.4, 0],].map(([x, y, rotation], index) => Object.freeze({
@@ -326,6 +317,8 @@ export function createWhiteNightSimpleAdvent(options) {
   activeSimpleAdvent?.dispose();
 
   const assetRoot = options.assetRoot.replace(/\/$/, '');
+  // 各演出独立注入时钟与取消接口，生命周期不共享。
+  // noinspection DuplicatedCode
   const now = options.now ?? (() => host.performance?.now?.() ?? Date.now());
   const requestFrame = options.requestFrame ?? ((callback) => host.requestAnimationFrame?.(callback) ?? setTimeout(() => callback(now()), 16));
   const cancelFrame = options.cancelFrame ?? ((id) => {
@@ -481,6 +474,8 @@ export function createWhiteNightSimpleAdvent(options) {
     if (notifyHidden) (options.onHidden ?? options.onComplete)?.();
   };
 
+  // 公开的宿主接口按需或经动态脚本调用，保留已声明的控制能力。
+  // noinspection JSUnusedGlobalSymbols
   const controller = {
     dispose: () => complete(false), element: root, finish: () => {
       beginAdventEnd(now());

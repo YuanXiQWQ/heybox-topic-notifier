@@ -1,7 +1,10 @@
 /** @file 验证浏览器订阅并通过标准 Web Push 发送与账号会话绑定的系统通知。 */
 // @deno-types="npm:@types/web-push@3.6.4"
 import webPush from "web-push";
-import { aiFallbackNotice, type ServiceNotification } from "./service_notification.ts";
+import {
+  aiFallbackNotice,
+  type ServiceNotification,
+} from "./service_notification.ts";
 import { createECDH } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { getMessages } from "../locales/index.ts";
@@ -48,7 +51,7 @@ export function webPushConfig(): WebPushConfig | undefined {
   if (
     !/^[A-Za-z0-9_-]{87}$/.test(publicKey) ||
     !/^[A-Za-z0-9_-]{43}$/.test(privateKey) ||
-    !/^(mailto:[^\s@]+@[^\s@]+|https:\/\/[^\s]+)$/.test(subject)
+    !/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/.test(subject)
   ) return undefined;
   try {
     const pair = createECDH("prime256v1");
@@ -141,19 +144,35 @@ export async function notifyBrowsers(
   userId: string,
   records: MatchRecord[] | ServiceNotification,
   settings: AppSettings,
-  options: { config?: WebPushConfig; deliver?: typeof deliverWebPush; strict?: boolean } = {},
+  options: {
+    config?: WebPushConfig;
+    deliver?: typeof deliverWebPush;
+    strict?: boolean;
+  } = {},
 ): Promise<boolean> {
   const config = options.config ?? webPushConfig();
-  if (!config || !storage.webPush || (Array.isArray(records) && records.length === 0)) return false;
+  if (
+    !config || !storage.webPush ||
+    (Array.isArray(records) && records.length === 0)
+  ) return false;
   const tag = await sessionTokenHash(
-    `${userId}:${Array.isArray(records) ? records.map((record) => record.id).sort().join("\n") : records.id}`,
+    `${userId}:${
+      Array.isArray(records)
+        ? records.map((record) => record.id).sort().join("\n")
+        : records.id
+    }`,
   );
   const messages = getMessages(settings.locale);
   const notification: AppNotification = {
     userId,
     tag,
     title: Array.isArray(records) ? messages.appName : records.title,
-    body: Array.isArray(records) ? [aiFallbackNotice(records, settings), ...records.slice(0, 3).map((record) => record.post.title.slice(0, 160))].filter(Boolean).join("\n") : records.body,
+    body: Array.isArray(records)
+      ? [
+        aiFallbackNotice(records, settings),
+        ...records.slice(0, 3).map((record) => record.post.title.slice(0, 160)),
+      ].filter(Boolean).join("\n")
+      : records.body,
     path: Array.isArray(records) ? "/" : records.path,
   };
   let sent = false;

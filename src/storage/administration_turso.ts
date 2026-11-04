@@ -7,12 +7,19 @@ import type {
   AdminResult,
 } from "./administration_types.ts";
 
-/** @param {(statement: InStatement) => Promise<ResultSet>} execute 查询接口。 @param {(statements: InStatement[]) => Promise<ResultSet[]>} batch 写事务接口。 @return {AdministrationStore} 管理存储。 */
+/**
+ * @param {(statement: InStatement) => Promise<ResultSet>} execute 查询接口。
+ * @param {(statements: InStatement[]) => Promise<ResultSet[]>} batch 写事务接口。
+ * @return {AdministrationStore} 管理存储。
+ */
 export function createTursoAdministration(
   execute: (statement: InStatement) => Promise<ResultSet>,
   batch: (statements: InStatement[]) => Promise<ResultSet[]>,
 ): AdministrationStore {
-  /** @param {InStatement[]} statements 受保护写入。 @return {Promise<AdminResult>} 事务结果。 */
+  /**
+   * @param {InStatement[]} statements 受保护写入。
+   * @return {Promise<AdminResult>} 事务结果。
+   */
   async function commit(statements: InStatement[]): Promise<AdminResult> {
     try {
       await batch([
@@ -26,7 +33,11 @@ export function createTursoAdministration(
       throw error;
     }
   }
-  /** @param {string} actor 操作者。 @param {boolean} superOnly 超级管理员限制。 @return {InStatement} 同事务权限校验。 */
+  /**
+   * @param {string} actor 操作者。
+   * @param {boolean} superOnly 超级管理员限制。
+   * @return {InStatement} 同事务权限校验。
+   */
   function authorize(actor: string, superOnly = true): InStatement {
     return {
       sql:
@@ -40,7 +51,11 @@ export function createTursoAdministration(
   function changed(): InStatement {
     return "INSERT INTO administration_guard (ok) VALUES (CASE WHEN changes() = 1 THEN 1 ELSE 0 END)";
   }
-  /** @param {AccountCreation} input 账号及凭据。 @param {boolean} privileged 是否为超级管理员直接创建。 @return {InStatement[]} 创建语句。 */
+  /**
+   * @param {AccountCreation} input 账号及凭据。
+   * @param {boolean} privileged 是否为超级管理员直接创建。
+   * @return {InStatement[]} 创建语句。
+   */
   function creation(
     input: AccountCreation,
     privileged: boolean,
@@ -235,7 +250,11 @@ export function createTursoAdministration(
         "SELECT value_json FROM invitations ORDER BY created_at DESC",
       )).rows.map((row) => JSON.parse(String(row.value_json)));
     },
-    /** @param {string} actor 操作者。 @param {Invitation[]} invitations 邀请记录。 @return {Promise<AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 操作者。
+     * @param {Invitation[]} invitations 邀请记录。
+     * @return {Promise<AdminResult>} 结果。
+     */
     issue(actor, invitations) {
       return commit([
         authorize(actor, false),
@@ -246,7 +265,11 @@ export function createTursoAdministration(
         })),
       ]);
     },
-    /** @param {string} actor 操作者。 @param {string} id 邀请摘要。 @return {Promise<AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 操作者。
+     * @param {string} id 邀请摘要。
+     * @return {Promise<AdminResult>} 结果。
+     */
     revoke(actor, id) {
       return commit([authorize(actor, false), {
         sql:
@@ -254,7 +277,12 @@ export function createTursoAdministration(
         args: [new Date().toISOString(), id],
       }, changed()]);
     },
-    /** @param {AccountCreation} input 账号资料。 @param {string} invitation 邀请摘要。 @param {string} pending 注册事务。 @return {Promise<AdminResult>} 结果。 */
+    /**
+     * @param {AccountCreation} input 账号资料。
+     * @param {string} invitation 邀请摘要。
+     * @param {string} pending 注册事务。
+     * @return {Promise<AdminResult>} 结果。
+     */
     async register(input, invitation, pending) {
       const now = new Date().toISOString();
       const rows: InStatement[] = [{
@@ -272,11 +300,19 @@ export function createTursoAdministration(
       rows.push(...creation(input, false));
       return await commit(rows);
     },
-    /** @param {string} actor 超级管理员。 @param {AccountCreation} input 账号资料。 @return {Promise<AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 超级管理员。
+     * @param {AccountCreation} input 账号资料。
+     * @return {Promise<AdminResult>} 结果。
+     */
     createUser(actor, input) {
       return commit([authorize(actor), ...creation(input, true)]);
     },
-    /** @param {string} actor 超级管理员。 @param {import("./administration_types.ts").AccountEdit} input 白名单字段。 @return {Promise<AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 超级管理员。
+     * @param {import("./administration_types.ts").AccountEdit} input 白名单字段。
+     * @return {Promise<AdminResult>} 结果。
+     */
     editUser(actor, input) {
       if (actor === input.id && input.role !== "superadmin") {
         return Promise.resolve("forbidden");
@@ -305,7 +341,12 @@ export function createTursoAdministration(
         },
       ]);
     },
-    /** @param {string} actor 超级管理员。 @param {string} id 目标账号。 @param {number} version 表单版本。 @return {Promise<AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 超级管理员。
+     * @param {string} id 目标账号。
+     * @param {number} version 表单版本。
+     * @return {Promise<AdminResult>} 结果。
+     */
     deleteUser(actor, id, version) {
       if (actor === id) return Promise.resolve("forbidden");
       const rows: InStatement[] = [
@@ -380,7 +421,10 @@ export function createTursoAdministration(
         args: [value.id, value.expiresAt, JSON.stringify(value)],
       }]);
     },
-    /** @param {string} id 摘要。 @return {Promise<AdminTemporary | undefined>} 有效记录。 */
+    /**
+     * @param {string} id 摘要。
+     * @return {Promise<AdminTemporary | undefined>} 有效记录。
+     */
     async getTemporary(id) {
       const row = (await execute({
         sql:

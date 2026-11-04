@@ -5,19 +5,19 @@
   /* 主题主色。 */
   --theme-color: #BD7FFF;
   /* 强调态主题色。 */
-  --theme-strong: #a06ed9;
+  --theme-strong: #A06ED9;
   /* 链接使用的主题色。 */
-  --theme-link: #9273e2;
+  --theme-link: #9273E2;
   /* 轻量主题背景色。 */
-  --theme-soft: #f1edf9;
+  --theme-soft: #F1EDF9;
   /* 较强的轻量主题背景色。 */
-  --theme-soft-strong: #eee6f9;
+  --theme-soft-strong: #EEE6F9;
   /* 白底操作区域悬浮背景色。 */
   --surface-action-hover: var(--theme-soft-strong);
   /* 主题边框色。 */
-  --theme-border: #d8ceef;
+  --theme-border: #D8CEEF;
   /* 页面背景色。 */
-  --bg: #f3f1f8;
+  --bg: #F3F1F8;
   /* 默认边框色。 */
   --border: #DFE4EA;
   /* 弱化边框色。 */
@@ -39,7 +39,7 @@
   /* 占位文本颜色。 */
   --placeholder: #9AA7B4;
   /* 次级按钮背景色。 */
-  --secondary-button: #8469b6;
+  --secondary-button: #8469B6;
   /* 强投影颜色。 */
   --shadow-strong: rgba(23, 32, 42, 0.18);
   /* 主内容表面色。 */
@@ -67,13 +67,13 @@
 
 :root[data-color-mode="dark"]{
   /* 暗色模式页面背景色。 */
-  --bg: #1c1b27;
+  --bg: #1C1B27;
   /* 不支持颜色混合时，仍提供完整的暗色主题。 */
-  --theme-strong: #c592fc;
-  --theme-link: #bc95ff;
-  --theme-soft: #2c2c3e;
-  --theme-soft-strong: #35324a;
-  --theme-border: #50486c;
+  --theme-strong: #C592FC;
+  --theme-link: #BC95FF;
+  --theme-soft: #2C2C3E;
+  --theme-soft-strong: #35324A;
+  --theme-border: #50486C;
   /* 暗色模式默认边框色。 */
   --border: #313842;
   /* 暗色模式弱化边框色。 */
@@ -95,7 +95,7 @@
   /* 暗色模式占位文本颜色。 */
   --placeholder: #778390;
   /* 暗色模式次级按钮背景色。 */
-  --secondary-button: #c1a7e8;
+  --secondary-button: #C1A7E8;
   /* 暗色模式强投影颜色。 */
   --shadow-strong: rgba(0, 0, 0, 0.36);
   /* 暗色模式主内容表面色。 */
@@ -211,7 +211,11 @@ a:hover{
 }
 
 .nav-avatar-button::after{
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   border-bottom: 1.5px solid currentColor;
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   border-inline-end: 1.5px solid currentColor;
   color: var(--muted);
   content: "";
@@ -850,8 +854,6 @@ input[readonly]::placeholder{
 .app-update-actions{ display: flex; justify-content: flex-end; gap: 12px; padding: 0 20px 16px; flex-wrap: wrap; }
 :root[data-application-platform="android"] .app-update-actions > button{ width: 100%; }
 .app-update-unread::after{ background: #df3946; border-radius: 50%; content: ""; display: inline-block; width: 7px; height: 7px; margin-inline-start: 7px; vertical-align: super; flex: 0 0 7px; }
-:root[data-application-platform="android"] .topbar{ padding-top: max(12px, env(safe-area-inset-top)); }
-:root[data-application-platform="android"] .shell{ padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 
 .avatar-crop-header{
   align-items: center;
@@ -932,6 +934,8 @@ input[readonly]::placeholder{
 }
 
 .avatar-crop-zoom input[type="range"]::-webkit-slider-runnable-track{
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   background: linear-gradient(to right, var(--theme-color) 0 var(--avatar-zoom-progress, 0%), var(--control-bg) var(--avatar-zoom-progress, 0%) 100%);
   border-radius: 999px;
   height: 6px;
@@ -1016,14 +1020,6 @@ input[readonly]::placeholder{
 
 .application-notifications-cell [data-app-notifications-retry]{
   order: -1;
-}
-
-.security-toggle-row{
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  max-width: min(100%, 860px);
 }
 
 .account-username-row input,
@@ -1261,8 +1257,7 @@ input[readonly]::placeholder{
   gap: 12px;
 }
 
-.auth-method-panel-fields > label,
-.auth-method-plain-row{
+.auth-method-panel-fields > label{
   align-items: center;
   display: grid;
   gap: 10px;
@@ -1418,7 +1413,7 @@ input[readonly]::placeholder{
 }
 
 .recovery-code-list code{
-  background: var(--surface-strong);
+  background: var(--surface-soft-base);
   border: 1px solid var(--border-soft);
   border-radius: 6px;
   display: block;
@@ -1457,7 +1452,7 @@ input[readonly]::placeholder{
 }
 
 .email-credential-list li span:first-child{
-  color: var(--text);
+  color: var(--ink);
 }
 
 .passkey-credential-list li{
@@ -3238,7 +3233,6 @@ tr:last-child td{
   }
 
   .auth-method-panel-fields > label,
-  .auth-method-plain-row,
   .totp-setup-qr-row,
   .totp-manual-key-row{
     align-items: stretch;
@@ -3643,7 +3637,6 @@ tr:last-child td{
   height: 16px;
 }
 
-.settings-hint{ display: block; margin-block-start: 6px; color: var(--muted); font-size: 14px; }
 
 /* 桌面滚动条使用页面主题色和圆角，不影响网页与移动端的原生滚动。 */
 :root[data-application-platform="windows"],
@@ -3843,3 +3836,74 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .app-update-banner button{ min-height: 30px; padding: 4px 12px; font-size: 13px; }
 @keyframes app-update-rise{ from{ transform: translateY(100%); } to{ transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce){ .app-update-banner{ animation: none; } }
+
+/* 原生应用复用原导航控件；网页保留浏览器导航和原有页面布局。 */
+.app-back-button{ display: none; }
+:root[data-application-platform] .topbar{
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-direction: row;
+  align-items: center;
+  direction: ltr;
+  padding: 0 16px;
+  gap: 12px;
+  min-height: 56px;
+}
+:root[data-application-platform] .topbar > .brand{ display: none; }
+:root[data-application-platform] .app-back-button{
+  display: inline-flex;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  color: var(--theme-link);
+}
+:root[data-application-platform] .app-back-button svg{ width: 24px; height: 24px; fill: none; }
+:root[data-application-platform] .app-back-button:disabled{ color: var(--muted); opacity: .35; cursor: default; background: transparent; }
+.app-navigation-status{ color: var(--muted); font-size: 12px; flex: 1 1 auto; }
+[dir="rtl"][data-application-platform] .topbar > nav,
+[dir="rtl"][data-application-platform] .app-navigation-status{ direction: rtl; }
+:root[data-application-platform="windows"] .topbar > .primary-nav{ width: auto; }
+:root[data-application-platform="android"] .topbar{ padding-top: env(safe-area-inset-top, 0px); }
+:root[data-application-platform="android"] .topbar > .primary-nav:not([data-app-navigation]){ width: auto; display: flex; }
+:root[data-application-platform="android"] [data-app-navigation]{
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+:root[data-application-platform="android"] [data-app-navigation] .nav-link-button{
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 18px auto;
+  gap: 4px;
+  min-height: 56px;
+  padding: 8px 4px;
+  line-height: 1.15;
+  font-size: 14px;
+  text-align: center;
+  white-space: normal;
+}
+:root[data-application-platform="android"] [data-app-navigation] .nav-label{ overflow-wrap: anywhere; grid-area: 2 / 1; }
+:root[data-application-platform="android"] [data-app-navigation] .nav-link-button > .nav-icon,
+:root[data-application-platform="android"] [data-app-navigation] .nav-link-button > .lobotomy-corp-black-forest-egg{ grid-area: 1 / 1; }
+:root[data-application-platform="android"] [data-app-navigation] .app-update-unread::after{ align-self: start; grid-area: 1 / 1; margin-top: -3px; margin-inline-start: 18px; }
+:root[data-application-platform="android"] [data-app-navigation] .nav-account-dropdown{
+  top: auto;
+  bottom: calc(100% - 1px);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 128px);
+  overflow-y: auto;
+}
+:root[data-application-platform="android"] [data-app-navigation] .nav-account-menu-action{ box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
+[dir="rtl"][data-application-platform="android"] [data-app-navigation] .nav-account-dropdown{ left: 0; right: auto; }
+:root[data-application-platform="android"] .shell{ padding-bottom: calc(24px + var(--app-bottom-nav-height, 64px)); }

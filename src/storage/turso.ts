@@ -1,6 +1,13 @@
 /**
  * @file 本文件提供基于 Turso/libSQL 的应用数据存储实现。
  */
+import {
+  normalizeAuthenticationEvent,
+  normalizePasskeyCredential,
+  normalizePendingPasskeyChallenge,
+  normalizeTotpCredential,
+} from "./auth_normalization.ts";
+import { normalizeUsername } from "../auth/account_names.ts";
 import { createTursoAdministration } from "./administration_turso.ts";
 import { createTursoMatchingStore } from "./matching_turso.ts";
 import { createTursoWebPushStore } from "./web_push_turso.ts";
@@ -8,18 +15,16 @@ import { createTursoNativePushStore } from "./native_push_turso.ts";
 import { createTursoSyncStore } from "./sync_turso.ts";
 import { createTursoNativeNotifications } from "./native_notifications_turso.ts";
 import { createTursoNativeLogin } from "./native_login_turso.ts";
-import { createTursoNotificationOutbox, notificationEnqueueStatements } from "./notification_outbox_turso.ts";
+import {
+  createTursoNotificationOutbox,
+  notificationEnqueueStatements,
+} from "./notification_outbox_turso.ts";
 import type { MatchSaveOptions } from "./notification_outbox.ts";
 import { serverEditStamp } from "../sync/protocol.ts";
 import { settingsEdits } from "../sync/settings.ts";
 import type { SettingsSyncSnapshot } from "../sync/settings.ts";
 import type { RecordSyncSnapshot } from "../sync/records.ts";
-import type {
-  InArgs,
-  InStatement,
-  ResultSet,
-  Row,
-} from "@libsql/client/web";
+import type { InArgs, InStatement, ResultSet, Row } from "@libsql/client/web";
 import { normalizeEmailAddress } from "../auth/email.ts";
 import {
   normalizePendingMfaChallenge,
@@ -35,7 +40,6 @@ import type {
   DashboardSnapshot,
   EmailCredential,
   MatchRecord,
-  PasskeyChallengePurpose,
   PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
@@ -48,7 +52,7 @@ import type {
   UserSecuritySettings,
   UserSession,
 } from "../models.ts";
-import { latestMatchByMatchedTime, normalizeSettings } from "./kv.ts";
+import { normalizeSettings } from "./stored_settings.ts";
 import {
   TURSO_SCHEMA_STATEMENTS,
   TURSO_SCHEMA_VERSION,
@@ -89,7 +93,11 @@ export type TursoStorageOptions = {
  */
 export type TursoStorage = Storage & {
   /** 原子导入同步版本及投影；存在实时变更时抛出回填保护错误。 */
-  importKvSync?(userId: string, kind: "settings" | "record", value: SettingsSyncSnapshot | RecordSyncSnapshot): Promise<void>;
+  importKvSync?(
+    userId: string,
+    kind: "settings" | "record",
+    value: SettingsSyncSnapshot | RecordSyncSnapshot,
+  ): Promise<void>;
   /**
    * 判断 KV 实体是否可以安全回填。
    *
@@ -268,10 +276,19 @@ export function createTursoStorage(
    * @return {UserStorage} 指定用户的数据存储操作集合。
    */
   function forUser(userId: string): UserStorage {
-    const sync = createTursoSyncStore(execute, batch, userId, defaultSettings,
-      options.notificationOutbox ? (record) => notificationEnqueueStatements(userId, record) : undefined);
+    const sync = createTursoSyncStore(
+      execute,
+      batch,
+      userId,
+      defaultSettings,
+      options.notificationOutbox
+        ? (record) => notificationEnqueueStatements(userId, record)
+        : undefined,
+    );
     return {
-      notificationOutbox: options.notificationOutbox ? createTursoNotificationOutbox(execute, batch, userId) : undefined,
+      notificationOutbox: options.notificationOutbox
+        ? createTursoNotificationOutbox(execute, batch, userId)
+        : undefined,
       sync,
       userId,
       matching: createTursoMatchingStore(execute, userId),
@@ -302,7 +319,9 @@ export function createTursoStorage(
       async saveSettings(settings: AppSettings): Promise<void> {
         if (writeMode !== "kv-import") {
           const current = await sync.readSettings();
-          await sync.applySettings(settingsEdits(current.settings, settings, serverEditStamp()));
+          await sync.applySettings(
+            settingsEdits(current.settings, settings, serverEditStamp()),
+          );
           return;
         }
         await writeEntity("settings", userId, {
@@ -388,18 +407,28 @@ export function createTursoStorage(
        * 在数据库内投影角标所需标识，避免传输和解析帖子正文。
        * @return {Promise<Array<{id: string, postId: string}>>} 当前账号工作区的精简记录。
        */
-      async listPendingMatchReferences(): Promise<Array<{ id: string; postId: string }>> {
+      async listPendingMatchReferences(): Promise<
+        Array<{ id: string; postId: string }>
+      > {
         const result = await execute({
-          sql: `SELECT id, json_extract(value_json, '$.post.id') AS post_id FROM matches
+          sql:
+            `SELECT id, json_extract(value_json, '$.post.id') AS post_id FROM matches
             WHERE user_id = ? AND completed_at IS NULL
             ORDER BY post_published_at DESC, matched_at DESC, id ASC`,
           args: [userId],
         });
-        return result.rows.map((row) => ({ id: String(row.id), postId: String(row.post_id) }));
+        return result.rows.map((row) => ({
+          id: String(row.id),
+          postId: String(row.post_id),
+        }));
       },
       /** 按用户与完成状态统计不重复的帖子数量，不向客户端传输帖子正文。 @return {Promise<number>} 未确认数量。 */
       async countPendingPosts(): Promise<number> {
-        const result = await execute({sql:"SELECT COUNT(DISTINCT json_extract(value_json, '$.post.id')) AS count FROM matches WHERE user_id = ? AND completed_at IS NULL", args:[userId]});
+        const result = await execute({
+          sql:
+            "SELECT COUNT(DISTINCT json_extract(value_json, '$.post.id')) AS count FROM matches WHERE user_id = ? AND completed_at IS NULL",
+          args: [userId],
+        });
         return Number(result.rows[0]?.count ?? 0);
       },
       /**
@@ -465,7 +494,10 @@ export function createTursoStorage(
        * @param {MatchSaveOptions} options 新命中投递选项。
        * @return {Promise<void>} 保存完成后的 Promise。
        */
-      async saveMatch(record: MatchRecord, options?: MatchSaveOptions): Promise<void> {
+      async saveMatch(
+        record: MatchRecord,
+        options?: MatchSaveOptions,
+      ): Promise<void> {
         if (writeMode !== "kv-import") {
           await sync.saveRecordContent(record, options);
           return;
@@ -500,8 +532,16 @@ export function createTursoStorage(
        * @return {Promise<void>} 更新完成后的 Promise。
        */
       async markMatchNotified(id: string, notifiedAt: string): Promise<void> {
-        const result = await execute({ sql: "SELECT value_json FROM matches WHERE user_id = ? AND id = ?", args: [userId, id] });
-        if (result.rows[0]) await sync.saveRecordContent({ ...parseJsonRow<MatchRecord>(result.rows[0]), notifiedAt });
+        const result = await execute({
+          sql: "SELECT value_json FROM matches WHERE user_id = ? AND id = ?",
+          args: [userId, id],
+        });
+        if (result.rows[0]) {
+          await sync.saveRecordContent({
+            ...parseJsonRow<MatchRecord>(result.rows[0]),
+            notifiedAt,
+          });
+        }
       },
       /**
        * 用同一个在线编辑版本完成指定记录。
@@ -515,7 +555,9 @@ export function createTursoStorage(
           return;
         }
         const stamp = serverEditStamp();
-        for (const id of uniqueIds) await sync.applyRecord(id, "history", stamp);
+        for (const id of uniqueIds) {
+          await sync.applyRecord(id, "history", stamp);
+        }
       },
       /**
        * 删除可见记录并保留同步及迁移墓碑。
@@ -529,7 +571,9 @@ export function createTursoStorage(
           return;
         }
         const stamp = serverEditStamp();
-        for (const id of uniqueIds) await sync.applyRecord(id, "deleted", stamp);
+        for (const id of uniqueIds) {
+          await sync.applyRecord(id, "deleted", stamp);
+        }
       },
       /**
        * 保存当前用户最后轮询时间。
@@ -565,26 +609,70 @@ export function createTursoStorage(
      * @param {SettingsSyncSnapshot | RecordSyncSnapshot} value 源快照。
      */
     async importKvSync(userId, kind, value) {
-      const settings = kind === "settings" ? value as SettingsSyncSnapshot : undefined;
-      const record = kind === "record" ? value as RecordSyncSnapshot : undefined;
+      const settings = kind === "settings"
+        ? value as SettingsSyncSnapshot
+        : undefined;
+      const record = kind === "record"
+        ? value as RecordSyncSnapshot
+        : undefined;
       const entityType = settings ? "settings" : "match";
-      const entityKey = settings ? userId : JSON.stringify([userId, record!.id]);
-      const statements: InStatement[] = ["DELETE FROM storage_import_guard", claimKvImportStatement(entityType, entityKey), "INSERT INTO storage_import_guard (id) VALUES (CASE WHEN changes() = 1 THEN 1 ELSE 0 END)"];
-      if (settings) statements.push(
-        { sql: "INSERT INTO sync_settings (user_id, revision, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET revision = excluded.revision, value_json = excluded.value_json", args: [userId, settings.revision, JSON.stringify(settings)] },
-        { sql: "INSERT INTO user_settings (user_id, value_json) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET value_json = excluded.value_json", args: [userId, JSON.stringify(settings.settings)] },
-      );
+      const entityKey = settings
+        ? userId
+        : JSON.stringify([userId, record!.id]);
+      const statements: InStatement[] = [
+        "DELETE FROM storage_import_guard",
+        claimKvImportStatement(entityType, entityKey),
+        "INSERT INTO storage_import_guard (id) VALUES (CASE WHEN changes() = 1 THEN 1 ELSE 0 END)",
+      ];
+      if (settings) {
+        statements.push(
+          {
+            sql:
+              "INSERT INTO sync_settings (user_id, revision, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET revision = excluded.revision, value_json = excluded.value_json",
+            args: [userId, settings.revision, JSON.stringify(settings)],
+          },
+          {
+            sql:
+              "INSERT INTO user_settings (user_id, value_json) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET value_json = excluded.value_json",
+            args: [userId, JSON.stringify(settings.settings)],
+          },
+        );
+      }
       if (record) {
-        statements.push({ sql: "INSERT INTO sync_records (user_id, id, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET value_json = excluded.value_json", args: [userId, record.id, JSON.stringify(record)] });
-        if (record.status === "deleted") statements.push({ sql: "DELETE FROM matches WHERE user_id = ? AND id = ?", args: [userId, record.id] });
-        else if (record.record) {
+        statements.push({
+          sql:
+            "INSERT INTO sync_records (user_id, id, value_json) VALUES (?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET value_json = excluded.value_json",
+          args: [userId, record.id, JSON.stringify(record)],
+        });
+        if (record.status === "deleted") {
+          statements.push({
+            sql: "DELETE FROM matches WHERE user_id = ? AND id = ?",
+            args: [userId, record.id],
+          });
+        } else if (record.record) {
           const visible = record.record;
-          statements.push({ sql: "INSERT INTO matches (user_id, id, matched_at, post_published_at, completed_at, notified_at, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET matched_at = excluded.matched_at, post_published_at = excluded.post_published_at, completed_at = excluded.completed_at, notified_at = excluded.notified_at, value_json = excluded.value_json", args: [userId, visible.id, visible.matchedAt, visible.post.publishedAt, visible.completedAt ?? null, visible.notifiedAt ?? null, JSON.stringify(visible)] });
+          statements.push({
+            sql:
+              "INSERT INTO matches (user_id, id, matched_at, post_published_at, completed_at, notified_at, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET matched_at = excluded.matched_at, post_published_at = excluded.post_published_at, completed_at = excluded.completed_at, notified_at = excluded.notified_at, value_json = excluded.value_json",
+            args: [
+              userId,
+              visible.id,
+              visible.matchedAt,
+              visible.post.publishedAt,
+              visible.completedAt ?? null,
+              visible.notifiedAt ?? null,
+              JSON.stringify(visible),
+            ],
+          });
         }
       }
       statements.push("DELETE FROM storage_import_guard");
-      try { await batch(statements); }
-      catch (error) { if (isImportGuardConstraintError(error)) throw kvImportBlockedError(); throw error; }
+      try {
+        await batch(statements);
+      } catch (error) {
+        if (isImportGuardConstraintError(error)) throw kvImportBlockedError();
+        throw error;
+      }
     },
 
     /**
@@ -700,7 +788,10 @@ export function createTursoStorage(
             sql: `INSERT INTO user_accounts
                 (id, username, username_normalized, created_at, value_json)
               SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?)`,
-            args: [...accountArgs(account) as import("@libsql/client").InValue[], account.id],
+            args: [
+              ...accountArgs(account) as import("@libsql/client").InValue[],
+              account.id,
+            ],
           },
           mutationStatement("account", account.id, true),
         ]);
@@ -748,7 +839,8 @@ export function createTursoStorage(
     /** 获取用户头像。 */
     async getUserAvatar(userId: string): Promise<UserAvatar | undefined> {
       const result = await execute({
-        sql: "SELECT content_type, data_blob, updated_at FROM user_avatars WHERE user_id = ?",
+        sql:
+          "SELECT content_type, data_blob, updated_at FROM user_avatars WHERE user_id = ?",
         args: [userId],
       });
       const row = result.rows[0];
@@ -763,11 +855,17 @@ export function createTursoStorage(
     /** 保存用户头像。 */
     async saveUserAvatar(avatar: UserAvatar): Promise<void> {
       await writeEntity("avatar", avatar.userId, {
-        sql: `INSERT INTO user_avatars (user_id, content_type, data_blob, updated_at)
+        sql:
+          `INSERT INTO user_avatars (user_id, content_type, data_blob, updated_at)
           VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET
           content_type = excluded.content_type, data_blob = excluded.data_blob,
           updated_at = excluded.updated_at`,
-        args: [avatar.userId, avatar.contentType, avatar.data, avatar.updatedAt],
+        args: [
+          avatar.userId,
+          avatar.contentType,
+          avatar.data,
+          avatar.updatedAt,
+        ],
       });
     },
 
@@ -1298,26 +1396,6 @@ export function createTursoStorage(
     },
 
     /**
-     * 删除邮箱凭证。
-     *
-     * @param {string} userId 用户 ID。
-     * @param {string} email 邮箱地址。
-     * @return {Promise<void>} 删除完成后的 Promise。
-     */
-    async deleteEmailCredential(userId: string, email: string): Promise<void> {
-      const normalizedEmail = emailKey(email);
-      await deleteEntity(
-        "email-credential",
-        entityKey(userId, normalizedEmail),
-        {
-          sql: `DELETE FROM email_credentials
-            WHERE user_id = ? AND email_normalized = ?`,
-          args: [userId, normalizedEmail],
-        },
-      );
-    },
-
-    /**
      * 获取待处理邮箱验证。
      *
      * @param {string} id 验证 ID。
@@ -1560,7 +1638,6 @@ export function createTursoStorage(
       const nowMs = Date.now();
       const now = new Date(nowMs).toISOString();
       const expiresAt = new Date(nowMs + Math.max(1, lockoutMs)).toISOString();
-      const lockedUntil = expiresAt;
       const result = await execute({
         sql: `INSERT INTO login_failures
             (username_normalized, failures, locked_until, expires_at)
@@ -1594,7 +1671,7 @@ export function createTursoStorage(
           RETURNING failures, locked_until`,
         args: {
           expires_at: expiresAt,
-          locked_until: lockedUntil,
+          locked_until: expiresAt,
           max_failures: Math.max(1, Math.floor(maxFailures)),
           now,
           username: normalizeUsername(username),
@@ -1779,6 +1856,8 @@ async function ensureTursoSchema(client: TursoClient): Promise<void> {
 /**
  * 读取单条 JSON 业务对象。
  *
+ * @template T 业务对象类型。
+ * @template T 业务对象类型。
  * @param {(statement: InStatement) => Promise<ResultSet>} execute SQL 执行函数。
  * @param {string} sql 查询语句。
  * @param {InArgs} args 查询参数。
@@ -1796,6 +1875,7 @@ async function readJsonValue<T>(
 /**
  * 读取尚未过期的 JSON 业务对象。
  *
+ * @template T 业务对象类型。
  * @param {(statement: InStatement) => Promise<ResultSet>} execute SQL 执行函数。
  * @param {string} table 表名。
  * @param {string} id 记录 ID。
@@ -1817,6 +1897,7 @@ async function readUnexpiredJsonValue<T>(
 /**
  * 保存带过期时间的 JSON 业务对象。
  *
+ * @template T 业务对象类型。
  * @param {Function} writeEntity 数据写入函数。
  * @param {string} entityType 实体类型。
  * @param {string} table 表名。
@@ -1894,6 +1975,7 @@ function assertKnownExpiringTable(table: string): void {
 /**
  * 从结果行解析 JSON 业务对象。
  *
+ * @template T 业务对象类型。
  * @param {Row} row SQL 结果行。
  * @return {T} 业务对象。
  */
@@ -1938,7 +2020,7 @@ function appStateFromRows(
   matchRow: Row | undefined,
 ): AppState {
   const latestMatch = matchRow?.value_json != null
-    ? latestMatchByMatchedTime([parseJsonRow<MatchRecord>(matchRow)])
+    ? parseJsonRow<MatchRecord>(matchRow)
     : undefined;
   return {
     lastPollAt: stringValue(stateRow?.last_poll_at),
@@ -1963,7 +2045,10 @@ function accountUpsert(account: UserAccount): InStatement {
         username_normalized = excluded.username_normalized,
         created_at = excluded.created_at,
         value_json = json_set(excluded.value_json, '$.role', COALESCE(json_extract(user_accounts.value_json, '$.role'), 'user'), '$.roleVersion', COALESCE(json_extract(user_accounts.value_json, '$.roleVersion'), 0))`,
-    args: [...accountArgs(account) as import("@libsql/client").InValue[], account.id],
+    args: [
+      ...accountArgs(account) as import("@libsql/client").InValue[],
+      account.id,
+    ],
   };
 }
 
@@ -1991,19 +2076,11 @@ function avatarBytes(value: unknown): Uint8Array | undefined {
 }
 
 /** 判断是否为允许保存的头像 MIME 类型。 */
-function isAvatarType(value: string | undefined): value is UserAvatar["contentType"] {
+function isAvatarType(
+  value: string | undefined,
+): value is UserAvatar["contentType"] {
   return value === "image/gif" || value === "image/jpeg" ||
     value === "image/png" || value === "image/webp";
-}
-
-/**
- * 规范化用户名。
- *
- * @param {string} value 原始用户名。
- * @return {string} 规范化用户名。
- */
-function normalizeUsername(value: string): string {
-  return value.trim().toLowerCase();
 }
 
 /**
@@ -2018,179 +2095,6 @@ function emailKey(value: string): string {
     throw new Error("Invalid email address.");
   }
   return normalized;
-}
-
-/**
- * 规范化 TOTP 凭证。
- *
- * @param {TotpCredential} credential TOTP 凭证。
- * @param {string} userId 用户 ID。
- * @return {TotpCredential} 规范化凭证。
- */
-function normalizeTotpCredential(
-  credential: TotpCredential,
-  userId: string,
-): TotpCredential {
-  return {
-    credentialId: typeof credential.credentialId === "string" &&
-        credential.credentialId.trim()
-      ? credential.credentialId.trim()
-      : "legacy",
-    enabledAt: typeof credential.enabledAt === "string"
-      ? credential.enabledAt
-      : "",
-    label: typeof credential.label === "string" && credential.label.trim()
-      ? credential.label.trim().slice(0, 80)
-      : undefined,
-    recoveryCodeHashes: Array.isArray(credential.recoveryCodeHashes)
-      ? credential.recoveryCodeHashes.filter((value): value is string =>
-        typeof value === "string"
-      )
-      : [],
-    secretEncrypted: typeof credential.secretEncrypted === "string"
-      ? credential.secretEncrypted
-      : "",
-    userId,
-  };
-}
-
-/**
- * 规范化 Passkey 凭证。
- *
- * @param {PasskeyCredential} credential Passkey 凭证。
- * @param {string} userId 用户 ID。
- * @return {PasskeyCredential} 规范化凭证。
- */
-function normalizePasskeyCredential(
-  credential: PasskeyCredential,
-  userId: string,
-): PasskeyCredential {
-  const transports = Array.isArray(credential.transports)
-    ? Array.from(
-      new Set(
-        credential.transports.filter((value): value is string =>
-          typeof value === "string" && value.trim().length > 0
-        ).map((value) => value.trim()),
-      ),
-    )
-    : undefined;
-  return {
-    backedUp: credential.backedUp === true,
-    counter: Math.max(0, Math.floor(Number(credential.counter) || 0)),
-    createdAt: typeof credential.createdAt === "string"
-      ? credential.createdAt
-      : "",
-    credentialId: typeof credential.credentialId === "string"
-      ? credential.credentialId
-      : "",
-    label: typeof credential.label === "string" && credential.label.trim()
-      ? credential.label.trim()
-      : undefined,
-    lastUsedAt: typeof credential.lastUsedAt === "string"
-      ? credential.lastUsedAt
-      : undefined,
-    publicKey: typeof credential.publicKey === "string"
-      ? credential.publicKey
-      : "",
-    transports,
-    userId,
-  };
-}
-
-/**
- * 规范化认证事件。
- *
- * @param {AuthenticationEvent} event 认证事件。
- * @param {string} userId 用户 ID。
- * @param {AuthenticationEventPurpose} purpose 认证用途。
- * @return {AuthenticationEvent} 规范化事件。
- */
-function normalizeAuthenticationEvent(
-  event: AuthenticationEvent,
-  userId: string,
-  purpose: AuthenticationEventPurpose,
-): AuthenticationEvent {
-  return {
-    authenticatedAt: typeof event.authenticatedAt === "string"
-      ? event.authenticatedAt
-      : new Date(0).toISOString(),
-    method: isAuthenticationEventMethod(event.method)
-      ? event.method
-      : "password",
-    purpose: isAuthenticationEventPurpose(event.purpose)
-      ? event.purpose
-      : purpose,
-    strength: event.strength === "strong" ? "strong" : "normal",
-    userId,
-  };
-}
-
-/**
- * 判断值是否为认证事件方式。
- *
- * @param {unknown} value 待判断值。
- * @return {boolean} 判断结果。
- */
-function isAuthenticationEventMethod(
-  value: unknown,
-): value is AuthenticationEvent["method"] {
-  return value === "email_otp" || value === "google" ||
-    value === "passkey" || value === "password" ||
-    value === "recovery_code" || value === "totp";
-}
-
-/**
- * 判断值是否为认证事件用途。
- *
- * @param {unknown} value 待判断值。
- * @return {boolean} 判断结果。
- */
-function isAuthenticationEventPurpose(
-  value: unknown,
-): value is AuthenticationEventPurpose {
-  return value === "primary_login" || value === "reauth" ||
-    value === "recovery_codes" || value === "second_factor";
-}
-
-/**
- * 规范化 Passkey challenge。
- *
- * @param {PendingPasskeyChallenge} challenge 待处理 challenge。
- * @return {PendingPasskeyChallenge} 规范化 challenge。
- */
-function normalizePendingPasskeyChallenge(
-  challenge: PendingPasskeyChallenge,
-): PendingPasskeyChallenge {
-  const allowedCredentialIds = Array.isArray(challenge.allowedCredentialIds)
-    ? challenge.allowedCredentialIds
-    : [];
-  return {
-    ...challenge,
-    allowedCredentialIds: Array.from(
-      new Set(
-        allowedCredentialIds.filter((value) =>
-          typeof value === "string" && value.trim().length > 0
-        ).map((value) => value.trim()),
-      ),
-    ),
-    attempts: Math.max(0, Math.floor(Number(challenge.attempts) || 0)),
-    purpose: isPasskeyChallengePurpose(challenge.purpose)
-      ? challenge.purpose
-      : "primary_login",
-  };
-}
-
-/**
- * 判断值是否为支持的 Passkey challenge 用途。
- *
- * @param {unknown} value 待判断值。
- * @return {boolean} 判断结果。
- */
-function isPasskeyChallengePurpose(
-  value: unknown,
-): value is PasskeyChallengePurpose {
-  return value === "passkey_registration" || value === "primary_login" ||
-    value === "reauth" || value === "second_factor";
 }
 
 /**

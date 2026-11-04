@@ -20,15 +20,15 @@
 
 /** 关服视频相对《脑叶公司》Assets 根目录的路径。 */
 export const dontTouchMeShutdownVideoPath =
-  'MovieTexture/DontTouchMeGameShutdown.webm';
+    'MovieTexture/DontTouchMeGameShutdown.webm';
 
 /** ExitStart() 播放的 shout 音效路径。 */
 export const dontTouchMeShoutSoundPath =
-  'Resources/sounds/creature/dont_touch_me/touch_shout.ogg';
+    'Resources/sounds/creature/dont_touch_me/touch_shout.ogg';
 
 /** ForceExitScene 的 AudioSource 播放的 touch_off 音效路径。 */
 export const dontTouchMeShutdownSoundPath =
-  'Resources/sounds/creature/dont_touch_me/touch_off.ogg';
+    'Resources/sounds/creature/dont_touch_me/touch_off.ogg';
 
 /** DontTouchMe.ExitStart() 的 exitDelay（4 秒）换算出的毫秒数。 */
 export const dontTouchMeExitDelayMs = 4000;
@@ -86,7 +86,7 @@ export const dontTouchMeClickEffects = Object.freeze([
 
 /** PanicAllWorker() 播放的 panic 音效路径。 */
 export const dontTouchMePanicSoundPath =
-  'Resources/sounds/creature/dont_touch_me/touch_panic.ogg';
+    'Resources/sounds/creature/dont_touch_me/touch_panic.ogg';
 
 /** PanicAllWorker() 的镜头后坐参数，对应 CameraMover.Recoil(1, 3f)。 */
 export const dontTouchMePanicRecoil = Object.freeze({level: 1, maxTime: 3});
@@ -94,18 +94,18 @@ export const dontTouchMePanicRecoil = Object.freeze({level: 1, maxTime: 3});
 
 /** 关服覆盖层节点类名。 */
 export const dontTouchMeOverlayClassName =
-  'lobotomy-corp-dont-touch-me-shutdown';
+    'lobotomy-corp-dont-touch-me-shutdown';
 
 /** 点击演出覆盖层的公共类名。 */
 export const dontTouchMeEffectClassName = 'lobotomy-corp-dont-touch-me-effect';
 
 /** 关服视频节点类名；测试按该类名定位视频并派发 ended。 */
 export const dontTouchMeVideoClassName =
-  'lobotomy-corp-dont-touch-me-shutdown-video';
+    'lobotomy-corp-dont-touch-me-shutdown-video';
 
 /** 点击演出视频节点类名。 */
 export const dontTouchMeEffectVideoClassName =
-  'lobotomy-corp-dont-touch-me-effect-video';
+    'lobotomy-corp-dont-touch-me-effect-video';
 
 /**
  * Main.unity 中 CameraMover 的镜头后坐参数。
@@ -185,7 +185,7 @@ export function dontTouchMeRecoilAmplitudeRatio() {
 export function dontTouchMeRecoilArrowCount(level, maxTime) {
   return Math.trunc(
       level * dontTouchMeCameraRecoil.recoilCount * maxTime *
-          dontTouchMeCameraRecoil.timeFactor,
+      dontTouchMeCameraRecoil.timeFactor,
   );
 }
 
@@ -227,7 +227,8 @@ function playDontTouchMeAudio(source) {
   audio.preload = 'auto';
   audio.loop = false;
   try {
-    void Promise.resolve(audio.play()).catch(() => {});
+    void Promise.resolve(audio.play()).catch(() => {
+    });
   } catch {
     // 自动播放同步抛错时同样只放弃声音，不影响画面演出。
   }
@@ -249,7 +250,10 @@ function startDontTouchMeRecoil(level, maxTime) {
   const body = globalThis.document?.body;
   const viewportHeight = Number(globalThis.innerHeight);
   if (!body?.style || !Number.isFinite(viewportHeight) || viewportHeight <= 0) {
-    return {promise: Promise.resolve(), stop: () => {}};
+    return {
+      promise: Promise.resolve(), stop: () => {
+      }
+    };
   }
   const amplitude = Math.round(
       dontTouchMeRecoilAmplitudeRatio() * viewportHeight * 1000,
@@ -261,7 +265,8 @@ function startDontTouchMeRecoil(level, maxTime) {
   let previous = -1;
   let finished = false;
   /** @type {(value?: unknown) => void} */
-  let settle = () => {};
+  let settle = () => {
+  };
   const promise = new Promise((resolve) => {
     settle = resolve;
   });
@@ -351,7 +356,10 @@ function playDontTouchMeSequence(options) {
   const document = globalThis.document;
   const body = document?.body;
   if (!body?.append || typeof document?.createElement !== 'function') {
-    return {promise: Promise.resolve(), stop: () => {}};
+    return {
+      promise: Promise.resolve(), stop: () => {
+      }
+    };
   }
 
   /** @type {HTMLElement|undefined} 覆盖层。 */
@@ -372,7 +380,8 @@ function playDontTouchMeSequence(options) {
   /** 本次退出是否已经通知宿主收尾；假关服只收尾一次。 */
   let exitNotified = false;
   /** @type {(value?: unknown) => void} */
-  let resolvePlayback = () => {};
+  let resolvePlayback = () => {
+  };
 
   /**
    * 通知宿主「游戏已退出」。
@@ -406,7 +415,7 @@ function playDontTouchMeSequence(options) {
     const blocker = blockInteraction;
     if (blocker) {
       dontTouchMeBlockedEvents.forEach((type) =>
-        document.removeEventListener?.(type, blocker, true)
+          document.removeEventListener?.(type, blocker, true)
       );
       blockInteraction = undefined;
     }
@@ -438,8 +447,8 @@ function playDontTouchMeSequence(options) {
     if (fallbackTimer !== undefined) globalThis.clearTimeout?.(fallbackTimer);
     const duration = Number(video?.duration);
     const durationMs = Number.isFinite(duration) && duration > 0
-      ? duration * 1000
-      : 10000;
+        ? duration * 1000
+        : 10000;
     fallbackTimer = globalThis.setTimeout?.(finish, durationMs + 1000);
   }
 
@@ -452,12 +461,14 @@ function playDontTouchMeSequence(options) {
     stopRecoil = undefined;
     overlay = document.createElement('div');
     overlay.className = options.extraClassName;
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
     overlay.classList?.add(dontTouchMeEffectClassName);
     overlay.setAttribute('aria-hidden', 'true');
     video = document.createElement('video');
     video.className = options.navigateTo
-      ? dontTouchMeVideoClassName
-      : dontTouchMeEffectVideoClassName;
+        ? dontTouchMeVideoClassName
+        : dontTouchMeEffectVideoClassName;
     video.src = `${options.assetRoot}/${options.videoPath}`;
     // 原作的声音都由 AudioSource 单独提供，视频本身只作为画面来源。
     video.muted = true;
@@ -472,18 +483,19 @@ function playDontTouchMeSequence(options) {
     }
     // 原作从候选音效里随机挑一条（例如 dead1 / dead2），这里保持同样的语义。
     const soundPath = options.soundPaths[
-      Math.floor(Math.random() * options.soundPaths.length)
-    ];
+        Math.floor(Math.random() * options.soundPaths.length)
+        ];
     const sound = soundPath
-      ? playDontTouchMeAudio(`${options.assetRoot}/${soundPath}`)
-      : undefined;
+        ? playDontTouchMeAudio(`${options.assetRoot}/${soundPath}`)
+        : undefined;
     if (sound) sounds.push(sound);
     video.addEventListener('ended', finish);
     video.addEventListener('error', finish);
     video.addEventListener('loadedmetadata', handleVideoMetadata);
     handleVideoMetadata();
     try {
-      void Promise.resolve(video.play()).catch(() => {});
+      void Promise.resolve(video.play()).catch(() => {
+      });
     } catch {
       // 视频无法播放时仍由兜底计时器结束演出。
     }
@@ -491,7 +503,7 @@ function playDontTouchMeSequence(options) {
 
   if (options.leadingSoundPath) {
     const leading = playDontTouchMeAudio(
-      `${options.assetRoot}/${options.leadingSoundPath}`,
+        `${options.assetRoot}/${options.leadingSoundPath}`,
     );
     if (leading) sounds.push(leading);
   }
@@ -511,7 +523,7 @@ function playDontTouchMeSequence(options) {
     };
     blockInteraction = blocker;
     dontTouchMeBlockedEvents.forEach((type) =>
-      document.addEventListener?.(type, blocker, true)
+        document.addEventListener?.(type, blocker, true)
     );
   }
 
@@ -581,18 +593,18 @@ export function createDontTouchMeShutdown(shared) {
     } else {
       // 网页只有一个保存按钮，因此每次点击在三个分支里等概率取一个。
       const effect = dontTouchMeClickEffects[
-        Math.floor(Math.random() * dontTouchMeClickEffects.length)
-      ];
+          Math.floor(Math.random() * dontTouchMeClickEffects.length)
+          ];
       // 副作用必须留在本次点击的同步用户手势里结算，宿主才能照常启动后续警报音频。
       shared.onEffectPicked?.(effect.id);
       sequence = effect.id === dontTouchMePanicEffect.id
-        ? playDontTouchMePanic(shared.assetRoot)
-        : playDontTouchMeSequence({
-          assetRoot: shared.assetRoot,
-          extraClassName: effect.extraClassName,
-          soundPaths: effect.soundPaths,
-          videoPath: effect.videoPath,
-        });
+          ? playDontTouchMePanic(shared.assetRoot)
+          : playDontTouchMeSequence({
+            assetRoot: shared.assetRoot,
+            extraClassName: effect.extraClassName,
+            soundPaths: effect.soundPaths,
+            videoPath: effect.videoPath,
+          });
     }
     dispose = sequence.stop;
     return sequence.promise.finally(() => {

@@ -11,13 +11,9 @@ import {
   generateTotpCode,
   totpConfigFromEnv,
 } from "./auth/totp.ts";
-import {
-  createAuthRoutes,
-  hashPassword,
-  readAuthSession,
-  verifyAccountPassword,
-} from "./auth.ts";
-import { redirectWithSession } from "./auth/session.ts";
+import { createAuthRoutes } from "./auth.ts";
+import { hashPassword, verifyAccountPassword } from "./auth/password.ts";
+import { readAuthSession, redirectWithSession } from "./auth/session.ts";
 import {
   newInvitationCode,
   normalizeInvitation,
@@ -30,7 +26,11 @@ import { getMessages } from "./locales/index.ts";
 import { locales } from "./locales/types.ts";
 import { renderAdmin } from "./views/admin.ts";
 
-/** @param {string} id 账号标识。 @param {UserAccount["role"]} role 角色。 @return {UserAccount} 测试账号。 */
+/**
+ * @param {string} id 账号标识。
+ * @param {UserAccount["role"]} role 角色。
+ * @return {UserAccount} 测试账号。
+ */
 function user(id: string, role: UserAccount["role"] = "user"): UserAccount {
   return { id, username: id, role, createdAt: new Date().toISOString() };
 }
@@ -47,7 +47,7 @@ Deno.test("admin view escapes untrusted content and preserves expiry and role bo
         createdBy: "manager",
         createdAt: "2020-01-01T00:00:00Z",
         expiresAt: "2020-01-02T00:00:00Z",
-        note: '<img src=x onerror="alert(1)">',
+        note: '<img src=x alt="" onerror="alert(1)">',
       }],
       codes: [],
       error: "",
@@ -72,7 +72,10 @@ Deno.test("admin view escapes untrusted content and preserves expiry and role bo
     );
   }
 });
-/** @param {Storage} storage 真实存储。 @return {Promise<void>} 两种后端共用的安全契约。 */
+/**
+ * @param {Storage} storage 真实存储。
+ * @return {Promise<void>} 两种后端共用的安全契约。
+ */
 async function contract(storage: Storage): Promise<void> {
   const admin = storage.administration!;
   await storage.saveAccount(user("owner", "superadmin"));
@@ -242,7 +245,10 @@ Deno.test("admin routes isolate roles, require CSRF and session reauthentication
     const app = new Hono();
     app.route("/admin", createAdminRoutes(storage, totp));
     app.route("/", createAuthRoutes(storage));
-    /** @param {string} id 账号。 @return {Promise<string>} 测试会话。 */
+    /**
+     * @param {string} id 账号。
+     * @return {Promise<string>} 测试会话。
+     */
     const cookie = async (id: string): Promise<string> => {
       const response = await redirectWithSession(
         "http://localhost",
@@ -273,7 +279,12 @@ Deno.test("admin routes isolate roles, require CSRF and session reauthentication
         .text();
     assert(locked.includes("/admin/unlock"));
     assert(!locked.includes('name="role"'));
-    /** @param {string} path 请求路径。 @param {string} cookieHeader 会话。 @param {Record<string,string>} values 字段。 @return {Promise<Response>} 响应。 */
+    /**
+     * @param {string} path 请求路径。
+     * @param {string} cookieHeader 会话。
+     * @param {Record<string,string>} values 字段。
+     * @return {Promise<Response>} 响应。
+     */
     const post = (
       path: string,
       cookieHeader: string,
@@ -428,7 +439,10 @@ Deno.test("administration mirrors committed results and prevents migration from 
   }
 });
 
-/** @param {Storage} storage 真实后端。 @return {Promise<void>} 公开注册、密码处理与邮箱注册延迟落库验证。 */
+/**
+ * @param {Storage} storage 真实后端。
+ * @return {Promise<void>} 公开注册、密码处理与邮箱注册延迟落库验证。
+ */
 async function registrationContract(storage: Storage): Promise<void> {
   const { createEmailVerificationChallenge } = await import(
     "./auth/email_verification.ts"

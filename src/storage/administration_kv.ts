@@ -9,11 +9,18 @@ import type {
   Invitation,
 } from "./administration_types.ts";
 
-/** @param {() => Promise<KvStore>} open KV 连接。 @return {AdministrationStore} 管理存储。 */
+/**
+ * @param {() => Promise<KvStore>} open KV 连接。
+ * @return {AdministrationStore} 管理存储。
+ */
 export function createKvAdministration(
   open: () => Promise<KvStore>,
 ): AdministrationStore {
-  /** @param {string} id 操作者。 @param {boolean} superOnly 是否只允许超级管理员。 @return {Promise<object>} 带版本的授权记录。 */
+  /**
+   * @param {string} id 操作者。
+   * @param {boolean} superOnly 是否只允许超级管理员。
+   * @return {Promise<object>} 带版本的授权记录。
+   */
   async function actorEntry(id: string, superOnly = false) {
     const db = await open(), key = ["accounts", id];
     const entry = await db.get<UserAccount>(key);
@@ -27,7 +34,13 @@ export function createKvAdministration(
           : isAdministrator(entry.value)),
     };
   }
-  /** @param {AccountCreation} input 账号和凭据。 @param {string} actor 管理员或空字符串。 @param {string} invitation 邀请摘要。 @param {string} pending 注册事务标识。 @return {Promise<import("./administration_types.ts").AdminResult>} 创建结果。 */
+  /**
+   * @param {AccountCreation} input 账号和凭据。
+   * @param {string} actor 管理员或空字符串。
+   * @param {string} invitation 邀请摘要。
+   * @param {string} pending 注册事务标识。
+   * @return {Promise<import("./administration_types.ts").AdminResult>} 创建结果。
+   */
   async function create(
     input: AccountCreation,
     actor: string,
@@ -192,7 +205,11 @@ export function createKvAdministration(
       ) rows.push(row.value);
       return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },
-    /** @param {string} actor 操作者。 @param {Invitation[]} invitations 邀请码。 @return {Promise<import("./administration_types.ts").AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 操作者。
+     * @param {Invitation[]} invitations 邀请码。
+     * @return {Promise<import("./administration_types.ts").AdminResult>} 结果。
+     */
     async issue(actor, invitations) {
       const auth = await actorEntry(actor);
       if (!auth.allowed) return "forbidden";
@@ -206,7 +223,11 @@ export function createKvAdministration(
       }
       return (await tx.commit()).ok ? "ok" : "conflict";
     },
-    /** @param {string} actor 操作者。 @param {string} id 邀请摘要。 @return {Promise<import("./administration_types.ts").AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 操作者。
+     * @param {string} id 邀请摘要。
+     * @return {Promise<import("./administration_types.ts").AdminResult>} 结果。
+     */
     async revoke(actor, id) {
       const auth = await actorEntry(actor);
       if (!auth.allowed) return "forbidden";
@@ -224,15 +245,28 @@ export function createKvAdministration(
         ? "ok"
         : "conflict";
     },
-    /** @param {AccountCreation} input 账号资料。 @param {string} invitation 邀请摘要。 @param {string} pending 短期注册标识。 @return {Promise<import("./administration_types.ts").AdminResult>} 结果。 */
+    /**
+     * @param {AccountCreation} input 账号资料。
+     * @param {string} invitation 邀请摘要。
+     * @param {string} pending 短期注册标识。
+     * @return {Promise<import("./administration_types.ts").AdminResult>} 结果。
+     */
     register(input, invitation, pending) {
       return create(input, "", invitation, pending);
     },
-    /** @param {string} actor 超级管理员。 @param {AccountCreation} input 账号资料。 @return {Promise<import("./administration_types.ts").AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 超级管理员。
+     * @param {AccountCreation} input 账号资料。
+     * @return {Promise<import("./administration_types.ts").AdminResult>} 结果。
+     */
     createUser(actor, input) {
       return create(input, actor);
     },
-    /** @param {string} actor 超级管理员。 @param {import("./administration_types.ts").AccountEdit} input 可编辑字段。 @return {Promise<import("./administration_types.ts").AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 超级管理员。
+     * @param {import("./administration_types.ts").AccountEdit} input 可编辑字段。
+     * @return {Promise<import("./administration_types.ts").AdminResult>} 结果。
+     */
     async editUser(actor, input) {
       const auth = await actorEntry(actor, true);
       if (
@@ -268,7 +302,12 @@ export function createKvAdministration(
         ? "ok"
         : "conflict";
     },
-    /** @param {string} actor 超级管理员。 @param {string} id 目标账号。 @param {number} version 表单版本。 @return {Promise<import("./administration_types.ts").AdminResult>} 结果。 */
+    /**
+     * @param {string} actor 超级管理员。
+     * @param {string} id 目标账号。
+     * @param {number} version 表单版本。
+     * @return {Promise<import("./administration_types.ts").AdminResult>} 结果。
+     */
     async deleteUser(actor, id, version) {
       const auth = await actorEntry(actor, true);
       if (!auth.allowed || actor === id) return "forbidden";
@@ -294,7 +333,10 @@ export function createKvAdministration(
         expireIn: Math.max(1, Date.parse(value.expiresAt) - Date.now()),
       });
     },
-    /** @param {string} id 令牌摘要。 @return {Promise<AdminTemporary | undefined>} 有效记录。 */
+    /**
+     * @param {string} id 令牌摘要。
+     * @return {Promise<AdminTemporary | undefined>} 有效记录。
+     */
     async getTemporary(id) {
       const row =
         (await (await open()).get<AdminTemporary>(["adminTemporary", id]))
@@ -304,7 +346,11 @@ export function createKvAdministration(
   };
 }
 
-/** @param {KvStore} db 数据库。 @param {string} id 已删除账号。 @return {Promise<void>} 清理关联数据，保留邀请核销记录。 */
+/**
+ * @param {KvStore} db 数据库。
+ * @param {string} id 已删除账号。
+ * @return {Promise<void>} 清理关联数据，保留邀请核销记录。
+ */
 export async function purgeKvAccount(db: KvStore, id: string): Promise<void> {
   const scoped = [
     "userData",

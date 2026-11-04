@@ -1,6 +1,7 @@
 /**
  * @file 本文件负责渲染命中历史页面。
  */
+import { trashIcon } from "./icons.ts";
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, UserAccount } from "../models.ts";
 import { escapeHtml, renderLayout } from "./html.ts";
@@ -89,16 +90,4 @@ export function renderHistoryTable(
     table,
     titleLinkClass: "pending-title-link",
   });
-}
-
-/**
- * 渲染删除图标。
- *
- * @return 删除图标 SVG。
- */
-function trashIcon(): string {
-  return `<svg aria-hidden="true" viewBox="0 0 24 24">
-    <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z"></path>
-    <path d="M6 9h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"></path>
-  </svg>`;
 }

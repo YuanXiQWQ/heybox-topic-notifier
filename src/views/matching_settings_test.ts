@@ -2,7 +2,8 @@
 import { assert, assertEquals } from "../test_helpers.ts";
 import { defaultAppSettingsFromEnv } from "../services/default_settings.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
-import { createRoutes, settingsFromForm } from "../routes.ts";
+import { createRoutes } from "../routes.ts";
+import { settingsFromForm } from "../services/settings_form.ts";
 import type { AppContext } from "../services/app_context.ts";
 import { testCsrfForm, testCsrfHeaders } from "../test_helpers.ts";
 import { renderSettings } from "./settings.ts";

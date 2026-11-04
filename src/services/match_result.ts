@@ -27,7 +27,9 @@ export function normalizeMatchResult(
   result: MatchResult,
   mode?: MatchingSettings["mode"],
 ): MatchResult {
-  const isAi = result.aiFallback ? false : mode
+  const isAi = result.aiFallback
+    ? false
+    : mode
     ? mode === "ai"
     : result.kind
     ? result.kind === "ai"

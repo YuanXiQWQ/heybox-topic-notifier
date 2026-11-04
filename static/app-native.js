@@ -8,7 +8,7 @@
     /**
      * 发送固定能力请求，不开放任意代码执行或文件访问。
      * @param {string} method 能力名称。
-     * @param {unknown} value 参数。
+     * @param {unknown} [value] 能力参数；无参数请求可以省略。
      * @return {Promise<unknown>} 原生回复。
      */
     const request = (method, value) => {
@@ -17,7 +17,7 @@
         /** 只计算没有原生进度的等待时间，大安装包正常下载可以超过两分钟。 */
         const timeout = () => {
           pending.delete(id);
-          reject(new Error("Native request timed out"));
+          reject(new Error('Native request timed out'));
         };
         const item = {
           resolve,
@@ -29,7 +29,7 @@
         pending.set(id, item);
         try {
           globalThis.HeyboxNative.postMessage(
-            JSON.stringify({ id, method, value }),
+              JSON.stringify({id, method, value}),
           );
         } catch (error) {
           clearTimeout(item.timer);
@@ -40,10 +40,10 @@
     };
     globalThis.HeyboxNative.onmessage = (message) => {
       const reply = JSON.parse(message.data);
-      if (reply.type === "state") {
-        if (reply.value?.update?.status === "downloading") {
+      if (reply.type === 'state') {
+        if (reply.value?.update?.status === 'downloading') {
           for (const item of pending.values()) {
-            if (item.method !== "downloadUpdate") continue;
+            if (item.method !== 'downloadUpdate') continue;
             clearTimeout(item.timer);
             item.timer = setTimeout(item.timeout, 120000);
           }
@@ -59,17 +59,17 @@
       else item.resolve(reply.value);
     };
     globalThis.appNative = Object.freeze({
-      info: () => request("info"),
-      signIn: () => request("login"),
-      notifications: (enabled) => request("notifications", enabled),
-      checkUpdate: () => request("checkUpdate"),
-      downloadUpdate: () => request("downloadUpdate"),
-      installUpdate: () => request("installUpdate"),
-      background: () => request("background"),
-      seenUpdate: (section) => request("seenUpdate", section),
-      preferences: (values) => request("preferences", values),
-      refreshBadge: () => request("refreshBadge"),
-      localBadge: (value) => request("localBadge", value),
+      info: () => request('info'),
+      signIn: () => request('login'),
+      notifications: (enabled) => request('notifications', enabled),
+      checkUpdate: () => request('checkUpdate'),
+      downloadUpdate: () => request('downloadUpdate'),
+      installUpdate: () => request('installUpdate'),
+      background: () => request('background'),
+      seenUpdate: (section) => request('seenUpdate', section),
+      preferences: (values) => request('preferences', values),
+      refreshBadge: () => request('refreshBadge'),
+      localBadge: (value) => request('localBadge', value),
       onState: (listener) => listeners.add(listener),
     });
   }
@@ -90,16 +90,16 @@
     navigating = (async () => {
       if (userId && document.body.dataset.appUserId !== userId) return;
       if (
-        !["back", "background"].includes(target) &&
-        !["/", "/history", "/about"].includes(target)
-      ) throw new Error("Invalid application route");
+          !['back', 'background'].includes(target) &&
+          !['/', '/history', '/about'].includes(target)
+      ) throw new Error('Invalid application route');
       await globalThis.applicationSync?.prepareForExit();
       if (
-        location.href !== page ||
-        (userId && document.body.dataset.appUserId !== userId)
+          location.href !== page ||
+          (userId && document.body.dataset.appUserId !== userId)
       ) return;
-      if (target === "back") history.back();
-      else if (target === "background") await native.background();
+      if (target === 'back') history.back();
+      else if (target === 'background') await native.background();
       else location.assign(target);
     })().finally(() => {
       navigating = undefined;
@@ -108,7 +108,7 @@
   };
   /** 服务端提供当前页面语言，原生桥不硬编码界面文案。 */
   const labels = JSON.parse(
-    document.getElementById("application-messages")?.textContent || "{}",
+      document.getElementById('application-messages')?.textContent || '{}',
   );
   /** 当前设备状态与当前页面已经查看的更新版本。 */
   let state;
@@ -121,34 +121,34 @@
   let installing = false;
   /** 手动检查后才展示行内检查结果，启动检查通过红点和确认窗口提示更新。 */
   let updateRequested = false;
-  const check = document.querySelector("[data-app-check-update]");
-  const status = document.querySelector("[data-app-update-status]");
-  document.querySelector("[data-app-downloads]")?.setAttribute("hidden", "");
-  document.querySelector("[data-app-updates]")?.removeAttribute("hidden");
+  const check = document.querySelector('[data-app-check-update]');
+  const status = document.querySelector('[data-app-update-status]');
+  document.querySelector('[data-app-downloads]')?.setAttribute('hidden', '');
+  document.querySelector('[data-app-updates]')?.removeAttribute('hidden');
   native.onState(render);
   globalThis.applicationNativeReady = native.info().then((info) => {
     render(info);
     return info;
   });
   void globalThis.applicationNativeReady.catch(() =>
-    showStatus(labels.updateFailed)
+      showStatus(labels.updateFailed)
   );
-  check?.addEventListener("click", async () => {
+  check?.addEventListener('click', async () => {
     updateRequested = true;
-    if (state?.update.status === "downloaded") {
+    if (state?.update.status === 'downloaded') {
       render(state);
       showConfirmation();
       return;
     }
     check.disabled = true;
     showStatus(
-      state?.update.status === "downloading"
-        ? labels.updateDownloading
-        : labels.updateChecking,
+        state?.update.status === 'downloading'
+            ? labels.updateDownloading
+            : labels.updateChecking,
     );
     try {
       render(await native.checkUpdate());
-      if (["available", "downloaded"].includes(state.update.status)) {
+      if (['available', 'downloaded'].includes(state.update.status)) {
         showConfirmation();
       }
     } catch {
@@ -163,10 +163,11 @@
    */
   function showStatus(text) {
     if (status) {
-      status.textContent = text || "";
+      status.textContent = text || '';
       status.hidden = !text;
     }
   }
+
   /**
    * 设置一个独立层级的红点，保留原有元素、图标和点击范围。
    * @param {string} selector 目标。
@@ -175,8 +176,9 @@
   function dot(selector, visible) {
     const target = document.querySelector(selector);
     if (!target) return;
-    target.classList.toggle("app-update-unread", visible);
+    target.classList.toggle('app-update-unread', visible);
   }
+
   /**
    * 显示本机版本、手动检查结果和下载进度；进入页面只清除对应入口红点。
    * @param {object} next 原生状态。
@@ -185,136 +187,138 @@
     const previous = state?.update.status;
     state = next;
     document.documentElement.dataset.applicationPlatform = state.platform;
-    const version = document.querySelector("[data-app-version]");
+    const version = document.querySelector('[data-app-version]');
     if (version) version.textContent = state.version;
     const update = state.update;
-    dot("[data-app-settings-link]", update.settingsUnread);
-    dot("[data-app-about-link]", update.aboutUnread);
-    dot("[data-app-version]", Boolean(update.version && !update.silent));
+    dot('[data-app-settings-link]', update.settingsUnread);
+    dot('[data-app-about-link]', update.aboutUnread);
+    dot('[data-app-version]', Boolean(update.version && !update.silent));
     const messages = {
       checking: labels.updateChecking,
       current: labels.updateCurrent,
       error: labels.updateFailed,
       development: labels.updateDevelopment,
-      available: `${labels.updateAvailable} ${update.version ?? ""}`,
-      downloaded: `${labels.updateReady} ${update.version ?? ""}`,
+      available: `${labels.updateAvailable} ${update.version ?? ''}`,
+      downloaded: `${labels.updateReady} ${update.version ?? ''}`,
       downloading: `${labels.updateDownloading} ${
-        Math.floor(update.progress ?? 0)
+          Math.floor(update.progress ?? 0)
       }%`,
     };
     showStatus(
-      updateRequested || update.status === "downloading"
-        ? messages[update.status] ?? ""
-        : "",
+        updateRequested || update.status === 'downloading'
+            ? messages[update.status] ?? ''
+            : '',
     );
     if (check) {
-      check.disabled = ["checking", "downloading"].includes(update.status);
-      check.textContent = update.status === "downloading"
-        ? messages.downloading
-        : update.status === "downloaded"
-        ? labels.updateReady
-        : labels.checkUpdate;
+      check.disabled = ['checking', 'downloading'].includes(update.status);
+      check.textContent = update.status === 'downloading'
+          ? messages.downloading
+          : update.status === 'downloaded'
+              ? labels.updateReady
+              : labels.checkUpdate;
     }
     if (
-      update.version && marked !== update.version &&
-      ["/settings", "/about"].includes(location.pathname)
+        update.version && marked !== update.version &&
+        ['/settings', '/about'].includes(location.pathname)
     ) {
       marked = update.version;
       void native.seenUpdate(location.pathname.slice(1)).then(render).catch(
-        () => {},
+          () => {
+          },
       );
     }
     if (
-      ["available", "downloaded"].includes(update.status) && update.prompt &&
-      state.platform !== "windows" && prompted !== update.version
+        ['available', 'downloaded'].includes(update.status) && update.prompt &&
+        state.platform !== 'windows' && prompted !== update.version
     ) {
       prompted = update.version;
       showConfirmation();
     }
     if (
-      state.platform === "windows" && manualDownload &&
-      update.status === "downloaded"
+        state.platform === 'windows' && manualDownload &&
+        update.status === 'downloaded'
     ) showBanner();
-    if (banner && update.status !== "downloaded") {
+    if (banner && update.status !== 'downloaded') {
       banner.remove();
       banner = undefined;
       if (content) {
         content.replaceWith(...content.childNodes);
         content = undefined;
       }
-      document.documentElement.classList.remove("app-update-banner-visible");
+      document.documentElement.classList.remove('app-update-banner-visible');
     }
     if (
-      state.platform === "android" && previous === "downloading" &&
-      update.status === "downloaded"
+        state.platform === 'android' && previous === 'downloading' &&
+        update.status === 'downloaded'
     ) {
       void installUpdate().catch(() => showStatus(labels.updateFailed));
     }
     if (dialog?.open) updateDialog();
     document.dispatchEvent(
-      new CustomEvent("application-native-state", { detail: state }),
+        new CustomEvent('application-native-state', {detail: state}),
     );
   }
+
   /**
    * 创建更新确认窗口；Android 使用标题关闭按钮与整行更新按钮。
    */
   function showConfirmation() {
-    if (state.platform === "windows") {
-      if (state.update.status === "downloaded") showBanner();
+    if (state.platform === 'windows') {
+      if (state.update.status === 'downloaded') showBanner();
       else if (
-        state.update.status === "available" || state.update.status === "error"
+          state.update.status === 'available' || state.update.status === 'error'
       ) {
         manualDownload = true;
         void native.downloadUpdate().then(render).catch(() =>
-          showStatus(labels.updateFailed)
+            showStatus(labels.updateFailed)
         );
       }
       return;
     }
     if (!dialog) {
-      dialog = document.createElement("dialog");
-      dialog.className = "avatar-crop-dialog app-update-dialog";
-      const heading = document.createElement("h2");
-      heading.id = "app-update-heading";
+      dialog = document.createElement('dialog');
+      dialog.className = 'avatar-crop-dialog app-update-dialog';
+      const heading = document.createElement('h2');
+      heading.id = 'app-update-heading';
       heading.textContent = labels.updateAvailable;
-      const header = document.createElement("div");
-      header.className = "avatar-crop-header";
+      const header = document.createElement('div');
+      header.className = 'avatar-crop-header';
       header.append(heading);
-      const version = document.createElement("p");
-      version.dataset.appUpdateTarget = "";
-      const actions = document.createElement("div");
-      actions.className = "app-update-actions";
-      const later = document.createElement("button");
-      later.type = "button";
-      const mobile = state.platform === "android";
-      later.className = mobile ? "icon-button" : "secondary";
+      const version = document.createElement('p');
+      version.dataset.appUpdateTarget = '';
+      const actions = document.createElement('div');
+      actions.className = 'app-update-actions';
+      const later = document.createElement('button');
+      later.type = 'button';
+      const mobile = state.platform === 'android';
+      later.className = mobile ? 'icon-button' : 'secondary';
       if (mobile) {
         const icon = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "svg",
+            'http://www.w3.org/2000/svg',
+            'svg',
         );
-        icon.setAttribute("viewBox", "0 0 24 24");
-        icon.setAttribute("aria-hidden", "true");
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('aria-hidden', 'true');
         const path = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "path",
+            'http://www.w3.org/2000/svg',
+            'path',
         );
         path.setAttribute(
-          "d",
-          "m6.7 5.3 5.3 5.3 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3z",
+            'd',
+            'm6.7 5.3 5.3 5.3 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3z',
         );
         icon.append(path);
         later.append(icon);
       } else later.textContent = labels.updateLater;
-      if (mobile) later.setAttribute("aria-label", labels.accountCancel);
-      later.addEventListener("click", () => dialog.close());
-      const confirm = document.createElement("button");
-      confirm.type = "button";
-      confirm.dataset.appUpdateConfirm = "";
-      confirm.addEventListener("click", async () => {
+      if (mobile) later.setAttribute('aria-label', labels.accountCancel);
+      later.addEventListener('click', () => dialog.close());
+      const confirm = document.createElement('button');
+      confirm.type = 'button';
+      confirm.dataset.appUpdateConfirm = '';
+      confirm.addEventListener('click', async () => {
         confirm.disabled = true;
         try {
-          if (state.update.status === "downloaded") {
+          if (state.update.status === 'downloaded') {
             await installUpdate();
           } else {
             render(await native.downloadUpdate());
@@ -329,15 +333,17 @@
       else actions.append(later);
       actions.append(confirm);
       dialog.append(header, version, actions);
-      dialog.setAttribute("aria-labelledby", heading.id);
-      dialog.addEventListener("close", () => {
-        void native.seenUpdate("dismissed").then(render).catch(() => {});
+      dialog.setAttribute('aria-labelledby', heading.id);
+      dialog.addEventListener('close', () => {
+        void native.seenUpdate('dismissed').then(render).catch(() => {
+        });
       });
       document.body.append(dialog);
     }
     updateDialog();
     if (!dialog.open) dialog.showModal();
   }
+
   /** 等待本地事务完成后请求安装，合并下载事件与按钮产生的重复请求。 */
   async function installUpdate() {
     if (installing) return;
@@ -349,18 +355,19 @@
       installing = false;
     }
   }
+
   /** 手动更新完成后显示贴底窄横幅，通过页面网格预留空间而不遮挡内容。 */
   function showBanner() {
     if (banner) return;
-    banner = document.createElement("div");
-    banner.className = "app-update-banner";
-    banner.setAttribute("role", "status");
-    const message = document.createElement("span");
+    banner = document.createElement('div');
+    banner.className = 'app-update-banner';
+    banner.setAttribute('role', 'status');
+    const message = document.createElement('span');
     message.textContent = labels.updateReady;
-    const restart = document.createElement("button");
-    restart.type = "button";
+    const restart = document.createElement('button');
+    restart.type = 'button';
     restart.textContent = labels.updateRestart;
-    restart.addEventListener("click", async () => {
+    restart.addEventListener('click', async () => {
       restart.disabled = true;
       try {
         await installUpdate();
@@ -372,28 +379,29 @@
     });
     banner.append(message, restart);
     const scrollTop = globalThis.scrollY;
-    content = document.createElement("div");
-    content.className = "app-update-content";
+    content = document.createElement('div');
+    content.className = 'app-update-content';
     content.append(...document.body.childNodes);
     document.body.append(content, banner);
-    document.documentElement.classList.add("app-update-banner-visible");
+    document.documentElement.classList.add('app-update-banner-visible');
     content.scrollTop = scrollTop;
   }
+
   /**
    * 下载过程中只更新确认按钮和进度，不重新创建窗口或覆盖用户焦点。
    */
   function updateDialog() {
     if (!dialog) return;
-    dialog.querySelector("[data-app-update-target]").textContent =
-      state.update.version ?? "";
-    const button = dialog.querySelector("[data-app-update-confirm]");
-    button.disabled = state.update.status === "downloading";
-    button.textContent = state.update.status === "downloaded"
-      ? (state.platform === "windows"
-        ? labels.updateRestart
-        : labels.updateDownload)
-      : state.update.status === "downloading"
-      ? `${labels.updateDownloading} ${Math.floor(state.update.progress ?? 0)}%`
-      : labels.updateDownload;
+    dialog.querySelector('[data-app-update-target]').textContent =
+        state.update.version ?? '';
+    const button = dialog.querySelector('[data-app-update-confirm]');
+    button.disabled = state.update.status === 'downloading';
+    button.textContent = state.update.status === 'downloaded'
+        ? (state.platform === 'windows'
+            ? labels.updateRestart
+            : labels.updateDownload)
+        : state.update.status === 'downloading'
+            ? `${labels.updateDownloading} ${Math.floor(state.update.progress ?? 0)}%`
+            : labels.updateDownload;
   }
 })();

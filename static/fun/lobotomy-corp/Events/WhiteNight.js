@@ -393,7 +393,7 @@ export function createWhiteNightEvent(shared) {
    * 创建或采用白夜音频，并按需恢复播放进度。
    *
    * @param {string} soundPath 相对于 Assets 的路径。
-   * @param {object|undefined} preparedMedia 用户手势预热的媒体。
+   * @param {object} [preparedMedia] 用户手势预热的媒体；省略时直接创建音频。
    * @param {{loop?: boolean, onBlocked?: (() => void)|undefined, onPlayed?: (() => void)|undefined, resumePosition?: number}} [options] 播放选项：是否循环、自动播放被拒绝与播放开始后的处理、需要恢复的播放进度（秒）。
    * @return {HTMLAudioElement|undefined} 已播放的音频。
    */

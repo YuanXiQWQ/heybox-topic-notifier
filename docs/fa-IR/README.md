@@ -1,22 +1,19 @@
+<!-- GitHub 文档用 align 保持 RTL 对齐，代码块单独采用 LTR。 -->
+<!--suppress HtmlDeprecatedAttribute -->
 <div dir="rtl" lang="fa-IR" align="right">
 
 # اعلان‌کنندهٔ موضوعات Heybox
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
-[![Deno](https://img.shields.io/badge/Deno-2.x-000?logo=deno&logoColor=white)](https://deno.com/)
-[![Production](https://img.shields.io/badge/Production-online-brightgreen)](https://heybox-topic-notifier.yuanxiqwq.deno.net/)
-[![Dev](https://img.shields.io/badge/Dev-preview-blue)](https://heybox-topic-notifier--dev.yuanxiqwq.deno.net/)
 
 | [简体中文](../../README.md) | **فارسی** |
-|:-----------------------:|:---------:|
+| :-------------------------: | :-------: |
 
----
+[Web](https://heybox.yuanxiqwq.top/) · [Windows x64](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-windows-x64-setup.exe) · [Android APK](https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/latest/download/heybox-topic-notifier-android-universal.apk)
 
-&rlm;<a href="https://heybox-topic-notifier.yuanxiqwq.deno.net/"><img src="https://deno.com/logo.svg" alt="Deno" width="16" height="16" align="absmiddle"> Heybox Topic Notifier</a>
-یک برنامهٔ سبک Deno برای پایش پست‌های موضوعی Heybox است. این برنامه به‌صورت دوره‌ای، مطابق تنظیمات
-هر حساب، پست‌های واقعی موضوعات را می‌خواند، عنوان‌ها، متن‌ها، دیدگاه‌ها و پاسخ‌ها را با قواعد کلمات
-کلیدی بررسی می‌کند، تطابق‌ها را در نماهای در انتظار و تاریخچه ثبت می‌کند و اعلان‌ها را از طریق کانال
-پیکربندی‌شده ارسال می‌کند.
+در تنظیمات یک موضوع Heybox اضافه کنید، کلیدواژه، عبارت منظم یا فیلتر هوش مصنوعی را انتخاب کنید و بررسی دوره‌ای را فعال کنید. می‌توانید پست‌های منطبق را به تاریخچه منتقل کنید و به فضای کار برگردانید.
+
+ساخت حساب به کد دعوت نیاز دارد. اعلان‌های برنامه برای هر دستگاه جداگانه فعال می‌شوند و می‌توان آن‌ها را همراه ایمیل یا Webhook به کار برد. تغییرات آفلاین پس از اتصال همگام می‌شوند. زبان و حالت تاریک در ابتدا از تنظیمات دستگاه پیروی می‌کنند.
 
 ## قابلیت‌ها
 
@@ -28,66 +25,23 @@
   اساس شناسهٔ کاربر جدا می‌شوند
 - قواعد کلمات کلیدی: پشتیبانی از قواعد مشترک، قواعد مخصوص هر موضوع، محل‌های تطابق، حساسیت به بزرگی
   و کوچکی حروف و عبارت‌های منظم
-- جدول‌های تطابق: رکوردهای در انتظار و تاریخچه هر دو از فیلترهای بازهٔ زمانی، صفحه‌بندی، تکمیل دسته‌ای
-  و عملیات حذف پشتیبانی می‌کنند
-- ورودی‌های اشکال‌زدایی: تطابق‌های شبیه‌سازی‌شده و آزمون‌های اعلان، همراه با محدودیت نرخ سمت سرور برای
-  نظرسنجی دستی و عملیات اشکال‌زدایی
+- تنظیمات → تنظیمات اعلان → اعلان آزمایشی
 - کانال‌های اعلان: Webhook سفارشی، ServerChan، PushPlus، WxPusher، API ایمیل و SMTP
 - رلهٔ اعلان: رلهٔ اختیاری Cloudflare Worker برای PushPlus، WxPusher و ServerChan
-- امنیت: هش‌های گذرواژهٔ PBKDF2، نشست‌های مبتنی بر KV، توکن‌های CSRF، سرآیندهای امنیتی، گزارش‌های
-  ممیزی و allowlist خروجی همراه با اعتبارسنجی DNS
-
-## پشتهٔ فناوری
-
-- &rlm;Deno 2 + TypeScript
-- &rlm;Hono
-- &rlm;Deno KV
-- &rlm;Deno.cron + زمان‌بند تایمر محلی
-- &rlm;HTML رندرشده در سمت سرور + JavaScript/CSS ساده
-- اسکریپت Cloudflare Workers برای رلهٔ اعلان‌ها
 
 ## توسعهٔ محلی
 
-سرور توسعه را شروع کنید:
+```sh
+deno task dev
+```
 
-<pre dir='ltr' align='left'><code class='language-powershell'>deno task dev
-</code></pre>
-
-سپس باز کنید:
-
-<pre dir='ltr' align='left'><code class='language-text'>http://localhost:8000
-</code></pre>
-
-برای بازنویسی مقدارهای پیش‌فرض، از `.env.example` به‌عنوان مرجع استفاده کنید و متغیرهای محیطی متناظر
-را در محیط اجرای خود تنظیم کنید. در نخستین بازدید یک حساب ثبت کنید؛ متغیرهای محیطی فقط مقدارهای
-پیش‌فرض را برای حساب‌های جدید یا داده‌های پیش‌فرض مقداردهی اولیه می‌کنند و پس از آن صفحهٔ تنظیمات
-هر حساب به منبع حقیقت تبدیل می‌شود.
-
-برنامه صفحه‌های ثبت‌نام و ورود را فراهم می‌کند. هر حساب تنظیمات، تاریخچهٔ تطابق، وضعیت نظرسنجی و
-پیکربندی اعلان جداگانه دارد، بنابراین کاربرانی که از همان URL استقرار استفاده می‌کنند داده‌ها را به
-اشتراک نمی‌گذارند. گذرواژه‌های کاربران در Deno KV به‌صورت هش‌های PBKDF2 نمک‌گذاری‌شده ذخیره می‌شوند،
-نه به‌صورت متن ساده. نشست‌های ورود در Deno KV ذخیره می‌شوند و کوکی مرورگر فقط شامل یک توکن نشست
-تصادفی است. تغییرات تنظیمات، حساب و اشکال‌زدایی یک توکن CSRF را اعتبارسنجی می‌کنند و عملیات حساس در
-استقرارهای عمومی دارای محدودیت نرخ هستند.
-
-## فرمان‌ها
-
-<pre dir='ltr' align='left'><code class='language-powershell'>deno task dev
-deno task start
-deno task check
-deno task clear-seen
-</code></pre>
-
-`clear-seen` نشانگرهای پست‌های پردازش‌شده را پاک می‌کند تا همان پست‌ها دوباره قابل بررسی باشند؛ در
-محیط تولید با احتیاط از آن استفاده کنید.
+[localhost:8000](http://localhost:8000) · [`.env.example`](../../.env.example) · `deno task check`
 
 ## استقرار
 
-برای راه‌اندازی Deno Deploy به [deployment](./deployment.md) مراجعه کنید. نقطهٔ ورود برنامه توسط بخش
-`deploy` در `deno.json` تعریف می‌شود؛ GitHub Actions فقط بررسی‌ها را اجرا می‌کند و برنامه را مستقر
-نمی‌کند. نقطهٔ ورود استقرار در `src/deploy.ts`، Cron مربوط به Deno Deploy را اعلام می‌کند و نظرسنجی
-واقعی فقط روی Production و خط زمانی Git Branch مربوط به `dev` اجرا می‌شود. برای راه‌اندازی Worker
-رلهٔ اعلان‌ها به [worker](./worker.md) مراجعه کنید.
+سرویس Deno روی Oracle Cloud اجرا می‌شود و Caddy اتصال HTTPS را فراهم می‌کند. حساب‌ها، نشست‌ها و نتایج در Turso ذخیره می‌شوند. GitHub Actions بسته‌های نصب Windows و Android را از برچسب‌های انتشار می‌سازد.
+
+[نصب روی سرور شخصی](./deployment.md) · [Cloudflare Worker](./worker.md)
 
 ## مجوز
 

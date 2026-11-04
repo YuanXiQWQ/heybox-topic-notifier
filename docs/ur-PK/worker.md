@@ -1,3 +1,5 @@
+<!-- GitHub 文档用 align 保持 RTL 对齐，代码块单独采用 LTR。 -->
+<!--suppress HtmlDeprecatedAttribute -->
 <div dir="rtl" lang="ur-PK" align="right">
 
 # Notification relay Worker
@@ -18,8 +20,9 @@ SendKey قبول کرتی ہے، اور project کے existing rules کے مطا�
 2. `workers/notification-relay.js` کا content Worker editor میں paste کریں، یا Wrangler سے اس script کو deploy کریں۔
 3. Worker variables/secrets میں `RELAY_TOKEN` شامل کریں، value کے طور پر ایک long random secret استعمال کریں۔
 4. Deployment کے بعد `https://<your-worker>.workers.dev/healthz` visit کریں، اور confirm کریں کہ `{"status":"ok"}` return ہو رہا ہے۔
-5. Deno Deploy configure کریں:
+5. `/etc/heybox-topic-notifier/heybox.env`
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
 NOTIFIER_SERVER_CHAN_SEND_URL=https://&lt;your-worker&gt;.workers.dev/serverchan
@@ -28,11 +31,13 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 Project side صرف تب درج ذیل بھیجے گا جب PushPlus، WxPusher یا Server酱 send address relay address میں بدل دیا گیا ہو:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-http'>Authorization: Bearer &lt;NOTIFIER_RELAY_TOKEN&gt;
 </code></pre>
 
 Server酱 relay dedicated request header سے SendKey بھی pass کرے گا:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-http'>X-ServerChan-Send-Key: &lt;serverchan-send-key&gt;
 </code></pre>
 
@@ -40,6 +45,7 @@ Server酱 relay dedicated request header سے SendKey بھی pass کرے گا:
 
 پہلے Worker console یا local curl میں authentication effective ہے یا نہیں test کر سکتے ہیں:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/pushplus" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "Content-Type: application/json" \
@@ -48,6 +54,7 @@ Server酱 relay dedicated request header سے SendKey بھی pass کرے گا:
 
 WxPusher test:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/wxpusher" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "Content-Type: application/json" \
@@ -56,6 +63,7 @@ WxPusher test:
 
 Server酱 test:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/serverchan" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "X-ServerChan-Send-Key: &lt;serverchan-send-key&gt;" \

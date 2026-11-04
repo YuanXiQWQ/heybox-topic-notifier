@@ -18,7 +18,7 @@ entrypoint only accepts safe SendKeys and builds the official URL with the proje
 3. Add `RELAY_TOKEN` to the Worker's variables or secrets, using a long random secret.
 4. After deployment, visit `https://<your-worker>.workers.dev/healthz` and confirm it returns
    `{"status":"ok"}`.
-5. Configure Deno Deploy:
+5. `/etc/heybox-topic-notifier/heybox.env`
 
 ```env
 NOTIFIER_PUSHPLUS_SEND_URL=https://<your-worker>.workers.dev/pushplus

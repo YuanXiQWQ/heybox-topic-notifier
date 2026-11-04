@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 支持启动图标偏好的系统始终展示应用标志。 -->
+<resources>
+    <style name="AppStartingTheme" parent="AppStartingThemeBase">
+        <item name="android:windowLightNavigationBar">@bool/startup_light_system_bars</item>
+        <item name="android:windowSplashScreenBehavior">icon_preferred</item>
+    </style>
+</resources>

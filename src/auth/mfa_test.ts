@@ -12,6 +12,7 @@ import {
   normalizeUserSecuritySettings,
 } from "./mfa.ts";
 import { assertEquals, assertRejects } from "../test_helpers.ts";
+import { assertThrows } from "@std/assert";
 import type {
   EmailCredential,
   PasskeyCredential,
@@ -106,22 +107,19 @@ Deno.test("completePrimaryAuthentication rejects enabled two-factor without an a
   );
 });
 
-Deno.test("assertValidUserSecuritySettings rejects unavailable configurations", async () => {
-  await assertRejects(
-    () =>
-      Promise.resolve(
-        assertValidUserSecuritySettings(securitySettings(true), []),
-      ),
+Deno.test("assertValidUserSecuritySettings rejects unavailable configurations", () => {
+  assertThrows(
+    () => assertValidUserSecuritySettings(securitySettings(true), []),
+    Error,
     "Two-factor authentication cannot be enabled without an available method.",
   );
-  await assertRejects(
+  assertThrows(
     () =>
-      Promise.resolve(
-        assertValidUserSecuritySettings(
-          securitySettings(true, "totp"),
-          ["email"],
-        ),
+      assertValidUserSecuritySettings(
+        securitySettings(true, "totp"),
+        ["email"],
       ),
+    Error,
     "Preferred two-factor method is not available.",
   );
 });

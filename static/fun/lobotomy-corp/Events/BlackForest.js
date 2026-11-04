@@ -16,11 +16,16 @@
  *
  * 网页不模拟战斗与收容单元，只复刻 CG 与「事件对网站本身的影响」。
  */
+
+/**
+ * 黑森林 CG 的有序片段及时间边界。
+ * @typedef {Array<{breakdown: Record<string, any>, endMs: number, fadeInEndMs: number, fadeOutStartMs: number, hasNext: boolean, image: string, key: string, messageKey: string, startMs: number}>} BlackForestCgTimeline
+ */
 // @ts-check
 
-import { lobotomyCorpViewportSize } from './CanvasScaler.js';
-import { createBlackForestEggSpineStage } from './BlackForestEggSpine.js';
-import { adventTextNeedsCjkFont } from './WhiteNightAdvent.js';
+import {lobotomyCorpViewportSize} from './CanvasScaler.js';
+import {createBlackForestEggSpineStage} from './BlackForestEggSpine.js';
+import {adventTextNeedsCjkFont} from './WhiteNightAdvent.js';
 
 /** 终末鸟事件在持久化状态里的唯一标识。 */
 export const blackForestEventId = 'black-forest';
@@ -278,18 +283,10 @@ const blackForestIconSlotIds = Object.freeze({
  * 分页页码与每页行数只在对应表格存在时由当前页面动态追加。
  */
 export const blackForestIconSlots = Object.freeze(
-  Object.entries(blackForestIconSlotIds).flatMap(([page, ids]) =>
-    ids.map((id) => Object.freeze({ id, page }))
-  ),
+    Object.entries(blackForestIconSlotIds).flatMap(([page, ids]) =>
+        ids.map((id) => Object.freeze({id, page}))
+    ),
 );
-
-/** 候选页面；鸟蛋可从这些页面汇总出的槽位中随机出现。 */
-export const blackForestIconPages = Object.freeze([
-  'nav',
-  'dashboard',
-  'settings',
-  'history',
-]);
 
 /** 终末鸟事件持久化时允许出现的阶段。 */
 export const blackForestPhases = Object.freeze([
@@ -318,11 +315,11 @@ export const blackForestActivePhases = Object.freeze([
  */
 export function blackForestNarrationSequence(birdOrder) {
   const birds = /** @type {Record<string, {arrival: string}>} */ (
-    blackForestBirds
+      blackForestBirds
   );
   const arrivals = (Array.isArray(birdOrder) ? birdOrder : [])
-    .map((bird) => birds[bird]?.arrival)
-    .filter((key) => typeof key === 'string');
+      .map((bird) => birds[bird]?.arrival)
+      .filter((key) => typeof key === 'string');
   return ['escape', ...arrivals, 'bossBirdAppear'];
 }
 
@@ -335,11 +332,11 @@ export function blackForestNarrationSequence(birdOrder) {
  *
  * @param {string[]} keys CG 序列。
  * @param {Record<string, any>} [narrations] 台词表，测试可替换。
- * @return {Array<{breakdown: Record<string, any>, endMs: number, fadeInEndMs: number, fadeOutStartMs: number, hasNext: boolean, image: string, key: string, messageKey: string, startMs: number}>} CG 时间线。
+ * @return {BlackForestCgTimeline} CG 时间线。
  */
 export function blackForestCgTimeline(
-  keys,
-  narrations = blackForestNarrations,
+    keys,
+    narrations = blackForestNarrations,
 ) {
   let startMs = 0;
   const list = (Array.isArray(keys) ? keys : []).map((key) => {
@@ -370,16 +367,16 @@ export function blackForestCgTimeline(
 /**
  * 求某个时刻的画面状态。
  *
- * @param {ReturnType<typeof blackForestCgTimeline>} timeline CG 时间线。
+ * @param {BlackForestCgTimeline} timeline CG 时间线。
  * @param {number} elapsedMs 已播放时长。
  * @return {{canvasAlpha: number, finished: boolean, imageAlpha: number, index: number}} 该时刻的 CG 图层与画布不透明度。
  */
 export function blackForestCgFrameAt(timeline, elapsedMs) {
-  const { fadeInMs, fadeOutMs, fadeInStartAlpha } = blackForestNarrationCanvas;
+  const {fadeInMs, fadeOutMs, fadeInStartAlpha} = blackForestNarrationCanvas;
   const elapsed = Number.isFinite(elapsedMs) ? Math.max(0, elapsedMs) : 0;
   const index = timeline.findIndex((segment) => elapsed < segment.endMs);
   if (index < 0) {
-    return { canvasAlpha: 0, finished: true, imageAlpha: 0, index: -1 };
+    return {canvasAlpha: 0, finished: true, imageAlpha: 0, index: -1};
   }
   const segment = timeline[index];
   const local = elapsed - segment.startMs;
@@ -387,15 +384,15 @@ export function blackForestCgFrameAt(timeline, elapsedMs) {
   let imageAlpha;
   if (local < fadeInMs) {
     imageAlpha = fadeInStartAlpha +
-      (1 - fadeInStartAlpha) * (local / fadeInMs);
+        (1 - fadeInStartAlpha) * (local / fadeInMs);
   } else if (local < fadeOutStartLocal) {
     imageAlpha = 1;
   } else {
     imageAlpha = 1 - (local - fadeOutStartLocal) / fadeOutMs;
   }
   const canvasAlpha = !segment.hasNext && local >= fadeOutStartLocal
-    ? 1 - (local - fadeOutStartLocal) / fadeOutMs
-    : 1;
+      ? 1 - (local - fadeOutStartLocal) / fadeOutMs
+      : 1;
   return {
     canvasAlpha: Math.min(1, Math.max(0, canvasAlpha)),
     finished: false,
@@ -422,19 +419,19 @@ export function blackForestCgFrameAt(timeline, elapsedMs) {
  * @return {{centerX: number, centerY: number, fontSize: number, height: number, scale: number, width: number}} 台词节点的屏幕几何。
  */
 export function blackForestCgTextLayout(viewportWidth, viewportHeight) {
-  const { referenceHeight, referenceWidth, text } = blackForestNarrationCanvas;
+  const {referenceHeight, referenceWidth, text} = blackForestNarrationCanvas;
   const width = Number.isFinite(viewportWidth) && viewportWidth > 0
-    ? viewportWidth
-    : referenceWidth;
+      ? viewportWidth
+      : referenceWidth;
   const height = Number.isFinite(viewportHeight) && viewportHeight > 0
-    ? viewportHeight
-    : referenceHeight;
+      ? viewportHeight
+      : referenceHeight;
   const scale = Math.min(width / referenceWidth, height / referenceHeight);
   /** 台词矩形在 1600×900 画布上的一半高度（prefab：(900 - 744) / 2）。 */
   const halfHeight = (referenceHeight + text.sizeDeltaHeight) / 2;
   /** 台词矩形下边缘离画布底边的留白（prefab：900 - (450 + 354 + 78)）。 */
   const bottomMargin = referenceHeight -
-    (referenceHeight / 2 - text.anchoredPositionY) - halfHeight;
+      (referenceHeight / 2 - text.anchoredPositionY) - halfHeight;
   /** 台词中心离画布底边的画布单位数（prefab：78 + 18）。 */
   const bottomOffset = halfHeight + bottomMargin;
   return {
@@ -457,8 +454,8 @@ export function blackForestCgTextLayout(viewportWidth, viewportHeight) {
  * @return {Record<string, string>} 图标槽位 → 蛋。
  */
 export function blackForestEggAssignment(
-  random = Math.random,
-  slots = blackForestIconSlots,
+    random = Math.random,
+    slots = blackForestIconSlots,
 ) {
   /**
    * 洗牌一份只读列表。
@@ -477,7 +474,7 @@ export function blackForestEggAssignment(
     return list;
   };
   const selectedSlots = shuffled(slots.map((slot) => slot.id))
-    .slice(0, blackForestEggOrder.length);
+      .slice(0, blackForestEggOrder.length);
   const eggs = shuffled(blackForestEggOrder);
   /** @type {Record<string, string>} */
   const assignment = {};
@@ -500,18 +497,18 @@ export function blackForestEggAssignment(
  * @return {Record<string, string>} 迁移后的槽位分配。
  */
 export function relocateUnfoundBlackForestEggs(
-  eggs,
-  found,
-  slots,
-  random = Math.random,
+    eggs,
+    found,
+    slots,
+    random = Math.random,
 ) {
   const foundSet = new Set(Array.isArray(found) ? found : []);
   const allowedSlotIds = new Set(slots.map((slot) => slot.id));
   const entries = Object.entries(eggs ?? {});
   const occupiedSlots = new Set(entries.map(([slot]) => slot));
   const candidates = slots
-    .map((slot) => slot.id)
-    .filter((slot) => !occupiedSlots.has(slot));
+      .map((slot) => slot.id)
+      .filter((slot) => !occupiedSlots.has(slot));
   for (let index = candidates.length - 1; index > 0; index -= 1) {
     const swap = Math.floor(random() * (index + 1));
     const current = candidates[index];
@@ -545,14 +542,14 @@ export function isValidBlackForestState(saved) {
   const found = Array.isArray(saved?.found) ? saved.found : [];
   const eggs = saved?.eggs && typeof saved.eggs === 'object' ? saved.eggs : {};
   return blackForestPhases.includes(saved?.phase) &&
-    birds.every((bird) => bird in blackForestBirds) &&
-    order.every((bird) => bird in blackForestBirds) &&
-    found.every((egg) => egg in blackForestEggs) &&
-    Object.entries(eggs).every(([slot, egg]) =>
-      (blackForestIconSlots.some((entry) => entry.id === slot) ||
-        blackForestLegacyConditionalSlots.has(slot)) &&
-      egg in blackForestEggs
-    );
+      birds.every((bird) => bird in blackForestBirds) &&
+      order.every((bird) => bird in blackForestBirds) &&
+      found.every((egg) => egg in blackForestEggs) &&
+      Object.entries(eggs).every(([slot, egg]) =>
+          (blackForestIconSlots.some((entry) => entry.id === slot) ||
+              blackForestLegacyConditionalSlots.has(slot)) &&
+          egg in blackForestEggs
+      );
 }
 
 /**
@@ -563,7 +560,7 @@ export function isValidBlackForestState(saved) {
  */
 function remainingBird(birds) {
   return blackForestDefaultBirdOrder.find((bird) => !birds.includes(bird)) ??
-    blackForestDefaultBirdOrder[blackForestDefaultBirdOrder.length - 1];
+      blackForestDefaultBirdOrder[blackForestDefaultBirdOrder.length - 1];
 }
 
 /**
@@ -573,9 +570,11 @@ function remainingBird(birds) {
  * @return {{arrival: string, breakdown: string, egg: string, id: string}|undefined} 鸟的资料。
  */
 function blackForestBirdInfo(key) {
-  return /** @type {Record<string, {arrival: string, breakdown: string, egg: string, id: string}>} */ (
-    blackForestBirds
-  )[key];
+  // 独立变量保留字符串索引类型，供未知输入返回 undefined。
+  // noinspection UnnecessaryLocalVariableJS
+  /** @type {Record<string, {arrival: string, breakdown: string, egg: string, id: string}>} */
+  const birds = blackForestBirds;
+  return birds[key];
 }
 
 /**
@@ -585,9 +584,11 @@ function blackForestBirdInfo(key) {
  * @return {{bird: string, labelKey: string, spine: string}|undefined} 蛋的资料。
  */
 function blackForestEggInfo(key) {
-  return /** @type {Record<string, {bird: string, labelKey: string, spine: string}>} */ (
-    blackForestEggs
-  )[key];
+  // 独立变量保留字符串索引类型，供未知输入返回 undefined。
+  // noinspection UnnecessaryLocalVariableJS
+  /** @type {Record<string, {bird: string, labelKey: string, spine: string}>} */
+  const eggs = blackForestEggs;
+  return eggs[key];
 }
 
 /**
@@ -618,7 +619,8 @@ function defaultBlackForestSoundPlayer(source) {
     const audio = new host.Audio(source);
     audio.hidden = true;
     audio.setAttribute?.('aria-hidden', 'true');
-    void audio.play?.()?.catch?.(() => {});
+    void audio.play?.()?.catch?.(() => {
+    });
   } catch {
     // 音频被浏览器策略拦截时保持静默。
   }
@@ -639,20 +641,22 @@ export function createBlackForestCgPlayer(options) {
     throw new Error('Black Forest CG requires a document body.');
   }
   const assetRoot = String(options.assetRoot ?? '').replace(/\/$/, '');
+  // 各演出独立注入时钟与取消接口，生命周期不共享。
+  // noinspection DuplicatedCode
   const now = options.now ??
-    (() => host.performance?.now?.() ?? Date.now());
+      (() => host.performance?.now?.() ?? Date.now());
   const requestFrame = options.requestFrame ??
-    ((/** @type {(timestamp: number) => void} */ callback) =>
-      host.requestAnimationFrame?.(callback) ??
-      setTimeout(() => callback(now()), 16));
+      ((/** @type {(timestamp: number) => void} */ callback) =>
+          host.requestAnimationFrame?.(callback) ??
+          setTimeout(() => callback(now()), 16));
   const cancelFrame = options.cancelFrame ??
-    ((/** @type {number} */ id) => {
-      if (typeof host.cancelAnimationFrame === 'function') {
-        host.cancelAnimationFrame(id);
-        return;
-      }
-      clearTimeout(id);
-    });
+      ((/** @type {number} */ id) => {
+        if (typeof host.cancelAnimationFrame === 'function') {
+          host.cancelAnimationFrame(id);
+          return;
+        }
+        clearTimeout(id);
+      });
   const viewport = options.viewport ?? (() => lobotomyCorpViewportSize());
   const playSound = options.playSound ?? defaultBlackForestSoundPlayer;
   const messages = options.messages ?? (() => ({}));
@@ -679,7 +683,7 @@ export function createBlackForestCgPlayer(options) {
   frame.src = `${assetRoot}/${blackForestNarrationCanvas.layers[2]}`;
   root.append(background, image, forward, text, frame);
 
-  /** @type {ReturnType<typeof blackForestCgTimeline>} */
+  /** @type {BlackForestCgTimeline} */
   let timeline = [];
   /** @type {(() => void)|undefined} */
   let listener;
@@ -729,7 +733,7 @@ export function createBlackForestCgPlayer(options) {
     if (playedSounds.has(key)) return;
     playedSounds.add(key);
     const soundPath = /** @type {Record<string, string>} */ (
-      blackForestSoundPaths
+        blackForestSoundPaths
     )[soundKey];
     if (soundPath) playSound(`${assetRoot}/${soundPath}`);
   };
@@ -765,17 +769,17 @@ export function createBlackForestCgPlayer(options) {
       presentSegment(timeline[state.index]);
     }
     root.style.setProperty(
-      '--lobotomy-corp-black-forest-image-alpha',
-      String(state.imageAlpha),
+        '--lobotomy-corp-black-forest-image-alpha',
+        String(state.imageAlpha),
     );
     root.style.setProperty(
-      '--lobotomy-corp-black-forest-canvas-alpha',
-      String(state.canvasAlpha),
+        '--lobotomy-corp-black-forest-canvas-alpha',
+        String(state.canvasAlpha),
     );
     const segment = timeline[state.index];
     if (
-      segment.breakdown.soundAtFadeOut &&
-      elapsed >= segment.fadeOutStartMs
+        segment.breakdown.soundAtFadeOut &&
+        elapsed >= segment.fadeOutStartMs
     ) {
       playOnce(`${segment.key}:fade-out`, segment.breakdown.soundAtFadeOut);
     }
@@ -824,8 +828,8 @@ export function createBlackForestCgPlayer(options) {
     const elapsed = now() - startedAt;
     renderAt(elapsed);
     const totalMs = timeline.reduce(
-      (total, segment) => total + (segment.endMs - segment.startMs),
-      0,
+        (total, segment) => total + (segment.endMs - segment.startMs),
+        0,
     );
     if (elapsed >= totalMs) {
       stop();
@@ -856,7 +860,7 @@ export function createBlackForestCgPlayer(options) {
       startedAt = now();
       mount();
       renderAt(0);
-      return new Promise((resolve) => {
+      return new Promise(/** @param {() => void} resolve 整段 CG 播放完成回调。 */ (resolve) => {
         settle = resolve;
         frameHandle = requestFrame(tick);
       });
@@ -884,7 +888,7 @@ export function createBlackForestEvent(shared) {
 
   /** @return {any} 宿主 document。 */
   const document = () =>
-    shared.document?.() ?? /** @type {any} */ (globalThis).document;
+      shared.document?.() ?? /** @type {any} */ (globalThis).document;
 
   /**
    * 汇总固定槽位与页面动态槽位，排除需要修改配置才能显示的旧槽位。
@@ -893,21 +897,23 @@ export function createBlackForestEvent(shared) {
    */
   const availableSlots = () => {
     const slots = new Map(
-      blackForestIconSlots.map((slot) => [slot.id, slot]),
+        blackForestIconSlots.map((slot) => [slot.id, slot]),
     );
     const nodes = document()?.querySelectorAll?.(
-      '[data-lobotomy-corp-black-forest-slot]',
+        '[data-lobotomy-corp-black-forest-slot]',
     ) ?? [];
     Array.from(nodes).forEach((node) => {
+      // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+      // noinspection JSUnresolvedReference
       const id = node?.dataset?.lobotomyCorpBlackForestSlot;
       if (typeof id !== 'string' || slots.has(id) || blackForestLegacyConditionalSlots.has(id)) return;
       const page = id.startsWith('history.')
-        ? 'history'
-        : id.startsWith('dashboard.')
-        ? 'dashboard'
-        : id.startsWith('settings.')
-        ? 'settings'
-        : 'nav';
+          ? 'history'
+          : id.startsWith('dashboard.')
+              ? 'dashboard'
+              : id.startsWith('settings.')
+                  ? 'settings'
+                  : 'nav';
       slots.set(id, {id, page});
     });
     return [...slots.values()];
@@ -931,7 +937,7 @@ export function createBlackForestEvent(shared) {
   const selectableEggSlots = () => {
     const pages = eggSlotPages();
     return availableSlots().filter((slot) =>
-      pages === undefined || pages.has(slot.page)
+        pages === undefined || pages.has(slot.page)
     );
   };
 
@@ -949,17 +955,17 @@ export function createBlackForestEvent(shared) {
       source: state.source,
     });
     shared.storages?.().forEach(
-      (/** @type {any} */ storage) =>
-        storage.setItem(shared.storageKey, serialized),
+        (/** @type {any} */ storage) =>
+            storage.setItem(shared.storageKey, serialized),
     );
   };
 
   /** 清除持久化状态。 */
   const clearPersisted = () =>
-    shared.storages?.().forEach(
-      (/** @type {any} */ storage) =>
-        storage.removeItem(shared.storageKey),
-    );
+      shared.storages?.().forEach(
+          (/** @type {any} */ storage) =>
+              storage.removeItem(shared.storageKey),
+      );
 
   /**
    * 读取存档。
@@ -968,7 +974,7 @@ export function createBlackForestEvent(shared) {
    */
   const persisted = () => {
     const serialized = shared.storages?.().map(
-      (/** @type {any} */ storage) => storage.getItem(shared.storageKey),
+        (/** @type {any} */ storage) => storage.getItem(shared.storageKey),
     ).find(Boolean);
     if (!serialized) return undefined;
     try {
@@ -987,7 +993,7 @@ export function createBlackForestEvent(shared) {
 
   /** @return {boolean} 事件正在进行（开场 CG / 寻找鸟蛋 / 终末鸟死亡 CG）时返回 true。 */
   const isActive = () =>
-    Boolean(state) && blackForestActivePhases.includes(state.phase);
+      Boolean(state) && blackForestActivePhases.includes(state.phase);
 
   /** @return {string|undefined} 当前阶段。 */
   const getPhase = () => state?.phase;
@@ -1025,7 +1031,7 @@ export function createBlackForestEvent(shared) {
       });
     }
     const bird = Object.keys(blackForestBirds).find((key) =>
-      blackForestBirdInfo(key)?.id === canonicalId
+        blackForestBirdInfo(key)?.id === canonicalId
     );
     if (!bird || state.birds.includes(bird)) return false;
     state.birds.push(bird);
@@ -1050,7 +1056,7 @@ export function createBlackForestEvent(shared) {
    * @param {{order: string[], source: string}} options 出场顺序与触发来源。
    * @return {boolean} 事件已开始返回 true。
    */
-  const start = ({ order, source }) => {
+  const start = ({order, source}) => {
     if (isActive()) return false;
     state = {
       birds: state?.birds ?? [],
@@ -1102,15 +1108,15 @@ export function createBlackForestEvent(shared) {
     const source = state?.source;
     const keys = blackForestNarrationSequence(order);
     const forcedBirdId = source === 'two-birds'
-      ? blackForestBirdInfo(order[order.length - 1] ?? '')?.id
-      : undefined;
+        ? blackForestBirdInfo(order[order.length - 1] ?? '')?.id
+        : undefined;
     /** @type {Array<(() => void)|undefined>} */
     const callbacks = keys.map(() => undefined);
     if (forcedBirdId) {
       const escapeIndex = keys.indexOf('escape');
       if (escapeIndex >= 0) {
         callbacks[escapeIndex] = () =>
-          shared.settleBlackForestDanger?.([forcedBirdId]);
+            shared.settleBlackForestDanger?.([forcedBirdId]);
       }
     }
     if (source === 'direct-submission') {
@@ -1118,11 +1124,11 @@ export function createBlackForestEvent(shared) {
       keys.forEach((_key, index) => {
         const nextArrival = keys[index + 1];
         const birdId = Object.keys(blackForestBirds)
-          .map((bird) => blackForestBirdInfo(bird))
-          .find((bird) => bird?.arrival === nextArrival)?.id;
+            .map((bird) => blackForestBirdInfo(bird))
+            .find((bird) => bird?.arrival === nextArrival)?.id;
         if (birdId) {
           callbacks[index] = () =>
-            shared.settleBlackForestDanger?.([birdId]);
+              shared.settleBlackForestDanger?.([birdId]);
         }
       });
     }
@@ -1133,8 +1139,8 @@ export function createBlackForestEvent(shared) {
     ]);
     state.phase = 'hunt';
     state.eggs = blackForestEggAssignment(
-      shared.random ?? Math.random,
-      selectableEggSlots(),
+        shared.random ?? Math.random,
+        selectableEggSlots(),
     );
     persist();
     // 原作在终末鸟出现时改写玩家身份；网页沿用既有的显示名称机制。
@@ -1153,14 +1159,14 @@ export function createBlackForestEvent(shared) {
   const restrictHuntToWhiteNightPages = () => {
     if (!state || state.phase !== 'hunt') return false;
     const visibleSlots = availableSlots().filter((slot) =>
-      slot.page === 'settings' || slot.page === 'nav'
+        slot.page === 'settings' || slot.page === 'nav'
     );
     if (visibleSlots.length === 0) return false;
     state.eggs = relocateUnfoundBlackForestEggs(
-      state.eggs,
-      state.found,
-      visibleSlots,
-      shared.random ?? Math.random,
+        state.eggs,
+        state.found,
+        visibleSlots,
+        shared.random ?? Math.random,
     );
     persist();
     mountEggs();
@@ -1186,7 +1192,7 @@ export function createBlackForestEvent(shared) {
     // 用 span 承载鸟蛋：导航入口本身就是 button，不能再嵌套一层 button。
     const button = host.createElement('span');
     button.className =
-      `lobotomy-corp-black-forest-egg ${node.className ?? ''}`.trim();
+        `lobotomy-corp-black-forest-egg ${node.className ?? ''}`.trim();
     button.dataset.lobotomyCorpBlackForestEgg = egg;
     button.setAttribute('aria-label', label);
     button.setAttribute('role', 'button');
@@ -1205,9 +1211,9 @@ export function createBlackForestEvent(shared) {
       overflowHost.dataset.lobotomyCorpBlackForestOverflow = 'true';
     }
     const visibilityObserver = typeof globalThis.MutationObserver === 'function' &&
-        overflowHost
-      ? new globalThis.MutationObserver(() => stage?.resize?.())
-      : undefined;
+    overflowHost
+        ? new globalThis.MutationObserver(() => stage?.resize?.())
+        : undefined;
     visibilityObserver?.observe(overflowHost, {
       attributeFilter: ['class', 'hidden'],
       attributes: true,
@@ -1286,16 +1292,16 @@ export function createBlackForestEvent(shared) {
     Object.entries(state.eggs).forEach(([slot, egg]) => {
       if (state.found.includes(egg)) return;
       const node = host.querySelector(
-        `[data-lobotomy-corp-black-forest-slot="${slot}"]`,
+          `[data-lobotomy-corp-black-forest-slot="${slot}"]`,
       );
       if (!node) return;
       const mounted = mountEgg(node, egg);
       mountedEggs.push(mounted);
       if (mounted.stage?.ready) {
         void /** @type {Promise<boolean>} */ (mounted.stage.ready).then(
-          (ready) => {
-            if (!ready) restoreMountedEgg(mounted);
-          },
+            (ready) => {
+              if (!ready) restoreMountedEgg(mounted);
+            },
         );
       }
     });
@@ -1329,10 +1335,13 @@ export function createBlackForestEvent(shared) {
     const keys = [bird.breakdown];
     if (completed) keys.push('suppressed');
     narrationPlaying = true;
-    try { await playNarration(keys); }
-    finally { narrationPlaying = false; }
+    try {
+      await playNarration(keys);
+    } finally {
+      narrationPlaying = false;
+    }
     if (completed) {
-      finish({ completed: true });
+      finish({completed: true});
       return;
     }
     mountEggs();
@@ -1342,7 +1351,7 @@ export function createBlackForestEvent(shared) {
   const syncGift = () => {
     const host = document();
     const wrappers = host?.querySelectorAll?.(
-      '[data-lobotomy-corp-risk-host]',
+        '[data-lobotomy-corp-risk-host]',
     ) ?? [];
     wrappers.forEach((/** @type {any} */ wrapper) => {
       if (!host?.createElement) return;
@@ -1365,7 +1374,7 @@ export function createBlackForestEvent(shared) {
   const clearGift = () => {
     const host = document();
     host?.querySelectorAll?.('.lobotomy-corp-black-forest-gift')
-      .forEach((/** @type {any} */ gift) => gift.remove?.());
+        .forEach((/** @type {any} */ gift) => gift.remove?.());
     if (!state) return;
     if (state.phase === 'done') {
       state = undefined;
@@ -1381,7 +1390,7 @@ export function createBlackForestEvent(shared) {
    *
    * @param {{completed?: boolean, restore?: boolean}} [options] 是否因完成而结束，以及是否恢复页面状态。
    */
-  const finish = ({ completed = false, restore = true } = {}) => {
+  const finish = ({completed = false, restore = true} = {}) => {
     const current = state;
     state = undefined;
     unmountEggs();
@@ -1453,7 +1462,7 @@ export function createBlackForestEvent(shared) {
       mountEggs();
       return true;
     }
-    void playNarration(['suppressed']).then(() => finish({ completed: true }));
+    void playNarration(['suppressed']).then(() => finish({completed: true}));
     return true;
   };
 

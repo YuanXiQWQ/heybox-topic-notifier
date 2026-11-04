@@ -5,8 +5,7 @@ import type {
   EmailVerificationPurpose,
   PendingEmailVerification,
 } from "../models.ts";
-import type { Locale } from "../locales/types.ts";
-import type { Messages } from "../locales/types.ts";
+import type { Locale, Messages } from "../locales/types.ts";
 import { getMessages } from "../locales/index.ts";
 import {
   base64UrlEncode,
@@ -324,7 +323,7 @@ function interpolateEmailVerificationEmailTemplate(
   },
 ): string {
   return template.replaceAll(
-    /\{(appName|code|emailCodeLabel|expiresIn)\}/g,
+    /\{(appName|code|emailCodeLabel|expiresIn)}/g,
     (_placeholder, key: keyof typeof values) => values[key],
   );
 }
