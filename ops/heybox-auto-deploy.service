@@ -1,0 +1,17 @@
+# 读取公开发行结果；部署工具独立安装，不随应用归档以 root 身份自动执行更新。
+[Unit]
+Description=Deploy verified Heybox release tags
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+Environment=DENO_DIR=/var/cache/heybox-deploy
+Environment=GIT_TERMINAL_PROMPT=0
+ExecStart=/usr/bin/flock -n /run/lock/heybox-auto-deploy.lock /usr/local/bin/deno run --no-prompt --allow-net=api.github.com --allow-read --allow-write --allow-env --allow-run=/usr/bin/git,/usr/bin/bash /usr/local/lib/heybox-deploy/auto_deploy.ts
+TimeoutStartSec=20min
+TimeoutStopSec=240
+KillMode=mixed
+PrivateTmp=true

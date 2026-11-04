@@ -422,9 +422,15 @@ export function createRoutes(
     );
   });
 
+  /**
+   * 返回服务状态及实际部署身份，不读取账号或业务存储。
+   * @param {Context} c 当前 HTTP 请求。
+   * @return {Response} 当前进程的健康状态。
+   */
   app.get("/healthz", (c) =>
     c.json({
-      deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? "local",
+      deploymentId: Deno.env.get("APP_DEPLOYMENT_ID") ??
+        Deno.env.get("DENO_DEPLOYMENT_ID") ?? "local",
       service: "heybox-topic-notifier",
       status: "ok",
     }));

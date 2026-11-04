@@ -10,6 +10,18 @@ const environment = {
   VM_POLLING_ENABLED: "false",
 };
 
+Deno.test("self-hosted deployment identity does not enable managed hosting", () => {
+  assertEquals(
+    configure({ APP_DEPLOYMENT_ID: "a".repeat(40), APP_VERSION: "3.13.2" }),
+    configure(),
+  );
+  const script = Deno.readTextFileSync(
+    new URL("../ops/deploy.sh", import.meta.url),
+  );
+  assertEquals(script.includes("APP_DEPLOYMENT_ID=%s"), true);
+  assertEquals(script.includes("DENO_DEPLOYMENT_ID=%s"), false);
+});
+
 Deno.test("self-hosted startup rejects cloud storage, implicit background polling and invalid public origins", () => {
   assertEquals(configure(), {
     origin: "https://heybox.example.com",

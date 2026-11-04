@@ -243,6 +243,20 @@ Deno.test("health check returns deployment status without storage access", async
   assertEquals(ticks, 0);
 });
 
+Deno.test("health check reports the self-hosted release commit", async () => {
+  const previous = Deno.env.get("APP_DEPLOYMENT_ID");
+  const revision = "a".repeat(40);
+  try {
+    Deno.env.set("APP_DEPLOYMENT_ID", revision);
+    const app = createRoutes({} as AppContext);
+    const body = await (await app.request("/healthz")).json();
+    assertEquals(body.deploymentId, revision);
+  } finally {
+    if (previous === undefined) Deno.env.delete("APP_DEPLOYMENT_ID");
+    else Deno.env.set("APP_DEPLOYMENT_ID", previous);
+  }
+});
+
 Deno.test("root page does not tick scheduler", async () => {
   let ticks = 0;
   const app = createRoutes({

@@ -65,6 +65,8 @@ jobs:
         with:
           deno-version: v2.x
       - run: deno task check
+      - name: Verify deployment rollback and cleanup
+        run: bash ops/deploy_test.sh
   windows:
     needs: [ prepare, check ]
     runs-on: windows-latest

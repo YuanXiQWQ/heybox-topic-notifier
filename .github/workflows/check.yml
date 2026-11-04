@@ -19,3 +19,6 @@ jobs:
 
       - name: Check
         run: deno task check
+
+      - name: Verify deployment rollback and cleanup
+        run: bash ops/deploy_test.sh
