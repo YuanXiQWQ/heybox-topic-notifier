@@ -219,6 +219,86 @@ Deno.test("worker navigation fetches online pages without AbortSignal.timeout", 
   assertEquals(requests.every((signal) => signal.aborted), true);
 });
 
+Deno.test("native navigation delegates the host User-Agent to the browser", async () => {
+  const original = new Request("https://example.com/", {
+    headers: { "user-agent": "legacy-host", accept: "text/html" },
+    credentials: "include",
+    cache: "no-cache",
+  });
+  Object.defineProperty(original, "headers", {
+    value: new Map([["user-agent", "小黑盒话题提醒/3.13.3"], [
+      "accept",
+      "text/html",
+    ]]),
+  });
+  let forwarded!: Request;
+  const api = runInNewContext(
+    await Deno.readTextFile(
+      new URL("../../static/app-sw.js", import.meta.url),
+    ) + "\n({fetchApplicationPage})",
+    {
+      Request,
+      AbortSignal,
+      self: { addEventListener() {} },
+      fetch(request: Request) {
+        forwarded = request;
+        return Promise.resolve(new Response("page"));
+      },
+    },
+  );
+  await api.fetchApplicationPage(original);
+  assertEquals(forwarded.headers.has("user-agent"), false);
+  assertEquals(forwarded.headers.get("accept"), "text/html");
+  assertEquals(forwarded.credentials, "include");
+  assertEquals(forwarded.cache, "no-cache");
+});
+
+Deno.test("synchronous navigation request failures still use only verified account snapshots", async () => {
+  const values = new Map<string, unknown>([["__device:active-user", "alice"], [
+    "alice:page:/",
+    { html: "alice-private" },
+  ]]);
+  let userId = "alice";
+  const api = runInNewContext(
+    await Deno.readTextFile(
+      new URL("../../static/app-sw.js", import.meta.url),
+    ) + "\n({applicationPage})",
+    {
+      URL,
+      Response,
+      Headers,
+      AbortSignal,
+      Request: class {
+        /** 模拟原生宿主请求在浏览器克隆时同步抛错。 */
+        constructor() {
+          throw new TypeError("Failed to construct 'Request': Invalid value");
+        }
+      },
+      self: {
+        addEventListener() {},
+        AppLocalStore: {
+          readState: (user: string, key: string) =>
+            Promise.resolve(values.get(`${user}:${key}`)),
+          writeState: (user: string, key: string, value: unknown) => {
+            values.set(`${user}:${key}`, value);
+            return Promise.resolve();
+          },
+          pending: () => Promise.resolve([]),
+        },
+      },
+      fetch: () => Promise.resolve(Response.json({ userId })),
+    },
+  );
+  const request = new Request("https://example.com/");
+  assertEquals(
+    await (await api.applicationPage(request)).text(),
+    "alice-private",
+  );
+  userId = "bob";
+  await assertRejects(() => api.applicationPage(request), TypeError);
+  assertEquals(values.get("__device:active-user"), "bob");
+});
+
 Deno.test("local sync queue encrypts snapshots and atomically survives reloads", async () => {
   const source = await Deno.readTextFile(
     new URL("../../static/app-sync/store.js", import.meta.url),

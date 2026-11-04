@@ -176,7 +176,7 @@ async function applicationPage(request, verifiedIdentity) {
   // noinspection JSUnresolvedReference
   const store = self.AppLocalStore;
   // 页面请求与会话校验并行，页面失败也必须等身份检查后才能选择本机缓存。
-  const online = fetch(new Request(request, {signal: applicationTimeout(10000)})).then(
+  const online = fetchApplicationPage(request).then(
       (response) => ({response}), (error) => ({error}),
   );
   let active = await store.readState('__device', 'active-user');
@@ -215,6 +215,17 @@ async function applicationPage(request, verifiedIdentity) {
     if (local?.html) return localPageResponse(local);
     throw error;
   }
+}
+
+/**
+ * 保留导航语义并设置超时，由浏览器生成 User-Agent，避免宿主显示名污染可克隆请求头。
+ * 异步函数也将请求构造时的同步异常交给页面回退逻辑。
+ * @param {Request} request 同源页面导航请求。
+ * @return {Promise<Response>} 在线页面响应。
+ */
+async function fetchApplicationPage(request) {
+  const headers = [...request.headers].filter(([name]) => name.toLowerCase() !== 'user-agent');
+  return await fetch(new Request(request, {headers, signal: applicationTimeout(10000)}));
 }
 
 /**
