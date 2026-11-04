@@ -70,7 +70,11 @@ let updateTransfer;
 /** 原生更新进度不依赖服务器部署版本。 */
 let update = {status: 'idle', version: undefined, progress: 0};
 
-app.setAppUserModelId('io.github.yuanxiqwq.heyboxnotifier');
+/** 开发进程使用独立系统标识，避免测试快捷方式和通知影响正式应用的任务栏关联。 */
+const appUserModelId = app.isPackaged
+    ? 'io.github.yuanxiqwq.heyboxnotifier'
+    : 'io.github.yuanxiqwq.heyboxnotifier.development';
+app.setAppUserModelId(appUserModelId);
 app.enableSandbox();
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
@@ -219,6 +223,7 @@ async function start() {
       backgroundThrottling: false,
     },
   });
+  configureWindowIdentity();
   // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
   // noinspection JSUnresolvedReference
   window.removeMenu();
@@ -270,6 +275,19 @@ async function start() {
   });
   handleLaunchAction(process.argv);
   void pollNotifications();
+}
+
+/** 为正式 Windows 窗口指定任务栏图标与重启入口，避免依赖同标识快捷方式的选择顺序。 */
+function configureWindowIdentity() {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  const program = app.getPath('exe');
+  window.setAppDetails({
+    appId: appUserModelId,
+    appIconPath: program,
+    appIconIndex: 0,
+    relaunchCommand: `"${program}"`,
+    relaunchDisplayName: '小黑盒话题提醒',
+  });
 }
 
 /**
