@@ -33,6 +33,8 @@ type Release = {
   prerelease: boolean;
   immutable?: boolean;
   draft: boolean;
+  target_commitish?: string;
+  published_at?: string | null;
 };
 
 /**
@@ -196,7 +198,7 @@ export async function readRelease(
 }
 
 /**
- * 复用目标发行，仅在标签没有 Release 时创建草稿，供完整附件上传后公开。
+ * 校验既有发行的源码归属与撤回状态，仅在标签没有 Release 时创建待上传草稿。
  * @param {GitHubRequest} request 官方 API。
  * @param {string} tag 已验证的正式版本标签。
  * @param {string} commit 标签对应的构建提交。
@@ -213,7 +215,7 @@ export async function ensureRelease(
   if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error("构建提交无效。");
   await verifyTag(request, tag, commit);
   try {
-    return await readRelease(request, tag, id);
+    return verifyReleaseSource(await readRelease(request, tag, id), commit);
   } catch (error) {
     if (id !== undefined || !(error instanceof Error) || error.cause !== 404) {
       throw error;
@@ -226,7 +228,12 @@ export async function ensureRelease(
       `/releases?per_page=100&page=${page}`,
     ) as Release[];
     const existing = batch.find((release) => release.tag_name === tag);
-    if (existing) return await readRelease(request, tag, existing.id);
+    if (existing) {
+      return verifyReleaseSource(
+        await readRelease(request, tag, existing.id),
+        commit,
+      );
+    }
     if (batch.length < 100) break;
   }
   const created = await request("/releases", {
@@ -244,7 +251,34 @@ export async function ensureRelease(
   if (!Number.isSafeInteger(created.id) || created.id <= 0) {
     throw new Error("GitHub 未确认草稿创建。");
   }
-  return await readRelease(request, tag, created.id);
+  return verifyReleaseSource(
+    await readRelease(request, tag, created.id),
+    commit,
+  );
+}
+
+/**
+ * 拒绝复用撤回的发行或绑定其它提交的版本，避免同版本安装包混用及更新器跳过升级。
+ * @param {Release} release 已读取的发行信息。
+ * @param {string} commit 本次构建的确切提交。
+ * @return {Release} 可以继续构建或上传的发行。
+ */
+function verifyReleaseSource(release: Release, commit: string): Release {
+  if (release.draft && release.published_at) {
+    throw new Error(
+      `版本 ${release.tag_name} 曾经公开发布，目前已撤回为草稿；旧安装不会识别同版本更新，请使用新的版本标签发布修复。`,
+    );
+  }
+  if (
+    release.target_commitish &&
+    /^[a-f0-9]{40}$/.test(release.target_commitish) &&
+    release.target_commitish !== commit
+  ) {
+    throw new Error(
+      `版本 ${release.tag_name} 已绑定其它源码提交；删除或重建标签不会清除旧 Release 和附件，请使用新的版本标签。`,
+    );
+  }
+  return release;
 }
 
 /**
@@ -295,7 +329,10 @@ export async function uploadRelease(
     assets.length !== releaseAssetNames.length ||
     assets.some((asset, index) => asset.name !== releaseAssetNames[index])
   ) throw new Error("必须同时提供两个安装包、差分文件和更新清单。");
-  const release = await readRelease(request, tag, releaseId);
+  const release = verifyReleaseSource(
+    await readRelease(request, tag, releaseId),
+    commit,
+  );
   await verifyTag(request, tag, commit);
   const existing = new Map<string, RemoteAsset>();
   for (let page = 1;; page++) {
@@ -368,7 +405,10 @@ export async function publishRelease(
   if (!publishDraft) return;
   const { request, tag, commit, releaseId } = options;
   await verifyTag(request, tag, commit);
-  const release = await readRelease(request, tag, releaseId);
+  const release = verifyReleaseSource(
+    await readRelease(request, tag, releaseId),
+    commit,
+  );
   if (!release.draft) return;
   await request(`/releases/${releaseId}`, {
     method: "PATCH",

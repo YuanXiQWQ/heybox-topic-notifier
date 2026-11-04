@@ -35,6 +35,8 @@ function harness() {
     prerelease: false,
     draft: false,
     immutable: false,
+    target_commitish: commit,
+    published_at: null as string | null,
   };
   const remote = new Map<
     string,
@@ -202,6 +204,27 @@ Deno.test("release preparation reuses existing drafts without creating duplicate
   await context.ensure();
   await context.ensure(42);
   assertEquals(context.writes, []);
+});
+
+Deno.test("withdrawn published versions are rejected before builds or asset changes", async () => {
+  const context = harness();
+  context.release.draft = true;
+  context.release.published_at = "2026-11-04T17:44:06Z";
+  await assertRejects(() => context.ensure(), Error, "曾经公开发布");
+  await assertRejects(() => context.ensure(42), Error, "曾经公开发布");
+  await assertRejects(() => context.upload(), Error, "曾经公开发布");
+  assertEquals(context.writes, []);
+});
+
+Deno.test("recreated tags cannot reuse releases bound to another source commit", async () => {
+  for (const draft of [false, true]) {
+    const context = harness();
+    context.release.draft = draft;
+    context.release.target_commitish = "b".repeat(40);
+    await assertRejects(() => context.ensure(), Error, "已绑定其它源码提交");
+    await assertRejects(() => context.upload(), Error, "已绑定其它源码提交");
+    assertEquals(context.writes, []);
+  }
 });
 
 Deno.test("release preparation does not create on permission failures, missing event IDs or moved tags", async () => {
