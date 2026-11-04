@@ -4,6 +4,37 @@
 
 [systemd](../../ops/heybox-topic-notifier.service) · [Caddy](../../ops/Caddyfile)
 
+## 按版本标签自动部署
+
+`dev` 和 `main` 的推送只运行检查，不部署正式站。推送 `3.13.2` 或 `v3.13.2` 形式的正式版本标签后，GitHub Actions 检查代码、构建两个客户端并公开完整 Release。Oracle 每五分钟检查一次公开发行；只有标签对应提交的发行工作流成功、四个安装及更新附件齐全时，才部署该提交。草稿、预发行、不完整发行和更低版本不会上线。
+
+网页和 APP 在线页面随这次服务端部署更新；Windows 与 Android 的原生程序通过同一标签的安装包更新。尚未升级的客户端仍需保持兼容。
+
+服务器需要 Deno、Git、Python 3、curl、tar 和 flock。先按下文配置现有服务及环境文件，再从已验证的项目目录安装部署工具：
+
+```sh
+sudo install -d -m 0755 /usr/local/lib/heybox-deploy
+sudo install -m 0644 ops/auto_deploy.ts ops/deploy.sh /usr/local/lib/heybox-deploy/
+sudo install -m 0644 ops/heybox-auto-deploy.service ops/heybox-auto-deploy.timer /etc/systemd/system/
+sudo install -d -m 0755 /etc/systemd/system/heybox-topic-notifier.service.d
+printf '[Service]\nEnvironmentFile=-/opt/heybox-topic-notifier/current/.deploy.env\n' | sudo tee /etc/systemd/system/heybox-topic-notifier.service.d/release.conf >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now heybox-auto-deploy.timer
+sudo systemctl start heybox-auto-deploy.service
+```
+
+首次启动会部署当前最新的就绪正式版本。此服务只读取公开 GitHub API，不需要 GitHub 写入令牌或向 GitHub 提供服务器 SSH 私钥。部署工具独立安装，应用发行不会自动替换具有管理员权限的部署工具。
+
+部署前验证归档摘要及标签提交、缓存运行依赖；切换后检查服务健康、公开 HTTPS 入口的运行提交、导航页面及静态资源摘要。失败时恢复上一应用目录并检查服务状态，账号数据和配置不回退。最近尝试记录保存在 `/var/lib/heybox-deploy/state.json`；失败或中断的同一次构建不会重复自动部署，排除原因后重新运行该标签的 GitHub 发行工作流即可重试。下载目录和临时归档用完即删除，发行目录保留用于回退。
+
+```sh
+systemctl list-timers heybox-auto-deploy.timer
+journalctl -u heybox-auto-deploy.service -n 60 --no-pager
+curl --fail --silent https://YOUR_DOMAIN/healthz
+```
+
+支持应用部署标识的发行，其健康响应 `deploymentId` 应等于标签的完整提交 SHA。较早发行可能仍返回 `local`，此时部署会通过实际运行进程目录和公开页面资源摘要确认版本；当前标签和 SHA 也记录在 `/var/lib/heybox-deploy/state.json`。暂停自动部署使用 `sudo systemctl stop heybox-auto-deploy.timer`；恢复使用 `sudo systemctl start heybox-auto-deploy.timer`。暂停定时器不会中止已经开始的部署。
+
 ## 运行环境变量
 
 [`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)

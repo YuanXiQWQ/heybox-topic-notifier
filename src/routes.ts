@@ -9,7 +9,7 @@ import { fetchAiModels } from "./services/ai_models.ts";
 import { type Context, Hono } from "@hono/hono";
 import { hashPassword, saveAccountPasswordCredential, verifyAccountPassword } from "./auth/password.ts";
 import { normalizeDisplayName, normalizeUsername, validAccountName } from "./auth/account_names.ts";
-import { readAuthSession } from "./auth/session.ts";
+import { readAuthSessionForRequest } from "./auth/session.ts";
 import { normalizeEmailAddress } from "./auth/email.ts";
 import { verifyEmailVerificationCode } from "./auth/email_verification.ts";
 import {
@@ -106,13 +106,6 @@ import {
   NotificationDeliveryError,
 } from "./services/notifier.ts";
 
-/**
- * 单次请求内的认证会话读取缓存。
- */
-const authSessionPromisesByRequest = new WeakMap<
-  Request,
-  ReturnType<typeof readAuthSession>
->();
 /**
  * 手动轮询后用于触发前端进度条重置的查询参数名。
  */
@@ -422,9 +415,15 @@ export function createRoutes(
     );
   });
 
+  /**
+   * 返回服务状态及实际部署身份，不读取账号或业务存储。
+   * @param {Context} c 当前 HTTP 请求。
+   * @return {Response} 当前进程的健康状态。
+   */
   app.get("/healthz", (c) =>
     c.json({
-      deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID") ?? "local",
+      deploymentId: Deno.env.get("APP_DEPLOYMENT_ID") ??
+        Deno.env.get("DENO_DEPLOYMENT_ID") ?? "local",
       service: "heybox-topic-notifier",
       status: "ok",
     }));
@@ -2756,19 +2755,13 @@ async function authSessionForRequest(
  *
  * @param {{ req: { header(name: string): string | undefined; raw: Request } }} c Hono 请求上下文的最小结构。
  * @param {AppContext["storage"]} storage 应用存储。
- * @return {ReturnType<typeof readAuthSession>} 当前登录会话，未登录时返回 undefined。
+ * @return {ReturnType<typeof readAuthSessionForRequest>} 当前登录会话，未登录时返回 undefined。
  */
 async function cachedAuthSessionForRequest(
   c: { req: { header(name: string): string | undefined; raw: Request } },
   storage: AppContext["storage"],
-): ReturnType<typeof readAuthSession> {
-  let promise = authSessionPromisesByRequest.get(c.req.raw);
-  if (!promise) {
-    promise = readAuthSession(c.req.header("cookie"), storage);
-    authSessionPromisesByRequest.set(c.req.raw, promise);
-  }
-
-  return await promise;
+): ReturnType<typeof readAuthSessionForRequest> {
+  return await readAuthSessionForRequest(c.req.raw, storage);
 }
 
 /**

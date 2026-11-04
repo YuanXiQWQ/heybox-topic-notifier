@@ -5,7 +5,7 @@ import { settingsForDevice } from "./services/device_settings.ts";
 import { createAdminRoutes } from "./admin_routes.ts";
 import { Hono } from "@hono/hono";
 import { type AuthOptions, createAuthMiddleware, createAuthRoutes } from "./auth.ts";
-import { readAuthSession } from "./auth/session.ts";
+import { readAuthSessionForRequest } from "./auth/session.ts";
 import {
   aceAttorneyAssetResponse,
   aceAttorneyScriptResponse,
@@ -204,9 +204,10 @@ export function createApplication(pollingContext?: PollingContext) {
   app.use("*", async (c, next) => {
     await next();
     if (c.res.headers.get("content-type")?.includes("text/html")) {
-      const session = await readAuthSession(
-        c.req.header("cookie"),
+      const session = await readAuthSessionForRequest(
+        c.req.raw,
         context.storage,
+        authOptions,
       );
       if (session) c.header("x-app-user", session.userId);
     }
@@ -218,8 +219,8 @@ export function createApplication(pollingContext?: PollingContext) {
   // 未匹配任何路由时给出与普通页面同风格的 404。认证中间件在此之前已把未登录
   // 访客重定向到登录页，因此这里渲染的是已登录用户访问失效地址的场景。
   app.notFound(async (c) => {
-    const session = await readAuthSession(
-      c.req.header("cookie"),
+    const session = await readAuthSessionForRequest(
+      c.req.raw,
       context.storage,
       authOptions,
     );

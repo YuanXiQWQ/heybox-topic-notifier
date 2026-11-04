@@ -53,6 +53,7 @@ import {
   defaultSessionCookieName,
   deleteSessionForCookie,
   readAuthSession,
+  readAuthSessionForRequest,
   redirectWithSession,
 } from "./auth/session.ts";
 import {
@@ -314,8 +315,8 @@ export function createAuthMiddleware(
       return;
     }
 
-    const session = await readAuthSession(
-      c.req.header("cookie"),
+    const session = await readAuthSessionForRequest(
+      c.req.raw,
       storage,
       options,
     );

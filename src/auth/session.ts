@@ -48,6 +48,39 @@ export type SessionRedirectOptions = SessionCookieOptions & {
  */
 export const defaultSessionCookieName = "heybox_session";
 
+/** 仅在同一 HTTP 请求内共享会话检查，不跨请求缓存撤销状态。 */
+const requestSessions = new WeakMap<Request, {
+  storage: SessionStorage & Pick<Storage, "getAccountById">;
+  cookieName: string;
+  value: Promise<AuthSession | undefined>;
+}>();
+
+/**
+ * 让认证中间件、页面路由和离线身份响应共用本次请求的会话检查。
+ * @param {Request} request 当前 HTTP 请求。
+ * @param {SessionStorage & Pick<Storage, "getAccountById">} storage 会话与账号存储。
+ * @param {SessionCookieOptions} options 会话 Cookie 配置。
+ * @return {Promise<AuthSession | undefined>} 当前请求的有效会话。
+ */
+export function readAuthSessionForRequest(
+  request: Request,
+  storage: SessionStorage & Pick<Storage, "getAccountById">,
+  options: SessionCookieOptions = {},
+): Promise<AuthSession | undefined> {
+  const cookieName = options.cookieName ?? defaultSessionCookieName;
+  const cached = requestSessions.get(request);
+  if (cached?.storage === storage && cached.cookieName === cookieName) {
+    return cached.value;
+  }
+  const value = readAuthSession(
+    request.headers.get("cookie") ?? undefined,
+    storage,
+    options,
+  );
+  requestSessions.set(request, { storage, cookieName, value });
+  return value;
+}
+
 /**
  * 从 Cookie 中读取已认证会话，并确认账号仍然存在。
  *

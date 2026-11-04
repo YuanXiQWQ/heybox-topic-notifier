@@ -23,17 +23,23 @@ async function harness(android = false) {
   };
   /** 测试表单保留浏览器二次提交时的事件与提交按钮。 */
   class NavigationForm {
+    /** 浏览器提交事件仍在分发时不接纳重入的提交。 */
+    submitting = false;
     /** @return {boolean} 表单属于应用导航。 */
     closest() { return true; }
     /** @param {unknown} submitter 用户选择的原始提交按钮。 */
     requestSubmit(submitter: unknown) {
+      if (this.submitting) return;
+      this.submitting = true;
       const event = { target: this, submitter, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
       listeners.get("submit")!(event);
       if (!event.defaultPrevented) visited.push(String(submitter));
+      setTimeout(() => { this.submitting = false; }, 0);
     }
   }
   const context = {
     Error,
+    setTimeout,
     appNative: android ? undefined : {
       onState: (handler: (state: object) => void) => receive = handler,
       info: () => Promise.resolve({ navigation: { canGoBack: false } }),
@@ -56,8 +62,9 @@ async function harness(android = false) {
 }
 
 /** @return {Promise<void>} 跨 VM 的 Promise 与本轮导航回调均已完成。 */
-function settle(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 Deno.test("web pages do not alter layout, history or listeners", async () => {

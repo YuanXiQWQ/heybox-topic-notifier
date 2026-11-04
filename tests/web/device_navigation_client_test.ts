@@ -2,6 +2,30 @@
 import { runInNewContext } from "node:vm";
 import { assertEquals } from "@std/assert";
 
+Deno.test("native navigation platform is set before appearance reads page elements", async () => {
+  const source = await Deno.readTextFile(
+    new URL("../../static/device-preferences.js", import.meta.url),
+  );
+  for (const platform of ["windows", "android", undefined]) {
+    const dataset: Record<string, string> = {};
+    runInNewContext(source, {
+      appNative: platform === "windows" ? {} : undefined,
+      HeyboxNative: platform === "android" ? {} : undefined,
+      document: {
+        cookie: "",
+        documentElement: { dataset, style: { setProperty() {} } },
+        querySelector() {
+          assertEquals(dataset.applicationPlatform, platform);
+          return null;
+        },
+        addEventListener() {},
+      },
+      addEventListener() {},
+    });
+    assertEquals(dataset.applicationPlatform, platform);
+  }
+});
+
 for (const file of ["device-preferences.js", "settings-navigation.js"]) {
   Deno.test(`${file} ignores non-element targets and handles links`, async () => {
     const source = await Deno.readTextFile(
