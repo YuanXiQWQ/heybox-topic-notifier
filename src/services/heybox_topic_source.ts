@@ -216,7 +216,7 @@ export function createHeyboxTopicSource(
   }
 
   /**
-   * 在十秒请求期限内请求帖子详情并解析正文；受限制后的冷却期间不发出请求。
+   * 在十秒请求期限内读取详情；已删除帖子仅标记不可用，来源受限制时共享冷却。
    *
    * @param {TopicPost} post 列表接口返回的帖子。
    * @return {Promise<TopicPost | undefined>} 详情帖子，接口无可用内容时返回 undefined。
@@ -263,6 +263,12 @@ export function createHeyboxTopicSource(
     const payload = await response.json();
     if (asRecord(payload).status === "show_captcha") {
       pauseRestrictedDetails("show_captcha");
+      return undefined;
+    }
+    if (
+      asRecord(payload).status === "failed" &&
+      asRecord(payload).msg === "该内容已被删除"
+    ) {
       return undefined;
     }
     assertHeyboxOk(payload);
