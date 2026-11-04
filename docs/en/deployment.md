@@ -35,6 +35,14 @@ curl --fail --silent https://YOUR_DOMAIN/healthz
 
 For releases supporting the application deployment identity, the health response's `deploymentId` must match the tag's full commit SHA. Earlier releases may still return `local`; the deployer verifies their running process directory and public asset hashes instead. The current tag and SHA are also recorded in `/var/lib/heybox-deploy/state.json`. Use `sudo systemctl stop heybox-auto-deploy.timer` to pause automatic checks and `sudo systemctl start heybox-auto-deploy.timer` to resume them. Stopping the timer does not interrupt an active deployment.
 
+Republishing the same version does not automatically redeploy the server. After the replacement installers are public and the tag build succeeds, explicitly supply the tag's full commit SHA for a one-time redeployment. Asset, tag and build checks still apply; downgrades and repeated deployment of the same commit remain blocked. Run with `--check` to inspect the target, then remove that option to deploy:
+
+```sh
+sudo env DENO_DIR=/var/cache/heybox-deploy GIT_TERMINAL_PROMPT=0 /usr/bin/flock -n /run/lock/heybox-auto-deploy.lock /usr/local/bin/deno run --no-prompt --allow-net=api.github.com --allow-read --allow-write --allow-env --allow-run=/usr/bin/git,/usr/bin/bash /usr/local/lib/heybox-deploy/auto_deploy.ts --check --redeploy-sha=<FULL_COMMIT_SHA>
+```
+
+Clients do not detect the same version number as an upgrade. Users who already installed that version must download and run the replacement installer manually.
+
 ## Environment Variables
 
 [`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)

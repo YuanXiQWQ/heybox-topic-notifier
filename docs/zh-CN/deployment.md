@@ -35,6 +35,14 @@ curl --fail --silent https://YOUR_DOMAIN/healthz
 
 支持应用部署标识的发行，其健康响应 `deploymentId` 应等于标签的完整提交 SHA。较早发行可能仍返回 `local`，此时部署会通过实际运行进程目录和公开页面资源摘要确认版本；当前标签和 SHA 也记录在 `/var/lib/heybox-deploy/state.json`。暂停自动部署使用 `sudo systemctl stop heybox-auto-deploy.timer`；恢复使用 `sudo systemctl start heybox-auto-deploy.timer`。暂停定时器不会中止已经开始的部署。
 
+同版本重发默认不会触发服务器部署。确认新安装包已经公开、标签构建成功后，可明确指定该标签的完整提交号执行一次重部署；此入口仍验证附件、标签和构建结果，不允许降级或重复部署同一提交。先加 `--check` 只检查目标，确认后去掉该参数执行：
+
+```sh
+sudo env DENO_DIR=/var/cache/heybox-deploy GIT_TERMINAL_PROMPT=0 /usr/bin/flock -n /run/lock/heybox-auto-deploy.lock /usr/local/bin/deno run --no-prompt --allow-net=api.github.com --allow-read --allow-write --allow-env --allow-run=/usr/bin/git,/usr/bin/bash /usr/local/lib/heybox-deploy/auto_deploy.ts --check --redeploy-sha=<完整提交号>
+```
+
+客户端不会把相同版本号识别为新版本，已经安装该版本的用户需要手动下载安装包覆盖安装。
+
 ## 运行环境变量
 
 [`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
