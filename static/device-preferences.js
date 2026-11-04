@@ -1,5 +1,9 @@
 /** @file 在页面绘制前应用本机外观；只有用户手动选择才保存偏好。 */
 (() => {
+  // 原生桥在文档脚本执行前已存在，导航布局与外观一起在首屏绘制前确定。
+  if (globalThis.HeyboxNative || globalThis.appNative) {
+    document.documentElement.dataset.applicationPlatform = globalThis.HeyboxNative ? "android" : "windows";
+  }
   /** 系统明暗变化不产生持久化偏好。 */
   const media = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
   /** Android 系统配置优先于固定浅色宿主主题的 WebView 媒体查询。 */

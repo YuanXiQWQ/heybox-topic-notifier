@@ -213,7 +213,7 @@ Deno.test("worker navigation fetches online pages without AbortSignal.timeout", 
     new Request("https://example.com/"),
   );
   assertEquals(await response.text(), "online-workspace");
-  assertEquals(timers.map((timer) => timer.delay), [5000, 10000]);
+  assertEquals(timers.map((timer) => timer.delay), [10000, 5000]);
   assertEquals(requests.every((signal) => !signal.aborted), true);
   timers.forEach((timer) => timer.callback());
   assertEquals(requests.every((signal) => signal.aborted), true);
@@ -265,6 +265,103 @@ Deno.test("local sync queue encrypts snapshots and atomically survives reloads",
   assert(!JSON.stringify(raw).includes("private-page"));
   assert(!JSON.stringify(raw).includes("private-secret"));
   database.close();
+});
+
+Deno.test("navigation starts the page request while identity is pending and still isolates fallback accounts", async () => {
+  const source = await Deno.readTextFile(
+    new URL("../../static/app-sw.js", import.meta.url),
+  );
+  let identity!: (response: Response) => void;
+  let pageStarted = false;
+  const values = new Map<string, unknown>([["__device:active-user", "alice"], [
+    "alice:page:/settings",
+    { html: "alice-private" },
+  ]]);
+  const api = runInNewContext(source + "\n({applicationPage})", {
+    URL,
+    Request,
+    Response,
+    Headers,
+    AbortSignal,
+    self: {
+      addEventListener() {},
+      AppLocalStore: {
+        readState: (user: string, name: string) =>
+          Promise.resolve(values.get(`${user}:${name}`)),
+        writeState: (user: string, name: string, value: unknown) => {
+          values.set(`${user}:${name}`, value);
+          return Promise.resolve();
+        },
+        pending: () => Promise.resolve([]),
+      },
+    },
+    fetch: (input: string | Request) => {
+      if (input === "/api/sync/session") {
+        return new Promise<Response>((resolve) => {
+          identity = resolve;
+        });
+      }
+      pageStarted = true;
+      return Promise.reject(new Error("page unavailable"));
+    },
+  });
+  const page = api.applicationPage(new Request("https://example.com/settings"));
+  assertEquals(pageStarted, true);
+  while (!identity) await new Promise((resolve) => setTimeout(resolve, 0));
+  identity(Response.json({ userId: "bob" }));
+  await assertRejects(() => page);
+  assertEquals(values.get("__device:active-user"), "bob");
+});
+
+Deno.test("background page prefetch is coalesced, serial and rate limited per account", async () => {
+  const source = await Deno.readTextFile(
+    new URL("../../static/app-sw.js", import.meta.url),
+  );
+  const values = new Map<string, unknown>();
+  let userId = "alice", pages = 0, active = 0, maximum = 0;
+  const api = runInNewContext(source + "\n({handleApplicationMessage})", {
+    URL,
+    Request,
+    Response,
+    Headers,
+    AbortSignal,
+    self: {
+      addEventListener() {},
+      location: { origin: "https://example.com" },
+      AppLocalStore: {
+        readState: (user: string, name: string) =>
+          Promise.resolve(values.get(`${user}:${name}`)),
+        writeState: (user: string, name: string, value: unknown) => {
+          values.set(`${user}:${name}`, value);
+          return Promise.resolve();
+        },
+        pending: () => Promise.resolve([]),
+      },
+    },
+    fetch: async (input: string | Request) => {
+      if (input === "/api/sync/session") return Response.json({ userId });
+      pages++;
+      maximum = Math.max(maximum, ++active);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      active--;
+      return new Response("page", { headers: { "x-app-user": userId } });
+    },
+  });
+  const event = {
+    source: { url: "https://example.com/settings" },
+    data: { type: "app-pages" },
+  };
+  await Promise.all([
+    api.handleApplicationMessage(event),
+    api.handleApplicationMessage(event),
+  ]);
+  assertEquals(pages, 6);
+  assertEquals(maximum, 1);
+  await api.handleApplicationMessage(event);
+  assertEquals(pages, 6);
+  userId = "bob";
+  await api.handleApplicationMessage(event);
+  assertEquals(pages, 12);
 });
 
 Deno.test("offline page cache verifies account changes and media byte ranges", async () => {
