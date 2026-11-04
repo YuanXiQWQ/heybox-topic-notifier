@@ -35,7 +35,7 @@
   }
 
   /**
-   * 在设置和离线事务完成后执行最后一次导航，失败时显示反馈并保留编辑页。
+   * 在设置和离线事务完成、原提交事件退出后执行最后一次导航，失败时保留编辑页。
    * @param {() => void} operation 已通过来源与目标校验的导航操作。
    * @return {Promise<void>} 本次导航处理完成。
    */
@@ -48,6 +48,8 @@
     try {
       if (globalThis.applicationSync) await globalThis.applicationSync.prepareForExit();
       else if (globalThis.flushSettingsEdits && !await globalThis.flushSettingsEdits()) throw new Error('Settings are not saved');
+      // 浏览器在提交事件分发期间会忽略重入的 requestSubmit，即便保存 Promise 已完成。
+      await new Promise((resolve) => setTimeout(resolve, 0));
       if (current === revision && location.href === page) operation();
     } catch (error) {
       if (current === revision && status) {

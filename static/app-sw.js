@@ -2,6 +2,12 @@
 if (typeof importScripts === 'function') importScripts('/static/app-sync/store.js');
 /** 公共资源缓存不包含账号页面和业务请求。 */
 const applicationResourceCache = 'heybox-app-resources-v1';
+/** 并发页面消息共用一次预取，避免每次导航都重复加载全部页面。 */
+let applicationPagePrefetch;
+/** 公共资源预取依次执行，给用户发起的页面请求保留网络连接。 */
+let applicationResourcePrefetch = Promise.resolve();
+/** 后台页面预取的最短间隔；实际导航仍请求当前页面。 */
+const applicationPrefetchInterval = 5 * 60 * 1000;
 self.addEventListener('install', (event) => {
   // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
   // noinspection JSUnresolvedReference
@@ -60,15 +66,56 @@ async function handleApplicationMessage(event) {
     }
   }
   if (event.data?.type === 'app-resources' && Array.isArray(event.data.urls)) {
-    await Promise.allSettled(event.data.urls.slice(0, 40).map(async (value) => {
-      if (typeof value !== 'string') return;
-      const url = new URL(value, self.location.origin);
-      if (url.origin === self.location.origin && url.pathname.startsWith('/static/')) await applicationResource(new Request(url));
-    }));
+    const urls = event.data.urls.slice(0, 40);
+    applicationResourcePrefetch = applicationResourcePrefetch.then(() => prefetchApplicationResources(urls)).catch(() => {});
+    await applicationResourcePrefetch;
   }
   if (event.data?.type === 'app-pages') {
-    await Promise.allSettled(['/', '/settings', '/history', '/about', '/?range=all&page=1&pageSize=all', '/history?range=all&page=1&pageSize=all'].map((path) => applicationPage(new Request(self.location.origin + path))));
+    applicationPagePrefetch ??= prefetchApplicationPages().finally(() => { applicationPagePrefetch = undefined; });
+    await applicationPagePrefetch;
   }
+}
+
+/**
+ * 只串行补齐缺失的公共资源，异常地址不阻断后续资源。
+ * @param {unknown[]} urls 页面声明的资源地址。
+ * @return {Promise<void>} 本批资源预取结束。
+ */
+async function prefetchApplicationResources(urls) {
+  const cache = await caches.open(applicationResourceCache);
+  for (const value of urls) {
+    if (typeof value !== 'string') continue;
+    try {
+      const url = new URL(value, self.location.origin);
+      if (url.origin === self.location.origin && url.pathname.startsWith('/static/') &&
+          !await cache.match(url.href, {ignoreVary: true})) await applicationResource(new Request(url));
+    } catch { /* 单项失败保留缓存，实际访问仍可以重新请求。 */ }
+  }
+}
+
+/**
+ * 按已验证账号串行更新离线页面，限制频率以免后台预取挤占前台导航连接。
+ * @return {Promise<void>} 本次预取结束；离线失败保留现有缓存。
+ */
+async function prefetchApplicationPages() {
+  const store = self.AppLocalStore;
+  let identity;
+  try {
+    const response = await fetch('/api/sync/session', {cache: 'no-store', redirect: 'error', signal: applicationTimeout(5000)});
+    if (!response.ok) return;
+    identity = await response.json();
+    if (!identity.userId) return;
+  } catch { return; }
+  const last = await store.readState(identity.userId, 'page-prefetch');
+  if (typeof last === 'number' && Date.now() - last < applicationPrefetchInterval) return;
+  let complete = true;
+  for (const path of ['/', '/settings', '/history', '/about', '/?range=all&page=1&pageSize=all', '/history?range=all&page=1&pageSize=all']) {
+    try {
+      const response = await applicationPage(new Request(self.location.origin + path), identity);
+      if (!response.ok) complete = false;
+    } catch { complete = false; break; }
+  }
+  if (complete) await store.writeState(identity.userId, 'page-prefetch', Date.now());
 }
 
 /**
@@ -119,30 +166,44 @@ async function rangeResponse(request, response) {
 /**
  * 在当前账号内缓存页面，主设置与时段子页共用最新草稿，其它查询页保持隔离。
  * @param {Request} request 页面请求。
+ * @param {{userId: string}} [verifiedIdentity] 同一后台预取批次刚验证的账号。
  * @return {Promise<Response>} 在线页面或当前账号离线页面。
  */
-async function applicationPage(request) {
+async function applicationPage(request, verifiedIdentity) {
   const url = new URL(request.url);
   const name = `page:${url.pathname}${url.pathname === '/settings' && url.search === '?panel=polling' ? '' : url.search}`;
   // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
   // noinspection JSUnresolvedReference
   const store = self.AppLocalStore;
+  // 页面请求与会话校验并行，页面失败也必须等身份检查后才能选择本机缓存。
+  const online = fetch(new Request(request, {signal: applicationTimeout(10000)})).then(
+      (response) => ({response}), (error) => ({error}),
+  );
   let active = await store.readState('__device', 'active-user');
   try {
-    const identity = await fetch('/api/sync/session', {cache: 'no-store', signal: applicationTimeout(5000)});
-    if (identity.redirected || identity.status === 401 || identity.status === 403) {
-      await clearApplicationSession();
-      active = null;
-    } else if (identity.ok) {
-      active = (await identity.json()).userId;
-      await store.writeState('__device', 'active-user', active);
+    if (verifiedIdentity) {
+      active = verifiedIdentity.userId;
+    } else {
+      const identity = await fetch('/api/sync/session', {cache: 'no-store', signal: applicationTimeout(5000)});
+      if (identity.redirected || identity.status === 401 || identity.status === 403) {
+        await clearApplicationSession();
+        active = null;
+      } else if (identity.ok) {
+        active = (await identity.json()).userId;
+        await store.writeState('__device', 'active-user', active);
+      }
     }
   } catch { /* 网络不可达时只允许使用此前验证过的本机账号。 */
   }
   const local = active ? await store.readState(active, name) : undefined;
-  if (local?.html && url.pathname === '/settings' && (await store.pending(active)).some((operation) => operation.kind === 'settings')) return localPageResponse(local);
+  if (local?.html && url.pathname === '/settings' && (await store.pending(active)).some((operation) => operation.kind === 'settings')) {
+    void online.then((result) => result.response?.body?.cancel()).catch(() => {});
+    return localPageResponse(local);
+  }
   try {
-    const response = await fetch(new Request(request, {signal: applicationTimeout(10000)}));
+    const result = await online;
+    if (result.error) throw result.error;
+    const response = result.response;
     if (response.status >= 500 && local?.html) return localPageResponse(local);
     const userId = response.headers.get('x-app-user');
     if (response.ok && userId && !response.redirected) {
