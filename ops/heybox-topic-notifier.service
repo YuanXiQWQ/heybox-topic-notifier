@@ -12,6 +12,7 @@ User=heybox
 Group=heybox
 WorkingDirectory=/opt/heybox-topic-notifier/current
 EnvironmentFile=/etc/heybox-topic-notifier/heybox.env
+EnvironmentFile=-/opt/heybox-topic-notifier/current/.deploy.env
 Environment=DENO_DIR=/var/cache/heybox
 Environment=HOME=/var/lib/heybox
 ExecStart=/usr/local/bin/deno task start:vm

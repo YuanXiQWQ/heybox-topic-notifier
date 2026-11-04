@@ -4,6 +4,37 @@ Oracle Cloud runs the Deno service behind Caddy. Turso stores accounts, sessions
 
 [systemd](../../ops/heybox-topic-notifier.service) · [Caddy](../../ops/Caddyfile)
 
+## Automatic deployment from version tags
+
+Pushes to `dev` and `main` run checks without deploying production. Push a stable version tag such as `3.13.2` or `v3.13.2` to run the release checks, build both clients and publish the complete Release. Oracle checks public releases every five minutes and deploys the exact tagged commit only after its tag-triggered release workflow succeeds and all four installer/update assets are available. Drafts, prereleases, incomplete releases and older versions are excluded.
+
+The website and online pages inside the apps update with the server deployment. Native Windows and Android code updates through installers from the same tag. Clients that have not upgraded still require compatibility.
+
+The server needs Deno, Git, Python 3, curl, tar and flock. Configure the application service and environment below, then install these tools from a verified project checkout:
+
+```sh
+sudo install -d -m 0755 /usr/local/lib/heybox-deploy
+sudo install -m 0644 ops/auto_deploy.ts ops/deploy.sh /usr/local/lib/heybox-deploy/
+sudo install -m 0644 ops/heybox-auto-deploy.service ops/heybox-auto-deploy.timer /etc/systemd/system/
+sudo install -d -m 0755 /etc/systemd/system/heybox-topic-notifier.service.d
+printf '[Service]\nEnvironmentFile=-/opt/heybox-topic-notifier/current/.deploy.env\n' | sudo tee /etc/systemd/system/heybox-topic-notifier.service.d/release.conf >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now heybox-auto-deploy.timer
+sudo systemctl start heybox-auto-deploy.service
+```
+
+The first run deploys the latest ready stable release. Public GitHub API reads require neither a GitHub write token nor a server SSH private key stored in GitHub. Deployment tools are installed separately; application releases do not automatically replace tools running with administrator privileges.
+
+Deployment verifies the archive digest and tagged commit, caches runtime dependencies, switches the release directory and checks the public HTTPS endpoint's running commit, navigation markup and static asset hashes. Failure restores the previous application directory and checks service health without restoring old account data or configuration. `/var/lib/heybox-deploy/state.json` records the last attempt. A failed or interrupted attempt is not repeatedly deployed; fix its cause and rerun that tag's GitHub release workflow to allow another attempt. Downloads and temporary archives are removed after use; release directories remain available for rollback.
+
+```sh
+systemctl list-timers heybox-auto-deploy.timer
+journalctl -u heybox-auto-deploy.service -n 60 --no-pager
+curl --fail --silent https://YOUR_DOMAIN/healthz
+```
+
+For releases supporting the application deployment identity, the health response's `deploymentId` must match the tag's full commit SHA. Earlier releases may still return `local`; the deployer verifies their running process directory and public asset hashes instead. The current tag and SHA are also recorded in `/var/lib/heybox-deploy/state.json`. Use `sudo systemctl stop heybox-auto-deploy.timer` to pause automatic checks and `sudo systemctl start heybox-auto-deploy.timer` to resume them. Stopping the timer does not interrupt an active deployment.
+
 ## Environment Variables
 
 [`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)

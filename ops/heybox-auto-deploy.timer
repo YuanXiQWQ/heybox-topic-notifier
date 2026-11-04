@@ -1,0 +1,12 @@
+# 仅检查正式版本标签；普通分支推送不会触发服务升级。
+[Unit]
+Description=Check Heybox release tags every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+AccuracySec=15s
+Unit=heybox-auto-deploy.service
+
+[Install]
+WantedBy=timers.target
