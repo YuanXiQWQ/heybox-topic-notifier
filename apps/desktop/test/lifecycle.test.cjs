@@ -5,6 +5,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {harness} = require('./support/main-process.cjs');
 
+test('navigation availability follows the actual native history position', () => {
+  const context = harness();
+  let available = false;
+  context.contents.navigationHistory = {canGoBack: () => available};
+  assert.equal(context.api.info().navigation.canGoBack, false);
+  available = true;
+  assert.equal(context.api.info().navigation.canGoBack, true);
+  available = false;
+  assert.equal(context.api.info().navigation.canGoBack, false);
+});
+
 test('new devices enable silent downloads and install on exit by default', async () => {
   const context = harness();
   delete context.device.value.autoUpdate;

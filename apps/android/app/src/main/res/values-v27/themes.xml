@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8.1 起随系统明暗选择导航图标颜色。 -->
+<resources>
+    <style name="AppTheme" parent="AppThemeBase">
+        <item name="android:windowLightNavigationBar">@bool/startup_light_system_bars</item>
+    </style>
+    <style name="AppStartingTheme" parent="AppStartingThemeBase">
+        <item name="android:windowLightNavigationBar">@bool/startup_light_system_bars</item>
+    </style>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 网页首帧提交前延续系统启动背景与居中图标，不设置额外停留时间。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/startup_background"/>
+    <item android:width="288dp" android:height="288dp" android:gravity="center" android:drawable="@drawable/startup_icon"/>
+</layer-list>

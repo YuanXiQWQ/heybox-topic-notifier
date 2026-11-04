@@ -206,6 +206,11 @@ export function createRoutes(
         },
       ),
   );
+  /** 提供应用导航的历史状态、返回与保存屏障。 @return {Promise<Response>} 同源脚本。 */
+  app.get("/static/app-navigation.js", async () => new Response(
+    await Deno.readTextFile(new URL("../static/app-navigation.js", import.meta.url)),
+    { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } },
+  ));
   /** 提供共享原生桥接和应用更新界面脚本。 @return {Promise<Response>} 同源脚本。 */
   app.get(
     "/static/app-native.js",

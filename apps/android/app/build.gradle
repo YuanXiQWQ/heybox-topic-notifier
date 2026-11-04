@@ -33,6 +33,7 @@ android {
     buildTypes { release { signingConfig signingConfigs.release; minifyEnabled false } }
 }
 dependencies {
+    implementation 'androidx.core:core-splashscreen:1.2.0'
     implementation 'androidx.webkit:webkit:1.15.0'
     implementation 'androidx.activity:activity:1.11.0'
     implementation 'com.hihonor.mcs:push:10.0.31.302'

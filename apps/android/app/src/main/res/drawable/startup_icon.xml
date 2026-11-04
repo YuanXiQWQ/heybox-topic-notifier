@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 复用应用标志轮廓，外围留白使图案完整落在系统启动图标的安全区域内。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="288dp" android:height="288dp"
+        android:viewportWidth="376.5" android:viewportHeight="376.5">
+    <group android:translateX="62.75" android:translateY="62.75">
+        <path android:fillColor="@color/startup_icon"
+              android:pathData="M114,40L191,84Q194,86 194,90L194,162Q194,165 191,167L169,179Q166,181 166,177L166,106Q166,103 163,101L142,89Q139,88 139,91L139,109Q139,112 136,112L115,112Q112,112 112,109L112,43Q112,39 114,40ZM82,72Q85,70 85,74L85,145Q85,148 88,150L109,162Q112,163 112,160L112,142Q112,139 115,139L136,139Q139,139 139,142L139,208Q139,212 136,210L60,167Q57,165 57,161L57,90Q57,86 60,84Z"/>
+    </group>
+</vector>

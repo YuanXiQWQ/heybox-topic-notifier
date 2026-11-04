@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 支持深色导航图标的系统可以让导航栏与开屏使用同一背景。 -->
+<resources>
+    <color name="startup_navigation_background">@color/startup_background</color>
+</resources>

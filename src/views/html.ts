@@ -245,6 +245,7 @@ export function renderLayout(options: {
   }
     <script src="/static/app-compat.js" defer></script>
     <script src="/static/app-native.js" defer></script>
+    <script src="/static/app-navigation.js" defer></script>
     <script src="/static/app-device-settings.js" defer></script>
     <script src="/static/settings-navigation.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
@@ -275,8 +276,9 @@ export function renderLayout(options: {
   </head>
   <body data-app-user-id="${escapeHtml(options.account?.id ?? "")}">
     <header class="topbar">
+      ${renderApplicationBack(messages)}
       <a class="brand" href="/">${escapeHtml(messages.appName)}</a>
-      <nav class="primary-nav" aria-label="Primary">
+      <nav class="primary-nav" aria-label="Primary" data-app-navigation>
         <form class="nav-item" method="get" action="/">
           <button class="nav-link-button" type="submit">${
     renderNavItem(
@@ -327,6 +329,19 @@ export function renderLayout(options: {
     ${renderMatchTableRowLinkScript()}
   </body>
 </html>`;
+}
+
+/**
+ * 渲染仅在原生应用展示的返回按钮和保存失败反馈，不注册彩蛋候选槽位。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 初始禁用的图标按钮与状态区域。
+ */
+export function renderApplicationBack(messages: ReturnType<typeof getMessages>): string {
+  return `<button class="icon-button app-back-button" type="button" data-app-back disabled aria-label="${
+    escapeHtml(messages.navBack)
+  }" data-tooltip="${escapeHtml(messages.navBack)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg></button><span class="app-navigation-status" data-app-navigation-status data-save-error="${
+    escapeHtml(messages.autoSaveError)
+  }" role="status" hidden></span>`;
 }
 
 /**
