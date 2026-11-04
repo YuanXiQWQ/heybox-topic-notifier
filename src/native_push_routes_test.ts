@@ -39,7 +39,11 @@ Deno.test("native push registration requires current account, CSRF and matching 
       headers: { cookie },
     });
     assertEquals(await status.json(), { configured: false, appId: null });
-    /** @param {unknown} body 请求数据。 @param {string} token CSRF 校验值。 @return {Promise<Response>} 路由响应。 */
+    /**
+     * @param {unknown} body 请求数据。
+     * @param {string} token CSRF 校验值。
+     * @return {Promise<Response>} 路由响应。
+     */
     const request = (body: unknown, token = csrf.token) =>
       Promise.resolve(
         app.request("https://example.com/device", {

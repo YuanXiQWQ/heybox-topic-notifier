@@ -3,7 +3,11 @@
  */
 import { installTestInvitations } from "./invitation_test_helpers.ts";
 import { Hono } from "@hono/hono";
-import { type AuthOptions, createAuthMiddleware, createAuthRoutes } from "./auth.ts";
+import {
+  type AuthOptions,
+  createAuthMiddleware,
+  createAuthRoutes,
+} from "./auth.ts";
 import { hashPassword } from "./auth/password.ts";
 import { readAuthSession } from "./auth/session.ts";
 import { validAccountName } from "./auth/account_names.ts";
@@ -1469,17 +1473,7 @@ Deno.test("auth routes complete email MFA and create a session", async () => {
   }
   await enableEmailSecondFactor(storage, account.id);
 
-  const loginResponse = await app.request("/login", {
-    body: testCsrfForm(
-      new URLSearchParams({
-        password: "correct-password",
-        returnTo: "/history",
-        username: "alice",
-      }),
-    ),
-    headers: testCsrfHeaders(),
-    method: "POST",
-  });
+  const loginResponse = await submitAliceLogin(app);
   const challengeId = mfaChallengeIdFromLocation(
     loginResponse.headers.get("location"),
   );
@@ -1538,17 +1532,7 @@ Deno.test("auth routes complete TOTP MFA and create a session", async () => {
   }
   const material = await enableTotpSecondFactor(storage, account.id);
 
-  const loginResponse = await app.request("/login", {
-    body: testCsrfForm(
-      new URLSearchParams({
-        password: "correct-password",
-        returnTo: "/history",
-        username: "alice",
-      }),
-    ),
-    headers: testCsrfHeaders(),
-    method: "POST",
-  });
+  const loginResponse = await submitAliceLogin(app);
   const location = loginResponse.headers.get("location") ?? "";
   const challengeId = mfaChallengeIdFromLocation(location);
   const pageResponse = await app.request(location);
@@ -1612,17 +1596,7 @@ Deno.test("auth routes consume a one-time recovery code for MFA", async () => {
     userId: account.id,
   });
 
-  const loginResponse = await app.request("/login", {
-    body: testCsrfForm(
-      new URLSearchParams({
-        password: "correct-password",
-        returnTo: "/history",
-        username: "alice",
-      }),
-    ),
-    headers: testCsrfHeaders(),
-    method: "POST",
-  });
+  const loginResponse = await submitAliceLogin(app);
   const location = loginResponse.headers.get("location") ?? "";
   const challengeId = mfaChallengeIdFromLocation(location);
   const pageHtml = await (await app.request(location)).text();
@@ -1723,17 +1697,7 @@ Deno.test("auth routes complete Passkey MFA and create a session", async () => {
   }
   await enablePasskeySecondFactor(storage, account.id);
 
-  const loginResponse = await app.request("/login", {
-    body: testCsrfForm(
-      new URLSearchParams({
-        password: "correct-password",
-        returnTo: "/history",
-        username: "alice",
-      }),
-    ),
-    headers: testCsrfHeaders(),
-    method: "POST",
-  });
+  const loginResponse = await submitAliceLogin(app);
   const location = loginResponse.headers.get("location") ?? "";
   const mfaChallengeId = mfaChallengeIdFromLocation(location);
   const pageResponse = await app.request(location);
@@ -2099,8 +2063,9 @@ Deno.test("auth middleware accepts a valid session cookie", async () => {
 /**
  * 创建认证测试应用。
  *
- * @param storage 测试存储。
- * @return Hono 测试应用。
+ * @param {Storage} [storage] 测试存储。
+ * @param {AuthOptions} [options] 认证能力与请求依赖配置。
+ * @return {Hono} 测试应用。
  */
 function createTestApp(
   storage = createMemoryStorage(),
@@ -2137,8 +2102,7 @@ function turnstileAuthOptions(options: {
 /**
  * 创建开启 ALTCHA 自动降级的认证测试配置。
  *
- * @param options ALTCHA 验证码测试选项。
- * @return 认证测试配置。
+ * @return {AuthOptions} 认证测试配置。
  */
 function altchaAuthOptions(): AuthOptions {
   return {
@@ -2932,7 +2896,11 @@ const defaultSettings: AppSettings = {
   topics: [],
 };
 
-/** @param {Hono} app 测试应用。 @param {Response} response 身份验证响应。 @return {Promise<Response>} 显式提交邀请码后的响应。 */
+/**
+ * @param {Hono} app 测试应用。
+ * @param {Response} response 身份验证响应。
+ * @return {Promise<Response>} 显式提交邀请码后的响应。
+ */
 async function completeTestInvitation(
   app: Hono,
   response: Response,
@@ -2945,5 +2913,26 @@ async function completeTestInvitation(
     method: "POST",
     headers: testCsrfHeaders(),
     body: testCsrfForm(new URLSearchParams({ pending })),
+  });
+}
+
+/**
+ * 以测试账号提交密码登录，并指定认证后返回历史页。
+ * @param {ReturnType<typeof createTestApp>} app 认证测试应用。
+ * @return {Promise<Response>} 登录流程响应。
+ */
+async function submitAliceLogin(
+  app: ReturnType<typeof createTestApp>,
+): Promise<Response> {
+  return await app.request("/login", {
+    body: testCsrfForm(
+      new URLSearchParams({
+        password: "correct-password",
+        returnTo: "/history",
+        username: "alice",
+      }),
+    ),
+    headers: testCsrfHeaders(),
+    method: "POST",
   });
 }

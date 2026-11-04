@@ -17,7 +17,10 @@ import { MemorySqlClient } from "./storage/sqlite_test_helpers.ts";
 import { defaultAppSettingsFromEnv } from "./services/default_settings.ts";
 import { testCsrfToken } from "./test_helpers.ts";
 
-/** @param {"kv" | "turso"} backend 后端。 @return {Promise<object>} 使用随机测试密钥的隔离路由及存储。 */
+/**
+ * @param {"kv" | "turso"} backend 后端。
+ * @return {Promise<object>} 使用随机测试密钥的隔离路由及存储。
+ */
 async function fixture(backend: "kv" | "turso") {
   const kv = backend === "kv" ? await Deno.openKv(":memory:") : undefined;
   const sql = backend === "turso" ? new MemorySqlClient() : undefined;
@@ -62,7 +65,11 @@ async function fixture(backend: "kv" | "turso") {
     return response.headers.get("set-cookie")! + "; heybox_csrf=" +
       testCsrfToken;
   }
-  /** @param {string} cookie 登录会话。 @param {Record<string,string>} values 表单。 @return {Promise<Response>} 解锁响应。 */
+  /**
+   * @param {string} cookie 登录会话。
+   * @param {Record<string,string>} values 表单。
+   * @return {Promise<Response>} 解锁响应。
+   */
   function unlock(
     cookie: string,
     values: Record<string, string>,
@@ -73,13 +80,19 @@ async function fixture(backend: "kv" | "turso") {
       body: new URLSearchParams({ csrfToken: testCsrfToken, ...values }),
     }));
   }
-  /** @param {string} cookie 登录会话。 @return {Promise<string>} 授权键。 */
+  /**
+   * @param {string} cookie 登录会话。
+   * @return {Promise<string>} 授权键。
+   */
   async function grantId(cookie: string): Promise<string> {
     return await secretDigest(
       "admin:" + parseCookies(cookie).get("heybox_session"),
     );
   }
-  /** @param {string} cookie 登录会话。 @return {Promise<boolean>} 是否可访问用户列表。 */
+  /**
+   * @param {string} cookie 登录会话。
+   * @return {Promise<boolean>} 是否可访问用户列表。
+   */
   async function isUnlocked(cookie: string): Promise<boolean> {
     const response = await app.request("/admin", { headers: { cookie } });
     assertEquals(response.headers.get("cache-control"), "no-store, private");

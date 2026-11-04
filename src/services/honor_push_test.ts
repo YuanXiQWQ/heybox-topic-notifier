@@ -30,7 +30,11 @@ const event = {
 
 Deno.test("Honor wakeup excludes private content, caches credentials and recognizes expired tokens", async () => {
   let requests = 0, expired = false;
-  /** @param {RequestInfo | URL} input 固定官方地址。 @param {RequestInit} init 请求参数。 @return {Promise<Response>} 虚构官方响应。 */
+  /**
+   * @param {RequestInfo | URL} input 固定官方地址。
+   * @param {RequestInit} init 请求参数。
+   * @return {Promise<Response>} 虚构官方响应。
+   */
   const transport: typeof fetch = (input, init) => {
     requests++;
     assertEquals(init?.redirect, "error");

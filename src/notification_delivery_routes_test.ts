@@ -40,7 +40,11 @@ Deno.test("unified notification test fans out despite webhook failure and does n
         },
       },
     } as unknown as AppContext);
-    /** @param {boolean} enabled 当前设备通知开关。 @param {string} platform 当前应用平台。 @return {Promise<Response>} 测试响应。 */
+    /**
+     * @param {boolean} enabled 当前设备通知开关。
+     * @param {string} platform 当前应用平台。
+     * @return {Promise<Response>} 测试响应。
+     */
     const send = (enabled: boolean, platform = "windows") =>
       Promise.resolve(app.request("/test-notify", {
         method: "POST",

@@ -691,7 +691,10 @@ export function createAuthRoutes(
     );
   });
 
-  /** @param {Context} c 注册提交。 @return {Promise<Response>} 邀请核销后的登录结果。 */
+  /**
+   * @param {Context} c 注册提交。
+   * @return {Promise<Response>} 邀请核销后的登录结果。
+   */
   app.post(
     "/register/invitation",
     bodyLimit({
@@ -2280,10 +2283,9 @@ async function handleEmailLogin(
       },
     }, options);
   }
-  const account = existingEmailAccount;
   const verifiedAccount = await ensureEmailLoginCredential(
     storage,
-    account,
+    existingEmailAccount,
     email,
   );
   await storage.deletePendingEmailVerification(activeVerification.id);
@@ -5587,7 +5589,10 @@ function assertionCredentialToJson(credential) {
   };
 }
 
-/** @param {string} value Base64URL 编码。 @return {ArrayBuffer} 凭据原始字节。 */
+/**
+ * @param {string} value Base64URL 编码。
+ * @return {ArrayBuffer} 凭据原始字节。
+ */
 function base64UrlToArrayBuffer(value) {
   const normalized = String(value).split("-").join("+").split("_").join("/");
   const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, "=");
@@ -5603,7 +5608,10 @@ function optionalArrayBufferToBase64Url(value) {
   return value instanceof ArrayBuffer ? arrayBufferToBase64Url(value) : undefined;
 }
 
-/** @param {ArrayBuffer} value 凭据原始字节。 @return {string} 不带填充的 Base64URL 编码。 */
+/**
+ * @param {ArrayBuffer} value 凭据原始字节。
+ * @return {string} 不带填充的 Base64URL 编码。
+ */
 function arrayBufferToBase64Url(value) {
   const bytes = new Uint8Array(value);
   let binary = "";
@@ -5685,8 +5693,9 @@ function googleScriptHtml(clientId: string | undefined): string {
 /**
  * 渲染 Turnstile 官方脚本。
  *
- * @param siteKey Turnstile site key。
- * @return 启用 Turnstile 时返回脚本 HTML。
+ * @param {string | undefined} siteKey Turnstile site key。
+ * @param {boolean} altchaFallbackEnabled 是否启用 ALTCHA 自动降级。
+ * @return {string} 启用 Turnstile 时返回脚本 HTML。
  */
 function turnstileScriptHtml(
   siteKey: string | undefined,
@@ -5703,8 +5712,11 @@ function turnstileScriptHtml(
 /**
  * 渲染 Turnstile 表单组件。
  *
- * @param siteKey Turnstile site key。
- * @return 启用 Turnstile 时返回组件 HTML。
+ * @param {string | undefined} siteKey Turnstile site key。
+ * @param {boolean} [altchaFallbackEnabled=false] 是否启用 ALTCHA 自动降级。
+ * @param {string} [fallbackUnavailableMessage=""] 降级服务不可用时的提示。
+ * @param {"eager" | "visible"} [mode="eager"] 立即加载或组件可见时加载。
+ * @return {string} 启用 Turnstile 时返回组件 HTML。
  */
 function turnstileWidgetHtml(
   siteKey: string | undefined,

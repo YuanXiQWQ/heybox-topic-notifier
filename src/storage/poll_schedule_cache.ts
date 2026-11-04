@@ -71,6 +71,7 @@ export function cachePollSchedule(
 
   /**
    * 拦截可影响调度的成功或不确定写入；其余方法保持原始接收者。
+   * @template T 业务对象类型。
    * @param {T} target 根存储、用户存储或嵌套事务接口。
    * @param {string} userId 用户作用域。
    * @param {boolean} administration 是否为账号管理接口。
@@ -82,7 +83,11 @@ export function cachePollSchedule(
     administration = false,
   ): T {
     return new Proxy(target, {
-      /** @param {T} object 原接口。 @param {string | symbol} key 成员名。 @return {unknown} 原成员或委托函数。 */
+      /**
+       * @param {object} object 原接口。
+       * @param {string | symbol} key 成员名。
+       * @return {unknown} 原成员或委托函数。
+       */
       get(object, key) {
         const member = Reflect.get(object, key);
         if (key === "listPollSchedule") return readSchedule;

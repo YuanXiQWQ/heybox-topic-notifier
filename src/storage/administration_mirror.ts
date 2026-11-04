@@ -6,7 +6,12 @@ import type {
 } from "./administration_types.ts";
 import type { StorageMirrorFailure } from "./dual_write.ts";
 
-/** @param {Storage} source 权威库。 @param {Storage} replica 副本。 @param {(failure: StorageMirrorFailure) => void} failed 复制失败记录。 @return {AdministrationStore} 保留权威返回值的管理存储。 */
+/**
+ * @param {Storage} source 权威库。
+ * @param {Storage} replica 副本。
+ * @param {(failure: StorageMirrorFailure) => void} failed 复制失败记录。
+ * @return {AdministrationStore} 保留权威返回值的管理存储。
+ */
 export function mirrorAdministration(
   source: Storage,
   replica: Storage,
@@ -14,14 +19,21 @@ export function mirrorAdministration(
 ): AdministrationStore {
   const original = source.administration!, mirror = replica.administration!;
   return new Proxy(original, {
-    /** @param {AdministrationStore} target 权威接口。 @param {string|symbol} property 方法。 @return {unknown} 读取或复制包装。 */
+    /**
+     * @param {AdministrationStore} target 权威接口。
+     * @param {string|symbol} property 方法。
+     * @return {unknown} 读取或复制包装。
+     */
     get(target, property) {
       const value = Reflect.get(target, property);
       if (
         !["issue", "revoke", "register", "createUser", "editUser", "deleteUser"]
           .includes(String(property))
       ) return typeof value === "function" ? value.bind(target) : value;
-      /** @param {unknown[]} args 权威方法参数。 @return {Promise<unknown>} 权威提交结果。 */
+      /**
+       * @param {unknown[]} args 权威方法参数。
+       * @return {Promise<unknown>} 权威提交结果。
+       */
       return async (...args: unknown[]) => {
         const result = await value.apply(target, args);
         if (result !== "ok") return result;

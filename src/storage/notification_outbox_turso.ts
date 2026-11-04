@@ -42,7 +42,10 @@ export function createTursoNotificationOutbox(
   userId: string,
 ): NotificationOutbox {
   return {
-    /** @param {number} now 当前时间。 @return {Promise<NotificationJob[]>} 原子领取的任务。 */
+    /**
+     * @param {number} now 当前时间。
+     * @return {Promise<NotificationJob[]>} 原子领取的任务。
+     */
     async claim(now) {
       const token = crypto.randomUUID();
       const result = await execute({
@@ -70,7 +73,10 @@ export function createTursoNotificationOutbox(
         record: JSON.parse(String(row.record_json)),
       }));
     },
-    /** @param {NotificationJob[]} jobs 本领取者的任务。 @param {string | undefined} acceptedAt 受理时间。 */
+    /**
+     * @param {NotificationJob[]} jobs 本领取者的任务。
+     * @param {string | undefined} acceptedAt 受理时间。
+     */
     async complete(jobs, acceptedAt) {
       if (!jobs.length) return;
       const statements: InStatement[] = [];
@@ -102,7 +108,10 @@ export function createTursoNotificationOutbox(
       }
       await batch(statements);
     },
-    /** @param {NotificationJob[]} jobs 失败任务。 @param {number} now 失败时间。 */
+    /**
+     * @param {NotificationJob[]} jobs 失败任务。
+     * @param {number} now 失败时间。
+     */
     async retry(jobs, now) {
       if (!jobs.length) return;
       await batch(jobs.map((job) => ({

@@ -347,7 +347,10 @@ export async function startMatchingRun(
       let detailed = post;
       try {
         if (source.getPostDetails) detailed = await source.getPostDetails(post);
-        if (detailed.detailsComplete === false) throw new Error("detail");
+        if (detailed.detailsComplete === false)
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
+          throw new Error("detail");
       } catch {
         entry.attempts++;
         entry.retryAt = now() + 300000 * entry.attempts;
@@ -395,6 +398,8 @@ export async function startMatchingRun(
       try {
         aiEndpoint(settings.apiUrl);
         if (!settings.apiKey || !settings.model || !settings.prompt) {
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
           throw new Error("config");
         }
       } catch {

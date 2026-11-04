@@ -5,6 +5,7 @@ import { createTursoStorage } from "../storage/turso.ts";
 import { defaultAppSettingsFromEnv } from "./default_settings.ts";
 import { readNativeBadge } from "./native_badge.ts";
 import type { MatchRecord } from "../models.ts";
+import type { UserStorage } from "../storage/types.ts";
 
 /**
  * 构造同一帖子可被多个规则命中的业务记录。
@@ -93,7 +94,7 @@ Deno.test("badge snapshot takes its version before reading records so concurrent
   try {
     const alice = createTursoStorage(defaultAppSettingsFromEnv(), { client })
       .forUser("alice");
-    const racing = {
+    const racing: UserStorage = {
       ...alice,
       /** @return {Promise<Array<{id: string, postId: string}>>} 读取后发生并发写入的旧快照。 */
       async listPendingMatchReferences() {

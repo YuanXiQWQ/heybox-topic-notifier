@@ -204,7 +204,10 @@ export async function restoreInDatabase(
     database.exec("COMMIT");
     if (
       database.prepare("PRAGMA integrity_check").get()?.integrity_check !== "ok"
-    ) throw new Error("SQLite integrity check failed.");
+    )
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error("SQLite integrity check failed.");
     for (const table of snapshot.tables) {
       const statement = database.prepare(
         `SELECT * FROM ${identifier(table.name)}`,
@@ -214,6 +217,8 @@ export async function restoreInDatabase(
         table.columns.map((column) => encodeCell(row[column]))
       );
       if (await rowDigest(rows) !== table.digest) {
+        // 校验失败沿用当前 catch 的错误反馈与清理路径。
+        // noinspection ExceptionCaughtLocallyJS
         throw new Error("Restored content does not match backup.");
       }
     }

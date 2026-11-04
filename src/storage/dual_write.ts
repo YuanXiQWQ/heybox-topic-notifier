@@ -151,6 +151,7 @@ export function createDualWriteStorage(
 /**
  * 包装对象中的写方法，并保留全部读方法指向权威存储。
  *
+ * @template T 业务对象类型。
  * @param {T} authoritative 权威对象。
  * @param {T} mirror 镜像对象。
  * @param {ReadonlySet<PropertyKey>} writeMethods 写方法名称集合。
@@ -167,7 +168,7 @@ function mirrorWrites<T extends object>(
     /**
      * 读取对象属性，并在需要时返回双写方法。
      *
-     * @param {T} target 权威对象。
+     * @param {object} target 权威对象。
      * @param {PropertyKey} property 属性名。
      * @param {unknown} receiver 属性接收者。
      * @return {unknown} 原始属性或双写方法。

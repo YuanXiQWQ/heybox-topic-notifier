@@ -3039,8 +3039,9 @@ Deno.test("match redirects reject paths outside their table", async () => {
 /**
  * 创建包含认证和业务路由的测试应用。
  *
- * @param storage 账户与路由测试使用的内存存储。
- * @return 配置完成的 Hono 测试应用。
+ * @param {AccountRouteStorage} storage 账户与路由测试使用的内存存储。
+ * @param {{passkeyAuthenticationVerifier?: unknown, passkeyConfig?: typeof testPasskeyConfig, passkeyRegistrationVerifier?: unknown}} [options] Passkey 配置与测试验证器。
+ * @return {Hono} 配置完成的 Hono 测试应用。
  */
 function createAccountRouteApp(
   storage: AccountRouteStorage,

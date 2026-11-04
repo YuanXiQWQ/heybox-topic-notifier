@@ -258,6 +258,8 @@ export async function decryptTotpSecret(
       !cipherText ||
       extra !== undefined
     ) {
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
       throw new TotpConfigError("Invalid encrypted TOTP secret.");
     }
 

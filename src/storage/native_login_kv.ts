@@ -11,7 +11,10 @@ export function createKvNativeLogin(
   open: () => Promise<KvStore>,
 ): NativeLoginStore {
   return {
-    /** @param {NativeLogin} value 新交接。 @return {Promise<boolean>} 是否成功。 */
+    /**
+     * @param {NativeLogin} value 新交接。
+     * @return {Promise<boolean>} 是否成功。
+     */
     async create(value) {
       const db = await open();
       const key = ["nativeLogin", value.id];
@@ -21,13 +24,20 @@ export function createKvNativeLogin(
         { expireIn: Math.max(1, value.expiresAt - Date.now()) },
       ).commit()).ok;
     },
-    /** @param {string} id 交接 ID。 @return {Promise<NativeLogin | undefined>} 当前未过期状态。 */
+    /**
+     * @param {string} id 交接 ID。
+     * @return {Promise<NativeLogin | undefined>} 当前未过期状态。
+     */
     async read(id) {
       const value =
         (await (await open()).get<NativeLogin>(["nativeLogin", id])).value;
       return value && value.expiresAt > Date.now() ? value : undefined;
     },
-    /** @param {string} id 交接 ID。 @param {string} userId 授权账号。 @return {Promise<boolean>} 授权结果。 */
+    /**
+     * @param {string} id 交接 ID。
+     * @param {string} userId 授权账号。
+     * @return {Promise<boolean>} 授权结果。
+     */
     async approve(id, userId) {
       const db = await open(),
         key = ["nativeLogin", id],
@@ -43,7 +53,11 @@ export function createKvNativeLogin(
         expireIn: current.value.expiresAt - Date.now(),
       }).commit()).ok;
     },
-    /** @param {string} id 交接 ID。 @param {string} challenge PKCE 摘要。 @return {Promise<string | undefined>} 单次取得的账号。 */
+    /**
+     * @param {string} id 交接 ID。
+     * @param {string} challenge PKCE 摘要。
+     * @return {Promise<string | undefined>} 单次取得的账号。
+     */
     async consume(id, challenge) {
       const db = await open(),
         key = ["nativeLogin", id],

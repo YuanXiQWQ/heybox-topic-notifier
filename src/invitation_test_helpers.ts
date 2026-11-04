@@ -26,11 +26,19 @@ export function installTestInvitations(storage: Storage): void {
       temporary.set(value.id, value);
       return Promise.resolve();
     },
-    /** @param {string} id 测试标识。 @return {Promise<AdminTemporary|undefined>} 资料。 */
+    /**
+     * @param {string} id 测试标识。
+     * @return {Promise<AdminTemporary|undefined>} 资料。
+     */
     getTemporary(id) {
       return Promise.resolve(temporary.get(id));
     },
-    /** @param {import("./storage/administration_types.ts").AccountCreation} input 测试账号。 @param {string} hash 邀请摘要。 @param {string} pending 短期标识。 @return {Promise<import("./storage/administration_types.ts").AdminResult>} 创建结果。 */
+    /**
+     * @param {import("./storage/administration_types.ts").AccountCreation} input 测试账号。
+     * @param {string} hash 邀请摘要。
+     * @param {string} pending 短期标识。
+     * @return {Promise<import("./storage/administration_types.ts").AdminResult>} 创建结果。
+     */
     async register(input, hash, pending) {
       if (hash !== await secretDigest(normalizeInvitation("test-invitation"))) {
         return "invitation";
