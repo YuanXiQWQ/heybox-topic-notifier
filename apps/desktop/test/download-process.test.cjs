@@ -19,6 +19,8 @@ const bytes = Buffer.alloc(12 * 1024 * 1024, 73);
  */
 function transfer(options, mode) {
   return new Promise((resolve, reject) => {
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
     const child = fork(path.join(__dirname, 'fixtures/download-process.cjs'), [JSON.stringify(options)], {
       windowsHide: true,
       stdio: ['ignore', 'ignore', 'pipe', 'ipc']
@@ -36,8 +38,9 @@ function transfer(options, mode) {
       reject(error);
     });
     child.on('message', message => {
+      if (!message || typeof message !== 'object' || !('type' in message) || typeof message.type !== 'string') return;
       if (message.type !== 'progress') outcome = message.type;
-      if (mode !== 'complete' && !requested && message.transferred >= 6 * 1024 * 1024) {
+      if (mode !== 'complete' && !requested && 'transferred' in message && typeof message.transferred === 'number' && message.transferred >= 6 * 1024 * 1024) {
         requested = true;
         if (mode === 'kill') child.kill('SIGKILL'); else child.send('pause');
       }
@@ -65,20 +68,32 @@ for (const mode of ['pause', 'kill']) {
     const server = createServer((request, response) => {
       const start = Number(/^bytes=(\d+)-$/.exec(request.headers.range || '')?.[1] || 0);
       ranges.push(start);
+      // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+      // noinspection JSUnresolvedReference
       response.writeHead(start ? 206 : 200, {'content-length': bytes.length - start, ...(start ? {'content-range': `bytes ${start}-${bytes.length - 1}/${bytes.length}`} : {})});
       let offset = start;
       const timer = setInterval(() => {
         const end = Math.min(offset + 256 * 1024, bytes.length);
+        // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+        // noinspection JSUnresolvedReference
         response.write(bytes.subarray(offset, end));
         offset = end;
         if (offset === bytes.length) {
           clearInterval(timer);
+          // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+          // noinspection JSUnresolvedReference
           response.end();
         }
       }, 8);
+      // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+      // noinspection JSUnresolvedReference
       response.on('close', () => clearInterval(timer));
     });
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
     const options = {
       root: path.join(base, 'resume'),
       destination: path.join(base, 'setup.exe'),

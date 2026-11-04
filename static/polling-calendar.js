@@ -236,13 +236,13 @@ export function nearestDateParts(
     now.getMinutes(),
   ];
   const current = fromGregorian(solarNow, calendar),
-    target = Date.UTC(...[
+    target = Date.UTC(
       solarNow[0],
       solarNow[1] - 1,
       solarNow[2],
       solarNow[3],
       solarNow[4],
-    ]);
+    );
   let best = null, distance = Infinity;
   /**
    * 在某个年份中补齐空白日期部分并保留最接近当前时间的候选。

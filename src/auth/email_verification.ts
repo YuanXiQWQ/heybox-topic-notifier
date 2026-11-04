@@ -323,7 +323,7 @@ function interpolateEmailVerificationEmailTemplate(
   },
 ): string {
   return template.replaceAll(
-    /\{(appName|code|emailCodeLabel|expiresIn)\}/g,
+    /\{(appName|code|emailCodeLabel|expiresIn)}/g,
     (_placeholder, key: keyof typeof values) => values[key],
   );
 }

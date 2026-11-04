@@ -1,3 +1,5 @@
+<!-- GitHub 文档用 align 保持 RTL 对齐，代码块单独采用 LTR。 -->
+<!--suppress HtmlDeprecatedAttribute -->
 <div dir="rtl" lang="fa-IR" align="right">
 
 سرویس Deno روی Oracle Cloud اجرا می‌شود و Caddy اتصال HTTPS را فراهم می‌کند. حساب‌ها، نشست‌ها و نتایج در Turso ذخیره می‌شوند. GitHub Actions بسته‌های نصب Windows و Android را از برچسب‌های انتشار می‌سازد.
@@ -53,6 +55,7 @@ A/AAAA میزبان مقصد نیز بررسی می‌شود تا در محدو�
 
 نمونهٔ پیکربندی سمت Oracle Cloud:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
 NOTIFIER_SERVER_CHAN_SEND_URL=https://&lt;your-worker&gt;.workers.dev/serverchan
@@ -65,3 +68,5 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 systemctl is-active heybox-topic-notifier.service
 curl --fail --silent --show-error -H "Host: YOUR_DOMAIN" http://127.0.0.1:8000/healthz
 ```
+
+</div>

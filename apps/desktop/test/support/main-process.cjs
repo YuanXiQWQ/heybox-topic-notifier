@@ -90,12 +90,18 @@ function harness(options = {}) {
         return true;
       }
 
-      /** @param {string} name 事件名。 @param {Function} fn 处理器。 */
+      /**
+       * @param {string} name 事件名。
+       * @param {Function} fn 处理器。
+       */
       on(name, fn) {
         this.events.set(name, fn);
       }
 
-      /** @param {string} name 事件名。 @param {Function} fn 单次事件回调。 */
+      /**
+       * @param {string} name 事件名。
+       * @param {Function} fn 单次事件回调。
+       */
       once(name, fn) {
         this.on(name, fn);
       }

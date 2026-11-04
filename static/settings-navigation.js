@@ -46,13 +46,16 @@
     }, 350);
   }
 
+  // 公开的宿主接口按需或经动态脚本调用，保留已声明的控制能力。
+  // noinspection JSUnusedGlobalSymbols
   globalThis.settingsPageNavigation = { remember, restore };
   document.addEventListener("click", (event) => {
     if (
       event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey ||
       event.altKey
     ) return;
-    const link = event.target.closest?.("[data-settings-subpage]");
+    if (!(event.target instanceof Element)) return;
+    const link = /** @type {HTMLAnchorElement|null} */ (event.target.closest("[data-settings-subpage]"));
     if (link && (!link.target || link.target === "_self")) remember();
   });
   addEventListener("pageshow", () => {
@@ -66,8 +69,8 @@
         new URL(document.referrer).pathname,
       );
     } catch { /* 直接访问无来源。 */ }
-    const back =
-      performance.getEntriesByType("navigation")[0]?.type === "back_forward";
+    const navigation = /** @type {PerformanceNavigationTiming|undefined} */ (performance.getEntriesByType("navigation")[0]);
+    const back = navigation?.type === "back_forward";
     if (returning || back) restore();
   });
 })();

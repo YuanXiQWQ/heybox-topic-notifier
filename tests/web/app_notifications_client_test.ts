@@ -46,9 +46,13 @@ Deno.test("browser notification switch reflects server state and preserves state
     endpoint: "https://fcm.googleapis.com/push/test",
     toJSON: () => ({ endpoint: "test" }),
   };
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   const registration = {
     pushManager: { getSubscription: () => Promise.resolve(subscription) },
   };
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   const scope = {
     isSecureContext: true,
     HTMLInputElement: NotificationControl,
@@ -139,6 +143,8 @@ async function notificationFixture(overrides: Record<string, unknown> = {}) {
     endpoint: "https://fcm.googleapis.com/push/test",
     toJSON: () => ({ endpoint: "test" }),
   };
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   const registration = {
     pushManager: {
       getSubscription: () => Promise.resolve(null),
@@ -148,6 +154,8 @@ async function notificationFixture(overrides: Record<string, unknown> = {}) {
       },
     },
   };
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   const scope = {
     HTMLInputElement: NotificationControl,
     HTMLElement: NotificationControl,

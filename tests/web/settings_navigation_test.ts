@@ -9,6 +9,8 @@ function harness() {
   const saved: (() => void)[] = [];
   const visited: string[] = [];
   const state = { current: "edited", fail: false };
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   class Link {
     /** 导航目的地址。 */
     href = "https://example.com/history";
@@ -24,13 +26,16 @@ function harness() {
     }
   }
   /** 真实导航栏使用的 GET 表单替身。 */
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   class NavigationForm {
     method = "get";
     /** @return {boolean} 属于导航栏表单。 */
     matches() {
       return true;
     }
-    /** 保存后恢复原生提交。 */
+    /** 保存后恢复原生提交，由动态加载的导航脚本调用。 */
+    // noinspection JSUnusedGlobalSymbols
     requestSubmit() {
       visited.push("form:/history");
     }

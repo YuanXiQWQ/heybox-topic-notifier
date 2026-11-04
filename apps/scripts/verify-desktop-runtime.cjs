@@ -43,7 +43,10 @@ function verify(executable) {
 module.exports = {hasSecurityFix, verify};
 if (require.main === module) {
   try {
-    if (!process.argv[2]) throw new Error('Pass the packaged executable path');
+    if (!process.argv[2])
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error('Pass the packaged executable path');
     console.log(JSON.stringify(verify(process.argv[2])));
   } catch (error) {
     console.error(error.message);

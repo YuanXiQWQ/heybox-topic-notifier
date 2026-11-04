@@ -935,7 +935,7 @@ function isLobotomyCorpAlertPageReload() {
 /**
  * 读取待恢复的警报状态。
  *
- * @return {{directSession: boolean, musicAlert: object, musicSource: 'danger'|'direct', playbackState: string, position: number, replayAt: number|undefined, startedAt: number, visualAlert: object|undefined}|undefined} 待恢复状态。
+ * @return {{directSession: boolean, musicAlert: LobotomyCorpAlert, musicSource: 'danger'|'direct', playbackState: 'normal-playing'|'replay-intermission'|'special-event-held', position: number, replayAt: number|undefined, startedAt: number, visualAlert: LobotomyCorpAlert|undefined}|undefined} 待恢复状态。
  */
 function persistedLobotomyCorpAlert() {
   const serialized = lobotomyCorpAlertStorages().map((storage) =>
@@ -1495,8 +1495,7 @@ function clearLobotomyCorpAvatarDecorations() {
  * @return {Promise<boolean>} 服务端确认保存成功时返回 true。
  */
 async function saveLobotomyCorpDisplayNameInBackground(value) {
-  const document = globalThis.document;
-  const form = document?.querySelector?.('[data-account-form]');
+  const form = /** @type {HTMLFormElement|null|undefined} */ (globalThis.document?.querySelector?.('[data-account-form]'));
   if (
       typeof value !== 'string' || value.length === 0 || !form ||
       typeof globalThis.fetch !== 'function' ||
@@ -1505,6 +1504,8 @@ async function saveLobotomyCorpDisplayNameInBackground(value) {
     return false;
   }
   try {
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSCheckFunctionSignatures
     const body = new FormData(form);
     body.set('accountAction', 'displayName');
     body.set('displayName', value);
@@ -1536,8 +1537,7 @@ async function saveLobotomyCorpDisplayNameInBackground(value) {
  * @param {string} value 要写入的显示名称。
  */
 function applyLobotomyCorpDisplayName(value) {
-  const document = globalThis.document;
-  const input = document?.querySelector?.('[data-account-display-name-input]');
+  const input = globalThis.document?.querySelector?.('[data-account-display-name-input]');
   if (input) {
     input.value = value;
     if (input.dataset) input.dataset.accountDisplayNameOriginal = value;
@@ -1796,10 +1796,16 @@ function setLobotomyCorpElementStyles(element, styles) {
 }
 
 /**
+ * HUD 中 Unity RectTransform 的锚点、轴心、尺寸及可选变换。
+ *
+ * @typedef {{anchorX: number, anchorY: number, anchoredX: number, anchoredY: number, height: number, pivotX: number, pivotY: number, rotation?: number, scaleY?: number, width: number}} LobotomyCorpRectTransform
+ */
+
+/**
  * 将本 HUD 使用的 Unity RectTransform 坐标换算为 CSS 左上定位。
  *
  * @param {Element} element 要定位的元素。
- * @param {{anchorX: number, anchorY: number, anchoredX: number, anchoredY: number, height: number, pivotX: number, pivotY: number, rotation?: number, scaleY?: number, width: number}} rect Unity RectTransform 参数。
+ * @param {LobotomyCorpRectTransform} rect Unity RectTransform 参数。
  * @param {number} parentWidth 父 Rect 的 Unity 宽度。
  * @param {number} parentHeight 父 Rect 的 Unity 高度。
  */
@@ -2046,7 +2052,7 @@ function updateLobotomyCorpCanvasScale(viewport, ...unityRoots) {
  * 创建一个复现 Unity Corner / Texture / Risk 或 TrumpetLevel 层级的角落节点。
  *
  * @param {LobotomyCorpAlert} alert 当前警报配置。
- * @param {{alertTextRect?: object, position: string, triangleFile: string}} definition Corner 配置。
+ * @param {{alertTextRect?: LobotomyCorpRectTransform, position: string, triangleFile: string}} definition Corner 配置。
  * @return {HTMLElement} 完整 Corner 节点。
  */
 function createLobotomyCorpEmergencyCorner(alert, definition) {

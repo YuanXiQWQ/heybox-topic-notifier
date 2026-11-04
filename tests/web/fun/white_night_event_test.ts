@@ -55,7 +55,11 @@ function createInteractiveDocument() {
   const displayNameInput = new Element();
   displayNameInput.selectors.add("[data-account-display-name-input]");
 
-  /** @param {Element} root 根节点。 @param {string} className 类名。 @return {Element[]} 匹配节点。 */
+  /**
+   * @param {Element} root 根节点。
+   * @param {string} className 类名。
+   * @return {Element[]} 匹配节点。
+   */
   const nodesByClass = (
     root: Element,
     className: string,
@@ -67,14 +71,20 @@ function createInteractiveDocument() {
     body,
     /** @return {Element} 新节点。 */
     createElement: () => new Element(),
-    /** @param {string} selector 选择器。 @return {Element|undefined} 匹配控件。 */
+    /**
+     * @param {string} selector 选择器。
+     * @return {Element|undefined} 匹配控件。
+     */
     querySelector: (selector: string) =>
       selector === "[data-account-save-button]"
         ? saveButton
         : selector === "[data-account-display-name-input]"
         ? displayNameInput
         : undefined,
-    /** @param {string} selector 选择器。 @return {Element[]} 匹配控件。 */
+    /**
+     * @param {string} selector 选择器。
+     * @return {Element[]} 匹配控件。
+     */
     querySelectorAll: (selector: string) =>
       selector.includes("[data-polling-interval-value]")
         ? [pollingValue, pollingUnit]
@@ -83,10 +93,16 @@ function createInteractiveDocument() {
         : selector === ".lobotomy-corp-white-night-message"
         ? nodesByClass(body, "lobotomy-corp-white-night-message")
         : [],
-    /** @param {string} type 类型。 @param {Listener} listener 监听器。 */
+    /**
+     * @param {string} type 类型。
+     * @param {Listener} listener 监听器。
+     */
     addEventListener: (type: string, listener: Listener) =>
       listeners.set(type, [...(listeners.get(type) ?? []), listener]),
-    /** @param {string} type 类型。 @param {Listener} listener 监听器。 */
+    /**
+     * @param {string} type 类型。
+     * @param {Listener} listener 监听器。
+     */
     removeEventListener: (type: string, listener: Listener) =>
       listeners.set(
         type,
@@ -163,7 +179,7 @@ Deno.test("WhiteNight follows Confess suppression, Dead_23 events, and complete 
         value: (
           callback: () => void,
           delay = 0,
-        ) => (scheduled.push({ callback, delay }), scheduled.length),
+        ) => scheduled.push({ callback, delay }),
       },
       clearTimeout: { configurable: true, value: () => {} },
     });
@@ -330,7 +346,7 @@ Deno.test("direct WhiteNight submission stays in Prelude until Simple Advent end
         value: (
           callback: () => void,
           delay = 0,
-        ) => (timers.push({ callback, delay }), timers.length),
+        ) => timers.push({ callback, delay }),
       },
       clearTimeout: { configurable: true, value: () => {} },
     });
@@ -435,7 +451,7 @@ Deno.test("WhiteNight stage Trumpet follows each settlement result even when it 
         value: (
           callback: () => void,
           delay = 0,
-        ) => (timers.push({ callback, delay }), timers.length),
+        ) => timers.push({ callback, delay }),
       },
       clearTimeout: { configurable: true, value: () => {} },
     });
@@ -548,11 +564,17 @@ Deno.test("WhiteNight restores the staged Trumpet timeline from the saved phase"
     stage: Array<{ alert: unknown; audibleMs: number; thenHold: boolean }>;
   } = { fade: [], fadeStartRatios: [], hold: 0, stage: [] };
   const storage = {
-    /** @param {string} key 键。 @return {string|null} 值。 */
+    /**
+     * @param {string} key 键。
+     * @return {string|null} 值。
+     */
     getItem: (key: string) => savedState.get(key) ?? null,
     /** @param {string} key 键。 */ removeItem: (key: string) =>
       savedState.delete(key),
-    /** @param {string} key 键。 @param {string} value 值。 */
+    /**
+     * @param {string} key 键。
+     * @param {string} value 值。
+     */
     setItem: (key: string, value: string) => savedState.set(key, value),
   };
   /**
@@ -564,7 +586,7 @@ Deno.test("WhiteNight restores the staged Trumpet timeline from the saved phase"
   const restoreWith = (saved: Record<string, unknown>) => {
     savedState.clear();
     savedState.set("white-night", JSON.stringify(saved));
-    const event = createWhiteNightEvent({
+    return createWhiteNightEvent({
       assetRoot: "/Assets",
       confessionAliases: () => new Set(),
       ensureCoordinator: () => {},
@@ -607,7 +629,6 @@ Deno.test("WhiteNight restores the staged Trumpet timeline from the saved phase"
       storageKey: "white-night",
       storages: () => [storage],
     }) as { finish: () => void; restore: () => boolean };
-    return event;
   };
   try {
     Object.defineProperties(browser, {
@@ -754,11 +775,15 @@ Deno.test("WhiteNight keeps source-specific entry behavior per entry source", ()
       Audio: { configurable: true, value: AudioMock },
       document: { configurable: true, value: document },
     });
+    // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+    // noinspection JSUnusedGlobalSymbols
     const event = createWhiteNightEvent({
       assetRoot: "/Assets",
       confessionAliases: () => new Set(),
       ensureCoordinator: () => {},
       finishRestartButton: () => {},
+      // 入口只按来源处理；使徒数量不应改变各来源的音频行为。
+      // noinspection JSUnusedGlobalSymbols
       hasTwelveApostles: () => hasTwelveApostles,
       holdAlertMusic: () => {},
       isReload: () => false,
@@ -1055,9 +1080,15 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
     }),
   ]]);
   const storage = {
-    /** @param {string} key 键。 @return {string|null} 值。 */
+    /**
+     * @param {string} key 键。
+     * @return {string|null} 值。
+     */
     getItem: (key: string) => values.get(key) ?? null,
-    /** @param {string} key 键。 @param {string} value 值。 */
+    /**
+     * @param {string} key 键。
+     * @param {string} value 值。
+     */
     setItem: (key: string, value: string) => values.set(key, value),
     /** @param {string} key 键。 */
     removeItem: (key: string) => values.delete(key),
@@ -1148,7 +1179,7 @@ Deno.test("WhiteNight refresh message is deliberately layered above the Trumpet 
     new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
   );
   const messageRule =
-    css.match(/\.lobotomy-corp-white-night-message\s*\{[^}]*\}/s)
+    css.match(/\.lobotomy-corp-white-night-message\s*\{[^}]*}/s)
       ?.[0] ?? "";
   assert(/z-index:\s*10010;/.test(messageRule));
   assert(/pointer-events:\s*none;/.test(messageRule));

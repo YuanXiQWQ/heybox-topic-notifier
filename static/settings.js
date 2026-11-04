@@ -94,7 +94,24 @@ const csrfHeaderName = 'x-csrf-token';
  */
 const keywordMatchLocations = ['title', 'body', 'comments', 'replies'];
 /**
+ * 规则行拖拽期间共享的元素与指针状态。
+ * @typedef {object} RuleDragState
+ * @property {HTMLElement|undefined} dropTargetTopicRow 接收关键词的话题行。
+ * @property {HTMLElement|undefined} ghost 跟随指针的预览。
+ * @property {HTMLButtonElement} handle 捕获指针的拖拽按钮。
+ * @property {HTMLElement} keywordEditor 关键词编辑器。
+ * @property {'topic'|'keyword'} kind 规则种类。
+ * @property {boolean} moved 是否已经改变行顺序。
+ * @property {number} pointerId 当前指针标识。
+ * @property {HTMLElement} row 被拖拽的规则行。
+ * @property {boolean} started 是否已越过拖拽阈值。
+ * @property {number} startX 按下时的横坐标。
+ * @property {number} startY 按下时的纵坐标。
+ * @property {HTMLElement} topicEditor 话题编辑器。
+ */
+/**
  * 当前正在拖拽的规则行状态。
+ * @type {RuleDragState|undefined}
  */
 let activeRuleDrag;
 
@@ -149,16 +166,16 @@ function initAvatarUpload() {
   const form = document.querySelector('[data-avatar-upload-form]');
   const dropzone = form?.querySelector('[data-avatar-dropzone]');
   const input = form?.querySelector('[data-avatar-file-input]');
-  const dialog = form?.querySelector('[data-avatar-crop-dialog]');
+  const dialog = /** @type {HTMLDialogElement|null|undefined} */ (form?.querySelector('[data-avatar-crop-dialog]'));
   const stage = form?.querySelector('[data-avatar-crop-stage]');
-  const canvas = form?.querySelector('[data-avatar-crop-canvas]');
-  const zoom = form?.querySelector('[data-avatar-crop-zoom]');
+  const canvas = /** @type {HTMLCanvasElement|null|undefined} */ (form?.querySelector('[data-avatar-crop-canvas]'));
+  const zoom = /** @type {HTMLInputElement|null|undefined} */ (form?.querySelector('[data-avatar-crop-zoom]'));
   const zoomValue = form?.querySelector('[data-avatar-crop-zoom-value]');
   const confirm = form?.querySelector('[data-avatar-crop-confirm]');
   const cancel = form?.querySelector('[data-avatar-crop-cancel]');
   const status = form?.querySelector('[data-avatar-upload-status]');
   const previewButton = form?.querySelector('[data-avatar-preview]');
-  const previewDialog = form?.querySelector('[data-avatar-preview-dialog]');
+  const previewDialog = /** @type {HTMLDialogElement|null|undefined} */ (form?.querySelector('[data-avatar-preview-dialog]'));
   const previewClose = form?.querySelector('[data-avatar-preview-close]');
   const previewImage = form?.querySelector('[data-avatar-preview-image]');
   const clearDecorations = form?.querySelector(
@@ -367,6 +384,8 @@ function initAvatarUpload() {
             confirm.disabled = false;
             return;
           }
+          // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+          // noinspection JSCheckFunctionSignatures
           const data = new FormData(form);
           data.set('avatar', blob, 'avatar.png');
           try {
@@ -653,7 +672,7 @@ async function refreshGoogleSettings(url) {
  * @param {ParentNode} [scope] 查找范围。
  */
 function initTotpManualKeyCopy(scope = document) {
-  const key = scope.querySelector('[data-totp-manual-key]');
+  const key = /** @type {HTMLElement|null} */ (scope.querySelector('[data-totp-manual-key]'));
   const button = scope.querySelector('[data-totp-copy-button]');
   const status = scope.querySelector('[data-totp-copy-status]');
 
@@ -670,6 +689,8 @@ function initTotpManualKeyCopy(scope = document) {
 
   button.addEventListener('click', async () => {
     button.disabled = true;
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
     const copied = await copyTextToClipboard(key.textContent?.trim() || '');
     const feedback = copied
         ? button.dataset.totpCopySuccess || copyLabel
@@ -707,7 +728,9 @@ function initRecoveryCodeDownload() {
 
   const downloadLabel = button.dataset.recoveryDownloadLabel || '';
   button.addEventListener('click', () => {
-    const codes = Array.from(list.querySelectorAll('code'))
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
+    const codes = Array.from(/** @type {NodeListOf<HTMLElement>} */ (list.querySelectorAll('code')))
         .map((code) => code.textContent?.trim() || '')
         .filter(Boolean);
     const appName = button.dataset.recoveryDownloadAppName?.trim() || '';
@@ -767,6 +790,8 @@ function localDateString(date, locale) {
  * @return {string} 可安全用于文件名的片段。
  */
 function safeDownloadFilenamePart(value) {
+  // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+  // noinspection JSCheckFunctionSignatures
   const filenamePart = Array.from(
       value,
       (character) =>
@@ -936,6 +961,8 @@ async function copyTextToClipboard(value) {
     textarea.style.opacity = '0';
     document.body.append(textarea);
     textarea.select();
+    // Clipboard API 不可用或被拒绝时，在当前用户手势内使用选区复制。
+    // noinspection JSDeprecatedSymbols
     const copied = document.execCommand('copy');
     textarea.remove();
     return copied;
@@ -1307,7 +1334,7 @@ function clearSecretSubmissionValues(submitted) {
  * 初始化轮询设置联动。
  */
 function initPollingSettings() {
-  const enabledToggle = document.querySelector('[data-polling-enabled-toggle]');
+  const enabledToggle = /** @type {HTMLInputElement|null} */ (document.querySelector('[data-polling-enabled-toggle]'));
   const intervalValueInput = document.querySelector(
       '[data-polling-interval-value]',
   );
@@ -1506,6 +1533,8 @@ async function submitLobotomyCorpAccountSaveTransaction(
 
     if (mode === 'displayName') {
       // 只有服务器确认保存成功后，异想体才会提交并产生 Day / Danger Score 副作用。
+      // 演出异步推进，账户保存结果无需等待整段动画结束。
+      // noinspection ES6MissingAwait
       void (preparedMedia?.commit?.() ??
           easterEgg.commitDisplayName?.(displayName) ??
           easterEgg.activate(displayName));
@@ -1527,20 +1556,20 @@ function initAccountSettings() {
   }
 
   const actionInput = form.querySelector('[data-account-action-input]');
-  const usernameInput = form.querySelector('[data-account-username-input]');
+  const usernameInput = /** @type {HTMLInputElement|null} */ (form.querySelector('[data-account-username-input]'));
   const usernameStatus = form.querySelector('[data-account-username-status]');
-  const displayNameInput = form.querySelector(
+  const displayNameInput = /** @type {HTMLInputElement|null} */ (form.querySelector(
       '[data-account-display-name-input]',
-  );
+  ));
   const displayNameStatus = form.querySelector(
       '[data-account-display-name-status]',
   );
   const currentPasswordRow = form.querySelector(
       '[data-account-current-password-row]',
   );
-  const currentPasswordInput = form.querySelector(
+  const currentPasswordInput = /** @type {HTMLInputElement|null} */ (form.querySelector(
       '[data-account-current-password-input]',
-  );
+  ));
   const currentPasswordStatus = form.querySelector(
       '[data-account-current-password-status]',
   );
@@ -2469,8 +2498,10 @@ function initAuthMethodPanels(scope = document) {
  */
 function authMethodPanelFor(button, panelId) {
   const scope = button.closest('.settings-group') || document;
-  return Array.from(scope.querySelectorAll('[data-auth-method-panel]'))
-      .find((panel) => panel.dataset.authMethodPanel === panelId);
+  for (const panel of scope.querySelectorAll('[data-auth-method-panel]')) {
+    if (panel instanceof HTMLElement && panel.dataset.authMethodPanel === panelId) return panel;
+  }
+  return undefined;
 }
 
 /**
@@ -2527,7 +2558,7 @@ function closeSiblingEmailBindingPanels(scope = document) {
  * @param {boolean} visible 是否显示。
  */
 function setAuthMethodPanelVisible(panel, button, visible) {
-  const row = panel.closest('.auth-method-row');
+  const row = /** @type {HTMLElement|null} */ (panel.closest('.auth-method-row'));
   const transitionToken = String(++authMethodPanelTransitionId);
   panel.dataset.authMethodTransitionToken = transitionToken;
   button?.setAttribute('aria-expanded', visible ? 'true' : 'false');
@@ -2902,14 +2933,14 @@ function capitalize(value) {
  * 初始化邮箱绑定验证码发送流程。
  */
 function initEmailBinding() {
-  const form = document.querySelector('[data-email-binding-form]');
+  const form = /** @type {HTMLFormElement|null} */ (document.querySelector('[data-email-binding-form]'));
   if (!(form instanceof HTMLFormElement)) {
     return;
   }
 
   const scope = form.closest('.settings-group') || document;
-  const emailInput = scope.querySelector('[data-email-binding-input]');
-  const codeInput = scope.querySelector('[data-email-code-input]');
+  const emailInput = /** @type {HTMLInputElement|null} */ (scope.querySelector('[data-email-binding-input]'));
+  const codeInput = /** @type {HTMLInputElement|null} */ (scope.querySelector('[data-email-code-input]'));
   const codeRow = scope.querySelector('[data-email-code-row]');
   const editButton = scope.querySelector('[data-email-binding-edit-button]');
   const verificationIdInput = form.querySelector(
@@ -2979,7 +3010,9 @@ function initEmailBinding() {
     emailInput.readOnly = false;
     syncEmailBindingEditorTabStops();
     showEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
-    emailInput.closest('.auth-method-row')?.classList.add('is-open');
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
+    (/** @type {HTMLElement|null} */ (emailInput.closest('.auth-method-row')))?.classList.add('is-open');
     emailInput.focus();
     emailInput.select();
   }
@@ -2998,7 +3031,9 @@ function initEmailBinding() {
     clearInlineStatus(sendStatus);
     clearInlineStatus(verifyStatus);
     hideEmailBindingElement(codeRow, true, ++emailBindingTransitionToken);
-    emailInput.closest('.auth-method-row')?.classList.remove('is-open');
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
+    (/** @type {HTMLElement|null} */ (emailInput.closest('.auth-method-row')))?.classList.remove('is-open');
   }
 
   /**
@@ -3330,9 +3365,13 @@ function initPasskeyBinding(scope = document) {
         publicKey: creationOptionsFromJson(optionsPayload.optionsJSON),
       });
       if (!(credential instanceof globalThis.PublicKeyCredential)) {
+        // 校验失败沿用当前 catch 的错误反馈与清理路径。
+        // noinspection ExceptionCaughtLocallyJS
         throw new Error('Browser did not return a Passkey credential.');
       }
 
+      // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+      // noinspection JSCheckFunctionSignatures
       const verified = await verifyPasskeyRegistration(section, {
         challengeId: optionsPayload.challengeId,
         credential: registrationCredentialToJson(credential),
@@ -3451,6 +3490,8 @@ async function submitGoogleBinding(
     if (
         !bindingResponse.ok || !await refreshGoogleSettings(bindingResponse.url)
     ) {
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
       throw new Error('Could not update Google binding.');
     }
   } catch {
@@ -3508,6 +3549,8 @@ async function submitGoogleUnbind(form) {
     if (
         !unbindResponse.ok || !await refreshGoogleSettings(unbindResponse.url)
     ) {
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
       throw new Error('Could not update Google binding.');
     }
   } catch {
@@ -3767,10 +3810,10 @@ function initReauthSection(section) {
  */
 function initReauthMethodSelector(section) {
   const buttons = Array.from(
-      section.querySelectorAll('[data-reauth-method-button]'),
+      /** @type {NodeListOf<HTMLButtonElement>} */ (section.querySelectorAll('[data-reauth-method-button]')),
   ).filter((button) => button instanceof HTMLButtonElement);
   const panels = Array.from(
-      section.querySelectorAll('[data-reauth-method-panel]'),
+      /** @type {NodeListOf<HTMLElement>} */ (section.querySelectorAll('[data-reauth-method-panel]')),
   ).filter((panel) => panel instanceof HTMLElement);
 
   buttons.forEach((button) => {
@@ -3940,7 +3983,7 @@ function initEmailReauthForm(section, form, globalStatus) {
   const verificationIdInput = form.querySelector(
       '[data-reauth-email-verification-id]',
   );
-  const codeInput = form.querySelector('[data-reauth-email-code-input]');
+  const codeInput = /** @type {HTMLInputElement|null} */ (form.querySelector('[data-reauth-email-code-input]'));
   const methodButton = section.querySelector(
       '[data-reauth-method-button="email"]',
   );
@@ -4177,6 +4220,8 @@ async function performPasskeyReauth(section) {
     throw new Error('Browser did not return a Passkey credential.');
   }
 
+  // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+  // noinspection JSCheckFunctionSignatures
   return await verifyPasskeyReauth(section, {
     challengeId: optionsPayload.challengeId,
     credential: authenticationCredentialToJson(credential),
@@ -4230,6 +4275,8 @@ async function submitReauthForm(section, form, url, status, globalStatus) {
  */
 function reauthFormBody(form, section) {
   const body = new URLSearchParams();
+  // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+  // noinspection JSCheckFunctionSignatures
   for (const [key, value] of new FormData(form)) {
     if (typeof value === 'string') {
       body.set(key, value);
@@ -4298,7 +4345,7 @@ async function verifyPasskeyReauth(section, payload) {
 /**
  * 将服务端 JSON 认证参数转换为浏览器 WebAuthn 参数。
  *
- * @param {Object} optionsJSON 服务端返回的认证参数。
+ * @param {Omit<PublicKeyCredentialRequestOptions, 'challenge' | 'allowCredentials'> & {challenge: string, allowCredentials?: Array<Omit<PublicKeyCredentialDescriptor, 'id'> & {id: string}>}} optionsJSON 服务端返回的认证参数，二进制字段使用 Base64URL。
  * @return {PublicKeyCredentialRequestOptions} 浏览器认证参数。
  */
 function authenticationOptionsFromJson(optionsJSON) {
@@ -4318,7 +4365,8 @@ function authenticationOptionsFromJson(optionsJSON) {
  * @return {Object} 可提交服务端的认证凭证。
  */
 function authenticationCredentialToJson(credential) {
-  const response = credential.response;
+  // 此入口序列化 navigator.credentials.get 返回的认证响应。
+  const response = /** @type {AuthenticatorAssertionResponse} */ (credential.response);
   return {
     authenticatorAttachment: credential.authenticatorAttachment,
     clientExtensionResults: credential.getClientExtensionResults(),
@@ -4440,7 +4488,7 @@ async function verifyPasskeyRegistration(section, payload) {
 /**
  * 将服务端 JSON 注册参数转换为浏览器 WebAuthn 参数。
  *
- * @param {Object} optionsJSON 服务端返回的注册参数。
+ * @param {Omit<PublicKeyCredentialCreationOptions, 'challenge' | 'excludeCredentials' | 'user'> & {challenge: string, excludeCredentials?: Array<Omit<PublicKeyCredentialDescriptor, 'id'> & {id: string}>, user: Omit<PublicKeyCredentialUserEntity, 'id'> & {id: string}}} optionsJSON 服务端返回的注册参数，二进制字段使用 Base64URL。
  * @return {PublicKeyCredentialCreationOptions} 浏览器注册参数。
  */
 function creationOptionsFromJson(optionsJSON) {
@@ -4460,7 +4508,7 @@ function creationOptionsFromJson(optionsJSON) {
 /**
  * 将服务端 JSON 凭证描述符转换为浏览器 WebAuthn 描述符。
  *
- * @param {Object} descriptor 服务端凭证描述符。
+ * @param {Omit<PublicKeyCredentialDescriptor, 'id'> & {id: string}} descriptor 服务端凭证描述符，保留凭证类型与传输方式。
  * @return {PublicKeyCredentialDescriptor} 浏览器凭证描述符。
  */
 function credentialDescriptorFromJson(descriptor) {
@@ -4477,7 +4525,8 @@ function credentialDescriptorFromJson(descriptor) {
  * @return {Object} 可提交服务端的注册凭证。
  */
 function registrationCredentialToJson(credential) {
-  const response = credential.response;
+  // 此入口序列化 navigator.credentials.create 返回的注册响应。
+  const response = /** @type {AuthenticatorAttestationResponse} */ (credential.response);
   return {
     authenticatorAttachment: credential.authenticatorAttachment,
     clientExtensionResults: credential.getClientExtensionResults(),
@@ -4560,6 +4609,8 @@ function arrayBufferToBase64Url(value) {
  */
 function emailVerificationRequestBody(form) {
   const body = new URLSearchParams();
+  // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+  // noinspection JSCheckFunctionSignatures
   for (const [key, value] of new FormData(form)) {
     if (typeof value === 'string') {
       body.set(key, value);
@@ -4672,6 +4723,8 @@ function initRenderedSuccessStatuses(scope = document) {
  * @param {Element|null} element 状态元素。
  */
 function scheduleTransientStatusClear(element) {
+  // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+  // noinspection JSUnresolvedReference
   if (!(element instanceof HTMLElement) || !element.textContent?.trim()) {
     return;
   }
@@ -5345,7 +5398,7 @@ function finishActiveRuleDrag(event) {
 /**
  * 创建拖拽预览并标记原始行。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  */
 function startRuleDragPreview(state) {
   state.started = true;
@@ -5361,7 +5414,7 @@ function startRuleDragPreview(state) {
 /**
  * 生成拖拽预览文本。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  * @return {string} 拖拽预览文本。
  */
 function ruleDragPreviewText(state) {
@@ -5381,7 +5434,7 @@ function ruleDragPreviewText(state) {
 /**
  * 更新拖拽预览的位置。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  * @param {PointerEvent} event 指针移动事件。
  */
 function updateRuleDragGhost(state, event) {
@@ -5396,7 +5449,7 @@ function updateRuleDragGhost(state, event) {
 /**
  * 根据当前指针位置更新拖拽目标。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  * @param {PointerEvent} event 指针移动事件。
  */
 function updateRuleDragTarget(state, event) {
@@ -5419,7 +5472,7 @@ function updateRuleDragTarget(state, event) {
 /**
  * 更新话题行拖拽目标。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  * @param {Element} target 指针命中的元素。
  * @param {number} clientY 指针垂直位置。
  */
@@ -5439,7 +5492,7 @@ function updateTopicDragTarget(state, target, clientY) {
 /**
  * 更新关键词行拖拽目标。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  * @param {Element} target 指针命中的元素。
  * @param {number} clientY 指针垂直位置。
  */
@@ -5472,7 +5525,7 @@ function updateKeywordDragTarget(state, target, clientY) {
 /**
  * 将正在拖拽的行移动到目标行前后。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  * @param {HTMLElement} targetRow 目标行。
  * @param {number} clientY 指针垂直位置。
  */
@@ -5494,7 +5547,7 @@ function moveDraggedRowBesideTarget(state, targetRow, clientY) {
 /**
  * 完成拖拽后的数据同步。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  */
 function completeRuleDrag(state) {
   if (state.kind === 'topic') {
@@ -5529,7 +5582,7 @@ function completeRuleDrag(state) {
 /**
  * 清理拖拽状态和临时样式。
  *
- * @param {Object} state 拖拽状态。
+ * @param {RuleDragState} state 拖拽状态。
  */
 function cleanupRuleDrag(state) {
   document.removeEventListener('pointermove', updateActiveRuleDrag);
@@ -5726,7 +5779,7 @@ async function saveDeviceAppearance(field, value) {
 /** 初始化本机显示控件，系统变化不会触发保存。 */
 function initThemePicker() {
   const colorInput = document.querySelector('[data-theme-color-input]');
-  const darkModeInput = document.querySelector('[data-dark-mode-input]');
+  const darkModeInput = /** @type {HTMLInputElement|null} */ (document.querySelector('[data-dark-mode-input]'));
   const localeInput = document.querySelector('select[name="locale"]');
   colorInput?.addEventListener('input', () => void saveDeviceAppearance('themeColor', colorInput.value));
   darkModeInput?.addEventListener('change', () => void saveDeviceAppearance('darkMode', darkModeInput.checked));
@@ -5790,7 +5843,7 @@ function externalAutoSaveControls(form) {
     return [];
   }
 
-  return Array.from(document.querySelectorAll(`[form="${form.id}"]`))
+  return [...document.querySelectorAll(`[form="${form.id}"]`)]
       .filter((control) => !form.contains(control));
 }
 
@@ -5876,7 +5929,7 @@ async function guardSettingsFormNavigation(event) {
  */
 async function guardSettingsNavigation(event) {
   if (!autoSaveForm || !autoSaveTopicEditor || !autoSaveKeywordEditor || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+  const link = /** @type {HTMLAnchorElement|null} */ (event.target instanceof Element ? event.target.closest('a[href]') : null);
   if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
   const target = new URL(link.href, location.href);
   if (target.origin !== location.origin || (target.pathname === location.pathname && target.search === location.search)) return;
@@ -5969,7 +6022,7 @@ async function sendTestNotification(testNotifyButton) {
       headers: csrfRequestHeaders({'x-test-notify': '1'}),
       method: 'POST',
       body: new URLSearchParams({
-        applicationNotifications: String(document.querySelector('[data-app-notifications]')?.checked === true),
+        applicationNotifications: String((/** @type {HTMLInputElement|null} */ (document.querySelector('[data-app-notifications]')))?.checked === true),
         applicationPlatform: document.documentElement.dataset.applicationPlatform || 'web',
       }),
     });
@@ -6256,7 +6309,7 @@ function formDataFromForm(form) {
   if (form.id === 'settings-autosave-form') {
     for (const field of ['darkMode', 'themeColor', 'locale']) data.delete(field);
   }
-  for (const control of form.querySelectorAll('[data-schedule-locked][name]')) data.set(control.name, control.value);
+  for (const control of /** @type {NodeListOf<HTMLInputElement|HTMLSelectElement>} */ (form.querySelectorAll('[data-schedule-locked][name]'))) data.set(control.name, control.value);
   return data;
 }
 
@@ -6291,10 +6344,10 @@ function setAutoSaveStatus(state, text) {
  * @param {HTMLButtonElement} actionButton 触发插入的操作按钮。
  */
 function insertTopicRow(editor, actionButton) {
-  const template = editor.querySelector('[data-topic-row-template]');
+  const template = /** @type {HTMLTemplateElement|null} */ (editor.querySelector('[data-topic-row-template]'));
   const grid = editor.querySelector('.topic-rule-grid');
   const row = actionButton.closest('[data-topic-row]');
-  const fragment = template.content.cloneNode(true);
+  const fragment = /** @type {DocumentFragment} */ (template.content.cloneNode(true));
   const newRow = fragment.querySelector('[data-topic-row]');
   newRow.dataset.draftRow = 'true';
 
@@ -6310,7 +6363,7 @@ function insertTopicRow(editor, actionButton) {
   }
 
   reindexTopicRows(editor);
-  newRow.querySelector('[data-topic-id-input]').focus();
+  (/** @type {HTMLInputElement} */ (newRow.querySelector('[data-topic-id-input]'))).focus();
 }
 
 /**
@@ -6367,7 +6420,7 @@ function ensureAtLeastOneTopicRow(editor) {
     return;
   }
 
-  const template = editor.querySelector('[data-topic-row-template]');
+  const template = /** @type {HTMLTemplateElement|null} */ (editor.querySelector('[data-topic-row-template]'));
   const grid = editor.querySelector('.topic-rule-grid');
   grid.append(template.content.cloneNode(true));
 }
@@ -6515,13 +6568,13 @@ function replaceKeywordRows(keywordEditor, rules) {
  * @return {HTMLElement} 新创建的关键词行元素。
  */
 function keywordRowFromRule(keywordEditor, rule) {
-  const template = keywordEditor.querySelector('[data-keyword-row-template]');
-  const fragment = template.content.cloneNode(true);
+  const template = /** @type {HTMLTemplateElement|null} */ (keywordEditor.querySelector('[data-keyword-row-template]'));
+  const fragment = /** @type {DocumentFragment} */ (template.content.cloneNode(true));
   const row = fragment.querySelector('[data-keyword-row]');
   row.querySelector('input[name^=\'keyword_\']').value = rule.keyword ?? '';
   setKeywordOption(row, 'caseSensitive', rule.caseSensitive === true);
   setKeywordOption(row, 'useRegex', rule.useRegex === true);
-  row.querySelectorAll('[name*=\'_location_\']').forEach((input) => {
+  (/** @type {NodeListOf<HTMLInputElement>} */ (row.querySelectorAll('[name*=\'_location_\']'))).forEach((input) => {
     const location = input.name.match(/_location_(.+)$/)?.[1];
     input.checked = Array.isArray(rule.locations) &&
         rule.locations.includes(location);
@@ -6806,7 +6859,7 @@ function insertKeywordRow(editor, actionButton) {
   }
 
   reindexKeywordRows(editor);
-  newRow.querySelector('input[name^=\'keyword_\']').focus();
+  (/** @type {HTMLInputElement} */ (newRow.querySelector('input[name^=\'keyword_\']'))).focus();
 }
 
 /**
@@ -7090,11 +7143,11 @@ function setMatchingRowVisible(row, visible, animate) {
  * @return {Object} 选择器状态和更新方法。
  */
 function initMatchingPicker(root) {
-  const input = root.querySelector('input[type="hidden"]');
-  const toggle = root.querySelector('[data-picker-toggle]');
+  const input = /** @type {HTMLInputElement|null} */ (root.querySelector('input[type="hidden"]'));
+  const toggle = /** @type {HTMLButtonElement|null} */ (root.querySelector('[data-picker-toggle]'));
   const label = root.querySelector('[data-picker-label]');
   const menu = root.querySelector('[data-picker-menu]');
-  const search = root.querySelector('[data-picker-search]');
+  const search = /** @type {HTMLInputElement|null} */ (root.querySelector('[data-picker-search]'));
   const list = root.querySelector('[role="listbox"]');
   let active = -1;
 
@@ -7216,7 +7269,8 @@ function initAiConnectionTest(section) {
    * @param {Event} event 配置编辑事件。
    */
   function invalidate(event) {
-    if (!event.target.matches('[name], [data-secret-display-input]')) return;
+    if (!(event.target instanceof Element) ||
+        !event.target.matches('[name], [data-secret-display-input]')) return;
     revision++;
     request?.abort();
     clearTimeout(timer);
@@ -7237,6 +7291,8 @@ function initAiConnectionTest(section) {
     status.dataset.state = 'sending';
     status.textContent = button.dataset.testing;
     const data = new FormData();
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSCheckFunctionSignatures
     for (const [name, value] of new FormData(section.closest('form'))) {
       if (name.startsWith('matching')) data.append(name, value);
     }
@@ -7273,7 +7329,7 @@ function initAiConnectionTest(section) {
 function initMatchingSettings() {
   const section = document.querySelector('[data-matching-editor]');
   const advanced = document.querySelector('[data-advanced-editor]');
-  const mode = section?.querySelector('[data-matching-mode]');
+  const mode = /** @type {HTMLSelectElement|null|undefined} */ (section?.querySelector('[data-matching-mode]'));
   if (!section || !advanced || !mode) return;
   initDropdown(section, 'matchings');
   initDropdown(advanced, 'advanceds');
@@ -7309,7 +7365,9 @@ function initMatchingSettings() {
     if (!canThink) thinking.checked = false;
     setMatchingRowVisible(document.querySelector('[data-keyword-editor]'), mode.value !== 'ai', animate);
     setMatchingRowVisible(advanced, ai, animate);
-    document.querySelector('[data-topic-editor]')?.classList.toggle('matching-without-keywords', mode.value === 'ai');
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
+    (/** @type {HTMLElement|null} */ (document.querySelector('[data-topic-editor]')))?.classList.toggle('matching-without-keywords', mode.value === 'ai');
     if (!ai) {
       provider.setOpen(false);
       model.setOpen(false);
@@ -7355,10 +7413,16 @@ function initMatchingSettings() {
       const response = await fetch('/settings/matching-models', {
         method: 'POST', body: data, headers: csrfRequestHeaders(), signal: request.signal,
       });
-      if (!response.ok) throw new Error('models');
+      if (!response.ok)
+        // 校验失败沿用当前 catch 的错误反馈与清理路径。
+        // noinspection ExceptionCaughtLocallyJS
+        throw new Error('models');
       const payload = await response.json();
       if (current !== revision) return;
-      if (!Array.isArray(payload.models)) throw new Error('models');
+      if (!Array.isArray(payload.models))
+        // 校验失败沿用当前 catch 的错误反馈与清理路径。
+        // noinspection ExceptionCaughtLocallyJS
+        throw new Error('models');
       const savedChoice = [...model.list.children].find((item) => item.dataset.value === model.input.value);
       model.list.replaceChildren();
       payload.models.forEach((entry) => {

@@ -211,7 +211,11 @@ a:hover{
 }
 
 .nav-avatar-button::after{
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   border-bottom: 1.5px solid currentColor;
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   border-inline-end: 1.5px solid currentColor;
   color: var(--muted);
   content: "";
@@ -932,6 +936,8 @@ input[readonly]::placeholder{
 }
 
 .avatar-crop-zoom input[type="range"]::-webkit-slider-runnable-track{
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   background: linear-gradient(to right, var(--theme-color) 0 var(--avatar-zoom-progress, 0%), var(--control-bg) var(--avatar-zoom-progress, 0%) 100%);
   border-radius: 999px;
   height: 6px;
@@ -1016,14 +1022,6 @@ input[readonly]::placeholder{
 
 .application-notifications-cell [data-app-notifications-retry]{
   order: -1;
-}
-
-.security-toggle-row{
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  max-width: min(100%, 860px);
 }
 
 .account-username-row input,
@@ -1261,8 +1259,7 @@ input[readonly]::placeholder{
   gap: 12px;
 }
 
-.auth-method-panel-fields > label,
-.auth-method-plain-row{
+.auth-method-panel-fields > label{
   align-items: center;
   display: grid;
   gap: 10px;
@@ -1418,7 +1415,7 @@ input[readonly]::placeholder{
 }
 
 .recovery-code-list code{
-  background: var(--surface-strong);
+  background: var(--surface-soft-base);
   border: 1px solid var(--border-soft);
   border-radius: 6px;
   display: block;
@@ -1457,7 +1454,7 @@ input[readonly]::placeholder{
 }
 
 .email-credential-list li span:first-child{
-  color: var(--text);
+  color: var(--ink);
 }
 
 .passkey-credential-list li{
@@ -3238,7 +3235,6 @@ tr:last-child td{
   }
 
   .auth-method-panel-fields > label,
-  .auth-method-plain-row,
   .totp-setup-qr-row,
   .totp-manual-key-row{
     align-items: stretch;
@@ -3643,7 +3639,6 @@ tr:last-child td{
   height: 16px;
 }
 
-.settings-hint{ display: block; margin-block-start: 6px; color: var(--muted); font-size: 14px; }
 
 /* 桌面滚动条使用页面主题色和圆角，不影响网页与移动端的原生滚动。 */
 :root[data-application-platform="windows"],

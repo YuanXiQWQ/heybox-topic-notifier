@@ -45,7 +45,7 @@ async function digest(filename) {
 const expected = (await entries(source)).sort();
 /** 安装清单必须与源目录逐项一致。 */
 const manifest = JSON.parse(
-    await readFile(path.join(target, 'asset-manifest.json'), 'utf8'),
+    /** @type {string} */ (await readFile(path.join(target, 'asset-manifest.json'), 'utf8')),
 );
 if (JSON.stringify(manifest) !== JSON.stringify(expected)) {
   throw new Error('Packaged resource manifest differs from source');

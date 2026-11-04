@@ -15,10 +15,19 @@ export type NotificationJob = {
 export type MatchSaveOptions = { notify?: boolean };
 /** 账号隔离的通知持久化接口。 */
 export type NotificationOutbox = {
-  /** @param {number} now 当前毫秒时间。 @return {Promise<NotificationJob[]>} 已领取并带租约的到期任务。 */
+  /**
+   * @param {number} now 当前毫秒时间。
+   * @return {Promise<NotificationJob[]>} 已领取并带租约的到期任务。
+   */
   claim(now: number): Promise<NotificationJob[]>;
-  /** @param {NotificationJob[]} jobs 持有的任务。 @param {string | undefined} acceptedAt 通道受理时间，省略表示渠道关闭或没有接收设备。 */
+  /**
+   * @param {NotificationJob[]} jobs 持有的任务。
+   * @param {string | undefined} acceptedAt 通道受理时间，省略表示渠道关闭或没有接收设备。
+   */
   complete(jobs: NotificationJob[], acceptedAt?: string): Promise<void>;
-  /** @param {NotificationJob[]} jobs 待重试的任务。 @param {number} now 失败时间，按尝试次数设置下一次重试。 */
+  /**
+   * @param {NotificationJob[]} jobs 待重试的任务。
+   * @param {number} now 失败时间，按尝试次数设置下一次重试。
+   */
   retry(jobs: NotificationJob[], now: number): Promise<void>;
 };

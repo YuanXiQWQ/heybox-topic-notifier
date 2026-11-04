@@ -2,7 +2,7 @@
 (() => {
   const native = globalThis.appNative;
   if (!native) return;
-  const rows = [...document.querySelectorAll('[data-app-device-platform]')];
+  const rows = [.../** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-app-device-platform]'))];
   const labels = JSON.parse(document.getElementById('application-messages')?.textContent || '{}');
   const busy = new Set();
 
@@ -12,9 +12,11 @@
    */
   function render(state) {
     for (const row of rows) {
+      // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+      // noinspection JSUnresolvedReference
       row.hidden = row.dataset.appDevicePlatform !== state.platform || !state.preferences;
       if (busy.has(row)) continue;
-      for (const input of row.querySelectorAll('[data-app-preference]')) {
+      for (const input of /** @type {NodeListOf<HTMLInputElement>} */ (row.querySelectorAll('[data-app-preference]'))) {
         const value = state.preferences?.[input.dataset.appPreference];
         input.checked = input.type === 'radio' ? value === input.value : value === true;
       }
@@ -63,6 +65,8 @@
       const value = input.type === 'radio' ? input.value : input.checked;
       void save(row, () => native.preferences({[input.dataset.appPreference]: value}));
     });
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
     row.querySelector('[data-app-reset-window]')?.addEventListener('click', () => void save(row, () => native.resetWindow()));
   }
   document.addEventListener('application-native-state', (event) => render(event.detail));

@@ -1,6 +1,10 @@
 /** @file 疫医转变事件的使徒记录、绑定演出与白夜接管回归测试。 */
 import { assert, assertEquals, assertStrictEquals } from "@std/assert";
-import { stripJavaScriptCommentsAndStrings } from "./event_test_helpers.ts";
+import {
+  advance,
+  flushMicrotasks,
+  stripJavaScriptCommentsAndStrings,
+} from "./event_test_helpers.ts";
 import { AudioMock, installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   apostleAdventLightClip,
@@ -245,14 +249,7 @@ Deno.test("疫医：黑幕尺寸由圆盘算出，空洞与圆盘比例恒定", 
 Deno.test("疫医：黑幕渲染尺寸由圆盘尺寸推出", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: false,
-      }),
-    );
+    seedCompletedApostles(harness, false);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -433,32 +430,6 @@ Deno.test("彩蛋演出代码不依赖 HTMLCollection 上的数组方法", () =>
   }
 });
 
-/** 让等待中的微任务（演出完成回调）全部执行。 */
-async function flushMicrotasks(): Promise<void> {
-  for (let index = 0; index < 8; index++) await Promise.resolve();
-}
-
-/**
- * 推进演出时钟并触发已排队的动画帧。
- *
- * @param harness 彩蛋测试环境。
- * @param clock 当前受控时钟的可写引用。
- * @param ms 需要推进的毫秒数。
- * @return {Promise<void>} 演出与完成回调执行结束时完成。
- */
-async function advance(
-  harness: ReturnType<typeof installLobotomyCorpAlertHarness>,
-  clock: { value: number },
-  ms: number,
-): Promise<void> {
-  clock.value += ms;
-  harness.setNow(clock.value);
-  harness.fireFrames();
-  await flushMicrotasks();
-  harness.fireFrames();
-  await flushMicrotasks();
-}
-
 /**
  * 取出当前仍挂载在页面上的 AdventLight 根节点。
  *
@@ -492,14 +463,7 @@ function findByClassName(
 Deno.test("疫医：完整降临挂载独立 world 层，且在原作 UI 之下", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: false,
-      }),
-    );
+    seedCompletedApostles(harness, false);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -670,14 +634,7 @@ Deno.test("疫医：world 层不影响原作 Shader 链", async () => {
 
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: false,
-      }),
-    );
+    seedCompletedApostles(harness, false);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -728,14 +685,7 @@ Deno.test("疫医：world 层不影响原作 Shader 链", async () => {
 Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收尾", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: false,
-      }),
-    );
+    seedCompletedApostles(harness, false);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -943,14 +893,7 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
 Deno.test("疫医：完整降临锁住网页滚动并在结束后精确恢复", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: false,
-      }),
-    );
+    seedCompletedApostles(harness, false);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -990,14 +933,7 @@ Deno.test("疫医：完整降临锁住网页滚动并在结束后精确恢复", 
 Deno.test("疫医：完整降临中途 reset 后恢复滚动并清理 world 层", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: false,
-      }),
-    );
+    seedCompletedApostles(harness, false);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -1135,14 +1071,7 @@ Deno.test("疫医：记录期间别碰我照常接管显示名称保存", async 
 Deno.test("疫医：第 12 名使徒后走完整降临并进入白夜", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    await harness.reload();
-    const api = harness.api();
-    const clock = { value: 0 };
-    await api.commitDisplayName("O-01-45");
-    for (let index = 1; index <= plagueDoctorApostleCount; index++) {
-      await api.commitDisplayName(`apostle-${index}`);
-      await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
-    }
+    const { api, clock } = await recruitApostles(harness);
     assertEquals(api.plagueDoctorApostles().length, plagueDoctorApostleCount);
     // 转变演出开始前不应提前结算。
     assertStrictEquals(api.getDangerScore(), 0);
@@ -1195,14 +1124,7 @@ Deno.test("疫医：完整降临的音频调用链与原件一致", async () => 
   try {
     // 原作是 Random.Range(0, 3)，固定成 0 以便断言选中 Whisper0。
     Math.random = () => 0;
-    await harness.reload();
-    const api = harness.api();
-    const clock = { value: 0 };
-    await api.commitDisplayName("O-01-45");
-    for (let index = 1; index <= plagueDoctorApostleCount; index++) {
-      await api.commitDisplayName(`apostle-${index}`);
-      await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
-    }
+    const { clock } = await recruitApostles(harness);
     await advance(
       harness,
       clock,
@@ -1252,14 +1174,7 @@ Deno.test("疫医：完整降临的音频调用链与原件一致", async () => 
 Deno.test("疫医：已经转变过的会话再次提交 O-01-45 直接进入白夜", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: true,
-      }),
-    );
+    seedCompletedApostles(harness, true);
     await harness.reload();
     const api = harness.api();
     await api.commitDisplayName("O-01-45");
@@ -1316,14 +1231,7 @@ Deno.test("疫医：台词槽位钉在画面底部，16:9 时保持 prefab 位�
   // 页面确实按这条规则设置 top（测试宿主 1920×1080、画布缩放 1）。
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: false,
-      }),
-    );
+    seedCompletedApostles(harness, false);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -1396,14 +1304,7 @@ Deno.test("疫医：中日文名字与台词整段切换系统字体", async () 
 Deno.test("疫医：完整降临逐名员工播放原始 AdventLight", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    await harness.reload();
-    const api = harness.api();
-    const clock = { value: 0 };
-    await api.commitDisplayName("O-01-45");
-    for (let index = 1; index <= plagueDoctorApostleCount; index++) {
-      await api.commitDisplayName(`apostle-${index}`);
-      await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
-    }
+    const { clock } = await recruitApostles(harness);
     const light = findAdventLight(harness);
     assert(light, "完整降临应挂载 AdventLight 视觉层");
     const particle = light!.children[0];
@@ -1464,14 +1365,7 @@ Deno.test("疫医：完整降临逐名员工播放原始 AdventLight", async () 
 Deno.test("疫医：第 12 名（叛徒）不播放 AdventLight", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    await harness.reload();
-    const api = harness.api();
-    const clock = { value: 0 };
-    await api.commitDisplayName("O-01-45");
-    for (let index = 1; index <= plagueDoctorApostleCount; index++) {
-      await api.commitDisplayName(`apostle-${index}`);
-      await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
-    }
+    const { clock } = await recruitApostles(harness);
     const light = harness.createdElements().filter((element) =>
       !element.removed && element.className === "lobotomy-corp-advent-light"
     ).at(-1);
@@ -1527,14 +1421,7 @@ Deno.test("疫医：第一次满 12 使徒只结算一次 98 且不走 Simple Ad
   const harness = installLobotomyCorpAlertHarness();
   try {
     // 本次登录会话已经绑定满 12 名使徒，但还没有转变过。
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: false,
-      }),
-    );
+    seedCompletedApostles(harness, false);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -1576,14 +1463,7 @@ Deno.test("疫医：第一次满 12 使徒只结算一次 98 且不走 Simple Ad
 Deno.test("疫医：已转变的会话再次提交疫医编号走 Simple Advent 且只敲一次钟", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: true,
-      }),
-    );
+    seedCompletedApostles(harness, true);
     await harness.reload();
     const api = harness.api();
     const clock = { value: 0 };
@@ -1718,14 +1598,7 @@ Deno.test("疫医：转盘转动期间拦截页面点击，演出结束后放开
 Deno.test("疫医：白夜进行期间再次提交 O-01-45 不重复结算", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
-    harness.storage.setItem(
-      plagueDoctorStorageKey,
-      JSON.stringify({
-        apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
-        recording: true,
-        transformed: true,
-      }),
-    );
+    seedCompletedApostles(harness, true);
     await harness.reload();
     const api = harness.api();
     await api.commitDisplayName("O-01-45");
@@ -1760,3 +1633,41 @@ Deno.test("疫医转变：本体画面交给实时骨架，不再切换视频素
     assert(!entry.name.endsWith(".webm"), entry.name);
   }
 });
+
+/**
+ * 写入完整使徒名单，设置是否已完成白夜转变。
+ * @param {ReturnType<typeof installLobotomyCorpAlertHarness>} harness 彩蛋测试环境。
+ * @param {boolean} transformed 是否已经完成转变。
+ */
+function seedCompletedApostles(
+  harness: ReturnType<typeof installLobotomyCorpAlertHarness>,
+  transformed: boolean,
+): void {
+  harness.storage.setItem(
+    plagueDoctorStorageKey,
+    JSON.stringify({
+      apostles: Array.from({ length: plagueDoctorApostleCount }, () => "x"),
+      recording: true,
+      transformed,
+    }),
+  );
+}
+
+/**
+ * 通过真实改名入口逐一招募全部使徒，并停留在完整降临开始处。
+ * @param {ReturnType<typeof installLobotomyCorpAlertHarness>} harness 彩蛋测试环境。
+ * @return {Promise<{api: ReturnType<ReturnType<typeof installLobotomyCorpAlertHarness>['api']>, clock: {value: number}}>} 当前事件接口和受控时钟。
+ */
+async function recruitApostles(
+  harness: ReturnType<typeof installLobotomyCorpAlertHarness>,
+) {
+  await harness.reload();
+  const api = harness.api();
+  const clock = { value: 0 };
+  await api.commitDisplayName("O-01-45");
+  for (let index = 1; index <= plagueDoctorApostleCount; index++) {
+    await api.commitDisplayName(`apostle-${index}`);
+    await advance(harness, clock, plagueDoctorBindingTimings.nameEffectMs);
+  }
+  return { api, clock };
+}

@@ -29,6 +29,8 @@
         globalThis.__matchTableFilterInit?.();
         globalThis.__adaptivePaginationUpdate?.();
         globalThis.__matchTableRelativeTimeUpdate?.();
+        // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+        // noinspection JSCheckFunctionSignatures
         globalThis.__matchTableOverflowUpdate?.();
         document.dispatchEvent(new CustomEvent("application-records-rendered"));
       }

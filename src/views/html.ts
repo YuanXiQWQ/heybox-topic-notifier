@@ -159,6 +159,7 @@ function renderLobotomyCorpAbnormalitiesData(): string {
  * 渲染当前已登录账户的显示名称，供异想体身份装饰在任意页面重新派生。
  *
  * @param {Pick<UserAccount, "displayName" | "username">|undefined} account 当前账户。
+ * @param {string} [loginSession] 用于隔离彩蛋身份状态的当前登录会话标识。
  * @return {string} 安全内联的账户身份资料；匿名页面为空。
  */
 function renderLobotomyCorpAccountIdentityData(

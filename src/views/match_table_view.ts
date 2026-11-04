@@ -177,9 +177,9 @@ function renderRows(options: MatchRecordsSectionOptions): string {
     }" target="_blank" rel="noopener noreferrer">${
       escapeHtml(record.post.title)
     }</a></td>
-      <td class="match-content-cell">${`<span class="table-clip">${
+      <td class="match-content-cell"><span class="table-clip">${
       escapeHtml(postContent)
-    }</span>`}</td>
+    }</span></td>
       <td>${
       renderMatchDetails(record, now, options.locale, options.messages)
     }</td>

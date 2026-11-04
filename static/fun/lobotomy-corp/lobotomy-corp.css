@@ -159,6 +159,8 @@
 .lobotomy-corp-white-night-simple-advent-clock{
   --lobotomy-corp-advent-clock-alpha: 0;
   height: 819px;
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   left: calc(50% - 409.5px);
   opacity: var(--lobotomy-corp-advent-clock-alpha);
   pointer-events: none;
@@ -184,12 +186,15 @@
   left: 50%;
   pointer-events: none;
   position: absolute;
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   top: calc(50% + 8.750008px);
   width: 0;
 }
 
 /* Names[]：独立 RectTransform，位置与旋转全部由 prefab 序列化值驱动。 */
-.lobotomy-corp-white-night-simple-advent-name{
+.lobotomy-corp-white-night-simple-advent-name,
+.lobotomy-corp-plague-doctor-advent-name{
   --lobotomy-corp-advent-name-alpha: 0;
   --lobotomy-corp-advent-name-color: rgb(255 255 255);
   align-items: center;
@@ -198,10 +203,14 @@
   /* 原版名字用 BMDOHYEON（韩文，中日文字形不全），后面按游戏的语言字体表思路补系统字体。 */
   font-family: LobotomyAdventNames, "Malgun Gothic", "Microsoft YaHei",
     "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
   font-weight: normal;
   height: 48px;
   justify-content: center;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   left: var(--lobotomy-corp-advent-name-x);
   line-height: normal;
   overflow: hidden;
@@ -213,7 +222,10 @@
   -1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
   1px 1px rgb(69.375004 0.510111 0.510111 / 50%),
   -1px 1px rgb(69.375004 0.510111 0.510111 / 50%);
-  top: calc(0px - var(--lobotomy-corp-advent-name-y));
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   transform: translate(-50%, -50%) rotate(var(--lobotomy-corp-advent-name-rotation));
   transform-origin: center;
   /* Legacy Text: HorizontalWrapMode.Wrap + VerticalWrapMode.Truncate。 */
@@ -221,6 +233,11 @@
   white-space: normal;
   width: 114px;
   opacity: var(--lobotomy-corp-advent-name-alpha);
+}
+
+.lobotomy-corp-white-night-simple-advent-name{
+  /*noinspection CssUnresolvedCustomProperty*/
+  top: calc(0px - var(--lobotomy-corp-advent-name-y));
 }
 
 /*
@@ -361,6 +378,8 @@
  * 输入框，并把这一刻的使徒名字写进去。它同样在表盘 UI 之下，由圆盘开口露出。
  */
 .lobotomy-corp-plague-doctor-advent-focus{
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   opacity: var(--lobotomy-corp-advent-focus-alpha, 0);
   pointer-events: none;
   position: absolute;
@@ -420,16 +439,22 @@
 }
 
 .lobotomy-corp-plague-doctor-advent-arrow{
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   height: var(--lobotomy-corp-advent-arrow-height);
   left: 50%;
   object-fit: contain;
   pointer-events: none;
   position: absolute;
   top: 50%;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   transform: translate(
   calc(-50% + var(--lobotomy-corp-advent-arrow-offset-x)),
   calc(-100% + var(--lobotomy-corp-advent-arrow-offset-y)));
   transform-origin: center bottom;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   width: var(--lobotomy-corp-advent-arrow-width);
 }
 
@@ -438,40 +463,15 @@
   left: 50%;
   pointer-events: none;
   position: absolute;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   top: calc(50% + var(--lobotomy-corp-advent-name-parent-y));
   width: 0;
 }
 
 .lobotomy-corp-plague-doctor-advent-name{
-  --lobotomy-corp-advent-name-alpha: 0;
-  --lobotomy-corp-advent-name-color: rgb(255 255 255);
-  align-items: center;
-  color: var(--lobotomy-corp-advent-name-color);
-  display: flex;
-  font-family: LobotomyAdventNames, "Malgun Gothic", "Microsoft YaHei",
-    "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
-  font-size: var(--lobotomy-corp-advent-name-font-size, 14px);
-  font-weight: normal;
-  height: 48px;
-  justify-content: center;
-  left: var(--lobotomy-corp-advent-name-x);
-  line-height: normal;
-  opacity: var(--lobotomy-corp-advent-name-alpha);
-  overflow: hidden;
-  overflow-wrap: normal;
-  pointer-events: none;
-  position: absolute;
-  text-align: center;
-  text-overflow: clip;
-  text-shadow: 1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
-  -1px -1px rgb(69.375004 0.510111 0.510111 / 50%),
-  1px 1px rgb(69.375004 0.510111 0.510111 / 50%),
-  -1px 1px rgb(69.375004 0.510111 0.510111 / 50%);
+  /*noinspection CssUnresolvedCustomProperty*/
   top: var(--lobotomy-corp-advent-name-y);
-  transform: translate(-50%, -50%) rotate(var(--lobotomy-corp-advent-name-rotation));
-  transform-origin: center;
-  white-space: normal;
-  width: 114px;
 }
 
 /* ApostleDesc：1600×180、NanumMyeongjo、MiddleCenter + Best Fit(20~50)。 */
@@ -602,9 +602,15 @@
   background-color: var(--lobotomy-corp-advent-light-color);
   height: var(--lobotomy-corp-advent-light-size);
   left: 0;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   mask-image: var(--lobotomy-corp-advent-light-sprite);
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   mask-position: var(--lobotomy-corp-advent-light-mask-position);
   mask-repeat: no-repeat;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   mask-size: var(--lobotomy-corp-advent-light-mask-size);
   opacity: var(--lobotomy-corp-advent-light-visible);
   pointer-events: none;
@@ -612,9 +618,15 @@
   top: 0;
   transform: translate(-50%, -50%) scale(var(--lobotomy-corp-advent-light-scale));
   transform-origin: center;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   -webkit-mask-image: var(--lobotomy-corp-advent-light-sprite);
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   -webkit-mask-position: var(--lobotomy-corp-advent-light-mask-position);
   -webkit-mask-repeat: no-repeat;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   -webkit-mask-size: var(--lobotomy-corp-advent-light-mask-size);
   width: var(--lobotomy-corp-advent-light-size);
 }
@@ -629,21 +641,37 @@
 }
 
 .lobotomy-corp-white-night-confess-ray{
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   animation: lobotomy-corp-white-night-confess-ray var(--lobotomy-corp-ray-duration) linear both;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   animation-delay: var(--lobotomy-corp-ray-delay);
   /* JS 以 startColor 最大通道归一化曝光；_MainTex 的黑底仅作为零强度遮罩。 */
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   background-color: rgb(var(--lobotomy-corp-ray-color));
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   height: var(--lobotomy-corp-ray-height);
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   left: var(--lobotomy-corp-ray-left);
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   mask: var(--lobotomy-corp-ray-texture) center / 100% 100% no-repeat;
   mask-mode: luminance;
   /* 每枚 Stretched Billboard 直接对页面做 ADD，避免动画隔离层重新压暗。 */
   mix-blend-mode: screen;
   opacity: 0;
   position: absolute;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   top: var(--lobotomy-corp-ray-top);
   transform: translate(-50%, -50%) rotate(109.816715deg) scale(0);
   transform-origin: center;
+  /* 该自定义属性由对应交互脚本写入元素样式。 */
+  /*noinspection CssUnresolvedCustomProperty*/
   width: var(--lobotomy-corp-ray-width);
   will-change: opacity, transform;
 }
@@ -684,11 +712,15 @@
 
   /* SizeModule Y 在 0.25509644 lifetime 达到 1；同期 X Hermite 曲线约为 0.644。 */
   25.509644%{
+    /* 该自定义属性由对应交互脚本写入元素样式。 */
+    /*noinspection CssUnresolvedCustomProperty*/
     transform: translate(-50%, -50%) rotate(109.816715deg) translateX(calc(var(--lobotomy-corp-ray-travel) * 0.25509644)) scale(0.644, 1);
   }
 
   /* SizeModule X 在 0.49319458 lifetime 达到 1。 */
   49.319458%{
+    /* 该自定义属性由对应交互脚本写入元素样式。 */
+    /*noinspection CssUnresolvedCustomProperty*/
     transform: translate(-50%, -50%) rotate(109.816715deg) translateX(calc(var(--lobotomy-corp-ray-travel) * 0.49319458)) scale(1);
   }
 
@@ -702,6 +734,8 @@
 
   100%{
     opacity: 0;
+    /* 该自定义属性由对应交互脚本写入元素样式。 */
+    /*noinspection CssUnresolvedCustomProperty*/
     transform: translate(-50%, -50%) rotate(109.816715deg) translateX(var(--lobotomy-corp-ray-travel)) scale(1);
   }
 }
@@ -1052,10 +1086,14 @@
 }
 
 .lobotomy-corp-top-panel-valve.left{
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   left: 20.2px;
 }
 
 .lobotomy-corp-top-panel-valve.right{
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   right: 19.2px;
   transform: scaleX(-1);
 }
@@ -1064,6 +1102,8 @@
 .lobotomy-corp-top-panel-frame-outter{
   background: url("/static/fun/lobotomy-corp/Assets/Sprite/Risk_Frame_Outter.png") center / 100% 100% no-repeat;
   height: 188px;
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   left: calc(50% - 442.3px);
   pointer-events: none;
   position: absolute;

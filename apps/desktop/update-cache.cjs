@@ -29,7 +29,10 @@ async function repairUpdateCache(updater) {
   if (directory !== path.join(path.resolve(helper.cacheDir), 'pending')) throw new Error('Invalid update cache directory');
   let entries;
   try {
-    if ((await fs.lstat(directory)).isSymbolicLink()) throw new Error('Invalid update cache link');
+    if ((await fs.lstat(directory)).isSymbolicLink())
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error('Invalid update cache link');
     entries = await fs.readdir(directory, {withFileTypes: true});
   } catch (error) {
     if (error.code === 'ENOENT') return false;
@@ -37,12 +40,25 @@ async function repairUpdateCache(updater) {
   }
   let keep;
   try {
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
     const metadata = JSON.parse(await fs.readFile(path.join(directory, 'update-info.json'), 'utf8'));
     const name = metadata.fileName;
-    if (typeof name !== 'string' || path.basename(name) !== name || !name.endsWith('.exe') || !/^[A-Za-z0-9+/]{86}==$/.test(metadata.sha512)) throw new Error('Invalid cached metadata');
-    if (helper.fileInfo?.info.sha512 && helper.fileInfo.info.sha512 !== metadata.sha512) throw new Error('Cached metadata differs from release');
+    if (typeof name !== 'string' || path.basename(name) !== name || !name.endsWith('.exe') || !/^[A-Za-z0-9+/]{86}==$/.test(metadata.sha512))
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error('Invalid cached metadata');
+    // 此适配层依赖固定版本 electron-updater 的内部缓存结构，升级依赖时须同步核验。
+    // noinspection JSUnresolvedReference
+    if (helper.fileInfo?.info.sha512 && helper.fileInfo.info.sha512 !== metadata.sha512)
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error('Cached metadata differs from release');
     const file = path.join(directory, name), stat = await fs.lstat(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || await digest(file) !== metadata.sha512) throw new Error('Invalid cached installer');
+    if (!stat.isFile() || stat.isSymbolicLink() || await digest(file) !== metadata.sha512)
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error('Invalid cached installer');
     keep = name;
   } catch (error) {
     if (error.code && !['ENOENT', 'EISDIR'].includes(error.code)) throw error;

@@ -20,9 +20,10 @@ const aceAttorneyDataElementId = 'ace-attorney-easter-egg-data';
  * @return {{characters: object[], messages: object}} 已准备的角色资料与当前语言文本。
  */
 function embeddedAceAttorneyData() {
-  const serialized = globalThis.document?.getElementById?.(
+  const dataElement = /** @type {HTMLElement|null|undefined} */ (globalThis.document?.getElementById?.(
       aceAttorneyDataElementId,
-  )?.textContent;
+  ));
+  const serialized = dataElement?.textContent;
   if (!serialized) {
     throw new Error('《逆转裁判》彩蛋资料尚未注入页面。');
   }

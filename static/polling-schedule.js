@@ -70,10 +70,12 @@ function initialize() {
   const template = root.querySelector("template");
   const toggle = document.querySelector("[data-schedule-toggle]");
   const labels = JSON.parse(root.dataset.labels);
-  const dates = root.querySelector("[data-schedule-dates]");
-  const confirmation = root.querySelector("[data-schedule-confirm]");
+  const dates = /** @type {HTMLDialogElement} */ (root.querySelector("[data-schedule-dates]"));
+  const confirmation = /** @type {HTMLDialogElement} */ (root.querySelector("[data-schedule-confirm]"));
   const section = document.querySelector("[data-polling-section]");
-  const defaultRows = [...section.querySelectorAll("[data-polling-field]")]
+  // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+  // noinspection JSUnresolvedReference
+  const defaultRows = [.../** @type {NodeListOf<HTMLElement>} */ (section.querySelectorAll("[data-polling-field]"))]
     .filter((row) => row.dataset.pollingField !== "schedule");
   const state = normalizeSchedule(
     JSON.parse(input.value),
@@ -180,7 +182,7 @@ function initialize() {
       }
     }
     overlay.hidden = !covered ||
-      !document.querySelector("[data-polling-enabled-toggle]").checked;
+      !(/** @type {HTMLInputElement} */ (document.querySelector("[data-polling-enabled-toggle]"))).checked;
     positionOverlay();
     if (changed) globalThis.scheduleAutoSave();
   }
@@ -203,7 +205,7 @@ function initialize() {
   function render() {
     list.textContent = "";
     for (const value of state.rows) {
-      const row = template.content.firstElementChild.cloneNode(true);
+      const row = /** @type {HTMLElement} */ (template.content.firstElementChild.cloneNode(true));
       row.dataset.id = value.id;
       for (const control of row.querySelectorAll("[data-field]")) {
         control.value = value[control.dataset.field];

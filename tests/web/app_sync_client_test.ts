@@ -115,11 +115,67 @@ Deno.test("cached scripts survive service failures without hiding missing resour
   assertEquals(saved, "online-resource");
 });
 
+Deno.test("worker resource messages accept only same-origin static URL strings", async () => {
+  const source = await Deno.readTextFile(
+    new URL("../../static/app-sw.js", import.meta.url),
+  );
+  const fetched: string[] = [];
+  const api = runInNewContext(source + "\n({handleApplicationMessage})", {
+    URL,
+    Request,
+    Response,
+    self: {
+      addEventListener() {},
+      location: { origin: "https://example.com" },
+    },
+    fetch: (request: Request) => {
+      fetched.push(request.url);
+      return Promise.resolve(new Response("asset"));
+    },
+    caches: {
+      open: () =>
+        Promise.resolve({
+          match: () => Promise.resolve(undefined),
+          put: () => Promise.resolve(),
+        }),
+    },
+  });
+  const data = {
+    type: "app-resources",
+    urls: [
+      null,
+      42,
+      ["/static/array.js"],
+      {},
+      "/static/settings.js",
+      "https://other.example/static/app.js",
+      "/settings",
+      "http://[invalid",
+      "/static/app.css",
+    ],
+  };
+  await api.handleApplicationMessage({
+    source: { url: "https://other.example/" },
+    data,
+  });
+  assertEquals(fetched, []);
+  await api.handleApplicationMessage({
+    source: { url: "https://example.com/settings" },
+    data,
+  });
+  assertEquals(fetched, [
+    "https://example.com/static/settings.js",
+    "https://example.com/static/app.css",
+  ]);
+});
+
 Deno.test("worker navigation fetches online pages without AbortSignal.timeout", async () => {
   const timers: { callback: () => void; delay: number }[] = [];
   const requests: AbortSignal[] = [];
   const api = runInNewContext(
-    await Deno.readTextFile(new URL("../../static/app-sw.js", import.meta.url)) +
+    await Deno.readTextFile(
+      new URL("../../static/app-sw.js", import.meta.url),
+    ) +
       "\n({applicationPage})",
     {
       URL,

@@ -102,6 +102,7 @@ class MemoryMigrationSource implements KvMigrationSource {
   /**
    * 按前缀列出 KV 记录。
    *
+   * @template T 业务对象类型。
    * @param {{prefix: Deno.KvKey}} selector KV 列表选择器。
    * @return {AsyncIterableIterator<{key: Deno.KvKey; value: T}>} KV 记录迭代器。
    */

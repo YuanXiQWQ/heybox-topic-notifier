@@ -34,10 +34,15 @@ const origin = applicationOrigin(
     !app.isPackaged,
 );
 /** 安装资源包含完整彩蛋，离线时无需再次下载。 */
+// 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+// noinspection JSUnresolvedReference
 const resources = app.isPackaged
-    ? path.join(process.resourcesPath, 'static')
+    ? path.join((/** @type {NodeJS.Process & {resourcesPath: string}} */ (process)).resourcesPath, 'static')
     : path.resolve(__dirname, '../generated/static');
-/** 主窗口保持驻留，使关窗后托盘仍可接收通知。 */
+/**
+ * 主窗口保持驻留，使关窗后托盘仍可接收通知。
+ * @type {import('electron').BrowserWindow|undefined}
+ */
 let window;
 /** 托盘引用必须保持存活。 */
 let tray;
@@ -77,7 +82,7 @@ else {
       quitting = true;
       app.quit();
     }).catch(() => {
-      showWindow();
+      return showWindow();
     }).finally(() => {
       preparingExit = undefined;
     });
@@ -116,12 +121,18 @@ async function prepareExit(installing = false) {
       });
     }
     if (update.status !== 'downloaded') autoUpdater.autoInstallOnAppQuit = false;
-    if (installing && update.status !== 'downloaded') throw new Error('Update not ready');
+    if (installing && update.status !== 'downloaded')
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error('Update not ready');
     if (app.isPackaged && !await repairUpdateCache(autoUpdater)) {
       autoUpdater.autoInstallOnAppQuit = false;
       delete device.value.autoUpdateReady;
       await device.save();
-      if (installing) throw new Error('Update cache is incomplete');
+      if (installing)
+        // 校验失败沿用当前 catch 的错误反馈与清理路径。
+        // noinspection ExceptionCaughtLocallyJS
+        throw new Error('Update cache is incomplete');
     }
   } catch (error) {
     stoppingUpdates = false;
@@ -206,9 +217,13 @@ async function start() {
       backgroundThrottling: false,
     },
   });
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSUnresolvedReference
   window.removeMenu();
   window.on('close', handleWindowClose);
   window.once('ready-to-show', () => window.show());
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSUnresolvedReference
   window.webContents.setWindowOpenHandler(({url}) => {
     if (externalUrl(url)) void shell.openExternal(url);
     return {action: 'deny'};
@@ -514,8 +529,8 @@ function emitState() {
 
 /**
  * 打开主窗口；原生跳转等待页面保存，保持更新任务运行，失败时保留当前编辑页。
- * @param {string | undefined} route 可选本站路径。
- * @param {Function | undefined} allowed 保存后再次验证通知账号。
+ * @param {string} [route] 可选本站路径。
+ * @param {() => boolean | Promise<boolean>} [allowed] 保存后再次验证通知账号。
  * @return {Promise<void>} 窗口已显示，或保留保存失败的编辑页。
  */
 async function showWindow(route, allowed) {

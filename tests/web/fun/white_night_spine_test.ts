@@ -315,7 +315,7 @@ Deno.test("WhiteNight Spine：有 WebGL 时先交出画布再异步建骨架", (
     document,
     globalObject,
   })!;
-  assertEquals(stage.canvas, canvas);
+  assertStrictEquals<object>(stage.canvas, canvas);
   assertStrictEquals(
     canvas.className,
     "lobotomy-corp-white-night-spine",
@@ -469,7 +469,7 @@ Deno.test("WhiteNight Spine：画布样式铺满视口", async () => {
     new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
   );
   const rule =
-    css.match(/\.lobotomy-corp-white-night-spine\s*\{[^}]*\}/s)?.[0] ?? "";
+    css.match(/\.lobotomy-corp-white-night-spine\s*\{[^}]*}/s)?.[0] ?? "";
   assert(/height:\s*100%;/.test(rule));
   assert(/width:\s*100%;/.test(rule));
   assert(/position:\s*absolute;/.test(rule));

@@ -14,7 +14,11 @@ function browserLogin({origin, session, openExternal, complete}) {
    */
   return async function start() {
     if (active) return {code: active.id.slice(0, 8).toUpperCase()};
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
     const verifier = randomBytes(32).toString('base64url');
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
     const challenge = createHash('sha256').update(verifier).digest('base64url');
     const response = await session.fetch(origin + '/auth/native/start', {
       method: 'POST',

@@ -51,7 +51,7 @@ export function webPushConfig(): WebPushConfig | undefined {
   if (
     !/^[A-Za-z0-9_-]{87}$/.test(publicKey) ||
     !/^[A-Za-z0-9_-]{43}$/.test(privateKey) ||
-    !/^(mailto:[^\s@]+@[^\s@]+|https:\/\/[^\s]+)$/.test(subject)
+    !/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/.test(subject)
   ) return undefined;
   try {
     const pair = createECDH("prime256v1");

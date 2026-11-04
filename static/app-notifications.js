@@ -61,7 +61,7 @@ async function initializeApplicationNotifications() {
   if (globalThis.appNative) {
     /**
      * 同步本机权限和后台通道状态，定期补取时提示系统调度可能延迟。
-     * @param {object} info 原生设备状态。
+     * @param {{notifications: {enabled: boolean, supported: boolean, backgroundPushConfigured?: boolean}}} info 原生设备通知状态。
      */
     const applyNativeState = (info) => {
       toggle.checked = info.notifications.enabled;

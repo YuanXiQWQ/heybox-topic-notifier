@@ -133,6 +133,8 @@ Deno.test("browser delivery skips revoked sessions without depending on other no
       subject: "mailto:test@example.com",
     };
     let delivered = 0;
+    // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+    // noinspection JSUnusedGlobalSymbols
     const options = {
       config,
       deliver: () => {
@@ -182,6 +184,8 @@ Deno.test("browser notifications show service faults and prefix fallback matches
       expiresAt: new Date(Date.now() + 60000).toISOString(),
     });
     const delivered: import("./web_push.ts").AppNotification[] = [];
+    // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+    // noinspection JSUnusedGlobalSymbols
     const options = {
       config: {
         ...webPush.generateVAPIDKeys(),

@@ -57,24 +57,53 @@ export type AdministrationStore = {
   applySnapshot(snapshot: AdministrationSnapshot): Promise<void>;
   /** @return {Promise<Invitation[]>} 邀请记录。 */
   listInvitations(): Promise<Invitation[]>;
-  /** @param {string} actor 操作者。 @param {Invitation[]} invitations 邀请记录。 @return {Promise<AdminResult>} 写入结果。 */
+  /**
+   * @param {string} actor 操作者。
+   * @param {Invitation[]} invitations 邀请记录。
+   * @return {Promise<AdminResult>} 写入结果。
+   */
   issue(actor: string, invitations: Invitation[]): Promise<AdminResult>;
-  /** @param {string} actor 操作者。 @param {string} id 邀请摘要。 @return {Promise<AdminResult>} 撤销结果。 */
+  /**
+   * @param {string} actor 操作者。
+   * @param {string} id 邀请摘要。
+   * @return {Promise<AdminResult>} 撤销结果。
+   */
   revoke(actor: string, id: string): Promise<AdminResult>;
-  /** @param {AccountCreation} input 账号与凭据。 @param {string} invitation 邀请摘要。 @param {string} pending 可选短期注册标识。 @return {Promise<AdminResult>} 核销结果。 */
+  /**
+   * @param {AccountCreation} input 账号与凭据。
+   * @param {string} invitation 邀请摘要。
+   * @param {string} pending 可选短期注册标识。
+   * @return {Promise<AdminResult>} 核销结果。
+   */
   register(
     input: AccountCreation,
     invitation: string,
     pending?: string,
   ): Promise<AdminResult>;
-  /** @param {string} actor 超级管理员。 @param {AccountCreation} input 账号与凭据。 @return {Promise<AdminResult>} 创建结果。 */
+  /**
+   * @param {string} actor 超级管理员。
+   * @param {AccountCreation} input 账号与凭据。
+   * @return {Promise<AdminResult>} 创建结果。
+   */
   createUser(actor: string, input: AccountCreation): Promise<AdminResult>;
-  /** @param {string} actor 超级管理员。 @param {AccountEdit} input 可编辑资料。 @return {Promise<AdminResult>} 保存结果。 */
+  /**
+   * @param {string} actor 超级管理员。
+   * @param {AccountEdit} input 可编辑资料。
+   * @return {Promise<AdminResult>} 保存结果。
+   */
   editUser(actor: string, input: AccountEdit): Promise<AdminResult>;
-  /** @param {string} actor 超级管理员。 @param {string} id 目标账号。 @param {number} version 表单版本。 @return {Promise<AdminResult>} 删除结果。 */
+  /**
+   * @param {string} actor 超级管理员。
+   * @param {string} id 目标账号。
+   * @param {number} version 表单版本。
+   * @return {Promise<AdminResult>} 删除结果。
+   */
   deleteUser(actor: string, id: string, version: number): Promise<AdminResult>;
   /** @param {AdminTemporary} value 短期资料。 */
   putTemporary(value: AdminTemporary): Promise<void>;
-  /** @param {string} id 随机标识摘要。 @return {Promise<AdminTemporary | undefined>} 未过期资料。 */
+  /**
+   * @param {string} id 随机标识摘要。
+   * @return {Promise<AdminTemporary | undefined>} 未过期资料。
+   */
   getTemporary(id: string): Promise<AdminTemporary | undefined>;
 };

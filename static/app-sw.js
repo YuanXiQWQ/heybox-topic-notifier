@@ -3,12 +3,18 @@ if (typeof importScripts === 'function') importScripts('/static/app-sync/store.j
 /** 公共资源缓存不包含账号页面和业务请求。 */
 const applicationResourceCache = 'heybox-app-resources-v1';
 self.addEventListener('install', (event) => {
+  // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
+  // noinspection JSUnresolvedReference
   event.waitUntil(self.skipWaiting());
 });
 self.addEventListener('activate', (event) => {
+  // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
+  // noinspection JSUnresolvedReference
   event.waitUntil(self.clients.claim());
 });
 self.addEventListener('message', (event) => {
+  // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
+  // noinspection JSUnresolvedReference
   event.waitUntil(handleApplicationMessage(event));
 });
 self.addEventListener('fetch', (event) => {
@@ -28,6 +34,8 @@ self.addEventListener('fetch', (event) => {
  * @return {Promise<void>} 本机账号入口已清除。
  */
 async function clearApplicationSession() {
+  // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
+  // noinspection JSUnresolvedReference
   await self.AppLocalStore.writeState('__device', 'active-user', null);
 }
 
@@ -43,12 +51,17 @@ async function handleApplicationMessage(event) {
       const response = await fetch('/api/sync/session', {cache: 'no-store', redirect: 'error'});
       if (!response.ok) return;
       const session = await response.json();
-      if (session.userId === event.data.userId) await self.AppLocalStore.writeState('__device', 'active-user', session.userId);
+      if (session.userId === event.data.userId) {
+        // importScripts 将共享本地存储接口注册到 Worker 宿主。
+        // noinspection JSUnresolvedReference
+        await self.AppLocalStore.writeState('__device', 'active-user', session.userId);
+      }
     } catch { /* 离线时不切换已经验证的账号。 */
     }
   }
   if (event.data?.type === 'app-resources' && Array.isArray(event.data.urls)) {
     await Promise.allSettled(event.data.urls.slice(0, 40).map(async (value) => {
+      if (typeof value !== 'string') return;
       const url = new URL(value, self.location.origin);
       if (url.origin === self.location.origin && url.pathname.startsWith('/static/')) await applicationResource(new Request(url));
     }));
@@ -111,6 +124,8 @@ async function rangeResponse(request, response) {
 async function applicationPage(request) {
   const url = new URL(request.url);
   const name = `page:${url.pathname}${url.pathname === '/settings' && url.search === '?panel=polling' ? '' : url.search}`;
+  // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
+  // noinspection JSUnresolvedReference
   const store = self.AppLocalStore;
   let active = await store.readState('__device', 'active-user');
   try {
@@ -201,6 +216,8 @@ async function showApplicationNotification(event) {
     if (!response.ok) return;
     const status = await response.json();
     if (status.userId !== payload.userId || !status.enabled) return;
+    // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
+    // noinspection JSUnresolvedReference
     await self.registration.showNotification(payload.title.slice(0, 120), {
       body: payload.body.slice(0, 600),
       tag: payload.tag,
@@ -239,6 +256,8 @@ async function openApplicationNotification(data) {
   } catch {
     // 无效路径使用工作区首页。
   }
+  // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
+  // noinspection JSUnresolvedReference
   const windows = await self.clients.matchAll({
     type: 'window',
     includeUncontrolled: true,
@@ -248,5 +267,7 @@ async function openApplicationNotification(data) {
     await client.focus();
     return;
   }
+  // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
+  // noinspection JSUnresolvedReference
   await self.clients.openWindow(url.href);
 }

@@ -20,7 +20,11 @@ export type AdminUser = {
   hasPassword: boolean;
 };
 
-/** 将邀请码操作和用户管理组织为紧凑的设置卡片。 @param {object} options 当前管理员、邀请码及已授权的账号列表。 @return {string} 管理面板 HTML。 */
+/**
+ * 将邀请码操作和用户管理组织为紧凑的设置卡片。
+ * @param {object} options 当前管理员、邀请码及已授权的账号列表。
+ * @return {string} 管理面板 HTML。
+ */
 export function renderAdmin(
   options: {
     account: UserAccount;
@@ -37,7 +41,10 @@ export function renderAdmin(
 ): string {
   const m = getMessages(options.settings.locale),
     csrf = csrfHiddenInput(options.csrfToken);
-  /** @param {string} value ISO 日期。 @return {string} 与当前语言一致的日期时间。 */
+  /**
+   * @param {string} value ISO 日期。
+   * @return {string} 与当前语言一致的日期时间。
+   */
   function date(value: string): string {
     const parsed = new Date(value);
     return Number.isFinite(parsed.getTime())
@@ -48,7 +55,11 @@ export function renderAdmin(
       : value;
   }
   let fieldIndex = 0;
-  /** @param {string} label 表单标签。 @param {string} content 控件或值。 @return {string} 既有设置行。 */
+  /**
+   * @param {string} label 表单标签。
+   * @param {string} content 控件或值。
+   * @return {string} 既有设置行。
+   */
   function row(label: string, content: string): string {
     const id = "admin-field-" + (++fieldIndex);
     const control = /<(?:input|select) /.test(content);
@@ -59,17 +70,31 @@ export function renderAdmin(
       control ? `<label for="${id}">${e(label)}</label>` : e(label)
     }</dt><dd>${content}</dd></div>`;
   }
-  /** @param {string} name 控件名。 @param {string} value 当前值。 @param {string} type 输入类型。 @param {string} extra 固定 HTML 属性。 @return {string} 表单控件。 */
+  /**
+   * @param {string} name 控件名。
+   * @param {string} value 当前值。
+   * @param {string} type 输入类型。
+   * @param {string} extra 固定 HTML 属性。
+   * @return {string} 表单控件。
+   */
   function input(name: string, value = "", type = "text", extra = ""): string {
     return `<input name="${name}" value="${e(value)}" type="${type}" ${extra}>`;
   }
-  /** @param {string} label 字段标签。 @param {string} control 控件 HTML。 @return {string} 可换行工具栏中的关联标签和控件。 */
+  /**
+   * @param {string} label 字段标签。
+   * @param {string} control 控件 HTML。
+   * @return {string} 可换行工具栏中的关联标签和控件。
+   */
   function field(label: string, control: string): string {
     return `<label class="admin-field"><span>${
       e(label)
     }</span>${control}</label>`;
   }
-  /** @param {string} selected 当前身份。 @param {boolean} own 是否为操作者本人。 @return {string} 身份选择控件。 */
+  /**
+   * @param {string} selected 当前身份。
+   * @param {boolean} own 是否为操作者本人。
+   * @return {string} 身份选择控件。
+   */
   function roles(selected = "user", own = false): string {
     return `<select name="role" aria-label="${e(m.accountRole)}">${
       [["user", m.roleUser], ["admin", m.roleAdmin], [
@@ -84,7 +109,10 @@ export function renderAdmin(
       ).join("")
     }</select>`;
   }
-  /** @param {AdminUser} user 白名单账号字段。 @return {string} 用户资料和独立删除确认表单。 */
+  /**
+   * @param {AdminUser} user 白名单账号字段。
+   * @return {string} 用户资料和独立删除确认表单。
+   */
   function userCard(user: AdminUser): string {
     const hidden = input("id", user.id, "hidden") +
       input("roleVersion", String(user.roleVersion), "hidden");

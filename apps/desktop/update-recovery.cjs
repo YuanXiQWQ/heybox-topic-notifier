@@ -20,9 +20,16 @@ async function readInstallFailure(executable) {
   try {
     const file = failurePath(executable);
     const stat = await fs.lstat(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024) throw new Error('Invalid update failure marker');
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024)
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error('Invalid update failure marker');
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
     const value = JSON.parse(await fs.readFile(file, 'utf8'));
     if (!value || typeof value.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(value.version)) {
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
       throw new Error('Invalid failed update version');
     }
     return value.version;

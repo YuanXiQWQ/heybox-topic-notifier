@@ -30,7 +30,10 @@ export async function testAiConnection(
     if (
       settings.mode === "rules" || !settings.apiKey || !settings.model ||
       !settings.prompt
-    ) throw new Error("config");
+    )
+      // 校验失败沿用当前 catch 的错误反馈与清理路径。
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error("config");
   } catch {
     return { ok: false, error: "configuration" };
   }

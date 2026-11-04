@@ -54,7 +54,10 @@ async function run() {
         windowsHide: true,
         timeout: 60000
       });
-      if (await fs.readFile(path.join(folder, 'passed.txt'), 'utf8') !== scenario) throw new Error('Missing test completion marker');
+      if (await fs.readFile(path.join(folder, 'passed.txt'), 'utf8') !== scenario)
+        // 校验失败沿用当前 catch 的错误反馈与清理路径。
+        // noinspection ExceptionCaughtLocallyJS
+        throw new Error('Missing test completion marker');
       console.log('PASS', scenario);
       // 仅清理本次 mkdtemp 创建并完成测试的绝对目录，失败现场保留供检查。
       await fs.rm(folder, {recursive: true, force: true});

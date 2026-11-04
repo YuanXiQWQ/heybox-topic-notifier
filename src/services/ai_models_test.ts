@@ -47,6 +47,8 @@ Deno.test("models use the built-in endpoint and only return bounded text model I
 
 Deno.test("models never forward credentials to private addresses or without a key", async () => {
   let calls = 0;
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   const options = {
     resolveDns: () => Promise.resolve(["127.0.0.1"]),
     fetch: () => {

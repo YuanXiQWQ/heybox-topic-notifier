@@ -28,6 +28,11 @@
  * `ParticlePretend.localScale`（prefab 里记的 5.5 只在动画状态之外有效），
  * 因此光斑边长就是 `Sprite 世界边长 × 动画 m_LocalScale 值 × 每单位像素`。
  */
+
+/**
+ * 降临圣光的可见性、颜色与缩放状态。
+ * @typedef {{active: boolean, color: {alpha: number, blue: number, green: number, red: number}, finished: boolean, scale: number, time: number}} ApostleAdventLightState
+ */
 // @ts-check
 
 import {
@@ -515,7 +520,7 @@ export function sampleAdventLightActiveCurve(curve, time) {
  * active 状态；时间超出 `m_StopTime` 时按空状态处理（光效关闭）。
  *
  * @param {number} time 距离触发 `Run` 的秒数。
- * @return {{active: boolean, color: {alpha: number, blue: number, green: number, red: number}, finished: boolean, scale: number, time: number}} 该帧表现。
+ * @return {ApostleAdventLightState} 该帧表现。
  */
 export function apostleAdventLightStateAt(time) {
   const clip = apostleAdventLightClip;
@@ -592,7 +597,7 @@ export function adventLightSpriteUrl(assetRoot) {
  * @param {string} options.assetRoot 资源根路径。
  * @param {number} [options.currentScale] 员工所在通道的 scaleFactor。
  * @param {any} [options.document] 宿主 document。
- * @return {{element: any, isRunning: () => boolean, render: (atMs: number) => boolean, run: (atMs: number) => void, state: () => ReturnType<typeof apostleAdventLightStateAt>|undefined, stop: () => void}} 组件句柄。
+ * @return {{element: any, isRunning: () => boolean, render: (atMs: number) => boolean, run: (atMs: number) => void, state: () => ApostleAdventLightState|undefined, stop: () => void}} 组件句柄。
  */
 export function createDeathAngelAdventLight(options) {
   const host = /** @type {AdventLightHost} */ (globalThis);
@@ -646,13 +651,13 @@ export function createDeathAngelAdventLight(options) {
 
   /** @type {number|undefined} 本次 Run 的起始时间。 */
   let runStartedAt;
-  /** @type {ReturnType<typeof apostleAdventLightStateAt>|undefined} 最近一次写入的状态。 */
+  /** @type {ApostleAdventLightState|undefined} 最近一次写入的状态。 */
   let lastState;
 
   /**
    * 写入一帧状态到 DOM。
    *
-   * @param {ReturnType<typeof apostleAdventLightStateAt>} state 该帧状态。
+   * @param {ApostleAdventLightState} state 该帧状态。
    * @return {void}
    */
   const paint = (state) => {
@@ -704,7 +709,7 @@ export function createDeathAngelAdventLight(options) {
       runStartedAt = atMs;
       paint(apostleAdventLightStateAt(0));
     },
-    /** @return {ReturnType<typeof apostleAdventLightStateAt>|undefined} 最近写入的状态。 */
+    /** @return {ApostleAdventLightState|undefined} 最近写入的状态。 */
     state: () => lastState,
     /** @return {void} `AdventLight.SetActive(false)`。 */
     stop: () => {

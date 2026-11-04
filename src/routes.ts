@@ -2285,7 +2285,10 @@ export function createRoutes(
         stamp = parseEditStamp(JSON.parse(String(form.syncStamp)));
         if (
           typeof form.syncBase !== "string" || form.syncBase.length > 128000
-        ) throw new Error("Invalid settings base");
+        )
+          // 校验失败沿用当前 catch 的错误反馈与清理路径。
+          // noinspection ExceptionCaughtLocallyJS
+          throw new Error("Invalid settings base");
         base = settingsFromForm(
           Object.fromEntries(new URLSearchParams(form.syncBase)),
           currentSettings,

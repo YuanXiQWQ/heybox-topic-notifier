@@ -19,10 +19,10 @@ import { normalizeSchedule } from "./polling-schedule-core.js";
  * @return {Function} 打开指定行的弹窗。
  */
 export function calendarPicker(root, labels, changed) {
-  const dialog = root.querySelector("[data-schedule-dates]");
+  const dialog = /** @type {HTMLDialogElement} */ (root.querySelector("[data-schedule-dates]"));
   const calendar = dialog.querySelector("[data-schedule-calendar]");
   const era = dialog.querySelector("[data-schedule-era]");
-  const groups = [...dialog.querySelectorAll("[data-schedule-date]")];
+  const groups = [.../** @type {NodeListOf<HTMLElement>} */ (dialog.querySelectorAll("[data-schedule-date]"))];
   const locale = document.querySelector('[name="locale"]');
   const editors = new Map();
   let row;
@@ -58,7 +58,7 @@ export function calendarPicker(root, labels, changed) {
      */
     function accept(event) {
       event.stopPropagation();
-      if (event.isComposing) return;
+      if ('isComposing' in event && event.isComposing) return;
       const text = input.value.trim();
       const match = [...select.options].find((option) =>
         !option.hidden && !option.disabled && !option.dataset.draft &&
@@ -346,6 +346,8 @@ export function calendarPicker(root, labels, changed) {
     refresh(era);
     if (optionsOnly) return;
     for (const group of groups) {
+      // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+      // noinspection JSUnresolvedReference
       const value = row[group.dataset.scheduleDate];
       const [date, time] = value.includes("T") ? value.split("T") : ["", value];
       const parts = date ? date.split("-") : [];
@@ -445,16 +447,18 @@ export function calendarPicker(root, labels, changed) {
    * @param {Event} event 字段编辑事件。
    */
   function edit(event) {
-    const group = event.target.closest("[data-schedule-date]");
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+    const group = target.closest("[data-schedule-date]");
     if (!group || !row) return;
     row.edited = true;
     const side = group.dataset.scheduleDate,
-      part = event.target.dataset.datePart;
+      part = target.dataset.datePart;
     if (
       part === "year" && row.era === "roc" &&
       (locale?.value || document.documentElement.lang) === "zh-CN" &&
-      Number(event.target.value) > 38
-    ) event.target.value = "38";
+      Number(target.value) > 38
+    ) target.value = "38";
     if (["year", "cycle"].includes(part)) updateMonths(group);
     if (["year", "cycle", "month"].includes(part)) updateDays(group);
     const year = yearValue(group),

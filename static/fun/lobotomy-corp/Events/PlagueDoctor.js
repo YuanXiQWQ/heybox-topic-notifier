@@ -1098,7 +1098,9 @@ function createPlagueDoctorClock(options) {
     if (!disposed) fitNames();
   });
 
-  const controller = {
+  // 公开的宿主接口按需或经动态脚本调用，保留已声明的控制能力。
+  // noinspection JSUnusedGlobalSymbols
+  return {
     /**
      * 释放演出图层与监听器。
      *
@@ -1201,7 +1203,6 @@ function createPlagueDoctorClock(options) {
     /** @return {number} 当前时间。 */
     now,
   };
-  return controller;
 }
 
 /**
@@ -1695,7 +1696,6 @@ export function createPlagueDoctorEvent(shared) {
   /**
    * 读取会话内的使徒记录。
    *
-   * @return {void}
    */
   const restore = () => {
     /** @type {any} */
@@ -1708,16 +1708,18 @@ export function createPlagueDoctorEvent(shared) {
     }
     const loginSession = shared.loginSession?.();
     // 每次登录都会生成新的会话标识：标识变化即视为重新登录，已绑定的使徒必须清空。
-    const savedSession = typeof saved?.loginSession === 'string'
-        ? saved.loginSession
+    const rawSession = saved?.loginSession;
+    const savedSession = typeof rawSession === 'string'
+        ? rawSession
         : undefined;
+    const savedApostles = saved?.apostles;
     const relogged = typeof loginSession === 'string' && loginSession.length > 0 &&
         savedSession !== undefined && savedSession !== loginSession;
     state = {
-      apostles: Array.isArray(saved?.apostles)
+      apostles: Array.isArray(savedApostles)
           ? (relogged
               ? []
-              : saved.apostles.filter((/** @type {unknown} */ name) =>
+              : savedApostles.filter((/** @type {unknown} */ name) =>
                       typeof name === 'string'
                   )
                   .slice(0, plagueDoctorApostleCount))
@@ -1830,7 +1832,7 @@ export function createPlagueDoctorEvent(shared) {
     }
     // `StartAdventEvent()` 先起 UniqueBgm，再开黑幕与镜头，所以 BGM 要早于演出脚本。
     adventBgm = playSound(plagueDoctorSoundPaths.advent);
-    const clock = playPlagueDoctorAdvent({
+    activeClock = playPlagueDoctorAdvent({
       assetRoot: shared.assetRoot,
       document: globalThis.document,
       focusTexts: apostleFocusTexts(),
@@ -1839,7 +1841,6 @@ export function createPlagueDoctorEvent(shared) {
       onAdventEnd: () => completeTransformation({firstTime: true}),
       playSound,
     });
-    activeClock = clock;
     startBlockingInteraction();
   };
 
@@ -1907,7 +1908,7 @@ export function createPlagueDoctorEvent(shared) {
       if (normalized === plagueDoctorAbnormalityId.toLowerCase()) return true;
       if (!isRecording()) return false;
       // 白夜期间普通名称不得继续绑定使徒；其它异想体编号仍交给自己的彩蛋。
-      return submittedId ? false : true;
+      return !submittedId;
     }
     if (state?.pausedByWhiteNight === true) {
       if (normalized === plagueDoctorAbnormalityId.toLowerCase()) {
@@ -1916,7 +1917,7 @@ export function createPlagueDoctorEvent(shared) {
         return true;
       }
       // 白夜结束后必须先重新输入一次疫医编号，期间不得吞掉其它异想体编号。
-      return submittedId ? false : true;
+      return !submittedId;
     }
     if (busy) return true;
     if (normalized === plagueDoctorAbnormalityId.toLowerCase()) {

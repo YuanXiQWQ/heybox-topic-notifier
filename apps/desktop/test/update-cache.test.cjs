@@ -32,7 +32,11 @@ test('verified installer survives while interrupted temporary downloads are remo
                                                                                                              updater
                                                                                                            }) => {
   const bytes = Buffer.from('complete installer');
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSCheckFunctionSignatures
   await fs.writeFile(path.join(pending, 'setup.exe'), bytes);
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSCheckFunctionSignatures
   await fs.writeFile(path.join(pending, 'update-info.json'), JSON.stringify({
     fileName: 'setup.exe',
     sha512: createHash('sha512').update(bytes).digest('base64')

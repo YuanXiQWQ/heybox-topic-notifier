@@ -1,6 +1,12 @@
 /**
  * @file 本文件提供基于 Deno KV 的应用数据存储实现。
  */
+import {
+  normalizeAuthenticationEvent,
+  normalizePasskeyCredential,
+  normalizePendingPasskeyChallenge,
+  normalizeTotpCredential,
+} from "./auth_normalization.ts";
 import { normalizeUsername } from "../auth/account_names.ts";
 import { normalizeSettings, type StoredSettings } from "./stored_settings.ts";
 import { createKvAdministration } from "./administration_kv.ts";
@@ -22,7 +28,6 @@ import type {
   DashboardSnapshot,
   EmailCredential,
   MatchRecord,
-  PasskeyChallengePurpose,
   PasskeyCredential,
   PasswordCredential,
   PendingEmailVerification,
@@ -1617,140 +1622,6 @@ function normalizeEmailCredential(
 }
 
 /**
- * 规范化验证器动态码凭证。
- *
- * @param credential 验证器动态码凭证。
- * @param userId 用户 ID。
- * @return 规范化后的验证器动态码凭证。
- */
-function normalizeTotpCredential(
-  credential: TotpCredential,
-  userId: string,
-): TotpCredential {
-  return {
-    credentialId: typeof credential.credentialId === "string" &&
-        credential.credentialId.trim()
-      ? credential.credentialId.trim()
-      : "legacy",
-    enabledAt: typeof credential.enabledAt === "string"
-      ? credential.enabledAt
-      : "",
-    label: typeof credential.label === "string" && credential.label.trim()
-      ? credential.label.trim().slice(0, 80)
-      : undefined,
-    recoveryCodeHashes: Array.isArray(credential.recoveryCodeHashes)
-      ? credential.recoveryCodeHashes.filter((value): value is string =>
-        typeof value === "string"
-      )
-      : [],
-    secretEncrypted: typeof credential.secretEncrypted === "string"
-      ? credential.secretEncrypted
-      : "",
-    userId,
-  };
-}
-
-/**
- * 规范化 Passkey 凭证。
- *
- * @param credential Passkey 凭证。
- * @param userId 用户 ID。
- * @return 规范化后的 Passkey 凭证。
- */
-function normalizePasskeyCredential(
-  credential: PasskeyCredential,
-  userId: string,
-): PasskeyCredential {
-  const transports = Array.isArray(credential.transports)
-    ? Array.from(
-      new Set(
-        credential.transports.filter((value): value is string =>
-          typeof value === "string" && value.trim().length > 0
-        ).map((value) => value.trim()),
-      ),
-    )
-    : undefined;
-  return {
-    backedUp: credential.backedUp === true,
-    counter: Math.max(0, Math.floor(Number(credential.counter) || 0)),
-    createdAt: typeof credential.createdAt === "string"
-      ? credential.createdAt
-      : "",
-    credentialId: typeof credential.credentialId === "string"
-      ? credential.credentialId
-      : "",
-    label: typeof credential.label === "string" &&
-        credential.label.trim().length > 0
-      ? credential.label.trim()
-      : undefined,
-    lastUsedAt: typeof credential.lastUsedAt === "string"
-      ? credential.lastUsedAt
-      : undefined,
-    publicKey: typeof credential.publicKey === "string"
-      ? credential.publicKey
-      : "",
-    transports,
-    userId,
-  };
-}
-
-/**
- * 规范化认证事件。
- *
- * @param event 认证事件。
- * @param userId 兜底用户 ID。
- * @param purpose 兜底认证用途。
- * @return 规范化后的认证事件。
- */
-function normalizeAuthenticationEvent(
-  event: AuthenticationEvent,
-  userId: string,
-  purpose: AuthenticationEventPurpose,
-): AuthenticationEvent {
-  return {
-    authenticatedAt: typeof event.authenticatedAt === "string"
-      ? event.authenticatedAt
-      : new Date(0).toISOString(),
-    method: isAuthenticationEventMethod(event.method)
-      ? event.method
-      : "password",
-    purpose: isAuthenticationEventPurpose(event.purpose)
-      ? event.purpose
-      : purpose,
-    strength: event.strength === "strong" ? "strong" : "normal",
-    userId,
-  };
-}
-
-/**
- * 判断值是否为认证事件方式。
- *
- * @param value 待判断值。
- * @return 值是认证事件方式时返回 true。
- */
-function isAuthenticationEventMethod(
-  value: unknown,
-): value is AuthenticationEvent["method"] {
-  return value === "email_otp" || value === "google" ||
-    value === "passkey" || value === "password" ||
-    value === "recovery_code" || value === "totp";
-}
-
-/**
- * 判断值是否为认证事件用途。
- *
- * @param value 待判断值。
- * @return 值是认证事件用途时返回 true。
- */
-function isAuthenticationEventPurpose(
-  value: unknown,
-): value is AuthenticationEventPurpose {
-  return value === "primary_login" || value === "reauth" ||
-    value === "recovery_codes" ||
-    value === "second_factor";
-}
-
-/**
  * 规范化待验证挑战中的邮箱地址。
  *
  * @param verification 待验证挑战。
@@ -1763,47 +1634,6 @@ function normalizePendingEmailVerification(
     ...verification,
     email: emailKey(verification.email),
   };
-}
-
-/**
- * 规范化待完成的 Passkey challenge。
- *
- * @param challenge 待完成 Passkey challenge。
- * @return 规范化后的 Passkey challenge。
- */
-function normalizePendingPasskeyChallenge(
-  challenge: PendingPasskeyChallenge,
-): PendingPasskeyChallenge {
-  const allowedCredentialIds = Array.isArray(challenge.allowedCredentialIds)
-    ? challenge.allowedCredentialIds
-    : [];
-  return {
-    ...challenge,
-    allowedCredentialIds: Array.from(
-      new Set(
-        allowedCredentialIds.filter((value) =>
-          typeof value === "string" && value.trim().length > 0
-        ).map((value) => value.trim()),
-      ),
-    ),
-    attempts: Math.max(0, Math.floor(Number(challenge.attempts) || 0)),
-    purpose: isPasskeyChallengePurpose(challenge.purpose)
-      ? challenge.purpose
-      : "primary_login",
-  };
-}
-
-/**
- * 判断值是否为支持的 Passkey challenge 用途。
- *
- * @param value 待判断值。
- * @return 值是 Passkey challenge 用途时返回 true。
- */
-function isPasskeyChallengePurpose(
-  value: unknown,
-): value is PasskeyChallengePurpose {
-  return value === "passkey_registration" || value === "primary_login" ||
-    value === "reauth" || value === "second_factor";
 }
 
 /**

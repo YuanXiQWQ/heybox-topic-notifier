@@ -114,6 +114,8 @@ export function createReleaseCatalogReader(
       }
       if (!response.ok) {
         await response.body?.cancel();
+        // 校验失败沿用当前 catch 的错误反馈与清理路径。
+        // noinspection ExceptionCaughtLocallyJS
         throw new Error("Release unavailable");
       }
       return parseReleaseCatalog(await response.json());

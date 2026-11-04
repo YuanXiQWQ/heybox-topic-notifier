@@ -43,6 +43,8 @@
           },
           30000,
       );
+      // 恢复已有分发器时需要比较函数身份，保留稳定引用。
+      // noinspection UnnecessaryLocalVariableJS
       /** @param {MessageEvent} event 原生登录回复或其它能力消息。 */
       const receive = (event) => {
         const result = JSON.parse(event.data);

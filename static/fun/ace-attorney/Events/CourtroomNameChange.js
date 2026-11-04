@@ -708,6 +708,8 @@ function createCourtroomNameChange(configuration) {
             createChoiceButton(choice.label, choice.kind, choice.action)
         );
         actions.replaceChildren(...buttons);
+        // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+        // noinspection JSUnresolvedReference
         buttons[0]?.classList.add('is-selected');
         actions.hidden = false;
         overlay.classList.add('is-choosing');
