@@ -459,6 +459,8 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
       import.meta.url,
     ),
   );
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   Object.defineProperties(browser, {
     Audio: { configurable: true, value: AudioMock },
     FormData: {
@@ -602,6 +604,7 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
     const preparedChurch = AudioMock.items.find((audio) =>
       audio.src.endsWith("Lucifer_standbg0.ogg")
     )!;
+    assertEquals(preparedChurch.preload, "auto");
     assertStrictEquals(preparedChurch.muted, true);
     assertEquals(preparedChurch.playCount, 1);
     const savedIdentityLabel = displayNameLabel.textContent;
@@ -923,6 +926,8 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       import.meta.url,
     ),
   );
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   Object.defineProperties(browser, {
     Audio: { configurable: true, value: AudioMock },
     document: {
@@ -985,17 +990,33 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
       },
     },
   });
-  /** @param {Element} overlay 警报外层。 @return {Element[]} Corner。 */ const corners =
+  /**
+   * @param {Element} overlay 警报外层。
+   * @return {Element[]} Corner。
+   */ const corners =
     (overlay: Element) => findAllByClass(overlay, "lobotomy-corp-alert-corner");
-  /** @param {Element} overlay 警报外层。 @return {string} Trumpet 文本。 */ const trumpet =
+  /**
+   * @param {Element} overlay 警报外层。
+   * @return {string} Trumpet 文本。
+   */ const trumpet =
     (overlay: Element) =>
       requireByClass(overlay, "lobotomy-corp-alert-trumpet-level-content")
         .textContent;
-  /** @param {Element} overlay 警报外层。 @return {Element} Restart 面板。 */ const panel =
+  /**
+   * @param {Element} overlay 警报外层。
+   * @return {Element} Restart 面板。
+   */ const panel =
     (overlay: Element) => requireByClass(overlay, "lobotomy-corp-top-panel");
-  /** @param {Element} overlay 警报外层。 @return {Element} EmergencyImage。 */ const risk =
+  /**
+   * @param {Element} overlay 警报外层。
+   * @return {Element} EmergencyImage。
+   */ const risk =
     (overlay: Element) => requireByClass(overlay, "lobotomy-corp-alert-risk");
-  /** @param {Element} overlay 警报外层。 @param {number} cornerIndex 含图标的 Corner 索引。 @return {Element} EmergencyImage 的 RectTransform 容器。 */ const riskRect =
+  /**
+   * @param {Element} overlay 警报外层。
+   * @param {number} cornerIndex 含图标的 Corner 索引。
+   * @return {Element} EmergencyImage 的 RectTransform 容器。
+   */ const riskRect =
     (overlay: Element, cornerIndex: number) =>
       requireByClass(
         corners(overlay)[cornerIndex],
@@ -1508,6 +1529,8 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
   let navigationType = "navigate";
   let coordinatorStop: (() => void) | undefined;
   AudioMock.reset();
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   Object.defineProperties(browser, {
     Audio: { configurable: true, value: AudioMock },
     document: {
@@ -1888,6 +1911,8 @@ Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", 
       import.meta.url,
     ),
   );
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   Object.defineProperties(browser, {
     document: {
       configurable: true,
@@ -1995,6 +2020,8 @@ Deno.test("WhiteNight freezes and resumes the exact remaining Danger decay time"
     { callback: () => void; delay: number; cleared: boolean }
   >();
   try {
+    // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+    // noinspection JSUnusedGlobalSymbols
     Object.defineProperties(browser, {
       Audio: { configurable: true, value: undefined },
       document: {

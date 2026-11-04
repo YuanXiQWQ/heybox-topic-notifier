@@ -38,15 +38,22 @@ function createAdventDocument() {
 }
 
 /**
- * 提取 CSS 中一个明确类选择器的规则体。
+ * 按源码顺序提取类选择器的独立规则与分组规则。
  *
  * @param {string} css 样式表文本。
  * @param {string} className CSS 类名。
- * @return {string} 对应规则体。
+ * @return {string} 对应的全部规则体。
  */
 function cssRule(css: string, className: string): string {
-  return css.match(new RegExp(`\\.${className}\\s*\\{([^}]*)\\}`, "s"))?.[1] ??
-    "";
+  return [
+    ...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)}/g),
+  ]
+    .filter((match) =>
+      match[1].split(",").some((selector) =>
+        selector.trim() === "." + className
+      )
+    )
+    .map((match) => match[2]).join("\n");
 }
 
 /**
@@ -306,7 +313,10 @@ Deno.test("Simple Advent uses literal prefab layout, visible sprites, and Best F
   assertStrictEquals(controller.isFinished(), false);
 
   const css = await Deno.readTextFile(
-    new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
+    new URL(
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.css",
+      import.meta.url,
+    ),
   );
   assertEquals(
     /object-fit:\s*contain/.test(
@@ -379,6 +389,8 @@ Deno.test("Simple Advent uses literal prefab layout, visible sprites, and Best F
 
   controller.dispose();
   assertEquals(cancelled.size, 1);
+  assertEquals(frames.length, 1);
+  assertEquals(cancelled.has(frames[0].id), true);
   assertEquals(harness.body.children.length, 0);
 });
 
@@ -393,7 +405,7 @@ Deno.test("Simple Advent composes Show and Hide without visible breathing scale"
     now: () => 0,
     onAdventEnd: () => logicalEndCount++,
     onHidden: () => hiddenCount++,
-    requestFrame: (callback) => (frames.push(callback), frames.length),
+    requestFrame: (callback) => frames.push(callback),
   });
   const root = requireByClass(
     harness.body,

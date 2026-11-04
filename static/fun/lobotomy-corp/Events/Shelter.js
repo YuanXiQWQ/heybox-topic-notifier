@@ -25,19 +25,26 @@ export const shelterStorageKey = 'warmnest.lobotomy-corp-shelter';
  * @property {(key: string) => string|null} getItem 读取存储值。
  * @property {(key: string, value: string) => void} setItem 写入存储值。
  * @property {(key: string) => void} removeItem 删除存储值。
- *
+ */
+
+/**
+ * 避难所调度使用的宿主能力。
+ * @template Timer
  * @typedef {object} ShelterEventShared
- * @property {() => Record<string, {canBreach?: boolean}>|undefined} abnormalities 读取异想体资料。
- * @property {(timer: number) => void} clearTimer 清除计时器。
- * @property {() => void} ensureCoordinator 确保该事件参与跨游戏互斥。
- * @property {() => boolean} isReload 判断当前页面是否由刷新产生。
- * @property {() => number} now 读取当前时间戳。
+ * @property {() => Record<string, {canBreach?: boolean}>|undefined} [abnormalities] 读取异想体资料。
+ * @property {(timer: Timer) => void} clearTimer 清除计时器。
+ * @property {() => void} [ensureCoordinator] 确保该事件参与跨游戏互斥。
+ * @property {() => boolean} [isReload] 判断当前页面是否由刷新产生。
+ * @property {() => number} [now] 读取当前时间戳；未提供时使用 Date.now。
  * @property {() => number} random 生成 0（含）到 1（不含）之间的随机数。
  * @property {(canonicalId: string) => unknown} releaseAbnormality 按编号触发异想体出逃流程。
- * @property {(callback: () => void, delay: number) => number} setTimer 创建计时器。
+ * @property {(callback: () => void, delay: number) => Timer} setTimer 创建宿主环境的计时器。
  * @property {string} storageKey 事件持久化键。
- * @property {() => ShelterEventStorage[]} storages 读取可用存储。
- *
+ * @property {() => ShelterEventStorage[]} [storages] 读取可用存储。
+ */
+
+/**
+ * 避难所事件的生命周期控制器。
  * @typedef {object} ShelterEventController
  * @property {() => boolean} finish 结束事件。
  * @property {() => number|undefined} getNextReleaseAt 读取下一次释放时间。
@@ -84,14 +91,15 @@ export function shelterAbnormalityForRandomValue(
 /**
  * 创建“3月27日的避难所”事件控制器。
  *
- * @param {ShelterEventShared} shared 宿主提供的最小共享 API。
+ * @template Timer
+ * @param {ShelterEventShared<Timer>} shared 宿主提供的最小共享 API。
  * @return {ShelterEventController} 避难所事件 API。
  */
 export function createShelterEvent(shared) {
   /** 事件是否正在等待或持续释放异想体。 */
   let active = false;
 
-  /** @type {number|undefined} 当前等待的释放计时器。 */
+  /** @type {Timer|undefined} 当前等待的释放计时器。 */
   let releaseTimer;
 
   /** @type {number|undefined} 下一次释放异想体的绝对时间戳。 */

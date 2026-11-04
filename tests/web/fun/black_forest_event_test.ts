@@ -40,7 +40,7 @@ import {
 
 /** 提取 CSS 中一个明确类选择器的规则体。 */
 function cssRule(css: string, className: string): string {
-  return css.match(new RegExp(`\\.${className}\\s*\\{([^}]*)\\}`, "s"))?.[1] ??
+  return css.match(new RegExp(`\\.${className}\\s*\\{([^}]*)}`, "s"))?.[1] ??
     "";
 }
 
@@ -258,6 +258,8 @@ Deno.test("Black Forest egg camera uses the sampled animation bounds", () => {
   const runtime = { Vector2 };
   let clearCount = 0;
   const sampledAnimations: string[] = [];
+  // 轨道方法由导入的采样器调用。
+  // noinspection JSUnusedGlobalSymbols
   const animationState = {
     /** 模拟切换采样动画。 */
     setAnimation: (_track: number, name: string) => {

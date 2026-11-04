@@ -10,12 +10,18 @@ export class StorageMock {
   /** 已写入的键值对。 */
   readonly values = new Map<string, string>();
 
-  /** @param {string} key 存储键。 @return {string|null} 存储值。 */
+  /**
+   * @param {string} key 存储键。
+   * @return {string|null} 存储值。
+   */
   getItem(key: string): string | null {
     return this.values.get(key) ?? null;
   }
 
-  /** @param {string} key 存储键。 @param {string} value 存储值。 */
+  /**
+   * @param {string} key 存储键。
+   * @param {string} value 存储值。
+   */
   setItem(key: string, value: string): void {
     this.values.set(key, value);
   }
@@ -74,7 +80,10 @@ export class Element {
       this.children.push(node);
     });
   }
-  /** @param {Element} child 新节点。 @param {Element} before 参照节点。 */ insertBefore(
+  /**
+   * @param {Element} child 新节点。
+   * @param {Element} before 参照节点。
+   */ insertBefore(
     child: Element,
     before: Element,
   ): void {
@@ -82,13 +91,19 @@ export class Element {
     const index = this.children.indexOf(before);
     this.children.splice(index < 0 ? this.children.length : index, 0, child);
   }
-  /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ addEventListener(
+  /**
+   * @param {string} name 事件名。
+   * @param {(event: Event) => void} listener 监听器。
+   */ addEventListener(
     name: string,
     listener: (event: Event) => void,
   ): void {
     this.#events.set(name, [...(this.#events.get(name) ?? []), listener]);
   }
-  /** @param {string} name 事件名。 @param {(event: Event) => void} listener 监听器。 */ removeEventListener(
+  /**
+   * @param {string} name 事件名。
+   * @param {(event: Event) => void} listener 监听器。
+   */ removeEventListener(
     name: string,
     listener: (event: Event) => void,
   ): void {
@@ -97,7 +112,10 @@ export class Element {
       (this.#events.get(name) ?? []).filter((item) => item !== listener),
     );
   }
-  /** @param {string} name 属性名。 @param {string} value 属性值。 */ setAttribute(
+  /**
+   * @param {string} name 属性名。
+   * @param {string} value 属性值。
+   */ setAttribute(
     name: string,
     value: string,
   ): void {
@@ -107,7 +125,10 @@ export class Element {
   /** @param {string} name 属性名。 */ removeAttribute(name: string): void {
     delete this.attributes[name];
   }
-  /** @param {string} name 属性名。 @return {string|null} 属性值。 */ getAttribute(
+  /**
+   * @param {string} name 属性名。
+   * @return {string|null} 属性值。
+   */ getAttribute(
     name: string,
   ): string | null {
     return this.attributes[name] ?? null;
@@ -139,25 +160,37 @@ export class Element {
   matches(selector: string): boolean {
     return selector.split(",").some((part) => this.matchesSingle(part.trim()));
   }
-  /** @param {string} selector 单个选择器。 @return {boolean} 是否匹配。 */
+  /**
+   * @param {string} selector 单个选择器。
+   * @return {boolean} 是否匹配。
+   */
   matchesSingle(selector: string): boolean {
     // 显式登记的选择器优先，支持 `[data-*]`、`a[href]` 等测试需要的任意写法。
     if (this.selectors.has(selector)) return true;
     return selector.startsWith(".") &&
       this.className.split(/\s+/).includes(selector.slice(1));
   }
-  /** @param {string} selector CSS 选择器。 @return {Element|undefined} 最近匹配的祖先或自身。 */
+  /**
+   * @param {string} selector CSS 选择器。
+   * @return {Element|undefined} 最近匹配的祖先或自身。
+   */
   closest(selector: string): Element | undefined {
     if (this.matches(selector)) return this;
     return this.parentElement?.closest(selector);
   }
-  /** @param {string} selector CSS 选择器。 @return {Element|undefined} 首个匹配的后代。 */
+  /**
+   * @param {string} selector CSS 选择器。
+   * @return {Element|undefined} 首个匹配的后代。
+   */
   querySelector(selector: string): Element | undefined {
     return this.children.find((child) =>
       child.matches(selector) || child.querySelector(selector)
     );
   }
-  /** @param {string} selector CSS 选择器。 @return {Element[]} 全部匹配的后代。 */
+  /**
+   * @param {string} selector CSS 选择器。
+   * @return {Element[]} 全部匹配的后代。
+   */
   querySelectorAll(selector: string): Element[] {
     return this.children.flatMap((child) => [
       ...(child.matches(selector) ? [child] : []),
@@ -237,7 +270,7 @@ export class AudioMock extends Element {
   pauseCount = 0;
   /** 播放次数。 */
   playCount = 0;
-  /** preload 属性值。 */
+  /** preload 属性值，由动态加载的媒体脚本写入。 */
   preload = "";
   /** 媒体就绪状态。 */
   readyState = 0;
@@ -399,6 +432,8 @@ export function installLobotomyCorpAlertHarness(
       import.meta.url,
     ),
   );
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   Object.defineProperties(browser, {
     Audio: { configurable: true, value: AudioMock },
     document: {
@@ -542,7 +577,10 @@ export function installLobotomyCorpAlertHarness(
     setLoginSession: (value: string | undefined) => {
       loginSession = value;
     },
-    /** @param {number} delay 计时器延迟。 @return {object|undefined} 仍未取消的计时器。 */ pendingTimer:
+    /**
+     * @param {number} delay 计时器延迟。
+     * @return {object|undefined} 仍未取消的计时器。
+     */ pendingTimer:
       (delay: number) =>
         [...timers.values()].find((timer) =>
           timer.delay === delay && !timer.cleared && !timer.fired
@@ -588,7 +626,10 @@ export function installLobotomyCorpAlertHarness(
         ),
     /** @return {Element[]} 本次测试中按创建顺序记录的全部 DOM 节点。 */
     createdElements: () => createdElements,
-    /** @param {number} x 横坐标。 @param {number} y 纵坐标。 */
+    /**
+     * @param {number} x 横坐标。
+     * @param {number} y 纵坐标。
+     */
     setScrollPosition: (x: number, y: number) => {
       scrollState.x = x;
       scrollState.y = y;
@@ -603,17 +644,29 @@ export function installLobotomyCorpAlertHarness(
       [...body.children].reverse().find((element) =>
         !element.removed && element.className === "lobotomy-corp-alert-overlay"
       ),
-    /** @param {Element} overlay Alert overlay。 @return {string} Trumpet 文本。 */
+    /**
+     * @param {Element} overlay Alert overlay。
+     * @return {string} Trumpet 文本。
+     */
     trumpet: (overlay: Element) =>
       requireByClass(overlay, "lobotomy-corp-alert-trumpet-level-content")
         .textContent,
-    /** @param {Element} overlay Alert overlay。 @return {boolean} 当前是否显示四角警报框。 */
+    /**
+     * @param {Element} overlay Alert overlay。
+     * @return {boolean} 当前是否显示四角警报框。
+     */
     hasHud: (overlay: Element) =>
       findByClass(overlay, "lobotomy-corp-emergency-controller") !== undefined,
-    /** @param {Element} overlay Alert overlay。 @return {Element} 顶部 Restart Day 面板。 */
+    /**
+     * @param {Element} overlay Alert overlay。
+     * @return {Element} 顶部 Restart Day 面板。
+     */
     panel: (overlay: Element) =>
       requireByClass(overlay, "lobotomy-corp-top-panel"),
-    /** @param {Element} overlay Alert overlay。 @return {string|undefined} EmergencyImage 文件名。 */
+    /**
+     * @param {Element} overlay Alert overlay。
+     * @return {string|undefined} EmergencyImage 文件名。
+     */
     riskFile: (overlay: Element) =>
       requireByClass(overlay, "lobotomy-corp-alert-risk").src.split("/").at(-1),
     /** 移除测试期间安装的全部浏览器替身。 */ restore: () => {

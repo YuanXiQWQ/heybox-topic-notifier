@@ -237,6 +237,8 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 
 .username-easter-egg-overlay button.username-easter-egg-button:focus-visible::after,
 .username-easter-egg-overlay button.username-easter-egg-button.is-selected::after {
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   background:
     linear-gradient(#ffd52a, #ffd52a) left 1.5px / 100% 1px no-repeat,
     linear-gradient(#ffd52a, #ffd52a) left bottom 1.5px / 100% 1px no-repeat,
@@ -266,6 +268,8 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 .username-easter-egg-theme-trilogy .username-easter-egg-panel::before {
+  /* 保留控件描边与素材布局所需的亚像素精度。 */
+  /*noinspection CssNonIntegerLengthInPixels*/
   background: url("/static/fun/ace-attorney/AA123/StreamingAssets/menu/common/talk_bg.png")
     left calc(0px - clamp(3px, 0.43vh, 4.5px)) / auto 100% repeat-x;
   content: "";
@@ -295,6 +299,8 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
   border-image-repeat: repeat stretch;
   border-image-slice: 0 28 fill;
   border-image-source: url("/static/fun/ace-attorney/AA123/StreamingAssets/menu/common/name_bg.png");
+  /* 图片切片与绘制宽度是独立属性，须同时保留。 */
+  /*noinspection CssOverwrittenProperties*/
   border-image-width: 0 clamp(18px, 2vh, 28px);
   clip-path: none;
   filter: none;
@@ -513,8 +519,12 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 .username-easter-egg-theme-investigations .username-easter-egg-panel::before {
   border: solid transparent;
   border-image-repeat: repeat stretch;
+  /* 图片切片与绘制宽度是独立属性，须同时保留。 */
+  /*noinspection CssOverwrittenProperties*/
   border-image-slice: 50 48 fill;
   border-image-source: url("/static/fun/ace-attorney/Common/Derived/AAI12/text-box-ui/MessageWindow_TextBase_R_game.png");
+  /* 图片切片与绘制宽度是独立属性，须同时保留。 */
+  /*noinspection CssOverwrittenProperties*/
   border-image-width: 50px 48px;
   box-sizing: border-box;
   content: "";
@@ -664,6 +674,8 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
     aspect-ratio: 727 / 62;
     font-size: min(1.1rem, 4.515vw);
     height: auto;
+    /* 保留控件描边与素材布局所需的亚像素精度。 */
+    /*noinspection CssNonIntegerLengthInPixels*/
     width: min(94vw, 366.4314516129px);
   }
 }

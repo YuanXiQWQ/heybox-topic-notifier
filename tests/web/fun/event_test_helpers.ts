@@ -152,3 +152,31 @@ export function stripJavaScriptCommentsAndStrings(source: string): string {
 export function stripCssComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, " ");
 }
+
+/**
+ * 让演出完成回调和后续微任务结算。
+ * @return {Promise<void>} 当前微任务队列已推进。
+ */
+export async function flushMicrotasks(): Promise<void> {
+  for (let index = 0; index < 8; index++) await Promise.resolve();
+}
+
+/**
+ * 推进受控时钟，执行两轮动画帧及其微任务。
+ * @param {{setNow: (value: number) => void, fireFrames: () => void}} harness 彩蛋测试环境。
+ * @param {{value: number}} clock 当前受控时钟。
+ * @param {number} ms 推进的毫秒数。
+ * @return {Promise<void>} 动画帧与回调处理完成。
+ */
+export async function advance(
+  harness: { setNow: (value: number) => void; fireFrames: () => void },
+  clock: { value: number },
+  ms: number,
+): Promise<void> {
+  clock.value += ms;
+  harness.setNow(clock.value);
+  harness.fireFrames();
+  await flushMicrotasks();
+  harness.fireFrames();
+  await flushMicrotasks();
+}

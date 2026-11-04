@@ -315,7 +315,7 @@ Deno.test("WhiteNight Spine：有 WebGL 时先交出画布再异步建骨架", (
     document,
     globalObject,
   })!;
-  assertEquals(stage.canvas, canvas);
+  assertStrictEquals<object>(stage.canvas, canvas);
   assertStrictEquals(
     canvas.className,
     "lobotomy-corp-white-night-spine",

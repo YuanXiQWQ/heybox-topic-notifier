@@ -1,5 +1,6 @@
 /** @file 脑叶公司多个特殊事件并发、终止与标签页限制回归测试。 */
 import { assert, assertEquals, assertStrictEquals } from "@std/assert";
+import { advance, flushMicrotasks } from "./event_test_helpers.ts";
 import { installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   plagueDoctorAdventSchedule,
@@ -7,32 +8,6 @@ import {
   plagueDoctorBindingTimings,
   plagueDoctorStorageKey,
 } from "../../../static/fun/lobotomy-corp/Events/PlagueDoctor.js";
-
-/** 让等待中的微任务全部执行。 */
-async function flushMicrotasks(): Promise<void> {
-  for (let index = 0; index < 8; index++) await Promise.resolve();
-}
-
-/**
- * 推进受控时钟并触发当前排队的动画帧。
- *
- * @param harness 彩蛋测试环境。
- * @param clock 当前受控时钟。
- * @param ms 推进的毫秒数。
- * @return {Promise<void>} 演出与微任务处理结束时完成。
- */
-async function advance(
-  harness: ReturnType<typeof installLobotomyCorpAlertHarness>,
-  clock: { value: number },
-  ms: number,
-): Promise<void> {
-  clock.value += ms;
-  harness.setNow(clock.value);
-  harness.fireFrames();
-  await flushMicrotasks();
-  harness.fireFrames();
-  await flushMicrotasks();
-}
 
 Deno.test("特殊事件：白夜进行期间可以启动终末鸟和别碰我", async () => {
   const harness = installLobotomyCorpAlertHarness();

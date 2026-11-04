@@ -319,20 +319,24 @@ Deno.test("Plague Doctor Spine：有 WebGL 时先交出画布再异步建骨架"
  * 真实运行时无法在 Deno 里跑，但「演出开始时骨架还没加载完」这条时序必须能回归：
  * 网页在第一个钟声响起时就调 `play()`，那时骨架通常还没就绪。
  *
- * @return {{frames: number[], runtime: Record<string, unknown>}} 替身运行时与帧队列。
+ * @return {{animations: string[], frames: number[], runtime: Record<string, unknown>}} 动画调用记录、帧队列与替身运行时。
  */
 function fakeSpineRuntime(): {
+  animations: string[];
   frames: number[];
   runtime: Record<string, unknown>;
 } {
   const frames: number[] = [];
+  const animations: string[] = [];
   class FakeAnimationState {
-    static animations: string[] = [];
     /** @param {object} _data 动画数据。 */
     constructor(_data: object) {}
-    /** @param {number} _track 轨道。 @param {string} name 动画名。 */
+    /**
+     * @param {number} _track 轨道。
+     * @param {string} name 动画名。
+     */
     setAnimation(_track: number, name: string): void {
-      FakeAnimationState.animations.push(name);
+      animations.push(name);
     }
     /** @param {object} _skeleton 骨架。 */
     apply(_skeleton: object): void {}
@@ -361,7 +365,10 @@ function fakeSpineRuntime(): {
     updateWorldTransform(): void {}
   }
   const page = { height: 512, name: "skeleton2.png", texture: {}, width: 1024 };
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   return {
+    animations,
     frames,
     runtime: {
       AnimationState: FakeAnimationState,
@@ -378,7 +385,10 @@ function fakeSpineRuntime(): {
       },
       webgl: {
         AssetManager: class {
-          /** @param {string} path 资源相对路径。 @return {object|string} 舞台需要的资源句柄。 */
+          /**
+           * @param {string} path 资源相对路径。
+           * @return {object|string} 舞台需要的资源句柄。
+           */
           get(path: string): object | string {
             // 骨架走 `JSON.parse`，Atlas 走运行时对象，与真实 AssetManager 一致。
             return path.includes("atlas")
@@ -431,7 +441,9 @@ function fakeSpineRuntime(): {
 }
 
 Deno.test("Plague Doctor Spine：骨架就绪前调 play 也要在就绪后自动开演", async () => {
-  const { frames, runtime } = fakeSpineRuntime();
+  const { animations, frames, runtime } = fakeSpineRuntime();
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   const canvas = Object.assign(new Element(), {
     clientHeight: 1080,
     clientWidth: 1920,
@@ -467,6 +479,7 @@ Deno.test("Plague Doctor Spine：骨架就绪前调 play 也要在就绪后自�
   // 就绪后必须自己接上演出，否则盘心里永远没有人。
   assertStrictEquals(stage.isReady(), true);
   assertStrictEquals(stage.currentAnimation, "0_Default_");
+  assertEquals(animations.at(-1), "0_Default_");
   assert(frames.length > 0, "开演后应当预约下一帧");
   stage.dispose();
 });
@@ -476,7 +489,7 @@ Deno.test("Plague Doctor Spine：画布样式铺满逻辑画布", async () => {
     new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.css", import.meta.url),
   );
   const rule =
-    css.match(/\.lobotomy-corp-plague-doctor-advent-spine\s*\{[^}]*\}/s)?.[0] ??
+    css.match(/\.lobotomy-corp-plague-doctor-advent-spine\s*\{[^}]*}/s)?.[0] ??
       "";
   assert(/height:\s*100%;/.test(rule));
   assert(/width:\s*100%;/.test(rule));

@@ -376,7 +376,7 @@ Deno.test("AdventLight：页面组件使用原始贴图与 prefab 尺寸", () =>
   );
   assertClose(
     adventLightQuadPixels(1),
-    adventLightSpriteWorldSize() * 1 *
+    adventLightSpriteWorldSize() *
       adventLightPixelsPerWorldUnit(deathAngelAdventLightCamera.referenceScale),
     1e-9,
   );

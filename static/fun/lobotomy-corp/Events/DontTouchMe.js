@@ -461,6 +461,8 @@ function playDontTouchMeSequence(options) {
     stopRecoil = undefined;
     overlay = document.createElement('div');
     overlay.className = options.extraClassName;
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
     overlay.classList?.add(dontTouchMeEffectClassName);
     overlay.setAttribute('aria-hidden', 'true');
     video = document.createElement('video');

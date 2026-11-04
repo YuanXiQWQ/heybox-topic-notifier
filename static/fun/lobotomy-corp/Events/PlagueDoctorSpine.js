@@ -21,6 +21,7 @@
 
 import {
   loadSpineRuntime,
+  requestSpineFrame,
   spineAssetPaths,
   spineModuleRoot,
   spineRuntimePath,
@@ -669,17 +670,10 @@ export function createPlagueDoctorSpineStage(options) {
    */
   const scheduleFrame = () => {
     if (disposed || frame !== undefined) return;
-    if (typeof hostGlobal.requestAnimationFrame === 'function') {
-      frame = hostGlobal.requestAnimationFrame((timestamp) => {
-        frame = undefined;
-        tick(timestamp);
-      });
-      return;
-    }
-    frame = hostGlobal.setTimeout?.(() => {
+    frame = requestSpineFrame(hostGlobal, (timestamp) => {
       frame = undefined;
-      tick(hostGlobal.performance?.now?.() ?? Date.now());
-    }, 16);
+      tick(timestamp);
+    });
   };
 
   /**
@@ -689,7 +683,7 @@ export function createPlagueDoctorSpineStage(options) {
    * 读取时把骨骼位移与附件尺寸一起乘上去），3.6 的 `SkeletonJson.scale` 就是同一件事；
    * 预制体的局部缩放也一起折进去，画出来的尺寸才与游戏一致。
    *
-   * @param {object} spine Spine 运行时命名空间。
+   * @param {import('./SpineRuntime.js').SpineRuntime} spine Spine 运行时命名空间。
    * @param {string} skeletonJson 骨架 JSON 文本。
    * @param {object} atlas 骨架 Atlas。
    * @param {object} rig 骨骼根的局部变换与缩放。
@@ -903,6 +897,8 @@ export function createPlagueDoctorSpineStage(options) {
      * 释放 WebGL 资源并停止渲染循环。
      */
     dispose: () => {
+      // 当前舞台独立持有和释放渲染资源。
+      // noinspection DuplicatedCode
       disposed = true;
       if (frame !== undefined) {
         hostGlobal.cancelAnimationFrame?.(frame);

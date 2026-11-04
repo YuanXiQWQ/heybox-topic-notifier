@@ -16,6 +16,11 @@
  *
  * 网页不模拟战斗与收容单元，只复刻 CG 与「事件对网站本身的影响」。
  */
+
+/**
+ * 黑森林 CG 的有序片段及时间边界。
+ * @typedef {Array<{breakdown: Record<string, any>, endMs: number, fadeInEndMs: number, fadeOutStartMs: number, hasNext: boolean, image: string, key: string, messageKey: string, startMs: number}>} BlackForestCgTimeline
+ */
 // @ts-check
 
 import {lobotomyCorpViewportSize} from './CanvasScaler.js';
@@ -327,7 +332,7 @@ export function blackForestNarrationSequence(birdOrder) {
  *
  * @param {string[]} keys CG 序列。
  * @param {Record<string, any>} [narrations] 台词表，测试可替换。
- * @return {Array<{breakdown: Record<string, any>, endMs: number, fadeInEndMs: number, fadeOutStartMs: number, hasNext: boolean, image: string, key: string, messageKey: string, startMs: number}>} CG 时间线。
+ * @return {BlackForestCgTimeline} CG 时间线。
  */
 export function blackForestCgTimeline(
     keys,
@@ -362,7 +367,7 @@ export function blackForestCgTimeline(
 /**
  * 求某个时刻的画面状态。
  *
- * @param {ReturnType<typeof blackForestCgTimeline>} timeline CG 时间线。
+ * @param {BlackForestCgTimeline} timeline CG 时间线。
  * @param {number} elapsedMs 已播放时长。
  * @return {{canvasAlpha: number, finished: boolean, imageAlpha: number, index: number}} 该时刻的 CG 图层与画布不透明度。
  */
@@ -565,9 +570,11 @@ function remainingBird(birds) {
  * @return {{arrival: string, breakdown: string, egg: string, id: string}|undefined} 鸟的资料。
  */
 function blackForestBirdInfo(key) {
-  return /** @type {Record<string, {arrival: string, breakdown: string, egg: string, id: string}>} */ (
-      blackForestBirds
-  )[key];
+  // 独立变量保留字符串索引类型，供未知输入返回 undefined。
+  // noinspection UnnecessaryLocalVariableJS
+  /** @type {Record<string, {arrival: string, breakdown: string, egg: string, id: string}>} */
+  const birds = blackForestBirds;
+  return birds[key];
 }
 
 /**
@@ -577,9 +584,11 @@ function blackForestBirdInfo(key) {
  * @return {{bird: string, labelKey: string, spine: string}|undefined} 蛋的资料。
  */
 function blackForestEggInfo(key) {
-  return /** @type {Record<string, {bird: string, labelKey: string, spine: string}>} */ (
-      blackForestEggs
-  )[key];
+  // 独立变量保留字符串索引类型，供未知输入返回 undefined。
+  // noinspection UnnecessaryLocalVariableJS
+  /** @type {Record<string, {bird: string, labelKey: string, spine: string}>} */
+  const eggs = blackForestEggs;
+  return eggs[key];
 }
 
 /**
@@ -632,6 +641,8 @@ export function createBlackForestCgPlayer(options) {
     throw new Error('Black Forest CG requires a document body.');
   }
   const assetRoot = String(options.assetRoot ?? '').replace(/\/$/, '');
+  // 各演出独立注入时钟与取消接口，生命周期不共享。
+  // noinspection DuplicatedCode
   const now = options.now ??
       (() => host.performance?.now?.() ?? Date.now());
   const requestFrame = options.requestFrame ??
@@ -672,7 +683,7 @@ export function createBlackForestCgPlayer(options) {
   frame.src = `${assetRoot}/${blackForestNarrationCanvas.layers[2]}`;
   root.append(background, image, forward, text, frame);
 
-  /** @type {ReturnType<typeof blackForestCgTimeline>} */
+  /** @type {BlackForestCgTimeline} */
   let timeline = [];
   /** @type {(() => void)|undefined} */
   let listener;
@@ -849,7 +860,7 @@ export function createBlackForestCgPlayer(options) {
       startedAt = now();
       mount();
       renderAt(0);
-      return new Promise((resolve) => {
+      return new Promise(/** @param {() => void} resolve 整段 CG 播放完成回调。 */ (resolve) => {
         settle = resolve;
         frameHandle = requestFrame(tick);
       });
@@ -892,6 +903,8 @@ export function createBlackForestEvent(shared) {
         '[data-lobotomy-corp-black-forest-slot]',
     ) ?? [];
     Array.from(nodes).forEach((node) => {
+      // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+      // noinspection JSUnresolvedReference
       const id = node?.dataset?.lobotomyCorpBlackForestSlot;
       if (typeof id !== 'string' || slots.has(id) || blackForestLegacyConditionalSlots.has(id)) return;
       const page = id.startsWith('history.')

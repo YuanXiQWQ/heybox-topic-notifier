@@ -317,6 +317,8 @@ export function createWhiteNightSimpleAdvent(options) {
   activeSimpleAdvent?.dispose();
 
   const assetRoot = options.assetRoot.replace(/\/$/, '');
+  // 各演出独立注入时钟与取消接口，生命周期不共享。
+  // noinspection DuplicatedCode
   const now = options.now ?? (() => host.performance?.now?.() ?? Date.now());
   const requestFrame = options.requestFrame ?? ((callback) => host.requestAnimationFrame?.(callback) ?? setTimeout(() => callback(now()), 16));
   const cancelFrame = options.cancelFrame ?? ((id) => {
@@ -472,6 +474,8 @@ export function createWhiteNightSimpleAdvent(options) {
     if (notifyHidden) (options.onHidden ?? options.onComplete)?.();
   };
 
+  // 公开的宿主接口按需或经动态脚本调用，保留已声明的控制能力。
+  // noinspection JSUnusedGlobalSymbols
   const controller = {
     dispose: () => complete(false), element: root, finish: () => {
       beginAdventEnd(now());
