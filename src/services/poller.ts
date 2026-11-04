@@ -143,6 +143,17 @@ export function createPoller(
                 runStorage.userId,
               )).sent;
             },
+            async (id) => {
+              if (!notifier.sendService) return false;
+              const { sourceFailureNotification } = await import(
+                "./service_notification.ts"
+              );
+              return (await notifier.sendService(
+                sourceFailureNotification(id, settings),
+                settings,
+                runStorage.userId,
+              )).sent;
+            },
           );
           if (!cached) return;
         } else if (

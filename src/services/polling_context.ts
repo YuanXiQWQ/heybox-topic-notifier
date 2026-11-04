@@ -6,6 +6,7 @@ import { createAppStorage } from "../storage/factory.ts";
 import { defaultAppSettingsFromEnv } from "./default_settings.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
+import { withDetailRelay } from "./heybox_detail_relay.ts";
 import { createPoller } from "./poller.ts";
 import { createPollingNotifier } from "./polling_notifier.ts";
 import { cachePollSchedule } from "../storage/poll_schedule_cache.ts";
@@ -14,7 +15,7 @@ import { cachePollSchedule } from "../storage/poll_schedule_cache.ts";
 export type PollingContext = ReturnType<typeof createPollingContext>;
 
 /**
- * 创建不依赖 HTTP 路由、认证页面及翻译文案的轮询上下文。
+ * 创建不依赖 HTTP 路由和认证页面的轮询上下文，可使用独立详情出口。
  *
  * @param {{cacheSchedule?: boolean, durableNotifications?: boolean}} options 常驻进程的快照缓存与持久投递。
  * @return {object} 默认设置、存储、数据源、匹配器、轮询器与调度器。
@@ -29,7 +30,7 @@ export function createPollingContext(
   const storage = options.cacheSchedule ? cachePollSchedule(backend) : backend;
   const matcher = createMatcher();
   const signatureMode = Deno.env.get("HEYBOX_SIGNATURE_MODE");
-  const source = createHeyboxTopicSource({
+  const directSource = createHeyboxTopicSource({
     cookie: Deno.env.get("HEYBOX_COOKIE") ?? undefined,
     deviceId: Deno.env.get("HEYBOX_DEVICE_ID") ?? undefined,
     signatureMode: signatureMode === "app" || signatureMode === "web"
@@ -37,6 +38,14 @@ export function createPollingContext(
       : undefined,
     userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
   });
+  const relayUrl = Deno.env.get("HEYBOX_DETAIL_RELAY_URL");
+  const relayToken = Deno.env.get("HEYBOX_DETAIL_RELAY_TOKEN");
+  if (Boolean(relayUrl) !== Boolean(relayToken)) {
+    throw new Error("Configure both detail relay URL and token");
+  }
+  const source = relayUrl && relayToken
+    ? withDetailRelay(directSource, { url: relayUrl, token: relayToken })
+    : directSource;
   const pollingNotifier = createPollingNotifier(storage);
   const poller = createPoller({
     matcher,

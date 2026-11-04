@@ -1,4 +1,4 @@
-/** @file 定义独立于帖子记录的服务通知，以及 AI 回退命中的统一说明。 */
+/** @file 定义独立于帖子记录的详情来源与 AI 服务通知，以及回退命中的统一说明。 */
 import type { AppSettings, MatchRecord } from "../models.ts";
 import { getMessages } from "../locales/index.ts";
 
@@ -25,6 +25,25 @@ export function aiFailureNotification(
     id,
     title: messages.notificationAiFailureTitle,
     body: messages.notificationAiFailureBody,
+    path: "/settings",
+  };
+}
+
+/**
+ * 创建详情持续不可用的通知，避免将正常轮询误认为完整抓取成功。
+ * @param {string} id 故障通知的稳定标识。
+ * @param {AppSettings} settings 用户语言设置。
+ * @return {ServiceNotification} 不创建工作区记录的来源故障通知。
+ */
+export function sourceFailureNotification(
+  id: string,
+  settings: AppSettings,
+): ServiceNotification {
+  const messages = getMessages(settings.locale);
+  return {
+    id,
+    title: messages.notificationSourceFailureTitle,
+    body: messages.notificationSourceFailureBody,
     path: "/settings",
   };
 }

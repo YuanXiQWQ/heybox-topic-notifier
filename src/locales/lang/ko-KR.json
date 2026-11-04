@@ -245,6 +245,8 @@
   "notificationEmailFrom": "보내는 사람 이메일",
   "notificationEmailService": "발송 방법",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "게시물 상세 정보 수집 오류",
+  "notificationSourceFailureBody": "일부 게시물의 전체 내용을 15분 이상 가져오지 못해 일치하는 게시물을 놓칠 수 있습니다. Heybox 수집 서비스를 확인하세요. 주기적 확인이 실행 중이어도 판정이 정상이라는 뜻은 아닙니다.",
   "notificationAiFailureTitle": "AI 판정 실패",
   "notificationAiFailureBody": "AI가 판정을 완료하지 못해 이 게시물은 정규식으로 판정합니다. 이후에도 AI를 먼저 시도하고 실패하면 정규식으로 전환합니다. AI 설정이나 계정 잔액을 확인해 주세요.",
   "notificationAiFallback": "이번 일치 항목에는 AI 실패 후 정규식으로 판정한 결과가 포함됩니다.",

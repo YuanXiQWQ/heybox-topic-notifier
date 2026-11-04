@@ -4,7 +4,7 @@ import type { MatchingEntry, MatchingStore } from "./matching_types.ts";
 import { matchingRuntimeForDay } from "../services/matching_engine.ts";
 
 /**
- * 验证两个独立用户缓存的持久化租约、过期及数量边界。
+ * 验证两个独立用户缓存的租约、重试兼容、过期及数量边界。
  * @param {MatchingStore} store 主用户缓存。
  * @param {MatchingStore} other 另一用户缓存。
  */
@@ -96,6 +96,28 @@ export async function verifyMatchingStore(
     insufficient: true,
   });
   assertEquals(await store.pending("insufficient-topic", now), []);
+  await store.put({
+    ...base,
+    key: "legacy-detail",
+    topicId: "detail-topic",
+    result: undefined,
+    pendingPost: queued,
+    attempts: 20,
+    retryAt: now + 6000000,
+  });
+  assertEquals(
+    (await store.pending("detail-topic", now)).map((entry) => entry.key),
+    ["legacy-detail"],
+  );
+  const legacy = (await store.get("legacy-detail"))!;
+  await store.put({
+    ...legacy,
+    attempts: 0,
+    detailAttempts: 1,
+    retryAt: now + 300000,
+  });
+  assertEquals(await store.pending("detail-topic", now), []);
+  assertEquals((await store.pending("detail-topic", now + 300000)).length, 1);
   await store.put({
     ...base,
     key: "insufficient-due",

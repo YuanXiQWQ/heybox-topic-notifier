@@ -245,6 +245,8 @@
   "notificationEmailFrom": "Email người gửi",
   "notificationEmailService": "Phương thức gửi",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "Không thể lấy chi tiết bài viết",
+  "notificationSourceFailureBody": "Không thể lấy nội dung đầy đủ của một số bài viết trong ít nhất 15 phút. Có thể bỏ sót bài phù hợp. Hãy kiểm tra dịch vụ lấy dữ liệu Heybox; việc kiểm tra định kỳ vẫn chạy không có nghĩa là quá trình đối chiếu hoạt động bình thường.",
   "notificationAiFailureTitle": "Đối chiếu bằng AI thất bại",
   "notificationAiFailureBody": "AI không thể hoàn tất đối chiếu. Bài viết này sẽ được kiểm tra bằng biểu thức chính quy. Các bài viết tiếp theo vẫn sẽ thử AI trước và chuyển sang biểu thức chính quy nếu thất bại. Hãy kiểm tra cấu hình AI hoặc số dư tài khoản.",
   "notificationAiFallback": "Các kết quả khớp này bao gồm kết quả từ biểu thức chính quy sau khi AI thất bại.",
