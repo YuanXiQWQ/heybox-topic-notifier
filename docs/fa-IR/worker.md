@@ -1,3 +1,5 @@
+<!-- GitHub 文档用 align 保持 RTL 对齐，代码块单独采用 LTR。 -->
+<!--suppress HtmlDeprecatedAttribute -->
 <div dir="rtl" lang="fa-IR" align="right">
 
 # Worker رلهٔ اعلان
@@ -20,6 +22,7 @@ SendKey امن را می‌پذیرد و آدرس رسمی را مطابق قو�
 4. پس از استقرار، `https://<your-worker>.workers.dev/healthz` را باز کنید و مطمئن شوید `{"status":"ok"}` برمی‌گرداند.
 5. `/etc/heybox-topic-notifier/heybox.env`
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-env'>NOTIFIER_PUSHPLUS_SEND_URL=https://&lt;your-worker&gt;.workers.dev/pushplus
 NOTIFIER_WXPUSHER_SEND_URL=https://&lt;your-worker&gt;.workers.dev/wxpusher
 NOTIFIER_SERVER_CHAN_SEND_URL=https://&lt;your-worker&gt;.workers.dev/serverchan
@@ -28,11 +31,13 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 سمت پروژه فقط زمانی این مورد را ارسال می‌کند که آدرس ارسال PushPlus، WxPusher یا Server酱 به آدرس رله تغییر داده شده باشد:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-http'>Authorization: Bearer &lt;NOTIFIER_RELAY_TOKEN&gt;
 </code></pre>
 
 رلهٔ Server酱 همچنین SendKey را از طریق یک request header اختصاصی عبور می‌دهد:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-http'>X-ServerChan-Send-Key: &lt;serverchan-send-key&gt;
 </code></pre>
 
@@ -40,6 +45,7 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 می‌توانید ابتدا در کنسول Worker یا با curl محلی بررسی کنید که احراز هویت فعال است یا نه:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/pushplus" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "Content-Type: application/json" \
@@ -48,6 +54,7 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 آزمون WxPusher:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/wxpusher" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "Content-Type: application/json" \
@@ -56,6 +63,7 @@ NOTIFIER_RELAY_TOKEN=&lt;same-random-secret&gt;
 
 آزمون Server酱:
 
+<!--suppress HtmlUnknownAttribute -->
 <pre dir='ltr' align='left'><code class='language-bash'>curl -i "https://&lt;your-worker&gt;.workers.dev/serverchan" \
   -H "Authorization: Bearer &lt;same-random-secret&gt;" \
   -H "X-ServerChan-Send-Key: &lt;serverchan-send-key&gt;" \
