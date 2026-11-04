@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 系统启动窗口与网页宿主共用本机明暗背景，图标使用现有应用标志。 -->
+<resources>
+    <color name="startup_background">#F3F1F8</color>
+    <color name="startup_icon">#383C3F</color>
+    <!-- Android 8.0 只支持浅色导航图标，导航栏保持深色以确保可见。 -->
+    <color name="startup_navigation_background">#1C1B27</color>
+    <bool name="startup_light_system_bars">true</bool>
+    <style name="AppThemeBase" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/startup_background</item>
+        <item name="android:statusBarColor">@color/startup_background</item>
+        <item name="android:navigationBarColor">@color/startup_navigation_background</item>
+        <item name="android:windowLightStatusBar">@bool/startup_light_system_bars</item>
+    </style>
+    <style name="AppTheme" parent="AppThemeBase"/>
+    <style name="AppStartingThemeBase" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/startup_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/startup_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme</item>
+        <item name="android:statusBarColor">@color/startup_background</item>
+        <item name="android:navigationBarColor">@color/startup_navigation_background</item>
+        <item name="android:windowLightStatusBar">@bool/startup_light_system_bars</item>
+    </style>
+    <style name="AppStartingTheme" parent="AppStartingThemeBase"/>
+</resources>

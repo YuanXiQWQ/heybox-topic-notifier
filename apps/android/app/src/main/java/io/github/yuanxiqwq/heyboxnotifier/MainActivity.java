@@ -28,6 +28,7 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
+import androidx.core.splashscreen.SplashScreen;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +39,14 @@ import org.json.JSONObject;
 public final class MainActivity extends ComponentActivity {
     private WebView web;
     private FrameLayout root;
+    /** 首次网页内容可绘制前，延续系统启动画面的背景与图标。 */
+    private View startupCover;
+    /** 首屏导航代次使重定向后的页面不会被过期绘制回调提前揭开。 */
+    private long startupNavigation;
+    /** 同一首屏只等待一次外观应用与绘制提交。 */
+    private boolean startupRevealPending;
+    /** 系统网络错误页需要与原生背景匹配的文字色。 */
+    private boolean startupLoadFailed;
     private View fullscreen;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private ValueCallback<Uri[]> fileCallback;
@@ -71,16 +80,24 @@ public final class MainActivity extends ComponentActivity {
     private final Runnable updateTask = this::checkForUpdates;
 
     /**
-     * 按系统明暗创建 WebView 宿主，并限制桥接来源和子框架。
+     * 按系统明暗显示启动图标和 WebView 宿主，并限制桥接来源和子框架。
      * @param {Bundle} saved 进程恢复状态。
      */
     @Override public void onCreate(Bundle saved) {
-        boolean dark = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        setTheme(dark ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
+        SplashScreen.installSplashScreen(this);
         super.onCreate(saved);
         try { device = DeviceState.get(this); notifications = Notifications.get(this, device); updates = Updates.get(this, device, updateListener); }
         catch (Exception error) { finish(); return; }
-        root = new FrameLayout(this); web = new WebView(this); root.addView(web); setContentView(root);
+        root = new FrameLayout(this); web = new WebView(this);
+        root.setBackgroundColor(getColor(R.color.startup_background));
+        web.setBackgroundColor(getColor(R.color.startup_background));
+        root.addView(web);
+        startupCover = new View(this);
+        startupCover.setBackgroundResource(R.drawable.startup_background);
+        startupCover.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        startupCover.setClickable(true);
+        root.addView(startupCover, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(root);
         login = new BrowserLogin(this, device, () -> web.loadUrl(BuildConfig.APP_ORIGIN + "/"));
         root.setOnApplyWindowInsetsListener((view, insets) -> { view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom()); return insets; });
         WebSettings settings = web.getSettings();
@@ -122,9 +139,16 @@ public final class MainActivity extends ComponentActivity {
                 return true;
             }
             /** @param {WebView} view 当前页面。 @param {String} url 页面地址。 @param {android.graphics.Bitmap} icon 图标。 */
-            @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) { reply = null; }
+            @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) { reply = null; startupNavigation++; startupRevealPending = false; startupLoadFailed = false; }
+            /** 仅记录主文档错误，子资源失败不改变页面外观。 @param {WebView} view 当前页面。 @param {WebResourceRequest} request 失败请求。 @param {android.webkit.WebResourceError} error 系统错误。 */
+            @Override public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) { if (request.isForMainFrame()) startupLoadFailed = true; }
+            /** 首屏内容已提交绘制后移除启动图标，后续导航不再显示开屏。 @param {WebView} view 当前页面。 @param {String} url 页面地址。 */
+            @Override public void onPageCommitVisible(WebView view, String url) { revealStartupPage(); }
             /** @param {WebView} view 当前页面。 @param {String} url 页面地址。 */
-            @Override public void onPageFinished(WebView view, String url) { CookieManager.getInstance().flush(); emit(); openPendingNotification(); if (resumed) NotificationService.maintainFromVisible(MainActivity.this, device); }
+            @Override public void onPageFinished(WebView view, String url) {
+                revealStartupPage();
+                CookieManager.getInstance().flush(); emit(); openPendingNotification(); if (resumed) NotificationService.maintainFromVisible(MainActivity.this, device);
+            }
         });
         web.setWebChromeClient(new WebChromeClient() {
             /** @param {WebView} view 页面。 @param {ValueCallback<Uri[]>} callback 文件结果。 @param {FileChooserParams} params 选择要求。 @return {boolean} 是否处理。 */
@@ -152,6 +176,31 @@ public final class MainActivity extends ComponentActivity {
         consumeIntent(getIntent());
         worker.execute(() -> { HonorPush.register(getApplicationContext(), device); emit(); });
         worker.execute(() -> { try { updates.restore(); if (updates.hasPendingResume()) downloadWorker.execute(() -> { try { updates.download(); } catch (Exception error) { /* 检查点保留，用户可再次继续。 */ } }); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
+    }
+    /** 应用本机外观并等待其完成绘制后移除开屏，旧 WebView 也不会先展示浅色网页。 */
+    private void revealStartupPage() {
+        if (startupCover == null || startupRevealPending || isDestroyed()) return;
+        startupRevealPending = true;
+        long navigation = startupNavigation;
+        boolean dark = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        String script = "";
+        try { script = "document.dispatchEvent(new CustomEvent('application-native-state',{detail:" + state() + "}));"; }
+        catch (Exception ignored) { /* 状态暂不可用时保留网页的系统媒体查询外观，后续桥接会继续同步。 */ }
+        if (startupLoadFailed) {
+            // 保留系统错误内容，只为默认网络错误页补足深浅色对比度。
+            script += "document.documentElement.style.backgroundColor='" + (dark ? "#1C1B27" : "#F3F1F8") + "';document.documentElement.style.color='" + (dark ? "#E7EBEF" : "#1D232A") + "';";
+        }
+        web.evaluateJavascript(script, ignored -> {
+            if (isDestroyed() || startupNavigation != navigation) return;
+            web.postVisualStateCallback(navigation, new WebView.VisualStateCallback() {
+                /** 只揭开当前首屏，导航或窗口销毁后的回调不再操作视图。 @param {long} requestId 首屏导航代次。 */
+                @Override public void onComplete(long requestId) {
+                    if (isDestroyed() || startupNavigation != requestId || startupCover == null) return;
+                    root.removeView(startupCover);
+                    startupCover = null;
+                }
+            });
+        });
     }
     /**
      * 帖子优先交给已安装的小黑盒，未安装或无法处理时使用原网页。

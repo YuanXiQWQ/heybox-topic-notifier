@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 夜间资源在进程创建前即可由系统选择，避免启动窗口出现浅色背景。 -->
+<resources>
+    <color name="startup_background">#1C1B27</color>
+    <color name="startup_icon">#E7EBEF</color>
+    <bool name="startup_light_system_bars">false</bool>
+    <style name="AppThemeBase" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/startup_background</item>
+        <item name="android:statusBarColor">@color/startup_background</item>
+        <item name="android:navigationBarColor">@color/startup_navigation_background</item>
+        <item name="android:windowLightStatusBar">@bool/startup_light_system_bars</item>
+    </style>
+</resources>
