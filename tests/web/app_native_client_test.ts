@@ -115,7 +115,10 @@ async function harness(updateControls = false) {
         }),
       });
     },
-    /** @param {string} id 请求编号。 @param {unknown} value 原生回复。 */
+    /**
+     * @param {string} id 请求编号。
+     * @param {unknown} value 原生回复。
+     */
     respond(id: string, value: unknown = state) {
       native.onmessage!({ data: JSON.stringify({ id, value }) });
     },

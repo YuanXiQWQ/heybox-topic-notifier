@@ -115,6 +115,10 @@ export function renderMatchTableRowLinkScript(): string {
         row.setAttribute("aria-label", title || content || postUrl);
       };
 
+      /**
+       * 初始化文档或新插入元素中的可点击行。
+       * @param {Document|Element} [root] 待扫描的文档或子树。
+       */
       const initializeRows = (root = document) => {
         if (root instanceof Element && root.matches(rowSelector)) {
           initializeRow(root);

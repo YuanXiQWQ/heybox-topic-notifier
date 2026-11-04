@@ -117,7 +117,7 @@
    * @return {string} 当前本地页面快照。
    */
   function capturePage() {
-    const clone = initialPage.cloneNode(true);
+    const clone = /** @type {HTMLElement} */ (initialPage.cloneNode(true));
     for (
         const source of document.querySelectorAll(
         '#settings-autosave-form,[data-match-table-section]',
@@ -238,17 +238,21 @@
         )
     ) throw new Error('Unsupported offline action');
     const selected = new Set(form.getAll('matchId').map(String));
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
     const rows = Object.fromEntries(
-        [...document.querySelectorAll('tr[data-record-id]')].filter((row) =>
+        [.../** @type {NodeListOf<HTMLTableRowElement>} */ (document.querySelectorAll('tr[data-record-id]'))].filter((row) =>
             selected.has(row.dataset.recordId)
         ).map((row) => [row.dataset.recordId, row.outerHTML]),
     );
+    // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
+    // noinspection JSUnresolvedReference
     const operation = {
       kind: 'record',
       target: path,
       body: serialize(form),
       rows,
-      records: [...document.querySelectorAll('tr[data-record-id]')].filter(row => selected.has(row.dataset.recordId))
+      records: [.../** @type {NodeListOf<HTMLTableRowElement>} */ (document.querySelectorAll('tr[data-record-id]'))].filter(row => selected.has(row.dataset.recordId))
           .map(row => ({id: row.dataset.recordId, postId: row.dataset.recordPostId})),
       stamp: editStamp(),
     };
@@ -304,6 +308,9 @@
         body.set('csrfToken', session.csrfToken);
         body.set('syncStamp', JSON.stringify(operation.stamp));
         if (operation.kind === 'settings') body.set('syncBase', operation.base);
+        // 两个分支都只包含字符串请求头，未选中的键不会写入对象。
+        // noinspection JSValidateTypes
+        /** @type {Record<string, string>} */
         const headers = operation.kind === 'settings'
             ? {'x-autosave': '1', 'x-settings-sync': '1'}
             : {'x-match-table-refresh': '1', 'x-record-sync': '1'};
@@ -415,7 +422,7 @@
             if (secondary) {
               const cell = document.createElement('td');
               cell.className = 'table-action-cell';
-              const button = secondary.cloneNode(true);
+              const button = /** @type {HTMLButtonElement} */ (secondary.cloneNode(true));
               button.removeAttribute('data-match-secondary-bulk');
               button.setAttribute('data-match-restore', '');
               button.name = 'matchId';
@@ -427,7 +434,7 @@
           table.querySelector('tbody')?.append(row);
         }
       }
-      for (const row of document.querySelectorAll('tr[data-record-id]')) {
+      for (const row of /** @type {NodeListOf<HTMLTableRowElement>} */ (document.querySelectorAll('tr[data-record-id]'))) {
         if (!ids.has(row.dataset.recordId)) continue;
         if (
             operation.target === '/matches/delete' ||
@@ -510,6 +517,8 @@
     while (writes.size) await Promise.all([...writes]);
   }
 
+  // 公开的宿主接口按需或经动态脚本调用，保留已声明的控制能力。
+  // noinspection JSUnusedGlobalSymbols
   globalThis.applicationSync = {
     ready,
     submitSettings: (...args) => tracked(submitSettings, args),

@@ -8,7 +8,7 @@
     /**
      * 发送固定能力请求，不开放任意代码执行或文件访问。
      * @param {string} method 能力名称。
-     * @param {unknown} value 参数。
+     * @param {unknown} [value] 能力参数；无参数请求可以省略。
      * @return {Promise<unknown>} 原生回复。
      */
     const request = (method, value) => {

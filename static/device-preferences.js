@@ -95,7 +95,11 @@
 
   apply();
   if (media?.addEventListener) media.addEventListener("change", apply);
-  else media?.addListener(apply);
+  else {
+    // 不提供标准 change 事件接口的 WebView 通过媒体查询监听器跟随系统主题。
+    // noinspection JSDeprecatedSymbols
+    media?.addListener(apply);
+  }
   document.addEventListener("DOMContentLoaded", apply);
   document.addEventListener("application-native-state", (event) => {
     if (typeof event.detail?.systemDarkMode === "boolean") {
@@ -118,7 +122,8 @@
     }
   });
   document.addEventListener("click", (event) => {
-    const link = event.target.closest?.(".auth-language-options a[href]");
+    if (!(event.target instanceof Element)) return;
+    const link = /** @type {HTMLAnchorElement|null} */ (event.target.closest(".auth-language-options a[href]"));
     if (!link) return;
     const locale = new URL(link.href).searchParams.get("locale");
     if (locale) {

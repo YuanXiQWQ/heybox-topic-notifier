@@ -26,6 +26,8 @@ Deno.test("history sync preserves selection and rejects responses during edits",
     release = resolve;
   });
   let status = 200;
+  // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+  // noinspection JSUnusedGlobalSymbols
   runInNewContext(source, {
     location,
     AbortSignal,
