@@ -2,6 +2,7 @@
  * @file 本文件提供登录、注册、会话读取和认证中间件。
  */
 import { isRecord, passkeyChallengeMaxAttempts, passkeyJsonPayload, passkeyOptionsResponse, recordPasskeyChallengeFailure } from "./auth/passkey_request.ts";
+import { renderApplicationBack } from "./views/html.ts";
 import { normalizeInvitation, secretDigest } from "./auth/roles.ts";
 import type { AccountCreation } from "./storage/administration_types.ts";
 import { Hono } from "@hono/hono";
@@ -3327,6 +3328,7 @@ function authConfig(options: AuthOptions): AuthConfig {
           "/static/app.css",
           "/static/theme-compat.js",
           "/static/device-preferences.js",
+          "/static/app-navigation.js",
           "/static/turnstile.js",
           "/static/tooltip.js",
         ],
@@ -3650,6 +3652,7 @@ function renderAuthPage(options: {
   <head>
     <meta charset="utf-8">
     <script src="/static/device-preferences.js"></script>
+    <script src="/static/app-navigation.js" defer></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.heading)} - ${
     escapeHtml(options.messages.appName)
@@ -3918,6 +3921,7 @@ function renderAuthPage(options: {
   </head>
   <body>
     <header class="topbar">
+      ${renderApplicationBack(options.messages)}
       <span class="brand">${escapeHtml(options.messages.appName)}</span>
       <nav class="primary-nav" aria-label="${
     escapeHtml(options.messages.authNavigation)
@@ -4532,6 +4536,7 @@ function renderMfaPage(options: {
   <head>
     <meta charset="utf-8">
     <script src="/static/device-preferences.js"></script>
+    <script src="/static/app-navigation.js" defer></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.messages.authMfaTitle)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
@@ -4749,6 +4754,7 @@ function renderMfaPage(options: {
   </head>
   <body>
     <header class="topbar">
+      ${renderApplicationBack(options.messages)}
       <span class="brand">${escapeHtml(options.messages.appName)}</span>
       <nav class="primary-nav" aria-label="${
     escapeHtml(options.messages.authNavigation)

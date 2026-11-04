@@ -854,8 +854,6 @@ input[readonly]::placeholder{
 .app-update-actions{ display: flex; justify-content: flex-end; gap: 12px; padding: 0 20px 16px; flex-wrap: wrap; }
 :root[data-application-platform="android"] .app-update-actions > button{ width: 100%; }
 .app-update-unread::after{ background: #df3946; border-radius: 50%; content: ""; display: inline-block; width: 7px; height: 7px; margin-inline-start: 7px; vertical-align: super; flex: 0 0 7px; }
-:root[data-application-platform="android"] .topbar{ padding-top: max(12px, env(safe-area-inset-top)); }
-:root[data-application-platform="android"] .shell{ padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 
 .avatar-crop-header{
   align-items: center;
@@ -3838,3 +3836,74 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .app-update-banner button{ min-height: 30px; padding: 4px 12px; font-size: 13px; }
 @keyframes app-update-rise{ from{ transform: translateY(100%); } to{ transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce){ .app-update-banner{ animation: none; } }
+
+/* 原生应用复用原导航控件；网页保留浏览器导航和原有页面布局。 */
+.app-back-button{ display: none; }
+:root[data-application-platform] .topbar{
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-direction: row;
+  align-items: center;
+  direction: ltr;
+  padding: 0 16px;
+  gap: 12px;
+  min-height: 56px;
+}
+:root[data-application-platform] .topbar > .brand{ display: none; }
+:root[data-application-platform] .app-back-button{
+  display: inline-flex;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  color: var(--theme-link);
+}
+:root[data-application-platform] .app-back-button svg{ width: 24px; height: 24px; fill: none; }
+:root[data-application-platform] .app-back-button:disabled{ color: var(--muted); opacity: .35; cursor: default; background: transparent; }
+.app-navigation-status{ color: var(--muted); font-size: 12px; flex: 1 1 auto; }
+[dir="rtl"][data-application-platform] .topbar > nav,
+[dir="rtl"][data-application-platform] .app-navigation-status{ direction: rtl; }
+:root[data-application-platform="windows"] .topbar > .primary-nav{ width: auto; }
+:root[data-application-platform="android"] .topbar{ padding-top: env(safe-area-inset-top, 0px); }
+:root[data-application-platform="android"] .topbar > .primary-nav:not([data-app-navigation]){ width: auto; display: flex; }
+:root[data-application-platform="android"] [data-app-navigation]{
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+:root[data-application-platform="android"] [data-app-navigation] .nav-link-button{
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 18px auto;
+  gap: 4px;
+  min-height: 56px;
+  padding: 8px 4px;
+  line-height: 1.15;
+  font-size: 14px;
+  text-align: center;
+  white-space: normal;
+}
+:root[data-application-platform="android"] [data-app-navigation] .nav-label{ overflow-wrap: anywhere; grid-area: 2 / 1; }
+:root[data-application-platform="android"] [data-app-navigation] .nav-link-button > .nav-icon,
+:root[data-application-platform="android"] [data-app-navigation] .nav-link-button > .lobotomy-corp-black-forest-egg{ grid-area: 1 / 1; }
+:root[data-application-platform="android"] [data-app-navigation] .app-update-unread::after{ align-self: start; grid-area: 1 / 1; margin-top: -3px; margin-inline-start: 18px; }
+:root[data-application-platform="android"] [data-app-navigation] .nav-account-dropdown{
+  top: auto;
+  bottom: calc(100% - 1px);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 128px);
+  overflow-y: auto;
+}
+:root[data-application-platform="android"] [data-app-navigation] .nav-account-menu-action{ box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
+[dir="rtl"][data-application-platform="android"] [data-app-navigation] .nav-account-dropdown{ left: 0; right: auto; }
+:root[data-application-platform="android"] .shell{ padding-bottom: calc(24px + var(--app-bottom-nav-height, 64px)); }

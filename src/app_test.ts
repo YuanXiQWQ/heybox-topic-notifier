@@ -113,6 +113,21 @@ Deno.test("login theme compatibility script is available without a session", asy
   );
 });
 
+Deno.test("native navigation is available on the unauthenticated login page", async () => {
+  const { app } = createApplication();
+  const script = await app.request("/static/app-navigation.js");
+  assertEquals(script.status, 200);
+  assertEquals(script.headers.get("content-type"), "text/javascript; charset=utf-8");
+  assertEquals(script.headers.get("cache-control"), "no-cache");
+  assert((await script.text()).includes("canGoBack"));
+  const login = await (await app.request("/login")).text();
+  assert(login.includes('<script src="/static/app-navigation.js" defer></script>'));
+  assert(login.includes("data-app-back disabled"));
+  const back = login.match(/<button[^>]*data-app-back[\s\S]*?<\/button>/)?.[0];
+  assert(back);
+  assert(!back.includes("black-forest-slot"));
+});
+
 Deno.test("application omits HSTS for non-HTTPS requests", async () => {
   const { app } = createApplication();
 

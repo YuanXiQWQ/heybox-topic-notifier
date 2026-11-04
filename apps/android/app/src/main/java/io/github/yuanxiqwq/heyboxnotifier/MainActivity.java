@@ -47,6 +47,8 @@ public final class MainActivity extends ComponentActivity {
     private boolean startupRevealPending;
     /** 系统网络错误页需要与原生背景匹配的文字色。 */
     private boolean startupLoadFailed;
+    /** 在主线程读取 WebView 历史，后台状态序列化只读取已发布的布尔值。 */
+    private volatile boolean canNavigateBack;
     private View fullscreen;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private ValueCallback<Uri[]> fileCallback;
@@ -129,6 +131,10 @@ public final class MainActivity extends ComponentActivity {
             @Override public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) { return Assets.read(MainActivity.this, request); }
         });
         web.setWebViewClient(new WebViewClient() {
+            /** 将当前历史位置同步给导航按钮，刷新和前进不误算为新的可返回记录。 @param {WebView} view 当前页面。 @param {String} url 已访问地址。 @param {boolean} reload 是否刷新。 */
+            @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
+                handler.post(() -> { if (!isDestroyed() && web == view) { canNavigateBack = view.canGoBack(); emit(); } });
+            }
             /** @param {WebView} view 当前页面。 @param {WebResourceRequest} request 资源请求。 @return {WebResourceResponse} 安装资源或网络。 */
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) { return Assets.read(MainActivity.this, request); }
             /** @param {WebView} view 当前页面。 @param {WebResourceRequest} request 导航请求。 @return {boolean} 是否由原生处理。 */
@@ -144,8 +150,9 @@ public final class MainActivity extends ComponentActivity {
             @Override public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) { if (request.isForMainFrame()) startupLoadFailed = true; }
             /** 首屏内容已提交绘制后移除启动图标，后续导航不再显示开屏。 @param {WebView} view 当前页面。 @param {String} url 页面地址。 */
             @Override public void onPageCommitVisible(WebView view, String url) { revealStartupPage(); }
-            /** @param {WebView} view 当前页面。 @param {String} url 页面地址。 */
+            /** 页面加载后同步返回状态、启动画面和会话。 @param {WebView} view 当前页面。 @param {String} url 页面地址。 */
             @Override public void onPageFinished(WebView view, String url) {
+                canNavigateBack = view.canGoBack();
                 revealStartupPage();
                 CookieManager.getInstance().flush(); emit(); openPendingNotification(); if (resumed) NotificationService.maintainFromVisible(MainActivity.this, device);
             }
@@ -251,11 +258,11 @@ public final class MainActivity extends ComponentActivity {
         });
     }
     /**
-     * 返回系统明暗、设备偏好和运行状态，不包含令牌和文件路径。
+     * 返回系统明暗、设备偏好、可返回状态和运行状态，不包含令牌和文件路径。
      * @return {JSONObject} 页面可见信息。
      * @throws Exception 状态不可用。
      */
-    private JSONObject state() throws Exception { return new JSONObject().put("platform", "android").put("systemDarkMode", (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES).put("version", BuildConfig.VERSION_NAME).put("preferences", new JSONObject().put("badgeEnabled", device.read().optBoolean("badgeEnabled", true))).put("notifications", notifications.state()).put("update", updates.state()); }
+    private JSONObject state() throws Exception { return new JSONObject().put("platform", "android").put("navigation", new JSONObject().put("canGoBack", canNavigateBack)).put("systemDarkMode", (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES).put("version", BuildConfig.VERSION_NAME).put("preferences", new JSONObject().put("badgeEnabled", device.read().optBoolean("badgeEnabled", true))).put("notifications", notifications.state()).put("update", updates.state()); }
     /**
      * 仅向提出请求的页面端口发送结果，跨页面后丢弃回复。
      * @param {JavaScriptReplyProxy} target 页面端口。

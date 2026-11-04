@@ -239,6 +239,7 @@ async function start() {
       (event) => event.preventDefault(),
   );
   window.webContents.on('did-finish-load', () => emitState());
+  window.webContents.on('did-navigate-in-page', (_event, _url, isMainFrame) => { if (isMainFrame) emitState(); });
   const icon = nativeImage.createFromPath(path.join(resources, 'favicon.png'));
   tray = new Tray(icon.resize({width: 20, height: 20}));
   tray.setToolTip('小黑盒话题提醒');
@@ -492,6 +493,7 @@ function info() {
   const silent = autoUpdateAllowed() && ['available', 'downloading', 'downloaded'].includes(update.status);
   return {
     platform: 'windows',
+    navigation: {canGoBack: Boolean(window && !window.isDestroyed() && !window.webContents.isDestroyed() && window.webContents.navigationHistory?.canGoBack())},
     version: app.getVersion(),
     preferences: {
       closeAction: device.value.closeAction === 'quit' ? 'quit' : 'minimize',
