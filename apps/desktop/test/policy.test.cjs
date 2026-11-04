@@ -2,7 +2,15 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const {applicationOrigin, assetPath, externalUrl} = require('../policy.cjs');
+const {applicationOrigin, applicationUserAgent, assetPath, externalUrl} = require('../policy.cjs');
+
+test('network product names remain ASCII without changing runtime versions', () => {
+  const original = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) 小黑盒话题提醒/3.13.3 Chrome/156.0.8078.49 Electron/45.1.0';
+  const result = applicationUserAgent(original);
+  assert.equal(result, original.replace('小黑盒话题提醒', 'HeyboxTopicNotifier'));
+  assert.doesNotThrow(() => new Headers({'user-agent': result}));
+  assert.equal(applicationUserAgent(result), result);
+});
 
 test('application origins reject insecure servers and credential URLs', () => {
   assert.equal(

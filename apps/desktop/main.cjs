@@ -20,10 +20,9 @@ const {repairUpdateCache} = require('./update-cache.cjs');
 const {readInstallFailure, clearInstallFailure} = require('./update-recovery.cjs');
 const {installResumableDownload, restoreResume} = require('./resumable-download.cjs');
 const {createNotificationInbox} = require('./notification-inbox.cjs');
-const fs = require('node:fs/promises');
 const path = require('node:path');
-const {pathToFileURL} = require('node:url');
-const {applicationOrigin, assetPath, externalUrl} = require('./policy.cjs');
+const {applicationOrigin, applicationUserAgent, externalUrl} = require('./policy.cjs');
+const {installAssets} = require('./assets.cjs');
 const {deviceState} = require('./state.cjs');
 const {browserLogin} = require('./login.cjs');
 const config = require('./config.json');
@@ -195,8 +194,10 @@ async function start() {
     delete device.value.autoUpdateReady;
     await device.save();
   }
+  // 窗口标题使用中文，网络产品标记必须保持 ASCII 才能被浏览器请求 API 接纳。
+  app.userAgentFallback = applicationUserAgent(app.userAgentFallback);
   webSession = session.fromPartition('persist:heybox-app');
-  await installAssets();
+  await installAssets(webSession, origin, resources, net);
   webSession.setPermissionRequestHandler((_contents, _permission, callback) =>
       callback(false)
   );
@@ -385,38 +386,6 @@ function resetWindow() {
   window.setSize(Math.min(1200, area.width), Math.min(840, area.height));
   window.center();
   return info();
-}
-
-/**
- * 在服务不可达时读取同路径安装资源，脚本在线时优先跟随当前网页版本。
- * @return {Promise<void>} 协议处理器就绪。
- */
-async function installAssets() {
-  const scheme = new URL(origin).protocol.slice(0, -1);
-  await webSession.protocol.handle(scheme, async (request) => {
-    const local = assetPath(resources, request.url, origin);
-    if (local) {
-      const script = /\.(?:js|css|json)$/.test(local);
-      if (script) {
-        try {
-          const response = await webSession.fetch(request, {
-            bypassCustomProtocolHandlers: true,
-          });
-          if (response.ok) return response;
-        } catch { /* 离线脚本使用安装包版本。 */
-        }
-      }
-      try {
-        if ((await fs.stat(local)).isFile()) {
-          return await net.fetch(pathToFileURL(local).href, {
-            headers: request.headers,
-          });
-        }
-      } catch { /* 未打包的资源继续由本站处理。 */
-      }
-    }
-    return webSession.fetch(request, {bypassCustomProtocolHandlers: true});
-  });
 }
 
 /**
