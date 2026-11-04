@@ -6,6 +6,7 @@ import {
 } from "./heybox_detail_relay.ts";
 import type { TopicPost } from "../models.ts";
 import type { TopicSource } from "./topic_source.ts";
+import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 
 /** 固定测试密钥不具备生产访问权限。 */
 const token = "test-only-detail-relay-token-00000000";
@@ -20,6 +21,43 @@ const post: TopicPost = {
   publishedAt: "2026-11-04",
   url: "https://www.xiaoheihe.cn/app/bbs/link/abc123",
 };
+
+Deno.test("deleted Heybox content does not block subsequent valid details through the relay", async () => {
+  let calls = 0;
+  const source = createHeyboxTopicSource({
+    fetchFn: (input) => {
+      calls++;
+      const id = new URL(String(input)).searchParams.get("link_id");
+      return Promise.resolve(
+        Response.json(
+          id === "deleted"
+            ? { status: "failed", msg: "该内容已被删除", result: {} }
+            : {
+              status: "ok",
+              result: {
+                link: { linkid: id, title: "怎么通过？", description: "zsbd" },
+              },
+            },
+        ),
+      );
+    },
+  });
+  const handler = createDetailRelayHandler({ token, source });
+  const client = withDetailRelay(source, {
+    url: "https://relay.example/v1/details",
+    token,
+    fetchFn: (url, init) => handler(new Request(url, init)),
+  });
+  assertEquals(
+    (await client.getPostDetails!({ ...post, id: "deleted" })).detailsComplete,
+    false,
+  );
+  assertEquals(source.detailRetryAfter!(), 0);
+  const complete = await client.getPostDetails!(post);
+  assertEquals(complete.detailsComplete, true);
+  assertEquals(complete.body, "zsbd");
+  assertEquals(calls, 2);
+});
 
 /**
  * 构建固定出口请求。
