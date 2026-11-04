@@ -235,6 +235,8 @@
   "notificationEmailFrom": "Email pengirim",
   "notificationEmailService": "Metode pengiriman",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "Detail postingan tidak tersedia",
+  "notificationSourceFailureBody": "Detail lengkap beberapa postingan tidak tersedia selama setidaknya 15 menit. Beberapa kecocokan mungkin terlewat. Periksa layanan pengambilan data Heybox; pemeriksaan berkala yang aktif tidak berarti pencocokan berjalan normal.",
   "notificationAiFailureTitle": "Pencocokan AI gagal",
   "notificationAiFailureBody": "AI tidak dapat menyelesaikan pencocokan. Postingan ini akan menggunakan ekspresi reguler. AI tetap akan dicoba untuk postingan berikutnya, dengan peralihan ke ekspresi reguler jika gagal. Periksa pengaturan AI atau saldo akun Anda.",
   "notificationAiFallback": "Kecocokan ini mencakup hasil ekspresi reguler yang digunakan setelah AI gagal.",

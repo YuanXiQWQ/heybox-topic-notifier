@@ -81,6 +81,19 @@ export function createHeyboxTopicSource(
 
   return {
     /**
+     * 返回整个详情来源的冷却时间，供独立出口向调用方传递退避状态。
+     * @return {number} 剩余秒数。
+     */
+    detailRetryAfter(): number {
+      return Math.max(
+        0,
+        Math.ceil(
+          (detailBlockedUntil - (config.now?.() ?? new Date()).getTime()) /
+            1000,
+        ),
+      );
+    },
+    /**
      * 获取帖子详情并与列表帖子合并。
      *
      * @param post 列表接口返回的帖子。
@@ -197,6 +210,7 @@ export function createHeyboxTopicSource(
         ? { ...mergeTopicPosts(post, detailPost), detailsComplete: true }
         : { ...post, detailsComplete: false };
     } catch {
+      pauseRestrictedDetails("request_failed", 60000);
       return { ...post, detailsComplete: false };
     }
   }
@@ -240,6 +254,9 @@ export function createHeyboxTopicSource(
     }
     if (!response.ok) {
       await response.body?.cancel();
+      if (response.status !== 404 && response.status !== 410) {
+        pauseRestrictedDetails(`http_${response.status}`, 60000);
+      }
       return undefined;
     }
 
@@ -260,10 +277,14 @@ export function createHeyboxTopicSource(
   /**
    * 暂停受限制的详情接口，并记录不含请求身份或帖子内容的诊断信息。
    * @param {string} reason 上游返回的固定限制类型。
+   * @param {number} durationMs 冷却毫秒数，验证码和限流默认十五分钟。
    */
-  function pauseRestrictedDetails(reason: string): void {
+  function pauseRestrictedDetails(
+    reason: string,
+    durationMs = detailRestrictionCooldownMs,
+  ): void {
     detailBlockedUntil = (config.now?.() ?? new Date()).getTime() +
-      detailRestrictionCooldownMs;
+      durationMs;
     console.warn(JSON.stringify({
       event: "heybox_detail_restricted",
       reason,

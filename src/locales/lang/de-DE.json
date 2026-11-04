@@ -245,6 +245,8 @@
   "notificationEmailFrom": "Absenderadresse",
   "notificationEmailService": "Versandmethode",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "Beitragsdetails nicht verfügbar",
+  "notificationSourceFailureBody": "Vollständige Details einiger Beiträge sind seit mindestens 15 Minuten nicht verfügbar. Treffer können fehlen. Prüfen Sie den Heybox-Abrufdienst; laufende Abfragen bedeuten nicht, dass die Erkennung normal funktioniert.",
   "notificationAiFailureTitle": "KI-Abgleich fehlgeschlagen",
   "notificationAiFailureBody": "Die KI konnte den Abgleich nicht abschließen. Für diesen Beitrag werden reguläre Ausdrücke verwendet. Bei weiteren Beiträgen wird die KI weiterhin zuerst versucht; bei Fehlern greifen reguläre Ausdrücke. Bitte KI-Einstellungen oder Kontoguthaben prüfen.",
   "notificationAiFallback": "Diese Treffer enthalten Ergebnisse aus regulären Ausdrücken nach einem KI-Fehler.",

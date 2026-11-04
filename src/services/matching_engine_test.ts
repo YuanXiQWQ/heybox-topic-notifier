@@ -14,6 +14,10 @@ import { normalizeMatchResult } from "./match_result.ts";
 import { createPollingNotifier } from "./polling_notifier.ts";
 import { createNotifier } from "./notifier.ts";
 import { getMessages } from "../locales/index.ts";
+import {
+  createDetailRelayHandler,
+  withDetailRelay,
+} from "./heybox_detail_relay.ts";
 
 /**
  * 构造包含指定标识和正文的测试帖子。
@@ -38,10 +42,13 @@ function post(id = "p1", body = "关卡问题"): TopicPost {
 /**
  * 创建真实内存 KV 与可控 AI、时钟，关闭时释放全部资源。
  * @param {(id: string) => Promise<boolean>} notifyAiFailure 故障投递器。
+ * @param {(id: string) => Promise<boolean>} notifySourceFailure 来源故障投递器。
  * @return {Promise<object>} 测试上下文。
  */
 async function fixture(
   notifyAiFailure: (id: string) => Promise<boolean> = () =>
+    Promise.resolve(false),
+  notifySourceFailure: (id: string) => Promise<boolean> = () =>
     Promise.resolve(false),
 ) {
   const kv = await Deno.openKv(":memory:");
@@ -94,6 +101,7 @@ async function fixture(
       ai,
       () => time,
       notifyAiFailure,
+      notifySourceFailure,
     );
     assert(session);
     try {
@@ -230,6 +238,65 @@ Deno.test("matching invalidates changed content and prompts but not price or bud
   }
 });
 
+Deno.test("poller reads full relay details, saves the AI hit and sends only one notification", async () => {
+  const f = await fixture();
+  try {
+    let upstreamCalls = 0, notifications = 0;
+    const relaySource: TopicSource = {
+      listLatestPosts: () => Promise.resolve([]),
+      getPostDetails: (value) => {
+        upstreamCalls++;
+        return Promise.resolve({
+          ...value,
+          body: "完整关卡求助正文",
+          detailsComplete: true,
+        });
+      },
+    };
+    const token = "test-only-relay-integration-token-0000";
+    const handler = createDetailRelayHandler({ token, source: relaySource });
+    f.source.listLatestPosts = () => Promise.resolve([post()]);
+    f.source.getPostDetails = () =>
+      Promise.reject(new Error("Oracle details unavailable"));
+    const source = withDetailRelay(f.source, {
+      url: "https://relay.example/v1/details",
+      token,
+      fetchFn: (url, init) => handler(new Request(url, init)),
+    });
+    f.decide({
+      decision: "match",
+      reason: "关卡求助",
+      location: "body",
+      inputTokens: 10,
+      outputTokens: 5,
+      usageKnown: true,
+    });
+    const poller = createPoller({
+      matcher: createMatcher(),
+      storage: f.storage,
+      source,
+      ai: f.ai,
+      notifier: {
+        sendMatches: () => {
+          notifications++;
+          return Promise.resolve({ sent: true, provider: "webhook" as const });
+        },
+      },
+    });
+    await poller.runOnce(f.storage, f.app);
+    await poller.runOnce(f.storage, f.app);
+    const history = await f.storage.listHistory();
+    assertEquals(history.length, 1);
+    assertEquals(history[0].post.body, "完整关卡求助正文");
+    assertEquals(history[0].post.detailsComplete, true);
+    assertEquals(notifications, 1);
+    assertEquals(upstreamCalls, 1);
+    assertEquals(f.calls(), 1);
+  } finally {
+    f.close();
+  }
+});
+
 Deno.test("cached AI details retain their type and missing legacy locations do not require paid reclassification", async () => {
   const f = await fixture();
   try {
@@ -351,13 +418,227 @@ Deno.test("failed calls never become negative results and keep trying AI beyond 
   }
 });
 
-Deno.test("incomplete details do not call AI or cache a negative result", async () => {
+Deno.test("incomplete details classify once without caching a negative result", async () => {
   const f = await fixture();
   try {
     f.source.getPostDetails = (value) =>
       Promise.resolve({ ...value, detailsComplete: false });
     await f.run();
+    assertEquals(f.calls(), 1);
+    assertEquals((await f.store.runtime())?.pendingCount, 1);
+    const key = await matchingHash(["topic", "p1"]);
+    assertEquals((await f.store.get(key))?.result, undefined);
+    f.advance(900000);
+    await f.run();
+    assertEquals(f.calls(), 1);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("persistent detail failures notify once across sessions and days and clear on recovery", async () => {
+  const notices: string[] = [];
+  const f = await fixture(undefined, (id) => {
+    notices.push(id);
+    return Promise.resolve(true);
+  });
+  try {
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: false });
+    await f.run();
+    assertEquals(notices.length, 0);
+    f.advance(899999);
+    await f.run();
+    assertEquals(notices.length, 0);
+    f.advance(1);
+    await f.run();
+    assertEquals(notices.length, 1);
+    f.advance(matchingDayMs);
+    await f.run();
+    assertEquals(notices.length, 1);
+    assertEquals((await f.store.runtime())?.sourceFailure?.notified, true);
+    f.advance(900000);
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: true });
+    await f.run();
+    assertEquals((await f.store.runtime())?.sourceFailure, undefined);
+    assertEquals((await f.storage.listHistory()).length, 0);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("failed detail outage notifications retry with the same identity without creating matches", async () => {
+  const notices: string[] = [];
+  const f = await fixture(undefined, (id) => {
+    notices.push(id);
+    return Promise.resolve(notices.length > 1);
+  });
+  try {
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: false });
+    await f.run();
+    f.advance(900000);
+    await f.run();
+    assertEquals((await f.store.runtime())?.sourceFailure?.notified, false);
+    f.advance(60000);
+    await f.run();
+    assertEquals(notices.length, 2);
+    assertEquals(notices[0], notices[1]);
+    assertEquals((await f.store.runtime())?.sourceFailure?.notified, true);
+    assertEquals((await f.storage.listHistory()).length, 0);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("detail failures cap retries and do not consume insufficient AI attempts", async () => {
+  const f = await fixture();
+  try {
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: false });
+    const key = await matchingHash(["topic", "p1"]);
+    for (let failure = 1; failure <= 12; failure++) {
+      await f.run();
+      const entry = (await f.store.get(key))!;
+      assertEquals(entry.attempts, 0);
+      assertEquals(entry.detailAttempts, Math.min(failure, 3));
+      assertEquals(entry.retryAt - f.now(), Math.min(failure, 3) * 300000);
+      f.advance(entry.retryAt - f.now());
+    }
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: true });
+    f.decide({
+      decision: "insufficient",
+      inputTokens: 1,
+      outputTokens: 1,
+      usageKnown: true,
+    });
+    await f.run();
+    const entry = (await f.store.get(key))!;
+    assertEquals(f.calls(), 2);
+    assertEquals(entry.attempts, 1);
+    assertEquals(entry.detailAttempts, 0);
+    assertEquals(entry.retryAt - f.now(), 300000);
+    f.advance(300000);
+    f.decide({
+      decision: "match",
+      inputTokens: 1,
+      outputTokens: 1,
+      usageKnown: true,
+    });
+    assert((await f.run())[0]);
+    assertEquals((await f.store.runtime())?.pendingCount, 0);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("legacy detail failure counts do not freeze the first insufficient AI response", async () => {
+  const f = await fixture();
+  try {
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: false });
+    await f.run();
+    const key = await matchingHash(["topic", "p1"]);
+    const entry = (await f.store.get(key))!;
+    delete entry.detailAttempts;
+    await f.store.put({ ...entry, attempts: 20, retryAt: f.now() + 6000000 });
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: true });
+    f.decide({
+      decision: "insufficient",
+      inputTokens: 1,
+      outputTokens: 1,
+      usageKnown: true,
+    });
+    await f.run([]);
+    const updated = (await f.store.get(key))!;
+    assertEquals(updated.attempts, 1);
+    assertEquals(updated.retryAt - f.now(), 300000);
+    assert(updated.retryAt < updated.expiresAt);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("partial positive AI decisions produce matches while retaining the source warning", async () => {
+  const f = await fixture();
+  try {
+    f.source.getPostDetails = () => Promise.reject(new Error("unavailable"));
+    f.decide({
+      decision: "match",
+      location: "title",
+      inputTokens: 1,
+      outputTokens: 1,
+      usageKnown: true,
+    });
+    assert((await f.run())[0]);
+    assertEquals((await f.store.runtime())?.pendingCount, 0);
+    assert((await f.store.runtime())?.lastError?.includes("详情"));
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("partial insufficient decisions keep full-detail retries alive and changed text is reconsidered", async () => {
+  const f = await fixture();
+  try {
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: false });
+    f.decide({
+      decision: "insufficient",
+      inputTokens: 1,
+      outputTokens: 1,
+      usageKnown: true,
+    });
+    for (let i = 0; i < 5; i++) {
+      await f.run();
+      f.advance(900000);
+    }
+    assertEquals(f.calls(), 1);
+    const key = await matchingHash(["topic", "p1"]);
+    assertEquals((await f.store.get(key))?.insufficient, undefined);
+    assertEquals((await f.store.get(key))?.attempts, 0);
+    await f.run([post("p1", "补充了求助说明")]);
+    assertEquals(f.calls(), 2);
+    f.advance(900000);
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: true });
+    f.decide({
+      decision: "match",
+      inputTokens: 1,
+      outputTokens: 1,
+      usageKnown: true,
+    });
+    assert((await f.run([]))[0]);
+    assertEquals(f.calls(), 3);
+    assertEquals((await f.store.runtime())?.pendingCount, 0);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("partial content does not turn hybrid keyword misses or AI errors into final decisions", async () => {
+  const f = await fixture();
+  try {
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({ ...value, detailsComplete: false });
+    f.app.matching!.mode = "hybrid";
+    assertEquals(await f.run(), [undefined]);
     assertEquals(f.calls(), 0);
+    assertEquals((await f.store.runtime())?.pendingCount, 1);
+    f.app.matching!.mode = "ai";
+    f.decide({
+      error: "AI HTTP 503",
+      inputTokens: 0,
+      outputTokens: 0,
+      usageKnown: false,
+    });
+    assertEquals(await f.run([post("p1", "求助")]), [undefined]);
+    const entry = (await f.store.get(await matchingHash(["topic", "p1"])))!;
+    assertEquals(entry.result, undefined);
+    assertEquals(entry.retryAt - f.now(), 300000);
     assertEquals((await f.store.runtime())?.pendingCount, 1);
   } finally {
     f.close();

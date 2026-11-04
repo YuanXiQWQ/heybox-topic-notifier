@@ -159,7 +159,7 @@ export function createTursoMatchingStore(
       });
     },
     /**
-     * 读取到期待处理帖子，并允许冻结至过期时间的兼容条目恢复处理。
+     * 读取到期待处理帖子，并恢复共用详情重试计数或冻结至过期时间的兼容条目。
      *
      * @param {string} topicId 话题。
      * @param {number} now 当前时间。
@@ -169,7 +169,10 @@ export function createTursoMatchingStore(
       const result = await execute({
         sql:
           `SELECT value_json FROM matching_cache WHERE user_id = ? AND topic_id = ? AND pending = 1
-        AND (retry_at <= ? OR (retry_at = expires_at AND json_extract(value_json, '$.attempts') >= 3
+        AND (retry_at <= ? OR (json_type(value_json, '$.detailAttempts') IS NULL
+          AND COALESCE(json_extract(value_json, '$.insufficient'), 0) = 0
+          AND json_extract(value_json, '$.attempts') > 0 AND json_type(value_json, '$.result') IS NULL)
+          OR (retry_at = expires_at AND json_extract(value_json, '$.attempts') >= 3
           AND COALESCE(json_extract(value_json, '$.insufficient'), 0) = 0))
         AND expires_at > ? ORDER BY retry_at, last_seen_at LIMIT 20`,
         args: [userId, topicId, now, now],

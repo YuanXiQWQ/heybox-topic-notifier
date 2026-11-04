@@ -235,6 +235,8 @@
   "notificationEmailFrom": "From address",
   "notificationEmailService": "Sending method",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "Post details unavailable",
+  "notificationSourceFailureBody": "Full details for some posts have been unavailable for at least 15 minutes. Matches may be missed. Check the Heybox fetching service; active polling does not mean matching is working normally.",
   "notificationAiFailureTitle": "AI matching failed",
   "notificationAiFailureBody": "AI could not complete matching. This post will use regular expression matching. AI will still be tried for subsequent posts, with a fallback on failure. Please check your AI settings or account balance.",
   "notificationAiFallback": "These matches include regular expression results used after AI failed.",

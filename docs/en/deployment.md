@@ -81,6 +81,23 @@ Real Heybox topic fetching is the only active runtime data source. The default
 diagnostic fallback. New accounts start with polling disabled; fetching only begins after the account
 turns on the "enable polling" setting on its settings page.
 
+## Independent Heybox detail service
+
+When a self-hosted server can read topic feeds but detail requests repeatedly return `show_captcha`, use a separately verified network location for details. Scheduling, accounts, Turso, AI matching and notifications remain in the main service.
+
+Run [`src/detail_relay.ts`](../../src/detail_relay.ts) with `deno task start:detail-relay`, or select it as the entrypoint of a separate Deno Deploy app. Configure only a dedicated `HEYBOX_DETAIL_RELAY_TOKEN` of at least 32 characters. This entrypoint does not start KV, database connections, cron jobs or the main website. Pin deployment to a verified commit; do not copy database, login, email or notification credentials into this service.
+
+Set both variables in the main server's private environment file, then restart it:
+
+```dotenv
+HEYBOX_DETAIL_RELAY_URL=https://YOUR_RELAY/v1/details
+HEYBOX_DETAIL_RELAY_TOKEN=<DEDICATED_RANDOM_SECRET>
+```
+
+The token must match the detail service. Requests carry only a post ID; arbitrary destination URLs are rejected. HTTPS, Bearer authentication, timeouts, response limits, short-lived caching and in-flight deduplication apply. Failed requests trigger a shared cooldown to avoid repeatedly consuming quotas for every queued post. `GET /healthz` confirms only that the process is running. Verify actual full details, matching and notification delivery before accepting the deployment.
+
+Oracle's `heybox_detail_relay_success` logs include response bytes and elapsed time; `heybox_detail_relay_failed` and `heybox_detail_relay_cooldown` indicate failures. Check actual platform CPU, memory time, requests and egress against the account's limits. Avoiding KV does not by itself guarantee sufficient free-tier capacity. Pending queues and partial-content classification are safeguards during outages, not proof of upstream availability.
+
 ## Notification Relay
 
 The VM saves new matches and their notification jobs together in Turso. Each channel retries temporary failures independently and pending jobs can resume after a restart. Test notifications exercise the selected channels without creating workspace records.

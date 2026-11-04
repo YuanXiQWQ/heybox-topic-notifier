@@ -17,6 +17,10 @@ export type MatchingEntry = {
   /** 模型正常返回信息不足；保持待判断，达到三次后等待内容、配置变化或过期。 */
   insufficient?: boolean;
   pendingPost?: TopicPost;
+  /** 详情获取失败次数，与模型的信息不足次数独立，最多退避十五分钟。 */
+  detailAttempts?: number;
+  /** 已完成但未命中的不完整内容指纹；同样内容不重复消费 AI，仍重试完整详情。 */
+  partialFingerprint?: string;
   attempts: number;
   retryAt: number;
 };
@@ -54,6 +58,8 @@ export type MatchingRuntime = {
   lastError?: string;
   /** 连续 AI 失败的通知状态，跨轮询保留，成功判定或 UTC 日期变化后清除。 */
   aiFailure?: { id: string; notified: boolean };
+  /** 持续详情故障的独立通知状态，不混同 AI 接口故障，跨 UTC 日期保留。 */
+  sourceFailure?: { id: string; notified: boolean; startedAt: number };
   topics: Record<string, TopicActivity>;
 };
 

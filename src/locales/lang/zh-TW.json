@@ -245,6 +245,8 @@
   "notificationEmailFrom": "寄件人電子郵件",
   "notificationEmailService": "寄送方式",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "文章詳細資料取得異常",
+  "notificationSourceFailureBody": "部分文章的完整內容已持續至少 15 分鐘無法取得，可能漏報。請檢查小黑盒資料擷取服務；輪詢仍在執行不代表比對正常。",
   "notificationAiFailureTitle": "AI 比對失敗",
   "notificationAiFailureBody": "AI 未能完成比對，目前貼文將改用正則比對。後續仍會嘗試 AI，失敗時再回退。請檢查 AI 設定或帳戶餘額。",
   "notificationAiFallback": "本輪命中包含 AI 失敗後回退的正則比對結果。",

@@ -16,6 +16,11 @@ export type TopicListOptions = {
  */
 export type TopicSource = {
   /**
+   * 读取整个详情来源的剩余冷却时间；单帖不可用不触发全局冷却。
+   * @return {number} 剩余秒数，没有来源级限制时为零。
+   */
+  detailRetryAfter?(): number;
+  /**
    * 获取帖子详情。
    */
   getPostDetails?(post: TopicPost): Promise<TopicPost>;
