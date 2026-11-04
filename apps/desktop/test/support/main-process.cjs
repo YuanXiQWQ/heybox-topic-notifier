@@ -7,7 +7,7 @@ const {EventEmitter} = require('node:events');
 
 /**
  * 以依赖替身执行真实主进程逻辑，不启动应用窗口或网络连接。
- * @param {object} options 可选真实更新器与缓存校验器。
+ * @param {object} options 可选打包状态、真实更新器与缓存校验器。
  * @return {object} 原生事件和受控窗口。
  */
 function harness(options = {}) {
@@ -42,6 +42,8 @@ function harness(options = {}) {
     },
   };
   const window = {
+    /** @param {object} value 当前窗口注册的任务栏标识和图标。 */
+    setAppDetails(value) { window.appDetails = value; },
     webContents: contents,
     isDestroyed: () => false,
     loadURL: (url) => opened.push(url),
@@ -56,8 +58,10 @@ function harness(options = {}) {
     }
   };
   const app = {
-    isPackaged: true,
-    setAppUserModelId() {
+    isPackaged: options.isPackaged ?? true,
+    /** @param {string} value 进程注册的 Windows 应用标识。 */
+    setAppUserModelId(value) {
+      app.userModelId = value;
     },
     enableSandbox() {
     },
@@ -132,7 +136,7 @@ function harness(options = {}) {
                 : name === 'electron-updater'
                     ? {autoUpdater: updater}
                     : localRequire(name),
-    process: {resourcesPath: 'resources', env: {}},
+    process: {resourcesPath: 'resources', env: {}, platform: 'win32'},
     __dirname: path.dirname(filename),
     console,
     URL,
@@ -155,7 +159,7 @@ function harness(options = {}) {
         installBridge(inbox);
         return {
           inbox, checkUpdate, downloadUpdate, info, prepareExit, showWindow, setPreferences,
-          handleWindowClose, resetWindow, installUpdater, installJumpList, handleLaunchAction,
+          handleWindowClose, resetWindow, installUpdater, installJumpList, handleLaunchAction, configureWindowIdentity,
           markConfirmedResume(value) { confirmedResumeDigest = value; update.status = 'idle'; },
           markCachedUpdate() { installCachedUpdateOnStart = true; },
         };
