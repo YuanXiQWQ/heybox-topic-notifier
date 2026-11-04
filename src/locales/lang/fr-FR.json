@@ -245,6 +245,8 @@
   "notificationEmailFrom": "Adresse de l'expéditeur",
   "notificationEmailService": "Méthode d'envoi",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "Détails des publications indisponibles",
+  "notificationSourceFailureBody": "Les détails complets de certaines publications sont indisponibles depuis au moins 15 minutes. Des correspondances peuvent être manquées. Vérifiez le service de collecte Heybox ; une vérification active ne garantit pas une détection normale.",
   "notificationAiFailureTitle": "Échec de la détection par IA",
   "notificationAiFailureBody": "L’IA n’a pas pu terminer la détection. Ce message sera analysé par expressions régulières. L’IA sera toujours essayée pour les messages suivants, avec repli en cas d’échec. Vérifiez les paramètres de l’IA ou le solde du compte.",
   "notificationAiFallback": "Ces correspondances incluent des résultats obtenus par expressions régulières après un échec de l’IA.",

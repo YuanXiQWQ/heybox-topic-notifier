@@ -69,6 +69,39 @@ Deno.test("AI sends bounded isolated JSON and reads structured decisions and usa
   assertEquals(text.title.length + text.body.length + text.excerpt.length, 200);
 });
 
+Deno.test("AI explicitly marks partial source content and requires evidence for positive matches", async () => {
+  const matcher = createAiMatcher({
+    resolveDns: () => Promise.resolve(["93.184.216.34"]),
+    fetch: (_url, init) => {
+      const request = JSON.parse(String(init?.body));
+      assertEquals(
+        JSON.parse(request.messages[1].content).detailsComplete,
+        false,
+      );
+      assert(request.messages[0].content.includes("不得推测缺失内容"));
+      return Promise.resolve(
+        Response.json({
+          choices: [{
+            finish_reason: "stop",
+            message: {
+              content: '{"decision":"insufficient","reason":"内容不足"}',
+            },
+          }],
+        }),
+      );
+    },
+  });
+  assertEquals(
+    (await matcher.classify({ ...sample, detailsComplete: false }, settings))
+      .decision,
+    "insufficient",
+  );
+  assertEquals(
+    JSON.parse(aiPostText(sample, settings)).detailsComplete,
+    undefined,
+  );
+});
+
 Deno.test("AI reasons are single-line and bounded; locations must refer to transmitted nonempty fields", async () => {
   const cases = [
     { location: "title", expected: "title" },

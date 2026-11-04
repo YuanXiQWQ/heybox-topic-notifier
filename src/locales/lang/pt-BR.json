@@ -245,6 +245,8 @@
   "notificationEmailFrom": "E-mail do remetente",
   "notificationEmailService": "Método de envio",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "Detalhes das publicações indisponíveis",
+  "notificationSourceFailureBody": "Os detalhes completos de algumas publicações estão indisponíveis há pelo menos 15 minutos. Algumas correspondências podem passar despercebidas. Verifique o serviço de coleta do Heybox; consultas ativas não garantem que a detecção funcione normalmente.",
   "notificationAiFailureTitle": "Falha na detecção por IA",
   "notificationAiFailureBody": "A IA não conseguiu concluir a detecção. Esta publicação será avaliada por expressões regulares. A IA continuará sendo tentada nas próximas publicações, com essa alternativa em caso de falha. Verifique as configurações da IA ou o saldo da conta.",
   "notificationAiFallback": "Estas correspondências incluem resultados de expressões regulares após uma falha da IA.",

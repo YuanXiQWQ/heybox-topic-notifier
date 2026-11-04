@@ -55,4 +55,13 @@ function assetPath(root, value, origin) {
   return resolved;
 }
 
-module.exports = {applicationOrigin, externalUrl, assetPath};
+/**
+ * 将宿主显示名中的非 ASCII 字符转换为稳定的 HTTP 产品标记，保持 Chromium 版本信息。
+ * @param {string} value Electron 默认生成的 User-Agent。
+ * @return {string} 可用于浏览器请求头及 Service Worker 请求克隆的 User-Agent。
+ */
+function applicationUserAgent(value) {
+  return value.replace(/[^\x20-\x7e]+/g, 'HeyboxTopicNotifier');
+}
+
+module.exports = {applicationOrigin, externalUrl, assetPath, applicationUserAgent};

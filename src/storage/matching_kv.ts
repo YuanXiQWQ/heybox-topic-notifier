@@ -168,7 +168,7 @@ export function createKvMatchingStore(
       await operation.commit();
     },
     /**
-     * 读取到期待处理帖子，并允许冻结至过期时间的兼容条目恢复处理。
+     * 读取到期待处理帖子，并恢复共用详情重试计数或冻结至过期时间的兼容条目。
      *
      * @param {string} topicId 话题。
      * @param {number} now 当前时间。
@@ -184,6 +184,8 @@ export function createKvMatchingStore(
       return candidates.filter((entry) =>
         entry.topicId === topicId && entry.pendingPost &&
         (entry.retryAt <= now ||
+          (entry.detailAttempts === undefined && !entry.insufficient &&
+            entry.attempts > 0 && entry.result === undefined) ||
           (!entry.insufficient && entry.attempts >= 3 &&
             entry.retryAt === entry.expiresAt)) &&
         entry.expiresAt > now

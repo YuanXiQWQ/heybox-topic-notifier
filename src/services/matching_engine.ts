@@ -11,7 +11,12 @@ import type {
   MatchingRuntime,
   MatchingStore,
 } from "../storage/matching_types.ts";
-import { aiEndpoint, aiPostText, createAiMatcher } from "./ai_matcher.ts";
+import {
+  aiClassifierRevision,
+  aiEndpoint,
+  aiPostText,
+  createAiMatcher,
+} from "./ai_matcher.ts";
 import type { createMatcher } from "./matcher.ts";
 import { matchingDayMs, observeTopic } from "./matching_activity.ts";
 import { normalizeMatchResult, shortAiReason } from "./match_result.ts";
@@ -22,6 +27,8 @@ import type { TopicSource } from "./topic_source.ts";
 const detailCheckMs = 6 * 3600000;
 /** 每轮 AI 工作时间预算；未处理帖子进入有界持久化队列。 */
 const aiRunBudgetMs = 40000;
+/** 详情持续不可用十五分钟后提示账号，短暂重试不反复打扰。 */
+const sourceFailureNoticeMs = 15 * 60 * 1000;
 
 /**
  * 生成不包含明文配置或正文的稳定指纹。
@@ -64,6 +71,9 @@ export function matchingRuntimeForDay(
     dropped: 0,
     lastPrunedAt: previous?.lastPrunedAt,
     topics: previous?.topics ?? {},
+    ...(previous?.sourceFailure
+      ? { sourceFailure: previous.sourceFailure }
+      : {}),
   };
 }
 
@@ -76,6 +86,7 @@ export function matchingRuntimeForDay(
  * @param {ReturnType<typeof createAiMatcher>} ai AI 分类器。
  * @param {() => number} now 可注入时钟。
  * @param {(id: string) => Promise<boolean>} sendAiFailure 无回退命中可合并时发送故障通知。
+ * @param {(id: string) => Promise<boolean>} sendSourceFailure 详情持续不可用时发送独立服务通知。
  * @return {Promise<object | undefined>} 已获得租约的会话，忙碌时返回 undefined。
  */
 export async function startMatchingRun(
@@ -86,6 +97,8 @@ export async function startMatchingRun(
   ai = createAiMatcher(),
   now = Date.now,
   sendAiFailure: (id: string) => Promise<boolean> = () =>
+    Promise.resolve(false),
+  sendSourceFailure: (id: string) => Promise<boolean> = () =>
     Promise.resolve(false),
 ) {
   const token = crypto.randomUUID();
@@ -102,6 +115,8 @@ export async function startMatchingRun(
   const configs = new Map<string, string>();
   const visibleIds = new Map<string, Set<string>>();
   let failedThisRun = false;
+  let sourceFailedThisRun = false;
+  let sourceSucceededThisRun = false;
   const savedEntries = new Map<string, MatchingEntry | undefined>();
   /**
    * 持久化条目并同步缓存与待处理数量。
@@ -155,7 +170,9 @@ export async function startMatchingRun(
     };
     // 回退结果不充当 AI 缓存；下一轮仍先尝试模型。
     entry.attempts = 0;
-    entry.retryAt = 0;
+    entry.retryAt = entry.detailAttempts
+      ? now() + 300000 * entry.detailAttempts
+      : 0;
     delete entry.insufficient;
     const match = await rulesMatcher.findMatch(post, rules);
     if (match) delete entry.pendingPost;
@@ -166,10 +183,26 @@ export async function startMatchingRun(
 
   return {
     /**
-     * 在命中通知完成后确认故障已告知；只有没有回退命中通知时才单独提醒。
+     * 通知持续的详情故障，并确认 AI 故障是否已随回退命中告知。
      * @param {boolean | undefined} fallbackSent 回退通知是否受理；undefined 表示没有回退命中。
      */
     async completeNotifications(fallbackSent?: boolean): Promise<void> {
+      if (sourceSucceededThisRun && !sourceFailedThisRun) {
+        delete runtime.sourceFailure;
+      }
+      const sourceFailure = runtime.sourceFailure;
+      if (
+        sourceFailure && !sourceFailure.notified &&
+        now() - sourceFailure.startedAt >= sourceFailureNoticeMs
+      ) {
+        await renew();
+        try {
+          sourceFailure.notified = await sendSourceFailure(sourceFailure.id);
+        } catch {
+          console.warn("帖子详情故障通知投递失败，后续轮询将重试。");
+        }
+        await store.saveRuntime(runtime);
+      }
       const failure = runtime.aiFailure;
       if (!failedThisRun || !failure || failure.notified) return;
       await renew();
@@ -215,7 +248,7 @@ export async function startMatchingRun(
     },
 
     /**
-     * 复用成功判定，AI 故障时回退正则；模型正常返回信息不足时保留待判断。
+     * 复用成功判定；详情受限时只接受已有内容的明确命中，其余保留待完整详情复查。
      * @param {TopicPost} post 列表帖子或待处理快照。
      * @param {TopicRule} topic 话题。
      * @param {KeywordRule[]} rules 当前话题的合并规则。
@@ -231,6 +264,7 @@ export async function startMatchingRun(
       let config = configs.get(topic.id);
       if (!config) {
         config = await matchingHash([
+          settings.mode === "rules" ? null : aiClassifierRevision,
           settings.mode,
           settings.apiUrl,
           settings.apiKey,
@@ -272,11 +306,21 @@ export async function startMatchingRun(
         lastSeenAt: queued ? old!.lastSeenAt : timestamp,
         expiresAt: timestamp + ttl,
         attempts: 0,
+        detailAttempts: 0,
         retryAt: 0,
       };
       // 队列重试不延长已离开真实列表的帖子寿命。
       if (visibleIds.get(topic.id)?.has(post.id)) entry.lastSeenAt = timestamp;
       const live = old && old.expiresAt > timestamp;
+      // 兼容共用重试计数的待处理条目，解除其过长详情退避后使用独立计数。
+      if (
+        entry.detailAttempts === undefined && !entry.insufficient &&
+        entry.attempts > 0 && entry.result === undefined
+      ) {
+        entry.attempts = 0;
+        entry.retryAt = 0;
+        entry.detailAttempts = 0;
+      }
       // 兼容把三次失败冻结至过期时间的条目，使仍有效的帖子恢复 AI 尝试。
       if (
         !entry.insufficient && entry.attempts >= 3 &&
@@ -345,20 +389,34 @@ export async function startMatchingRun(
         return undefined;
       }
       let detailed = post;
+      let partial = false;
       try {
         if (source.getPostDetails) detailed = await source.getPostDetails(post);
-        if (detailed.detailsComplete === false)
+        if (detailed.detailsComplete === false) {
           // 校验失败沿用当前 catch 的错误反馈与清理路径。
           // noinspection ExceptionCaughtLocallyJS
           throw new Error("detail");
+        }
       } catch {
-        entry.attempts++;
-        entry.retryAt = now() + 300000 * entry.attempts;
+        partial = true;
+        sourceFailedThisRun = true;
+        runtime.sourceFailure ??= {
+          id: `source-failure:${crypto.randomUUID()}`,
+          notified: false,
+          startedAt: now(),
+        };
+        detailed = { ...post, detailsComplete: false };
+        entry.detailAttempts = Math.min((entry.detailAttempts ?? 0) + 1, 3);
+        entry.retryAt = now() + 300000 * entry.detailAttempts;
         runtime.lastError = "帖子详情获取失败，已保留待处理记录。";
-        await saveEntry(entry);
-        return undefined;
       }
-      entry.detailCheckedAt = now();
+      if (!partial) {
+        entry.detailAttempts = 0;
+        sourceSucceededThisRun = true;
+      }
+      // 兼容共用详情失败计数的缓存；未得到信息不足结果的旧计数不消耗模型重试次数。
+      if (!entry.insufficient) entry.attempts = 0;
+      if (!partial) entry.detailCheckedAt = now();
       const detailedHash = await matchingHash(
         settings.mode === "hybrid"
           ? [
@@ -371,6 +429,10 @@ export async function startMatchingRun(
           ]
           : aiPostText(detailed, settings),
       );
+      if (partial && entry.partialFingerprint === detailedHash) {
+        await saveEntry(entry);
+        return undefined;
+      }
       if (
         same && live && old.result !== undefined &&
         old.detailFingerprint === detailedHash
@@ -389,6 +451,10 @@ export async function startMatchingRun(
         ? await rulesMatcher.findMatch(detailed, rules)
         : undefined;
       if (settings.mode === "hybrid" && !ruleMatch) {
+        if (partial) {
+          await saveEntry(entry);
+          return undefined;
+        }
         entry.result = null;
         entry.evaluatedAt = now();
         delete entry.pendingPost;
@@ -406,7 +472,7 @@ export async function startMatchingRun(
         return await fallback(
           entry,
           detailed,
-          rules,
+          partial ? [] : rules,
           "请完整配置有效的 AI 接口、密钥、模型和提示词。",
         );
       }
@@ -414,8 +480,10 @@ export async function startMatchingRun(
       // 先持久化调用预留和短期退避，进程中断也不会立刻重复消费。
       runtime.calls++;
       runtime.unknownUsage++;
-      entry.attempts++;
-      entry.retryAt = now() + 300000 * 2 ** (entry.attempts - 1);
+      if (!partial) {
+        entry.attempts++;
+        entry.retryAt = now() + 300000 * 2 ** (entry.attempts - 1);
+      }
       await saveEntry(entry);
       await store.saveRuntime(runtime);
       const decision = await ai.classify(detailed, settings);
@@ -426,13 +494,20 @@ export async function startMatchingRun(
         return await fallback(
           entry,
           detailed,
-          rules,
+          partial ? [] : rules,
           decision.error ?? "AI 返回的分类格式无效。",
         );
       }
       // 合法的分类响应说明接口可用；信息不足不是服务故障，也不是未命中。
-      runtime.lastError = undefined;
+      if (!partial) runtime.lastError = undefined;
       delete runtime.aiFailure;
+      if (partial && decision.decision !== "match") {
+        entry.partialFingerprint = detailedHash;
+        await saveEntry(entry);
+        await store.saveRuntime(runtime);
+        return undefined;
+      }
+      delete entry.partialFingerprint;
       if (decision.decision === "insufficient") {
         entry.insufficient = true;
         if (entry.attempts >= 3) entry.retryAt = entry.expiresAt;

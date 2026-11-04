@@ -493,6 +493,8 @@ export type Messages = {
   notificationEmailSmtp: string;
   notificationMoreMatches: string;
   notificationAiFailureTitle: string;
+  notificationSourceFailureTitle: string;
+  notificationSourceFailureBody: string;
   notificationAiFailureBody: string;
   notificationAiFallback: string;
   notificationBatchTitle: string;

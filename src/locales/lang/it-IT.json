@@ -245,6 +245,8 @@
   "notificationEmailFrom": "Indirizzo mittente",
   "notificationEmailService": "Metodo di invio",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "Dettagli dei post non disponibili",
+  "notificationSourceFailureBody": "I dettagli completi di alcuni post non sono disponibili da almeno 15 minuti. Alcune corrispondenze potrebbero sfuggire. Controlla il servizio di recupero Heybox; i controlli attivi non garantiscono il corretto funzionamento del rilevamento.",
   "notificationAiFailureTitle": "Rilevamento IA non riuscito",
   "notificationAiFailureBody": "L’IA non ha completato il rilevamento. Per questo post verranno usate espressioni regolari. Per i post successivi verrà comunque tentata l’IA, con ripiego in caso di errore. Controlla le impostazioni IA o il saldo del conto.",
   "notificationAiFallback": "Queste corrispondenze includono risultati ottenuti con espressioni regolari dopo un errore dell’IA.",

@@ -245,6 +245,8 @@
   "notificationEmailFrom": "Correo del remitente",
   "notificationEmailService": "Método de envío",
   "notificationEmailSmtp": "SMTP",
+  "notificationSourceFailureTitle": "Detalles de publicaciones no disponibles",
+  "notificationSourceFailureBody": "Los detalles completos de algunas publicaciones no están disponibles desde hace al menos 15 minutos. Pueden omitirse coincidencias. Comprueba el servicio de consulta de Heybox; que las consultas sigan activas no garantiza que la detección funcione correctamente.",
   "notificationAiFailureTitle": "Error en la detección por IA",
   "notificationAiFailureBody": "La IA no pudo completar la detección. Esta publicación se evaluará con expresiones regulares. Se seguirá intentando usar la IA en las siguientes publicaciones, con esta alternativa si falla. Revisa la configuración de la IA o el saldo de la cuenta.",
   "notificationAiFallback": "Estas coincidencias incluyen resultados de expresiones regulares tras un fallo de la IA.",
