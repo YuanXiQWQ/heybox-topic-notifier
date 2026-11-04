@@ -143,7 +143,7 @@ async function prepareExit(installing = false) {
 }
 
 /**
- * 启动受隔离的会话与托盘，并在加载页面前自动检查更新。
+ * 启动受隔离的会话，使用同一应用图标创建窗口和托盘，并在加载页面前自动检查更新。
  * @return {Promise<void>} 初始化完成。
  */
 async function start() {
@@ -200,12 +200,14 @@ async function start() {
   const inbox = createNotificationInbox({
     webSession, device, origin, Notification, icon: path.join(resources, 'favicon.png'), emitState, showWindow,
   });
+  const icon = nativeImage.createFromPath(path.join(resources, 'favicon.png'));
   window = new BrowserWindow({
     width: 1200,
     height: 840,
     minWidth: 360,
     minHeight: 480,
     show: false,
+    icon,
     title: '小黑盒话题提醒',
     webPreferences: {
       session: webSession,
@@ -240,7 +242,6 @@ async function start() {
   );
   window.webContents.on('did-finish-load', () => emitState());
   window.webContents.on('did-navigate-in-page', (_event, _url, isMainFrame) => { if (isMainFrame) emitState(); });
-  const icon = nativeImage.createFromPath(path.join(resources, 'favicon.png'));
   tray = new Tray(icon.resize({width: 20, height: 20}));
   tray.setToolTip('小黑盒话题提醒');
   tray.setContextMenu(
