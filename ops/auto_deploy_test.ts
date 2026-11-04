@@ -166,6 +166,38 @@ Deno.test("failed or interrupted deployment requires a new successful run attemp
   }
 });
 
+Deno.test("same-version redeployment requires an explicit matching commit and a successful build", async () => {
+  const current = { ...parseVersion("3.13.2")!, sha: "b".repeat(40) };
+  assertEquals(await deploymentTarget(api(), { current }), undefined);
+  assertEquals((await deploymentTarget(api(), { current }, sha))?.sha, sha);
+  await assertRejects(
+    () => deploymentTarget(api(), { current }, "c".repeat(40)),
+    Error,
+    "不匹配",
+  );
+  await assertRejects(
+    () => deploymentTarget(api(), { current }, "main"),
+    Error,
+    "完整提交号",
+  );
+  assertEquals(
+    await deploymentTarget(api(), { current: { ...current, sha } }, sha),
+    undefined,
+  );
+  assertEquals(
+    await deploymentTarget(api([release()], [run({ conclusion: "failure" })]), {
+      current,
+    }, sha),
+    undefined,
+  );
+  assertEquals(
+    await deploymentTarget(api(), {
+      current: { ...parseVersion("3.13.3")!, sha: current.sha },
+    }, sha),
+    undefined,
+  );
+});
+
 Deno.test("a newer failed tag build blocks an older success", async () => {
   assertEquals(
     await deploymentTarget(

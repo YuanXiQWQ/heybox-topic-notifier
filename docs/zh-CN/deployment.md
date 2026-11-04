@@ -35,6 +35,14 @@ curl --fail --silent https://YOUR_DOMAIN/healthz
 
 支持应用部署标识的发行，其健康响应 `deploymentId` 应等于标签的完整提交 SHA。较早发行可能仍返回 `local`，此时部署会通过实际运行进程目录和公开页面资源摘要确认版本；当前标签和 SHA 也记录在 `/var/lib/heybox-deploy/state.json`。暂停自动部署使用 `sudo systemctl stop heybox-auto-deploy.timer`；恢复使用 `sudo systemctl start heybox-auto-deploy.timer`。暂停定时器不会中止已经开始的部署。
 
+同版本重发默认不会触发服务器部署。确认新安装包已经公开、标签构建成功后，可明确指定该标签的完整提交号执行一次重部署；此入口仍验证附件、标签和构建结果，不允许降级或重复部署同一提交。先加 `--check` 只检查目标，确认后去掉该参数执行：
+
+```sh
+sudo env DENO_DIR=/var/cache/heybox-deploy GIT_TERMINAL_PROMPT=0 /usr/bin/flock -n /run/lock/heybox-auto-deploy.lock /usr/local/bin/deno run --no-prompt --allow-net=api.github.com --allow-read --allow-write --allow-env --allow-run=/usr/bin/git,/usr/bin/bash /usr/local/lib/heybox-deploy/auto_deploy.ts --check --redeploy-sha=<完整提交号>
+```
+
+客户端不会把相同版本号识别为新版本，已经安装该版本的用户需要手动下载安装包覆盖安装。
+
 ## 运行环境变量
 
 [`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
@@ -83,14 +91,17 @@ A/AAAA 解析结果不落入本机、内网、链路本地、元数据服务或�
 
 独立服务的入口为 [`src/detail_relay.ts`](../../src/detail_relay.ts)，可使用 `deno task start:detail-relay`，或在独立 Deno Deploy 应用中指定此入口。只配置专用 `HEYBOX_DETAIL_RELAY_TOKEN`（至少 32 个字符）；不要复制主服务的数据库、登录、邮件或通知密钥。该入口不启动 KV、数据库、Cron 或网页服务。发布时固定到已验证的版本提交，避免随开发分支变动。
 
-主服务的私有环境文件增加以下两项并重启；密钥必须与独立出口一致：
+在主服务的私有环境文件中设置 URL 和相同密钥，可选配置请求预算，然后重启：
 
 ```dotenv
 HEYBOX_DETAIL_RELAY_URL=https://YOUR_RELAY/v1/details
 HEYBOX_DETAIL_RELAY_TOKEN=<独立随机密钥>
+HEYBOX_DETAIL_REQUESTS_PER_MINUTE=3
 ```
 
-两项必须同时配置。详情请求只发送帖子编号，禁止传入任意目标地址；使用 HTTPS、Bearer 鉴权、请求超时、响应长度限制、短期缓存与在途去重。出口失败时共享冷却状态，避免积压帖逐条重试消耗平台配额。`GET /healthz` 只说明出口进程可用，不能证明小黑盒详情可读。必须在主服务实际验证完整详情、匹配及通知，再认定配置完成。
+URL 和密钥必须同时配置。详情请求只发送帖子编号，禁止传入任意目标地址；使用 HTTPS、Bearer 鉴权、请求超时、响应长度限制、短期缓存与在途去重。出口失败时共享冷却状态，避免积压帖逐条重试消耗平台配额。`GET /healthz` 只说明出口进程可用，不能证明小黑盒详情可读。必须在主服务实际验证完整详情、匹配及通知，再认定配置完成。
+
+URL 和密钥必填，`HEYBOX_DETAIL_REQUESTS_PER_MINUTE` 可选（默认 3，范围 1–60）。此预算在主服务中按滚动 60 秒统计，所有账号共享，缓存命中不计数。超出预算的帖子保留到后续轮询，不占用 AI 调用，也不作为来源故障告警；已保存的完整正文不会被不完整刷新覆盖。低请求频率和独立出口都不能保证小黑盒不触发风控，部署后仍须核对真实接口状态。
 
 Oracle 日志中的 `heybox_detail_relay_success` 记录实际请求的响应字节数和耗时；`heybox_detail_relay_failed` 表示出口失败。结合平台实际 CPU、内存时间、请求数和出站用量检查配额，不能只根据“没有使用 KV”判断免费额度足够。源站限制仍可能影响其它出口，故障期间待处理队列和已有内容判定只作为保护措施。
 

@@ -68,7 +68,7 @@ type PollerDependencies = {
 };
 
 /**
- * 创建话题轮询器。
+ * 创建话题轮询器；未完成的详情刷新保留已有正文和刷新时间，供后续轮询重试。
  *
  * @param {PollerDependencies} dependencies 匹配、通知、数据源和存储依赖。
  * @return {object} 支持正式轮询和模拟记录的轮询器。
@@ -190,6 +190,7 @@ export function createPoller(
                 shouldRefreshPostDetails(matchedPost.detailRefreshedAt, runAt)
               ) {
                 const refreshedPost = await resolvePostDetails(source, post);
+                if (refreshedPost.detailsComplete === false) continue;
                 await refreshMatchedPostRecords(
                   runStorage,
                   await runStorage.listMatchesForPost(post.id),
@@ -211,7 +212,9 @@ export function createPoller(
             const detailedPost = await resolvePostDetails(source, post);
             const result: MatchResult = match;
             const record: MatchRecord = {
-              detailRefreshedAt: runAt,
+              detailRefreshedAt: detailedPost.detailsComplete === false
+                ? undefined
+                : runAt,
               id: `${topic.id}:${detailedPost.id}:${
                 result.kind === "ai" ? "ai" : match.keyword
               }:${match.location}`,
@@ -225,7 +228,7 @@ export function createPoller(
             matchedRecords.push(record);
             matchedPostIds.add(record.post.id);
             matchedPostIndex.set(record.post.id, {
-              detailRefreshedAt: runAt,
+              detailRefreshedAt: record.detailRefreshedAt,
               postId: record.post.id,
             });
           }

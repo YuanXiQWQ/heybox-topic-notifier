@@ -99,18 +99,26 @@ export async function tagCommit(read: ReadApi, tag: string): Promise<string> {
  * 验证附件、标签和最近一次标签构建，屏蔽分支构建、旧版本及重复失败。
  * @param {ReadApi} read GitHub 读取接口。
  * @param {State} state 已部署与最近尝试状态。
+ * @param {string | undefined} redeploySha 明确授权同版本重发时指定的完整提交号。
  * @return {Promise<Target | undefined>} 可部署目标；没有就绪的新版本时为空。
  */
 export async function deploymentTarget(
   read: ReadApi,
   state: State,
+  redeploySha?: string,
 ): Promise<Target | undefined> {
+  if (redeploySha !== undefined && !/^[a-f0-9]{40}$/.test(redeploySha)) {
+    throw new Error("同版本重部署必须指定完整提交号。");
+  }
   const release = latestRelease(
     await read("/releases?per_page=100") as Release[],
   );
   if (!release) return;
   const version = parseVersion(release.tag_name)!;
-  if (state.current && version.order <= state.current.order) return;
+  if (state.current && version.order < state.current.order) return;
+  if (state.current && version.order === state.current.order && !redeploySha) {
+    return;
+  }
   if (
     !assetNames.every((name) =>
       release.assets.some((asset) =>
@@ -119,6 +127,12 @@ export async function deploymentTarget(
     )
   ) return;
   const sha = await tagCommit(read, version.tag);
+  if (redeploySha && sha !== redeploySha) {
+    throw new Error("正式标签与明确授权的重部署提交不匹配。");
+  }
+  if (state.current?.order === version.order && state.current.sha === sha) {
+    return;
+  }
   const { workflow_runs } = await read(
     `/actions/workflows/app-build.yml/runs?head_sha=${sha}&event=push&per_page=100`,
   ) as { workflow_runs: Run[] };
@@ -233,8 +247,19 @@ async function deploy(target: Target, temporary: string): Promise<void> {
   );
 }
 
-/** 检查正式发行，持久化尝试结果，并在退出时清理下载与归档。 */
+/** 检查正式发行或明确指定提交的同版本重发，持久化结果并清理下载与归档。 */
 async function main(): Promise<void> {
+  if (
+    Deno.args.some((value) =>
+      value !== "--check" && !/^--redeploy-sha=[a-f0-9]{40}$/.test(value)
+    ) ||
+    Deno.args.filter((value) => value.startsWith("--redeploy-sha=")).length > 1
+  ) {
+    throw new Error("仅支持 --check 和 --redeploy-sha=<完整提交号>。");
+  }
+  const redeploySha = Deno.args.find((value) =>
+    value.startsWith("--redeploy-sha=")
+  )?.slice("--redeploy-sha=".length);
   const path = "/var/lib/heybox-deploy/state.json";
   let state: State = {};
   try {
@@ -242,7 +267,7 @@ async function main(): Promise<void> {
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
   }
-  const target = await deploymentTarget(readApi, state);
+  const target = await deploymentTarget(readApi, state, redeploySha);
   if (!target) {
     console.log("没有已通过发行构建的新正式标签。");
     return;

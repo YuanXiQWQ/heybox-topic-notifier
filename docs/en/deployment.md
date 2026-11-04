@@ -35,6 +35,14 @@ curl --fail --silent https://YOUR_DOMAIN/healthz
 
 For releases supporting the application deployment identity, the health response's `deploymentId` must match the tag's full commit SHA. Earlier releases may still return `local`; the deployer verifies their running process directory and public asset hashes instead. The current tag and SHA are also recorded in `/var/lib/heybox-deploy/state.json`. Use `sudo systemctl stop heybox-auto-deploy.timer` to pause automatic checks and `sudo systemctl start heybox-auto-deploy.timer` to resume them. Stopping the timer does not interrupt an active deployment.
 
+Republishing the same version does not automatically redeploy the server. After the replacement installers are public and the tag build succeeds, explicitly supply the tag's full commit SHA for a one-time redeployment. Asset, tag and build checks still apply; downgrades and repeated deployment of the same commit remain blocked. Run with `--check` to inspect the target, then remove that option to deploy:
+
+```sh
+sudo env DENO_DIR=/var/cache/heybox-deploy GIT_TERMINAL_PROMPT=0 /usr/bin/flock -n /run/lock/heybox-auto-deploy.lock /usr/local/bin/deno run --no-prompt --allow-net=api.github.com --allow-read --allow-write --allow-env --allow-run=/usr/bin/git,/usr/bin/bash /usr/local/lib/heybox-deploy/auto_deploy.ts --check --redeploy-sha=<FULL_COMMIT_SHA>
+```
+
+Clients do not detect the same version number as an upgrade. Users who already installed that version must download and run the replacement installer manually.
+
 ## Environment Variables
 
 [`ops/heybox.env.example`](../../ops/heybox.env.example) → `/etc/heybox-topic-notifier/heybox.env` (root, `0600`)
@@ -87,14 +95,17 @@ When a self-hosted server can read topic feeds but detail requests repeatedly re
 
 Run [`src/detail_relay.ts`](../../src/detail_relay.ts) with `deno task start:detail-relay`, or select it as the entrypoint of a separate Deno Deploy app. Configure only a dedicated `HEYBOX_DETAIL_RELAY_TOKEN` of at least 32 characters. This entrypoint does not start KV, database connections, cron jobs or the main website. Pin deployment to a verified commit; do not copy database, login, email or notification credentials into this service.
 
-Set both variables in the main server's private environment file, then restart it:
+Set the URL and matching token in the main server's private environment file, optionally set the request budget, then restart it:
 
 ```dotenv
 HEYBOX_DETAIL_RELAY_URL=https://YOUR_RELAY/v1/details
 HEYBOX_DETAIL_RELAY_TOKEN=<DEDICATED_RANDOM_SECRET>
+HEYBOX_DETAIL_REQUESTS_PER_MINUTE=3
 ```
 
 The token must match the detail service. Requests carry only a post ID; arbitrary destination URLs are rejected. HTTPS, Bearer authentication, timeouts, response limits, short-lived caching and in-flight deduplication apply. Failed requests trigger a shared cooldown to avoid repeatedly consuming quotas for every queued post. `GET /healthz` confirms only that the process is running. Verify actual full details, matching and notification delivery before accepting the deployment.
+
+`HEYBOX_DETAIL_REQUESTS_PER_MINUTE` defaults to 3 and accepts integers from 1 to 60. The main service shares a rolling 60-second budget across all accounts; cache hits do not count. Work beyond the budget stays queued without calling AI or reporting a source outage. An incomplete refresh does not overwrite previously saved full details. Neither low request rates nor a separate network location guarantee that Heybox will accept requests; verify real API responses after deployment.
 
 Oracle's `heybox_detail_relay_success` logs include response bytes and elapsed time; `heybox_detail_relay_failed` and `heybox_detail_relay_cooldown` indicate failures. Check actual platform CPU, memory time, requests and egress against the account's limits. Avoiding KV does not by itself guarantee sufficient free-tier capacity. Pending queues and partial-content classification are safeguards during outages, not proof of upstream availability.
 
