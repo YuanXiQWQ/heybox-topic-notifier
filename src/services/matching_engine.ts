@@ -248,7 +248,7 @@ export async function startMatchingRun(
     },
 
     /**
-     * 复用成功判定；详情受限时只接受已有内容的明确命中，其余保留待完整详情复查。
+     * 复用判定并保留预算排队；上游详情受限时只接受已有内容的明确命中，其余待完整详情复查。
      * @param {TopicPost} post 列表帖子或待处理快照。
      * @param {TopicRule} topic 话题。
      * @param {KeywordRule[]} rules 当前话题的合并规则。
@@ -392,6 +392,11 @@ export async function startMatchingRun(
       let partial = false;
       try {
         if (source.getPostDetails) detailed = await source.getPostDetails(post);
+        if ((detailed.detailDeferredUntil ?? 0) > now()) {
+          entry.retryAt = detailed.detailDeferredUntil!;
+          await saveEntry(entry);
+          return undefined;
+        }
         if (detailed.detailsComplete === false) {
           // 校验失败沿用当前 catch 的错误反馈与清理路径。
           // noinspection ExceptionCaughtLocallyJS

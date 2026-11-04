@@ -15,7 +15,7 @@ import { cachePollSchedule } from "../storage/poll_schedule_cache.ts";
 export type PollingContext = ReturnType<typeof createPollingContext>;
 
 /**
- * 创建不依赖 HTTP 路由和认证页面的轮询上下文，可使用独立详情出口。
+ * 创建轻量轮询上下文；独立详情出口按所有账号共享的滚动预算取数。
  *
  * @param {{cacheSchedule?: boolean, durableNotifications?: boolean}} options 常驻进程的快照缓存与持久投递。
  * @return {object} 默认设置、存储、数据源、匹配器、轮询器与调度器。
@@ -44,7 +44,13 @@ export function createPollingContext(
     throw new Error("Configure both detail relay URL and token");
   }
   const source = relayUrl && relayToken
-    ? withDetailRelay(directSource, { url: relayUrl, token: relayToken })
+    ? withDetailRelay(directSource, {
+      url: relayUrl,
+      token: relayToken,
+      requestsPerMinute: Number(
+        Deno.env.get("HEYBOX_DETAIL_REQUESTS_PER_MINUTE") ?? "3",
+      ),
+    })
     : directSource;
   const pollingNotifier = createPollingNotifier(storage);
   const poller = createPoller({

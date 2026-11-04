@@ -107,6 +107,47 @@ Deno.test("detail relay authenticates before upstream access and rejects arbitra
   assertEquals(calls, 0);
 });
 
+Deno.test("relay request budget covers concurrent posts, preserves cached hits and resumes the queue", async () => {
+  let now = 1000, requests = 0;
+  const client = withDetailRelay({
+    listLatestPosts: () => Promise.resolve([]),
+  }, {
+    url: "https://relay.example/v1/details",
+    token,
+    requestsPerMinute: 3,
+    now: () => now,
+    fetchFn: (_url, init) => {
+      requests++;
+      const { id } = JSON.parse(String(init?.body));
+      return Promise.resolve(
+        Response.json({ ...post, id, detailsComplete: true }),
+      );
+    },
+  });
+  const results = await Promise.all(
+    ["a", "b", "c", "d"].map((id) => client.getPostDetails!({ ...post, id })),
+  );
+  assertEquals(requests, 3);
+  assertEquals(results[3].detailDeferredUntil, 61000);
+  assertEquals(results[3].body, post.body);
+  assertEquals(
+    (await client.getPostDetails!({ ...post, id: "a" })).detailsComplete,
+    true,
+  );
+  assertEquals(requests, 3);
+  now = 60999;
+  assertEquals(
+    (await client.getPostDetails!(results[3])).detailsComplete,
+    false,
+  );
+  assertEquals(requests, 3);
+  now = 61000;
+  const resumed = await client.getPostDetails!(results[3]);
+  assertEquals(resumed.detailsComplete, true);
+  assertEquals(resumed.detailDeferredUntil, undefined);
+  assertEquals(requests, 4);
+});
+
 Deno.test("detail relay client and server deduplicate concurrent and repeated requests with expiry", async () => {
   let now = 0, upstreamCalls = 0, relayCalls = 0, listCalls = 0;
   const source: TopicSource = {

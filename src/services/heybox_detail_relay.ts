@@ -15,6 +15,7 @@ const maxCacheEntries = 128;
 export type DetailRelayConfig = {
   url: string;
   token: string;
+  requestsPerMinute?: number;
   fetchFn?: typeof fetch;
   now?: () => number;
 };
@@ -133,11 +134,38 @@ export function withDetailRelay(
   }
   const fetchFn = config.fetchFn ?? fetch;
   const now = config.now ?? Date.now;
+  const requestLimit = config.requestsPerMinute;
+  if (
+    requestLimit !== undefined &&
+    (!Number.isInteger(requestLimit) || requestLimit < 1 || requestLimit > 60)
+  ) throw new Error("Invalid detail relay request budget");
+  /** 全部账号共享滚动窗口；缓存命中不占用真实出口请求预算。 */
+  const requestTimes: number[] = [];
   let retryAt = 0;
   let failures = 0;
   const read = cachedDetails(async (id) => {
     if (now() < retryAt) throw new Error("Detail relay cooling down");
     const started = now();
+    if (requestLimit !== undefined) {
+      while (requestTimes.length && requestTimes[0] <= started - 60000) {
+        requestTimes.shift();
+      }
+      if (requestTimes.length >= requestLimit) {
+        return {
+          id,
+          title: "",
+          body: "",
+          excerpt: "",
+          comments: [],
+          commentReplies: [],
+          publishedAt: "",
+          url: "",
+          detailsComplete: false,
+          detailDeferredUntil: requestTimes[0] + 60000,
+        };
+      }
+      requestTimes.push(started);
+    }
     try {
       const response = await fetchFn(endpoint, {
         method: "POST",
@@ -220,23 +248,34 @@ export function withDetailRelay(
      */
     listLatestPosts: (id, options) => source.listLatestPosts(id, options),
     /**
-     * 用完整详情补充列表数据；出口失败保留原帖并标记未完成。
+     * 补充完整详情；预算耗尽时返回排队时间，出口失败时保留原帖并标记未完成。
      * @param {TopicPost} post 列表帖子。
      * @return {Promise<TopicPost>} 完整详情或待重试的列表帖子。
      */
     async getPostDetails(post: TopicPost): Promise<TopicPost> {
+      const original = { ...post };
+      delete original.detailDeferredUntil;
       try {
         if (!postIdPattern.test(post.id)) throw new Error("Invalid post id");
         const detail = await read(post.id);
-        if (!detail.detailsComplete) return { ...post, detailsComplete: false };
+        if (!detail.detailsComplete) {
+          return {
+            ...original,
+            detailsComplete: false,
+            ...(detail.detailDeferredUntil
+              ? { detailDeferredUntil: detail.detailDeferredUntil }
+              : {}),
+          };
+        }
+        delete detail.detailDeferredUntil;
         return {
-          ...post,
+          ...original,
           ...detail,
           url: post.url,
           title: detail.title || post.title,
         };
       } catch {
-        return { ...post, detailsComplete: false };
+        return { ...original, detailsComplete: false };
       }
     },
   };

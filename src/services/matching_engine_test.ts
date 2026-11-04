@@ -19,6 +19,91 @@ import {
   withDetailRelay,
 } from "./heybox_detail_relay.ts";
 
+Deno.test("local detail budget queues work without AI calls, partial decisions or source fault notices", async () => {
+  const notices: string[] = [];
+  const f = await fixture(undefined, (id) => {
+    notices.push(id);
+    return Promise.resolve(true);
+  });
+  try {
+    const availableAt = f.now() + 60000;
+    f.source.getPostDetails = (value) =>
+      Promise.resolve(
+        f.now() < availableAt
+          ? {
+            ...value,
+            detailsComplete: false,
+            detailDeferredUntil: availableAt,
+          }
+          : { ...value, detailsComplete: true },
+      );
+    await f.run();
+    assertEquals(f.calls(), 0);
+    const key = await matchingHash(["topic", "p1"]);
+    const queued = (await f.store.get(key))!;
+    assertEquals(queued.retryAt, availableAt);
+    assertEquals(queued.detailAttempts, 0);
+    assertEquals(queued.attempts, 0);
+    assert(queued.pendingPost);
+    assertEquals((await f.store.runtime())?.sourceFailure, undefined);
+    f.advance(60000);
+    await f.run([]);
+    assertEquals(f.calls(), 1);
+    assertEquals((await f.store.get(key))?.result, null);
+    assertEquals((await f.store.get(key))?.pendingPost, undefined);
+    assertEquals(notices, []);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("deferred refresh retains the complete record and retries without resetting its six hour timer", async () => {
+  const f = await fixture();
+  try {
+    const saved = {
+      id: "old-match",
+      keyword: "帮助",
+      location: "title" as const,
+      matchedAt: "2026-01-01T00:00:00Z",
+      detailRefreshedAt: "2026-01-01T00:00:00Z",
+      post: { ...post(), body: "完整正文", detailsComplete: true },
+    };
+    await f.storage.saveMatch(saved);
+    f.source.listLatestPosts = () => Promise.resolve([post()]);
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({
+        ...value,
+        body: "摘要",
+        detailsComplete: false,
+        detailDeferredUntil: Date.now() + 60000,
+      });
+    const poller = createPoller({
+      ...f,
+      matcher: createMatcher(),
+      notifier: {
+        sendMatches: () =>
+          Promise.resolve({ provider: "disabled", sent: false }),
+      },
+    });
+    await poller.runOnce();
+    const deferred = (await f.storage.listMatchesForPost("p1"))[0];
+    assertEquals(deferred.post.body, "完整正文");
+    assertEquals(deferred.detailRefreshedAt, saved.detailRefreshedAt);
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({
+        ...value,
+        body: "更新后的完整正文",
+        detailsComplete: true,
+      });
+    await poller.runOnce();
+    const refreshed = (await f.storage.listMatchesForPost("p1"))[0];
+    assertEquals(refreshed.post.body, "更新后的完整正文");
+    assert(refreshed.detailRefreshedAt !== saved.detailRefreshedAt);
+  } finally {
+    f.close();
+  }
+});
+
 /**
  * 构造包含指定标识和正文的测试帖子。
  *
