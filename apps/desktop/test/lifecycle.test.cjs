@@ -5,6 +5,28 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {harness} = require('./support/main-process.cjs');
 
+test('development processes cannot register the installed application identity', () => {
+  const packaged = harness();
+  const development = harness({isPackaged: false});
+  assert.equal(packaged.app.userModelId, 'io.github.yuanxiqwq.heyboxnotifier');
+  assert.equal(development.app.userModelId, 'io.github.yuanxiqwq.heyboxnotifier.development');
+  assert.notEqual(development.app.userModelId, packaged.app.userModelId);
+  development.api.configureWindowIdentity();
+  assert.equal(development.window.appDetails, undefined);
+});
+
+test('packaged taskbar identity resolves its icon and launch command from the running executable', () => {
+  const context = harness();
+  const executable = 'F:\\应用 目录\\小黑盒话题提醒.exe';
+  context.app.getPath = () => executable;
+  context.api.configureWindowIdentity();
+  assert.equal(context.window.appDetails.appId, context.app.userModelId);
+  assert.equal(context.window.appDetails.appIconPath, executable);
+  assert.equal(context.window.appDetails.appIconIndex, 0);
+  assert.equal(context.window.appDetails.relaunchCommand, `"${executable}"`);
+  assert.equal(context.window.appDetails.relaunchDisplayName, '小黑盒话题提醒');
+});
+
 test('navigation availability follows the actual native history position', () => {
   const context = harness();
   let available = false;

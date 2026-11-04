@@ -29,6 +29,7 @@ async function harness(updateControls = false) {
   let checkClick!: () => Promise<void>;
   const check = {
     disabled: false,
+    textContent: "",
     addEventListener: (_event: string, listener: () => Promise<void>) => {
       checkClick = listener;
     },
@@ -43,6 +44,9 @@ async function harness(updateControls = false) {
           updateChecking: "正在检查更新",
           updateCurrent: "已是最新版本",
           updateFailed: "检查失败",
+          checkUpdate: "检查更新",
+          updateDownloading: "正在下载…",
+          updateReady: "更新已就绪",
         }),
       }),
       querySelector: (selector: string) =>
@@ -106,12 +110,16 @@ async function harness(updateControls = false) {
         }
       }
     },
-    /** @param {string} status 原生下载状态。 */
-    progress(status: string) {
+    /**
+     * @param {string} status 原生更新状态。
+     * @param {number} progress 下载百分比。
+     * @param {string | null} version 目标版本。
+     */
+    progress(status: string, progress = 0, version: string | null = null) {
       native.onmessage!({
         data: JSON.stringify({
           type: "state",
-          value: { ...state, update: { ...state.update, status } },
+          value: { ...state, update: { ...state.update, status, progress, version } },
         }),
       });
     },
@@ -153,6 +161,33 @@ Deno.test("native manual update check can be retried after bridge failure", asyn
   assertEquals(bridge.status.hidden, false);
   assertEquals(bridge.check.disabled, false);
   assertEquals(bridge.timers.size, 0);
+});
+
+Deno.test("native about page displays download progress and ready version only once", async () => {
+  const bridge = await harness(true);
+  bridge.progress("downloading", 45, "3.14.0");
+  assertEquals(bridge.check.textContent, "检查更新");
+  assertEquals(bridge.check.disabled, true);
+  assertEquals(bridge.status.textContent, "正在下载… 45%");
+  assertEquals(bridge.status.hidden, false);
+  bridge.progress("current");
+  const pending = bridge.clickCheck();
+  bridge.respond(bridge.requests.at(-1)!.id, {
+    platform: "windows",
+    version: "3.13.0",
+    update: { status: "current", version: null },
+  });
+  await pending;
+  bridge.progress("downloaded", 100, "3.14.0");
+  assertEquals(bridge.check.textContent, "更新已就绪 3.14.0");
+  assertEquals(bridge.check.disabled, false);
+  assertEquals(bridge.status.textContent, "");
+  assertEquals(bridge.status.hidden, true);
+  bridge.progress("error");
+  assertEquals(bridge.check.textContent, "检查更新");
+  assertEquals(bridge.check.disabled, false);
+  assertEquals(bridge.status.textContent, "检查失败");
+  assertEquals(bridge.status.hidden, false);
 });
 
 Deno.test("native download progress renews the idle timeout beyond two minutes", async () => {

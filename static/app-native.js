@@ -180,7 +180,8 @@
   }
 
   /**
-   * 显示本机版本、手动检查结果和下载进度；进入页面只清除对应入口红点。
+   * 显示本机版本与更新反馈：下载进度只写入状态区，就绪信息只写入操作链接。
+   * 进入页面只清除对应入口红点。
    * @param {object} next 原生状态。
    */
   function render(next) {
@@ -205,17 +206,15 @@
       }%`,
     };
     showStatus(
-        updateRequested || update.status === 'downloading'
+        !(check && update.status === 'downloaded') && (updateRequested || update.status === 'downloading')
             ? messages[update.status] ?? ''
             : '',
     );
     if (check) {
       check.disabled = ['checking', 'downloading'].includes(update.status);
-      check.textContent = update.status === 'downloading'
-          ? messages.downloading
-          : update.status === 'downloaded'
-              ? labels.updateReady
-              : labels.checkUpdate;
+      check.textContent = update.status === 'downloaded'
+          ? messages.downloaded.trim()
+          : labels.checkUpdate;
     }
     if (
         update.version && marked !== update.version &&
