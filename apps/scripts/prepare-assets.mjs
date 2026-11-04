@@ -37,10 +37,14 @@ const faviconSource = await readFile(
     new URL('../../src/favicon.ts', import.meta.url),
     'utf8',
 );
+// 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+// noinspection JSUnresolvedReference
 const encoded = faviconSource.match(
-    /const faviconPngBase64 = \[([\s\S]*?)\]\.join/,
+    /const faviconPngBase64 = \[([\s\S]*?)]\.join/,
 )[1].match(/"([A-Za-z0-9+/=]+)"/g).map((value) => value.slice(1, -1)).join('');
 const icon = Buffer.from(encoded, 'base64');
+// 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+// noinspection JSCheckFunctionSignatures
 await writeFile(path.join(destination, 'favicon.png'), icon);
 if (!process.argv.includes('--android')) {
   /** Windows 图标画布补齐 256 像素，原图像素与尺寸保持不变。 */
@@ -67,6 +71,8 @@ if (!process.argv.includes('--android')) {
   header.writeUInt16LE(32, 12);
   header.writeUInt32LE(windowsIcon.length, 14);
   header.writeUInt32LE(22, 18);
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSCheckFunctionSignatures
   await writeFile(
       new URL('../generated/app.ico', import.meta.url),
       Buffer.concat([header, windowsIcon]),
@@ -77,4 +83,6 @@ const androidIcons = new URL(
     import.meta.url,
 );
 await mkdir(androidIcons, {recursive: true});
+// 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+// noinspection JSCheckFunctionSignatures
 await writeFile(new URL('launcher.png', androidIcons), icon);

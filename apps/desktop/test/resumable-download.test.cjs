@@ -14,6 +14,8 @@ const bytes = Buffer.from('complete verified installer'),
 /** @param {Function} run 测试操作。 @return {Promise<void>} 隔离文件已清理。 */
 async function fixture(run) {
   const base = await fs.mkdtemp(path.join(os.tmpdir(), 'heybox-resume-test-'));
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSCheckFunctionSignatures
   const options = {
     root: path.join(base, 'resume'),
     destination: path.join(base, 'setup.exe'),
@@ -50,6 +52,8 @@ test('normal cancellation checkpoints bytes and a restarted transfer requests on
   await resumeDownload({
     ...options, fetcher: (_url, request) => {
       assert.equal(request.headers.range, 'bytes=8-');
+      // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+      // noinspection JSCheckFunctionSignatures
       return Promise.resolve(new Response(bytes.subarray(8), {
         status: 206,
         headers: {'content-range': `bytes 8-${bytes.length - 1}/${bytes.length}`}
@@ -69,6 +73,8 @@ test('a force-killed uncommitted tail is truncated and a corrupt checkpoint is d
 }));
 test('servers ignoring Range replace the partial package instead of appending a full response', () => fixture(async options => {
   await pause(options);
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSCheckFunctionSignatures
   await resumeDownload({
     ...options,
     fetcher: () => Promise.resolve(new Response(bytes, {headers: {'content-length': String(bytes.length)}}))
@@ -77,6 +83,8 @@ test('servers ignoring Range replace the partial package instead of appending a 
 }));
 test('wrong ranges and wrong final digests cannot be installed or retained for another retry', () => fixture(async options => {
   await pause(options);
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSCheckFunctionSignatures
   await assert.rejects(resumeDownload({
     ...options,
     fetcher: () => Promise.resolve(new Response(bytes, {
@@ -85,6 +93,8 @@ test('wrong ranges and wrong final digests cannot be installed or retained for a
     }))
   }));
   assert.equal(await restoreResume(options.root), null);
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSCheckFunctionSignatures
   await assert.rejects(resumeDownload({
     ...options,
     fetcher: () => Promise.resolve(new Response(Buffer.alloc(bytes.length), {headers: {'content-length': String(bytes.length)}}))
@@ -94,10 +104,14 @@ test('wrong ranges and wrong final digests cannot be installed or retained for a
 }));
 test('a different release never appends to a checkpoint from another digest', () => fixture(async options => {
   await pause(options);
+  // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+  // noinspection JSCheckFunctionSignatures
   const next = Buffer.from('next release'), sha512 = createHash('sha512').update(next).digest('base64');
   await resumeDownload({
     ...options, sha512, fetcher: (_url, request) => {
       assert.equal(request.headers.range, undefined);
+      // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+      // noinspection JSCheckFunctionSignatures
       return Promise.resolve(new Response(next, {headers: {'content-length': String(next.length)}}));
     }
   });
@@ -113,6 +127,7 @@ test('the updater adapter preserves manual intent, cancellation semantics and re
   };
   let requests = 0;
   installResumableDownload(updater, () => true, (_url, request) => {
+    request.signal.throwIfAborted();
     requests++;
     if (requests === 1) return Promise.resolve(new Response(new ReadableStream({
       start(stream) {
@@ -122,11 +137,20 @@ test('the updater adapter preserves manual intent, cancellation semantics and re
       }
     }), {headers: {'content-length': String(bytes.length)}}));
     assert.equal(request.headers.range, 'bytes=8-');
+    // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+    // noinspection JSCheckFunctionSignatures
     return Promise.resolve(new Response(bytes.subarray(8), {
       status: 206,
       headers: {'content-range': `bytes 8-${bytes.length - 1}/${bytes.length}`}
     }));
   });
+  const preCancelled = new CancellationToken();
+  preCancelled.cancel();
+  await assert.rejects(updater.httpExecutor.download(new URL(url), options.destination, {
+    sha512: options.sha512, cancellationToken: preCancelled
+  }), CancellationError);
+  assert.equal(requests, 0);
+  assert.equal(preCancelled.listenerCount('cancel'), 0);
   const token = new CancellationToken();
   await assert.rejects(updater.httpExecutor.download(new URL(url), options.destination, {
     sha512: options.sha512,

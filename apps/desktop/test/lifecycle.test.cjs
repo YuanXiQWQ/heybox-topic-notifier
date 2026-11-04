@@ -469,8 +469,13 @@ test('real NSIS updater replaces a deferred release while preserving same-releas
   try {
     let version = '3.10.12', checks = 0, transfers = 0;
     const quits = [], installed = [];
+    // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+    // noinspection JSUnusedGlobalSymbols
     const updater = new NsisUpdater(null, {
-      version: '3.10.11', isPackaged: true, onQuit: callback => quits.push(callback),
+      version: '3.10.11', isPackaged: true,
+      // electron-updater 通过宿主接口注册退出回调。
+      // noinspection JSUnusedGlobalSymbols
+      onQuit: callback => quits.push(callback),
     });
     updater.logger = {
       info() {
@@ -485,10 +490,16 @@ test('real NSIS updater replaces a deferred release while preserving same-releas
     updater.getUpdateInfoAndProvider = () => {
       checks++;
       const bytes = Buffer.from(`isolated installer ${version}`);
+      // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
+      // noinspection JSCheckFunctionSignatures
       const file = {url: 'setup.exe', sha512: createHash('sha512').update(bytes).digest('base64'), size: bytes.length};
+      // 这些成员通过注入的宿主或测试替身调用，静态引用搜索无法追踪。
+      // noinspection JSUnusedGlobalSymbols
       return Promise.resolve({
         info: {version, files: [file]},
         provider: {
+          // electron-updater 通过发行源接口解析安装文件。
+          // noinspection JSUnusedGlobalSymbols
           resolveFiles: info => info.files.map(item => ({
             url: new URL(item.url, 'https://updates.invalid/'),
             info: item
@@ -497,7 +508,10 @@ test('real NSIS updater replaces a deferred release while preserving same-releas
       });
     };
     updater.httpExecutor = {
-      /** @param {URL} url 隔离下载地址。 @param {string} target 临时安装包路径。 */
+      /**
+       * @param {URL} url 隔离下载地址。
+       * @param {string} target 临时安装包路径。
+       */
       async download(url, target) {
         assert.equal(url.hostname, 'updates.invalid');
         transfers++;

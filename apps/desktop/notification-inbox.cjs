@@ -13,6 +13,7 @@ function cookieFingerprint(value) {
 /**
  * 监听会话切换，管理本设备的轮询、通知展示和已确认游标。
  * @param {object} options 设备存储、应用会话、系统通知和页面回调。
+ * @param {() => void} options.emitState 通知开关变化后向页面发送设备状态。
  * @return {object} 设备开关和合并并发读取的轮询入口。
  */
 function createNotificationInbox({webSession, device, origin, Notification, icon, emitState, showWindow}) {
@@ -45,7 +46,7 @@ function createNotificationInbox({webSession, device, origin, Notification, icon
 
   /**
    * 读取账号通知接口，拒绝跳转到登录页后误当作 JSON 成功。
-   * @param {string | undefined} after 消费游标。
+   * @param {string} [after] 消费游标；省略时读取当前账号的初始批次。
    * @return {Promise<object>} 服务端通知批次。
    */
   async function readNotifications(after) {
@@ -224,13 +225,13 @@ function createNotificationInbox({webSession, device, origin, Notification, icon
 
   /**
    * 等待系统确认展示；失败或超时保留游标，下轮可重新投递。
-   * @param {Notification} notification 系统通知实例。
+   * @param {import('electron').Notification} notification Electron 系统通知实例。
    * @return {Promise<void>} 系统已接受展示。
    */
   function showNotification(notification) {
     return new Promise((resolve, reject) => {
       let settled = false;
-      /** @param {Error | undefined} error 展示失败原因。 */
+      /** @param {Error} [error] 展示失败原因；省略时表示已展示。 */
       const finish = (error) => {
         if (settled) return;
         settled = true;
