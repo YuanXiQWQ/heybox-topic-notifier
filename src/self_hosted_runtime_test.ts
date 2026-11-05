@@ -29,7 +29,11 @@ Deno.test("self-hosted startup rejects cloud storage, implicit background pollin
     port: 8000,
   });
   assertEquals(
-    configure({ VM_POLLING_ENABLED: "true", PORT: "8001" }).polling,
+    configure({
+      VM_POLLING_ENABLED: "true",
+      PORT: "8001",
+      HEYBOX_DEVICE_ID: "test-fixed-device",
+    }).polling,
     true,
   );
   for (
@@ -41,6 +45,8 @@ Deno.test("self-hosted startup rejects cloud storage, implicit background pollin
       { DENO_KV_ACCESS_TOKEN: "secret-test-value" },
       { DENO_DEPLOYMENT_ID: "deployment" },
       { VM_POLLING_ENABLED: "" },
+      { VM_POLLING_ENABLED: "true" },
+      { VM_POLLING_ENABLED: "true", HEYBOX_DEVICE_ID: "bad&id" },
       { PORT: "0" },
       { PORT: "NaN" },
       { PUBLIC_ORIGIN: "http://heybox.example.com" },
