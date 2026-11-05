@@ -95,6 +95,8 @@ When a self-hosted server can read topic feeds but detail requests repeatedly re
 
 Run [`src/detail_relay.ts`](../../src/detail_relay.ts) with `deno task start:detail-relay`, or select it as the entrypoint of a separate Deno Deploy app. Configure only a dedicated `HEYBOX_DETAIL_RELAY_TOKEN` of at least 32 characters. This entrypoint does not start KV, database connections, cron jobs or the main website. Pin deployment to a verified commit; do not copy database, login, email or notification credentials into this service.
 
+When upgrading deletion handling, deploy the main service with support for the deletion protocol before updating the relay's pinned commit. Updating the main service alone does not update the relay. The relay returns HTTP 410 with the post ID and `reason: "deleted"` only when Heybox explicitly confirms deletion. The main service removes that post from pending work while preserving saved records. Generic HTTP 404 responses, HTTP 422 from older relays, CAPTCHAs and network failures remain retryable and must not be interpreted as deletion.
+
 Set the URL and matching token in the main server's private environment file, optionally set the request budget, then restart it:
 
 ```dotenv

@@ -13,11 +13,152 @@ import { createPoller } from "./poller.ts";
 import { normalizeMatchResult } from "./match_result.ts";
 import { createPollingNotifier } from "./polling_notifier.ts";
 import { createNotifier } from "./notifier.ts";
+import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import { getMessages } from "../locales/index.ts";
 import {
   createDetailRelayHandler,
   withDetailRelay,
 } from "./heybox_detail_relay.ts";
+
+Deno.test("confirmed deletion exits persisted detail retries through source and relay without concealing captcha", async () => {
+  const notices: string[] = [];
+  const f = await fixture(undefined, (id) => {
+    notices.push(id);
+    return Promise.resolve(true);
+  });
+  let state = "captcha";
+  let requests = 0;
+  const upstream = createHeyboxTopicSource({
+    now: () => new Date(f.now()),
+    fetchFn: (input) => {
+      requests++;
+      const id = new URL(String(input)).searchParams.get("link_id");
+      return Promise.resolve(
+        Response.json(
+          state === "captcha"
+            ? { status: "show_captcha" }
+            : state === "deleted"
+            ? { status: "failed", msg: "该内容已被删除", result: {} }
+            : {
+              status: "ok",
+              result: {
+                link: { linkid: id, title: "恢复内容", description: "正文" },
+              },
+            },
+        ),
+      );
+    },
+  });
+  const token = "test-only-detail-relay-token-00000000";
+  const handler = createDetailRelayHandler({
+    token,
+    source: upstream,
+    now: f.now,
+  });
+  f.source.getPostDetails = withDetailRelay(upstream, {
+    token,
+    url: "https://relay.example/v1/details",
+    now: f.now,
+    fetchFn: (url, init) => handler(new Request(url, init)),
+  }).getPostDetails;
+  try {
+    await f.run();
+    const key = await matchingHash(["topic", "p1"]);
+    assert((await f.store.get(key))?.pendingPost);
+    assert((await f.store.runtime())?.sourceFailure);
+    state = "deleted";
+    f.advance(16 * 60000);
+    await f.run([]);
+    const deleted = (await f.store.get(key))!;
+    assertEquals(deleted.detailUnavailable, "deleted");
+    assertEquals(deleted.pendingPost, undefined);
+    assertEquals(deleted.result, undefined);
+    assertEquals(deleted.detailAttempts, 0);
+    assertEquals((await f.store.runtime())?.pendingCount, 0);
+    assertEquals((await f.store.runtime())?.sourceFailure, undefined);
+    assertEquals(notices, []);
+    const completedRequests = requests;
+    f.advance(7 * 3600000);
+    await f.run();
+    await f.run([]);
+    assertEquals(requests, completedRequests);
+    assertEquals(f.calls(), 1);
+    state = "available";
+    await f.run([post("p1", "修改后的内容")]);
+    assertEquals(requests, completedRequests + 1);
+    assertEquals((await f.store.get(key))?.detailUnavailable, undefined);
+    assertEquals(f.calls(), 2);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("a deleted post does not clear a simultaneous real detail outage", async () => {
+  const notices: string[] = [];
+  const f = await fixture(undefined, (id) => {
+    notices.push(id);
+    return Promise.resolve(true);
+  });
+  try {
+    f.source.getPostDetails = (value) =>
+      Promise.resolve({
+        ...value,
+        detailsComplete: false,
+        ...(value.id === "deleted"
+          ? { detailUnavailable: "deleted" as const }
+          : {}),
+      });
+    await f.run([post("restricted")]);
+    f.advance(16 * 60000);
+    await f.run([post("deleted"), post("restricted")]);
+    assertEquals(notices.length, 1);
+    assertEquals((await f.store.runtime())?.sourceFailure?.notified, true);
+    assertEquals((await f.store.runtime())?.pendingCount, 1);
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("deleted details preserve saved match contents and do not refresh each polling cycle", async () => {
+  const f = await fixture();
+  try {
+    const saved = {
+      id: "old-match",
+      keyword: "帮助",
+      location: "title" as const,
+      matchedAt: "2026-01-01T00:00:00Z",
+      detailRefreshedAt: "2026-01-01T00:00:00Z",
+      post: { ...post(), body: "已保存的完整正文", detailsComplete: true },
+    };
+    await f.storage.saveMatch(saved);
+    f.source.listLatestPosts = () => Promise.resolve([post()]);
+    let requests = 0;
+    f.source.getPostDetails = (value) => {
+      requests++;
+      return Promise.resolve({
+        ...value,
+        detailsComplete: false,
+        detailUnavailable: "deleted",
+      });
+    };
+    const poller = createPoller({
+      ...f,
+      matcher: createMatcher(),
+      notifier: {
+        sendMatches: () =>
+          Promise.resolve({ provider: "disabled", sent: false }),
+      },
+    });
+    await poller.runOnce();
+    await poller.runOnce();
+    assertEquals(requests, 1);
+    const retained = (await f.storage.listMatchesForPost("p1"))[0];
+    assertEquals(retained.post, saved.post);
+    assert(retained.detailRefreshedAt !== saved.detailRefreshedAt);
+  } finally {
+    f.close();
+  }
+});
 
 Deno.test("local detail budget queues work without AI calls, partial decisions or source fault notices", async () => {
   const notices: string[] = [];

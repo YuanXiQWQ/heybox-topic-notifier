@@ -200,12 +200,15 @@ export function createHeyboxTopicSource(
    * @return {Promise<TopicPost>} 补全后的帖子；失败时保留列表内容并标记详情不可用。
    */
   async function hydrateTopicPost(post: TopicPost): Promise<TopicPost> {
+    post = { ...post };
+    delete post.detailUnavailable;
     if (!post.id) {
       return { ...post, detailsComplete: false };
     }
 
     try {
       const detailPost = await fetchLinkDetailPost(post);
+      if (detailPost?.detailUnavailable === "deleted") return detailPost;
       return detailPost
         ? { ...mergeTopicPosts(post, detailPost), detailsComplete: true }
         : { ...post, detailsComplete: false };
@@ -216,7 +219,7 @@ export function createHeyboxTopicSource(
   }
 
   /**
-   * 在十秒请求期限内读取详情；已删除帖子仅标记不可用，来源受限制时共享冷却。
+   * 在十秒请求期限内读取详情；明确删除的帖子单独标记，来源受限制时共享冷却。
    *
    * @param {TopicPost} post 列表接口返回的帖子。
    * @return {Promise<TopicPost | undefined>} 详情帖子，接口无可用内容时返回 undefined。
@@ -269,7 +272,7 @@ export function createHeyboxTopicSource(
       asRecord(payload).status === "failed" &&
       asRecord(payload).msg === "该内容已被删除"
     ) {
-      return undefined;
+      return { ...post, detailsComplete: false, detailUnavailable: "deleted" };
     }
     assertHeyboxOk(payload);
     const link = asRecord(asRecord(payload).result).link;

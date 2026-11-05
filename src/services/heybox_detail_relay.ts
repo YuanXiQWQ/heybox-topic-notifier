@@ -66,7 +66,7 @@ function validPost(value: unknown, id: string): value is TopicPost {
 }
 
 /**
- * 创建有界缓存和在途去重层，失败请求不会缓存为完整详情。
+ * 创建有界缓存和在途去重层，完整内容和明确删除状态短期复用，临时故障不缓存。
  * @param {(id: string) => Promise<TopicPost>} fetchPost 实际详情请求。
  * @param {() => number} now 当前时间。
  * @return {(id: string) => Promise<TopicPost>} 按帖子去重的读取函数。
@@ -94,7 +94,7 @@ function cachedDetails(
         return Promise.reject(new Error("Detail relay busy"));
       }
       request = fetchPost(id).then((post) => {
-        if (post.detailsComplete) {
+        if (post.detailsComplete || post.detailUnavailable === "deleted") {
           if (
             new TextEncoder().encode(JSON.stringify(post)).length >
               maxResponseBytes
@@ -178,6 +178,24 @@ export function withDetailRelay(
         body: JSON.stringify({ id }),
       });
       if (!response.ok) {
+        if (response.status === 410) {
+          const payload = JSON.parse(await readLimited(response.body, 1024));
+          if (payload.id !== id || payload.reason !== "deleted") {
+            throw new Error("Invalid deleted detail response");
+          }
+          return {
+            id,
+            title: "",
+            body: "",
+            excerpt: "",
+            comments: [],
+            commentReplies: [],
+            publishedAt: "",
+            url: "",
+            detailsComplete: false,
+            detailUnavailable: "deleted",
+          };
+        }
         if (response.status === 422) {
           await response.body?.cancel();
           return {
@@ -255,6 +273,7 @@ export function withDetailRelay(
     async getPostDetails(post: TopicPost): Promise<TopicPost> {
       const original = { ...post };
       delete original.detailDeferredUntil;
+      delete original.detailUnavailable;
       try {
         if (!postIdPattern.test(post.id)) throw new Error("Invalid post id");
         const detail = await read(post.id);
@@ -262,6 +281,9 @@ export function withDetailRelay(
           return {
             ...original,
             detailsComplete: false,
+            ...(detail.detailUnavailable === "deleted"
+              ? { detailUnavailable: "deleted" as const }
+              : {}),
             ...(detail.detailDeferredUntil
               ? { detailDeferredUntil: detail.detailDeferredUntil }
               : {}),
@@ -349,6 +371,12 @@ export function createDetailRelayHandler(
     }
     try {
       const post = await read(id);
+      if (post.id === id && post.detailUnavailable === "deleted") {
+        return Response.json({ id, reason: "deleted" }, {
+          status: 410,
+          headers: { "cache-control": "no-store" },
+        });
+      }
       if (!validPost(post, id)) {
         const retryAfter = options.source.detailRetryAfter?.() ?? 0;
         return new Response("Upstream details unavailable", {

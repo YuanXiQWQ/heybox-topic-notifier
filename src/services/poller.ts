@@ -190,7 +190,10 @@ export function createPoller(
                 shouldRefreshPostDetails(matchedPost.detailRefreshedAt, runAt)
               ) {
                 const refreshedPost = await resolvePostDetails(source, post);
-                if (refreshedPost.detailsComplete === false) continue;
+                if (
+                  refreshedPost.detailsComplete === false &&
+                  refreshedPost.detailUnavailable !== "deleted"
+                ) continue;
                 await refreshMatchedPostRecords(
                   runStorage,
                   await runStorage.listMatchesForPost(post.id),
@@ -210,6 +213,7 @@ export function createPoller(
             }
 
             const detailedPost = await resolvePostDetails(source, post);
+            if (detailedPost.detailUnavailable === "deleted") continue;
             const result: MatchResult = match;
             const record: MatchRecord = {
               detailRefreshedAt: detailedPost.detailsComplete === false
@@ -352,13 +356,12 @@ function shouldRefreshPostDetails(
 }
 
 /**
- * 用最新帖子详情覆盖已命中记录，并记录刷新时间。
+ * 刷新已命中记录及检查时间；明确删除时保留已有正文，不反复请求删除内容。
  *
- * @param storage 目标存储。
- * @param records 该帖子的已有命中记录。
- * @param post 最新帖子详情。
- * @param refreshedAt 本次刷新时间。
- * @return 更新完成后的 Promise。
+ * @param {Pick<PollStorage, "saveMatch">} storage 目标存储。
+ * @param {MatchRecord[]} records 该帖子的已有命中记录。
+ * @param {TopicPost} post 最新帖子详情。
+ * @param {string} refreshedAt 本次刷新时间。
  */
 async function refreshMatchedPostRecords(
   storage: Pick<PollStorage, "saveMatch">,
@@ -370,7 +373,7 @@ async function refreshMatchedPostRecords(
     await storage.saveMatch({
       ...record,
       detailRefreshedAt: refreshedAt,
-      post,
+      post: post.detailUnavailable === "deleted" ? record.post : post,
     });
   }
 }
