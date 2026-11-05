@@ -105,6 +105,8 @@ export type AppSettings = {
 export type TopicPost = {
   /** 详情请求是否取得完整正文；失败时禁止把信息缺失作为 AI 未命中缓存。 */
   detailsComplete?: boolean;
+  /** 上游明确确认内容已删除；不将验证码、空响应或网络故障视为删除。 */
+  detailUnavailable?: "deleted";
   /** 本机请求预算要求的最早重试时间；排队不代表上游故障。 */
   detailDeferredUntil?: number;
   body: string;

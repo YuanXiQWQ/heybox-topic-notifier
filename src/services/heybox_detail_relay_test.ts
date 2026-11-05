@@ -48,15 +48,39 @@ Deno.test("deleted Heybox content does not block subsequent valid details throug
     token,
     fetchFn: (url, init) => handler(new Request(url, init)),
   });
+  const deleted = await client.getPostDetails!({ ...post, id: "deleted" });
+  assertEquals(deleted.detailsComplete, false);
+  assertEquals(deleted.detailUnavailable, "deleted");
+  assertEquals(deleted.body, "zsbd");
   assertEquals(
-    (await client.getPostDetails!({ ...post, id: "deleted" })).detailsComplete,
-    false,
+    (await client.getPostDetails!({ ...post, id: "deleted" }))
+      .detailUnavailable,
+    "deleted",
   );
   assertEquals(source.detailRetryAfter!(), 0);
   const complete = await client.getPostDetails!(post);
   assertEquals(complete.detailsComplete, true);
   assertEquals(complete.body, "zsbd");
   assertEquals(calls, 2);
+});
+
+Deno.test("generic unavailable responses cannot become terminal deleted posts", async () => {
+  for (const status of [404, 410, 422, 503]) {
+    const client = withDetailRelay({
+      listLatestPosts: () => Promise.resolve([]),
+    }, {
+      url: "https://relay.example/v1/details",
+      token,
+      fetchFn: () =>
+        Promise.resolve(
+          Response.json({ id: "wrong", reason: "deleted" }, { status }),
+        ),
+    });
+    const unavailable = await client.getPostDetails!(post);
+    assertEquals(unavailable.detailsComplete, false);
+    assertEquals(unavailable.detailUnavailable, undefined);
+    assertEquals(unavailable.body, post.body);
+  }
 });
 
 /**
