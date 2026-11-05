@@ -1,5 +1,6 @@
 /** @file 校验自托管配置，并将受控反向代理请求还原为固定 HTTPS 来源。 */
 import type { StorageEnvironment } from "./storage/factory.ts";
+import { requireHeyboxDeviceId } from "./services/heybox_device_identity.ts";
 
 /** 常驻服务启动时的严格配置，不允许回退至托管 KV。 */
 export type SelfHostedConfig = {
@@ -40,9 +41,10 @@ export function selfHostedConfig(
     throw new Error("PUBLIC_ORIGIN must be an HTTPS origin.");
   }
   const domainLabels = url.hostname.split(".");
-  const domain = domainLabels.length > 1 && domainLabels.every((label) =>
-    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)
-  ) && /[a-z]/i.test(domainLabels.at(-1)!);
+  const domain = domainLabels.length > 1 &&
+    domainLabels.every((label) =>
+      /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)
+    ) && /[a-z]/i.test(domainLabels.at(-1)!);
   if (
     url.protocol !== "https:" || url.username || url.password ||
     url.pathname !== "/" || url.search || url.hash || url.port || !domain ||
@@ -59,6 +61,9 @@ export function selfHostedConfig(
   const polling = environment.get("VM_POLLING_ENABLED");
   if (polling !== "true" && polling !== "false") {
     throw new Error("VM_POLLING_ENABLED must explicitly be true or false.");
+  }
+  if (polling === "true") {
+    requireHeyboxDeviceId(environment.get("HEYBOX_DEVICE_ID"));
   }
   return { origin: url.origin, port, polling: polling === "true" };
 }
