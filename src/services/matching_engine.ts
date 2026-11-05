@@ -334,6 +334,11 @@ export async function startMatchingRun(
         entry.retryAt = entry.expiresAt;
       }
       if (activity) activity.checked++;
+      if (same && live && entry.detailUnavailable === "deleted") {
+        await saveEntry(entry);
+        return undefined;
+      }
+      delete entry.detailUnavailable;
       if (
         same && live && entry.result !== undefined &&
         (settings.mode === "rules" ||
@@ -392,6 +397,19 @@ export async function startMatchingRun(
       let partial = false;
       try {
         if (source.getPostDetails) detailed = await source.getPostDetails(post);
+        if (detailed.detailUnavailable === "deleted") {
+          entry.detailUnavailable = "deleted";
+          entry.detailCheckedAt = now();
+          entry.detailAttempts = 0;
+          entry.attempts = 0;
+          entry.retryAt = 0;
+          delete entry.pendingPost;
+          delete entry.insufficient;
+          delete entry.partialFingerprint;
+          sourceSucceededThisRun = true;
+          await saveEntry(entry);
+          return undefined;
+        }
         if ((detailed.detailDeferredUntil ?? 0) > now()) {
           entry.retryAt = detailed.detailDeferredUntil!;
           await saveEntry(entry);
