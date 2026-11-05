@@ -7,6 +7,7 @@ import { defaultAppSettingsFromEnv } from "./default_settings.ts";
 import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import { withDetailRelay } from "./heybox_detail_relay.ts";
+import { withDetailFailover } from "./heybox_detail_failover.ts";
 import { createPoller } from "./poller.ts";
 import { createPollingNotifier } from "./polling_notifier.ts";
 import { cachePollSchedule } from "../storage/poll_schedule_cache.ts";
@@ -15,7 +16,7 @@ import { cachePollSchedule } from "../storage/poll_schedule_cache.ts";
 export type PollingContext = ReturnType<typeof createPollingContext>;
 
 /**
- * 创建轻量轮询上下文；独立详情出口按所有账号共享的滚动预算取数。
+ * 创建轻量轮询上下文；Oracle 优先、Deno 备用，两路按所有账号共享的滚动预算取数。
  *
  * @param {{cacheSchedule?: boolean, durableNotifications?: boolean}} options 常驻进程的快照缓存与持久投递。
  * @return {object} 默认设置、存储、数据源、匹配器、轮询器与调度器。
@@ -44,13 +45,18 @@ export function createPollingContext(
     throw new Error("Configure both detail relay URL and token");
   }
   const source = relayUrl && relayToken
-    ? withDetailRelay(directSource, {
-      url: relayUrl,
-      token: relayToken,
-      requestsPerMinute: Number(
-        Deno.env.get("HEYBOX_DETAIL_REQUESTS_PER_MINUTE") ?? "3",
-      ),
-    })
+    ? withDetailFailover(
+      directSource,
+      withDetailRelay(directSource, {
+        url: relayUrl,
+        token: relayToken,
+      }),
+      {
+        requestsPerMinute: Number(
+          Deno.env.get("HEYBOX_DETAIL_REQUESTS_PER_MINUTE") ?? "3",
+        ),
+      },
+    )
     : directSource;
   const pollingNotifier = createPollingNotifier(storage);
   const poller = createPoller({

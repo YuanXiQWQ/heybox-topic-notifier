@@ -14,6 +14,7 @@ import { normalizeMatchResult } from "./match_result.ts";
 import { createPollingNotifier } from "./polling_notifier.ts";
 import { createNotifier } from "./notifier.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
+import { withDetailFailover } from "./heybox_detail_failover.ts";
 import { getMessages } from "../locales/index.ts";
 import {
   createDetailRelayHandler,
@@ -464,10 +465,10 @@ Deno.test("matching invalidates changed content and prompts but not price or bud
   }
 });
 
-Deno.test("poller reads full relay details, saves the AI hit and sends only one notification", async () => {
+Deno.test("poller fails over from Oracle, saves full relay details and sends only one notification", async () => {
   const f = await fixture();
   try {
-    let upstreamCalls = 0, notifications = 0;
+    let upstreamCalls = 0, oracleCalls = 0, notifications = 0;
     const relaySource: TopicSource = {
       listLatestPosts: () => Promise.resolve([]),
       getPostDetails: (value) => {
@@ -482,13 +483,18 @@ Deno.test("poller reads full relay details, saves the AI hit and sends only one 
     const token = "test-only-relay-integration-token-0000";
     const handler = createDetailRelayHandler({ token, source: relaySource });
     f.source.listLatestPosts = () => Promise.resolve([post()]);
-    f.source.getPostDetails = () =>
-      Promise.reject(new Error("Oracle details unavailable"));
-    const source = withDetailRelay(f.source, {
-      url: "https://relay.example/v1/details",
-      token,
-      fetchFn: (url, init) => handler(new Request(url, init)),
-    });
+    f.source.getPostDetails = () => {
+      oracleCalls++;
+      return Promise.reject(new Error("Oracle details unavailable"));
+    };
+    const source = withDetailFailover(
+      f.source,
+      withDetailRelay(f.source, {
+        url: "https://relay.example/v1/details",
+        token,
+        fetchFn: (url, init) => handler(new Request(url, init)),
+      }),
+    );
     f.decide({
       decision: "match",
       reason: "关卡求助",
@@ -517,7 +523,9 @@ Deno.test("poller reads full relay details, saves the AI hit and sends only one 
     assertEquals(history[0].post.detailsComplete, true);
     assertEquals(notifications, 1);
     assertEquals(upstreamCalls, 1);
+    assertEquals(oracleCalls, 1);
     assertEquals(f.calls(), 1);
+    assertEquals((await f.store.runtime())?.sourceFailure, undefined);
   } finally {
     f.close();
   }

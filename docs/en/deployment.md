@@ -91,7 +91,7 @@ turns on the "enable polling" setting on its settings page.
 
 ## Independent Heybox detail service
 
-When a self-hosted server can read topic feeds but detail requests repeatedly return `show_captcha`, use a separately verified network location for details. Scheduling, accounts, Turso, AI matching and notifications remain in the main service.
+With a detail relay configured, the main service tries Oracle's direct connection first and uses Deno only when direct details fail or are restricted. Feeds, scheduling, accounts, Turso, AI matching and notifications remain in the main service. Healthy Oracle requests do not consume Deno's detail request quota.
 
 Run [`src/detail_relay.ts`](../../src/detail_relay.ts) with `deno task start:detail-relay`, or select it as the entrypoint of a separate Deno Deploy app. Configure only a dedicated `HEYBOX_DETAIL_RELAY_TOKEN` of at least 32 characters. This entrypoint does not start KV, database connections, cron jobs or the main website. Pin deployment to a verified commit; do not copy database, login, email or notification credentials into this service.
 
@@ -105,11 +105,11 @@ HEYBOX_DETAIL_RELAY_TOKEN=<DEDICATED_RANDOM_SECRET>
 HEYBOX_DETAIL_REQUESTS_PER_MINUTE=3
 ```
 
-The token must match the detail service. Requests carry only a post ID; arbitrary destination URLs are rejected. HTTPS, Bearer authentication, timeouts, response limits, short-lived caching and in-flight deduplication apply. Failed requests trigger a shared cooldown to avoid repeatedly consuming quotas for every queued post. `GET /healthz` confirms only that the process is running. Verify actual full details, matching and notification delivery before accepting the deployment.
+The token must match the detail service. Backup requests carry only a post ID; arbitrary destination URLs are rejected. HTTPS, Bearer authentication, timeouts, response limits, short-lived caching and in-flight deduplication apply. Each route has an independent cooldown. Once Oracle's cooldown ends, the next real detail request checks recovery and restores direct access on success. If both routes are restricted, work remains pending and outage alerts continue without repeated switching. Cooldown expiry does not guarantee that upstream restrictions have lifted. `GET /healthz` confirms only that the process is running. Verify actual full details, matching and notification delivery before accepting the deployment.
 
-`HEYBOX_DETAIL_REQUESTS_PER_MINUTE` defaults to 3 and accepts integers from 1 to 60. The main service shares a rolling 60-second budget across all accounts; cache hits do not count. Work beyond the budget stays queued without calling AI or reporting a source outage. An incomplete refresh does not overwrite previously saved full details. Neither low request rates nor a separate network location guarantee that Heybox will accept requests; verify real API responses after deployment.
+`HEYBOX_DETAIL_REQUESTS_PER_MINUTE` defaults to 3 and accepts integers from 1 to 60. The main service shares one rolling 60-second budget across all accounts and both routes. A Deno attempt after an Oracle failure consumes another request; cache hits do not count. Work beyond the budget stays queued without calling AI or reporting a source outage. An incomplete refresh does not overwrite previously saved full details. Neither low request rates nor a separate network location guarantee that Heybox will accept requests; verify real API responses after deployment.
 
-Oracle's `heybox_detail_relay_success` logs include response bytes and elapsed time; `heybox_detail_relay_failed` and `heybox_detail_relay_cooldown` indicate failures. Check actual platform CPU, memory time, requests and egress against the account's limits. Avoiding KV does not by itself guarantee sufficient free-tier capacity. Pending queues and partial-content classification are safeguards during outages, not proof of upstream availability.
+Oracle's `heybox_detail_attempt` logs identify each route (`oracle` or `deno`), its outcome, and its retry time on failure. `heybox_detail_relay_success` logs include backup response bytes and elapsed time; `heybox_detail_relay_failed` and `heybox_detail_relay_cooldown` indicate backup failures. Check actual platform CPU, memory time, requests and egress against the account's limits. Avoiding KV does not by itself guarantee sufficient free-tier capacity. Pending queues and partial-content classification are safeguards during outages, not proof of upstream availability.
 
 ## Notification Relay
 

@@ -71,7 +71,7 @@ function validPost(value: unknown, id: string): value is TopicPost {
  * @param {() => number} now 当前时间。
  * @return {(id: string) => Promise<TopicPost>} 按帖子去重的读取函数。
  */
-function cachedDetails(
+export function cachedDetails(
   fetchPost: (id: string) => Promise<TopicPost>,
   now: () => number,
 ) {
@@ -258,6 +258,11 @@ export function withDetailRelay(
     }
   }, now);
   return {
+    /**
+     * 返回备用出口的独立冷却状态，供主服务避开已受限的出口。
+     * @return {number} 剩余冷却秒数。
+     */
+    detailRetryAfter: () => Math.max(0, Math.ceil((retryAt - now()) / 1000)),
     /**
      * 沿用主服务的话题列表访问与排序。
      * @param {string} id 话题标识。
