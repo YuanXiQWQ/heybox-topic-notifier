@@ -89,7 +89,9 @@ A/AAAA 解析结果不落入本机、内网、链路本地、元数据服务或�
 
 配置独立详情出口后，主服务优先从 Oracle 直连读取详情，直连失败或受限时才使用 Deno 备用出口。列表、轮询调度、账号、Turso、AI 匹配和通知继续在主服务运行；Oracle 正常时不消耗 Deno 详情请求额度。
 
-独立服务的入口为 [`src/detail_relay.ts`](../../src/detail_relay.ts)，可使用 `deno task start:detail-relay`，或在独立 Deno Deploy 应用中指定此入口。只配置专用 `HEYBOX_DETAIL_RELAY_TOKEN`（至少 32 个字符）；不要复制主服务的数据库、登录、邮件或通知密钥。该入口不启动 KV、数据库、Cron 或网页服务。发布时固定到已验证的版本提交，避免随开发分支变动。
+独立服务的入口为 [`src/detail_relay.ts`](../../src/detail_relay.ts)，可使用 `deno task start:detail-relay`，或在独立 Deno Deploy 应用中指定此入口。配置专用 `HEYBOX_DETAIL_RELAY_TOKEN`（至少 32 个字符）和固定的 `HEYBOX_DEVICE_ID`；不要复制主服务的数据库、登录、邮件或通知密钥。该入口不启动 KV、数据库、Cron 或网页服务。发布时固定到已验证的版本提交，避免随开发分支变动。
+
+Oracle 开启正式轮询和 Deno 详情出口启动前，都必须配置 `HEYBOX_DEVICE_ID`。为两路分别一次性生成随机标识，例如使用 `deno eval 'console.log(crypto.randomUUID().replaceAll("-", ""))'`，然后保存到各自的部署环境配置。不要使用用户手机的标识，也不要在启动脚本中反复生成；重启、冷启动、升级和鉴权密钥轮换都应保留原设备标识。标识支持 8–128 位字母、数字、下划线或连字符，缺失或无效时启动检查会报错。升级前先补齐环境配置，避免影响现有服务。固定标识只保持请求身份连续，既不代表登录，也不保证解除验证码。
 
 在主服务的私有环境文件中设置 URL 和相同密钥，可选配置请求预算，然后重启：
 

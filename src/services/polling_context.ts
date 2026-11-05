@@ -8,6 +8,7 @@ import { createMatcher } from "./matcher.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
 import { withDetailRelay } from "./heybox_detail_relay.ts";
 import { withDetailFailover } from "./heybox_detail_failover.ts";
+import { requireHeyboxDeviceId } from "./heybox_device_identity.ts";
 import { createPoller } from "./poller.ts";
 import { createPollingNotifier } from "./polling_notifier.ts";
 import { cachePollSchedule } from "../storage/poll_schedule_cache.ts";
@@ -31,9 +32,12 @@ export function createPollingContext(
   const storage = options.cacheSchedule ? cachePollSchedule(backend) : backend;
   const matcher = createMatcher();
   const signatureMode = Deno.env.get("HEYBOX_SIGNATURE_MODE");
+  const configuredDeviceId = Deno.env.get("HEYBOX_DEVICE_ID");
   const directSource = createHeyboxTopicSource({
     cookie: Deno.env.get("HEYBOX_COOKIE") ?? undefined,
-    deviceId: Deno.env.get("HEYBOX_DEVICE_ID") ?? undefined,
+    deviceId: configuredDeviceId?.trim()
+      ? requireHeyboxDeviceId(configuredDeviceId)
+      : undefined,
     signatureMode: signatureMode === "app" || signatureMode === "web"
       ? signatureMode
       : undefined,
