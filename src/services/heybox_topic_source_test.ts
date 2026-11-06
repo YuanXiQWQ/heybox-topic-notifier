@@ -6,7 +6,12 @@ import {
   parseHeyboxTopicPosts,
 } from "./heybox_topic_source.ts";
 import { assert, assertEquals } from "../test_helpers.ts";
+import { assertThrows } from "@std/assert";
 import type { TopicPost } from "../models.ts";
+import {
+  createDetailRelayHandler,
+  withDetailRelay,
+} from "./heybox_detail_relay.ts";
 
 /** 用于验证详情身份与退避状态的列表记录。 */
 const detailTestPost: TopicPost = {
@@ -19,6 +24,83 @@ const detailTestPost: TopicPost = {
   publishedAt: "2026-11-06",
   url: "https://www.xiaoheihe.cn/app/bbs/link/requested",
 };
+
+for (
+  const signatureMode of [undefined, "app-v1149", "app-v1149-rnd14"] as const
+) {
+  Deno.test(`${signatureMode ?? "default"} build1149 mode signs feed and detail with the same anonymous identity`, async () => {
+    const urls: URL[] = [];
+    const source = createHeyboxTopicSource({
+      signatureMode,
+      deviceId: "0123456789abcdef0123456789abcdef",
+      now: () => new Date(1700000000000),
+      random: () => 0,
+      fetchFn: (input) => {
+        const url = new URL(String(input));
+        urls.push(url);
+        const result = url.pathname.endsWith("/tree")
+          ? { link: { linkid: 123, title: "合成详情", text: "合成完整正文" } }
+          : { links: [{ linkid: 123, title: "合成列表", text: "摘要" }] };
+        return Promise.resolve(Response.json({ status: "ok", result }));
+      },
+    });
+    const posts = await source.listLatestPosts("12099", {
+      limit: 1,
+      sort: "smart",
+    });
+    const detailed = await source.getPostDetails!(posts[0]);
+    assertEquals(detailed.detailsComplete, true);
+    assertEquals(detailed.body, "合成完整正文");
+    assertEquals(urls.map((url) => url.searchParams.get("hkey")), [
+      "51E17233",
+      "760E264C",
+    ]);
+    assertEquals(
+      urls.map((url) => url.searchParams.get("_rnd")),
+      signatureMode === "app-v1149-rnd14"
+        ? ["14:88777394", "14:46B73B37"]
+        : [null, null],
+    );
+    for (const url of urls) {
+      assertEquals(url.searchParams.get("version"), "1.3.400");
+      assertEquals(url.searchParams.get("build"), "1149");
+      assertEquals(
+        url.searchParams.get("imei"),
+        "0123456789abcdef0123456789abcdef",
+      );
+      assertEquals(url.searchParams.get("heybox_id"), "-1");
+      assertEquals(url.searchParams.get("nonce"), "P".repeat(32));
+    }
+    assertEquals(urls[1].searchParams.get("link_id"), "123");
+    assertEquals(urls[1].searchParams.get("page"), "1");
+    assertEquals(urls[1].searchParams.get("limit"), "20");
+  });
+}
+
+Deno.test("build1149 mode binds configured user identity and rejects version mismatch", async () => {
+  const source = createHeyboxTopicSource({
+    signatureMode: "app-v1149",
+    deviceId: "0123456789abcdef0123456789abcdef",
+    heyboxId: "123456",
+    now: () => new Date(1700000000000),
+    random: () => 0,
+    fetchFn: (input) => {
+      const params = new URL(String(input)).searchParams;
+      assertEquals(params.get("heybox_id"), "123456");
+      assertEquals(params.get("hkey"), "7391DB2A");
+      return Promise.resolve(Response.json({ status: "ok", result: {} }));
+    },
+  });
+  assertEquals(
+    (await source.getPostDetails!(detailTestPost)).detailsComplete,
+    false,
+  );
+  for (const config of [{ appBuild: "783" }, { appVersion: "1.3.232" }]) {
+    assertThrows(() =>
+      createHeyboxTopicSource({ signatureMode: "app-v1149", ...config })
+    );
+  }
+});
 
 Deno.test("direct details reject missing or mismatched post identities before merging", async () => {
   for (
@@ -58,19 +140,352 @@ Deno.test("direct detail retries clear stale queue metadata on incomplete respon
   assertEquals(result.detailUnavailable, undefined);
 });
 
+Deno.test("numeric list identities accept the same post's share alias through direct and relay details", async () => {
+  const [listed] = parseHeyboxTopicPosts({
+    status: "ok",
+    result: {
+      links: [{ linkid: 196222214, title: "怎么秒了", text: "列表摘要" }],
+    },
+  }, "12099");
+  assertEquals(listed.id, "196222214");
+  for (const nativeId of [196222214, "196222214"]) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: (id) => {
+        assertEquals(id, listed.id);
+        return Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link: {
+              linkid: nativeId,
+              share_url: "https://www.xiaoheihe.cn/app/bbs/link/77af72c7cfe3",
+              title: "怎么秒了",
+              text: "我录制还没开呢",
+            },
+          },
+        }));
+      },
+    });
+    const token = "test-only-numeric-detail-alias-00000000";
+    const handler = createDetailRelayHandler({ token, source });
+    const relay = withDetailRelay(source, {
+      url: "http://127.0.0.1:8788/v1/details",
+      token,
+      local: true,
+      fetchFn: (url, init) => handler(new Request(url, init)),
+    });
+    for (const client of [source, relay]) {
+      const result = await client.getPostDetails!(listed);
+      assertEquals(result.detailsComplete, true);
+      assertEquals(result.id, listed.id);
+      assertEquals(result.url, listed.url);
+      assertEquals(result.body, "我录制还没开呢");
+      assertEquals(client.detailRetryAfter!(), 0);
+    }
+  }
+});
+
+Deno.test("numeric detail requests cannot use another post's share alias as identity proof", async () => {
+  for (const nativeId of [196222215, "77af72c7cfe3", undefined]) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link: {
+              linkid: nativeId,
+              share_url: "https://www.xiaoheihe.cn/app/bbs/link/77af72c7cfe3",
+              text: "不能接受没有对应原始编号的详情",
+            },
+          },
+        })),
+    });
+    const listed = { ...detailTestPost, id: "196222214" };
+    const result = await source.getPostDetails!(listed);
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.body, listed.body);
+    assertEquals(result.id, listed.id);
+  }
+});
+
+Deno.test("numeric share URLs cannot override a conflicting or absent native detail identity", async () => {
+  for (const nativeId of [196222215, "different", undefined]) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link: {
+              linkid: nativeId,
+              share_url: "https://www.xiaoheihe.cn/app/bbs/link/196222214",
+              text: "不能以分享链接覆盖原始编号",
+            },
+          },
+        })),
+    });
+    const result = await source.getPostDetails!({
+      ...detailTestPost,
+      id: "196222214",
+    });
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.body, detailTestPost.body);
+  }
+});
+
+Deno.test("missing and unsupported detail bodies cannot be promoted from list summaries", async () => {
+  for (
+    const content of [
+      {},
+      { description: "详情接口只给了摘要" },
+      { text: null },
+      { text: null, description: "只有摘要仍不能确认正文" },
+      { text: { unsupported: "未识别的完整正文" }, description: "摘要" },
+      { text: [{ text: "已识别片段" }, { unsupported: "不能丢掉这一段" }] },
+      { text: [{ text: "已识别片段" }, { type: "simple_card" }] },
+      {
+        text: [{
+          type: "simple_card",
+          simple_card: { protocol: "heybox://unknown" },
+        }],
+      },
+      {
+        text: [{
+          type: "simple_card",
+          simple_card: { title: "可读标题", desc: { unsupported: "不可丢弃" } },
+        }],
+      },
+      {
+        text: [{
+          type: "post_guide_card",
+          post_guide_card: { text: "可读标题", description: ["未识别结构"] },
+        }],
+      },
+    ]
+  ) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: { link: { linkid: detailTestPost.id, ...content } },
+        })),
+    });
+    const result = await source.getPostDetails!(detailTestPost);
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.body, detailTestPost.body);
+    assertEquals(source.detailRetryAfter!(), 0);
+  }
+});
+
+Deno.test("native simple and post guide cards preserve all visible text without discarding details", async () => {
+  const content = [
+    { type: "text", text: "正文第一段" },
+    { type: "img", text: "/private/image.jpg", url: "https://image.test/a" },
+    {
+      type: "simple_card",
+      simple_card: {
+        title: " 卡片标题 ",
+        desc: " 卡片描述 ",
+        icon: "https://image.test/icon",
+        protocol: "heybox://jump?tracking=hidden",
+        first_appear_protocol: "heybox://exposure?tracking=hidden",
+      },
+    },
+    {
+      type: "post_guide_card",
+      post_guide_card: {
+        text: "引导卡片标题",
+        description: "去体验",
+        protocol: "heybox://guide?tracking=hidden",
+      },
+    },
+    { type: "text", text: "正文最后一段" },
+  ];
+  for (const text of [content, JSON.stringify(content)]) {
+    const payload = {
+      status: "ok",
+      result: { link: { linkid: "123", text } },
+    };
+    const [listed] = parseHeyboxTopicPosts({
+      status: "ok",
+      result: { links: [payload.result.link] },
+    }, "12099");
+    const expected =
+      "正文第一段\n卡片标题\n卡片描述\n引导卡片标题\n去体验\n正文最后一段";
+    assertEquals(listed.body, expected);
+    const source = createHeyboxTopicSource({
+      fetchDetail: () => Promise.resolve(Response.json(payload)),
+    });
+    const detailed = await source.getPostDetails!(listed);
+    assertEquals(detailed.body, expected);
+    assertEquals(detailed.detailsComplete, true);
+    assertEquals(source.detailRetryAfter!(), 0);
+  }
+});
+
+Deno.test("flat detail comment groups preserve root comments and replies outside the link", async () => {
+  const source = createHeyboxTopicSource({
+    fetchDetail: () =>
+      Promise.resolve(Response.json({
+        status: "ok",
+        result: {
+          link: { linkid: detailTestPost.id, text: "完整正文" },
+          comments: [
+            { comment: [{ text: "第一条主评论" }, { text: "第一条回复" }] },
+            { comment: [{ text: "第二条主评论" }, { text: "第二条回复" }] },
+          ],
+        },
+      })),
+  });
+  const result = await source.getPostDetails!(detailTestPost);
+  assertEquals(result.detailsComplete, true);
+  assertEquals(result.comments, ["第一条主评论", "第二条主评论"]);
+  assertEquals(result.commentReplies, ["第一条回复", "第二条回复"]);
+});
+
+Deno.test("nested native details validate the body identity and retain their comment groups", async () => {
+  const source = createHeyboxTopicSource({
+    fetchDetail: () =>
+      Promise.resolve(Response.json({
+        status: "ok",
+        result: {
+          link: {
+            body: {
+              linkid: 196222214,
+              share_url: "https://www.xiaoheihe.cn/app/bbs/link/native-alias",
+              title: "嵌套详情标题",
+              text: JSON.stringify([{ type: "text", text: "嵌套详情正文" }]),
+              description: "摘要",
+            },
+            stats: { comment_num: 2 },
+            comment: {
+              comments: [{ comment: [{ text: "主评论" }, { text: "回复" }] }],
+            },
+          },
+        },
+      })),
+  });
+  const result = await source.getPostDetails!({
+    ...detailTestPost,
+    id: "196222214",
+  });
+  assertEquals(result.detailsComplete, true);
+  assertEquals(result.body, "嵌套详情正文");
+  assertEquals(result.title, "嵌套详情标题");
+  assertEquals(result.comments, ["主评论"]);
+  assertEquals(result.commentReplies, ["回复"]);
+});
+
+Deno.test("conflicting nested native identities cannot be overwritten while normalizing", async () => {
+  for (
+    const conflicting of [
+      { linkid: 196222215, stats: {} },
+      { stats: { linkid: 196222215 } },
+    ]
+  ) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link: {
+              ...conflicting,
+              body: { linkid: 196222214, text: "不能串帖" },
+            },
+          },
+        })),
+    });
+    const result = await source.getPostDetails!({
+      ...detailTestPost,
+      id: "196222214",
+    });
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.body, detailTestPost.body);
+  }
+});
+
+Deno.test("native body wrappers containing only a description remain incomplete", async () => {
+  const source = createHeyboxTopicSource({
+    fetchDetail: () =>
+      Promise.resolve(Response.json({
+        status: "ok",
+        result: {
+          link: {
+            body: { linkid: detailTestPost.id, description: "只有摘要" },
+            stats: { comment_num: 0 },
+          },
+        },
+      })),
+  });
+  const result = await source.getPostDetails!(detailTestPost);
+  assertEquals(result.detailsComplete, false);
+  assertEquals(result.body, detailTestPost.body);
+});
+
+Deno.test("explicit empty detail bodies replace stale list text without treating missing fields as empty", async () => {
+  for (const text of ["", [], { children: [] }]) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: { link: { linkid: detailTestPost.id, text } },
+        })),
+    });
+    const result = await source.getPostDetails!(detailTestPost);
+    assertEquals(result.detailsComplete, true);
+    assertEquals(result.body, "");
+  }
+});
+
+Deno.test("supported nested and serialized detail text keeps its segments and ignores media metadata", async () => {
+  const nodes = [
+    { type: "text", text: "第一段正文" },
+    { type: "img", text: "不能当作正文的图片路径" },
+    { children: [{ content: "第二段正文" }] },
+  ];
+  for (
+    const content of [
+      nodes,
+      JSON.stringify(nodes),
+      { items: nodes },
+      { text: null, children: nodes },
+    ]
+  ) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: { link: { linkid: detailTestPost.id, content } },
+        })),
+    });
+    const result = await source.getPostDetails!(detailTestPost);
+    assertEquals(result.detailsComplete, true);
+    assertEquals(result.body, "第一段正文\n第二段正文");
+  }
+});
+
 Deno.test("a later concurrent transport failure cannot shorten captcha cooldown", async () => {
   let time = 1000;
   const requests = [
     Promise.withResolvers<Response>(),
     Promise.withResolvers<Response>(),
   ];
+  const started = [
+    Promise.withResolvers<void>(),
+    Promise.withResolvers<void>(),
+  ];
   let calls = 0;
   const source = createHeyboxTopicSource({
     now: () => new Date(time),
-    fetchFn: () => requests[calls++].promise,
+    /** 等待异步签名完成、真实进入请求阶段后，测试才注入相应的响应。 */
+    fetchFn: () => {
+      const index = calls++;
+      started[index].resolve();
+      return requests[index].promise;
+    },
   });
   const captcha = source.getPostDetails!(detailTestPost);
+  await started[0].promise;
   const failing = source.getPostDetails!({ ...detailTestPost, id: "other" });
+  await started[1].promise;
   requests[0].resolve(Response.json({ status: "show_captcha" }));
   await captcha;
   time += 1000;
@@ -210,10 +625,11 @@ Deno.test("parseHeyboxTopicPosts encodes extracted link IDs in post URLs", () =>
   );
 });
 
-Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
+Deno.test("explicit legacy app mode keeps its signed topic feed protocol", async () => {
   const requestedUrls: URL[] = [];
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
+    signatureMode: "app",
     deviceId: "device-1",
     fetchFn: (input) => {
       const url = new URL(String(input));
@@ -226,6 +642,7 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
               create_at: 1782842501,
               linkid: 1,
               title: "hello",
+              text: "完整正文",
             },
           },
           status: "ok",
@@ -427,7 +844,64 @@ async function assertRejects(
   throw new Error(`Expected ${expectedMessage}`);
 }
 
-for (const restriction of ["show_captcha", "http_429"]) {
+/** 验证签名拒绝与缺失令牌保留独立诊断，按来源退避且不泄露上游消息或身份。 */
+Deno.test("signature and token rejections retain distinct safe reasons and recover after cooldown", async () => {
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message: string) => warnings.push(message);
+  try {
+    for (const reason of ["hkey", "lack_token"]) {
+      let time = 1700000000000;
+      let requests = 0;
+      const source = createHeyboxTopicSource({
+        now: () => new Date(time),
+        cookie: "x_xhh_tokenid=synthetic-cookie-not-for-logging",
+        fetchFn: () => {
+          requests++;
+          return Promise.resolve(Response.json(
+            requests === 1
+              ? { status: reason, msg: "synthetic-upstream-private-message" }
+              : {
+                status: "ok",
+                result: {
+                  link: { linkid: detailTestPost.id, text: "完整正文" },
+                },
+              },
+          ));
+        },
+      });
+      const result = await source.getPostDetails!(detailTestPost);
+      assertEquals(result.detailsComplete, false);
+      assertEquals(result.body, detailTestPost.body);
+      assertEquals(result.detailUnavailable, undefined);
+      assertEquals(source.detailRetryAfter!(), 60);
+      assertEquals(JSON.parse(warnings.at(-1)!), {
+        event: "heybox_detail_restricted",
+        reason,
+        retryAt: new Date(time + 60000).toISOString(),
+      });
+      time += 59000;
+      assertEquals(
+        (await source.getPostDetails!({ ...detailTestPost, id: "other" }))
+          .detailsComplete,
+        false,
+      );
+      assertEquals(requests, 1);
+      time += 1000;
+      assertEquals(
+        (await source.getPostDetails!(detailTestPost)).detailsComplete,
+        true,
+      );
+      assertEquals(requests, 2);
+      assertEquals(source.detailRetryAfter!(), 0);
+    }
+    assertEquals(warnings.length, 2);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+for (const restriction of ["show_captcha", "http_429", "business_rate_limit"]) {
   Deno.test(`detail restriction ${restriction} pauses requests without treating incomplete content as success`, async () => {
     let time = 1800000000000;
     let details = 0;
@@ -447,11 +921,16 @@ for (const restriction of ["show_captcha", "http_429"]) {
           details === 1
             ? restriction === "http_429"
               ? new Response("limited", { status: 429 })
+              : restriction === "business_rate_limit"
+              ? Response.json({
+                status: "failed",
+                msg: "请求过于频繁，请稍后再试",
+              })
               : Response.json({ status: "show_captcha", result: {} })
             : Response.json({
               status: "ok",
               result: {
-                link: { linkid: "1", title: "hello", description: "complete" },
+                link: { linkid: "1", title: "hello", text: "complete" },
               },
             }),
         );

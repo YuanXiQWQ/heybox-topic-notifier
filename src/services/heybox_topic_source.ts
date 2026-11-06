@@ -7,6 +7,8 @@ import {
   createHeyboxSignatureParams,
   type HeyboxSignatureMode,
 } from "./heybox_signer.ts";
+import { createHeyboxNativeSignatureParams } from "./heybox_native_signer.ts";
+import { buildNativeRndV14 } from "./heybox_native_rnd.ts";
 
 /**
  * 小黑盒话题数据源配置。
@@ -57,6 +59,7 @@ const trustedHeyboxPostPathPrefixes = ["/app/bbs/link/", "/app/topic/link/"];
 
 /**
  * 创建小黑盒话题帖子数据源。
+ * 默认使用 build1149 协议；旧模式须显式指定，协议兼容不保证上游免验证码。
  *
  * @param config 小黑盒接口请求配置。
  * @return 话题帖子数据源实现。
@@ -65,17 +68,24 @@ export function createHeyboxTopicSource(
   config: HeyboxTopicSourceConfig = {},
 ): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
-  const appBuild = config.appBuild ?? "783";
-  const appVersion = config.appVersion ?? "1.3.232";
+  const signatureMode = config.signatureMode ?? "app-v1149";
+  const native1149 = signatureMode === "app-v1149" ||
+    signatureMode === "app-v1149-rnd14";
+  const appBuild = config.appBuild ?? (native1149 ? "1149" : "783");
+  const appVersion = config.appVersion ?? (native1149 ? "1.3.400" : "1.3.232");
+  if (native1149 && (appBuild !== "1149" || appVersion !== "1.3.400")) {
+    throw new Error("app-v1149 requires Heybox 1.3.400/build1149");
+  }
   const channel = config.channel ?? "heybox_wandoujia";
   const deviceInfo = config.deviceInfo ?? "M2104K10AC";
   const deviceId = config.deviceId ?? crypto.randomUUID().replaceAll("-", "");
   const dw = config.dw ?? "393";
   const fetchFn = config.fetchFn ?? fetch;
   let detailBlockedUntil = 0;
-  const heyboxId = config.heyboxId ?? "";
+  const heyboxId = native1149
+    ? (config.heyboxId || "-1")
+    : (config.heyboxId ?? "");
   const osVersion = config.osVersion ?? "14";
-  const signatureMode = config.signatureMode ?? "app";
   const timeZone = config.timeZone ?? "Asia/Shanghai";
   const userAgent = config.userAgent ??
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 " +
@@ -122,7 +132,7 @@ export function createHeyboxTopicSource(
         : limit;
       const url = new URL(topicFeedsPath, apiBaseUrl);
       const params: Record<string, string> = {
-        ...signedRequestParams(topicFeedsPath),
+        ...await signedRequestParams(topicFeedsPath),
         limit: String(requestLimit),
         offset: "0",
         topic_id: topicId,
@@ -165,17 +175,39 @@ export function createHeyboxTopicSource(
    * 构建带签名的小黑盒请求参数。
    *
    * @param path 请求路径。
-   * @return 请求查询参数。
+   * @return 请求查询参数；实验模式额外使用同一时间和身份生成版本 14 的 _rnd。
    */
-  function signedRequestParams(path: string): Record<string, string> {
-    const signature = createHeyboxSignatureParams(
-      path,
-      config.now?.() ?? new Date(),
-      config.random,
-      signatureMode,
-    );
+  async function signedRequestParams(
+    path: string,
+  ): Promise<Record<string, string>> {
+    const signature = native1149
+      ? await createHeyboxNativeSignatureParams(
+        path,
+        deviceId,
+        heyboxId,
+        config.now?.() ?? new Date(),
+        config.random,
+      )
+      : createHeyboxSignatureParams(
+        path,
+        config.now?.() ?? new Date(),
+        config.random,
+        signatureMode,
+      );
 
     return {
+      ...(signatureMode === "app-v1149-rnd14"
+        ? {
+          _rnd: buildNativeRndV14(
+            path,
+            signature.time,
+            deviceId,
+            heyboxId,
+            osVersion,
+            appVersion,
+          ),
+        }
+        : {}),
       _time: String(signature.time),
       build: appBuild,
       channel,
@@ -222,8 +254,9 @@ export function createHeyboxTopicSource(
   }
 
   /**
-   * 读取有超时保护的详情传输；明确删除的帖子单独标记，来源受限制时共享冷却。
+   * 读取正文和首屏评论；明确删除的帖子单独标记，来源受限制时共享冷却。
    * 默认 HTTP 请求限时十秒，注入的匿名传输自行限制初始化与请求时限。
+   * 原生接口省略分页参数会返回空评论列表，显式读取第一页的二十个评论组。
    *
    * @param {TopicPost} post 列表接口返回的帖子。
    * @return {Promise<TopicPost | undefined>} 详情帖子，接口无可用内容时返回 undefined。
@@ -236,8 +269,10 @@ export function createHeyboxTopicSource(
     }
     const url = new URL(linkTreePath, apiBaseUrl);
     const params: Record<string, string> = {
-      ...signedRequestParams(linkTreePath),
+      ...await signedRequestParams(linkTreePath),
       link_id: post.id,
+      page: "1",
+      limit: "20",
     };
 
     for (const [key, value] of Object.entries(params)) {
@@ -271,12 +306,22 @@ export function createHeyboxTopicSource(
 
     const payload = await response.json();
     if (
-      ["show_captcha", "lack_token"].includes(String(asRecord(payload).status))
+      asRecord(payload).status === "failed" &&
+      typeof asRecord(payload).msg === "string" &&
+      String(asRecord(payload).msg).includes("频繁")
+    ) {
+      pauseRestrictedDetails("business_rate_limit");
+      return undefined;
+    }
+    if (
+      ["show_captcha", "lack_token", "hkey"].includes(
+        String(asRecord(payload).status),
+      )
     ) {
       const reason = String(asRecord(payload).status);
       pauseRestrictedDetails(
         reason,
-        reason === "lack_token" ? 60000 : detailRestrictionCooldownMs,
+        reason === "show_captcha" ? detailRestrictionCooldownMs : 60000,
       );
       return undefined;
     }
@@ -287,14 +332,38 @@ export function createHeyboxTopicSource(
       return { ...post, detailsComplete: false, detailUnavailable: "deleted" };
     }
     assertHeyboxOk(payload);
-    const link = asRecord(asRecord(payload).result).link;
-    const record = asRecord(link);
+    const result = asRecord(asRecord(payload).result);
+    const link = asRecord(result.link);
+    const record = normalizeHeyboxDetailRecord(link);
 
     if (Object.keys(record).length === 0) return undefined;
     const detail = postFromHeyboxRecord(record, topicIdFromPost(post));
-    // 合并会沿用列表 ID，必须在合并之前校验响应身份，避免串帖后误报完整。
-    if (detail.id !== post.id) throw new Error("Mismatched detail post");
-    return detail;
+    // 数字编号与分享链接短 ID 可以属于同一帖；数字请求还须核对响应原始编号。
+    // 短 ID 请求仍以解析出的可信分享标识校验，不能用冲突的原始短 ID 放行。
+    const nativeId = stringField(record, [
+      "linkid",
+      "link_id",
+      "post_id",
+      "article_id",
+      "id",
+    ]);
+    const matchesIdentity = /^\d+$/.test(post.id)
+      ? nativeId === post.id
+      : detail.id === post.id;
+    if (!matchesIdentity) {
+      throw new Error("Mismatched detail post");
+    }
+    const body = detailBodyFromHeyboxRecord(record);
+    if (body === undefined) return undefined;
+    const grouped = heyboxDetailCommentGroups(
+      result.comments ?? asRecord(link.comment).comments,
+    );
+    return {
+      ...detail,
+      body,
+      comments: [...detail.comments, ...grouped.comments],
+      commentReplies: [...detail.commentReplies, ...grouped.commentReplies],
+    };
   }
 
   /**
@@ -399,6 +468,56 @@ function postFromHeyboxRecord(
 }
 
 /**
+ * 兼容原生详情的 body/stats 包装；合并前检查各层编号，禁止以内层覆盖冲突身份。
+ * 普通帖子记录和仅包含富文本 body 的记录保持原结构。
+ * @param {Record<string, unknown>} link 详情接口的 link 对象。
+ * @return {Record<string, unknown>} 用于字段读取和身份校验的帖子记录。
+ */
+function normalizeHeyboxDetailRecord(
+  link: Record<string, unknown>,
+): Record<string, unknown> {
+  if (
+    !("stats" in link || "comment" in link) ||
+    !link.body || typeof link.body !== "object" || Array.isArray(link.body)
+  ) return link;
+  const body = asRecord(link.body);
+  const stats = asRecord(link.stats);
+  const identities = [link, stats, body].map((record) =>
+    stringField(record, ["linkid", "link_id", "post_id", "article_id", "id"])
+  ).filter(Boolean);
+  if (new Set(identities).size > 1) {
+    throw new Error("Conflicting nested detail identity");
+  }
+  return { ...stats, ...body };
+}
+
+/**
+ * 解析详情接口的评论分组；每组首条是主评论，其余条目作为回复。
+ * 只读取当前响应已包含的评论，不将第一页或部分回复视为全部评论。
+ * @param {unknown} value 顶层 comments 或原生 comment.comments。
+ * @return {{comments: string[]; commentReplies: string[]}} 已返回的主评论及回复文本。
+ */
+function heyboxDetailCommentGroups(
+  value: unknown,
+): { comments: string[]; commentReplies: string[] } {
+  const comments: string[] = [], commentReplies: string[] = [];
+  if (!Array.isArray(value)) return { comments, commentReplies };
+  for (const group of value) {
+    const entries = asRecord(group).comment;
+    if (!Array.isArray(entries)) {
+      const text = textFromUnknown(group);
+      if (text) comments.push(text);
+      continue;
+    }
+    entries.forEach((entry, index) => {
+      const text = textFromUnknown(entry);
+      if (text) (index === 0 ? comments : commentReplies).push(text);
+    });
+  }
+  return { comments, commentReplies };
+}
+
+/**
  * 生成安全可信的小黑盒帖子展示链接。
  *
  * @param {string} linkId 从分享链接中提取到的小黑盒帖子 ID。
@@ -485,7 +604,7 @@ function mergeTopicPosts(
   detailPost: TopicPost,
 ): TopicPost {
   return {
-    body: detailPost.body || listPost.body,
+    body: detailPost.body,
     commentReplies: detailPost.commentReplies.length > 0
       ? detailPost.commentReplies
       : listPost.commentReplies,
@@ -646,6 +765,97 @@ const heyboxMediaNodeTypes = new Set([
   "video",
 ]);
 
+/** 已核对的原生卡片正文结构；顺序与卡片可见文字一致，不读取跳转或统计协议。 */
+const heyboxCardNodeFields = new Map<string, readonly string[]>([
+  ["simple_card", ["title", "desc"]],
+  ["post_guide_card", ["text", "description"]],
+]);
+
+/**
+ * 读取详情正文；缺失或包含未知结构时不以摘要证明完整，显式空正文仍可区分。
+ * description 是摘要，不作为正文完整性的依据。
+ * @param {Record<string, unknown>} record 详情接口的帖子记录。
+ * @return {string | undefined} 已支持结构的正文；无法确认时返回 undefined。
+ */
+function detailBodyFromHeyboxRecord(
+  record: Record<string, unknown>,
+): string | undefined {
+  let empty: string | undefined;
+  for (const key of ["text", "content", "body"]) {
+    if (!(key in record) || record[key] == null) continue;
+    if (!isSupportedHeyboxContent(record[key])) return undefined;
+    const text = plainTextFromHeyboxContent(record[key]);
+    if (text) return text;
+    empty = "";
+  }
+  return empty;
+}
+
+/**
+ * 核对纯文本解析器选用字段中的节点结构，避免数组中的未知段落被静默丢弃。
+ * 已知媒体节点沿用文本解析器的忽略规则，本校验不表示图片或视频已被读取。
+ * @param {unknown} value 纯文本、富文本节点或序列化容器。
+ * @return {boolean} 当前解析器是否支持选用字段中的全部节点。
+ */
+function isSupportedHeyboxContent(value: unknown): boolean {
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!looksLikeJsonContainer(text)) return true;
+    try {
+      return isSupportedHeyboxContent(JSON.parse(text));
+    } catch {
+      return true;
+    }
+  }
+  if (Array.isArray(value)) return value.every(isSupportedHeyboxContent);
+  const record = asRecord(value);
+  const nodeType = typeof record.type === "string"
+    ? record.type.trim().toLowerCase()
+    : "";
+  if (heyboxMediaNodeTypes.has(nodeType)) return true;
+  const cardFields = heyboxCardNodeFields.get(nodeType);
+  if (cardFields) {
+    return heyboxCardText(record[nodeType], cardFields) !== undefined;
+  }
+  let found = false;
+  for (
+    const key of ["text", "content", "description", "body", "children", "items"]
+  ) {
+    if (!(key in record) || record[key] == null) continue;
+    if (!isSupportedHeyboxContent(record[key])) return false;
+    found = true;
+    if (plainTextFromHeyboxContent(record[key])) return true;
+  }
+  return found;
+}
+
+/**
+ * 读取已核对的原生卡片文字，忽略图标和用于跳转或曝光统计的协议字段。
+ * 缺少可识别字段或字段类型异常时返回 undefined，避免误报整篇正文完整。
+ * @param {unknown} value 节点内的卡片对象。
+ * @param {readonly string[]} keys 对应卡片类型的可见文字字段。
+ * @return {string | undefined} 卡片的全部可展示文字，或无法识别的标记。
+ */
+function heyboxCardText(
+  value: unknown,
+  keys: readonly string[],
+): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const card = asRecord(value);
+  const fields = keys.map((key) => card[key]).filter((field) => field != null);
+  if (
+    fields.length === 0 || fields.some((field) => typeof field !== "string")
+  ) {
+    return undefined;
+  }
+  return (fields as string[]).map((field) => field.trim()).filter(Boolean).join(
+    "\n",
+  );
+}
+
 /**
  * 从记录对象的候选字段中读取正文并转换为纯文本。
  *
@@ -704,6 +914,10 @@ export function plainTextFromHeyboxContent(value: unknown): string {
     : "";
   if (heyboxMediaNodeTypes.has(nodeType)) {
     return "";
+  }
+  const cardFields = heyboxCardNodeFields.get(nodeType);
+  if (cardFields) {
+    return heyboxCardText(record[nodeType], cardFields) ?? "";
   }
   return contentField(record, [
     "text",

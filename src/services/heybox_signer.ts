@@ -13,16 +13,21 @@ export type HeyboxSignatureParams = {
 /**
  * 小黑盒签名算法模式。
  */
-export type HeyboxSignatureMode = "app" | "web";
+export type HeyboxSignatureMode =
+  | "app"
+  | "web"
+  | "app-v1149"
+  | "app-v1149-rnd14";
 
 /**
  * Web 端 hkey 编码使用的字符表。
  */
 const hkeyAlphabet = "AB45STUVWZEFGJ6CH01D237IXYPQRKLMN89";
 /**
- * App 端 hkey 编码使用的基础字符表。
+ * 旧版 NDKTools.encode 使用的基础字符表，顺序来自官方 APK 的 libnative-lib.so。
+ * 当前 APK 的最终 hkey 来自 ShaderManager，不能据此声称与新版原生请求一致。
  */
-const appHkeyAlphabet = "23456789BCDFGHJKMNPQRTVWXY";
+const appHkeyAlphabet = "2345JKMNPQRT6789BCDFGHVWXY";
 /**
  * 随机 nonce 允许使用的字符表。
  */
@@ -39,14 +44,14 @@ const encoder = new TextEncoder();
  * @param path 请求路径。
  * @param now 当前时间，默认使用系统当前时间。
  * @param random 随机数函数，默认使用 Math.random。
- * @param mode 签名模式，默认使用 Web 模式。
+ * @param mode 旧版签名模式，默认使用 Web 模式；build1149 使用独立异步生成器。
  * @return 可附加到请求参数中的签名信息。
  */
 export function createHeyboxSignatureParams(
   path: string,
   now = new Date(),
   random = Math.random,
-  mode: HeyboxSignatureMode = "web",
+  mode: "app" | "web" = "web",
 ): HeyboxSignatureParams {
   const time = Math.floor(now.getTime() / 1000);
   const nonce = mode === "app"
@@ -91,7 +96,8 @@ export function buildHkey(path: string, time: number, nonce: string): string {
 }
 
 /**
- * 构建 App 模式的小黑盒 hkey。
+ * 构建兼容旧版 NDKTools.encode 的 App 模式 hkey。
+ * 此函数没有实现新版 ShaderManager 的状态化签名，也不生成匿名设备令牌。
  *
  * @param path 请求路径。
  * @param time 秒级时间戳。

@@ -181,6 +181,37 @@ Deno.test("missing token defers refresh instead of retrying within the request b
   assertEquals(requests, 2);
 });
 
+Deno.test("business rate limits preserve the session and defer queued reads for fifteen minutes", async () => {
+  let now = 1000, initializes = 0, requests = 0;
+  const read = createGuestDetailFetch({
+    now: () => now,
+    initialize: () => {
+      initializes++;
+      return Promise.resolve(session());
+    },
+    fetchFn: () => {
+      requests++;
+      return Promise.resolve(
+        requests === 1
+          ? Response.json({ status: "failed", msg: "请求过于频繁，请稍后再试" })
+          : detail("def"),
+      );
+    },
+  });
+  const results = await Promise.allSettled([read("abc"), read("def")]);
+  assertEquals(results[0].status, "fulfilled");
+  if (results[0].status === "fulfilled") await results[0].value.body?.cancel();
+  assertEquals(results[1].status, "rejected");
+  now += 60000;
+  await assertRejects(() => read("def"), "cooling down");
+  assertEquals(requests, 1);
+  assertEquals(initializes, 1);
+  now += 840000;
+  assertEquals((await (await read("def")).json()).status, "ok");
+  assertEquals(requests, 2);
+  assertEquals(initializes, 1);
+});
+
 Deno.test("expired anonymous session refreshes and initialization failure backs off safely", async () => {
   let now = 1000, calls = 0;
   const read = createGuestDetailFetch({
