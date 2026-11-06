@@ -24,6 +24,217 @@ function settleRefresh(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/**
+ * 执行仪表盘脚本，模拟表格操作替换节点以及状态请求与用户操作交错。
+ *
+ * @return {object} 当前可见表格、请求及响应控制器。
+ */
+function pendingRefreshHarness() {
+  const html = renderDashboard({
+    csrfToken: "test",
+    returnTo: "/",
+    settings: defaultAppSettingsFromEnv(),
+    state: { totalMatches: 0 },
+    pendingTable: applyMatchTableQuery(
+      [],
+      parseMatchTableQuery(new URLSearchParams()),
+    ),
+  });
+  const script = Array.from(html.matchAll(/<script>([\s\S]*?)<\/script>/g))
+    .find((match) => match[1].includes("isDashboardStateRefreshInFlight"))?.[1];
+  if (!script) throw new Error("Dashboard script missing");
+  const intervals = new Map<number, () => void>();
+  const requests: Array<Record<string, string>> = [];
+  const responses: Array<(state: Record<string, unknown>) => void> = [];
+  const totalMatches = { textContent: "0" };
+  let rendered = 0;
+
+  /** 表格节点替身遵循 DOM 规则：替换脱离文档的节点不影响可见页面。 */
+  class Section {
+    dataset: { matchTableSignature: string };
+    busy = false;
+    inputs: Array<{ value: string; checked: boolean }>;
+
+    /**
+     * 构造指定内容的表格。
+     * @param {string} signature 表格签名。
+     * @param {string[]} ids 记录标识。
+     */
+    constructor(signature: string, ids: string[] = []) {
+      this.dataset = { matchTableSignature: signature };
+      this.inputs = ids.map((value) => ({ value, checked: false }));
+    }
+
+    /** @return {boolean} 节点是否仍在可见文档中。 */
+    get isConnected(): boolean {
+      return current === this;
+    }
+
+    /** @return {boolean} 是否存在提交中的表格。 */
+    querySelector(): boolean {
+      return this.busy;
+    }
+
+    /**
+     * 查询当前记录或已选记录。
+     * @param {string} selector 输入框选择器。
+     * @return {Array<{value: string, checked: boolean}>} 匹配的输入框。
+     */
+    querySelectorAll(selector: string) {
+      return selector.includes(":checked")
+        ? this.inputs.filter((input) => input.checked)
+        : this.inputs;
+    }
+
+    /**
+     * 替换文档内的当前节点。
+     * @param {Section} next 新节点。
+     */
+    replaceWith(next: Section): void {
+      if (this.isConnected) current = next;
+    }
+  }
+
+  let current = new Section("initial", ["old"]);
+  runInNewContext(script, {
+    performance,
+    URL,
+    URLSearchParams,
+    CustomEvent,
+    HTMLInputElement: InputMock,
+    location: new URL("https://example.com/"),
+    document: {
+      visibilityState: "visible",
+      addEventListener() {},
+      dispatchEvent() {
+        rendered++;
+      },
+      querySelector(selector: string) {
+        if (selector === "[data-last-poll-at]") {
+          return { dataset: {}, textContent: "" };
+        }
+        if (selector === "[data-total-matches]") return totalMatches;
+        if (
+          selector === ".table-section" ||
+          selector === '[data-match-table-section="pending-posts-heading"]'
+        ) return current;
+        return null;
+      },
+    },
+    window: {
+      addEventListener() {},
+      setInterval: (callback: () => void, ms: number) =>
+        intervals.set(ms, callback),
+    },
+    DOMParser: class {
+      /**
+       * 将测试响应映射为待插入的表格节点。
+       * @param {string} value 序列化的表格内容。
+       * @return {object} 解析后的文档。
+       */
+      parseFromString(value: string) {
+        const { signature, ids } = JSON.parse(value);
+        const next = new Section(signature, ids);
+        return { querySelector: () => next };
+      }
+    },
+    fetch: (_url: string, options: { headers: Record<string, string> }) => {
+      requests.push(options.headers);
+      return new Promise((resolve) =>
+        responses.push((state) =>
+          resolve({ ok: true, json: () => Promise.resolve(state) })
+        )
+      );
+    },
+  });
+  return {
+    requests,
+    totalMatches,
+    /** @return {Section} 当前可见表格。 */
+    get current() {
+      return current;
+    },
+    /** @return {number} 成功渲染事件数量。 */
+    get rendered() {
+      return rendered;
+    },
+    /** 触发定时状态刷新。 */
+    refresh(): void {
+      intervals.get(5_000)!();
+    },
+    /** 模拟勾选处理最后一条帖子后的局部表格替换。 */
+    completeAll(): void {
+      current.replaceWith(new Section("empty"));
+    },
+    /**
+     * 完成最早的状态请求。
+     * @param {string} version 响应版本。
+     * @param {string[]} ids 待处理记录。
+     * @return {Promise<void>} 页面更新完成。
+     */
+    async respond(version: string, ids: string[]): Promise<void> {
+      responses.shift()!({
+        version,
+        totalMatches: 862,
+        pendingSignature: version,
+        pendingHtml: JSON.stringify({ signature: version, ids }),
+      });
+      await settleRefresh();
+    },
+  };
+}
+
+Deno.test("dashboard refreshes visible pending posts after completing the previous table", async () => {
+  const page = pendingRefreshHarness();
+  await page.respond("v1", ["old"]);
+  page.completeAll();
+  page.refresh();
+  await page.respond("v2", ["new"]);
+  assertEquals(page.totalMatches.textContent, "862");
+  assertEquals(page.current.inputs.map((input) => input.value), ["new"]);
+  page.current.inputs[0].checked = true;
+  page.refresh();
+  await page.respond("v3", ["new", "newer"]);
+  assertEquals(page.current.inputs, [{ value: "new", checked: true }, {
+    value: "newer",
+    checked: false,
+  }]);
+  assertEquals(page.rendered, 3);
+});
+
+Deno.test("dashboard discards a response when a table action has replaced its target", async () => {
+  const page = pendingRefreshHarness();
+  await page.respond("v1", ["old"]);
+  page.refresh();
+  page.completeAll();
+  await page.respond("stale", ["old"]);
+  assertEquals(page.current.inputs, []);
+  assertEquals(page.rendered, 1);
+  page.refresh();
+  assertEquals(page.requests[2]["x-dashboard-version"], "v1");
+  await page.respond("v2", ["new"]);
+  assertEquals(page.current.inputs.map((input) => input.value), ["new"]);
+});
+
+Deno.test("dashboard checks submission state on the current table before and after fetch", async () => {
+  const page = pendingRefreshHarness();
+  await page.respond("v1", ["old"]);
+  page.completeAll();
+  page.current.busy = true;
+  page.refresh();
+  assertEquals(page.requests.length, 1);
+  page.current.busy = false;
+  page.refresh();
+  page.current.busy = true;
+  await page.respond("stale", ["old"]);
+  assertEquals(page.current.inputs, []);
+  page.current.busy = false;
+  page.refresh();
+  assertEquals(page.requests[2]["x-dashboard-version"], "v1");
+  await page.respond("v2", ["new"]);
+  assertEquals(page.current.inputs.map((input) => input.value), ["new"]);
+});
+
 Deno.test("dashboard client reuses versions and rejects responses for abandoned queries", async () => {
   const html = renderDashboard({
     csrfToken: "csrf-test-token",
