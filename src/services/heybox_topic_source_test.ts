@@ -7,6 +7,10 @@ import {
 } from "./heybox_topic_source.ts";
 import { assert, assertEquals } from "../test_helpers.ts";
 import type { TopicPost } from "../models.ts";
+import {
+  createDetailRelayHandler,
+  withDetailRelay,
+} from "./heybox_detail_relay.ts";
 
 /** 用于验证详情身份与退避状态的列表记录。 */
 const detailTestPost: TopicPost = {
@@ -56,6 +60,73 @@ Deno.test("direct detail retries clear stale queue metadata on incomplete respon
   assertEquals(result.detailsComplete, false);
   assertEquals(result.detailDeferredUntil, undefined);
   assertEquals(result.detailUnavailable, undefined);
+});
+
+Deno.test("numeric list identities accept the same post's share alias through direct and relay details", async () => {
+  const [listed] = parseHeyboxTopicPosts({
+    status: "ok",
+    result: {
+      links: [{ linkid: 196222214, title: "怎么秒了", text: "列表摘要" }],
+    },
+  }, "12099");
+  assertEquals(listed.id, "196222214");
+  for (const nativeId of [196222214, "196222214"]) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: (id) => {
+        assertEquals(id, listed.id);
+        return Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link: {
+              linkid: nativeId,
+              share_url: "https://www.xiaoheihe.cn/app/bbs/link/77af72c7cfe3",
+              title: "怎么秒了",
+              text: "我录制还没开呢",
+            },
+          },
+        }));
+      },
+    });
+    const token = "test-only-numeric-detail-alias-00000000";
+    const handler = createDetailRelayHandler({ token, source });
+    const relay = withDetailRelay(source, {
+      url: "http://127.0.0.1:8788/v1/details",
+      token,
+      local: true,
+      fetchFn: (url, init) => handler(new Request(url, init)),
+    });
+    for (const client of [source, relay]) {
+      const result = await client.getPostDetails!(listed);
+      assertEquals(result.detailsComplete, true);
+      assertEquals(result.id, listed.id);
+      assertEquals(result.url, listed.url);
+      assertEquals(result.body, "我录制还没开呢");
+      assertEquals(client.detailRetryAfter!(), 0);
+    }
+  }
+});
+
+Deno.test("numeric detail requests cannot use another post's share alias as identity proof", async () => {
+  for (const nativeId of [196222215, "77af72c7cfe3", undefined]) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link: {
+              linkid: nativeId,
+              share_url: "https://www.xiaoheihe.cn/app/bbs/link/77af72c7cfe3",
+              text: "不能接受没有对应原始编号的详情",
+            },
+          },
+        })),
+    });
+    const listed = { ...detailTestPost, id: "196222214" };
+    const result = await source.getPostDetails!(listed);
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.body, listed.body);
+    assertEquals(result.id, listed.id);
+  }
 });
 
 Deno.test("a later concurrent transport failure cannot shorten captcha cooldown", async () => {

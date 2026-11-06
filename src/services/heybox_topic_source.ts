@@ -292,8 +292,19 @@ export function createHeyboxTopicSource(
 
     if (Object.keys(record).length === 0) return undefined;
     const detail = postFromHeyboxRecord(record, topicIdFromPost(post));
-    // 合并会沿用列表 ID，必须在合并之前校验响应身份，避免串帖后误报完整。
-    if (detail.id !== post.id) throw new Error("Mismatched detail post");
+    // 数字编号与分享链接短 ID 可以属于同一帖；数字请求还须核对响应原始编号。
+    // 短 ID 请求仍以解析出的可信分享标识校验，不能用冲突的原始短 ID 放行。
+    const nativeId = stringField(record, [
+      "linkid",
+      "link_id",
+      "post_id",
+      "article_id",
+      "id",
+    ]);
+    const matchesNativeId = /^\d+$/.test(post.id) && nativeId === post.id;
+    if (detail.id !== post.id && !matchesNativeId) {
+      throw new Error("Mismatched detail post");
+    }
     return detail;
   }
 
