@@ -43,7 +43,7 @@ Deno.test("confirmed deletion exits persisted detail retries through source and 
             : {
               status: "ok",
               result: {
-                link: { linkid: id, title: "恢复内容", description: "正文" },
+                link: { linkid: id, title: "恢复内容", text: "正文" },
               },
             },
         ),
@@ -551,15 +551,25 @@ Deno.test("unparsed detail bodies stay pending and recover through the relay aft
           return Promise.resolve(Response.json({
             status: "ok",
             result: {
-              link: {
-                linkid: id,
-                title: "需要帮助",
-                text: name === "backup" && recovered
-                  ? { children: [{ text: "完整关卡求助正文" }] }
-                  : { unsupported: "未能解析的关卡求助正文" },
-                comment_list: [{ text: "必要评论" }],
-                reply_list: [{ text: "必要回复" }],
-              },
+              link: name === "backup" && recovered
+                ? {
+                  body: {
+                    linkid: id,
+                    title: "需要帮助",
+                    text: { children: [{ text: "完整关卡求助正文" }] },
+                  },
+                  stats: { comment_num: 2 },
+                  comment: {
+                    comments: [{
+                      comment: [{ text: "必要评论" }, { text: "必要回复" }],
+                    }],
+                  },
+                }
+                : {
+                  linkid: id,
+                  title: "需要帮助",
+                  text: { unsupported: "未能解析的关卡求助正文" },
+                },
             },
           }));
         },

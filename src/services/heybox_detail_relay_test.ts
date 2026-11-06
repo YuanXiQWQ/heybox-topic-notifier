@@ -63,7 +63,7 @@ Deno.test("deleted Heybox content does not block subsequent valid details throug
             : {
               status: "ok",
               result: {
-                link: { linkid: id, title: "怎么通过？", description: "zsbd" },
+                link: { linkid: id, title: "怎么通过？", text: "zsbd" },
               },
             },
         ),

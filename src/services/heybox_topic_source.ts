@@ -295,8 +295,9 @@ export function createHeyboxTopicSource(
       return { ...post, detailsComplete: false, detailUnavailable: "deleted" };
     }
     assertHeyboxOk(payload);
-    const link = asRecord(asRecord(payload).result).link;
-    const record = asRecord(link);
+    const result = asRecord(asRecord(payload).result);
+    const link = asRecord(result.link);
+    const record = normalizeHeyboxDetailRecord(link);
 
     if (Object.keys(record).length === 0) return undefined;
     const detail = postFromHeyboxRecord(record, topicIdFromPost(post));
@@ -317,7 +318,15 @@ export function createHeyboxTopicSource(
     }
     const body = detailBodyFromHeyboxRecord(record);
     if (body === undefined) return undefined;
-    return { ...detail, body };
+    const grouped = heyboxDetailCommentGroups(
+      result.comments ?? asRecord(link.comment).comments,
+    );
+    return {
+      ...detail,
+      body,
+      comments: [...detail.comments, ...grouped.comments],
+      commentReplies: [...detail.commentReplies, ...grouped.commentReplies],
+    };
   }
 
   /**
@@ -419,6 +428,56 @@ function postFromHeyboxRecord(
     title: stringField(record, ["title", "subject", "name"]),
     url,
   };
+}
+
+/**
+ * 兼容原生详情的 body/stats 包装；合并前检查各层编号，禁止以内层覆盖冲突身份。
+ * 普通帖子记录和仅包含富文本 body 的记录保持原结构。
+ * @param {Record<string, unknown>} link 详情接口的 link 对象。
+ * @return {Record<string, unknown>} 用于字段读取和身份校验的帖子记录。
+ */
+function normalizeHeyboxDetailRecord(
+  link: Record<string, unknown>,
+): Record<string, unknown> {
+  if (
+    !("stats" in link || "comment" in link) ||
+    !link.body || typeof link.body !== "object" || Array.isArray(link.body)
+  ) return link;
+  const body = asRecord(link.body);
+  const stats = asRecord(link.stats);
+  const identities = [link, stats, body].map((record) =>
+    stringField(record, ["linkid", "link_id", "post_id", "article_id", "id"])
+  ).filter(Boolean);
+  if (new Set(identities).size > 1) {
+    throw new Error("Conflicting nested detail identity");
+  }
+  return { ...stats, ...body };
+}
+
+/**
+ * 解析详情接口的评论分组；每组首条是主评论，其余条目作为回复。
+ * 只读取当前响应已包含的评论，不将第一页或部分回复视为全部评论。
+ * @param {unknown} value 顶层 comments 或原生 comment.comments。
+ * @return {{comments: string[]; commentReplies: string[]}} 已返回的主评论及回复文本。
+ */
+function heyboxDetailCommentGroups(
+  value: unknown,
+): { comments: string[]; commentReplies: string[] } {
+  const comments: string[] = [], commentReplies: string[] = [];
+  if (!Array.isArray(value)) return { comments, commentReplies };
+  for (const group of value) {
+    const entries = asRecord(group).comment;
+    if (!Array.isArray(entries)) {
+      const text = textFromUnknown(group);
+      if (text) comments.push(text);
+      continue;
+    }
+    entries.forEach((entry, index) => {
+      const text = textFromUnknown(entry);
+      if (text) (index === 0 ? comments : commentReplies).push(text);
+    });
+  }
+  return { comments, commentReplies };
 }
 
 /**
@@ -671,19 +730,15 @@ const heyboxMediaNodeTypes = new Set([
 
 /**
  * 读取详情正文；缺失或包含未知结构时不以摘要证明完整，显式空正文仍可区分。
- * 只有缺少所有正文候选字段时才兼容旧接口的 description 字段。
+ * description 是摘要，不作为正文完整性的依据。
  * @param {Record<string, unknown>} record 详情接口的帖子记录。
  * @return {string | undefined} 已支持结构的正文；无法确认时返回 undefined。
  */
 function detailBodyFromHeyboxRecord(
   record: Record<string, unknown>,
 ): string | undefined {
-  const bodyKeys = ["text", "content", "body"];
-  const keys = bodyKeys.some((key) => key in record)
-    ? bodyKeys
-    : ["description"];
   let empty: string | undefined;
-  for (const key of keys) {
+  for (const key of ["text", "content", "body"]) {
     if (!(key in record) || record[key] == null) continue;
     if (!isSupportedHeyboxContent(record[key])) return undefined;
     const text = plainTextFromHeyboxContent(record[key]);

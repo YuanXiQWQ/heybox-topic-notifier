@@ -157,6 +157,7 @@ Deno.test("missing and unsupported detail bodies cannot be promoted from list su
   for (
     const content of [
       {},
+      { description: "详情接口只给了摘要" },
       { text: null },
       { text: null, description: "只有摘要仍不能确认正文" },
       { text: { unsupported: "未识别的完整正文" }, description: "摘要" },
@@ -175,6 +176,105 @@ Deno.test("missing and unsupported detail bodies cannot be promoted from list su
     assertEquals(result.body, detailTestPost.body);
     assertEquals(source.detailRetryAfter!(), 0);
   }
+});
+
+Deno.test("flat detail comment groups preserve root comments and replies outside the link", async () => {
+  const source = createHeyboxTopicSource({
+    fetchDetail: () =>
+      Promise.resolve(Response.json({
+        status: "ok",
+        result: {
+          link: { linkid: detailTestPost.id, text: "完整正文" },
+          comments: [
+            { comment: [{ text: "第一条主评论" }, { text: "第一条回复" }] },
+            { comment: [{ text: "第二条主评论" }, { text: "第二条回复" }] },
+          ],
+        },
+      })),
+  });
+  const result = await source.getPostDetails!(detailTestPost);
+  assertEquals(result.detailsComplete, true);
+  assertEquals(result.comments, ["第一条主评论", "第二条主评论"]);
+  assertEquals(result.commentReplies, ["第一条回复", "第二条回复"]);
+});
+
+Deno.test("nested native details validate the body identity and retain their comment groups", async () => {
+  const source = createHeyboxTopicSource({
+    fetchDetail: () =>
+      Promise.resolve(Response.json({
+        status: "ok",
+        result: {
+          link: {
+            body: {
+              linkid: 196222214,
+              share_url: "https://www.xiaoheihe.cn/app/bbs/link/native-alias",
+              title: "嵌套详情标题",
+              text: JSON.stringify([{ type: "text", text: "嵌套详情正文" }]),
+              description: "摘要",
+            },
+            stats: { comment_num: 2 },
+            comment: {
+              comments: [{ comment: [{ text: "主评论" }, { text: "回复" }] }],
+            },
+          },
+        },
+      })),
+  });
+  const result = await source.getPostDetails!({
+    ...detailTestPost,
+    id: "196222214",
+  });
+  assertEquals(result.detailsComplete, true);
+  assertEquals(result.body, "嵌套详情正文");
+  assertEquals(result.title, "嵌套详情标题");
+  assertEquals(result.comments, ["主评论"]);
+  assertEquals(result.commentReplies, ["回复"]);
+});
+
+Deno.test("conflicting nested native identities cannot be overwritten while normalizing", async () => {
+  for (
+    const conflicting of [
+      { linkid: 196222215, stats: {} },
+      { stats: { linkid: 196222215 } },
+    ]
+  ) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link: {
+              ...conflicting,
+              body: { linkid: 196222214, text: "不能串帖" },
+            },
+          },
+        })),
+    });
+    const result = await source.getPostDetails!({
+      ...detailTestPost,
+      id: "196222214",
+    });
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.body, detailTestPost.body);
+  }
+});
+
+Deno.test("native body wrappers containing only a description remain incomplete", async () => {
+  const source = createHeyboxTopicSource({
+    fetchDetail: () =>
+      Promise.resolve(Response.json({
+        status: "ok",
+        result: {
+          link: {
+            body: { linkid: detailTestPost.id, description: "只有摘要" },
+            stats: { comment_num: 0 },
+          },
+        },
+      })),
+  });
+  const result = await source.getPostDetails!(detailTestPost);
+  assertEquals(result.detailsComplete, false);
+  assertEquals(result.body, detailTestPost.body);
 });
 
 Deno.test("explicit empty detail bodies replace stale list text without treating missing fields as empty", async () => {
@@ -618,7 +718,7 @@ for (const restriction of ["show_captcha", "http_429", "business_rate_limit"]) {
             : Response.json({
               status: "ok",
               result: {
-                link: { linkid: "1", title: "hello", description: "complete" },
+                link: { linkid: "1", title: "hello", text: "complete" },
               },
             }),
         );
