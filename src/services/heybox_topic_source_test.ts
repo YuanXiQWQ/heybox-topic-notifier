@@ -129,6 +129,96 @@ Deno.test("numeric detail requests cannot use another post's share alias as iden
   }
 });
 
+Deno.test("numeric share URLs cannot override a conflicting or absent native detail identity", async () => {
+  for (const nativeId of [196222215, "different", undefined]) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link: {
+              linkid: nativeId,
+              share_url: "https://www.xiaoheihe.cn/app/bbs/link/196222214",
+              text: "不能以分享链接覆盖原始编号",
+            },
+          },
+        })),
+    });
+    const result = await source.getPostDetails!({
+      ...detailTestPost,
+      id: "196222214",
+    });
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.body, detailTestPost.body);
+  }
+});
+
+Deno.test("missing and unsupported detail bodies cannot be promoted from list summaries", async () => {
+  for (
+    const content of [
+      {},
+      { text: null },
+      { text: null, description: "只有摘要仍不能确认正文" },
+      { text: { unsupported: "未识别的完整正文" }, description: "摘要" },
+      { text: [{ text: "已识别片段" }, { unsupported: "不能丢掉这一段" }] },
+    ]
+  ) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: { link: { linkid: detailTestPost.id, ...content } },
+        })),
+    });
+    const result = await source.getPostDetails!(detailTestPost);
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.body, detailTestPost.body);
+    assertEquals(source.detailRetryAfter!(), 0);
+  }
+});
+
+Deno.test("explicit empty detail bodies replace stale list text without treating missing fields as empty", async () => {
+  for (const text of ["", [], { children: [] }]) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: { link: { linkid: detailTestPost.id, text } },
+        })),
+    });
+    const result = await source.getPostDetails!(detailTestPost);
+    assertEquals(result.detailsComplete, true);
+    assertEquals(result.body, "");
+  }
+});
+
+Deno.test("supported nested and serialized detail text keeps its segments and ignores media metadata", async () => {
+  const nodes = [
+    { type: "text", text: "第一段正文" },
+    { type: "img", text: "不能当作正文的图片路径" },
+    { children: [{ content: "第二段正文" }] },
+  ];
+  for (
+    const content of [
+      nodes,
+      JSON.stringify(nodes),
+      { items: nodes },
+      { text: null, children: nodes },
+    ]
+  ) {
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: { link: { linkid: detailTestPost.id, content } },
+        })),
+    });
+    const result = await source.getPostDetails!(detailTestPost);
+    assertEquals(result.detailsComplete, true);
+    assertEquals(result.body, "第一段正文\n第二段正文");
+  }
+});
+
 Deno.test("a later concurrent transport failure cannot shorten captcha cooldown", async () => {
   let time = 1000;
   const requests = [
@@ -297,6 +387,7 @@ Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
               create_at: 1782842501,
               linkid: 1,
               title: "hello",
+              text: "完整正文",
             },
           },
           status: "ok",

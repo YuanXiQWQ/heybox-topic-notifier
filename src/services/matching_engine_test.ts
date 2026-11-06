@@ -531,6 +531,115 @@ Deno.test("poller fails over from Oracle, saves full relay details and sends onl
   }
 });
 
+Deno.test("unparsed detail bodies stay pending and recover through the relay after leaving the feed", async () => {
+  const f = await fixture();
+  try {
+    // 仅推进离线时钟，使保存的重试期限在真实轮询器运行前到期；没有访问外部服务。
+    f.advance(Date.now() - 301000 - f.now());
+    let recovered = false, notifications = 0;
+    const requests: string[] = [];
+    /**
+     * 模拟原始详情响应，使用真实解析、出口调度、中继和存储逻辑。
+     * @param {string} name 出口名称。
+     * @return {TopicSource} 无外网请求的可控详情来源。
+     */
+    const upstream = (name: string): TopicSource => {
+      return createHeyboxTopicSource({
+        now: () => new Date(f.now()),
+        fetchDetail: (id) => {
+          requests.push(`${name}:${id}`);
+          return Promise.resolve(Response.json({
+            status: "ok",
+            result: {
+              link: {
+                linkid: id,
+                title: "需要帮助",
+                text: name === "backup" && recovered
+                  ? { children: [{ text: "完整关卡求助正文" }] }
+                  : { unsupported: "未能解析的关卡求助正文" },
+                comment_list: [{ text: "必要评论" }],
+                reply_list: [{ text: "必要回复" }],
+              },
+            },
+          }));
+        },
+      });
+    };
+    const primary = upstream("primary");
+    primary.listLatestPosts = () => Promise.resolve([]);
+    const token = "test-only-missing-body-relay-token-0000";
+    const handler = createDetailRelayHandler({
+      token,
+      source: upstream("backup"),
+      now: f.now,
+    });
+    const source = withDetailFailover(
+      primary,
+      withDetailRelay(primary, {
+        token,
+        url: "https://relay.example/v1/details",
+        now: f.now,
+        fetchFn: (url, init) => handler(new Request(url, init)),
+      }),
+      { now: f.now },
+    );
+    f.source.getPostDetails = source.getPostDetails;
+    await f.run();
+    const key = await matchingHash(["topic", "p1"]);
+    const pending = (await f.store.get(key))!;
+    assert(pending.pendingPost);
+    assertEquals(pending.result, undefined);
+    assertEquals(pending.detailAttempts, 1);
+    assertEquals((await f.store.runtime())?.pendingCount, 1);
+    assertEquals((await f.storage.listHistory()).length, 0);
+    assertEquals(requests, ["primary:p1", "backup:p1"]);
+
+    recovered = true;
+    f.advance(Date.now() - f.now());
+    f.decide({
+      decision: "match",
+      reason: "完整正文包含求助",
+      location: "body",
+      inputTokens: 10,
+      outputTokens: 5,
+      usageKnown: true,
+    });
+    const poller = createPoller({
+      matcher: createMatcher(),
+      storage: f.storage,
+      source,
+      ai: f.ai,
+      notifier: {
+        sendMatches: () => {
+          notifications++;
+          return Promise.resolve({ sent: true, provider: "webhook" as const });
+        },
+      },
+    });
+    await poller.runOnce(f.storage, f.app);
+    await poller.runOnce(f.storage, f.app);
+    const history = await f.storage.listHistory();
+    assertEquals(history.length, 1);
+    assertEquals(history[0].post.body, "完整关卡求助正文");
+    assertEquals(history[0].post.comments, ["必要评论"]);
+    assertEquals(history[0].post.commentReplies, ["必要回复"]);
+    assertEquals(history[0].post.detailsComplete, true);
+    assert(history[0].notifiedAt);
+    assertEquals(notifications, 1);
+    assertEquals(requests, [
+      "primary:p1",
+      "backup:p1",
+      "primary:p1",
+      "backup:p1",
+    ]);
+    assertEquals(f.calls(), 2);
+    assertEquals((await f.store.runtime())?.pendingCount, 0);
+    assertEquals((await f.store.runtime())?.sourceFailure, undefined);
+  } finally {
+    f.close();
+  }
+});
+
 Deno.test("cached AI details retain their type and missing legacy locations do not require paid reclassification", async () => {
   const f = await fixture();
   try {

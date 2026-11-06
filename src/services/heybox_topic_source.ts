@@ -309,11 +309,15 @@ export function createHeyboxTopicSource(
       "article_id",
       "id",
     ]);
-    const matchesNativeId = /^\d+$/.test(post.id) && nativeId === post.id;
-    if (detail.id !== post.id && !matchesNativeId) {
+    const matchesIdentity = /^\d+$/.test(post.id)
+      ? nativeId === post.id
+      : detail.id === post.id;
+    if (!matchesIdentity) {
       throw new Error("Mismatched detail post");
     }
-    return detail;
+    const body = detailBodyFromHeyboxRecord(record);
+    if (body === undefined) return undefined;
+    return { ...detail, body };
   }
 
   /**
@@ -504,7 +508,7 @@ function mergeTopicPosts(
   detailPost: TopicPost,
 ): TopicPost {
   return {
-    body: detailPost.body || listPost.body,
+    body: detailPost.body,
     commentReplies: detailPost.commentReplies.length > 0
       ? detailPost.commentReplies
       : listPost.commentReplies,
@@ -664,6 +668,65 @@ const heyboxMediaNodeTypes = new Set([
   "image",
   "video",
 ]);
+
+/**
+ * 读取详情正文；缺失或包含未知结构时不以摘要证明完整，显式空正文仍可区分。
+ * 只有缺少所有正文候选字段时才兼容旧接口的 description 字段。
+ * @param {Record<string, unknown>} record 详情接口的帖子记录。
+ * @return {string | undefined} 已支持结构的正文；无法确认时返回 undefined。
+ */
+function detailBodyFromHeyboxRecord(
+  record: Record<string, unknown>,
+): string | undefined {
+  const bodyKeys = ["text", "content", "body"];
+  const keys = bodyKeys.some((key) => key in record)
+    ? bodyKeys
+    : ["description"];
+  let empty: string | undefined;
+  for (const key of keys) {
+    if (!(key in record) || record[key] == null) continue;
+    if (!isSupportedHeyboxContent(record[key])) return undefined;
+    const text = plainTextFromHeyboxContent(record[key]);
+    if (text) return text;
+    empty = "";
+  }
+  return empty;
+}
+
+/**
+ * 核对纯文本解析器选用字段中的节点结构，避免数组中的未知段落被静默丢弃。
+ * 已知媒体节点沿用文本解析器的忽略规则，本校验不表示图片或视频已被读取。
+ * @param {unknown} value 纯文本、富文本节点或序列化容器。
+ * @return {boolean} 当前解析器是否支持选用字段中的全部节点。
+ */
+function isSupportedHeyboxContent(value: unknown): boolean {
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!looksLikeJsonContainer(text)) return true;
+    try {
+      return isSupportedHeyboxContent(JSON.parse(text));
+    } catch {
+      return true;
+    }
+  }
+  if (Array.isArray(value)) return value.every(isSupportedHeyboxContent);
+  const record = asRecord(value);
+  const nodeType = typeof record.type === "string"
+    ? record.type.trim().toLowerCase()
+    : "";
+  if (heyboxMediaNodeTypes.has(nodeType)) return true;
+  let found = false;
+  for (
+    const key of ["text", "content", "description", "body", "children", "items"]
+  ) {
+    if (!(key in record) || record[key] == null) continue;
+    if (!isSupportedHeyboxContent(record[key])) return false;
+    found = true;
+    if (plainTextFromHeyboxContent(record[key])) return true;
+  }
+  return found;
+}
 
 /**
  * 从记录对象的候选字段中读取正文并转换为纯文本。
