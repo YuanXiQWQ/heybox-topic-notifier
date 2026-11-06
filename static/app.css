@@ -3892,7 +3892,10 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 }
 :root[data-application-platform] .app-back-button svg{ width: 24px; height: 24px; fill: none; }
 :root[data-application-platform] .app-back-button:disabled{ color: var(--muted); opacity: .35; cursor: default; background: transparent; }
-.app-navigation-status{ color: var(--muted); font-size: 12px; flex: 1 1 auto; }
+.app-navigation-status{ color: var(--muted); font-size: 12px; flex: 1 1 auto; min-width:0; }
+.app-navigation-status > summary{ cursor:pointer; padding:10px 0; overflow-wrap:anywhere; }
+.app-navigation-status > summary:focus-visible{ outline:2px solid var(--theme-link); outline-offset:2px; }
+.app-navigation-error{ margin:0 0 10px; white-space:pre-wrap; overflow-wrap:anywhere; max-height:min(40vh,18rem); overflow:auto; overscroll-behavior:contain; }
 [dir="rtl"][data-application-platform] .topbar > nav,
 [dir="rtl"][data-application-platform] .app-navigation-status{ direction: rtl; }
 :root[data-application-platform="windows"] .topbar > .primary-nav{ width: auto; }
