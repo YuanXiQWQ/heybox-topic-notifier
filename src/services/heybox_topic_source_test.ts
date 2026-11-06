@@ -6,6 +6,80 @@ import {
   parseHeyboxTopicPosts,
 } from "./heybox_topic_source.ts";
 import { assert, assertEquals } from "../test_helpers.ts";
+import type { TopicPost } from "../models.ts";
+
+/** 用于验证详情身份与退避状态的列表记录。 */
+const detailTestPost: TopicPost = {
+  id: "requested",
+  title: "列表标题",
+  body: "列表摘要",
+  excerpt: "列表摘要",
+  comments: [],
+  commentReplies: [],
+  publishedAt: "2026-11-06",
+  url: "https://www.xiaoheihe.cn/app/bbs/link/requested",
+};
+
+Deno.test("direct details reject missing or mismatched post identities before merging", async () => {
+  for (
+    const link of [
+      { title: "无标识详情", content: "不能当作当前帖" },
+      { linkid: "another", title: "其他帖子", content: "不能串帖" },
+      {
+        linkid: "requested",
+        share_url: "https://www.xiaoheihe.cn/app/bbs/link/another",
+        content: "冲突的分享链接",
+      },
+    ]
+  ) {
+    const source = createHeyboxTopicSource({
+      fetchFn: () =>
+        Promise.resolve(Response.json({ status: "ok", result: { link } })),
+    });
+    const result = await source.getPostDetails!(detailTestPost);
+    assertEquals(result.detailsComplete, false);
+    assertEquals(result.id, detailTestPost.id);
+    assertEquals(result.body, detailTestPost.body);
+    assertEquals(result.title, detailTestPost.title);
+  }
+});
+
+Deno.test("direct detail retries clear stale queue metadata on incomplete responses", async () => {
+  const source = createHeyboxTopicSource({
+    fetchFn: () => Promise.resolve(new Response(null, { status: 404 })),
+  });
+  const result = await source.getPostDetails!({
+    ...detailTestPost,
+    detailDeferredUntil: 9999999999999,
+    detailUnavailable: "deleted",
+  });
+  assertEquals(result.detailsComplete, false);
+  assertEquals(result.detailDeferredUntil, undefined);
+  assertEquals(result.detailUnavailable, undefined);
+});
+
+Deno.test("a later concurrent transport failure cannot shorten captcha cooldown", async () => {
+  let time = 1000;
+  const requests = [
+    Promise.withResolvers<Response>(),
+    Promise.withResolvers<Response>(),
+  ];
+  let calls = 0;
+  const source = createHeyboxTopicSource({
+    now: () => new Date(time),
+    fetchFn: () => requests[calls++].promise,
+  });
+  const captcha = source.getPostDetails!(detailTestPost);
+  const failing = source.getPostDetails!({ ...detailTestPost, id: "other" });
+  requests[0].resolve(Response.json({ status: "show_captcha" }));
+  await captcha;
+  time += 1000;
+  requests[1].reject(new Error("transport failure"));
+  await failing;
+  assertEquals(source.detailRetryAfter!(), 899);
+  await source.getPostDetails!(detailTestPost);
+  assertEquals(calls, 2);
+});
 
 Deno.test("parseHeyboxTopicPosts maps Heybox links to topic posts", () => {
   const posts = parseHeyboxTopicPosts({

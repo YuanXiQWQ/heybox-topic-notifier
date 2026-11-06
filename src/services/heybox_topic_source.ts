@@ -21,6 +21,8 @@ export type HeyboxTopicSourceConfig = {
   deviceInfo?: string;
   dw?: string;
   fetchFn?: typeof fetch;
+  /** 独立匿名会话提供的详情传输；列表仍使用原有请求配置。 */
+  fetchDetail?: (id: string) => Promise<Response>;
   heyboxId?: string;
   now?: () => Date;
   osVersion?: string;
@@ -202,6 +204,7 @@ export function createHeyboxTopicSource(
   async function hydrateTopicPost(post: TopicPost): Promise<TopicPost> {
     post = { ...post };
     delete post.detailUnavailable;
+    delete post.detailDeferredUntil;
     if (!post.id) {
       return { ...post, detailsComplete: false };
     }
@@ -219,7 +222,8 @@ export function createHeyboxTopicSource(
   }
 
   /**
-   * 在十秒请求期限内读取详情；明确删除的帖子单独标记，来源受限制时共享冷却。
+   * 读取有超时保护的详情传输；明确删除的帖子单独标记，来源受限制时共享冷却。
+   * 默认 HTTP 请求限时十秒，注入的匿名传输自行限制初始化与请求时限。
    *
    * @param {TopicPost} post 列表接口返回的帖子。
    * @return {Promise<TopicPost | undefined>} 详情帖子，接口无可用内容时返回 undefined。
@@ -240,15 +244,17 @@ export function createHeyboxTopicSource(
       url.searchParams.set(key, value);
     }
 
-    const response = await fetchFn(url, {
-      signal: AbortSignal.timeout(10000),
-      headers: {
-        accept: "application/json,text/plain,*/*",
-        referer: "http://api.maxjia.com/",
-        "user-agent": userAgent,
-        ...(config.cookie ? { cookie: config.cookie } : {}),
-      },
-    });
+    const response = config.fetchDetail
+      ? await config.fetchDetail(post.id)
+      : await fetchFn(url, {
+        signal: AbortSignal.timeout(10000),
+        headers: {
+          accept: "application/json,text/plain,*/*",
+          referer: "http://api.maxjia.com/",
+          "user-agent": userAgent,
+          ...(config.cookie ? { cookie: config.cookie } : {}),
+        },
+      });
 
     if (response.status === 429) {
       await response.body?.cancel();
@@ -264,8 +270,14 @@ export function createHeyboxTopicSource(
     }
 
     const payload = await response.json();
-    if (asRecord(payload).status === "show_captcha") {
-      pauseRestrictedDetails("show_captcha");
+    if (
+      ["show_captcha", "lack_token"].includes(String(asRecord(payload).status))
+    ) {
+      const reason = String(asRecord(payload).status);
+      pauseRestrictedDetails(
+        reason,
+        reason === "lack_token" ? 60000 : detailRestrictionCooldownMs,
+      );
       return undefined;
     }
     if (
@@ -278,9 +290,11 @@ export function createHeyboxTopicSource(
     const link = asRecord(asRecord(payload).result).link;
     const record = asRecord(link);
 
-    return Object.keys(record).length > 0
-      ? postFromHeyboxRecord(record, topicIdFromPost(post))
-      : undefined;
+    if (Object.keys(record).length === 0) return undefined;
+    const detail = postFromHeyboxRecord(record, topicIdFromPost(post));
+    // 合并会沿用列表 ID，必须在合并之前校验响应身份，避免串帖后误报完整。
+    if (detail.id !== post.id) throw new Error("Mismatched detail post");
+    return detail;
   }
 
   /**
@@ -292,8 +306,11 @@ export function createHeyboxTopicSource(
     reason: string,
     durationMs = detailRestrictionCooldownMs,
   ): void {
-    detailBlockedUntil = (config.now?.() ?? new Date()).getTime() +
-      durationMs;
+    // 较晚完成的并发请求不能缩短先前验证码/限流响应要求的冷却。
+    detailBlockedUntil = Math.max(
+      detailBlockedUntil,
+      (config.now?.() ?? new Date()).getTime() + durationMs,
+    );
     console.warn(JSON.stringify({
       event: "heybox_detail_restricted",
       reason,

@@ -18,7 +18,7 @@
     "storage:migrate-kv": "deno run --allow-env --allow-net --unstable-kv src/storage/migrate_kv_to_turso.ts",
     "auth:check-legacy": "deno run --allow-env --unstable-kv src/auth/check_legacy_accounts.ts",
     "notifications:keys": "deno run scripts/generate_web_push_keys.ts",
-    "check": "deno lint && deno check src/main.ts src/deploy.ts src/self_hosted.ts src/detail_relay.ts \"static/**/*.js\" \"workers/**/*.js\" && deno test --allow-env --allow-read --unstable-kv"
+    "check": "deno lint && deno check src/main.ts src/deploy.ts src/self_hosted.ts src/detail_relay.ts src/guest_details.ts \"static/**/*.js\" \"workers/**/*.js\" && deno test --allow-env --allow-read --unstable-kv"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1.0.0",
