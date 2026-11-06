@@ -3773,6 +3773,7 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 [data-schedule-page] .page-heading{ justify-content:flex-start; gap:24px; }
 [data-schedule-page] .page-heading h1{ margin:0; }
 .schedule-list{ border:1px solid var(--border); border-radius:8px; background:var(--theme-soft); overflow:hidden; }
+.schedule-drag-instruction{ display:flex; align-items:center; gap:6px; margin:12px 0; color:var(--muted); font-size:14px; }
 .schedule-row{ display:grid; grid-template-columns:32px minmax(210px,1.5fr) minmax(170px,1fr) minmax(85px,.6fr) minmax(140px,.8fr) 72px; gap:16px; padding:20px; border-bottom:1px solid var(--border-soft); align-items:center; position:relative; }
 .schedule-row:last-child{ border-bottom:0; }
 .schedule-field [aria-invalid="true"],.schedule-date-fields [aria-invalid="true"]{ border-color:#B42318; }
