@@ -216,14 +216,18 @@ export function withDetailRelay(
           };
         }
         const seconds = Number(response.headers.get("retry-after"));
-        retryAt = now() +
-          (response.status === 401 || response.status === 403 ||
-              response.status === 429
-            ? 900000
-            : Math.min(
-              900,
-              Math.max(60, Number.isFinite(seconds) ? seconds : 60),
-            ) * 1000);
+        // 并发响应只能延长冷却，不能以较短的服务故障覆盖已有的限流状态。
+        retryAt = Math.max(
+          retryAt,
+          now() +
+            (response.status === 401 || response.status === 403 ||
+                response.status === 429
+              ? 900000
+              : Math.min(
+                900,
+                Math.max(60, Number.isFinite(seconds) ? seconds : 60),
+              ) * 1000),
+        );
         await response.body?.cancel();
         console.warn(
           JSON.stringify({

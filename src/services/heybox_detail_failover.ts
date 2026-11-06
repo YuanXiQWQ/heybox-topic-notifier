@@ -107,6 +107,22 @@ export function withDetailFailover(
           }));
           return result;
         }
+        // 预算排队不是上游故障，保留等待时间，不触发备用请求或出口退避。
+        if (
+          Number.isFinite(result.detailDeferredUntil) &&
+          result.detailDeferredUntil! > now()
+        ) return result;
+        // 支持故障状态的来源明确报告未冷却时，只是本帖缺失。
+        // 保持下一帖可用；不提供故障状态的旧来源仍使用保守退避。
+        if (route.source.detailRetryAfter?.() === 0) {
+          console.info(JSON.stringify({
+            event: "heybox_detail_attempt",
+            route: route.name,
+            outcome: "post_unavailable",
+            elapsedMs: now() - started,
+          }));
+          continue;
+        }
       } catch {
         // 网络失败与无可用详情都按单个出口退避，另一出口仍可继续尝试。
       }

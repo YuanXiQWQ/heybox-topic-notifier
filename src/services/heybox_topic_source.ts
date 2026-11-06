@@ -204,6 +204,7 @@ export function createHeyboxTopicSource(
   async function hydrateTopicPost(post: TopicPost): Promise<TopicPost> {
     post = { ...post };
     delete post.detailUnavailable;
+    delete post.detailDeferredUntil;
     if (!post.id) {
       return { ...post, detailsComplete: false };
     }
@@ -289,9 +290,11 @@ export function createHeyboxTopicSource(
     const link = asRecord(asRecord(payload).result).link;
     const record = asRecord(link);
 
-    return Object.keys(record).length > 0
-      ? postFromHeyboxRecord(record, topicIdFromPost(post))
-      : undefined;
+    if (Object.keys(record).length === 0) return undefined;
+    const detail = postFromHeyboxRecord(record, topicIdFromPost(post));
+    // 合并会沿用列表 ID，必须在合并之前校验响应身份，避免串帖后误报完整。
+    if (detail.id !== post.id) throw new Error("Mismatched detail post");
+    return detail;
   }
 
   /**
@@ -303,8 +306,11 @@ export function createHeyboxTopicSource(
     reason: string,
     durationMs = detailRestrictionCooldownMs,
   ): void {
-    detailBlockedUntil = (config.now?.() ?? new Date()).getTime() +
-      durationMs;
+    // 较晚完成的并发请求不能缩短先前验证码/限流响应要求的冷却。
+    detailBlockedUntil = Math.max(
+      detailBlockedUntil,
+      (config.now?.() ?? new Date()).getTime() + durationMs,
+    );
     console.warn(JSON.stringify({
       event: "heybox_detail_restricted",
       reason,
