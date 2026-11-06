@@ -15,6 +15,8 @@ const maxCacheEntries = 128;
 export type DetailRelayConfig = {
   url: string;
   token: string;
+  /** 仅允许显式配置的本机回环 HTTP 服务，并给首次匿名初始化留出时间。 */
+  local?: boolean;
   requestsPerMinute?: number;
   fetchFn?: typeof fetch;
   now?: () => number;
@@ -116,7 +118,7 @@ export function cachedDetails(
 }
 
 /**
- * 保留原列表来源，将详情访问交给固定的 HTTPS 出口。
+ * 保留原列表来源，将详情访问交给固定的 HTTPS 出口或显式启用的本机回环服务。
  * @param {TopicSource} source 话题列表来源。
  * @param {DetailRelayConfig} config 独立出口与请求依赖。
  * @return {TopicSource} 共享详情缓存的数据源。
@@ -127,7 +129,10 @@ export function withDetailRelay(
 ): TopicSource {
   const endpoint = new URL(config.url);
   if (
-    endpoint.protocol !== "https:" || endpoint.username || endpoint.password ||
+    (config.local
+      ? endpoint.protocol !== "http:" || endpoint.hostname !== "127.0.0.1"
+      : endpoint.protocol !== "https:") ||
+    endpoint.username || endpoint.password ||
     endpoint.search || endpoint.hash || config.token.length < 32
   ) {
     throw new Error("Invalid detail relay configuration");
@@ -170,7 +175,7 @@ export function withDetailRelay(
       const response = await fetchFn(endpoint, {
         method: "POST",
         redirect: "error",
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(config.local ? 60000 : 15000),
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${config.token}`,
