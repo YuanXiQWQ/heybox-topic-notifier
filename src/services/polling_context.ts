@@ -60,20 +60,20 @@ export function createPollingContext(
   if (Boolean(relayUrl) !== Boolean(relayToken)) {
     throw new Error("Configure both detail relay URL and token");
   }
-  const source = relayUrl && relayToken
-    ? withDetailFailover(
-      primarySource,
-      withDetailRelay(directSource, {
+  const source = withDetailFailover(
+    primarySource,
+    relayUrl && relayToken
+      ? withDetailRelay(directSource, {
         url: relayUrl,
         token: relayToken,
-      }),
-      {
-        requestsPerMinute: Number(
-          Deno.env.get("HEYBOX_DETAIL_REQUESTS_PER_MINUTE") ?? "3",
-        ),
-      },
-    )
-    : primarySource;
+      })
+      : undefined,
+    {
+      requestsPerMinute: Number(
+        Deno.env.get("HEYBOX_DETAIL_REQUESTS_PER_MINUTE") ?? "3",
+      ),
+    },
+  );
   const pollingNotifier = createPollingNotifier(storage);
   const poller = createPoller({
     matcher,

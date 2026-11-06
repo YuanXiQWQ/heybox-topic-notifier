@@ -3,7 +3,7 @@ import type { TopicPost } from "../models.ts";
 import type { TopicSource } from "./topic_source.ts";
 import { cachedDetails } from "./heybox_detail_relay.ts";
 
-/** 两个出口合计的滚动限频窗口。 */
+/** 所有已配置出口合计的滚动限频窗口。 */
 const requestWindowMs = 60000;
 /** 单个出口失败后的最长重试间隔。 */
 const maxCooldownMs = 15 * 60000;
@@ -17,29 +17,31 @@ type DetailRoute = {
 };
 
 /**
- * 创建优先直连、受限后使用备用出口的详情调度器；列表仍由主服务读取。
+ * 创建优先主出口、受限后使用可选备用出口的详情调度器；列表仍由主服务读取。
  * @param {TopicSource} primary Oracle 直连来源。
- * @param {TopicSource} backup Deno 鉴权出口。
+ * @param {TopicSource | undefined} backup 可选的 Deno 鉴权出口，未配置时主出口仍共享预算。
  * @param {{requestsPerMinute?: number; now?: () => number}} options 两路合计预算与时钟。
  * @return {TopicSource} 缓存、去重、限频及恢复探测共用的数据源。
  */
 export function withDetailFailover(
   primary: TopicSource,
-  backup: TopicSource,
+  backup: TopicSource | undefined,
   options: { requestsPerMinute?: number; now?: () => number } = {},
 ): TopicSource {
   const limit = options.requestsPerMinute ?? 3;
   if (!Number.isInteger(limit) || limit < 1 || limit > 60) {
     throw new Error("Invalid detail request budget");
   }
-  if (!primary.getPostDetails || !backup.getPostDetails) {
-    throw new Error("Both detail routes must support post details");
+  if (!primary.getPostDetails || (backup && !backup.getPostDetails)) {
+    throw new Error("Configured detail routes must support post details");
   }
   const now = options.now ?? Date.now;
   const routes: DetailRoute[] = [
     { name: "oracle", source: primary, retryAt: 0, failures: 0 },
-    { name: "deno", source: backup, retryAt: 0, failures: 0 },
   ];
+  if (backup) {
+    routes.push({ name: "deno", source: backup, retryAt: 0, failures: 0 });
+  }
   const requestTimes: number[] = [];
   let queue: Promise<void> = Promise.resolve();
 
@@ -164,7 +166,7 @@ export function withDetailFailover(
     listLatestPosts: (id, listOptions) =>
       primary.listLatestPosts(id, listOptions),
     /**
-     * 仅在两个出口都冷却时报告来源不可用的剩余时间。
+     * 仅在所有已配置出口都冷却时报告来源不可用的剩余时间。
      * @return {number} 最早可重试出口的剩余秒数。
      */
     detailRetryAfter: () =>

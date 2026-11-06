@@ -30,6 +30,7 @@ export function createGuestDetailFetch(options: GuestSessionOptions) {
   let session: HeyboxGuestSession | undefined;
   let initializing: Promise<HeyboxGuestSession> | undefined;
   let retryAt = 0;
+  let queue: Promise<void> = Promise.resolve();
 
   /**
    * 合并并发初始化，验证目标及会话元数据，错误不携带上游请求信息。
@@ -58,7 +59,7 @@ export function createGuestDetailFetch(options: GuestSessionOptions) {
    * @param {string} id 公开帖子标识。
    * @return {Promise<Response>} 可由既有正文解析器处理的响应。
    */
-  return async (id: string): Promise<Response> => {
+  async function read(id: string): Promise<Response> {
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) {
       throw new Error("Invalid post id");
     }
@@ -86,7 +87,13 @@ export function createGuestDetailFetch(options: GuestSessionOptions) {
         signal: AbortSignal.timeout(10000),
       });
       if (!response.ok) {
-        retryAt = now() + (response.status === 429 ? 900000 : 60000);
+        // 单帖不存在不代表匿名身份失效，也不能阻塞其它公开帖。
+        if (response.status !== 404 && response.status !== 410) {
+          retryAt = Math.max(
+            retryAt,
+            now() + (response.status === 429 ? 900000 : 60000),
+          );
+        }
         await response.body?.cancel();
         return new Response(null, { status: response.status });
       }
@@ -111,9 +118,9 @@ export function createGuestDetailFetch(options: GuestSessionOptions) {
       const payload = JSON.parse(body);
       if (payload?.status === "lack_token") {
         session = undefined;
-        retryAt = now() + 60000;
+        retryAt = Math.max(retryAt, now() + 60000);
       } else if (payload?.status === "show_captcha") {
-        retryAt = now() + 900000;
+        retryAt = Math.max(retryAt, now() + 900000);
       }
       return new Response(body, {
         headers: { "content-type": "application/json" },
@@ -122,5 +129,16 @@ export function createGuestDetailFetch(options: GuestSessionOptions) {
       retryAt = Math.max(retryAt, now() + 60000);
       throw new Error("Anonymous details unavailable");
     }
+  }
+
+  /**
+   * 串行使用同一匿名身份，排队请求在发送前重新检查初始化及上游冷却状态。
+   * @param {string} id 公开帖标识。
+   * @return {Promise<Response>} 有界响应；冷却期间不会发送上游请求。
+   */
+  return (id: string): Promise<Response> => {
+    const request = queue.then(() => read(id));
+    queue = request.then(() => {}, () => {});
+    return request;
   };
 }

@@ -1,9 +1,5 @@
 /** @file 通过官网执行匿名初始化；浏览器只在初始化期间运行，沙箱与 TLS 校验保持开启。 */
-import {
-  type Browser,
-  type BrowserContext,
-  chromium,
-} from "npm:playwright@1.64.0";
+import type { Browser, BrowserContext } from "npm:playwright@1.64.0";
 import { buildHkey } from "./heybox_signer.ts";
 import {
   guestDetailEndpoint,
@@ -58,16 +54,23 @@ export function createGuestBrowser() {
       }
       const deadline = Date.now() + initializationTimeoutMs;
       const timer = setTimeout(
-        () => void browser?.close(),
+        () => void browser?.close().catch(() => {}),
         initializationTimeoutMs,
       );
       try {
+        // 浏览器依赖或权限缺失只影响初始化，不阻止本机入口提供鉴权和存活检查。
+        const { chromium } = await import("npm:playwright@1.64.0");
+        if (closed || Date.now() >= deadline) {
+          throw new Error("Anonymous initialization stopped");
+        }
         browser = await chromium.launch({
           headless: true,
           chromiumSandbox: true,
-          timeout: 15000,
+          timeout: Math.max(1, Math.min(15000, deadline - Date.now())),
         });
-        if (closed) throw new Error("Anonymous initialization stopped");
+        if (closed || Date.now() >= deadline) {
+          throw new Error("Anonymous initialization stopped");
+        }
         // 刷新匿名令牌时仍沿用 SDK 本地状态，不创建不断轮换的设备身份。
         const context = await browser.newContext({
           storageState: storageState

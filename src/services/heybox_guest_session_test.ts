@@ -271,3 +271,113 @@ Deno.test("local relay requires explicit IPv4 loopback and keeps remote HTTPS en
   });
   assertEquals((await client.getPostDetails!(post)).body, "完整正文");
 });
+
+Deno.test("anonymous missing posts do not block the next valid post", async () => {
+  for (const status of [404, 410]) {
+    let requests = 0;
+    const source = createHeyboxTopicSource({
+      fetchDetail: createGuestDetailFetch({
+        initialize: () => Promise.resolve(session()),
+        fetchFn: () =>
+          Promise.resolve(
+            ++requests === 1 ? new Response(null, { status }) : detail(),
+          ),
+      }),
+    });
+    const missing = await source.getPostDetails!({ ...post, id: "missing" });
+    assertEquals(missing.detailsComplete, false);
+    assertEquals(missing.detailUnavailable, undefined);
+    assertEquals((await source.getPostDetails!(post)).detailsComplete, true);
+    assertEquals(requests, 2);
+  }
+});
+
+Deno.test("queued anonymous requests recheck captcha cooldown before using the same session", async () => {
+  let requests = 0, initializes = 0, now = 1000;
+  const read = createGuestDetailFetch({
+    now: () => now,
+    initialize: () => {
+      initializes++;
+      return Promise.resolve(session());
+    },
+    fetchFn: () => {
+      requests++;
+      return Promise.resolve(Response.json({ status: "show_captcha" }));
+    },
+  });
+  const results = await Promise.allSettled([read("abc"), read("def")]);
+  for (const result of results) {
+    if (result.status === "fulfilled") await result.value.body?.cancel();
+  }
+  assertEquals(requests, 1);
+  assertEquals(results.map((result) => result.status), [
+    "fulfilled",
+    "rejected",
+  ]);
+  now += 900000;
+  await (await read("abc")).body?.cancel();
+  assertEquals(initializes, 1);
+  assertEquals(requests, 2);
+});
+
+Deno.test("anonymous initialization failures stay sanitized across concurrent callers", async () => {
+  let initializes = 0;
+  const read = createGuestDetailFetch({
+    initialize: () => {
+      initializes++;
+      return Promise.reject(new Error("x_xhh_tokenid=secret-test-marker"));
+    },
+    fetchFn: () => {
+      throw new Error("Must not fetch");
+    },
+  });
+  const results = await Promise.allSettled([read("abc"), read("def")]);
+  assertEquals(initializes, 1);
+  for (const result of results) {
+    assertEquals(result.status, "rejected");
+    if (result.status === "rejected") {
+      assert(!String(result.reason).includes("secret-test-marker"));
+    }
+  }
+});
+
+Deno.test("same anonymous identity survives simulated 0, 5, 15 and 25 minute checkpoints", async () => {
+  let now = 1000, initializes = 0, requests = 0;
+  const source = createHeyboxTopicSource({
+    now: () => new Date(now),
+    fetchDetail: createGuestDetailFetch({
+      now: () => now,
+      initialize: () => {
+        initializes++;
+        return Promise.resolve(session());
+      },
+      fetchFn: (input) => {
+        requests++;
+        return Promise.resolve(
+          requests === 1
+            ? Response.json({ status: "show_captcha" })
+            : detail(new URL(String(input)).searchParams.get("link_id")!),
+        );
+      },
+    }),
+  });
+  const observations: Array<
+    { minute: number; complete?: boolean; requests: number }
+  > = [];
+  for (const minute of [0, 5, 15, 25]) {
+    now = 1000 + minute * 60000;
+    const result = await source.getPostDetails!({
+      ...post,
+      id: `post${minute}`,
+    });
+    observations.push({ minute, complete: result.detailsComplete, requests });
+    if (result.detailsComplete) assertEquals(result.body, "我录制还没开呢");
+  }
+  assertEquals(observations, [
+    { minute: 0, complete: false, requests: 1 },
+    { minute: 5, complete: false, requests: 1 },
+    { minute: 15, complete: true, requests: 2 },
+    { minute: 25, complete: true, requests: 3 },
+  ]);
+  assertEquals(initializes, 1);
+});

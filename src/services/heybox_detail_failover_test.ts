@@ -273,3 +273,42 @@ Deno.test("route budget deferral stays queued without triggering fallback or coo
   assertEquals(complete.detailDeferredUntil, undefined);
   assertEquals(calls, 2);
 });
+
+Deno.test("a single configured route still shares cache, rolling budget and queue recovery", async () => {
+  let now = 1000, requests = 0;
+  const primary: TopicSource = {
+    listLatestPosts: () => Promise.resolve([post]),
+    detailRetryAfter: () => 0,
+    getPostDetails: (value) => {
+      requests++;
+      return Promise.resolve({
+        ...value,
+        body: "完整正文",
+        detailsComplete: true,
+      });
+    },
+  };
+  const client = withDetailFailover(primary, undefined, { now: () => now });
+  const results = await Promise.all(
+    ["a", "b", "c", "d"].map((id) => client.getPostDetails!({ ...post, id })),
+  );
+  assertEquals(requests, 3);
+  assertEquals(results.map((result) => result.detailsComplete), [
+    true,
+    true,
+    true,
+    false,
+  ]);
+  assertEquals(results[3].detailDeferredUntil, 61000);
+  assertEquals(client.detailRetryAfter!(), 0);
+  assertEquals(
+    (await client.getPostDetails!({ ...post, id: "a" })).detailsComplete,
+    true,
+  );
+  assertEquals(requests, 3);
+  now = 61000;
+  const resumed = await client.getPostDetails!(results[3]);
+  assertEquals(resumed.detailsComplete, true);
+  assertEquals(resumed.detailDeferredUntil, undefined);
+  assertEquals(requests, 4);
+});
