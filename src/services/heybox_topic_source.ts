@@ -271,6 +271,14 @@ export function createHeyboxTopicSource(
 
     const payload = await response.json();
     if (
+      asRecord(payload).status === "failed" &&
+      typeof asRecord(payload).msg === "string" &&
+      String(asRecord(payload).msg).includes("频繁")
+    ) {
+      pauseRestrictedDetails("business_rate_limit");
+      return undefined;
+    }
+    if (
       ["show_captcha", "lack_token"].includes(String(asRecord(payload).status))
     ) {
       const reason = String(asRecord(payload).status);

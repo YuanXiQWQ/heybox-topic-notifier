@@ -498,7 +498,7 @@ async function assertRejects(
   throw new Error(`Expected ${expectedMessage}`);
 }
 
-for (const restriction of ["show_captcha", "http_429"]) {
+for (const restriction of ["show_captcha", "http_429", "business_rate_limit"]) {
   Deno.test(`detail restriction ${restriction} pauses requests without treating incomplete content as success`, async () => {
     let time = 1800000000000;
     let details = 0;
@@ -518,6 +518,11 @@ for (const restriction of ["show_captcha", "http_429"]) {
           details === 1
             ? restriction === "http_429"
               ? new Response("limited", { status: 429 })
+              : restriction === "business_rate_limit"
+              ? Response.json({
+                status: "failed",
+                msg: "请求过于频繁，请稍后再试",
+              })
               : Response.json({ status: "show_captcha", result: {} })
             : Response.json({
               status: "ok",

@@ -119,7 +119,11 @@ export function createGuestDetailFetch(options: GuestSessionOptions) {
       if (payload?.status === "lack_token") {
         session = undefined;
         retryAt = Math.max(retryAt, now() + 60000);
-      } else if (payload?.status === "show_captcha") {
+      } else if (
+        payload?.status === "show_captcha" ||
+        (payload?.status === "failed" && typeof payload?.msg === "string" &&
+          payload.msg.includes("频繁"))
+      ) {
         retryAt = Math.max(retryAt, now() + 900000);
       }
       return new Response(body, {
