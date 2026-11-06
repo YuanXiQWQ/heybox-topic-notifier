@@ -6,6 +6,7 @@ import {
   parseHeyboxTopicPosts,
 } from "./heybox_topic_source.ts";
 import { assert, assertEquals } from "../test_helpers.ts";
+import { assertThrows } from "@std/assert";
 import type { TopicPost } from "../models.ts";
 import {
   createDetailRelayHandler,
@@ -23,6 +24,72 @@ const detailTestPost: TopicPost = {
   publishedAt: "2026-11-06",
   url: "https://www.xiaoheihe.cn/app/bbs/link/requested",
 };
+
+Deno.test("explicit build1149 mode signs feed and detail with the same anonymous identity", async () => {
+  const urls: URL[] = [];
+  const source = createHeyboxTopicSource({
+    signatureMode: "app-v1149",
+    deviceId: "0123456789abcdef0123456789abcdef",
+    now: () => new Date(1700000000000),
+    random: () => 0,
+    fetchFn: (input) => {
+      const url = new URL(String(input));
+      urls.push(url);
+      const result = url.pathname.endsWith("/tree")
+        ? { link: { linkid: 123, title: "合成详情", text: "合成完整正文" } }
+        : { links: [{ linkid: 123, title: "合成列表", text: "摘要" }] };
+      return Promise.resolve(Response.json({ status: "ok", result }));
+    },
+  });
+  const posts = await source.listLatestPosts("12099", {
+    limit: 1,
+    sort: "smart",
+  });
+  const detailed = await source.getPostDetails!(posts[0]);
+  assertEquals(detailed.detailsComplete, true);
+  assertEquals(detailed.body, "合成完整正文");
+  assertEquals(urls.map((url) => url.searchParams.get("hkey")), [
+    "51E17233",
+    "760E264C",
+  ]);
+  for (const url of urls) {
+    assertEquals(url.searchParams.get("version"), "1.3.400");
+    assertEquals(url.searchParams.get("build"), "1149");
+    assertEquals(
+      url.searchParams.get("imei"),
+      "0123456789abcdef0123456789abcdef",
+    );
+    assertEquals(url.searchParams.get("heybox_id"), "-1");
+    assertEquals(url.searchParams.get("nonce"), "P".repeat(32));
+    assertEquals(url.searchParams.get("_rnd"), null);
+  }
+  assertEquals(urls[1].searchParams.get("link_id"), "123");
+});
+
+Deno.test("build1149 mode binds configured user identity and rejects version mismatch", async () => {
+  const source = createHeyboxTopicSource({
+    signatureMode: "app-v1149",
+    deviceId: "0123456789abcdef0123456789abcdef",
+    heyboxId: "123456",
+    now: () => new Date(1700000000000),
+    random: () => 0,
+    fetchFn: (input) => {
+      const params = new URL(String(input)).searchParams;
+      assertEquals(params.get("heybox_id"), "123456");
+      assertEquals(params.get("hkey"), "7391DB2A");
+      return Promise.resolve(Response.json({ status: "ok", result: {} }));
+    },
+  });
+  assertEquals(
+    (await source.getPostDetails!(detailTestPost)).detailsComplete,
+    false,
+  );
+  for (const config of [{ appBuild: "783" }, { appVersion: "1.3.232" }]) {
+    assertThrows(() =>
+      createHeyboxTopicSource({ signatureMode: "app-v1149", ...config })
+    );
+  }
+});
 
 Deno.test("direct details reject missing or mismatched post identities before merging", async () => {
   for (

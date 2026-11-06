@@ -7,6 +7,7 @@ import {
   createHeyboxSignatureParams,
   type HeyboxSignatureMode,
 } from "./heybox_signer.ts";
+import { createHeyboxNativeSignatureParams } from "./heybox_native_signer.ts";
 
 /**
  * 小黑盒话题数据源配置。
@@ -65,17 +66,23 @@ export function createHeyboxTopicSource(
   config: HeyboxTopicSourceConfig = {},
 ): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
-  const appBuild = config.appBuild ?? "783";
-  const appVersion = config.appVersion ?? "1.3.232";
+  const signatureMode = config.signatureMode ?? "app";
+  const native1149 = signatureMode === "app-v1149";
+  const appBuild = config.appBuild ?? (native1149 ? "1149" : "783");
+  const appVersion = config.appVersion ?? (native1149 ? "1.3.400" : "1.3.232");
+  if (native1149 && (appBuild !== "1149" || appVersion !== "1.3.400")) {
+    throw new Error("app-v1149 requires Heybox 1.3.400/build1149");
+  }
   const channel = config.channel ?? "heybox_wandoujia";
   const deviceInfo = config.deviceInfo ?? "M2104K10AC";
   const deviceId = config.deviceId ?? crypto.randomUUID().replaceAll("-", "");
   const dw = config.dw ?? "393";
   const fetchFn = config.fetchFn ?? fetch;
   let detailBlockedUntil = 0;
-  const heyboxId = config.heyboxId ?? "";
+  const heyboxId = native1149
+    ? (config.heyboxId || "-1")
+    : (config.heyboxId ?? "");
   const osVersion = config.osVersion ?? "14";
-  const signatureMode = config.signatureMode ?? "app";
   const timeZone = config.timeZone ?? "Asia/Shanghai";
   const userAgent = config.userAgent ??
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 " +
@@ -122,7 +129,7 @@ export function createHeyboxTopicSource(
         : limit;
       const url = new URL(topicFeedsPath, apiBaseUrl);
       const params: Record<string, string> = {
-        ...signedRequestParams(topicFeedsPath),
+        ...await signedRequestParams(topicFeedsPath),
         limit: String(requestLimit),
         offset: "0",
         topic_id: topicId,
@@ -165,15 +172,25 @@ export function createHeyboxTopicSource(
    * 构建带签名的小黑盒请求参数。
    *
    * @param path 请求路径。
-   * @return 请求查询参数。
+   * @return 请求查询参数；显式选择 app-v1149 时等待原生 HMAC 运算。
    */
-  function signedRequestParams(path: string): Record<string, string> {
-    const signature = createHeyboxSignatureParams(
-      path,
-      config.now?.() ?? new Date(),
-      config.random,
-      signatureMode,
-    );
+  async function signedRequestParams(
+    path: string,
+  ): Promise<Record<string, string>> {
+    const signature = signatureMode === "app-v1149"
+      ? await createHeyboxNativeSignatureParams(
+        path,
+        deviceId,
+        heyboxId,
+        config.now?.() ?? new Date(),
+        config.random,
+      )
+      : createHeyboxSignatureParams(
+        path,
+        config.now?.() ?? new Date(),
+        config.random,
+        signatureMode,
+      );
 
     return {
       _time: String(signature.time),
@@ -236,7 +253,7 @@ export function createHeyboxTopicSource(
     }
     const url = new URL(linkTreePath, apiBaseUrl);
     const params: Record<string, string> = {
-      ...signedRequestParams(linkTreePath),
+      ...await signedRequestParams(linkTreePath),
       link_id: post.id,
     };
 

@@ -89,6 +89,11 @@ Real Heybox topic fetching is the only active runtime data source. The default
 diagnostic fallback. New accounts start with polling disabled; fetching only begins after the account
 turns on the "enable polling" setting on its settings page.
 
+`HEYBOX_SIGNATURE_MODE=app-v1149` explicitly selects the ordinary signature reconstructed from the
+official 1.3.400/build1149 APK, with matching version parameters and anonymous `heybox_id=-1`.
+Real-world stability remains unverified. This mode does not create `x_xhh_tokenid` or the dynamic
+`_rnd` value; the default remains `app`. See the [static analysis notes](../zh-CN/heybox-detail-analysis.md).
+
 ## Independent Heybox detail service
 
 With a detail relay configured, the main service tries Oracle's direct connection first and uses Deno only when direct details fail or are restricted. Feeds, scheduling, accounts, Turso, AI matching and notifications remain in the main service. Healthy Oracle requests do not consume Deno's detail request quota.

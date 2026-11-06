@@ -13,7 +13,7 @@ export type HeyboxSignatureParams = {
 /**
  * 小黑盒签名算法模式。
  */
-export type HeyboxSignatureMode = "app" | "web";
+export type HeyboxSignatureMode = "app" | "web" | "app-v1149";
 
 /**
  * Web 端 hkey 编码使用的字符表。
@@ -40,14 +40,14 @@ const encoder = new TextEncoder();
  * @param path 请求路径。
  * @param now 当前时间，默认使用系统当前时间。
  * @param random 随机数函数，默认使用 Math.random。
- * @param mode 签名模式，默认使用 Web 模式。
+ * @param mode 旧版签名模式，默认使用 Web 模式；build1149 使用独立异步生成器。
  * @return 可附加到请求参数中的签名信息。
  */
 export function createHeyboxSignatureParams(
   path: string,
   now = new Date(),
   random = Math.random,
-  mode: HeyboxSignatureMode = "web",
+  mode: Exclude<HeyboxSignatureMode, "app-v1149"> = "web",
 ): HeyboxSignatureParams {
   const time = Math.floor(now.getTime() / 1000);
   const nonce = mode === "app"
