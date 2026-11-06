@@ -18,9 +18,9 @@ export function renderMatchTableRowLinkStyle(): string {
       transition: background-color 160ms ease;
     }
 
-    .match-table tbody tr.match-table-row-link:has(> td:nth-child(n + 2):nth-last-child(n + 2):hover)
+    :root[data-hover-input] .match-table tbody tr.match-table-row-link:has(> td:nth-child(n + 2):nth-last-child(n + 2):hover)
       > td:nth-child(n + 2):nth-last-child(n + 2),
-    .match-table tbody tr.match-table-row-link:has(> td:nth-child(n + 2):nth-last-child(n + 2):focus-within)
+    .match-table tbody tr.match-table-row-link:has(> td:nth-child(n + 2):nth-last-child(n + 2) :focus-visible)
       > td:nth-child(n + 2):nth-last-child(n + 2),
     .match-table tbody tr.match-table-row-link:focus-visible
       > td:nth-child(n + 2):nth-last-child(n + 2) {
@@ -156,6 +156,7 @@ export function renderMatchTableRowLinkScript(): string {
       };
 
       document.addEventListener("click", (event) => {
+        if (event.defaultPrevented) return;
         const target = event.target;
         if (!(target instanceof Element)) {
           return;

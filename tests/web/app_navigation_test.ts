@@ -15,7 +15,11 @@ async function harness(android = false) {
   const requests: { id: string; method: string }[] = [];
   let click!: () => void, receive!: (state: object) => void;
   const back = { disabled: true, addEventListener: (_name: string, handler: () => void) => click = handler };
-  const status = { hidden: true, textContent: "", title: "", dataset: { saveError: "保存失败" } };
+  const message = { textContent: "" }, errorDetails = { textContent: "" };
+  const status = {
+    hidden: true, open: false, dataset: { saveError: "保存失败" },
+    querySelector: (selector: string) => selector === "[data-app-navigation-message]" ? message : errorDetails,
+  };
   const root = { dataset: {} as Record<string, string>, style: { setProperty: (key: string, value: string) => root.dataset[key] = value } };
   const port = {
     onmessage: (event: { data: string }) => forwarded.push(event.data),
@@ -58,7 +62,7 @@ async function harness(android = false) {
   };
   runInNewContext(await Deno.readTextFile(new URL("../../static/app-navigation.js", import.meta.url)), context);
   await settle();
-  return { back, status, root, port, requests, forwarded, saves, visited, click: () => click(), receive: (state: object) => receive(state), listeners, NavigationForm };
+  return { back, status, message, errorDetails, root, port, requests, forwarded, saves, visited, click: () => click(), receive: (state: object) => receive(state), listeners, NavigationForm };
 }
 
 /** @return {Promise<void>} 跨 VM 的 Promise 与本轮导航回调均已完成。 */
@@ -95,11 +99,45 @@ Deno.test("back waits for persistence, merges clicks and stays put on failure", 
   await settle();
   assertEquals(app.visited, []);
   assertEquals(app.status.hidden, false);
-  assertEquals(app.status.title, "Disk full");
+  assertEquals(app.message.textContent, "保存失败");
+  assertEquals(app.errorDetails.textContent, "Disk full");
+  assertEquals(app.status.open, false);
+  app.status.open = true;
   app.click();
+  assertEquals(app.status.hidden, true);
+  assertEquals(app.status.open, false);
+  assertEquals(app.errorDetails.textContent, "");
   app.saves.shift()!.resolve();
   await settle();
   assertEquals(app.visited, ["back"]);
+});
+
+Deno.test("navigation errors retain literal text and replace stale details on retry", async () => {
+  const app = await harness();
+  app.receive({ navigation: { canGoBack: true } });
+  app.click();
+  const literal = '<img src=x onerror="alert(1)">\n磁盘不足';
+  app.saves.shift()!.reject(new Error(literal));
+  await settle();
+  assertEquals(app.errorDetails.textContent, literal);
+  app.status.open = true;
+  app.click();
+  app.saves.shift()!.reject(new Error("网络断开"));
+  await settle();
+  assertEquals(app.errorDetails.textContent, "网络断开");
+  assertEquals(app.status.open, false);
+  assertEquals(app.status.hidden, false);
+  assertEquals(app.visited, []);
+});
+
+Deno.test("empty navigation errors still have a readable localized explanation", async () => {
+  const app = await harness();
+  app.receive({ navigation: { canGoBack: true } });
+  app.click();
+  app.saves.shift()!.reject(new Error(""));
+  await settle();
+  assertEquals(app.errorDetails.textContent, "保存失败");
+  assertEquals(app.status.hidden, false);
 });
 
 Deno.test("navigation forms save before submit and retain the latest chosen destination", async () => {

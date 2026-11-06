@@ -334,14 +334,14 @@ export function renderLayout(options: {
 /**
  * 渲染仅在原生应用展示的返回按钮和保存失败反馈，不注册彩蛋候选槽位。
  * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
- * @return {string} 初始禁用的图标按钮与状态区域。
+ * @return {string} 初始禁用的返回按钮与可点击展开的保存错误区域。
  */
 export function renderApplicationBack(messages: ReturnType<typeof getMessages>): string {
   return `<button class="icon-button app-back-button" type="button" data-app-back disabled aria-label="${
     escapeHtml(messages.navBack)
-  }" data-tooltip="${escapeHtml(messages.navBack)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg></button><span class="app-navigation-status" data-app-navigation-status data-save-error="${
+  }" data-tooltip="${escapeHtml(messages.navBack)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg></button><details class="app-navigation-status" data-app-navigation-status data-save-error="${
     escapeHtml(messages.autoSaveError)
-  }" role="status" hidden></span>`;
+  }" hidden><summary><span data-app-navigation-message role="status"></span></summary><p class="app-navigation-error" data-app-navigation-error></p></details>`;
 }
 
 /**
