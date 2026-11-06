@@ -3782,6 +3782,7 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .schedule-field input,.schedule-field select{ width:100%; min-width:0; }
 .schedule-field[hidden],.schedule-paused-summary[hidden]{ display:none; }
 .schedule-paused-summary{ grid-column:3 / 6; justify-self:start; align-self:center; padding:12px 0; }
+.schedule-interval-reason{ grid-column:1 / -1; margin:0; min-width:0; color:var(--muted-strong); font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
 .schedule-field .poll-interval-control{ display:flex; gap:8px; }
 .schedule-field .poll-interval-control input{ flex:1; width:60px; }
 .schedule-field .poll-interval-control select{ width:76px; }

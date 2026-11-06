@@ -97,6 +97,9 @@ export function renderPollingSchedule(settings: AppSettings): string {
   }" title="${
     e(m.scheduleRemove)
   }"><svg class="settings-row-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg></button></div>
+      <p class="schedule-interval-reason" data-schedule-interval-reason role="status" hidden>${
+    e(m.scheduleIntervalOutsideRange)
+  }</p>
     </div></template>
     <dialog class="avatar-crop-dialog schedule-date-dialog" data-schedule-dates>
       <header class="avatar-crop-header"><h2>${

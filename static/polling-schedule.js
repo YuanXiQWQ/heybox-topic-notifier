@@ -70,12 +70,20 @@ function initialize() {
   const template = root.querySelector("template");
   const toggle = document.querySelector("[data-schedule-toggle]");
   const labels = JSON.parse(root.dataset.labels);
-  const dates = /** @type {HTMLDialogElement} */ (root.querySelector("[data-schedule-dates]"));
-  const confirmation = /** @type {HTMLDialogElement} */ (root.querySelector("[data-schedule-confirm]"));
+  const dates = /** @type {HTMLDialogElement} */ (root.querySelector(
+    "[data-schedule-dates]",
+  ));
+  const confirmation = /** @type {HTMLDialogElement} */ (root.querySelector(
+    "[data-schedule-confirm]",
+  ));
   const section = document.querySelector("[data-polling-section]");
   // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
   // noinspection JSUnresolvedReference
-  const defaultRows = [.../** @type {NodeListOf<HTMLElement>} */ (section.querySelectorAll("[data-polling-field]"))]
+  const defaultRows = [
+    .../** @type {NodeListOf<HTMLElement>} */ (section.querySelectorAll(
+      "[data-polling-field]",
+    )),
+  ]
     .filter((row) => row.dataset.pollingField !== "schedule");
   const state = normalizeSchedule(
     JSON.parse(input.value),
@@ -163,10 +171,22 @@ function initialize() {
       const summary = row.querySelector("[data-schedule-paused]");
       summary.hidden = !collapsed;
       const insufficient = inactive && !rowPaused(value);
-      summary.title = insufficient ? labels.scheduleIntervalOutsideRange : "";
-      row.querySelector('[data-field="intervalValue"]').title = insufficient
-        ? labels.scheduleIntervalOutsideRange
-        : "";
+      const reason = row.querySelector("[data-schedule-interval-reason]");
+      reason.id = `schedule-interval-reason-${encodeURIComponent(value.id)}`;
+      reason.hidden = !insufficient;
+      for (
+        const control of [
+          summary,
+          row.querySelector('[data-field="intervalValue"]'),
+        ]
+      ) {
+        const descriptions = (control.getAttribute("aria-describedby") ?? "")
+          .split(/\s+/).filter((id) => id && id !== reason.id);
+        if (insufficient) descriptions.push(reason.id);
+        if (descriptions.length) {
+          control.setAttribute("aria-describedby", descriptions.join(" "));
+        } else control.removeAttribute("aria-describedby");
+      }
       if (insufficient) {
         if (changed && !inactiveIntervals.has(value.id)) {
           globalThis.showToast(section, labels.scheduleIntervalOutsideRange);
@@ -182,7 +202,9 @@ function initialize() {
       }
     }
     overlay.hidden = !covered ||
-      !(/** @type {HTMLInputElement} */ (document.querySelector("[data-polling-enabled-toggle]"))).checked;
+      !(/** @type {HTMLInputElement} */ (document.querySelector(
+        "[data-polling-enabled-toggle]",
+      ))).checked;
     positionOverlay();
     if (changed) globalThis.scheduleAutoSave();
   }
@@ -205,7 +227,8 @@ function initialize() {
   function render() {
     list.textContent = "";
     for (const value of state.rows) {
-      const row = /** @type {HTMLElement} */ (template.content.firstElementChild.cloneNode(true));
+      const row = /** @type {HTMLElement} */ (template.content.firstElementChild
+        .cloneNode(true));
       row.dataset.id = value.id;
       for (const control of row.querySelectorAll("[data-field]")) {
         control.value = value[control.dataset.field];
