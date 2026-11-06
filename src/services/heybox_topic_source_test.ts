@@ -689,6 +689,63 @@ async function assertRejects(
   throw new Error(`Expected ${expectedMessage}`);
 }
 
+/** 验证签名拒绝与缺失令牌保留独立诊断，按来源退避且不泄露上游消息或身份。 */
+Deno.test("signature and token rejections retain distinct safe reasons and recover after cooldown", async () => {
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message: string) => warnings.push(message);
+  try {
+    for (const reason of ["hkey", "lack_token"]) {
+      let time = 1700000000000;
+      let requests = 0;
+      const source = createHeyboxTopicSource({
+        now: () => new Date(time),
+        cookie: "x_xhh_tokenid=synthetic-cookie-not-for-logging",
+        fetchFn: () => {
+          requests++;
+          return Promise.resolve(Response.json(
+            requests === 1
+              ? { status: reason, msg: "synthetic-upstream-private-message" }
+              : {
+                status: "ok",
+                result: {
+                  link: { linkid: detailTestPost.id, text: "完整正文" },
+                },
+              },
+          ));
+        },
+      });
+      const result = await source.getPostDetails!(detailTestPost);
+      assertEquals(result.detailsComplete, false);
+      assertEquals(result.body, detailTestPost.body);
+      assertEquals(result.detailUnavailable, undefined);
+      assertEquals(source.detailRetryAfter!(), 60);
+      assertEquals(JSON.parse(warnings.at(-1)!), {
+        event: "heybox_detail_restricted",
+        reason,
+        retryAt: new Date(time + 60000).toISOString(),
+      });
+      time += 59000;
+      assertEquals(
+        (await source.getPostDetails!({ ...detailTestPost, id: "other" }))
+          .detailsComplete,
+        false,
+      );
+      assertEquals(requests, 1);
+      time += 1000;
+      assertEquals(
+        (await source.getPostDetails!(detailTestPost)).detailsComplete,
+        true,
+      );
+      assertEquals(requests, 2);
+      assertEquals(source.detailRetryAfter!(), 0);
+    }
+    assertEquals(warnings.length, 2);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
 for (const restriction of ["show_captcha", "http_429", "business_rate_limit"]) {
   Deno.test(`detail restriction ${restriction} pauses requests without treating incomplete content as success`, async () => {
     let time = 1800000000000;

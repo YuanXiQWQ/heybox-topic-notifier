@@ -279,12 +279,14 @@ export function createHeyboxTopicSource(
       return undefined;
     }
     if (
-      ["show_captcha", "lack_token"].includes(String(asRecord(payload).status))
+      ["show_captcha", "lack_token", "hkey"].includes(
+        String(asRecord(payload).status),
+      )
     ) {
       const reason = String(asRecord(payload).status);
       pauseRestrictedDetails(
         reason,
-        reason === "lack_token" ? 60000 : detailRestrictionCooldownMs,
+        reason === "show_captcha" ? detailRestrictionCooldownMs : 60000,
       );
       return undefined;
     }
