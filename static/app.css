@@ -2569,13 +2569,41 @@ dd{
   font-size: 13px;
   font-weight: 500;
   line-height: 1.35;
+  width: max-content;
   max-width: min(180px, calc(100vw - 16px));
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
   padding: 8px 10px;
   pointer-events: none;
   position: fixed;
   text-align: start;
   white-space: normal;
   z-index: 10000;
+}
+
+.app-tooltip.is-touch-preview{
+  pointer-events: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.app-tooltip.is-content-preview{
+  width: min(480px, calc(100vw - 16px));
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+@media (any-pointer: coarse){
+  [data-tooltip],
+  .match-table .is-overflowing{
+    -webkit-touch-callout: none;
+  }
+  :root:not([data-hover-input]) .match-table .is-overflowing{
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 .topic-rule-row > div:has(> .icon-button),
@@ -2841,24 +2869,24 @@ td:first-child .checkbox-cell{
   white-space: nowrap;
 }
 
-.match-table tbody td:hover{
+:root[data-hover-input] .match-table tbody td:hover{
   z-index: 3;
 }
 
-.table-section:has(.match-table-title-link.is-overflowing:hover),
+:root[data-hover-input] .table-section:has(.match-table-title-link.is-overflowing:hover),
 .table-section:has(.match-table-title-link.is-overflowing:focus-visible),
-.table-section:has(.table-clip.is-overflowing:hover),
+:root[data-hover-input] .table-section:has(.table-clip.is-overflowing:hover),
 .table-section:has(.table-clip.is-overflowing:focus-visible),
-.table-section:has(.match-detail-list.is-overflowing:hover),
+:root[data-hover-input] .table-section:has(.match-detail-list.is-overflowing:hover),
 .table-section:has(.match-detail-list.is-overflowing:focus-visible){
   z-index: 20;
 }
 
-.table-section:has(.match-table-title-link.is-overflowing:hover) .match-table,
+:root[data-hover-input] .table-section:has(.match-table-title-link.is-overflowing:hover) .match-table,
 .table-section:has(.match-table-title-link.is-overflowing:focus-visible) .match-table,
-.table-section:has(.table-clip.is-overflowing:hover) .match-table,
+:root[data-hover-input] .table-section:has(.table-clip.is-overflowing:hover) .match-table,
 .table-section:has(.table-clip.is-overflowing:focus-visible) .match-table,
-.table-section:has(.match-detail-list.is-overflowing:hover) .match-table,
+:root[data-hover-input] .table-section:has(.match-detail-list.is-overflowing:hover) .match-table,
 .table-section:has(.match-detail-list.is-overflowing:focus-visible) .match-table{
   overflow: visible;
 }
@@ -2869,18 +2897,18 @@ td:first-child .checkbox-cell{
   width: 100%;
 }
 
-.match-title-cell:has(> .match-table-title-link.is-overflowing:hover),
+:root[data-hover-input] .match-title-cell:has(> .match-table-title-link.is-overflowing:hover),
 .match-title-cell:has(> .match-table-title-link.is-overflowing:focus-visible),
-.match-table tbody td:has(.table-clip.is-overflowing:hover),
+:root[data-hover-input] .match-table tbody td:has(.table-clip.is-overflowing:hover),
 .match-table tbody td:has(.table-clip.is-overflowing:focus-visible),
-.match-table tbody td:has(.match-detail-list.is-overflowing:hover),
+:root[data-hover-input] .match-table tbody td:has(.match-detail-list.is-overflowing:hover),
 .match-table tbody td:has(.match-detail-list.is-overflowing:focus-visible){
   z-index: 5;
 }
 
-.match-title-cell:has(> .match-table-title-link.is-overflowing):hover > .match-table-title-link,
-.match-title-cell:has(> .match-table-title-link.is-overflowing):focus-within > .match-table-title-link,
-.match-table-title-link.is-overflowing:hover,
+:root[data-hover-input] .match-title-cell:has(> .match-table-title-link.is-overflowing):hover > .match-table-title-link,
+.match-title-cell:has(> .match-table-title-link.is-overflowing):has(:focus-visible) > .match-table-title-link,
+:root[data-hover-input] .match-table-title-link.is-overflowing:hover,
 .match-table-title-link.is-overflowing:focus-visible{
   --table-clip-lines: 8;
   background: var(--surface);
@@ -2901,9 +2929,9 @@ td:first-child .checkbox-cell{
   z-index: 4;
 }
 
-.match-content-cell:has(> .table-clip.is-overflowing):hover > .table-clip,
-.match-content-cell:has(> .table-clip.is-overflowing):focus-within > .table-clip,
-.table-clip.is-overflowing:hover,
+:root[data-hover-input] .match-content-cell:has(> .table-clip.is-overflowing):hover > .table-clip,
+.match-content-cell:has(> .table-clip.is-overflowing):has(:focus-visible) > .table-clip,
+:root[data-hover-input] .table-clip.is-overflowing:hover,
 .table-clip.is-overflowing:focus-visible{
   background: var(--surface);
   border: 1px solid var(--theme-border);
@@ -2925,9 +2953,9 @@ td:first-child .checkbox-cell{
   z-index: 6;
 }
 
-.match-table tbody td:has(> .match-detail-list.is-overflowing):hover > .match-detail-list,
-.match-table tbody td:has(> .match-detail-list.is-overflowing):focus-within > .match-detail-list,
-.match-detail-list.is-overflowing:hover,
+:root[data-hover-input] .match-table tbody td:has(> .match-detail-list.is-overflowing):hover > .match-detail-list,
+.match-table tbody td:has(> .match-detail-list.is-overflowing):has(:focus-visible) > .match-detail-list,
+:root[data-hover-input] .match-detail-list.is-overflowing:hover,
 .match-detail-list.is-overflowing:focus-visible{
   background: var(--surface);
   border: 1px solid var(--theme-border);
@@ -2946,10 +2974,10 @@ td:first-child .checkbox-cell{
   z-index: 6;
 }
 
-.match-detail-list.is-overflowing:hover .match-detail-value,
+:root[data-hover-input] .match-detail-list.is-overflowing:hover .match-detail-value,
 .match-detail-list.is-overflowing:focus-visible .match-detail-value,
-.match-table tbody td:has(> .match-detail-list.is-overflowing):hover .match-detail-value,
-.match-table tbody td:has(> .match-detail-list.is-overflowing):focus-within .match-detail-value{
+:root[data-hover-input] .match-table tbody td:has(> .match-detail-list.is-overflowing):hover .match-detail-value,
+.match-table tbody td:has(> .match-detail-list.is-overflowing):has(:focus-visible) .match-detail-value{
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
