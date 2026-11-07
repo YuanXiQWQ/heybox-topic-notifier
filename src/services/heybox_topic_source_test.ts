@@ -25,46 +25,50 @@ const detailTestPost: TopicPost = {
   url: "https://www.xiaoheihe.cn/app/bbs/link/requested",
 };
 
-Deno.test("explicit build1149 mode signs feed and detail with the same anonymous identity", async () => {
-  const urls: URL[] = [];
-  const source = createHeyboxTopicSource({
-    signatureMode: "app-v1149",
-    deviceId: "0123456789abcdef0123456789abcdef",
-    now: () => new Date(1700000000000),
-    random: () => 0,
-    fetchFn: (input) => {
-      const url = new URL(String(input));
-      urls.push(url);
-      const result = url.pathname.endsWith("/tree")
-        ? { link: { linkid: 123, title: "合成详情", text: "合成完整正文" } }
-        : { links: [{ linkid: 123, title: "合成列表", text: "摘要" }] };
-      return Promise.resolve(Response.json({ status: "ok", result }));
-    },
+for (const signatureMode of [undefined, "app-v1149"] as const) {
+  Deno.test(`${signatureMode ?? "default"} build1149 mode signs feed and detail with the same anonymous identity`, async () => {
+    const urls: URL[] = [];
+    const source = createHeyboxTopicSource({
+      signatureMode,
+      deviceId: "0123456789abcdef0123456789abcdef",
+      now: () => new Date(1700000000000),
+      random: () => 0,
+      fetchFn: (input) => {
+        const url = new URL(String(input));
+        urls.push(url);
+        const result = url.pathname.endsWith("/tree")
+          ? { link: { linkid: 123, title: "合成详情", text: "合成完整正文" } }
+          : { links: [{ linkid: 123, title: "合成列表", text: "摘要" }] };
+        return Promise.resolve(Response.json({ status: "ok", result }));
+      },
+    });
+    const posts = await source.listLatestPosts("12099", {
+      limit: 1,
+      sort: "smart",
+    });
+    const detailed = await source.getPostDetails!(posts[0]);
+    assertEquals(detailed.detailsComplete, true);
+    assertEquals(detailed.body, "合成完整正文");
+    assertEquals(urls.map((url) => url.searchParams.get("hkey")), [
+      "51E17233",
+      "760E264C",
+    ]);
+    for (const url of urls) {
+      assertEquals(url.searchParams.get("version"), "1.3.400");
+      assertEquals(url.searchParams.get("build"), "1149");
+      assertEquals(
+        url.searchParams.get("imei"),
+        "0123456789abcdef0123456789abcdef",
+      );
+      assertEquals(url.searchParams.get("heybox_id"), "-1");
+      assertEquals(url.searchParams.get("nonce"), "P".repeat(32));
+      assertEquals(url.searchParams.get("_rnd"), null);
+    }
+    assertEquals(urls[1].searchParams.get("link_id"), "123");
+    assertEquals(urls[1].searchParams.get("page"), "1");
+    assertEquals(urls[1].searchParams.get("limit"), "20");
   });
-  const posts = await source.listLatestPosts("12099", {
-    limit: 1,
-    sort: "smart",
-  });
-  const detailed = await source.getPostDetails!(posts[0]);
-  assertEquals(detailed.detailsComplete, true);
-  assertEquals(detailed.body, "合成完整正文");
-  assertEquals(urls.map((url) => url.searchParams.get("hkey")), [
-    "51E17233",
-    "760E264C",
-  ]);
-  for (const url of urls) {
-    assertEquals(url.searchParams.get("version"), "1.3.400");
-    assertEquals(url.searchParams.get("build"), "1149");
-    assertEquals(
-      url.searchParams.get("imei"),
-      "0123456789abcdef0123456789abcdef",
-    );
-    assertEquals(url.searchParams.get("heybox_id"), "-1");
-    assertEquals(url.searchParams.get("nonce"), "P".repeat(32));
-    assertEquals(url.searchParams.get("_rnd"), null);
-  }
-  assertEquals(urls[1].searchParams.get("link_id"), "123");
-});
+}
 
 Deno.test("build1149 mode binds configured user identity and rejects version mismatch", async () => {
   const source = createHeyboxTopicSource({
@@ -229,6 +233,25 @@ Deno.test("missing and unsupported detail bodies cannot be promoted from list su
       { text: null, description: "只有摘要仍不能确认正文" },
       { text: { unsupported: "未识别的完整正文" }, description: "摘要" },
       { text: [{ text: "已识别片段" }, { unsupported: "不能丢掉这一段" }] },
+      { text: [{ text: "已识别片段" }, { type: "simple_card" }] },
+      {
+        text: [{
+          type: "simple_card",
+          simple_card: { protocol: "heybox://unknown" },
+        }],
+      },
+      {
+        text: [{
+          type: "simple_card",
+          simple_card: { title: "可读标题", desc: { unsupported: "不可丢弃" } },
+        }],
+      },
+      {
+        text: [{
+          type: "post_guide_card",
+          post_guide_card: { text: "可读标题", description: ["未识别结构"] },
+        }],
+      },
     ]
   ) {
     const source = createHeyboxTopicSource({
@@ -241,6 +264,52 @@ Deno.test("missing and unsupported detail bodies cannot be promoted from list su
     const result = await source.getPostDetails!(detailTestPost);
     assertEquals(result.detailsComplete, false);
     assertEquals(result.body, detailTestPost.body);
+    assertEquals(source.detailRetryAfter!(), 0);
+  }
+});
+
+Deno.test("native simple and post guide cards preserve all visible text without discarding details", async () => {
+  const content = [
+    { type: "text", text: "正文第一段" },
+    { type: "img", text: "/private/image.jpg", url: "https://image.test/a" },
+    {
+      type: "simple_card",
+      simple_card: {
+        title: " 卡片标题 ",
+        desc: " 卡片描述 ",
+        icon: "https://image.test/icon",
+        protocol: "heybox://jump?tracking=hidden",
+        first_appear_protocol: "heybox://exposure?tracking=hidden",
+      },
+    },
+    {
+      type: "post_guide_card",
+      post_guide_card: {
+        text: "引导卡片标题",
+        description: "去体验",
+        protocol: "heybox://guide?tracking=hidden",
+      },
+    },
+    { type: "text", text: "正文最后一段" },
+  ];
+  for (const text of [content, JSON.stringify(content)]) {
+    const payload = {
+      status: "ok",
+      result: { link: { linkid: "123", text } },
+    };
+    const [listed] = parseHeyboxTopicPosts({
+      status: "ok",
+      result: { links: [payload.result.link] },
+    }, "12099");
+    const expected =
+      "正文第一段\n卡片标题\n卡片描述\n引导卡片标题\n去体验\n正文最后一段";
+    assertEquals(listed.body, expected);
+    const source = createHeyboxTopicSource({
+      fetchDetail: () => Promise.resolve(Response.json(payload)),
+    });
+    const detailed = await source.getPostDetails!(listed);
+    assertEquals(detailed.body, expected);
+    assertEquals(detailed.detailsComplete, true);
     assertEquals(source.detailRetryAfter!(), 0);
   }
 });
@@ -392,13 +461,24 @@ Deno.test("a later concurrent transport failure cannot shorten captcha cooldown"
     Promise.withResolvers<Response>(),
     Promise.withResolvers<Response>(),
   ];
+  const started = [
+    Promise.withResolvers<void>(),
+    Promise.withResolvers<void>(),
+  ];
   let calls = 0;
   const source = createHeyboxTopicSource({
     now: () => new Date(time),
-    fetchFn: () => requests[calls++].promise,
+    /** 等待异步签名完成、真实进入请求阶段后，测试才注入相应的响应。 */
+    fetchFn: () => {
+      const index = calls++;
+      started[index].resolve();
+      return requests[index].promise;
+    },
   });
   const captcha = source.getPostDetails!(detailTestPost);
+  await started[0].promise;
   const failing = source.getPostDetails!({ ...detailTestPost, id: "other" });
+  await started[1].promise;
   requests[0].resolve(Response.json({ status: "show_captcha" }));
   await captcha;
   time += 1000;
@@ -538,10 +618,11 @@ Deno.test("parseHeyboxTopicPosts encodes extracted link IDs in post URLs", () =>
   );
 });
 
-Deno.test("createHeyboxTopicSource requests signed topic feed", async () => {
+Deno.test("explicit legacy app mode keeps its signed topic feed protocol", async () => {
   const requestedUrls: URL[] = [];
   const source = createHeyboxTopicSource({
     apiBaseUrl: "https://api.example.test",
+    signatureMode: "app",
     deviceId: "device-1",
     fetchFn: (input) => {
       const url = new URL(String(input));

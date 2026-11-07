@@ -5,7 +5,7 @@ import { requireHeyboxDeviceId } from "./services/heybox_device_identity.ts";
 
 /** 专用的出口密钥不与账号密钥、通知密钥共享。 */
 const token = Deno.env.get("HEYBOX_DETAIL_RELAY_TOKEN") ?? "";
-/** 普通原生签名仅在显式配置时启用，默认继续使用旧版 app 模式。 */
+/** 允许显式覆盖签名模式；未配置时沿用数据源的 build1149 默认协议。 */
 const signatureMode = Deno.env.get("HEYBOX_SIGNATURE_MODE");
 /** 独立出口使用部署级固定设备标识，冷启动和版本升级沿用同一身份。 */
 const source = createHeyboxTopicSource({

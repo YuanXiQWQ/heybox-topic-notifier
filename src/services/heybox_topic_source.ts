@@ -58,6 +58,7 @@ const trustedHeyboxPostPathPrefixes = ["/app/bbs/link/", "/app/topic/link/"];
 
 /**
  * 创建小黑盒话题帖子数据源。
+ * 默认使用 build1149 协议；旧模式须显式指定，协议兼容不保证上游免验证码。
  *
  * @param config 小黑盒接口请求配置。
  * @return 话题帖子数据源实现。
@@ -66,7 +67,7 @@ export function createHeyboxTopicSource(
   config: HeyboxTopicSourceConfig = {},
 ): TopicSource {
   const apiBaseUrl = config.apiBaseUrl ?? "https://api.xiaoheihe.cn";
-  const signatureMode = config.signatureMode ?? "app";
+  const signatureMode = config.signatureMode ?? "app-v1149";
   const native1149 = signatureMode === "app-v1149";
   const appBuild = config.appBuild ?? (native1149 ? "1149" : "783");
   const appVersion = config.appVersion ?? (native1149 ? "1.3.400" : "1.3.232");
@@ -172,7 +173,7 @@ export function createHeyboxTopicSource(
    * 构建带签名的小黑盒请求参数。
    *
    * @param path 请求路径。
-   * @return 请求查询参数；显式选择 app-v1149 时等待原生 HMAC 运算。
+   * @return 请求查询参数；使用 app-v1149 时等待原生 HMAC 运算。
    */
   async function signedRequestParams(
     path: string,
@@ -239,8 +240,9 @@ export function createHeyboxTopicSource(
   }
 
   /**
-   * 读取有超时保护的详情传输；明确删除的帖子单独标记，来源受限制时共享冷却。
+   * 读取正文和首屏评论；明确删除的帖子单独标记，来源受限制时共享冷却。
    * 默认 HTTP 请求限时十秒，注入的匿名传输自行限制初始化与请求时限。
+   * 原生接口省略分页参数会返回空评论列表，显式读取第一页的二十个评论组。
    *
    * @param {TopicPost} post 列表接口返回的帖子。
    * @return {Promise<TopicPost | undefined>} 详情帖子，接口无可用内容时返回 undefined。
@@ -255,6 +257,8 @@ export function createHeyboxTopicSource(
     const params: Record<string, string> = {
       ...await signedRequestParams(linkTreePath),
       link_id: post.id,
+      page: "1",
+      limit: "20",
     };
 
     for (const [key, value] of Object.entries(params)) {
@@ -747,6 +751,12 @@ const heyboxMediaNodeTypes = new Set([
   "video",
 ]);
 
+/** 已核对的原生卡片正文结构；顺序与卡片可见文字一致，不读取跳转或统计协议。 */
+const heyboxCardNodeFields = new Map<string, readonly string[]>([
+  ["simple_card", ["title", "desc"]],
+  ["post_guide_card", ["text", "description"]],
+]);
+
 /**
  * 读取详情正文；缺失或包含未知结构时不以摘要证明完整，显式空正文仍可区分。
  * description 是摘要，不作为正文完整性的依据。
@@ -790,6 +800,10 @@ function isSupportedHeyboxContent(value: unknown): boolean {
     ? record.type.trim().toLowerCase()
     : "";
   if (heyboxMediaNodeTypes.has(nodeType)) return true;
+  const cardFields = heyboxCardNodeFields.get(nodeType);
+  if (cardFields) {
+    return heyboxCardText(record[nodeType], cardFields) !== undefined;
+  }
   let found = false;
   for (
     const key of ["text", "content", "description", "body", "children", "items"]
@@ -800,6 +814,32 @@ function isSupportedHeyboxContent(value: unknown): boolean {
     if (plainTextFromHeyboxContent(record[key])) return true;
   }
   return found;
+}
+
+/**
+ * 读取已核对的原生卡片文字，忽略图标和用于跳转或曝光统计的协议字段。
+ * 缺少可识别字段或字段类型异常时返回 undefined，避免误报整篇正文完整。
+ * @param {unknown} value 节点内的卡片对象。
+ * @param {readonly string[]} keys 对应卡片类型的可见文字字段。
+ * @return {string | undefined} 卡片的全部可展示文字，或无法识别的标记。
+ */
+function heyboxCardText(
+  value: unknown,
+  keys: readonly string[],
+): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const card = asRecord(value);
+  const fields = keys.map((key) => card[key]).filter((field) => field != null);
+  if (
+    fields.length === 0 || fields.some((field) => typeof field !== "string")
+  ) {
+    return undefined;
+  }
+  return (fields as string[]).map((field) => field.trim()).filter(Boolean).join(
+    "\n",
+  );
 }
 
 /**
@@ -860,6 +900,10 @@ export function plainTextFromHeyboxContent(value: unknown): string {
     : "";
   if (heyboxMediaNodeTypes.has(nodeType)) {
     return "";
+  }
+  const cardFields = heyboxCardNodeFields.get(nodeType);
+  if (cardFields) {
+    return heyboxCardText(record[nodeType], cardFields) ?? "";
   }
   return contentField(record, [
     "text",
