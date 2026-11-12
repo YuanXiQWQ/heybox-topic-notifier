@@ -95,6 +95,11 @@ dynamic `_rnd` signature. These modes do not generate an official SDK anonymous 
 or guarantee that CAPTCHAs and upstream restrictions will be lifted. An existing explicit
 `HEYBOX_SIGNATURE_MODE=app` setting continues to select the legacy protocol.
 
+To reuse the official app's anonymous SDK state from a dedicated Android device, configure
+the optional [native anonymous detail service](../zh-CN/heybox-native-details.md).
+It requires a separate process and configuration, persistent device data, and validation of
+the actual server egress and SDK recovery behavior.
+
 ## Independent Heybox detail service
 
 With a detail relay configured, the main service tries Oracle's direct connection first and uses Deno only when direct details fail or are restricted. Feeds, scheduling, accounts, Turso, AI matching and notifications remain in the main service. Healthy Oracle requests do not consume Deno's detail request quota.

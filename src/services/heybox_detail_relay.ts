@@ -319,14 +319,17 @@ export function withDetailRelay(
 
 /**
  * 创建仅接受固定帖子查询的鉴权中继；不接受任意目标地址或上游 Cookie。
- * @param {{token: string; source: TopicSource; now?: () => number}} options 独立密钥、上游来源和时钟。
+ * @param {{token: string; source: Partial<TopicSource>; now?: () => number}} options 独立密钥、详情来源和时钟；不要求话题列表能力。
  * @return {(request: Request) => Promise<Response>} HTTP 请求处理函数。
  */
 export function createDetailRelayHandler(
-  options: { token: string; source: TopicSource; now?: () => number },
+  options: { token: string; source: Partial<TopicSource>; now?: () => number },
 ) {
   if (options.token.length < 32) {
     throw new Error("Detail relay token must contain at least 32 characters");
+  }
+  if (!options.source.getPostDetails) {
+    throw new Error("Detail relay requires a detail source");
   }
   const encoder = new TextEncoder();
   const expected = crypto.subtle.digest(

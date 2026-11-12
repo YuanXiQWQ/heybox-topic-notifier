@@ -25,6 +25,8 @@ export type HeyboxTopicSourceConfig = {
   fetchFn?: typeof fetch;
   /** 独立匿名会话提供的详情传输；列表仍使用原有请求配置。 */
   fetchDetail?: (id: string) => Promise<Response>;
+  /** 报告上游固定限制代码，供原生会话管理器区分令牌拒绝与验证码。 */
+  onDetailRestricted?: (reason: string) => void;
   heyboxId?: string;
   now?: () => Date;
   osVersion?: string;
@@ -61,8 +63,8 @@ const trustedHeyboxPostPathPrefixes = ["/app/bbs/link/", "/app/topic/link/"];
  * 创建小黑盒话题帖子数据源。
  * 默认使用 build1149 协议；旧模式须显式指定，协议兼容不保证上游免验证码。
  *
- * @param config 小黑盒接口请求配置。
- * @return 话题帖子数据源实现。
+ * @param {HeyboxTopicSourceConfig} config 小黑盒接口请求配置。
+ * @return {TopicSource} 话题帖子数据源实现。
  */
 export function createHeyboxTopicSource(
   config: HeyboxTopicSourceConfig = {},
@@ -367,7 +369,7 @@ export function createHeyboxTopicSource(
   }
 
   /**
-   * 暂停受限制的详情接口，并记录不含请求身份或帖子内容的诊断信息。
+   * 暂停受限制的详情接口，通知会话管理器，并记录不含身份或帖子内容的诊断信息。
    * @param {string} reason 上游返回的固定限制类型。
    * @param {number} durationMs 冷却毫秒数，验证码和限流默认十五分钟。
    */
@@ -380,6 +382,7 @@ export function createHeyboxTopicSource(
       detailBlockedUntil,
       (config.now?.() ?? new Date()).getTime() + durationMs,
     );
+    config.onDetailRestricted?.(reason);
     console.warn(JSON.stringify({
       event: "heybox_detail_restricted",
       reason,
