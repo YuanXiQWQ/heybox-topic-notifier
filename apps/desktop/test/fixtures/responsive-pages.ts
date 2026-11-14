@@ -3,6 +3,9 @@ import { renderLayout } from "../../../../src/views/html.ts";
 import { renderMatchRecordsSection } from "../../../../src/views/match_table_view.ts";
 import { getMessages } from "../../../../src/locales/index.ts";
 import type { MatchRecord } from "../../../../src/models.ts";
+import { renderSettings } from "../../../../src/views/settings.ts";
+import { renderAbout } from "../../../../src/views/about.ts";
+import { defaultAppSettingsFromEnv } from "../../../../src/services/default_settings.ts";
 
 /** 本机测试账号及记录使用固定标识，便于断言离线重放。 */
 const account = { id: "responsive-test", displayName: "交互测试", username: "test" };
@@ -24,6 +27,10 @@ for (const path of ["/", "/history", "/settings", "/about"]) {
       table: {records, totalRecords: records.length, totalPages: 1, page: 1, pageSize: "all", range: "all", from: "", to: ""},
     });
     pages[path + ":" + state] = renderLayout({account, body, csrfToken: "test", darkMode: false, locale: "zh-CN", themeColor: "#bd7fff", title: "交互测试", disableEasterEggs: true});
+    const settings = defaultAppSettingsFromEnv();
+    settings.locale = "zh-CN";
+    if (path === "/settings") pages[path + ":" + state] = renderSettings({account, csrfToken: "test", settings});
+    if (path === "/about") pages[path + ":" + state] = renderAbout({account, csrfToken: "test", settings, version: "3.14.1", catalog: {status: "unavailable", downloads: []}});
   }
 }
 console.log(JSON.stringify(pages));

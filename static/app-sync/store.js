@@ -155,7 +155,7 @@
       userId,
       payload,
     });
-    tx.objectStore('state').put(snapshot, `${userId}:${stateName}`);
+    tx.objectStore('state').put({...snapshot, updatedAt: Date.now()}, `${userId}:${stateName}`);
     await done;
   }
 
@@ -257,8 +257,29 @@
     const db = await open();
     const tx = db.transaction('state', 'readwrite');
     const done = committed(tx);
-    tx.objectStore('state').put(payload, `${userId}:${name}`);
+    tx.objectStore('state').put({...payload, updatedAt: Date.now()}, `${userId}:${name}`);
     await done;
+  }
+
+  /**
+   * 原子更新后台取得的页面，读取开始后产生的编辑或较新快照始终保留。
+   * @param {string} userId 账号 ID。
+   * @param {string} name 页面快照名称。
+   * @param {unknown} state 已取得的服务器页面。
+   * @param {number} startedAt 网络读取开始时间。
+   * @return {Promise<boolean>} 页面是否成功替换。
+   */
+  async function cachePage(userId, name, state, startedAt) {
+    const payload = await encrypt(userId, state);
+    const db = await open();
+    const tx = db.transaction('state', 'readwrite');
+    const done = committed(tx);
+    const states = tx.objectStore('state');
+    const current = await requested(states.get(`${userId}:${name}`));
+    const accepted = !current || !current.updatedAt || current.updatedAt < startedAt;
+    if (accepted) states.put({...payload, updatedAt: Date.now()}, `${userId}:${name}`);
+    await done;
+    return accepted;
   }
 
   globalThis.AppLocalStore = {
@@ -270,5 +291,6 @@
     acknowledge,
     readState,
     writeState,
+    cachePage,
   };
 })();
