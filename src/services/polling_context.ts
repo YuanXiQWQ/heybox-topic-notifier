@@ -38,7 +38,8 @@ export function createPollingContext(
     deviceId: configuredDeviceId?.trim()
       ? requireHeyboxDeviceId(configuredDeviceId)
       : undefined,
-    signatureMode: signatureMode === "app" || signatureMode === "web"
+    signatureMode: signatureMode === "app" || signatureMode === "web" ||
+        signatureMode === "app-v1149" || signatureMode === "app-v1149-rnd14"
       ? signatureMode
       : undefined,
     userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
