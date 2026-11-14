@@ -362,7 +362,11 @@ Deno.test("settings and history pages keep the app tab title", () => {
 
   assertIncludes(historyHtml, "<title>小黑盒话题提醒</title>");
   assertIncludes(settingsHtml, "<title>小黑盒话题提醒</title>");
-  assertIncludes(historyHtml, "<h1>命中历史</h1>");
+  assertIncludes(historyHtml, '<h1 id="history-table-heading">命中历史</h1>');
+  assertEquals(historyHtml.match(/>命中历史<\//gu)?.length, 1);
+  assertNotIncludes(historyHtml, 'class="page-heading"');
+  assertIncludes(historyHtml, 'aria-labelledby="history-table-heading"');
+  assertIncludes(historyHtml, 'for="history-table-filter-toggle"');
   assertIncludes(settingsHtml, "<h1>设置</h1>");
 });
 

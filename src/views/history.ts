@@ -4,7 +4,7 @@
 import { trashIcon } from "./icons.ts";
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings, UserAccount } from "../models.ts";
-import { escapeHtml, renderLayout } from "./html.ts";
+import { renderLayout } from "./html.ts";
 import type { MatchTableResult } from "./match_table.ts";
 import { renderMatchRecordsSection } from "./match_table_view.ts";
 
@@ -25,11 +25,6 @@ export function renderHistory(options: {
   const messages = getMessages(options.settings.locale);
 
   const body = `
-    <section class="page-heading">
-      <div>
-        <h1>${escapeHtml(messages.historyTitle)}</h1>
-      </div>
-    </section>
     ${
     renderHistoryTable(
       options.historyTable,
@@ -54,13 +49,13 @@ export function renderHistory(options: {
 }
 
 /**
- * 渲染历史命中表格。
+ * 渲染包含页面标题和筛选控件的历史命中表格。
  *
- * @param table 历史表格数据。
- * @param messages 当前语言文案。
- * @param locale 当前语言标识。
- * @param csrfToken CSRF 令牌。
- * @return 历史表格 HTML。
+ * @param {MatchTableResult} table 历史表格数据。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @param {AppSettings["locale"]} locale 当前语言标识。
+ * @param {string} csrfToken CSRF 令牌。
+ * @return {string} 历史表格 HTML。
  */
 export function renderHistoryTable(
   table: MatchTableResult,
@@ -86,6 +81,7 @@ export function renderHistoryTable(
     csrfToken,
     locale,
     messages,
+    pageHeading: true,
     path: "/history",
     table,
     titleLinkClass: "pending-title-link",

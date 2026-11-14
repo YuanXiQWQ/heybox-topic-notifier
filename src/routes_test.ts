@@ -3005,6 +3005,8 @@ Deno.test("delete matches ajax returns refreshed history table", async () => {
   assertEquals(response.headers.get("location"), null);
   assertEquals(deleted, [["deleted-history"]]);
   assertIncludes(html, `data-match-table-section="history-table-heading"`);
+  assertIncludes(html, '<h1 id="history-table-heading">');
+  assertNotIncludes(html, "<h2");
   assertIncludes(html, `data-match-table-form`);
   assertIncludes(html, "remaining-history");
   assertNotIncludes(html, "<!doctype html>");
