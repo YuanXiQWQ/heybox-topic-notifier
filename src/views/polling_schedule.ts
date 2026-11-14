@@ -34,12 +34,15 @@ export function renderPollingSchedule(settings: AppSettings): string {
       normalizeSchedule(settings.polling.schedule, settings.locale),
     ))
   }">
+    <p class="schedule-drag-instruction" id="schedule-drag-instruction">${
+    materialSymbolIcon("drag_indicator", "rule-drag-icon")
+  }<span>${e(m.dragRow)}</span></p>
     <div class="schedule-list" data-schedule-list></div>
     ${renderSettingsBack(m.navSettings)}
     <template data-schedule-template><div class="schedule-row">
       <button type="button" class="icon-button rule-drag-handle" data-schedule-drag aria-label="${
     e(m.dragRow)
-  }" title="${e(m.dragRow)}">${
+  }" aria-describedby="schedule-drag-instruction">${
     materialSymbolIcon("drag_indicator", "rule-drag-icon")
   }</button>
       <label class="schedule-field schedule-range"><span>${
@@ -90,13 +93,16 @@ export function renderPollingSchedule(settings: AppSettings): string {
   }</button>
       <div class="schedule-actions"><button type="button" class="icon-button" data-schedule-add aria-label="${
     e(m.scheduleAdd)
-  }" title="${e(m.scheduleAdd)}">${
+  }" data-tooltip="${e(m.scheduleAdd)}">${
     materialSymbolIcon("add", "settings-row-action-icon")
   }</button><button type="button" class="icon-button" data-schedule-remove aria-label="${
     e(m.scheduleRemove)
-  }" title="${
+  }" data-tooltip="${
     e(m.scheduleRemove)
   }"><svg class="settings-row-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg></button></div>
+      <p class="schedule-interval-reason" data-schedule-interval-reason role="status" hidden>${
+    e(m.scheduleIntervalOutsideRange)
+  }</p>
     </div></template>
     <dialog class="avatar-crop-dialog schedule-date-dialog" data-schedule-dates>
       <header class="avatar-crop-header"><h2>${

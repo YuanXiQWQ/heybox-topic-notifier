@@ -7,6 +7,8 @@
   root.dataset.applicationPlatform = android ? 'android' : 'windows';
   const back = document.querySelector('[data-app-back]');
   const status = document.querySelector('[data-app-navigation-status]');
+  const message = status?.querySelector('[data-app-navigation-message]');
+  const errorDetails = status?.querySelector('[data-app-navigation-error]');
   const navigation = document.querySelector('[data-app-navigation]');
   const savedForms = new WeakSet();
   let canGoBack = false;
@@ -44,7 +46,12 @@
     const page = location.href;
     pending = true;
     renderBack();
-    if (status) status.hidden = true;
+    if (status) {
+      status.hidden = true;
+      status.open = false;
+    }
+    if (message) message.textContent = '';
+    if (errorDetails) errorDetails.textContent = '';
     try {
       if (globalThis.applicationSync) await globalThis.applicationSync.prepareForExit();
       else if (globalThis.flushSettingsEdits && !await globalThis.flushSettingsEdits()) throw new Error('Settings are not saved');
@@ -53,8 +60,11 @@
       if (current === revision && location.href === page) operation();
     } catch (error) {
       if (current === revision && status) {
-        status.textContent = status.dataset.saveError;
-        status.title = error instanceof Error ? error.message : '';
+        if (message) message.textContent = status.dataset.saveError;
+        if (errorDetails) errorDetails.textContent =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : status.dataset.saveError;
         status.hidden = false;
       }
     } finally {

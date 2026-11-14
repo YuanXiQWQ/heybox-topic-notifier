@@ -85,9 +85,20 @@ and rejects local, private, link-local, metadata-service, and reserved address r
 domains you fully control.
 
 Real Heybox topic fetching is the only active runtime data source. The default
-`HEYBOX_SIGNATURE_MODE=app` uses the verified app API publish-time list. `web` is only kept as a
-diagnostic fallback. New accounts start with polling disabled; fetching only begins after the account
+`HEYBOX_SIGNATURE_MODE=app-v1149` uses the build1149 native protocol. `app` retains the legacy protocol
+and `web` retains the web diagnostic mode. New accounts start with polling disabled; fetching only begins after the account
 turns on the "enable polling" setting on its settings page.
+
+`app-v1149` uses the ordinary signature, version parameters, and anonymous `heybox_id=-1`
+for official app version 1.3.400/build1149. `app-v1149-rnd14` also computes version 14 of the
+dynamic `_rnd` signature. These modes do not generate an official SDK anonymous identifier
+or guarantee that CAPTCHAs and upstream restrictions will be lifted. An existing explicit
+`HEYBOX_SIGNATURE_MODE=app` setting continues to select the legacy protocol.
+
+To reuse the official app's anonymous SDK state from a dedicated Android device, configure
+the optional [native anonymous detail service](../zh-CN/heybox-native-details.md).
+It requires a separate process and configuration, persistent device data, and validation of
+the actual server egress and SDK recovery behavior.
 
 ## Independent Heybox detail service
 
@@ -109,7 +120,7 @@ HEYBOX_DETAIL_REQUESTS_PER_MINUTE=3
 
 The token must match the detail service. Backup requests carry only a post ID; arbitrary destination URLs are rejected. HTTPS, Bearer authentication, timeouts, response limits, short-lived caching and in-flight deduplication apply. Each route has an independent cooldown. Once Oracle's cooldown ends, the next real detail request checks recovery and restores direct access on success. If both routes are restricted, work remains pending and outage alerts continue without repeated switching. Cooldown expiry does not guarantee that upstream restrictions have lifted. `GET /healthz` confirms only that the process is running. Verify actual full details, matching and notification delivery before accepting the deployment.
 
-`HEYBOX_DETAIL_REQUESTS_PER_MINUTE` defaults to 3 and accepts integers from 1 to 60. The main service shares one rolling 60-second budget across all accounts and both routes. A Deno attempt after an Oracle failure consumes another request; cache hits do not count. Work beyond the budget stays queued without calling AI or reporting a source outage. An incomplete refresh does not overwrite previously saved full details. Neither low request rates nor a separate network location guarantee that Heybox will accept requests; verify real API responses after deployment.
+`HEYBOX_DETAIL_REQUESTS_PER_MINUTE` defaults to 3 and accepts integers from 1 to 60. The main service shares one rolling 60-second budget across all accounts and configured routes, including when Oracle is the only route. A Deno attempt after an Oracle failure consumes another request; cache hits do not count. Work beyond the budget stays queued without calling AI or reporting a source outage. An incomplete refresh does not overwrite previously saved full details. Neither low request rates nor a separate network location guarantee that Heybox will accept requests; verify real API responses after deployment.
 
 Oracle's `heybox_detail_attempt` logs identify each route (`oracle` or `deno`), its outcome, and its retry time on failure. `heybox_detail_relay_success` logs include backup response bytes and elapsed time; `heybox_detail_relay_failed` and `heybox_detail_relay_cooldown` indicate backup failures. Check actual platform CPU, memory time, requests and egress against the account's limits. Avoiding KV does not by itself guarantee sufficient free-tier capacity. Pending queues and partial-content classification are safeguards during outages, not proof of upstream availability.
 

@@ -3,6 +3,11 @@ import { assertEquals } from "../test_helpers.ts";
 import type { TopicPost } from "../models.ts";
 import type { TopicSource } from "./topic_source.ts";
 import { withDetailFailover } from "./heybox_detail_failover.ts";
+import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
+import {
+  createDetailRelayHandler,
+  withDetailRelay,
+} from "./heybox_detail_relay.ts";
 
 /** 用于验证摘要保留的公开帖子样例。 */
 const post: TopicPost = {
@@ -195,4 +200,115 @@ Deno.test("confirmed deletion is terminal and does not spend the backup quota", 
   await f.client.getPostDetails!(post);
   assertEquals(f.calls, ["oracle:sample"]);
   assertEquals(f.client.detailRetryAfter!(), 0);
+});
+
+Deno.test("a missing post through both real adapters does not cool down healthy routes", async () => {
+  const calls: string[] = [];
+  /** 构造只对单个帖子返回缺失响应的上游。 */
+  const upstream = (name: string) =>
+    createHeyboxTopicSource({
+      now: () => new Date(1000),
+      fetchFn: (input) => {
+        const id = new URL(String(input)).searchParams.get("link_id");
+        calls.push(`${name}:${id}`);
+        return Promise.resolve(
+          id === "missing"
+            ? new Response(null, { status: 404 })
+            : Response.json({
+              status: "ok",
+              result: { link: { linkid: id, content: "完整正文" } },
+            }),
+        );
+      },
+    });
+  const primary = upstream("oracle");
+  const token = "test-only-detail-relay-token-00000000";
+  const handler = createDetailRelayHandler({ token, source: upstream("deno") });
+  const client = withDetailFailover(
+    primary,
+    withDetailRelay(primary, {
+      url: "https://relay.example/v1/details",
+      token,
+      now: () => 1000,
+      fetchFn: (url, init) => handler(new Request(url, init)),
+    }),
+    { now: () => 1000 },
+  );
+  const missing = await client.getPostDetails!({ ...post, id: "missing" });
+  assertEquals(missing.detailsComplete, false);
+  assertEquals(missing.detailUnavailable, undefined);
+  assertEquals(client.detailRetryAfter!(), 0);
+  assertEquals((await client.getPostDetails!(post)).detailsComplete, true);
+  assertEquals(calls, ["oracle:missing", "deno:missing", "oracle:sample"]);
+});
+
+Deno.test("route budget deferral stays queued without triggering fallback or cooldown", async () => {
+  let time = 1000;
+  let calls = 0;
+  const primary: TopicSource = {
+    listLatestPosts: () => Promise.resolve([]),
+    detailRetryAfter: () => 0,
+    getPostDetails: (value) => {
+      calls++;
+      return Promise.resolve(
+        time < 61000
+          ? { ...value, detailsComplete: false, detailDeferredUntil: 61000 }
+          : { ...value, detailsComplete: true, body: "恢复的详情" },
+      );
+    },
+  };
+  const backup: TopicSource = {
+    listLatestPosts: primary.listLatestPosts,
+    getPostDetails: () => {
+      throw new Error("Unexpected backup request");
+    },
+  };
+  const client = withDetailFailover(primary, backup, { now: () => time });
+  const waiting = await client.getPostDetails!(post);
+  assertEquals(waiting.detailDeferredUntil, 61000);
+  assertEquals(client.detailRetryAfter!(), 0);
+  time = 61000;
+  const complete = await client.getPostDetails!(waiting);
+  assertEquals(complete.detailsComplete, true);
+  assertEquals(complete.detailDeferredUntil, undefined);
+  assertEquals(calls, 2);
+});
+
+Deno.test("a single configured route still shares cache, rolling budget and queue recovery", async () => {
+  let now = 1000, requests = 0;
+  const primary: TopicSource = {
+    listLatestPosts: () => Promise.resolve([post]),
+    detailRetryAfter: () => 0,
+    getPostDetails: (value) => {
+      requests++;
+      return Promise.resolve({
+        ...value,
+        body: "完整正文",
+        detailsComplete: true,
+      });
+    },
+  };
+  const client = withDetailFailover(primary, undefined, { now: () => now });
+  const results = await Promise.all(
+    ["a", "b", "c", "d"].map((id) => client.getPostDetails!({ ...post, id })),
+  );
+  assertEquals(requests, 3);
+  assertEquals(results.map((result) => result.detailsComplete), [
+    true,
+    true,
+    true,
+    false,
+  ]);
+  assertEquals(results[3].detailDeferredUntil, 61000);
+  assertEquals(client.detailRetryAfter!(), 0);
+  assertEquals(
+    (await client.getPostDetails!({ ...post, id: "a" })).detailsComplete,
+    true,
+  );
+  assertEquals(requests, 3);
+  now = 61000;
+  const resumed = await client.getPostDetails!(results[3]);
+  assertEquals(resumed.detailsComplete, true);
+  assertEquals(resumed.detailDeferredUntil, undefined);
+  assertEquals(requests, 4);
 });

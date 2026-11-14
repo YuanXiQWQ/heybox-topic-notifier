@@ -251,7 +251,6 @@ function renderLastPollScript(
       const nextPollPanel = document.querySelector("[data-next-poll-panel]");
       const nextPollFill = document.querySelector("[data-next-poll-fill]");
       const nextPollRemaining = document.querySelector("[data-next-poll-remaining]");
-      let pendingSection = document.querySelector(".table-section");
       const totalMatches = document.querySelector("[data-total-matches]");
       let resetAnimationTimers = [];
       let timestamp = parseTimestamp(lastPoll.dataset.lastPollAt);
@@ -326,13 +325,14 @@ function renderLastPollScript(
       }
 
       /**
-       * 查询仪表盘变更，只在数据变化且查询条件仍一致时更新页面。
+       * 查询仪表盘变更，只在查询条件和可见表格节点仍一致且未提交操作时更新页面。
        *
        * @param {object} options 是否触发当前账号到期检查。
        * @return {Promise<void>} 状态检查完成后的 Promise。
        */
       async function refreshDashboardState(options = {}) {
         if (isDashboardStateRefreshInFlight) return;
+        const pendingSection = currentPendingSection();
         if (pendingSection?.querySelector('[data-match-table-submitting="true"]')) return;
         isDashboardStateRefreshInFlight = true;
         try {
@@ -350,6 +350,7 @@ function renderLastPollScript(
           if (!response.ok) return;
           const state = await response.json();
           if (query !== location.search) return;
+          if (pendingSection !== currentPendingSection()) return;
           if (pendingSection?.querySelector('[data-match-table-submitting="true"]')) return;
           synchronizeServerTime(state.serverTime);
           if (state.unchanged === true) {
@@ -375,7 +376,7 @@ function renderLastPollScript(
           if (totalMatches && Number.isInteger(state.totalMatches)) {
             totalMatches.textContent = String(state.totalMatches);
           }
-          updatePendingSection(state.pendingHtml, state.pendingSignature);
+          updatePendingSection(pendingSection, state.pendingHtml, state.pendingSignature);
           dashboardVersion = typeof state.version === "string" ? state.version : "";
           hasSyncedDashboardState = true;
         } catch {
@@ -415,20 +416,29 @@ function renderLastPollScript(
       }
 
       /**
+       * 从文档读取可见工作区表格，表格操作可以独立替换整个节点。
+       *
+       * @return {Element | null} 当前待处理帖子区块。
+       */
+      function currentPendingSection() {
+        return document.querySelector('[data-match-table-section="pending-posts-heading"]');
+      }
+
+      /**
        * 更新工作区表格，保留仍存在记录的选择并重投影本地离线操作。
+       * @param {Element | null} pendingSection 本次响应对应的可见表格。
        * @param {string} html 服务端表格。
        * @param {string} signature 表格内容签名。
        */
-      function updatePendingSection(html, signature) {
+      function updatePendingSection(pendingSection, html, signature) {
         if (!pendingSection || typeof html !== "string" || typeof signature !== "string") return;
         if (pendingSection.dataset.matchTableSignature === signature) return;
         const parsed = new DOMParser().parseFromString(html, "text/html");
-        const nextSection = parsed.querySelector(".table-section");
+        const nextSection = parsed.querySelector('[data-match-table-section="pending-posts-heading"]');
         if (!nextSection) return;
         const selected = new Set(Array.from(pendingSection.querySelectorAll('input[name="matchId"]:checked')).map((input) => input.value));
         for (const input of nextSection.querySelectorAll('input[name="matchId"]')) input.checked = selected.has(input.value);
         pendingSection.replaceWith(nextSection);
-        pendingSection = nextSection;
         window["__matchTableFilterInit"]?.();
         window["__matchTableRelativeTimeUpdate"]?.();
         window["__matchTableOverflowUpdate"]?.();

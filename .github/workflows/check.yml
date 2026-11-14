@@ -20,5 +20,8 @@ jobs:
       - name: Check
         run: deno task check
 
+      - name: Verify native session publisher recovery
+        run: python3 -B scripts/native_publisher_test.py
+
       - name: Verify deployment rollback and cleanup
         run: bash ops/deploy_test.sh

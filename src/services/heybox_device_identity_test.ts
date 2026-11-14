@@ -50,7 +50,7 @@ Deno.test("independent source instances reuse the configured identity while sepa
               link: {
                 linkid: "sample",
                 title: "公开标题",
-                description: "正文",
+                text: "正文",
               },
             },
           }),

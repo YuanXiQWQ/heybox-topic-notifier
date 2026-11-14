@@ -15,6 +15,8 @@ const maxCacheEntries = 128;
 export type DetailRelayConfig = {
   url: string;
   token: string;
+  /** 仅允许显式配置的本机回环 HTTP 服务，并给首次匿名初始化留出时间。 */
+  local?: boolean;
   requestsPerMinute?: number;
   fetchFn?: typeof fetch;
   now?: () => number;
@@ -116,7 +118,7 @@ export function cachedDetails(
 }
 
 /**
- * 保留原列表来源，将详情访问交给固定的 HTTPS 出口。
+ * 保留原列表来源，将详情访问交给固定的 HTTPS 出口或显式启用的本机回环服务。
  * @param {TopicSource} source 话题列表来源。
  * @param {DetailRelayConfig} config 独立出口与请求依赖。
  * @return {TopicSource} 共享详情缓存的数据源。
@@ -127,7 +129,10 @@ export function withDetailRelay(
 ): TopicSource {
   const endpoint = new URL(config.url);
   if (
-    endpoint.protocol !== "https:" || endpoint.username || endpoint.password ||
+    (config.local
+      ? endpoint.protocol !== "http:" || endpoint.hostname !== "127.0.0.1"
+      : endpoint.protocol !== "https:") ||
+    endpoint.username || endpoint.password ||
     endpoint.search || endpoint.hash || config.token.length < 32
   ) {
     throw new Error("Invalid detail relay configuration");
@@ -170,7 +175,7 @@ export function withDetailRelay(
       const response = await fetchFn(endpoint, {
         method: "POST",
         redirect: "error",
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(config.local ? 60000 : 15000),
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${config.token}`,
@@ -211,14 +216,18 @@ export function withDetailRelay(
           };
         }
         const seconds = Number(response.headers.get("retry-after"));
-        retryAt = now() +
-          (response.status === 401 || response.status === 403 ||
-              response.status === 429
-            ? 900000
-            : Math.min(
-              900,
-              Math.max(60, Number.isFinite(seconds) ? seconds : 60),
-            ) * 1000);
+        // 并发响应只能延长冷却，不能以较短的服务故障覆盖已有的限流状态。
+        retryAt = Math.max(
+          retryAt,
+          now() +
+            (response.status === 401 || response.status === 403 ||
+                response.status === 429
+              ? 900000
+              : Math.min(
+                900,
+                Math.max(60, Number.isFinite(seconds) ? seconds : 60),
+              ) * 1000),
+        );
         await response.body?.cancel();
         console.warn(
           JSON.stringify({
@@ -310,14 +319,17 @@ export function withDetailRelay(
 
 /**
  * 创建仅接受固定帖子查询的鉴权中继；不接受任意目标地址或上游 Cookie。
- * @param {{token: string; source: TopicSource; now?: () => number}} options 独立密钥、上游来源和时钟。
+ * @param {{token: string; source: Partial<TopicSource>; now?: () => number}} options 独立密钥、详情来源和时钟；不要求话题列表能力。
  * @return {(request: Request) => Promise<Response>} HTTP 请求处理函数。
  */
 export function createDetailRelayHandler(
-  options: { token: string; source: TopicSource; now?: () => number },
+  options: { token: string; source: Partial<TopicSource>; now?: () => number },
 ) {
   if (options.token.length < 32) {
     throw new Error("Detail relay token must contain at least 32 characters");
+  }
+  if (!options.source.getPostDetails) {
+    throw new Error("Detail relay requires a detail source");
   }
   const encoder = new TextEncoder();
   const expected = crypto.subtle.digest(

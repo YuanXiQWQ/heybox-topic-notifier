@@ -13,12 +13,14 @@
     "dev": "deno run --env-file=.env --allow-net --allow-env --allow-read --unstable-kv --watch src/main.ts",
     "start": "deno run --allow-net --allow-env --allow-read --unstable-kv src/main.ts",
     "start:vm": "deno run --cached-only --frozen --allow-net --allow-env --allow-read src/self_hosted.ts",
-    "start:detail-relay": "deno run --allow-net --allow-env=HEYBOX_DETAIL_RELAY_TOKEN,HEYBOX_DEVICE_ID src/detail_relay.ts",
+    "start:detail-relay": "deno run --allow-net --allow-env=HEYBOX_DETAIL_RELAY_TOKEN,HEYBOX_DEVICE_ID,HEYBOX_SIGNATURE_MODE src/detail_relay.ts",
+    "start:native-details": "deno run --allow-net=api.xiaoheihe.cn,127.0.0.1 src/native_details.ts",
     "clear-seen": "deno run --unstable-kv src/storage/clear_seen.ts",
     "storage:migrate-kv": "deno run --allow-env --allow-net --unstable-kv src/storage/migrate_kv_to_turso.ts",
     "auth:check-legacy": "deno run --allow-env --unstable-kv src/auth/check_legacy_accounts.ts",
     "notifications:keys": "deno run scripts/generate_web_push_keys.ts",
-    "check": "deno lint && deno check src/main.ts src/deploy.ts src/self_hosted.ts src/detail_relay.ts \"static/**/*.js\" \"workers/**/*.js\" && deno test --allow-env --allow-read --unstable-kv"
+    "test:native-lifecycle": "deno test --allow-read=临时文件/native-retry-tests --allow-write=临时文件/native-retry-tests scripts/native_retry.integration.ts",
+    "check": "deno lint && deno check src/main.ts src/deploy.ts src/self_hosted.ts src/detail_relay.ts src/guest_details.ts src/native_details.ts \"static/**/*.js\" \"workers/**/*.js\" && deno test --allow-env --allow-read --unstable-kv && deno task test:native-lifecycle"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1.0.0",

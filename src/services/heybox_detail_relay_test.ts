@@ -22,6 +22,34 @@ const post: TopicPost = {
   url: "https://www.xiaoheihe.cn/app/bbs/link/abc123",
 };
 
+Deno.test("a later relay server error cannot shorten a concurrent restriction cooldown", async () => {
+  let now = 1000;
+  let calls = 0;
+  const requests = [
+    Promise.withResolvers<Response>(),
+    Promise.withResolvers<Response>(),
+  ];
+  const client = withDetailRelay(
+    { listLatestPosts: () => Promise.resolve([]) },
+    {
+      url: "https://relay.example/v1/details",
+      token,
+      now: () => now,
+      fetchFn: () => requests[calls++].promise,
+    },
+  );
+  const restricted = client.getPostDetails!(post);
+  const failing = client.getPostDetails!({ ...post, id: "another" });
+  requests[0].resolve(new Response(null, { status: 429 }));
+  await restricted;
+  now += 1000;
+  requests[1].resolve(new Response(null, { status: 503 }));
+  await failing;
+  assertEquals(client.detailRetryAfter!(), 899);
+  await client.getPostDetails!(post);
+  assertEquals(calls, 2);
+});
+
 Deno.test("deleted Heybox content does not block subsequent valid details through the relay", async () => {
   let calls = 0;
   const source = createHeyboxTopicSource({
@@ -35,7 +63,7 @@ Deno.test("deleted Heybox content does not block subsequent valid details throug
             : {
               status: "ok",
               result: {
-                link: { linkid: id, title: "怎么通过？", description: "zsbd" },
+                link: { linkid: id, title: "怎么通过？", text: "zsbd" },
               },
             },
         ),

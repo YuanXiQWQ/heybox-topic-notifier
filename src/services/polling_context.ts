@@ -38,30 +38,43 @@ export function createPollingContext(
     deviceId: configuredDeviceId?.trim()
       ? requireHeyboxDeviceId(configuredDeviceId)
       : undefined,
-    signatureMode: signatureMode === "app" || signatureMode === "web"
+    signatureMode: signatureMode === "app" || signatureMode === "web" ||
+        signatureMode === "app-v1149" || signatureMode === "app-v1149-rnd14"
       ? signatureMode
       : undefined,
     userAgent: Deno.env.get("HEYBOX_USER_AGENT") ?? undefined,
   });
   const relayUrl = Deno.env.get("HEYBOX_DETAIL_RELAY_URL");
   const relayToken = Deno.env.get("HEYBOX_DETAIL_RELAY_TOKEN");
+  const guestUrl = Deno.env.get("HEYBOX_GUEST_DETAIL_URL");
+  const guestToken = Deno.env.get("HEYBOX_GUEST_DETAIL_TOKEN");
+  if (Boolean(guestUrl) !== Boolean(guestToken)) {
+    throw new Error("Configure both guest detail URL and token");
+  }
+  const primarySource = guestUrl && guestToken
+    ? withDetailRelay(directSource, {
+      url: guestUrl,
+      token: guestToken,
+      local: true,
+    })
+    : directSource;
   if (Boolean(relayUrl) !== Boolean(relayToken)) {
     throw new Error("Configure both detail relay URL and token");
   }
-  const source = relayUrl && relayToken
-    ? withDetailFailover(
-      directSource,
-      withDetailRelay(directSource, {
+  const source = withDetailFailover(
+    primarySource,
+    relayUrl && relayToken
+      ? withDetailRelay(directSource, {
         url: relayUrl,
         token: relayToken,
-      }),
-      {
-        requestsPerMinute: Number(
-          Deno.env.get("HEYBOX_DETAIL_REQUESTS_PER_MINUTE") ?? "3",
-        ),
-      },
-    )
-    : directSource;
+      })
+      : undefined,
+    {
+      requestsPerMinute: Number(
+        Deno.env.get("HEYBOX_DETAIL_REQUESTS_PER_MINUTE") ?? "3",
+      ),
+    },
+  );
   const pollingNotifier = createPollingNotifier(storage);
   const poller = createPoller({
     matcher,

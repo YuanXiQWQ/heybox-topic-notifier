@@ -2569,13 +2569,41 @@ dd{
   font-size: 13px;
   font-weight: 500;
   line-height: 1.35;
+  width: max-content;
   max-width: min(180px, calc(100vw - 16px));
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
   padding: 8px 10px;
   pointer-events: none;
   position: fixed;
   text-align: start;
   white-space: normal;
   z-index: 10000;
+}
+
+.app-tooltip.is-touch-preview{
+  pointer-events: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.app-tooltip.is-content-preview{
+  width: min(480px, calc(100vw - 16px));
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+@media (any-pointer: coarse){
+  [data-tooltip],
+  .match-table .is-overflowing{
+    -webkit-touch-callout: none;
+  }
+  :root:not([data-hover-input]) .match-table .is-overflowing{
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 .topic-rule-row > div:has(> .icon-button),
@@ -2841,24 +2869,24 @@ td:first-child .checkbox-cell{
   white-space: nowrap;
 }
 
-.match-table tbody td:hover{
+:root[data-hover-input] .match-table tbody td:hover{
   z-index: 3;
 }
 
-.table-section:has(.match-table-title-link.is-overflowing:hover),
+:root[data-hover-input] .table-section:has(.match-table-title-link.is-overflowing:hover),
 .table-section:has(.match-table-title-link.is-overflowing:focus-visible),
-.table-section:has(.table-clip.is-overflowing:hover),
+:root[data-hover-input] .table-section:has(.table-clip.is-overflowing:hover),
 .table-section:has(.table-clip.is-overflowing:focus-visible),
-.table-section:has(.match-detail-list.is-overflowing:hover),
+:root[data-hover-input] .table-section:has(.match-detail-list.is-overflowing:hover),
 .table-section:has(.match-detail-list.is-overflowing:focus-visible){
   z-index: 20;
 }
 
-.table-section:has(.match-table-title-link.is-overflowing:hover) .match-table,
+:root[data-hover-input] .table-section:has(.match-table-title-link.is-overflowing:hover) .match-table,
 .table-section:has(.match-table-title-link.is-overflowing:focus-visible) .match-table,
-.table-section:has(.table-clip.is-overflowing:hover) .match-table,
+:root[data-hover-input] .table-section:has(.table-clip.is-overflowing:hover) .match-table,
 .table-section:has(.table-clip.is-overflowing:focus-visible) .match-table,
-.table-section:has(.match-detail-list.is-overflowing:hover) .match-table,
+:root[data-hover-input] .table-section:has(.match-detail-list.is-overflowing:hover) .match-table,
 .table-section:has(.match-detail-list.is-overflowing:focus-visible) .match-table{
   overflow: visible;
 }
@@ -2869,18 +2897,18 @@ td:first-child .checkbox-cell{
   width: 100%;
 }
 
-.match-title-cell:has(> .match-table-title-link.is-overflowing:hover),
+:root[data-hover-input] .match-title-cell:has(> .match-table-title-link.is-overflowing:hover),
 .match-title-cell:has(> .match-table-title-link.is-overflowing:focus-visible),
-.match-table tbody td:has(.table-clip.is-overflowing:hover),
+:root[data-hover-input] .match-table tbody td:has(.table-clip.is-overflowing:hover),
 .match-table tbody td:has(.table-clip.is-overflowing:focus-visible),
-.match-table tbody td:has(.match-detail-list.is-overflowing:hover),
+:root[data-hover-input] .match-table tbody td:has(.match-detail-list.is-overflowing:hover),
 .match-table tbody td:has(.match-detail-list.is-overflowing:focus-visible){
   z-index: 5;
 }
 
-.match-title-cell:has(> .match-table-title-link.is-overflowing):hover > .match-table-title-link,
-.match-title-cell:has(> .match-table-title-link.is-overflowing):focus-within > .match-table-title-link,
-.match-table-title-link.is-overflowing:hover,
+:root[data-hover-input] .match-title-cell:has(> .match-table-title-link.is-overflowing):hover > .match-table-title-link,
+.match-title-cell:has(> .match-table-title-link.is-overflowing):has(:focus-visible) > .match-table-title-link,
+:root[data-hover-input] .match-table-title-link.is-overflowing:hover,
 .match-table-title-link.is-overflowing:focus-visible{
   --table-clip-lines: 8;
   background: var(--surface);
@@ -2901,9 +2929,9 @@ td:first-child .checkbox-cell{
   z-index: 4;
 }
 
-.match-content-cell:has(> .table-clip.is-overflowing):hover > .table-clip,
-.match-content-cell:has(> .table-clip.is-overflowing):focus-within > .table-clip,
-.table-clip.is-overflowing:hover,
+:root[data-hover-input] .match-content-cell:has(> .table-clip.is-overflowing):hover > .table-clip,
+.match-content-cell:has(> .table-clip.is-overflowing):has(:focus-visible) > .table-clip,
+:root[data-hover-input] .table-clip.is-overflowing:hover,
 .table-clip.is-overflowing:focus-visible{
   background: var(--surface);
   border: 1px solid var(--theme-border);
@@ -2925,9 +2953,9 @@ td:first-child .checkbox-cell{
   z-index: 6;
 }
 
-.match-table tbody td:has(> .match-detail-list.is-overflowing):hover > .match-detail-list,
-.match-table tbody td:has(> .match-detail-list.is-overflowing):focus-within > .match-detail-list,
-.match-detail-list.is-overflowing:hover,
+:root[data-hover-input] .match-table tbody td:has(> .match-detail-list.is-overflowing):hover > .match-detail-list,
+.match-table tbody td:has(> .match-detail-list.is-overflowing):has(:focus-visible) > .match-detail-list,
+:root[data-hover-input] .match-detail-list.is-overflowing:hover,
 .match-detail-list.is-overflowing:focus-visible{
   background: var(--surface);
   border: 1px solid var(--theme-border);
@@ -2946,10 +2974,10 @@ td:first-child .checkbox-cell{
   z-index: 6;
 }
 
-.match-detail-list.is-overflowing:hover .match-detail-value,
+:root[data-hover-input] .match-detail-list.is-overflowing:hover .match-detail-value,
 .match-detail-list.is-overflowing:focus-visible .match-detail-value,
-.match-table tbody td:has(> .match-detail-list.is-overflowing):hover .match-detail-value,
-.match-table tbody td:has(> .match-detail-list.is-overflowing):focus-within .match-detail-value{
+:root[data-hover-input] .match-table tbody td:has(> .match-detail-list.is-overflowing):hover .match-detail-value,
+.match-table tbody td:has(> .match-detail-list.is-overflowing):has(:focus-visible) .match-detail-value{
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
@@ -3745,6 +3773,7 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 [data-schedule-page] .page-heading{ justify-content:flex-start; gap:24px; }
 [data-schedule-page] .page-heading h1{ margin:0; }
 .schedule-list{ border:1px solid var(--border); border-radius:8px; background:var(--theme-soft); overflow:hidden; }
+.schedule-drag-instruction{ display:flex; align-items:center; gap:6px; margin:12px 0; color:var(--muted); font-size:14px; }
 .schedule-row{ display:grid; grid-template-columns:32px minmax(210px,1.5fr) minmax(170px,1fr) minmax(85px,.6fr) minmax(140px,.8fr) 72px; gap:16px; padding:20px; border-bottom:1px solid var(--border-soft); align-items:center; position:relative; }
 .schedule-row:last-child{ border-bottom:0; }
 .schedule-field [aria-invalid="true"],.schedule-date-fields [aria-invalid="true"]{ border-color:#B42318; }
@@ -3754,6 +3783,7 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .schedule-field input,.schedule-field select{ width:100%; min-width:0; }
 .schedule-field[hidden],.schedule-paused-summary[hidden]{ display:none; }
 .schedule-paused-summary{ grid-column:3 / 6; justify-self:start; align-self:center; padding:12px 0; }
+.schedule-interval-reason{ grid-column:1 / -1; margin:0; min-width:0; color:var(--muted-strong); font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
 .schedule-field .poll-interval-control{ display:flex; gap:8px; }
 .schedule-field .poll-interval-control input{ flex:1; width:60px; }
 .schedule-field .poll-interval-control select{ width:76px; }
@@ -3862,7 +3892,10 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 }
 :root[data-application-platform] .app-back-button svg{ width: 24px; height: 24px; fill: none; }
 :root[data-application-platform] .app-back-button:disabled{ color: var(--muted); opacity: .35; cursor: default; background: transparent; }
-.app-navigation-status{ color: var(--muted); font-size: 12px; flex: 1 1 auto; }
+.app-navigation-status{ color: var(--muted); font-size: 12px; flex: 1 1 auto; min-width:0; }
+.app-navigation-status > summary{ cursor:pointer; padding:10px 0; overflow-wrap:anywhere; }
+.app-navigation-status > summary:focus-visible{ outline:2px solid var(--theme-link); outline-offset:2px; }
+.app-navigation-error{ margin:0 0 10px; white-space:pre-wrap; overflow-wrap:anywhere; max-height:min(40vh,18rem); overflow:auto; overscroll-behavior:contain; }
 [dir="rtl"][data-application-platform] .topbar > nav,
 [dir="rtl"][data-application-platform] .app-navigation-status{ direction: rtl; }
 :root[data-application-platform="windows"] .topbar > .primary-nav{ width: auto; }
