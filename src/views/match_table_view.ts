@@ -43,6 +43,8 @@ export type MatchRecordsSectionOptions = {
   headingId: string;
   locale: Locale;
   messages: Messages;
+  /** 表格标题同时用作本页主标题。 */
+  pageHeading?: boolean;
   path: string;
   table: MatchTableResult;
   titleLinkClass?: string;
@@ -51,17 +53,20 @@ export type MatchRecordsSectionOptions = {
 };
 
 /**
- * 渲染命中记录表格区块。
+ * 渲染命中记录表格区块，按页面层级选择标题元素。
  *
- * @param options 表格区块渲染选项。
- * @return 命中记录表格区块 HTML。
+ * @param {MatchRecordsSectionOptions} options 表格区块渲染选项。
+ * @return {string} 命中记录表格区块 HTML。
  */
 export function renderMatchRecordsSection(
   options: MatchRecordsSectionOptions,
 ): string {
+  const headingTag = options.pageHeading ? "h1" : "h2";
   return `
     <section
-      class="table-section"
+      class="table-section${
+    options.pageHeading ? " table-section-with-page-heading" : ""
+  }"
       aria-labelledby="${escapeHtml(options.headingId)}"
       data-match-table-section="${escapeHtml(options.headingId)}"
       data-match-table-signature="${
@@ -69,9 +74,9 @@ export function renderMatchRecordsSection(
   }"
     >
       <div class="section-title-row">
-        <h2 id="${escapeHtml(options.headingId)}">${
+        <${headingTag} id="${escapeHtml(options.headingId)}">${
     escapeHtml(options.heading)
-  }</h2>
+  }</${headingTag}>
         ${renderTableFilters(options)}
       </div>
       <p data-match-empty-message ${
