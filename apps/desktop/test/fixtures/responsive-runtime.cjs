@@ -13,10 +13,23 @@ app.setName('Heybox responsiveness test');
 app.setAppUserModelId('io.github.yuanxiqwq.heyboxnotifier.responsiveness-test');
 app.on('window-all-closed', () => {});
 let window, server, state = 'workspace', delay = 1500, status = 200, offline = false, resourceDelay = 0, posts = 0;
-/** 测试页面由生产渲染器生成，避免简化 HTML 掩盖表单与脚本问题。 */
-const rendered = spawnSync('deno', ['run', '--allow-read', '--allow-env', path.join(__dirname, 'responsive-pages.ts')], {cwd: root, encoding: 'utf8', windowsHide: true});
-if (rendered.status !== 0) throw new Error(rendered.stderr);
-const pages = JSON.parse(rendered.stdout);
+/** 固定测试账号的真实页面，在 Electron 就绪后的错误处理范围内生成。 */
+let pages;
+
+/**
+ * 使用生产渲染器生成测试页面，保留 Deno 启动错误和渲染失败的详情。
+ * @return {Record<string, string>} 各路由和帖子状态对应的页面 HTML。
+ */
+function renderPages() {
+  const rendered = spawnSync('deno', [
+    'run', '--frozen', '--allow-read', '--allow-env', path.join(__dirname, 'responsive-pages.ts'),
+  ], {cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30000});
+  if (rendered.error) throw new Error(`Could not run Deno for the desktop test: ${rendered.error.message}`);
+  if (rendered.status !== 0) {
+    throw new Error(`Deno could not render the desktop test pages: ${rendered.stderr || rendered.signal || rendered.status}`);
+  }
+  return JSON.parse(rendered.stdout);
+}
 
 /** @param {number} ms 延迟毫秒数。 @return {Promise<void>} 延迟结束。 */
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -74,8 +87,12 @@ async function respond(request, response) {
     response.end(pages[url.pathname + ':' + state]);
   } else { response.writeHead(404); response.end(); }
 }
-/** @return {Promise<void>} 真实交互及故障场景全部通过。 */
+/**
+ * 准备测试页面并验证真实交互、离线和故障恢复。
+ * @return {Promise<void>} 验证完成。
+ */
 async function run() {
+  pages = renderPages();
   server = createServer((request, response) => void respond(request, response).catch(error => { console.error(error); response.destroy(); }));
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
