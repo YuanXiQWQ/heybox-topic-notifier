@@ -71,13 +71,13 @@ async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-Deno.test("web navigation installs immediate feedback without native layout changes", async () => {
+Deno.test("web navigation keeps the existing appearance without pending effects", async () => {
   const events: string[] = [];
   runInNewContext(await Deno.readTextFile(new URL("../../static/app-navigation.js", import.meta.url)), {
     document: { addEventListener: (name: string) => events.push(name) },
     addEventListener: (name: string) => events.push(name),
   });
-  assertEquals(events, ["submit", "click", "pageshow"]);
+  assertEquals(events, []);
 });
 
 Deno.test("back state follows native position even with forward entries", async () => {

@@ -432,11 +432,10 @@ export function createRoutes(
     const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
     const session = await authSessionForRequest(c, context);
-    const account = session
-      ? await context.storage.getAccountById(session.userId)
-      : undefined;
-    const { pendingMatches, settings, state } = await storage
-      .getDashboardSnapshot();
+    const [account, { pendingMatches, settings, state }] = await Promise.all([
+      session ? context.storage.getAccountById(session.userId) : undefined,
+      storage.getDashboardSnapshot(),
+    ]);
     const pendingTable = applyMatchTableQuery(
       pendingMatches,
       parseMatchTableQuery(new URL(c.req.url).searchParams),
@@ -624,34 +623,18 @@ export function createRoutes(
     const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
     const session = await authSessionForRequest(c, context);
-    const settings = await storage.getSettings();
-    const account = session
-      ? await context.storage.getAccountById(session.userId)
-      : undefined;
-    const emailCredentials = session
-      ? await context.storage.listEmailCredentials(session.userId)
-      : [];
-    const totpCredentials = session
-      ? await context.storage.listTotpCredentials(session.userId)
-      : [];
-    const passkeyCredentials = session
-      ? await context.storage.listPasskeyCredentials(session.userId)
-      : [];
-    const googleIdentities = session
-      ? await context.storage.listAuthIdentitiesForUser(
-        "google",
-        session.userId,
-      )
-      : [];
-    const passwordCredential = session
-      ? await context.storage.getPasswordCredential(session.userId)
-      : undefined;
-    const reauthEvent = session
-      ? await context.storage.getAuthenticationEvent(session.userId, "reauth")
-      : undefined;
-    const securitySettings = session
-      ? await context.storage.getUserSecuritySettings(session.userId)
-      : undefined;
+    const [settings, account, emailCredentials, totpCredentials, passkeyCredentials,
+      googleIdentities, passwordCredential, reauthEvent, securitySettings] = await Promise.all([
+        storage.getSettings(),
+        session ? context.storage.getAccountById(session.userId) : undefined,
+        session ? context.storage.listEmailCredentials(session.userId) : [],
+        session ? context.storage.listTotpCredentials(session.userId) : [],
+        session ? context.storage.listPasskeyCredentials(session.userId) : [],
+        session ? context.storage.listAuthIdentitiesForUser("google", session.userId) : [],
+        session ? context.storage.getPasswordCredential(session.userId) : undefined,
+        session ? context.storage.getAuthenticationEvent(session.userId, "reauth") : undefined,
+        session ? context.storage.getUserSecuritySettings(session.userId) : undefined,
+      ]);
     const recoveryCodeRevealId = url.searchParams.get("recoveryCodes")
       ?.trim();
     let recoveryCodes: string[] | undefined;
@@ -2352,11 +2335,11 @@ export function createRoutes(
       return historyTableResponse(c, storage, c.req.url);
     }
     const session = await authSessionForRequest(c, context);
-    const account = session
-      ? await context.storage.getAccountById(session.userId)
-      : undefined;
-    const settings = await storage.getSettings();
-    const history = await storage.listHistory();
+    const [account, settings, history] = await Promise.all([
+      session ? context.storage.getAccountById(session.userId) : undefined,
+      storage.getSettings(),
+      storage.listHistory(),
+    ]);
     const historyTable = applyMatchTableQuery(
       history,
       parseMatchTableQuery(new URL(c.req.url).searchParams),

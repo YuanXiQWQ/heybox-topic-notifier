@@ -10,7 +10,17 @@ let applicationResourcePrefetch = Promise.resolve();
 let applicationResourceUpdate = Promise.resolve();
 /** 当前已排队的资源更新任务。 */
 const applicationResourceUpdates = new Map();
-/** 后台页面预取的最短间隔；实际导航仍请求当前页面。 */
+/** 已经通过服务器认证的文档；仅这些文档发起的普通站内切页可立即使用本地快照。 */
+const applicationClients = new Map();
+/** Worker 休眠后按文档标识恢复绑定，浏览器不会把该标识复用于另一个文档。 */
+let applicationClientsReady;
+/** 串行持久化文档绑定，快速连续切页也保留最后的状态。 */
+let applicationClientWrites = Promise.resolve();
+/** 会话失效后，已发出的校验不得重新开启旧账号入口。 */
+let applicationSessionRevision = 0;
+/** 按会话次序落盘，退出不会被较早请求的迟到写入撤销。 */
+let applicationIdentityWrites = Promise.resolve();
+/** 后台页面预取的最短间隔，普通切页的页面校准独立进行。 */
 const applicationPrefetchInterval = 5 * 60 * 1000;
 self.addEventListener('install', (event) => {
   // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
@@ -30,10 +40,10 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === '/logout' && event.request.method === 'POST') {
+  if (event.request.method === 'POST' && (event.request.mode === 'navigate' || /^\/(?:auth|account|login|logout|register)(?:\/|$)/.test(url.pathname))) {
     event.respondWith(clearApplicationSession().then(() => fetch(event.request)));
   } else if (event.request.method === 'GET' && event.request.mode === 'navigate' && ['/', '/settings', '/history', '/about'].includes(url.pathname)) {
-    event.respondWith(applicationPage(event.request, undefined, (task) => event.waitUntil(task)));
+    event.respondWith(applicationNavigation(event));
   } else if (event.request.method === 'GET' && (url.pathname.startsWith('/static/') || url.pathname === '/favicon.ico')) {
     event.respondWith(applicationResource(event.request, (task) => event.waitUntil(task)));
   }
@@ -44,9 +54,53 @@ self.addEventListener('fetch', (event) => {
  * @return {Promise<void>} 本机账号入口已清除。
  */
 async function clearApplicationSession() {
+  applicationSessionRevision++;
+  await loadApplicationClients();
+  applicationClients.clear();
   // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
   // noinspection JSUnresolvedReference
-  await self.AppLocalStore.writeState('__device', 'active-user', null);
+  await setApplicationUser(null, applicationSessionRevision);
+  await rememberApplicationClient();
+}
+
+/**
+ * 仅保存仍属于当前会话版本的账号结果，并串行处理异步加密与写入。
+ * @param {string|null} userId 已认证账号，null 表示退出。
+ * @param {number} revision 请求开始时的会话版本。
+ * @return {Promise<void>} 账号状态写入或已过期跳过。
+ */
+function setApplicationUser(userId, revision) {
+  applicationIdentityWrites = applicationIdentityWrites.catch(() => {}).then(async () => {
+    if (revision === applicationSessionRevision) await self.AppLocalStore.writeState('__device', 'active-user', userId);
+  });
+  return applicationIdentityWrites;
+}
+
+/**
+ * 从本机恢复最近的已认证文档绑定；恢复失败时只使用本轮验证结果。
+ * @return {Promise<void>} 文档绑定可用。
+ */
+function loadApplicationClients() {
+  applicationClientsReady = applicationClientsReady ?? Promise.resolve().then(async () => {
+    const entries = await self.AppLocalStore.readState('__device', 'navigation-clients');
+    if (Array.isArray(entries)) for (const [id, identity] of entries) applicationClients.set(id, identity);
+  }).catch(() => {});
+  return applicationClientsReady;
+}
+
+/**
+ * 记录当前文档的已验证账号和语言，仅保留最近 32 个文档。
+ * @param {string} [id] 浏览器分配的文档标识。
+ * @param {{userId: string, locale?: string}} [identity] 服务端确认的账号。
+ * @return {Promise<void>} 绑定保存结束。
+ */
+async function rememberApplicationClient(id, identity) {
+  await loadApplicationClients();
+  if (id && identity) applicationClients.set(id, identity);
+  while (applicationClients.size > 32) applicationClients.delete(applicationClients.keys().next().value);
+  applicationClientWrites = applicationClientWrites.catch(() => {}).then(() =>
+    self.AppLocalStore.writeState('__device', 'navigation-clients', [...applicationClients]));
+  await applicationClientWrites.catch(() => {});
 }
 
 /**
@@ -57,14 +111,16 @@ async function clearApplicationSession() {
 async function handleApplicationMessage(event) {
   if (!event.source?.url || new URL(event.source.url).origin !== self.location.origin) return;
   if (event.data?.type === 'app-session') {
+    const revision = applicationSessionRevision;
     try {
       const response = await fetch('/api/sync/session', {cache: 'no-store', redirect: 'error'});
       if (!response.ok) return;
       const session = await response.json();
-      if (session.userId === event.data.userId) {
+      if (session.userId === event.data.userId && revision === applicationSessionRevision) {
         // importScripts 将共享本地存储接口注册到 Worker 宿主。
         // noinspection JSUnresolvedReference
-        await self.AppLocalStore.writeState('__device', 'active-user', session.userId);
+        await setApplicationUser(session.userId, revision);
+        if (event.source.id && revision === applicationSessionRevision) await rememberApplicationClient(event.source.id, {userId: session.userId, locale: event.data.locale});
       }
     } catch { /* 离线时不切换已经验证的账号。 */
     }
@@ -78,6 +134,76 @@ async function handleApplicationMessage(event) {
     applicationPagePrefetch = applicationPagePrefetch ?? prefetchApplicationPages().finally(() => { applicationPagePrefetch = undefined; });
     await applicationPagePrefetch;
   }
+}
+
+/**
+ * 同一已认证文档内的普通切页先读取本地页面；首访、刷新和带业务回调的地址仍请求服务器。
+ * @param {FetchEvent} event 浏览器导航事件。
+ * @return {Promise<Response>} 当前账号的页面。
+ */
+async function applicationNavigation(event) {
+  const request = event.request;
+  const url = new URL(request.url);
+  const revision = applicationSessionRevision;
+  await loadApplicationClients();
+  let source;
+  const name = `page:${url.pathname}${url.search === '?panel=polling' ? '' : url.search}`;
+  let cached;
+  try {
+    const active = await self.AppLocalStore.readState('__device', 'active-user');
+    const sourceId = event.clientId || event.replacesClientId;
+    let client = sourceId ? await self.clients.get(sourceId) : undefined;
+    // 旧 WebView 的导航事件不提供来源 ID，只接受与浏览器 referrer 唯一匹配的存活已认证文档。
+    if (!sourceId && request.referrer && new URL(request.referrer).origin === self.location.origin) {
+      const matches = (await self.clients.matchAll({type: 'window'})).filter((candidate) =>
+        candidate.url === request.referrer && applicationClients.get(candidate.id)?.userId === active);
+      if (matches.length === 1) client = matches[0];
+    }
+    source = client && applicationClients.get(client.id || sourceId);
+    if (client && source?.userId === active && client.url !== request.url &&
+        (!url.search || (url.pathname === '/settings' && url.search === '?panel=polling')) &&
+        request.cache !== 'reload') {
+      const page = await self.AppLocalStore.readState(active, name);
+      // 旧页面和其它语言仍可离线回退，但不能作为正常切页的首选响应。
+      if (page?.html && page.html.includes('data-app-page-cache="2"') &&
+          page.html.match(/<html\b[^>]*\blang="([^"]+)"/i)?.[1] === source.locale) cached = page;
+    }
+  } catch { /* 本地存储或来源不可用时使用认证后的网络页面。 */ }
+  if (cached) {
+    if (event.resultingClientId) await rememberApplicationClient(event.resultingClientId, source);
+    if (revision === applicationSessionRevision) {
+      event.waitUntil(refreshApplicationNavigation(request, source, event.resultingClientId).catch(() => {}));
+      return localPageResponse(cached);
+    }
+  }
+  const response = await applicationPage(request, undefined, (task) => event.waitUntil(task));
+  const userId = response.headers.get('x-app-user');
+  if (response.ok && userId && event.resultingClientId) {
+    const html = await response.clone().text();
+    await rememberApplicationClient(event.resultingClientId, {userId, locale: html.match(/<html\b[^>]*\blang="([^"]+)"/i)?.[1]});
+  }
+  return response;
+}
+
+/**
+ * 在后台校准已经显示的账号页面；会话变化关闭旧账号的快速导航入口。
+ * @param {Request} request 当前页面请求。
+ * @param {{userId: string}} source 来源文档的认证身份。
+ * @param {string} clientId 新文档标识。
+ * @return {Promise<void>} 网络校准完成或保留本地页面。
+ */
+async function refreshApplicationNavigation(request, source, clientId) {
+  const response = await applicationPage(request, source);
+  const client = clientId && await self.clients.get(clientId);
+  const userId = response.headers.get('x-app-user');
+  if (response.redirected || response.status === 401 || response.status === 403 || (userId && userId !== source.userId)) {
+    applicationClients.delete(clientId);
+    await rememberApplicationClient();
+    client?.postMessage({type: 'app-session-changed'});
+  } else if (response.ok && !response.headers.has('x-app-offline') && userId === source.userId) {
+    client?.postMessage({type: 'app-page-refreshed', userId, url: request.url});
+  }
+  await response.body?.cancel();
 }
 
 /**
@@ -117,9 +243,35 @@ async function prefetchApplicationPages() {
     try {
       const response = await applicationPage(new Request(self.location.origin + path), identity);
       if (!response.ok) complete = false;
+      else await prefetchPageResources(await response.text());
     } catch { complete = false; break; }
   }
   if (complete) await store.writeState(identity.userId, 'page-prefetch', Date.now());
+}
+
+/**
+ * 预取页面声明的脚本、样式及静态模块依赖，首次切入已缓存页面也无需再等待这些代码。
+ * @param {string} html 已认证页面的 HTML。
+ * @return {Promise<void>} 公共代码资源已补齐，单项失败不会阻断导航。
+ */
+async function prefetchPageResources(html) {
+  if (typeof caches === 'undefined') return;
+  const queue = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)=["']([^"']+)["']/gi)].map((match) => match[1]);
+  const visited = new Set();
+  const cache = await caches.open(applicationResourceCache);
+  while (queue.length && visited.size < 160) {
+    const url = new URL(queue.shift(), self.location.origin);
+    if (url.origin !== self.location.origin || !url.pathname.startsWith('/static/') || visited.has(url.href)) continue;
+    visited.add(url.href);
+    try {
+      const response = await cache.match(url.href, {ignoreVary: true}) ?? await applicationResource(new Request(url));
+      if (!response.ok || !url.pathname.endsWith('.js')) continue;
+      const source = await response.text();
+      for (const match of source.matchAll(/\b(?:import|export)\s+(?:[^;'"]*?\s+from\s+)?["']([^"']+)["']/g)) {
+        if (/^(?:\.{1,2}\/|\/static\/)/.test(match[1])) queue.push(new URL(match[1], url).href);
+      }
+    } catch { /* 预取失败保留已完成项，实际访问仍会重试。 */ }
+  }
 }
 
 /**
@@ -191,6 +343,7 @@ async function rangeResponse(request, response) {
  */
 async function applicationPage(request, verifiedIdentity, background) {
   const recordReadAt = Date.now();
+  const sessionRevision = applicationSessionRevision;
   const url = new URL(request.url);
   const name = `page:${url.pathname}${url.pathname === '/settings' && url.search === '?panel=polling' ? '' : url.search}`;
   // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
@@ -216,10 +369,10 @@ async function applicationPage(request, verifiedIdentity, background) {
       const identity = await Promise.race([identityRequest, pageIdentity]);
       if (identity.redirected || identity.status === 401 || identity.status === 403) {
         active = null;
-        await clearApplicationSession();
+        if (sessionRevision === applicationSessionRevision) await clearApplicationSession();
       } else if (identity.ok) {
         active = (await identity.json()).userId;
-        await store.writeState('__device', 'active-user', active);
+        await setApplicationUser(active, sessionRevision);
       }
     }
   } catch { /* 网络不可达时只允许使用此前验证过的本机账号。 */
@@ -241,16 +394,21 @@ async function applicationPage(request, verifiedIdentity, background) {
     if (response.status >= 500 && local?.html) return localPageResponse(local);
     const userId = response.headers.get('x-app-user');
     if (response.ok && userId && !response.redirected) {
-      try { await store.writeState('__device', 'active-user', userId); }
+      try { await setApplicationUser(userId, sessionRevision); }
       catch { /* 缓存写失败不阻断已经通过认证的在线页面。 */ }
       const html = (await response.text()).replace(/<html(?=[\s>])/i, `<html data-app-record-read-at="${recordReadAt}"`);
       const headers = new Headers(response.headers);
       for (const key of ['content-length', 'content-encoding']) headers.delete(key);
-      const save = Promise.resolve().then(() => store.writeState(userId, name, {html, headers: [...headers], recordReadAt})).catch(() => {});
+      const save = Promise.resolve().then(async () => {
+        if (url.pathname === '/settings' && (await store.pending(userId)).some((operation) => operation.kind === 'settings')) return;
+        const page = {html, headers: [...headers], recordReadAt};
+        if (store.cachePage) await store.cachePage(userId, name, page, recordReadAt);
+        else await store.writeState(userId, name, page);
+      }).catch(() => {});
       if (background) background(save);
       else await save;
       return new Response(html, {status: response.status, headers});
-    } else if (response.redirected && new URL(response.url).pathname === '/login') await clearApplicationSession();
+    } else if (response.redirected && new URL(response.url).pathname === '/login' && sessionRevision === applicationSessionRevision) await clearApplicationSession();
     return response;
   } catch (error) {
     if (local?.html) return localPageResponse(local);

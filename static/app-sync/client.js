@@ -62,7 +62,7 @@
       navigator.serviceWorker.register('/app-sw.js', {scope: '/'}).then(
           async () => {
             const registration = await navigator.serviceWorker.ready;
-            registration.active?.postMessage({type: 'app-session', userId});
+            registration.active?.postMessage({type: 'app-session', userId, locale: document.documentElement.lang});
             registration.active?.postMessage({type: 'app-pages', userId});
             registration.active?.postMessage({
               type: 'app-resources',
@@ -567,6 +567,14 @@
     if (event.detail?.recordReadAt) recordReadAt = event.detail.recordReadAt;
     void applyPendingRecords().then(savePage).catch(() => {
     });
+  });
+  navigator.serviceWorker?.addEventListener('message', (event) => {
+    if (event.data?.type === 'app-page-refreshed' && event.data.userId === userId && event.data.url === location.href) {
+      void ready.then(applyPendingRecords).catch(() => {});
+    }
+    if (event.data?.type === 'app-session-changed') {
+      void prepareForExit().then(() => location.reload()).catch(() => {});
+    }
   });
   setInterval(() => {
     void ready.then(async () => {
