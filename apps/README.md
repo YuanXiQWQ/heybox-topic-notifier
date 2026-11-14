@@ -14,7 +14,7 @@ Android 的兼容目标是没有 Google Play／GMS 的设备，不限定品牌�
 
 构建环境使用 Node.js 26.13.0 LTS；Windows 客户端锁定 Electron 45.1.0，内置 Node.js 24.22.1，达到 [2026 年 10 月安全公告](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)的修复版本。更新开发电脑的 Node.js 不会替换已安装客户端内置的运行时，客户端仍需重新构建和发布。两条应用 CI 均会实际运行打包程序的 Node 模式，核对 Electron 与锁定版本一致，并检查内置 Node.js 的安全版本下限。可用 `node apps/scripts/verify-desktop-runtime.cjs <打包程序路径>` 重现检查；该模式不打开页面或读取应用账号。
 
-- Windows：进入 `apps/desktop`，运行 `npm ci`、`npm test`、`npm run dist`。开发运行先执行 `npm run prepare:assets`，再 `npm start`。`HEYBOX_PREVIEW_ORIGIN` 只在未打包开发运行中生效，只允许 HTTPS 或 HTTP 回环地址。
+- Windows：安装 Deno 2，将 `deno` 加入 `PATH`，供桌面集成测试生成真实应用页面。进入 `apps/desktop`，运行 `npm ci`、`npm test`、`npm run dist`。开发运行先执行 `npm run prepare:assets`，再 `npm start`。`HEYBOX_PREVIEW_ORIGIN` 只在未打包开发运行中生效，只允许 HTTPS 或 HTTP 回环地址。
 - Android：安装 JDK 17、Gradle 8.13、Android SDK 36，运行 `node apps/scripts/prepare-assets.mjs --android`，再运行 `gradle -p apps/android testDebugUnitTest lintDebug assembleDebug`。正式构建设置 `APP_VERSION`、递增的 `APP_VERSION_CODE`，以及 `ANDROID_KEYSTORE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个签名变量，运行 `assembleRelease`。Windows 下路径过长时可用临时 `subst` 盘符指向仓库和本地工具链，构建后取消映射，不移动项目。
 - `app-build.yml` 在推送正式版本标签时自动运行，读取标签版本并固定源码提交，执行检查后并行构建 Windows 和 Android；自动创建或复用 Release 草稿，只有两端都成功且全部附件上传后才公开发行。也支持已有 Release 的发布事件。Windows 默认发布未签名 NSIS 安装包，不需要购买证书或配置 Windows 签名 Secrets；Android 使用本机可自行生成的稳定签名证书。
 - `app-check.yml` 在涉及应用、静态资源或原生工作流的 PR 和 `main`、`dev` 推送时自动检查，也可手动运行。不需要发行凭据：Windows 执行主进程测试并构建未签名 NSIS；Android 执行 JVM 测试、Lint 和调试 APK 构建。测试包不上传到 Release。
