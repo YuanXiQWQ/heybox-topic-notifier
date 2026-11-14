@@ -79,6 +79,9 @@ jobs:
           node-version: "26.13.0"
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
       - name: Build Windows installer without a certificate requirement
         working-directory: apps/desktop
         shell: pwsh
