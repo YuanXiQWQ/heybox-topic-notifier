@@ -472,9 +472,13 @@ Deno.test("adaptive pagination renders links with their own Black Forest slots",
     dataset: Record<string, string> = {};
     clientWidth = 0;
     children: Element[] = [];
-    /** @param {Element[]} nodes 渲染生成的分页控件。 */
-    replaceChildren(...nodes: Element[]) {
-      this.children = nodes;
+    /** @param {string} _value 清空分页容器的文本赋值。 */
+    set textContent(_value: string) {
+      this.children = [];
+    }
+    /** @param {Element[]} nodes 追加的分页控件，沿用旧 WebView 的 DOM 能力。 */
+    append(...nodes: Element[]) {
+      this.children.push(...nodes);
     }
   }
   for (const width of [1600, 250]) {

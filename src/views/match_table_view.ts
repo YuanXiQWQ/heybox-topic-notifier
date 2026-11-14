@@ -79,6 +79,11 @@ export function renderMatchRecordsSection(
   }</${headingTag}>
         ${renderTableFilters(options)}
       </div>
+      <details class="app-navigation-status" data-record-sync-status
+        data-pending="${escapeHtml(options.messages.autoSavePending)}"
+        data-error="${escapeHtml(options.messages.autoSaveError)}" hidden>
+        <summary role="status"></summary><p class="app-navigation-error"></p>
+      </details>
       <p data-match-empty-message ${
     options.table.totalRecords === 0 ? "" : "hidden"
   }>${escapeHtml(options.emptyMessage)}</p>
@@ -474,7 +479,7 @@ function renderPaginationScript(): string {
       }
 
       /**
-       * 重新渲染页面中的所有自适应分页控件。
+       * 重新渲染自适应分页控件，使用旧 WebView 同样支持的节点替换操作。
        */
       function renderAll() {
         for (const nav of document.querySelectorAll("[data-adaptive-pagination]")) {
@@ -483,7 +488,9 @@ function renderPaginationScript(): string {
           const totalPages = Number(nav.dataset.totalPages);
           const template = nav.dataset.pageUrlTemplate ?? "";
           if (!Number.isInteger(currentPage) || !Number.isInteger(totalPages) || totalPages < 1) continue;
-          nav.replaceChildren(...paginationItems(nav, currentPage, totalPages, template));
+          const items = paginationItems(nav, currentPage, totalPages, template);
+          nav.textContent = "";
+          nav.append(...items);
         }
       }
 
@@ -1138,7 +1145,7 @@ function renderOverflowScript(): string {
 /**
  * 渲染命中记录表操作后的局部刷新脚本。
  *
- * @return 表格局部刷新脚本 HTML。
+ * @return {string} 表格局部刷新脚本 HTML。
  */
 function renderTableActionScript(): string {
   return `<script>
@@ -1156,6 +1163,12 @@ function renderTableActionScript(): string {
         await submitMatchTableForm(form, event.submitter);
       });
 
+      /**
+       * 保存操作后投影本地结果；失败保留当前页面、选择与可重试按钮。
+       * @param {HTMLFormElement} form 记录表单。
+       * @param {HTMLElement | null} submitter 本次操作按钮。
+       * @return {Promise<void>} 本地操作及反馈处理结束。
+       */
       async function submitMatchTableForm(form, submitter) {
         if (form.dataset.matchTableSubmitting === "true") return;
         form.dataset.matchTableSubmitting = "true";
@@ -1172,10 +1185,8 @@ function renderTableActionScript(): string {
             headers: { "x-match-table-refresh": "1" },
             method: form.method || "post",
           });
-          if (!response.ok) throw new Error("match table action failed");
+          if (!response.ok) throw new Error("HTTP " + response.status);
           if (response.headers.get("x-app-local") === "1") {
-            await window.applicationSync.applyPendingRecords();
-            refreshMatchTableBehaviors();
             return;
           }
           const html = await response.text();
@@ -1185,8 +1196,13 @@ function renderTableActionScript(): string {
           }
           updateBrowserUrl(response.redirected ? response.url : nextLocation);
           refreshMatchTableBehaviors();
-        } catch {
-          navigateToFallback(form);
+        } catch (error) {
+          const status = form.closest('[data-match-table-section]')?.querySelector('[data-record-sync-status]');
+          if (status) {
+            status.hidden = false;
+            status.querySelector('summary').textContent = status.dataset.error;
+            status.querySelector('p').textContent = error instanceof Error ? error.message : String(error);
+          }
         } finally {
           form.dataset.matchTableSubmitting = "false";
           setFormSubmitting(form, false);
@@ -1243,11 +1259,6 @@ function renderTableActionScript(): string {
 
       function navigateToResponse(response) {
         const url = sameOriginUrl(response.url);
-        location.assign(url ? url.pathname + url.search + url.hash : location.href);
-      }
-
-      function navigateToFallback(form) {
-        const url = sameOriginUrl(tableReturnTo(form) || form.action);
         location.assign(url ? url.pathname + url.search + url.hash : location.href);
       }
 

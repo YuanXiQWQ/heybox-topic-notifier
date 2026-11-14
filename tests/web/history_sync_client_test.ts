@@ -8,7 +8,7 @@ Deno.test("history sync preserves selection and rejects responses during edits",
   );
   const location = new URL("https://example.com/history");
   const input = { value: "record", checked: false };
-  let busy = false, connected = true, replacements = 0, rendered = 0;
+  let busy = false, connected = true, replacements = 0, rendered = 0, revision = 0;
   const current = {
     dataset: { matchTableSignature: "old" },
     get isConnected() {
@@ -34,6 +34,10 @@ Deno.test("history sync preserves selection and rejects responses during edits",
     CustomEvent,
     setInterval: (callback: () => void) => {
       interval = callback;
+    },
+    applicationSync: {
+      beginRecordRefresh: () => ({revision, readAt: Date.now()}),
+      isRecordRefreshCurrent: (token: {revision: number}) => token.revision === revision,
     },
     addEventListener() {},
     document: {
@@ -87,6 +91,12 @@ Deno.test("history sync preserves selection and rejects responses during edits",
   await new Promise((resolve) => setTimeout(resolve, 0));
   assertEquals(replacements, 1);
   busy = false;
+  wait = new Promise<void>((resolve) => { release = resolve; });
+  interval();
+  revision++;
+  release();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assertEquals(replacements, 1);
   connected = false;
   interval();
   await new Promise((resolve) => setTimeout(resolve, 0));
