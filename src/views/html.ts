@@ -245,18 +245,18 @@ export function renderLayout(options: {
   }
     <script src="/static/app-compat.js" defer></script>
     <script src="/static/app-native.js" defer></script>
-    <script src="/static/app-navigation.js" defer></script>
+    <script src="/static/app-navigation.js?v=20261114-responsive-actions" defer></script>
     <script src="/static/app-device-settings.js" defer></script>
     <script src="/static/settings-navigation.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
+    <link rel="stylesheet" href="/static/app.css?v=20261114-responsive-actions">
     <script src="/static/theme-compat.js" defer></script>
     <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
     ${stylesheetHtml}
     <script src="/static/tooltip.js" defer></script>
-    <script src="/static/app-sync/store.js" defer></script>
-    <script src="/static/app-sync/client.js" defer></script>
+    <script src="/static/app-sync/store.js?v=20261114-responsive-actions" defer></script>
+    <script src="/static/app-sync/client.js?v=20261114-responsive-actions" defer></script>
     ${
     options.disableEasterEggs
       ? ""

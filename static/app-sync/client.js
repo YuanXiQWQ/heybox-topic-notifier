@@ -17,16 +17,25 @@
   let previous;
   /** 合并同一页面内重复触发的同步请求。 */
   let flushing;
-  /** 当前轮次期间新增的同步请求，提交响应优先交还操作界面。 */
+  /** 当前轮次期间新增的同步请求，后台续传不阻塞本地受理。 */
   let requestedFlush;
-  /** 当前操作的服务器结果，只保存在内存中供调用者处理。 */
-  const responses = new Map();
+  /** 表格基线不包含本地投影，失败撤回和离线重启均从同一基线重算。 */
+  let recordBaseline;
+  /** 基线请求开始时间，晚于它的确认结果仍覆盖可能过期的服务器快照。 */
+  let recordReadAt = Number(document.documentElement.dataset.appRecordReadAt) || 0;
+  /** 本地操作和服务器确认都会使早先发起的表格刷新失效。 */
+  let recordRevision = 0;
+  /** 当前表格包含本地投影时，同签名服务器响应也需要重建基线。 */
+  let recordProjected = false;
+  /** 串行投影，避免较早的 IndexedDB 读取覆盖较晚的编辑。 */
+  let rendering = Promise.resolve();
   /** 尚未完成本机落盘的操作，退出和更新必须等待。 */
   const writes = new Set();
-  /** 当前账号的本地数据库接口。 */
-  const store = globalThis.AppLocalStore;
+  /** 当前账号的本地数据库接口，离线旧页面可按版本补齐队列能力。 */
+  let store = globalThis.AppLocalStore;
   /** 页面初始化前的结构，不把运行中的彩蛋场景或临时弹窗复制进启动快照。 */
   const initialPage = document.documentElement.cloneNode(true);
+  recordBaseline = initialPage.querySelector('[data-match-table-section]')?.cloneNode(true);
   /** 本地元数据初始化任务。 */
   const ready = initialize();
 
@@ -35,9 +44,13 @@
    * @return {Promise<void>} 本地状态就绪。
    */
   async function initialize() {
+    if (typeof store.operations !== 'function' || typeof store.settle !== 'function') {
+      await import('/static/app-sync/store.js?v=20261114-responsive-actions');
+      store = globalThis.AppLocalStore;
+    }
     metadata = await store.readState(userId, 'device') ??
         {deviceId: crypto.randomUUID(), offset: 0};
-    const pending = await store.pending(userId);
+    const pending = await store.operations(userId);
     previous =
         pending.filter((operation) =>
                 operation.stamp.deviceId === metadata.deviceId
@@ -128,7 +141,8 @@
           : `[data-match-table-section="${
               CSS.escape(source.dataset.matchTableSection)
           }"]`;
-      clone.querySelector(selector)?.replaceWith(source.cloneNode(true));
+      clone.querySelector(selector)?.replaceWith(
+          (source.matches('[data-match-table-section]') && recordBaseline ? recordBaseline : source).cloneNode(true));
     }
     clone.setAttribute(
         'style',
@@ -138,6 +152,7 @@
         'data-color-mode',
         document.documentElement.getAttribute('data-color-mode') ?? 'light',
     );
+    clone.dataset.appRecordReadAt = String(recordReadAt);
     const positions = new Map();
     [...clone.querySelectorAll('input,select,textarea')].forEach((element) => {
       if (!element.name) return;
@@ -224,10 +239,10 @@
   }
 
   /**
-   * 持久保存记录移动或删除，并在服务端不可达时保留原始操作。
+   * 持久保存记录移动或删除；本地受理不等待网络，上传由后台队列完成。
    * @param {string} target 受支持的本站记录操作。
    * @param {FormData} form 已选择记录及返回路径。
-   * @return {Promise<Response>} 服务端结果或本地受理响应。
+   * @return {Promise<Response>} 已可靠保存的本地受理响应。
    */
   async function submitRecords(target, form) {
     await ready;
@@ -268,28 +283,23 @@
           html: capturePage(),
           headers: existing?.headers,
           stamp: operation.stamp,
+          recordReadAt,
         },
     );
-    metadata.previous = previous;
-    await store.writeState(userId, 'device', metadata);
+    recordRevision++;
     document.dispatchEvent(new CustomEvent('application-local-records'));
-    await flush('submit');
-    const response = responses.get(operation.stamp.operationId);
-    responses.delete(operation.stamp.operationId);
-    return response ??
-        new Response(null, {status: 202, headers: {'x-app-local': '1'}});
+    await applyPendingRecords();
+    void flush('edit');
+    return new Response(null, {status: 202, headers: {'x-app-local': '1'}});
   }
 
   /**
-   * 验证当前账号后重放队列，只有明确的成功响应才删除本地操作。
-   * @param {string} reason 同步触发来源。
+   * 验证账号后重放队列；暂时失败保留重试，明确拒绝撤回投影并显示错误。
    * @return {Promise<void>} 本次同步尝试结束。
    */
-  async function drain(reason) {
-    const pending = (await store.pending(userId)).sort((a, b) =>
-        compareStamp(a.stamp, b.stamp)
-    );
+  async function drain() {
     try {
+      const pending = (await store.pending(userId)).sort((a, b) => compareStamp(a.stamp, b.stamp));
       const started = Date.now();
       const response = await fetch('/api/sync/session', {
         cache: 'no-store',
@@ -302,6 +312,7 @@
       metadata.offset = Math.round(
           session.serverTime - (started + Date.now()) / 2,
       );
+      metadata.previous = previous;
       await store.writeState(userId, 'device', metadata);
       for (const operation of pending) {
         const body = new URLSearchParams(operation.body);
@@ -321,15 +332,21 @@
           redirect: 'error',
           signal: AbortSignal.timeout(15000),
         });
-        if (reason === 'submit') {
-          responses.set(operation.stamp.operationId, saved.clone());
+        const rejected = operation.kind === 'record' && [400, 404, 410, 422].includes(saved.status);
+        if (!saved.ok && !rejected) {
+          showRecordStatus('pending', `HTTP ${saved.status}\n${(await saved.text()).slice(0, 2000)}`);
+          return;
         }
-        if (!saved.ok) return;
-        await store.acknowledge(userId, operation.stamp.operationId);
-        if (operation.kind === 'record') document.dispatchEvent(new CustomEvent('application-local-records'));
+        if (operation.kind === 'record') {
+          await store.settle(userId, {...operation, delivery: rejected ? 'rejected' : 'confirmed',
+            settledAt: Date.now(), error: rejected ? `HTTP ${saved.status}\n${(await saved.text()).slice(0, 2000)}` : undefined});
+          recordRevision++;
+          await applyPendingRecords();
+          document.dispatchEvent(new CustomEvent('application-local-records'));
+        } else await store.acknowledge(userId, operation.stamp.operationId);
       }
       if (
-          pending.length && reason !== 'submit' &&
+          pending.length &&
           !(await store.pending(userId)).length
       ) document.dispatchEvent(new CustomEvent('application-sync-complete'));
     } catch {
@@ -344,13 +361,12 @@
    */
   function flush(reason = 'background') {
     if (flushing && reason === 'background') return flushing;
-    if (requestedFlush !== 'submit') requestedFlush = reason;
+    requestedFlush = reason;
     flushing = flushing ?? Promise.resolve().then(async () => {
       while (requestedFlush) {
-        const next = requestedFlush;
         requestedFlush = undefined;
-        if (navigator.locks) await navigator.locks.request(`heybox-sync:${userId}`, () => drain(next));
-        else await drain(next);
+        if (navigator.locks) await navigator.locks.request(`heybox-sync:${userId}`, drain);
+        else await drain();
       }
     }).finally(() => {
       flushing = undefined;
@@ -362,11 +378,41 @@
    * 将待同步的记录管理状态投影到已缓存表格，不影响其它账号的页面。
    * @return {Promise<void>} 本地表格更新完成。
    */
-  async function applyPendingRecords() {
+  function applyPendingRecords() {
+    rendering = rendering.catch(() => {}).then(renderRecords);
+    return rendering;
+  }
+
+  /**
+   * 从服务器基线重放有效记录操作，保留选择并恢复被拒绝操作对应的行。
+   * @return {Promise<void>} 表格投影完成。
+   */
+  async function renderRecords() {
     await ready;
-    const operations = (await store.pending(userId)).filter((operation) =>
-        operation.kind === 'record'
+    const stored = await store.operations(userId);
+    const cached = await store.readState(userId, `page:${location.pathname}${location.search}`);
+    if (cached?.html && cached.recordReadAt > recordReadAt) {
+      const baseline = new DOMParser().parseFromString(cached.html, 'text/html').querySelector('[data-match-table-section]');
+      if (baseline) {
+        recordBaseline = baseline;
+        recordReadAt = cached.recordReadAt;
+      }
+    }
+    const all = stored.filter((operation) =>
+        operation.kind === 'record' && (!operation.delivery || operation.settledAt >= recordReadAt)
     ).sort((a, b) => compareStamp(a.stamp, b.stamp));
+    const operations = all.filter((operation) => operation.delivery !== 'rejected');
+    recordProjected = all.length > 0;
+    const section = document.querySelector('[data-match-table-section]');
+    if (!section) return;
+    recordBaseline = recordBaseline ?? section.cloneNode(true);
+    const selected = new Set([...section.querySelectorAll('input[name="matchId"]:checked')].map((input) => input.value));
+    const tbody = section.querySelector('tbody');
+    if (tbody) {
+      tbody.textContent = '';
+      for (const row of recordBaseline.querySelector('tbody').children) tbody.appendChild(row.cloneNode(true));
+      tbody.querySelectorAll('button[type="submit"]').forEach((button) => button.removeAttribute('disabled'));
+    }
     for (const operation of operations) {
       const ids = new Set(
           new URLSearchParams(operation.body).getAll('matchId'),
@@ -459,6 +505,43 @@
       if (form) form.hidden = empty;
       if (message) message.hidden = !empty;
     }
+    for (const input of section.querySelectorAll('input[name="matchId"]')) input.checked = selected.has(input.value);
+    globalThis.__matchTableFilterInit?.();
+    globalThis.__matchTableRelativeTimeUpdate?.();
+    globalThis.__matchTableOverflowUpdate?.();
+    const rejected = all.filter((operation) => operation.delivery === 'rejected');
+    showRecordStatus(rejected.length ? 'error' : all.some((operation) => !operation.delivery) ? 'pending' : '',
+      rejected.map((operation) => operation.error).join('\n'));
+  }
+
+  /**
+   * 使用现有保存文案和可展开错误样式显示记录队列状态。
+   * @param {string} state pending、error 或空状态。
+   * @param {string} details 可安全作为纯文本显示的错误详情。
+   */
+  function showRecordStatus(state, details = '') {
+    const status = document.querySelector('[data-record-sync-status]');
+    if (!status) return;
+    status.hidden = !state;
+    status.querySelector('summary').textContent = status.dataset[state] || '';
+    status.querySelector('p').textContent = details;
+  }
+
+  /**
+   * 记录读取开始时的本地版本，过期响应不能覆盖并发操作。
+   * @return {{revision: number, readAt: number, projected: boolean}} 本次读取令牌。
+   */
+  function beginRecordRefresh() {
+    return {revision: recordRevision, readAt: Date.now(), projected: recordProjected};
+  }
+
+  /**
+   * 检查响应期间是否发生本地编辑或投递确认。
+   * @param {{revision: number}} token 读取令牌。
+   * @return {boolean} 可以应用当前响应。
+   */
+  function isRecordRefreshCurrent(token) {
+    return token.revision === recordRevision;
   }
 
   /**
@@ -469,7 +552,8 @@
     await ready;
     const name = `page:${location.pathname}${location.pathname === '/settings' && location.search === '?panel=polling' ? '' : location.search}`;
     const existing = await store.readState(userId, name);
-    await store.writeState(userId, name, {...existing, html: capturePage()});
+    await store.writeState(userId, name, {...existing, html: capturePage(), recordReadAt});
+    await store.prune(userId);
   }
 
   globalThis.addEventListener('online', () => {
@@ -478,7 +562,9 @@
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) void ready.then(() => flush());
   });
-  document.addEventListener('application-records-rendered', () => {
+  document.addEventListener('application-records-rendered', (event) => {
+    recordBaseline = document.querySelector('[data-match-table-section]')?.cloneNode(true);
+    if (event.detail?.recordReadAt) recordReadAt = event.detail.recordReadAt;
     void applyPendingRecords().then(savePage).catch(() => {
     });
   });
@@ -525,6 +611,9 @@
     submitRecords: (...args) => tracked(submitRecords, args),
     prepareForExit,
     applyPendingRecords,
+    beginRecordRefresh,
+    isRecordRefreshCurrent,
+    showRecordStatus,
     flush,
     capturePage,
     userId,

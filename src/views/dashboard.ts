@@ -295,6 +295,10 @@ function renderLastPollScript(
         if (document.visibilityState === "visible") void refreshDashboardState();
       });
       window.addEventListener("online", () => void refreshDashboardState());
+      document.addEventListener("application-sync-complete", () => {
+        dashboardVersion = "";
+        void refreshDashboardState();
+      });
 
       /**
        * 按服务端时间锚点和单调计时器计算当前时间，避免本机时钟偏差或校时影响。
@@ -335,6 +339,7 @@ function renderLastPollScript(
         const pendingSection = currentPendingSection();
         if (pendingSection?.querySelector('[data-match-table-submitting="true"]')) return;
         isDashboardStateRefreshInFlight = true;
+        const token = window.applicationSync?.beginRecordRefresh();
         try {
           const query = location.search;
           const headers = {
@@ -349,6 +354,7 @@ function renderLastPollScript(
           );
           if (!response.ok) return;
           const state = await response.json();
+          if (token && !window.applicationSync.isRecordRefreshCurrent(token)) return;
           if (query !== location.search) return;
           if (pendingSection !== currentPendingSection()) return;
           if (pendingSection?.querySelector('[data-match-table-submitting="true"]')) return;
@@ -376,7 +382,7 @@ function renderLastPollScript(
           if (totalMatches && Number.isInteger(state.totalMatches)) {
             totalMatches.textContent = String(state.totalMatches);
           }
-          updatePendingSection(pendingSection, state.pendingHtml, state.pendingSignature);
+          updatePendingSection(pendingSection, state.pendingHtml, state.pendingSignature, token);
           dashboardVersion = typeof state.version === "string" ? state.version : "";
           hasSyncedDashboardState = true;
         } catch {
@@ -429,10 +435,11 @@ function renderLastPollScript(
        * @param {Element | null} pendingSection 本次响应对应的可见表格。
        * @param {string} html 服务端表格。
        * @param {string} signature 表格内容签名。
+       * @param {object | undefined} token 本次服务器读取令牌和投影状态。
        */
-      function updatePendingSection(pendingSection, html, signature) {
+      function updatePendingSection(pendingSection, html, signature, token) {
         if (!pendingSection || typeof html !== "string" || typeof signature !== "string") return;
-        if (pendingSection.dataset.matchTableSignature === signature) return;
+        if (pendingSection.dataset.matchTableSignature === signature && !token?.projected) return;
         const parsed = new DOMParser().parseFromString(html, "text/html");
         const nextSection = parsed.querySelector('[data-match-table-section="pending-posts-heading"]');
         if (!nextSection) return;
@@ -442,7 +449,7 @@ function renderLastPollScript(
         window["__matchTableFilterInit"]?.();
         window["__matchTableRelativeTimeUpdate"]?.();
         window["__matchTableOverflowUpdate"]?.();
-        document.dispatchEvent(new CustomEvent("application-records-rendered"));
+        document.dispatchEvent(new CustomEvent("application-records-rendered", {detail: {recordReadAt: token?.readAt}}));
       }
 
       /**

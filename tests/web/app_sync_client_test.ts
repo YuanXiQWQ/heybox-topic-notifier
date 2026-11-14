@@ -7,8 +7,8 @@ Deno.test("edits queued during an active sync upload immediately after that requ
   const source = await Deno.readTextFile(
     new URL("../../static/app-sync/client.js", import.meta.url),
   );
-  const start = source.indexOf("  async function drain(reason)");
-  const end = source.indexOf("  async function applyPendingRecords()", start);
+  const start = source.indexOf("  async function drain()");
+  const end = source.indexOf("  function applyPendingRecords()", start);
   const functions = source.slice(start, source.lastIndexOf("  /**", end));
   const queue: Array<
     {
@@ -25,7 +25,7 @@ Deno.test("edits queued during an active sync upload immediately after that requ
   let requests = 0;
   const submitted: string[] = [];
   const context = runInNewContext(
-    `let flushing, requestedFlush; const responses = new Map(); ${functions}; ({flush, responses})`,
+    `let flushing, requestedFlush, recordRevision = 0, previous; ${functions}; ({flush})`,
     {
       userId: "alice",
       metadata: {},
@@ -35,10 +35,12 @@ Deno.test("edits queued during an active sync upload immediately after that requ
       document: { dispatchEvent() {} },
       CustomEvent,
       compareStamp: () => 0,
+      applyPendingRecords: () => Promise.resolve(),
+      showRecordStatus() {},
       store: {
         pending: () => Promise.resolve([...queue]),
         writeState: () => Promise.resolve(),
-        acknowledge: () => {
+        settle: () => {
           queue.shift();
           return Promise.resolve();
         },
@@ -73,7 +75,6 @@ Deno.test("edits queued during an active sync upload immediately after that requ
   assertEquals(submitted, ["/matches/complete"]);
   assertEquals(queue.length, 0);
   assertEquals(requests, 2);
-  assertEquals(await context.responses.get("one").text(), "saved");
 });
 
 Deno.test("cached scripts survive service failures without hiding missing resources", async () => {
@@ -498,4 +499,84 @@ Deno.test("offline page cache verifies account changes and media byte ranges", a
   assertEquals(partial.status, 206);
   assertEquals(partial.headers.get("content-range"), "bytes 2-4/6");
   assertEquals([...new Uint8Array(await partial.arrayBuffer())], [2, 3, 4]);
+});
+
+Deno.test("record settlements survive reload without replay and prune only beyond every cached page", async () => {
+  const source = await Deno.readTextFile(new URL("../../static/app-sync/store.js", import.meta.url));
+  const globals = {indexedDB: new IDBFactory(), crypto, TextEncoder, TextDecoder, Uint8Array, structuredClone};
+  const store = runInNewContext(source + "\nAppLocalStore", globals);
+  const operation = {kind: "record", stamp: {operationId: "one"}, body: "matchId=one", target: "/matches/complete"};
+  await store.append("alice", operation, "page:/", {html: "workspace", recordReadAt: 100});
+  await store.writeState("alice", "page:/history", {html: "history", recordReadAt: 100});
+  await store.settle("alice", {...operation, delivery: "confirmed", settledAt: 200});
+  const reopened = runInNewContext(source + "\nAppLocalStore", globals);
+  assertEquals((await reopened.pending("alice")).length, 0);
+  assertEquals((await reopened.operations("alice"))[0].delivery, "confirmed");
+  assertEquals((await reopened.operations("bob")).length, 0);
+  await reopened.writeState("alice", "page:/", {recordReadAt: 300});
+  await reopened.prune("alice");
+  assertEquals((await reopened.operations("alice")).length, 1);
+  await reopened.writeState("alice", "page:/history", {recordReadAt: 300});
+  await reopened.prune("alice");
+  assertEquals((await reopened.operations("alice")).length, 0);
+  await reopened.append("alice", operation, "page:/", {recordReadAt: 300});
+  await reopened.settle("alice", {...operation, delivery: "rejected", settledAt: 400, error: "invalid"});
+  assertEquals((await reopened.pending("alice")).length, 0);
+  assertEquals((await reopened.operations("alice"))[0].error, "invalid");
+});
+
+Deno.test("cached code returns before slow refreshes and revalidation uses only one connection", async () => {
+  const source = await Deno.readTextFile(new URL("../../static/app-sw.js", import.meta.url));
+  const released: Array<() => void> = [], background: Promise<unknown>[] = [];
+  let active = 0, maximum = 0, fetched = 0;
+  const api = runInNewContext(source + "\n({applicationResource})", {
+    URL, Request, Response, Headers, AbortSignal,
+    self: {addEventListener() {}},
+    caches: {open: () => Promise.resolve({match: () => Promise.resolve(new Response("cached")), put() {}})},
+    fetch: async () => {
+      fetched++;
+      maximum = Math.max(maximum, ++active);
+      await new Promise<void>((resolve) => released.push(resolve));
+      active--;
+      return new Response("new");
+    },
+  });
+  const requests = ["a.js", "b.css", "a.js"].map((name) => new Request("https://example.com/static/" + name));
+  const responses = await Promise.all(requests.map((request) => api.applicationResource(request, (task: Promise<unknown>) => background.push(task))));
+  assertEquals(await Promise.all(responses.map((response: Response) => response.text())), ["cached", "cached", "cached"]);
+  assertEquals(fetched, 1);
+  released.shift()!();
+  while (fetched < 2) await new Promise((resolve) => setTimeout(resolve, 0));
+  released.shift()!();
+  await Promise.all(background);
+  assertEquals(maximum, 1);
+  assertEquals(fetched, 2);
+});
+
+Deno.test("authenticated online page does not wait for a slower duplicate identity request", async () => {
+  const source = await Deno.readTextFile(new URL("../../static/app-sw.js", import.meta.url));
+  const api = runInNewContext(source + "\n({applicationPage})", {
+    URL, Request, Response, Headers, AbortSignal,
+    self: {addEventListener() {}, AppLocalStore: {readState() {}, writeState() { return Promise.resolve(); }}},
+    fetch: (input: string | Request) => input === "/api/sync/session" ? new Promise(() => {}) : Promise.resolve(new Response("<html><body>online</body></html>", {headers: {"x-app-user": "alice"}})),
+  });
+  const response = await api.applicationPage(new Request("https://example.com/"));
+  assert((await response.text()).includes("data-app-record-read-at="));
+});
+
+Deno.test("local database failures do not turn an authenticated online page into a failed navigation", async () => {
+  const source = await Deno.readTextFile(new URL("../../static/app-sw.js", import.meta.url));
+  const api = runInNewContext(source + "\n({applicationPage})", {
+    URL, Request, Response, Headers, AbortSignal,
+    self: {addEventListener() {}, AppLocalStore: {
+      readState() { throw new Error("database unavailable"); },
+      writeState() { throw new Error("disk full"); },
+    }},
+    fetch: (input: string | Request) => Promise.resolve(input === "/api/sync/session"
+      ? Response.json({userId: "alice"})
+      : new Response("<html><body>online</body></html>", {headers: {"x-app-user": "alice"}})),
+  });
+  const response = await api.applicationPage(new Request("https://example.com/"));
+  assertEquals(response.status, 200);
+  assert((await response.text()).includes("online"));
 });

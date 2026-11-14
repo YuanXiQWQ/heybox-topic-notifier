@@ -160,11 +160,11 @@
   }
 
   /**
-   * 读取账号待同步操作，保留最初的编辑版本。
+   * 读取账号操作及投递结果，保留最初的编辑版本。
    * @param {string} userId 账号 ID。
-   * @return {Promise<object[]>} 待重放操作。
+   * @return {Promise<object[]>} 加密存储中的全部操作。
    */
-  async function pending(userId) {
+  async function operations(userId) {
     const db = await open();
     const entries = await requested(
         db.transaction('operations').objectStore('operations').index('userId')
@@ -173,6 +173,51 @@
     return await Promise.all(
         entries.map((entry) => decrypt(userId, entry.payload)),
     );
+  }
+
+  /**
+   * 读取仍需上传的操作，已确认和明确拒绝的记录仅用于本地页面校准。
+   * @param {string} userId 账号 ID。
+   * @return {Promise<object[]>} 待重放操作。
+   */
+  async function pending(userId) {
+    return (await operations(userId)).filter((operation) => !operation.delivery);
+  }
+
+  /**
+   * 保存记录的最终投递结果，旧缓存仍能投影已确认操作或撤销被拒绝的编辑。
+   * @param {string} userId 账号 ID。
+   * @param {object} operation 原操作及投递结果。
+   * @return {Promise<void>} 投递结果已持久保存。
+   */
+  async function settle(userId, operation) {
+    const payload = await encrypt(userId, operation);
+    const db = await open();
+    const tx = db.transaction('operations', 'readwrite');
+    const done = committed(tx);
+    tx.objectStore('operations').put({id: `${userId}:${operation.stamp.operationId}`, userId, payload});
+    await done;
+  }
+
+  /**
+   * 仅清理所有记录页面均已越过的投递结果，旧离线快照继续保留所需投影。
+   * @param {string} userId 账号 ID。
+   * @return {Promise<void>} 安全清理结束。
+   */
+  async function prune(userId) {
+    const db = await open();
+    const keys = await requested(db.transaction('state').objectStore('state').getAllKeys());
+    const names = keys.filter((key) => typeof key === 'string' &&
+        (key === `${userId}:page:/` || key.startsWith(`${userId}:page:/?`) ||
+         key === `${userId}:page:/history` || key.startsWith(`${userId}:page:/history?`)));
+    if (!names.length) return;
+    const pages = await Promise.all(names.map((key) => readState(userId, key.slice(userId.length + 1))));
+    const oldest = Math.min(...pages.map((page) => page?.recordReadAt || 0));
+    for (const operation of await operations(userId)) {
+      if (operation.delivery && operation.settledAt < oldest) {
+        await acknowledge(userId, operation.stamp.operationId);
+      }
+    }
   }
 
   /**
@@ -219,6 +264,9 @@
   globalThis.AppLocalStore = {
     append,
     pending,
+    operations,
+    settle,
+    prune,
     acknowledge,
     readState,
     writeState,

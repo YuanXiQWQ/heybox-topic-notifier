@@ -1786,6 +1786,19 @@ input[type="color"]::-moz-color-swatch{
   white-space: nowrap;
 }
 
+.table-section-with-page-heading{
+  margin-top: 0;
+}
+
+.table-section-with-page-heading .section-title-row{
+  align-items: center;
+  grid-template-columns: auto minmax(28px, 1fr);
+}
+
+.table-section-with-page-heading h1{
+  margin: 0;
+}
+
 .table-filter-shell{
   align-items: center;
   column-gap: 8px;
@@ -1846,7 +1859,7 @@ input[type="color"]::-moz-color-swatch{
   width: 100%;
 }
 
-.table-filter-shell:not(:has(.filter-toggle-input:checked)) .table-filter-form{
+.filter-toggle-input:not(:checked) + .table-filter-form{
   clip-path: inset(0 0 0 100%);
   max-block-size: 0;
   opacity: 0;
@@ -1854,7 +1867,7 @@ input[type="color"]::-moz-color-swatch{
   transform: translateX(8px);
 }
 
-:root[dir="rtl"] .table-filter-shell:not(:has(.filter-toggle-input:checked)) .table-filter-form{
+:root[dir="rtl"] .filter-toggle-input:not(:checked) + .table-filter-form{
   clip-path: inset(0 100% 0 0);
   transform: translateX(-8px);
 }
@@ -3300,6 +3313,21 @@ tr:last-child td{
     grid-template-columns: minmax(0, 1fr) 28px;
     width: 100%;
   }
+
+  .table-section-with-page-heading .section-title-row{
+    column-gap: 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
+
+  .table-section-with-page-heading .table-filter-shell{
+    display: contents;
+  }
+
+  .table-section-with-page-heading .table-filter-form{
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 
 /* 窄屏按控件类型分配空间，不依赖旧 WebView 缺失的 :has 选择器。 */
@@ -3471,7 +3499,8 @@ tr:last-child td{
   .topbar{ gap: 12px; }
   .primary-nav .nav-link-button{ font-size: 14px; min-height: 56px; padding-inline: 4px; }
   .page-heading{ margin-bottom: 20px; }
-  .page-heading h1{ font-size: 26px; }
+  .page-heading h1,
+  .table-section-with-page-heading h1{ font-size: 26px; }
 
   .topbar > .brand{
     margin-inline: 12px;
@@ -3893,6 +3922,12 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 :root[data-application-platform] .app-back-button svg{ width: 24px; height: 24px; fill: none; }
 :root[data-application-platform] .app-back-button:disabled{ color: var(--muted); opacity: .35; cursor: default; background: transparent; }
 .app-navigation-status{ color: var(--muted); font-size: 12px; flex: 1 1 auto; min-width:0; }
+/* 导航沿用主题色反馈等待状态，不替换彩蛋依赖的图标或点击宿主。 */
+:root[data-navigation-pending] { cursor: progress; }
+:root[data-navigation-pending] .primary-nav { opacity: .65; }
+:root[data-navigation-pending] .topbar { box-shadow: 0 2px 0 var(--theme-link); }
+[data-match-table-form][aria-busy] { cursor: progress; }
+[data-record-sync-status] { margin-block: 0 10px; }
 .app-navigation-status > summary{ cursor:pointer; padding:10px 0; overflow-wrap:anywhere; }
 .app-navigation-status > summary:focus-visible{ outline:2px solid var(--theme-link); outline-offset:2px; }
 .app-navigation-error{ margin:0 0 10px; white-space:pre-wrap; overflow-wrap:anywhere; max-height:min(40vh,18rem); overflow:auto; overscroll-behavior:contain; }

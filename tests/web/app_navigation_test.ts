@@ -20,7 +20,7 @@ async function harness(android = false) {
     hidden: true, open: false, dataset: { saveError: "保存失败" },
     querySelector: (selector: string) => selector === "[data-app-navigation-message]" ? message : errorDetails,
   };
-  const root = { dataset: {} as Record<string, string>, style: { setProperty: (key: string, value: string) => root.dataset[key] = value } };
+  const root = { dataset: {} as Record<string, string>, toggleAttribute: (key: string, value: boolean) => { root.dataset[key] = String(value); }, style: { setProperty: (key: string, value: string) => root.dataset[key] = value } };
   const port = {
     onmessage: (event: { data: string }) => forwarded.push(event.data),
     postMessage: (data: string) => requests.push(JSON.parse(data)),
@@ -51,7 +51,7 @@ async function harness(android = false) {
     HeyboxNative: android ? port : undefined,
     document: {
       documentElement: root,
-      querySelector: (selector: string) => selector === "[data-app-back]" ? back : selector === "[data-app-navigation-status]" ? status : { getBoundingClientRect: () => ({ height: 76 }) },
+      querySelector: (selector: string) => selector === "[data-app-back]" ? back : selector === "[data-app-navigation-status]" ? status : { setAttribute() {}, getBoundingClientRect: () => ({ height: 76 }) },
       addEventListener: (name: string, handler: (event?: unknown) => void) => listeners.set(name, handler),
     },
     addEventListener: (name: string, handler: (event?: unknown) => void) => listeners.set(name, handler),
@@ -71,10 +71,13 @@ async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-Deno.test("web pages do not alter layout, history or listeners", async () => {
+Deno.test("web navigation installs immediate feedback without native layout changes", async () => {
+  const events: string[] = [];
   runInNewContext(await Deno.readTextFile(new URL("../../static/app-navigation.js", import.meta.url)), {
-    get document() { throw new Error("Web layout must remain untouched"); },
+    document: { addEventListener: (name: string) => events.push(name) },
+    addEventListener: (name: string) => events.push(name),
   });
+  assertEquals(events, ["submit", "click", "pageshow"]);
 });
 
 Deno.test("back state follows native position even with forward entries", async () => {
