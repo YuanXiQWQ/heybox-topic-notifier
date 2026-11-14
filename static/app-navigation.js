@@ -1,5 +1,24 @@
 /** @file 为原生应用固定导航、同步真实返回状态，并在导航前等待离线编辑落盘。 */
 (() => {
+  /**
+   * 导航开始时立即反馈忙碌状态，不改变图标宿主和浏览器的提交语义。
+   * @param {boolean} busy 是否正在导航。
+   */
+  function navigationFeedback(busy) {
+    document.documentElement.toggleAttribute('data-navigation-pending', busy);
+    document.querySelector('[data-app-navigation]')?.setAttribute('aria-busy', String(busy));
+  }
+  document.addEventListener('submit', (event) => {
+    if (!event.defaultPrevented && event.target instanceof HTMLFormElement && event.target.closest('[data-app-navigation]')) navigationFeedback(true);
+  });
+  document.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+    if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+    const target = new URL(link.href, location.href);
+    if (target.origin === location.origin && (target.pathname !== location.pathname || target.search !== location.search)) navigationFeedback(true);
+  });
+  addEventListener('pageshow', () => navigationFeedback(false));
   const native = globalThis.appNative;
   const android = globalThis.HeyboxNative;
   if (!native && !android) return;
@@ -45,6 +64,7 @@
     const current = ++revision;
     const page = location.href;
     pending = true;
+    navigationFeedback(true);
     renderBack();
     if (status) {
       status.hidden = true;
@@ -59,6 +79,7 @@
       await new Promise((resolve) => setTimeout(resolve, 0));
       if (current === revision && location.href === page) operation();
     } catch (error) {
+      if (current === revision) navigationFeedback(false);
       if (current === revision && status) {
         if (message) message.textContent = status.dataset.saveError;
         if (errorDetails) errorDetails.textContent =

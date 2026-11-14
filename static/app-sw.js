@@ -6,6 +6,10 @@ const applicationResourceCache = 'heybox-app-resources-v1';
 let applicationPagePrefetch;
 /** 公共资源预取依次执行，给用户发起的页面请求保留网络连接。 */
 let applicationResourcePrefetch = Promise.resolve();
+/** 缓存校准只使用一条后台请求，并合并同一地址，避免占满浏览器连接池。 */
+let applicationResourceUpdate = Promise.resolve();
+/** 当前已排队的资源更新任务。 */
+const applicationResourceUpdates = new Map();
 /** 后台页面预取的最短间隔；实际导航仍请求当前页面。 */
 const applicationPrefetchInterval = 5 * 60 * 1000;
 self.addEventListener('install', (event) => {
@@ -29,9 +33,9 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === '/logout' && event.request.method === 'POST') {
     event.respondWith(clearApplicationSession().then(() => fetch(event.request)));
   } else if (event.request.method === 'GET' && event.request.mode === 'navigate' && ['/', '/settings', '/history', '/about'].includes(url.pathname)) {
-    event.respondWith(applicationPage(event.request));
+    event.respondWith(applicationPage(event.request, undefined, (task) => event.waitUntil(task)));
   } else if (event.request.method === 'GET' && (url.pathname.startsWith('/static/') || url.pathname === '/favicon.ico')) {
-    event.respondWith(applicationResource(event.request));
+    event.respondWith(applicationResource(event.request, (task) => event.waitUntil(task)));
   }
 });
 
@@ -71,7 +75,7 @@ async function handleApplicationMessage(event) {
     await applicationResourcePrefetch;
   }
   if (event.data?.type === 'app-pages') {
-    applicationPagePrefetch ??= prefetchApplicationPages().finally(() => { applicationPagePrefetch = undefined; });
+    applicationPagePrefetch = applicationPagePrefetch ?? prefetchApplicationPages().finally(() => { applicationPagePrefetch = undefined; });
     await applicationPagePrefetch;
   }
 }
@@ -119,14 +123,29 @@ async function prefetchApplicationPages() {
 }
 
 /**
- * 优先获取最新公共资源，网络失败或服务暂不可用时读取已缓存版本。
+ * 已缓存公共资源立即可用，脚本和样式在后台校准；首次访问仍等待网络。
  * @param {Request} request 同源资源请求。
+ * @param {(task: Promise<unknown>) => void} [background] 延长 Worker 生命周期的回调。
  * @return {Promise<Response>} 在线或已缓存的资源。
  */
-async function applicationResource(request) {
+async function applicationResource(request, background) {
   const cache = await caches.open(applicationResourceCache);
   const cached = await cache.match(request, {ignoreVary: true});
   if (cached && !/\.(?:js|css)(?:\?|$)/.test(request.url)) return rangeResponse(request, cached);
+  if (cached && background) {
+    let update = applicationResourceUpdates.get(request.url);
+    if (!update) {
+      update = applicationResourceUpdate.then(async () => {
+        const response = await fetch(new Request(request, {signal: applicationTimeout(10000)}));
+        if (response.ok && !response.redirected && response.status === 200) await cache.put(request, response);
+        else if (response.status === 404 || response.status === 410) await cache.delete(request);
+      }).catch(() => {}).finally(() => applicationResourceUpdates.delete(request.url));
+      applicationResourceUpdate = update;
+      applicationResourceUpdates.set(request.url, update);
+    }
+    background(update);
+    return rangeResponse(request, cached);
+  }
   try {
     const response = await fetch(request);
     if (response.status >= 500 && cached) return rangeResponse(request, cached);
@@ -167,9 +186,11 @@ async function rangeResponse(request, response) {
  * 在当前账号内缓存页面，主设置与时段子页共用最新草稿，其它查询页保持隔离。
  * @param {Request} request 页面请求。
  * @param {{userId: string}} [verifiedIdentity] 同一后台预取批次刚验证的账号。
+ * @param {(task: Promise<unknown>) => void} [background] 让缓存写入在响应交还后继续完成。
  * @return {Promise<Response>} 在线页面或当前账号离线页面。
  */
-async function applicationPage(request, verifiedIdentity) {
+async function applicationPage(request, verifiedIdentity, background) {
+  const recordReadAt = Date.now();
   const url = new URL(request.url);
   const name = `page:${url.pathname}${url.pathname === '/settings' && url.search === '?panel=polling' ? '' : url.search}`;
   // 此脚本运行于 Service Worker，self 的能力及 importScripts 导入对象由该宿主提供。
@@ -179,15 +200,23 @@ async function applicationPage(request, verifiedIdentity) {
   const online = fetchApplicationPage(request).then(
       (response) => ({response}), (error) => ({error}),
   );
-  let active = await store.readState('__device', 'active-user');
+  let active;
+  try { active = await store.readState('__device', 'active-user'); }
+  catch { /* 本地存储不可用时仍允许加载服务器认证后的在线页面。 */ }
   try {
     if (verifiedIdentity) {
       active = verifiedIdentity.userId;
     } else {
-      const identity = await fetch('/api/sync/session', {cache: 'no-store', signal: applicationTimeout(5000)});
+      // 页面自身的账号头同样由服务端认证产生，不再让较慢的重复会话请求阻塞在线页面。
+      const identityRequest = fetch('/api/sync/session', {cache: 'no-store', signal: applicationTimeout(5000)});
+      const pageIdentity = online.then((result) => {
+        const userId = result.response?.ok && !result.response.redirected && result.response.headers.get('x-app-user');
+        return userId ? new Response(JSON.stringify({userId}), {headers: {'content-type': 'application/json'}}) : identityRequest;
+      });
+      const identity = await Promise.race([identityRequest, pageIdentity]);
       if (identity.redirected || identity.status === 401 || identity.status === 403) {
-        await clearApplicationSession();
         active = null;
+        await clearApplicationSession();
       } else if (identity.ok) {
         active = (await identity.json()).userId;
         await store.writeState('__device', 'active-user', active);
@@ -195,8 +224,13 @@ async function applicationPage(request, verifiedIdentity) {
     }
   } catch { /* 网络不可达时只允许使用此前验证过的本机账号。 */
   }
-  const local = active ? await store.readState(active, name) : undefined;
-  if (local?.html && url.pathname === '/settings' && (await store.pending(active)).some((operation) => operation.kind === 'settings')) {
+  let local, hasSettingsDraft = false;
+  try {
+    local = active ? await store.readState(active, name) : undefined;
+    hasSettingsDraft = local?.html && url.pathname === '/settings' &&
+      (await store.pending(active)).some((operation) => operation.kind === 'settings');
+  } catch { /* 缓存读取失败交由在线响应处理，不把存储故障当作网络失败。 */ }
+  if (hasSettingsDraft) {
     void online.then((result) => result.response?.body?.cancel()).catch(() => {});
     return localPageResponse(local);
   }
@@ -207,8 +241,15 @@ async function applicationPage(request, verifiedIdentity) {
     if (response.status >= 500 && local?.html) return localPageResponse(local);
     const userId = response.headers.get('x-app-user');
     if (response.ok && userId && !response.redirected) {
-      await store.writeState('__device', 'active-user', userId);
-      await store.writeState(userId, name, {html: await response.clone().text(), headers: [...response.headers]});
+      try { await store.writeState('__device', 'active-user', userId); }
+      catch { /* 缓存写失败不阻断已经通过认证的在线页面。 */ }
+      const html = (await response.text()).replace(/<html(?=[\s>])/i, `<html data-app-record-read-at="${recordReadAt}"`);
+      const headers = new Headers(response.headers);
+      for (const key of ['content-length', 'content-encoding']) headers.delete(key);
+      const save = Promise.resolve().then(() => store.writeState(userId, name, {html, headers: [...headers], recordReadAt})).catch(() => {});
+      if (background) background(save);
+      else await save;
+      return new Response(html, {status: response.status, headers});
     } else if (response.redirected && new URL(response.url).pathname === '/login') await clearApplicationSession();
     return response;
   } catch (error) {
