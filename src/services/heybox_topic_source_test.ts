@@ -8,6 +8,9 @@ import {
 import { assert, assertEquals } from "../test_helpers.ts";
 import { assertThrows } from "@std/assert";
 import type { TopicPost } from "../models.ts";
+import { aiPostText } from "./ai_matcher.ts";
+import { createMatcher } from "./matcher.ts";
+import { normalizeMatchingSettings } from "./matching_settings.ts";
 import {
   createDetailRelayHandler,
   withDetailRelay,
@@ -318,6 +321,107 @@ Deno.test("native simple and post guide cards preserve all visible text without 
     assertEquals(detailed.body, expected);
     assertEquals(detailed.detailsComplete, true);
     assertEquals(source.detailRetryAfter!(), 0);
+  }
+});
+
+Deno.test("related search cards are excluded from list, detail, keyword and AI text", async () => {
+  const content = [
+    { type: "img", text: "/image.jpg" },
+    {
+      type: "simple_card",
+      simple_card: { title: "相关搜索", desc: "黄金山脊 C面通关技巧" },
+    },
+  ];
+  for (
+    const text of [content, JSON.stringify(content), { children: content }]
+  ) {
+    const link = {
+      linkid: "197017096",
+      title: "4C金",
+      text,
+      description: "列表摘要不可替代已确认的空正文",
+    };
+    const [listed] = parseHeyboxTopicPosts(
+      { result: { links: [link] } },
+      "12099",
+    );
+    assertEquals(listed.body, "");
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: {
+            link,
+            comments: [{
+              comment: [{ text: "其实感觉C面一整张比草莓酱的一面都短" }],
+            }],
+          },
+        })),
+    });
+    const detailed = await source.getPostDetails!(listed);
+    assertEquals(detailed.detailsComplete, true);
+    assertEquals(detailed.body, "");
+    assertEquals(detailed.excerpt, "");
+    assertEquals(detailed.comments, ["其实感觉C面一整张比草莓酱的一面都短"]);
+    assertEquals(source.detailRetryAfter!(), 0);
+    const token = "related-search-card-test-token-00000000";
+    const handler = createDetailRelayHandler({ token, source });
+    const relay = withDetailRelay(source, {
+      url: "http://127.0.0.1:8788/v1/details",
+      token,
+      local: true,
+      fetchFn: (url, init) => handler(new Request(url, init)),
+    });
+    const relayed = await relay.getPostDetails!(listed);
+    assertEquals(relayed.body, "");
+    assertEquals(relayed.excerpt, "");
+    assertEquals(relayed.detailsComplete, true);
+    assertEquals(relayed.comments, detailed.comments);
+    assertEquals(
+      await createMatcher().findMatch(detailed, [{
+        keyword: "通关技巧",
+        locations: ["body"],
+      }]),
+      undefined,
+    );
+    assertEquals(
+      JSON.parse(aiPostText(detailed, normalizeMatchingSettings({}))),
+      {
+        title: "4C金",
+        body: "",
+        excerpt: "",
+      },
+    );
+  }
+});
+
+Deno.test("search metadata cannot replace author text or invalidate complete details", async () => {
+  for (const desc of ["黄金山脊 C面通关技巧", { unsupported: "搜索元数据" }]) {
+    const content = [
+      { type: "text", text: "这里的相关搜索不准确，我想问这关怎么过？" },
+      { type: "simple_card", simple_card: { title: " 相关搜索 ", desc } },
+      { type: "text", text: "相关搜索\n这是作者自己的文字" },
+    ];
+    const source = createHeyboxTopicSource({
+      fetchDetail: () =>
+        Promise.resolve(Response.json({
+          status: "ok",
+          result: { link: { linkid: detailTestPost.id, text: content } },
+        })),
+    });
+    const detailed = await source.getPostDetails!(detailTestPost);
+    assertEquals(detailed.detailsComplete, true);
+    assertEquals(
+      detailed.body,
+      "这里的相关搜索不准确，我想问这关怎么过？\n相关搜索\n这是作者自己的文字",
+    );
+    assertEquals(
+      await createMatcher().findMatch(detailed, [{
+        keyword: "怎么过",
+        locations: ["body"],
+      }]),
+      { keyword: "怎么过", location: "body" },
+    );
   }
 });
 
