@@ -2,6 +2,11 @@
 import type { TopicPost } from "../models.ts";
 import type { SdkIdentityStore } from "./heybox_sdk_identity.ts";
 import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
+import {
+  requireSdkCaptchaReceipt,
+  type SdkCaptchaReceipt,
+  type SdkCaptchaStore,
+} from "./heybox_sdk_captcha.ts";
 
 /** 独占的详情冷却文件接口。 */
 export type SdkDetailCheckpoint = {
@@ -12,6 +17,7 @@ export type SdkDetailCheckpoint = {
 export type SdkDetailsOptions = {
   identity: SdkIdentityStore;
   checkpoint: SdkDetailCheckpoint;
+  captcha?: SdkCaptchaStore;
   refresh: () => Promise<void>;
   fetchFn?: typeof fetch;
   now?: () => number;
@@ -61,17 +67,31 @@ export function createHostedSdkDetails(options: SdkDetailsOptions) {
   }
 
   /**
-   * 使用固定状态取数，注册和详情冷却相互独立且只能在各自成功后清除。
+   * 使用固定状态取数，官方回执仅确认原挑战，不刷新或替换匿名身份。
    * @param {TopicPost} post 待补全帖子。
+   * @param {SdkCaptchaReceipt} [receipt] 当前挑战的官方回执，省略时遵守普通详情冷却。
    * @return {Promise<TopicPost>} 完整详情或可重试的未完成标记。
    */
-  async function read(post: TopicPost): Promise<TopicPost> {
+  async function read(
+    post: TopicPost,
+    receipt?: SdkCaptchaReceipt,
+  ): Promise<TopicPost> {
     if (
       persistenceFailed ||
-      now() < Math.max(retryAt, options.identity.read().retryAt)
+      now() < options.identity.read().retryAt || (!receipt && now() < retryAt)
     ) return unavailable(post);
     try {
-      await persist(now() + interruptedCooldownMs);
+      if (receipt) {
+        const challenge = options.captcha?.read() ?? null;
+        requireSdkCaptchaReceipt(receipt, challenge, now());
+        const state = options.identity.read();
+        if (
+          !challenge || challenge.postId !== post.id || state.refreshRequired ||
+          !state.registeredId
+        ) return unavailable(post);
+        await saveCaptcha({ ...challenge, attemptedAt: receipt.receivedAt });
+      }
+      await persist(Math.max(retryAt, now() + interruptedCooldownMs));
       let state = options.identity.read();
       if (state.refreshRequired || !state.registeredId) {
         await options.refresh();
@@ -81,7 +101,8 @@ export function createHostedSdkDetails(options: SdkDetailsOptions) {
         state.bindingId !== bindingId || state.refreshRequired ||
         !state.registeredId
       ) throw new Error();
-      let rejected = false;
+      let restriction = "";
+      let challengeCaptured = false;
       const source = createHeyboxTopicSource({
         deviceId: bindingId,
         cookie: `x_xhh_tokenid=B${state.registeredId}`,
@@ -93,13 +114,50 @@ export function createHostedSdkDetails(options: SdkDetailsOptions) {
         channel: "heybox",
         signatureMode: "app-v1149-rnd14",
         now: () => new Date(now()),
-        onDetailRestricted: (reason) => rejected = reason === "lack_token",
-        fetchFn: (url, init) =>
-          (options.fetchFn ?? fetch)(url, { ...init, redirect: "error" }),
+        onDetailRestricted: (reason) => restriction = reason,
+        onDetailCaptcha: async ({ appId, postId }) => {
+          await saveCaptcha({
+            id: crypto.randomUUID(),
+            appId,
+            postId,
+            createdAt: now(),
+            attemptedAt: 0,
+          });
+          challengeCaptured = true;
+          console.warn(JSON.stringify({ event: "sdk_captcha_required" }));
+        },
+        fetchFn: (input, init) => {
+          const url = new URL(String(input));
+          if (receipt) {
+            if (
+              url.origin !== "https://api.xiaoheihe.cn" ||
+              url.pathname !== "/bbs/app/link/tree"
+            ) throw new Error("Invalid verification target");
+            url.searchParams.set("captcha_type", "confirm");
+            url.searchParams.set("ticket", receipt.ticket);
+            url.searchParams.set("randstr", receipt.randstr);
+          }
+          return (options.fetchFn ?? fetch)(url, {
+            ...init,
+            redirect: "error",
+          });
+        },
       });
       const result = await source.getPostDetails!(post);
-      retryAt = Math.max(retryAt, now() + source.detailRetryAfter!() * 1000);
-      if (rejected) {
+      const success = result.detailsComplete === true ||
+        result.detailUnavailable === "deleted";
+      if (
+        success ||
+        (restriction && (restriction !== "show_captcha" || !challengeCaptured))
+      ) {
+        await saveCaptcha(null);
+      }
+      retryAt = receipt && success ? now() : Math.max(
+        retryAt,
+        now() + source.detailRetryAfter!() * 1000,
+        receipt ? now() + 60000 : 0,
+      );
+      if (restriction === "lack_token") {
         await options.identity.save({ ...state, refreshRequired: true });
       }
       await persist(retryAt);
@@ -119,7 +177,47 @@ export function createHostedSdkDetails(options: SdkDetailsOptions) {
     }
   }
 
+  /**
+   * 持久化挑战失败时停止本进程请求，避免丢失恢复所需的原请求绑定。
+   * @param {import("./heybox_sdk_captcha.ts").SdkCaptchaChallenge | null} value 当前挑战或清除标记。
+   * @return {Promise<void>} 挑战已保存。
+   */
+  async function saveCaptcha(
+    value: import("./heybox_sdk_captcha.ts").SdkCaptchaChallenge | null,
+  ): Promise<void> {
+    try {
+      if (value === null && !options.captcha?.read()) return;
+      await options.captcha?.save(value);
+    } catch {
+      persistenceFailed = true;
+      throw new Error("SDK verification state unavailable");
+    }
+  }
+
   return {
+    /**
+     * 在同一串行队列中确认当前挑战，过期、替换或重复的回执不会访问上游。
+     * @param {unknown} value 通过私有输入传入的官方回执。
+     * @return {Promise<TopicPost>} 原帖的完整详情或保留限制的失败结果。
+     */
+    confirmCaptcha(value: unknown): Promise<TopicPost> {
+      const request = queue.then(() => {
+        const challenge = options.captcha?.read() ?? null;
+        const receipt = requireSdkCaptchaReceipt(value, challenge, now());
+        return read({
+          id: challenge!.postId,
+          title: "",
+          body: "",
+          excerpt: "",
+          comments: [],
+          commentReplies: [],
+          publishedAt: "",
+          url: "",
+        }, receipt);
+      });
+      queue = request.then(() => {}, () => {});
+      return request;
+    },
     /**
      * 合并到固定身份的串行队列，超出上限时不访问上游。
      * @param {TopicPost} post 原列表帖子。
