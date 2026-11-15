@@ -622,9 +622,15 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 }
 
 @media (max-width: 600px) {
+  .username-easter-egg-overlay {
+    /* 选项区与对话框共用尺寸，名称框及选中描边之间保留间距。 */
+    --username-easter-egg-panel-bottom: 28px;
+    --username-easter-egg-panel-height: clamp(142px, 24vh, 188px);
+  }
+
   .username-easter-egg-panel {
-    bottom: 28px;
-    height: clamp(142px, 24vh, 188px);
+    bottom: var(--username-easter-egg-panel-bottom);
+    height: var(--username-easter-egg-panel-height);
     padding: 38px 24px 12px;
   }
 
@@ -637,10 +643,21 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
     margin-inline-start: 0;
   }
 
+  .username-easter-egg-actions,
+  .username-easter-egg-theme-aa456 .username-easter-egg-actions {
+    /* 在对话框上方的可用区域居中，固定导航不参与全屏彩蛋的定位。 */
+    bottom: calc(var(--username-easter-egg-panel-bottom) + var(--username-easter-egg-panel-height) + 52px + 16px);
+    justify-content: center;
+    top: 24px;
+    width: min(74vw, 280px);
+  }
+
   .username-easter-egg-actions {
     gap: 34px;
-    top: 14vh;
-    width: min(74vw, 280px);
+  }
+
+  .username-easter-egg-button {
+    flex-shrink: 0;
   }
 
   .username-easter-egg-theme-aa456 .username-easter-egg-panel {
@@ -666,7 +683,6 @@ body.username-easter-egg-impact > :not(.username-easter-egg-overlay) {
 
   .username-easter-egg-theme-aa456 .username-easter-egg-actions {
     gap: 48px;
-    top: 12vh;
   }
 
   .username-easter-egg-theme-investigations .username-easter-egg-speaker {

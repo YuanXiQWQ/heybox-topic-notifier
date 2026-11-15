@@ -592,7 +592,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/ace-attorney/ace-attorney.css?v=20260905-investigations-corners`,
+    `/static/fun/ace-attorney/ace-attorney.css?v=20261115-mobile-choices`,
   );
   assertIncludes(
     html,
