@@ -137,7 +137,7 @@ export function renderSettings(
     loginSession: options.loginSession,
     locale: options.settings.locale,
     stylesheets: [
-      "/static/fun/ace-attorney/ace-attorney.css?v=20260905-investigations-corners",
+      "/static/fun/ace-attorney/ace-attorney.css?v=20261115-mobile-choices",
     ],
     themeColor: options.settings.themeColor,
     title: messages.appName,
