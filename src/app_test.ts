@@ -125,6 +125,8 @@ Deno.test("native navigation is available on the unauthenticated login page", as
   assert(login.includes("data-app-back disabled"));
   const back = login.match(/<button[^>]*data-app-back[\s\S]*?<\/button>/)?.[0];
   assert(back);
+  assert(back.includes('aria-label="'));
+  assert(!back.includes("data-tooltip"));
   assert(!back.includes("black-forest-slot"));
 });
 
