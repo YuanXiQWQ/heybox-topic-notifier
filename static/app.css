@@ -3907,18 +3907,20 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   flex-direction: row;
   align-items: center;
   direction: ltr;
-  padding: 0 16px;
+  padding: 0 16px 0 0;
   gap: 12px;
   min-height: 56px;
 }
 :root[data-application-platform] .topbar > .brand{ display: none; }
 :root[data-application-platform] .app-back-button{
   display: inline-flex;
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
+  align-self: stretch;
+  flex: 0 0 60px;
+  width: 60px;
+  border-radius: 0;
   color: var(--theme-link);
 }
+:root[data-application-platform] .app-back-button:focus-visible{ outline-offset: -2px; }
 :root[data-application-platform] .app-back-button svg{ width: 24px; height: 24px; fill: none; }
 :root[data-application-platform] .app-back-button:disabled{ color: var(--muted); opacity: .35; cursor: default; background: transparent; }
 .app-navigation-status{ color: var(--muted); font-size: 12px; flex: 1 1 auto; min-width:0; }

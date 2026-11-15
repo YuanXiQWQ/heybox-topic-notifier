@@ -3659,7 +3659,7 @@ function renderAuthPage(options: {
     escapeHtml(options.messages.appName)
   }</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
+    <link rel="stylesheet" href="/static/app.css?v=20261115-navigation-back">
     <script src="/static/app-compat.js" defer></script>
     <script src="/static/theme-compat.js" defer></script>
     <script src="/static/tooltip.js" defer></script>
@@ -4541,7 +4541,7 @@ function renderMfaPage(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(options.messages.authMfaTitle)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20261028-theme-compat">
+    <link rel="stylesheet" href="/static/app.css?v=20261115-navigation-back">
     <script src="/static/app-compat.js" defer></script>
     <script src="/static/theme-compat.js" defer></script>
     <script src="/static/tooltip.js" defer></script>
