@@ -4,6 +4,7 @@ import {
   createSdkIdentity,
   openSdkIdentity,
 } from "../src/services/heybox_sdk_identity.ts";
+import { openSdkCaptcha } from "../src/services/heybox_sdk_captcha.ts";
 
 /** 所有测试文件限定在明确授权的隔离目录内。 */
 const base = "临时文件/native-sdk-tests";
@@ -78,5 +79,53 @@ Deno.test("SDK state rejects partial writes and never replaces a corrupted ident
       await assertRejects(() => openSdkIdentity(path));
       await assertRejects(() => openSdkIdentity(path, createSdkIdentity()));
       assertEquals(await Deno.readTextFile(file), invalid);
+    }
+  }));
+
+Deno.test("CAPTCHA disk state survives restart, binds the identity and excludes verification receipts", () =>
+  withDirectory(async (path) => {
+    const identity = await openSdkIdentity(path, createSdkIdentity());
+    try {
+      const binding = identity.read().bindingId;
+      const captcha = await openSdkCaptcha(path, binding);
+      assertEquals(captcha.read(), null);
+      const challenge = {
+        id: crypto.randomUUID(),
+        appId: "1234567890",
+        postId: "123",
+        createdAt: 1800000000000,
+        attemptedAt: 0,
+      };
+      await captcha.save(challenge);
+      assertEquals((await openSdkCaptcha(path, binding)).read(), challenge);
+      await assertRejects(() => openSdkCaptcha(path, "f".repeat(16)));
+      const file = path + "/captcha.json";
+      const saved = JSON.parse(await Deno.readTextFile(file));
+      assertEquals(Object.keys(saved.challenge).sort(), [
+        "appId",
+        "attemptedAt",
+        "createdAt",
+        "id",
+        "postId",
+      ]);
+      await captcha.save(null);
+      assertEquals((await openSdkCaptcha(path, binding)).read(), null);
+      for (
+        const invalid of [
+          "",
+          "{",
+          "null",
+          JSON.stringify({
+            ...saved,
+            challenge: { ...challenge, ticket: "private" },
+          }),
+        ]
+      ) {
+        await Deno.writeTextFile(file, invalid);
+        await assertRejects(() => openSdkCaptcha(path, binding));
+        assertEquals(await Deno.readTextFile(file), invalid);
+      }
+    } finally {
+      identity.close();
     }
   }));

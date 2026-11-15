@@ -27,6 +27,10 @@ export type HeyboxTopicSourceConfig = {
   fetchDetail?: (id: string) => Promise<Response>;
   /** 报告上游固定限制代码，供原生会话管理器区分令牌拒绝与验证码。 */
   onDetailRestricted?: (reason: string) => void;
+  /** 收到官方验证挑战后持久保存公开应用编号与原帖子，不包含回执或身份。 */
+  onDetailCaptcha?: (
+    challenge: { appId: string; postId: string },
+  ) => Promise<void>;
   heyboxId?: string;
   now?: () => Date;
   osVersion?: string;
@@ -325,6 +329,12 @@ export function createHeyboxTopicSource(
         reason,
         reason === "show_captcha" ? detailRestrictionCooldownMs : 60000,
       );
+      if (reason === "show_captcha") {
+        const appId = String(asRecord(asRecord(payload).result).appid ?? "");
+        if (/^\d{4,20}$/.test(appId)) {
+          await config.onDetailCaptcha?.({ appId, postId: post.id });
+        }
+      }
       return undefined;
     }
     if (
