@@ -9,8 +9,8 @@ import {
   validateResolvedOutboundHost,
 } from "./outbound_security.ts";
 
-/** 分类协议版本参与缓存指纹，避免复用不同语义协议的判定结果。 */
-export const aiClassifierRevision = 2;
+/** 正文输入语义与分类协议版本参与缓存指纹，避免复用不同语义的判定结果。 */
+export const aiClassifierRevision = 3;
 
 /** 模型响应中的分类与供应商用量；错误响应不等价于未命中。 */
 export type AiDecision = {

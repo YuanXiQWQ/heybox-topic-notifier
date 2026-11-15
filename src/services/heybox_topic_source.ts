@@ -438,11 +438,11 @@ export function parseHeyboxTopicPosts(
 }
 
 /**
- * 将小黑盒帖子记录转换为应用内帖子结构。
+ * 将小黑盒帖子记录转换为应用内帖子结构，保留可确认的空正文。
  *
- * @param record 小黑盒帖子原始记录。
- * @param topicId 当前话题 ID。
- * @return 应用内帖子结构。
+ * @param {Record<string, unknown>} record 小黑盒帖子原始记录。
+ * @param {string} topicId 当前话题 ID。
+ * @return {TopicPost} 应用内帖子结构。
  */
 function postFromHeyboxRecord(
   record: Record<string, unknown>,
@@ -455,7 +455,8 @@ function postFromHeyboxRecord(
   const url = safeHeyboxPostUrl(webLinkId, shareUrl, topicId);
 
   return {
-    body: contentField(record, ["text", "content", "body", "description"]),
+    body: detailBodyFromHeyboxRecord(record) ??
+      contentField(record, ["text", "content", "body", "description"]),
     commentReplies: textList(record, [
       "reply_list",
       "replies",
@@ -606,11 +607,11 @@ function trustedHeyboxShareUrl(value: string): string | undefined {
 }
 
 /**
- * 合并列表帖子和详情帖子。
+ * 合并列表帖子和详情帖子；完整详情没有文字正文时，不保留列表摘要作为正文替代。
  *
- * @param listPost 列表接口返回的帖子。
- * @param detailPost 详情接口返回的帖子。
- * @return 合并后的帖子。
+ * @param {TopicPost} listPost 列表接口返回的帖子。
+ * @param {TopicPost} detailPost 详情接口返回的帖子。
+ * @return {TopicPost} 合并后的帖子。
  */
 function mergeTopicPosts(
   listPost: TopicPost,
@@ -624,7 +625,7 @@ function mergeTopicPosts(
     comments: detailPost.comments.length > 0
       ? detailPost.comments
       : listPost.comments,
-    excerpt: detailPost.excerpt || listPost.excerpt,
+    excerpt: detailPost.body ? detailPost.excerpt || listPost.excerpt : "",
     id: listPost.id || detailPost.id,
     publishedAt: detailPost.publishedAt || listPost.publishedAt,
     title: detailPost.title || listPost.title,
@@ -785,6 +786,20 @@ const heyboxCardNodeFields = new Map<string, readonly string[]>([
 ]);
 
 /**
+ * 识别平台插入的相关搜索卡片；作者文本中的同名词语仍属于帖子内容。
+ * @param {Record<string, unknown>} record 富文本节点。
+ * @param {string} nodeType 已规范化的节点类型。
+ * @return {boolean} 是否属于不参与正文展示与匹配的搜索推荐。
+ */
+function isHeyboxRelatedSearchCard(
+  record: Record<string, unknown>,
+  nodeType: string,
+): boolean {
+  return nodeType === "simple_card" &&
+    stringField(asRecord(record.simple_card), ["title"]) === "相关搜索";
+}
+
+/**
  * 读取详情正文；缺失或包含未知结构时不以摘要证明完整，显式空正文仍可区分。
  * description 是摘要，不作为正文完整性的依据。
  * @param {Record<string, unknown>} record 详情接口的帖子记录。
@@ -806,7 +821,7 @@ function detailBodyFromHeyboxRecord(
 
 /**
  * 核对纯文本解析器选用字段中的节点结构，避免数组中的未知段落被静默丢弃。
- * 已知媒体节点沿用文本解析器的忽略规则，本校验不表示图片或视频已被读取。
+ * 已知媒体与相关搜索卡片沿用文本解析器的忽略规则，本校验不表示图片或视频已被读取。
  * @param {unknown} value 纯文本、富文本节点或序列化容器。
  * @return {boolean} 当前解析器是否支持选用字段中的全部节点。
  */
@@ -827,6 +842,7 @@ function isSupportedHeyboxContent(value: unknown): boolean {
     ? record.type.trim().toLowerCase()
     : "";
   if (heyboxMediaNodeTypes.has(nodeType)) return true;
+  if (isHeyboxRelatedSearchCard(record, nodeType)) return true;
   const cardFields = heyboxCardNodeFields.get(nodeType);
   if (cardFields) {
     return heyboxCardText(record[nodeType], cardFields) !== undefined;
@@ -896,7 +912,7 @@ function contentField(
  * 将小黑盒正文的纯文本、富文本数组或 JSON 字符串统一转换为可展示文本。
  *
  * @param {unknown} value 小黑盒正文值。
- * @return {string} 去除媒体元数据后的纯文本。
+ * @return {string} 去除媒体元数据与平台相关搜索卡片后的纯文本。
  */
 export function plainTextFromHeyboxContent(value: unknown): string {
   if (typeof value === "number") {
@@ -928,6 +944,7 @@ export function plainTextFromHeyboxContent(value: unknown): string {
   if (heyboxMediaNodeTypes.has(nodeType)) {
     return "";
   }
+  if (isHeyboxRelatedSearchCard(record, nodeType)) return "";
   const cardFields = heyboxCardNodeFields.get(nodeType);
   if (cardFields) {
     return heyboxCardText(record[nodeType], cardFields) ?? "";
