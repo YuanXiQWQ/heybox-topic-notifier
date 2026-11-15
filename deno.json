@@ -20,7 +20,8 @@
     "auth:check-legacy": "deno run --allow-env --unstable-kv src/auth/check_legacy_accounts.ts",
     "notifications:keys": "deno run scripts/generate_web_push_keys.ts",
     "test:native-lifecycle": "deno test --allow-read=临时文件/native-retry-tests --allow-write=临时文件/native-retry-tests scripts/native_retry.integration.ts",
-    "check": "deno lint && deno check src/main.ts src/deploy.ts src/self_hosted.ts src/detail_relay.ts src/guest_details.ts src/native_details.ts \"static/**/*.js\" \"workers/**/*.js\" && deno test --allow-env --allow-read --unstable-kv && deno task test:native-lifecycle"
+    "check": "deno lint && deno check src/main.ts src/deploy.ts src/self_hosted.ts src/detail_relay.ts src/guest_details.ts src/native_details.ts src/sdk_details.ts \"static/**/*.js\" \"workers/**/*.js\" && deno test --allow-env --allow-read --unstable-kv && deno task test:native-lifecycle && deno task test:sdk-lifecycle",
+    "test:sdk-lifecycle": "deno test --allow-sys=uid --allow-read=临时文件/native-sdk-tests --allow-write=临时文件/native-sdk-tests scripts/sdk_identity.integration.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1.0.0",
@@ -42,7 +43,9 @@
     }
   },
   "test": {
-    "exclude": ["apps/desktop/test"]
+    "exclude": [
+      "apps/desktop/test"
+    ]
   },
   "compilerOptions": {
     "lib": [
