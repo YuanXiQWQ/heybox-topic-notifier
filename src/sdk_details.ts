@@ -9,6 +9,7 @@ import {
 import { createSdkRuntime } from "./services/heybox_sdk_runtime.ts";
 import { createSdkRefresher } from "./services/heybox_sdk_registration.ts";
 import { createHostedSdkDetails } from "./services/heybox_sdk_details.ts";
+import { openSdkCaptcha } from "./services/heybox_sdk_captcha.ts";
 
 /**
  * 初始化或启动固定身份的取数服务；运行器退出不影响持久令牌和共享冷却。
@@ -18,7 +19,9 @@ async function main(): Promise<void> {
   const directory = Deno.env.get("HEYBOX_SDK_STATE_DIR") ?? "";
   if (
     !isAbsolute(directory) ||
-    Deno.args.some((arg) => !["--initialize", "--refresh"].includes(arg)) ||
+    Deno.args.some((arg) =>
+      !["--initialize", "--refresh", "--confirm-captcha"].includes(arg)
+    ) ||
     Deno.args.length > 1
   ) {
     throw new Error("Invalid SDK service configuration");
@@ -66,7 +69,56 @@ async function main(): Promise<void> {
         await refresh();
         return;
       }
-      const source = createHostedSdkDetails({ identity, checkpoint, refresh });
+      const captcha = await openSdkCaptcha(
+        directory,
+        identity.read().bindingId,
+      );
+      const source = createHostedSdkDetails({
+        identity,
+        checkpoint,
+        captcha,
+        refresh,
+      });
+      if (Deno.args.includes("--confirm-captcha")) {
+        const reader = Deno.stdin.readable.getReader();
+        const chunks: Uint8Array[] = [];
+        let length = 0;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            length += value.length;
+            if (length > 8192) {
+              throw new Error("Verification receipt too large");
+            }
+            chunks.push(value);
+          }
+        } finally {
+          await reader.cancel();
+        }
+        const bytes = new Uint8Array(length);
+        let offset = 0;
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset);
+          offset += chunk.length;
+        }
+        const result = await source.confirmCaptcha(
+          JSON.parse(new TextDecoder().decode(bytes)),
+        );
+        const accepted = result.detailsComplete === true ||
+          result.detailUnavailable === "deleted";
+        console.log(
+          JSON.stringify({
+            event: "sdk_captcha_confirmation",
+            accepted,
+            bodyCharacters: result.body.length,
+            comments: result.comments.length,
+            replies: result.commentReplies.length,
+          }),
+        );
+        if (!accepted) Deno.exitCode = 1;
+        return;
+      }
       const server = Deno.serve(
         {
           hostname: "127.0.0.1",
