@@ -1,0 +1,40 @@
+# 独立运行官方原生 SDK，身份和冷却保存在服务器私有目录。
+[Unit]
+Description=Heybox Server Native SDK Details
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=heybox-sdk
+Group=heybox-sdk
+WorkingDirectory=/opt/heybox-sdk-details/current
+EnvironmentFile=/etc/heybox-topic-notifier/native-details.env
+Environment=HEYBOX_SDK_STATE_DIR=/var/lib/heybox-sdk-details
+Environment=HEYBOX_SDK_RUNTIME_DIR=/opt/heybox-sdk-details/current/tools/native-sdk
+Environment=HEYBOX_SDK_LIBRARY=/opt/heybox-sdk-details/libsmsdk.so
+Environment=HEYBOX_SDK_JAVA=/usr/bin/java
+Environment=DENO_DIR=/var/cache/heybox-sdk-details
+Environment=HOME=/var/lib/heybox-sdk-details
+ExecStart=/usr/local/bin/deno run --cached-only --frozen --allow-sys=uid --allow-net=api.xiaoheihe.cn,fp-it.fengkongcloud.com,127.0.0.1:8788 --allow-env=HEYBOX_SDK_STATE_DIR,HEYBOX_SDK_RUNTIME_DIR,HEYBOX_SDK_LIBRARY,HEYBOX_SDK_JAVA,HEYBOX_GUEST_DETAIL_TOKEN --allow-read=/opt/heybox-sdk-details,/var/lib/heybox-sdk-details --allow-write=/var/lib/heybox-sdk-details --allow-run=/usr/bin/java src/sdk_details.ts
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=75
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/heybox-sdk-details /var/cache/heybox-sdk-details
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+MemoryMax=320M
+CPUQuota=75%
+TasksMax=96
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

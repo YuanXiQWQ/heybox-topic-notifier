@@ -1,0 +1,152 @@
+/** @file 使用可自行续期的服务端 SDK 缓存读取完整详情，并持久保留所有限制状态。 */
+import type { TopicPost } from "../models.ts";
+import type { SdkIdentityStore } from "./heybox_sdk_identity.ts";
+import { createHeyboxTopicSource } from "./heybox_topic_source.ts";
+
+/** 独占的详情冷却文件接口。 */
+export type SdkDetailCheckpoint = {
+  retryAt: number;
+  persist: (retryAt: number) => Promise<void>;
+};
+/** 服务端详情来源依赖，与本地模拟器和观察时间无关。 */
+export type SdkDetailsOptions = {
+  identity: SdkIdentityStore;
+  checkpoint: SdkDetailCheckpoint;
+  refresh: () => Promise<void>;
+  fetchFn?: typeof fetch;
+  now?: () => number;
+};
+/** 进程中断时覆盖上游十五分钟限制及在途请求期限。 */
+const interruptedCooldownMs = 930000;
+/** 限制匿名 SDK 的等待队列，避免上游故障时堆积。 */
+const maximumPendingRequests = 8;
+
+/**
+ * 创建单一固定身份的串行详情来源，明确令牌拒绝后才请求同身份刷新。
+ * @param {SdkDetailsOptions} options 持久身份、冷却检查点和刷新入口。
+ * @return {object} 完整详情读取与共享冷却查询。
+ */
+export function createHostedSdkDetails(options: SdkDetailsOptions) {
+  const now = options.now ?? Date.now;
+  const bindingId = options.identity.read().bindingId;
+  let retryAt = options.checkpoint.retryAt;
+  let persistenceFailed = false;
+  let pending = 0;
+  let queue: Promise<void> = Promise.resolve();
+
+  /**
+   * 同步持久化冷却，写入失败则停止本进程所有上游请求。
+   * @param {number} value 最早允许请求时间。
+   * @return {Promise<void>} 冷却已经落盘。
+   */
+  async function persist(value: number): Promise<void> {
+    try {
+      await options.checkpoint.persist(value);
+    } catch {
+      persistenceFailed = true;
+      throw new Error("SDK checkpoint unavailable");
+    }
+  }
+
+  /**
+   * 返回可重试的未完成详情，保留列表内容但不能把摘要当作完整正文。
+   * @param {TopicPost} post 原列表帖子。
+   * @return {TopicPost} 带未完成标记的副本。
+   */
+  function unavailable(post: TopicPost): TopicPost {
+    const result = { ...post, detailsComplete: false };
+    delete result.detailUnavailable;
+    delete result.detailDeferredUntil;
+    return result;
+  }
+
+  /**
+   * 使用固定状态取数，注册和详情冷却相互独立且只能在各自成功后清除。
+   * @param {TopicPost} post 待补全帖子。
+   * @return {Promise<TopicPost>} 完整详情或可重试的未完成标记。
+   */
+  async function read(post: TopicPost): Promise<TopicPost> {
+    if (
+      persistenceFailed ||
+      now() < Math.max(retryAt, options.identity.read().retryAt)
+    ) return unavailable(post);
+    try {
+      await persist(now() + interruptedCooldownMs);
+      let state = options.identity.read();
+      if (state.refreshRequired || !state.registeredId) {
+        await options.refresh();
+        state = options.identity.read();
+      }
+      if (
+        state.bindingId !== bindingId || state.refreshRequired ||
+        !state.registeredId
+      ) throw new Error();
+      let rejected = false;
+      const source = createHeyboxTopicSource({
+        deviceId: bindingId,
+        cookie: `x_xhh_tokenid=B${state.registeredId}`,
+        deviceInfo: "unidbg",
+        osVersion: "6.0",
+        dw: "0",
+        appVersion: "1.3.400",
+        appBuild: "1149",
+        channel: "heybox",
+        signatureMode: "app-v1149-rnd14",
+        now: () => new Date(now()),
+        onDetailRestricted: (reason) => rejected = reason === "lack_token",
+        fetchFn: (url, init) =>
+          (options.fetchFn ?? fetch)(url, { ...init, redirect: "error" }),
+      });
+      const result = await source.getPostDetails!(post);
+      retryAt = Math.max(retryAt, now() + source.detailRetryAfter!() * 1000);
+      if (rejected) {
+        await options.identity.save({ ...state, refreshRequired: true });
+      }
+      await persist(retryAt);
+      return result;
+    } catch {
+      retryAt = Math.max(
+        retryAt,
+        options.identity.read().retryAt,
+        now() + 60000,
+      );
+      if (!persistenceFailed) {
+        try {
+          await persist(retryAt);
+        } catch { /* 写入失败已停止后续访问。 */ }
+      }
+      return unavailable(post);
+    }
+  }
+
+  return {
+    /**
+     * 合并到固定身份的串行队列，超出上限时不访问上游。
+     * @param {TopicPost} post 原列表帖子。
+     * @return {Promise<TopicPost>} 已校验的完整详情或未完成结果。
+     */
+    getPostDetails(post: TopicPost): Promise<TopicPost> {
+      if (
+        !/^[a-zA-Z0-9_-]{1,128}$/.test(post.id) ||
+        pending >= maximumPendingRequests
+      ) return Promise.resolve(unavailable(post));
+      pending++;
+      const snapshot = structuredClone(post);
+      const request = queue.then(() => read(snapshot)).finally(() => pending--);
+      queue = request.then(() => {}, () => {});
+      return request;
+    },
+    /**
+     * 返回持久限制的剩余秒数，SDK 换发令牌不能使详情提前重试。
+     * @return {number} 共享冷却秒数。
+     */
+    detailRetryAfter(): number {
+      return persistenceFailed ? 900 : Math.max(
+        0,
+        Math.ceil(
+          (Math.max(retryAt, options.identity.read().retryAt) - now()) / 1000,
+        ),
+      );
+    },
+  };
+}
