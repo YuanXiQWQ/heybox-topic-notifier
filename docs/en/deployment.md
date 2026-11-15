@@ -95,10 +95,10 @@ dynamic `_rnd` signature. These modes do not generate an official SDK anonymous 
 or guarantee that CAPTCHAs and upstream restrictions will be lifted. An existing explicit
 `HEYBOX_SIGNATURE_MODE=app` setting continues to select the legacy protocol.
 
-To reuse the official app's anonymous SDK state from a dedicated Android device, configure
-the optional [native anonymous detail service](../zh-CN/heybox-native-details.md).
-It requires a separate process and configuration, persistent device data, and validation of
-the actual server egress and SDK recovery behavior.
+For native SDK details, deploy the [independent server detail service](../zh-CN/native-sdk.md).
+It runs the official native library on Linux, persists one anonymous identity, and renews
+its token without a user's computer or a running Android system. Configure it separately
+and verify full content, server egress, restart recovery, and the main service's polling flow.
 
 ## Independent Heybox detail service
 
