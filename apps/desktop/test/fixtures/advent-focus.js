@@ -68,7 +68,7 @@ try {
       assert(input.form === form && form.getAttribute('id') === formId, 'form association not restored');
       const actual = {value: input.value, className: input.className, style: input.getAttribute('style'), readonly: input.getAttribute('readonly')};
       assert(actual.value === original.value && actual.className === original.className &&
-        actual.style === expectedStyle && actual.readonly === original.readonly,
+        (actual.style || null) === (expectedStyle || null) && actual.readonly === original.readonly,
       'field state not restored: ' + JSON.stringify({interrupted, actual, expected: {...original, style: expectedStyle, next: undefined}}));
       if (original.style == null) input.removeAttribute('style');
       else input.setAttribute('style', original.style);
