@@ -5,9 +5,10 @@ import { assertEquals, assertRejects } from "@std/assert";
 /**
  * 在受控时钟和最小页面中运行真实桥接脚本，不请求安装或真实下载。
  * @param {boolean} updateControls 是否提供关于页的手动更新控件。
+ * @param {object} initial 首次读取的原生状态。
  * @return {Promise<object>} 原生请求、时钟及响应入口。
  */
-async function harness(updateControls = false) {
+async function harness(updateControls = false, initial = {}) {
   let now = 0, serial = 0, fail = false;
   const timers = new Map<number, { at: number; fn: () => void }>();
   const requests: { id: string; method: string }[] = [];
@@ -25,6 +26,7 @@ async function harness(updateControls = false) {
     version: "0.1.0",
     notifications: { enabled: false },
     update: { status: "idle", version: null },
+    ...initial,
   };
   let checkClick!: () => Promise<void>;
   const check = {
@@ -35,10 +37,55 @@ async function harness(updateControls = false) {
     },
   };
   const status = { textContent: "", hidden: true };
+  const visibilityListeners: (() => void)[] = [];
+  const elements: Element[] = [];
+  class Element {
+    dataset: Record<string, string> = {};
+    childNodes: Element[] = [];
+    listeners = new Map<string, () => unknown>();
+    className = "";
+    open = false;
+    append(...children: Element[]) {
+      this.childNodes.push(...children);
+    }
+    setAttribute() {}
+    addEventListener(name: string, listener: () => unknown) {
+      this.listeners.set(name, listener);
+    }
+    showModal() {
+      this.open = true;
+    }
+    close() {
+      this.open = false;
+      this.listeners.get("close")?.();
+    }
+    querySelector(selector: string): Element | null {
+      const key = selector === "[data-app-update-confirm]"
+        ? "appUpdateConfirm"
+        : "appUpdateTarget";
+      for (const child of this.childNodes) {
+        if (key in child.dataset) return child;
+        const nested = child.querySelector(selector);
+        if (nested) return nested;
+      }
+      return null;
+    }
+  }
+  const createElement = () => {
+    const element = new Element();
+    elements.push(element);
+    return element;
+  };
   const context = {
     Error,
     HeyboxNative: native,
     document: {
+      visibilityState: "visible",
+      addEventListener: (_name: string, listener: () => void) => {
+        visibilityListeners.push(listener);
+      },
+      createElement,
+      createElementNS: createElement,
       getElementById: () => ({
         textContent: JSON.stringify({
           updateChecking: "正在检查更新",
@@ -59,7 +106,7 @@ async function harness(updateControls = false) {
           : null,
       documentElement: { dataset: {} },
       dispatchEvent() {},
-      body: { dataset: { appUserId: "alice" } },
+      body: { dataset: { appUserId: "alice" }, append() {} },
     },
     location: {
       pathname: "/",
@@ -94,6 +141,11 @@ async function harness(updateControls = false) {
     context,
     requests,
     timers,
+    elements,
+    visibility(hidden: boolean) {
+      context.document.visibilityState = hidden ? "hidden" : "visible";
+      for (const listener of visibilityListeners) listener();
+    },
     check,
     status,
     clickCheck: () => checkClick(),
@@ -119,7 +171,10 @@ async function harness(updateControls = false) {
       native.onmessage!({
         data: JSON.stringify({
           type: "state",
-          value: { ...state, update: { ...state.update, status, progress, version } },
+          value: {
+            ...state,
+            update: { ...state.update, status, progress, version },
+          },
         }),
       });
     },
@@ -161,6 +216,117 @@ Deno.test("native manual update check can be retried after bridge failure", asyn
   assertEquals(bridge.status.hidden, false);
   assertEquals(bridge.check.disabled, false);
   assertEquals(bridge.timers.size, 0);
+});
+
+Deno.test("电脑端就绪链接等待设置保存后直接请求安装，重复点击只交接一次", async () => {
+  const bridge = await harness(true, {
+    platform: "windows",
+    update: { status: "downloaded", version: "3.14.0" },
+  });
+  let saved!: () => void;
+  bridge.context.applicationSync.prepareForExit = () =>
+    new Promise<void>((resolve) => {
+      saved = resolve;
+    });
+  const first = bridge.clickCheck();
+  const second = bridge.clickCheck();
+  assertEquals(
+    bridge.requests.filter((request) => request.method === "installUpdate")
+      .length,
+    0,
+  );
+  saved();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assertEquals(
+    bridge.requests.filter((request) => request.method === "installUpdate")
+      .length,
+    1,
+  );
+  bridge.respond(bridge.requests.at(-1)!.id);
+  await Promise.all([first, second]);
+  assertEquals(bridge.check.disabled, false);
+  assertEquals(bridge.elements.length, 0);
+});
+
+Deno.test("手机确认更新立即关闭弹窗，原生下载尚未回应时仍可操作页面", async () => {
+  const bridge = await harness(true, {
+    update: { status: "available", version: "3.14.0", prompt: true },
+  });
+  const dialog = bridge.elements.find((element) =>
+    element.className.includes("app-update-dialog")
+  )!;
+  assertEquals(dialog.open, true);
+  const pending = dialog.querySelector("[data-app-update-confirm]")!.listeners
+    .get("click")!();
+  assertEquals(dialog.open, false);
+  const download = bridge.requests.find((request) =>
+    request.method === "downloadUpdate"
+  )!;
+  bridge.progress("downloading", 37, "3.14.0");
+  assertEquals(bridge.status.textContent, "正在下载… 37%");
+  assertEquals(dialog.open, false);
+  const dismissed = bridge.requests.find((request) =>
+    request.method === "seenUpdate"
+  )!;
+  bridge.respond(dismissed.id, {
+    platform: "android",
+    update: {
+      status: "downloading",
+      progress: 37,
+      version: "3.14.0",
+      prompt: false,
+    },
+  });
+  bridge.respond(download.id, {
+    platform: "android",
+    update: {
+      status: "downloading",
+      progress: 37,
+      version: "3.14.0",
+      prompt: false,
+    },
+  });
+  await pending;
+  assertEquals(dialog.open, false);
+});
+
+Deno.test("下载中进入关于页立即显示共享进度，后台完成后回到前台才交接安装", async () => {
+  const bridge = await harness(true, {
+    update: { status: "downloading", progress: 63, version: "3.14.0" },
+  });
+  assertEquals(bridge.status.textContent, "正在下载… 63%");
+  bridge.visibility(true);
+  bridge.progress("downloaded", 100, "3.14.0");
+  assertEquals(
+    bridge.requests.some((request) => request.method === "installUpdate"),
+    false,
+  );
+  bridge.visibility(false);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const install = bridge.requests.at(-1)!;
+  assertEquals(install.method, "installUpdate");
+  bridge.respond(install.id);
+  bridge.visibility(false);
+  assertEquals(
+    bridge.requests.filter((request) => request.method === "installUpdate")
+      .length,
+    1,
+  );
+});
+
+Deno.test("页面恰在下载完成后重建仍接续安装流程", async () => {
+  const bridge = await harness(true, {
+    update: {
+      status: "downloaded",
+      progress: 100,
+      version: "3.14.0",
+      installPending: true,
+    },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const install = bridge.requests.at(-1)!;
+  assertEquals(install.method, "installUpdate");
+  bridge.respond(install.id);
 });
 
 Deno.test("native about page displays download progress and ready version only once", async () => {

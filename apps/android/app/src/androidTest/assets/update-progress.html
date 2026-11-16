@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- 真实原生桥从新页面读取后台下载，沿用关于页的更新控件与客户端脚本。 -->
+<button data-app-check-update>检查更新</button>
+<span data-app-update-status hidden></span>
+<script id="application-messages" type="application/json">{"checkUpdate":"检查更新","updateDownloading":"正在下载…","updateFailed":"更新失败"}</script>
+<script src="/static/app-native.js"></script>
+<script>
+  window.entryProbe = 'pending';
+  applicationNativeReady.then(() => {
+    const status = document.querySelector('[data-app-update-status]');
+    const check = document.querySelector('[data-app-check-update]');
+    if (status.hidden || status.textContent !== '正在下载… 60%' || !check.disabled) {
+      throw new Error('Reopened page did not receive shared progress: ' + status.textContent);
+    }
+    if (document.querySelector('dialog[open]')) throw new Error('Download blocks reopened page');
+    window.entryProbe = 'passed';
+  }).catch(error => { window.entryProbe = String(error); });
+</script>

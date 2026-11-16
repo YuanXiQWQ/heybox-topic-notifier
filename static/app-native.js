@@ -119,6 +119,10 @@
   let content;
   let manualDownload = false;
   let installing = false;
+  let pendingInstallation = false;
+  let attemptedInstallation;
+  // 后台完成下载时保留安装交接，回到可见页面后再打开系统安装器。
+  document.addEventListener('visibilitychange', resumeInstallation);
   /** 手动检查后才展示行内检查结果，启动检查通过红点和确认窗口提示更新。 */
   let updateRequested = false;
   const check = document.querySelector('[data-app-check-update]');
@@ -136,8 +140,14 @@
   check?.addEventListener('click', async () => {
     updateRequested = true;
     if (state?.update.status === 'downloaded') {
-      render(state);
-      showConfirmation();
+      check.disabled = true;
+      try {
+        await installUpdate();
+      } catch {
+        showStatus(labels.updateFailed);
+      } finally {
+        check.disabled = false;
+      }
       return;
     }
     check.disabled = true;
@@ -247,15 +257,26 @@
       document.documentElement.classList.remove('app-update-banner-visible');
     }
     if (
-        state.platform === 'android' && previous === 'downloading' &&
-        update.status === 'downloaded'
+        state.platform === 'android' && update.status === 'downloaded' &&
+        (previous === 'downloading' || update.installPending) &&
+        attemptedInstallation !== update.version
     ) {
-      void installUpdate().catch(() => showStatus(labels.updateFailed));
+      pendingInstallation = true;
+      resumeInstallation();
     }
+    if (update.status !== 'downloaded') pendingInstallation = false;
     if (dialog?.open) updateDialog();
     document.dispatchEvent(
         new CustomEvent('application-native-state', {detail: state}),
     );
+  }
+
+  /** 后台下载完成或跨页面加载后只交接一次，安装失败仍可通过就绪链接重试。 */
+  function resumeInstallation() {
+    if (!pendingInstallation || document.visibilityState === 'hidden') return;
+    pendingInstallation = false;
+    attemptedInstallation = state.update.version;
+    void installUpdate().catch(() => showStatus(labels.updateFailed));
   }
 
   /**
@@ -316,6 +337,8 @@
       confirm.dataset.appUpdateConfirm = '';
       confirm.addEventListener('click', async () => {
         confirm.disabled = true;
+        // 下载由原生后台任务继续，确认后立即把页面交还用户。
+        if (mobile) dialog.close();
         try {
           if (state.update.status === 'downloaded') {
             await installUpdate();

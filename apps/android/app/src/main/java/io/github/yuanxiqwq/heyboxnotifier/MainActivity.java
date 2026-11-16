@@ -61,10 +61,9 @@ public final class MainActivity extends ComponentActivity {
     private JavaScriptReplyProxy permissionReply;
     /** 冷启动通知等到页面桥接就绪再打开，账号仍须复核。 */
     private String pendingNotificationPath, pendingNotificationUser;
-    /** 网络、下载和加密写入在后台顺序执行。 */
+    private boolean pendingUpdatePage;
+    /** 更新检查和加密写入在后台顺序执行，安装包下载由独立服务管理。 */
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    /** 大安装包下载不占用通知补取、页面桥接和设置保存的执行队列。 */
-    private final ExecutorService downloadWorker = Executors.newSingleThreadExecutor();
     /** 通知网络请求独立执行，用户关闭开关不必等待积压消息全部处理完。 */
     private final ExecutorService notificationWorker = Executors.newSingleThreadExecutor();
     /** 本地角标投影不等待任何网络请求，断网时仍可立即保存。 */
@@ -184,7 +183,7 @@ public final class MainActivity extends ComponentActivity {
         if (saved == null || web.restoreState(saved) == null) web.loadUrl(BuildConfig.APP_ORIGIN + "/");
         consumeIntent(getIntent());
         worker.execute(() -> { HonorPush.register(getApplicationContext(), device); emit(); });
-        worker.execute(() -> { try { updates.restore(); if (updates.hasPendingResume()) downloadWorker.execute(() -> { try { updates.download(); } catch (Exception error) { /* 检查点保留，用户可再次继续。 */ } }); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
+        worker.execute(() -> { try { updates.restore(); if (updates.hasPendingResume()) handler.post(this::resumeUpdateDownload); } catch (Exception error) { /* 已下载包不可用时可重新检查。 */ } });
     }
     /** 应用本机外观并等待其完成绘制后移除开屏，旧 WebView 也不会先展示浅色网页。 */
     private void revealStartupPage() {
@@ -233,7 +232,7 @@ public final class MainActivity extends ComponentActivity {
      */
     private void dispatch(JavaScriptReplyProxy proxy, JSONObject request) {
         String method = request.optString("method"), id = request.optString("id");
-        ExecutorService executor = method.equals("downloadUpdate") ? downloadWorker : method.equals("localBadge") ? localWorker : method.equals("refreshBadge") ? notificationWorker : worker;
+        ExecutorService executor = method.equals("localBadge") ? localWorker : method.equals("refreshBadge") ? notificationWorker : worker;
         executor.execute(() -> {
             try {
                 if (method.equals("login")) { respond(proxy, id, login.start(), null); return; }
@@ -251,7 +250,7 @@ public final class MainActivity extends ComponentActivity {
                     case "refreshBadge": Badges.refresh(device); NotificationService.publishBadge(); break;
                     case "localBadge": Badges.local(device,request.getJSONObject("value")); NotificationService.publishBadge(); break;
                     case "checkUpdate": updates.check(); break;
-                    case "downloadUpdate": updates.download(); break;
+                    case "downloadUpdate": UpdateService.start(this); break;
                     case "seenUpdate": updates.seen(request.getString("value")); break;
                     default: throw new IllegalArgumentException("Unknown native method");
                 }
@@ -276,7 +275,7 @@ public final class MainActivity extends ComponentActivity {
     /** 广播原生进度，已离开的页面不会收到更新。 */
     private void emit() { handler.post(() -> { if (reply != null) try { reply.postMessage(new JSONObject().put("type", "state").put("value", state()).toString()); } catch (Exception ignored) { /* 页面可在下次加载重新读取状态。 */ } }); }
     /** 恢复界面时刷新系统外观并补取通知；后台推送与前台补取保持相同事件 ID。 */
-    @Override public void onResume() { super.onResume(); resumed = true; if (device != null && updates != null) emit(); if (device != null) NotificationService.maintainFromVisible(this, device); if (updates != null) updates.resume(worker); handler.removeCallbacks(pollTask); handler.post(pollTask); handler.removeCallbacks(updateTask); handler.post(updateTask); }
+    @Override public void onResume() { super.onResume(); resumed = true; if (device != null && updates != null) emit(); if (device != null) NotificationService.maintainFromVisible(this, device); if (updates != null) { updates.resume(worker); resumeUpdateDownload(); } handler.removeCallbacks(pollTask); handler.post(pollTask); handler.removeCallbacks(updateTask); handler.post(updateTask); }
     /** 页面暂停后停止界面轮询，常驻服务和系统任务继续处理后台事件。 */
     @Override public void onPause() { resumed = false; handler.removeCallbacks(pollTask); handler.removeCallbacks(updateTask); CookieManager.getInstance().flush(); super.onPause(); }
     /** 前台按固定周期合并补取通知与角标，网络错误不重置游标。 */
@@ -304,6 +303,7 @@ public final class MainActivity extends ComponentActivity {
             // 认证页和尚未加载业务脚本的错误页没有离线设置编辑器，可直接执行系统返回。
             if (target.equals("back")) { if (web.canGoBack()) web.goBack(); }
             else if (target.equals("background")) moveTaskToBack(true);
+            else if (target.equals("/about")) web.loadUrl(BuildConfig.APP_ORIGIN + "/about");
         });
     }
     /** @param {Bundle} state 系统保存容器。 */
@@ -314,14 +314,17 @@ public final class MainActivity extends ComponentActivity {
      * 验证通知所属账号后打开受限本站路径。
      * @param {Intent} intent 系统通知参数。
      */
-    private void consumeIntent(Intent intent) { pendingNotificationPath = intent.getStringExtra("notificationPath"); pendingNotificationUser = intent.getStringExtra("notificationUser"); if (reply != null) openPendingNotification(); }
+    private void consumeIntent(Intent intent) { pendingUpdatePage = intent.getBooleanExtra("updatePage", false); pendingNotificationPath = intent.getStringExtra("notificationPath"); pendingNotificationUser = intent.getStringExtra("notificationUser"); if (reply != null) openPendingNotification(); }
     /** 冷启动和已打开窗口使用同一账号检查，通知跳转不丢弃尚在保存的设置。 */
     private void openPendingNotification() {
+        if (pendingUpdatePage) { pendingUpdatePage = false; navigateSaved("/about", null); }
         String path = pendingNotificationPath, user = pendingNotificationUser;
         pendingNotificationPath = null; pendingNotificationUser = null;
         try { if (Arrays.asList("/", "/history").contains(path) && user != null && notifications.owns(user)) navigateSaved(path, user); }
         catch (Exception ignored) { /* 不打开已失效账号的通知。 */ }
     }
-    /** 释放界面任务，主动退出时暂停下载并保留检查点、持久化队列和通知游标。 */
-    @Override protected void onDestroy() { resumed = false; if (updates != null) { if (isFinishing()) updates.cancelDownload(); updates.detach(this); } handler.removeCallbacksAndMessages(null); worker.shutdown(); downloadWorker.shutdown(); notificationWorker.shutdown(); localWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
+    /** 仅在可见窗口恢复已经确认的下载，避免后台启动前台服务。 */
+    private void resumeUpdateDownload() { if (resumed && updates != null && updates.hasPendingResume()) UpdateService.start(this); }
+    /** 释放界面任务，已确认下载由独立服务继续，保留持久化队列和通知游标。 */
+    @Override protected void onDestroy() { resumed = false; if (updates != null) updates.detach(this); handler.removeCallbacksAndMessages(null); worker.shutdown(); notificationWorker.shutdown(); localWorker.shutdown(); if (login != null) login.close(); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
 }
