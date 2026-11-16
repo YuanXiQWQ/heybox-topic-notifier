@@ -23,9 +23,25 @@ let window, server, offline = false;
  */
 async function respond(request, response) {
   if (offline) { request.socket.destroy(); return; }
-  const pathname = new URL(request.url, 'http://localhost').pathname;
+  const url = new URL(request.url, 'http://localhost');
+  const pathname = url.pathname;
   response.setHeader('cache-control', 'no-store');
-  if (pathname === '/api/sync/session') {
+  if (pathname === '/account') {
+    if (request.method !== 'POST') { response.writeHead(404); response.end('Account POST endpoint'); return; }
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    assert.equal(new URLSearchParams(body).get('displayName'), 'First Trumpet');
+    response.writeHead(303, {location: '/settings?account=updated', 'set-cookie': 'redirect-test=ok; Path=/; HttpOnly; SameSite=Lax'});
+    response.end();
+  } else if (pathname === '/preserve-method') {
+    for await (const _chunk of request) { /* 消费第一跳表单，外层浏览器负责 307 重放。 */ }
+    response.writeHead(307, {location: '/echo'}); response.end();
+  } else if (pathname === '/echo') {
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({method: request.method, body}));
+  } else if (pathname === '/api/sync/session') {
     response.setHeader('content-type', 'application/json');
     response.end(JSON.stringify({userId: 'navigation-test'}));
   } else if (pathname === '/app-sw.js' || pathname.startsWith('/static/')) {
@@ -34,6 +50,7 @@ async function respond(request, response) {
     const file = pathname === '/app-sw.js' ? '/static/app-sw.js' : pathname;
     response.end(await fs.readFile(path.join(root, file)));
   } else {
+    if (url.searchParams.get('account') === 'updated') assert.match(request.headers.cookie || '', /redirect-test=ok/);
     response.setHeader('content-type', 'text/html; charset=utf-8');
     response.setHeader('x-app-user', 'navigation-test');
     response.end(`<!doctype html><html><head><script src="/static/device-preferences.js"></script></head><body>
@@ -89,6 +106,18 @@ async function run() {
     window = createWindow(webSession);
     await window.loadURL(origin + '/');
     console.log('INITIAL_LOADED');
+    // 警报彩蛋依据最终响应地址确认账户已保存；协议转发不能吞掉 303 的目标地址。
+    const saved = await window.webContents.executeJavaScript(`fetch('/account', {
+      method: 'POST', body: new URLSearchParams({accountAction: 'displayName', displayName: 'First Trumpet'})
+    }).then(async response => ({status: response.status, url: response.url, redirected: response.redirected, body: await response.text()}))`);
+    console.log('ACCOUNT_REDIRECT', JSON.stringify({status: saved.status, url: saved.url, redirected: saved.redirected}));
+    assert.equal(saved.status, 200);
+    assert.equal(saved.url, origin + '/settings?account=updated');
+    assert.equal(saved.redirected, true);
+    const replayed = await window.webContents.executeJavaScript(`fetch('/preserve-method', {
+      method: 'POST', body: new URLSearchParams({value: 'preserved'})
+    }).then(response=>response.json())`);
+    assert.deepEqual(replayed, {method: 'POST', body: 'value=preserved'});
     await window.webContents.executeJavaScript('workerReady');
     for (const route of ['/settings', '/history']) {
       const finished = once(window.webContents, 'did-finish-load');
