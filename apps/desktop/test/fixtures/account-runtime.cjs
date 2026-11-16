@@ -6,6 +6,7 @@ const path = require('node:path');
 const {createServer} = require('node:http');
 const {once} = require('node:events');
 const {spawnSync} = require('node:child_process');
+const {gzipSync} = require('node:zlib');
 const {installAssets} = require('../../assets.cjs');
 const {applicationUserAgent} = require('../../policy.cjs');
 const root = path.resolve(__dirname, '../../../..');
@@ -42,7 +43,10 @@ async function respond(request, response) {
   } else if (url.pathname === '/settings') {
     response.setHeader('content-type', 'text/html; charset=utf-8');
     response.setHeader('x-app-user', 'responsive-test');
-    response.end(settings);
+    const body = gzipSync(settings);
+    response.setHeader('content-encoding', 'gzip');
+    response.setHeader('content-length', body.length);
+    response.end(body);
   } else if (url.pathname === '/app-sw.js' || url.pathname.startsWith('/static/')) {
     const file = url.pathname === '/app-sw.js' ? '/static/app-sw.js' : url.pathname;
     if (!/^[\w/.-]+$/.test(file) || file.includes('..')) { response.writeHead(404); response.end(); return; }
