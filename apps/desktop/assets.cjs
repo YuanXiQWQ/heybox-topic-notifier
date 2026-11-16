@@ -25,7 +25,7 @@ function forwardRequest(webSession, request, net) {
     function responseHeaders(values) {
       const headers = new Headers();
       for (const [name, value] of Object.entries(values)) {
-        for (const item of Array.isArray(value) ? value : [value]) headers.append(name, /[^\x00-\xff]/.test(item) ? Buffer.from(item, 'utf8').toString('latin1') : item);
+        for (const item of Array.isArray(value) ? value : [value]) headers.append(name, /[\u0100-\uffff]/.test(item) ? Buffer.from(item, 'utf8').toString('latin1') : item);
       }
       return headers;
     }
