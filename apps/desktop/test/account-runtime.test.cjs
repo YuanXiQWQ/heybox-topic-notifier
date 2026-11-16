@@ -25,6 +25,7 @@ test('First Trumpet saves without a 404 and WhiteNight entry audio follows each 
     });
     assert.equal(result.code, 0, result.output);
     assert.match(result.output, /FIRST_TRUMPET_ACCOUNT_OK/);
+    assert.match(result.output, /ADVENT_FONT_OK/);
     assert.equal((result.output.match(/WHITE_NIGHT_ENTRY_OK/g) || []).length, 2);
     assert.match(result.output, /PLAGUE_DOCTOR_ENTRY_OK/);
     console.log(result.output.trim());

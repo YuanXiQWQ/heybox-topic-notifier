@@ -120,6 +120,14 @@ Deno.test("Advent dial switches CJK text to a system font as a whole run", () =>
     css.includes('.lobotomy-corp-plague-doctor-advent-desc[data-cjk="1"]'),
     "台词槽位应有整段切换规则",
   );
+  for (const selector of [
+    '.lobotomy-corp-plague-doctor-advent-name[data-cjk="1"]',
+    '.lobotomy-corp-plague-doctor-advent-desc[data-cjk="1"]',
+    '.lobotomy-corp-black-forest-cg-text[data-cjk="1"]',
+  ]) {
+    const rule = css.slice(css.indexOf(selector)).split("}")[0];
+    assert(!rule.includes("LobotomyAdvent"), "系统字体缺席时不能回退到含空白汉字的游戏字体");
+  }
 });
 
 /** Simple Advent 的 12 个名字同样按「整段换系统字体」处理。 */

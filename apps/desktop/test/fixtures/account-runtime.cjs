@@ -15,7 +15,7 @@ app.setName('小黑盒话题提醒');
 app.enableSandbox();
 let window, server, saved = 0, badNavigation = 0, settings;
 
-/** @param {string} expression 页面条件。 @return {Promise<void>} 条件满足或超时。 */
+/** @param {string} expression 页面条件。 @param {number} timeout 等待上限。 @return {Promise<void>} 条件满足或超时。 */
 async function until(expression, timeout = 15000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -47,6 +47,9 @@ async function respond(request, response) {
     response.setHeader('content-encoding', 'gzip');
     response.setHeader('content-length', body.length);
     response.end(body);
+  } else if (url.pathname === '/advent-font') {
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(await fs.readFile(path.join(root, 'apps/android/app/src/androidTest/assets/advent-font.html')));
   } else if (url.pathname === '/white-night-entry') {
     const fixture = await fs.readFile(path.join(root, 'apps/android/app/src/androidTest/assets/white-night-entry.html'), 'utf8');
     response.setHeader('content-type', 'text/html; charset=utf-8');
@@ -96,6 +99,10 @@ async function run() {
   assert.equal(saved, 1);
   assert.equal(badNavigation, 0);
   console.log('FIRST_TRUMPET_ACCOUNT_OK', window.webContents.getURL());
+  await window.loadURL(origin + '/advent-font');
+  await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
+  assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
+  console.log('ADVENT_FONT_OK');
   for (const prepared of [false, true]) {
     await window.loadURL(origin + '/white-night-entry?prepared=' + prepared);
     await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
