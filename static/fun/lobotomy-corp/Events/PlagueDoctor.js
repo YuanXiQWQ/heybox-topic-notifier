@@ -701,10 +701,26 @@ function buildAdventStage(options) {
       : undefined;
   // 原作镜头接着会移到（本次转变的）使徒身上；网页没有员工，于是把「显示名称」
   // 输入框当作那个被聚焦的对象：它是网页自己的界面，不是原作素材。
-  const focus = options.hostWorld === true
+  const focusInput = options.hostWorld === true
+      ? document.querySelector?.('[data-account-display-name-input]')
+      : undefined;
+  const focus = focusInput
       ? document.createElement('div')
       : undefined;
-  const focusInput = focus ? document.createElement('input') : undefined;
+  const focusSourceRect = focusInput?.getBoundingClientRect?.();
+  const focusStyle = focusInput && typeof globalThis.getComputedStyle === 'function'
+      ? globalThis.getComputedStyle(focusInput)
+      : undefined;
+  const focusSize = {
+    width: focusSourceRect?.width || focusInput?.clientWidth || 320,
+    height: focusSourceRect?.height || focusInput?.clientHeight || 44,
+  };
+  const focusColor = focusStyle?.color ?? 'rgb(0, 0, 0)';
+  const focusTextColor = focusColor.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
+  if (focusColor.startsWith('color(srgb ')) {
+    for (let index = 0; index < 3; index++) focusTextColor[index] *= 255;
+  }
+  let restoreFocusInput = () => {};
 
   root.className = 'lobotomy-corp-plague-doctor-advent';
   root.id = 'lobotomy-corp-plague-doctor-advent';
@@ -735,12 +751,68 @@ function buildAdventStage(options) {
     });
   }
   if (focus && focusInput) {
+    const parent = focusInput.parentElement;
+    const placeholder = document.createElement('span');
+    placeholder.setAttribute('aria-hidden', 'true');
+    placeholder.style.setProperty('display', 'inline-block');
+    placeholder.style.setProperty('width', `${focusSize.width}px`);
+    placeholder.style.setProperty('height', `${focusSize.height}px`);
+    placeholder.style.setProperty('flex', focusStyle?.flex ?? '0 0 auto');
+    parent?.insertBefore(placeholder, focusInput);
+    const originalValue = focusInput.value;
+    const originalClass = focusInput.className;
+    const attributes = ['style', 'readonly', 'tabindex', 'aria-hidden', 'form'].map(
+        (name) => [name, focusInput.getAttribute?.(name)],
+    );
+    const form = focusInput.form;
+    const formId = form?.getAttribute('id');
+    if (form) {
+      let id = formId || 'lobotomy-corp-advent-source-form';
+      while (document.getElementById?.(id) && document.getElementById(id) !== form) id += '-';
+      form.setAttribute('id', id);
+      focusInput.setAttribute('form', id);
+    }
+    const selection = [focusInput.selectionStart, focusInput.selectionEnd];
+    const scrollLeft = focusInput.scrollLeft;
+    let restored = false;
+    restoreFocusInput = () => {
+      if (restored) return;
+      restored = true;
+      parent?.insertBefore(focusInput, placeholder);
+      placeholder.remove();
+      focusInput.value = originalValue;
+      focusInput.className = originalClass;
+      for (const [name, value] of attributes) {
+        if (value == null) focusInput.removeAttribute?.(name);
+        else focusInput.setAttribute?.(name, value);
+      }
+      if (form && formId == null) form.removeAttribute('id');
+      else if (form) form.setAttribute('id', formId);
+      if (selection.every(Number.isFinite)) focusInput.setSelectionRange?.(...selection);
+      focusInput.scrollLeft = scrollLeft;
+    };
+    // 使用原控件；离开原来的 CSS 祖先后仍保留它的字体、边框、内边距与主题色。
+    for (const property of [
+      'appearance', 'background', 'border', 'border-radius', 'box-shadow',
+      'box-sizing', 'color', 'direction', 'font', 'letter-spacing', 'line-height',
+      'padding', 'text-align', 'text-indent', 'text-transform',
+    ]) {
+      const value = focusStyle?.getPropertyValue?.(property);
+      if (value) focusInput.style.setProperty(property, value);
+    }
+    focusInput.blur?.();
     focus.className = plagueDoctorAdventFocusClassName;
     focus.setAttribute('aria-hidden', 'true');
-    focusInput.className = 'lobotomy-corp-plague-doctor-advent-focus-input';
-    focusInput.readOnly = true;
+    focusInput.className = `${originalClass} lobotomy-corp-plague-doctor-advent-focus-input`.trim();
+    focusInput.setAttribute('readonly', '');
     focusInput.setAttribute('tabindex', '-1');
     focusInput.setAttribute('aria-hidden', 'true');
+    focusInput.style.setProperty('width', `${focusSize.width}px`);
+    focusInput.style.setProperty('height', `${focusSize.height}px`);
+    focusInput.style.setProperty('min-width', '0');
+    focusInput.style.setProperty('min-height', '0');
+    focusInput.style.setProperty('max-width', 'none');
+    focusInput.style.setProperty('-webkit-text-fill-color', 'currentColor');
     focus.style.setProperty(
         '--lobotomy-corp-advent-focus-alpha',
         '0',
@@ -866,11 +938,16 @@ function buildAdventStage(options) {
     clockShader,
     desc,
     focus,
+    focusColor,
     focusInput,
+    focusSize,
+    focusSourceRect,
+    focusTextColor,
     lowerShader,
     namesLayer,
     point,
     root,
+    restoreFocusInput,
     shader,
     world,
     worldEntity,
@@ -1018,8 +1095,7 @@ function createPlagueDoctorClock(options) {
    */
   const measurePanTarget = () => {
     const live = viewport();
-    const input = document.querySelector?.('[data-account-display-name-input]');
-    const rect = input?.getBoundingClientRect?.();
+    const rect = layers.focusSourceRect;
     if (rect && Number.isFinite(rect.left) && rect.width > 0) {
       // 位移量按视口尺寸收窄：原作镜头只走一间房的距离，输入框在页面上可能离
       // 视口中心很远，直接照搬会让这 1 秒的镜头看起来慢得不像话。
@@ -1076,11 +1152,15 @@ function createPlagueDoctorClock(options) {
     if (layers.focus) {
       const box = plagueDoctorAdventFocusBox;
       const centerY = live.height / 2 - 105.5 * scale;
-      layers.focus.style.setProperty('left', `${live.width / 2 - box.width * scale / 2}px`);
-      layers.focus.style.setProperty('top', `${centerY - box.height * scale / 2}px`);
-      layers.focus.style.setProperty('width', `${box.width * scale}px`);
-      layers.focus.style.setProperty('height', `${box.height * scale}px`);
-      layers.focusInput?.style?.setProperty('font-size', `${30 * scale}px`);
+      const zoom = Math.min(box.width / layers.focusSize.width,
+          box.height / layers.focusSize.height) * scale;
+      const width = layers.focusSize.width * zoom;
+      const height = layers.focusSize.height * zoom;
+      layers.focus.style.setProperty('left', `${live.width / 2 - width / 2}px`);
+      layers.focus.style.setProperty('top', `${centerY - height / 2}px`);
+      layers.focus.style.setProperty('width', `${width}px`);
+      layers.focus.style.setProperty('height', `${height}px`);
+      layers.focusInput.style.setProperty('transform', `scale(${zoom})`);
     }
     // 镜头交接的位移：整块画面朝显示名称输入框所在的方向平移，表示镜头从收容
     // 单元移到被聚焦的输入框（白夜本体不会消失，只是被移出画面）。
@@ -1112,6 +1192,7 @@ function createPlagueDoctorClock(options) {
       if (frame !== undefined) cancelFrame(frame);
       resizeTarget?.removeEventListener?.('resize', updateCanvasScale);
       layers.worldEntityStage?.dispose?.();
+      layers.restoreFocusInput();
       layers.root.remove();
     },
     /**
@@ -1523,16 +1604,16 @@ export function playPlagueDoctorAdvent(options) {
         ) {
           focusTextApplied = true;
           layers.focusInput.value = focusText;
+          layers.focusInput.scrollLeft = 0;
         }
         layers.focusInput.style.setProperty(
             '--lobotomy-corp-advent-focus-text-alpha',
             String(textAlpha),
         );
+        const [red, green, blue, alpha = 1] = layers.focusTextColor;
         layers.focusInput.style.color = textAlpha >= 1
-            ? ''
-            : `color-mix(in srgb, var(--muted) ${
-                (textAlpha * 100).toFixed(1)
-            }%, transparent)`;
+            ? layers.focusColor
+            : `rgba(${red}, ${green}, ${blue}, ${alpha * textAlpha})`;
       }
     }
     if (
@@ -1571,6 +1652,8 @@ export function playPlagueDoctorAdvent(options) {
     }
     if (elapsed < totalMs || finished) return !finished;
     finished = true;
+    // 先还原真实字段，再让宿主把最终显示名称改为白夜。
+    layers.restoreFocusInput();
     options.onAdventEnd?.();
     clock.dispose();
     // world 层随 root 一起移除后，才能把网页还回去。

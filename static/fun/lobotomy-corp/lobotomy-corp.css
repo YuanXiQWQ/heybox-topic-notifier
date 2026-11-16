@@ -385,12 +385,12 @@
   position: absolute;
 }
 
-/* 输入框沿用站点自身的控件样式，只按画布尺寸放大，保证看起来就是那个输入框。 */
+/* 真实输入框保持原始盒模型，文字与内边距一起随镜头缩放。 */
 .lobotomy-corp-plague-doctor-advent-focus-input{
-  height: 100%;
-  min-height: 0;
-  padding: 0 18px;
-  width: 100%;
+  caret-color: transparent;
+  margin: 0;
+  position: absolute;
+  transform-origin: left top;
 }
 
 /* Shader 节点自身就是铺满 1920×1080 的 GlobalShader。 */

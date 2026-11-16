@@ -19,6 +19,7 @@ android {
     buildFeatures { buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     sourceSets { main.assets.srcDirs = ['../../generated']; main.res.srcDirs += '../../generated/android-res' }
+    sourceSets { androidTest.assets.srcDirs += ['build/generated/smoke-assets'] }
     androidResources { noCompress += ['mp4', 'mp3', 'ogg', 'wav', 'webm'] }
     signingConfigs {
         release {

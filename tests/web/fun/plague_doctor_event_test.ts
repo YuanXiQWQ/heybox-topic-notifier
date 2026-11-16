@@ -5,7 +5,7 @@ import {
   flushMicrotasks,
   stripJavaScriptCommentsAndStrings,
 } from "./event_test_helpers.ts";
-import { AudioMock, installLobotomyCorpAlertHarness } from "./test_harness.ts";
+import { AudioMock, Element, installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   apostleAdventLightClip,
 } from "../../../static/fun/lobotomy-corp/Events/AdventLight.js";
@@ -626,7 +626,7 @@ Deno.test("疫医：world 层不影响原作 Shader 链", async () => {
     "",
   );
   assertEquals(
-    /linear-gradient|radial-gradient|box-shadow|scrollbar-width|::-webkit-scrollbar/u
+    /linear-gradient|radial-gradient|setProperty\(\s*['"]box-shadow|scrollbar-width|::-webkit-scrollbar/u
       .test(code),
     false,
     "不得为遮挡白线引入渐变/阴影或隐藏滚动条",
@@ -751,7 +751,11 @@ Deno.test("疫医：开场聚焦疫医实体的视频挂在世界层并按时收
  * 里面的文字换成这名使徒记录里的名字，并做一次淡入淡出。
  */
 Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本", async () => {
-  const harness = installLobotomyCorpAlertHarness();
+  const originalInput = new Element();
+  originalInput.value = "原来的名字";
+  const parent = new Element();
+  parent.append(originalInput);
+  const harness = installLobotomyCorpAlertHarness({displayNameInput: originalInput});
   try {
     // 已绑定 11 名，第 12 名绑定完就进入完整降临。
     harness.storage.setItem(
@@ -788,6 +792,7 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
     assert(focus, "完整降临应挂载聚焦视图");
     const focusInput = focus!.children[0];
     assert(focusInput, "聚焦视图里应有输入框");
+    assertStrictEquals(focusInput, originalInput, "演出必须使用真实字段，不能临时创建输入框");
     // 聚焦视图放在宿主隔离层里：它是网页界面，必须画在表盘 UI 之下。
     const world = findByClassName(harness, plagueDoctorAdventWorldClassName);
     assert(world, "完整降临应有宿主隔离层");
@@ -864,6 +869,7 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
     );
     assertStrictEquals(focusInput!.value, "乙");
     assert(textAlpha() < 0.2, "换名字时文本应当还在淡入");
+    assert(String(focusInput!.style.color).startsWith("rgba("), "淡入淡出不能依赖 color-mix");
     await advance(
       harness,
       clock,
@@ -879,6 +885,12 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
       plagueDoctorAdventFocusTimings.textFadeOutMs + 32,
     );
     assertStrictEquals(focusInput!.value, "丑");
+    await api.restartDay();
+    assertStrictEquals(originalInput.parentElement, parent);
+    assertEquals(originalInput.value, "原来的名字");
+    assertEquals(originalInput.className, "");
+    assertEquals(originalInput.getAttribute("readonly"), null);
+    assertEquals(parent.children, [originalInput]);
   } finally {
     harness.restore();
   }

@@ -69,6 +69,8 @@ public final class NativeSmokeRunner extends Instrumentation {
             pass("packaged Easter egg sounds play asynchronously without another user gesture");
             assertBrowserFixture("advent-font.html", "", 30000);
             pass("Advent CJK names and descriptions render visible glyphs with packaged fonts loaded");
+            assertBrowserFixture("advent-settings.html", "", 30000);
+            pass("Plague Doctor reuses and restores the real settings field with animated text and unchanged box model");
             assertWhiteNightEntry(false, false);
             assertWhiteNightEntry(true, false);
             pass("WhiteNight rings once across Prelude and active with and without prepared media");
