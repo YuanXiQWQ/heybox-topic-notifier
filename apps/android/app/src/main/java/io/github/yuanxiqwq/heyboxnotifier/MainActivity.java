@@ -232,6 +232,11 @@ public final class MainActivity extends ComponentActivity {
      */
     private void dispatch(JavaScriptReplyProxy proxy, JSONObject request) {
         String method = request.optString("method"), id = request.optString("id");
+        // 用户仍在前台时立即交给下载服务，不排在更新检查等网络操作之后。
+        if (method.equals("downloadUpdate")) {
+            try { UpdateService.start(this); }
+            catch (Exception error) { respond(proxy, id, null, "Native operation unavailable"); return; }
+        }
         ExecutorService executor = method.equals("localBadge") ? localWorker : method.equals("refreshBadge") ? notificationWorker : worker;
         executor.execute(() -> {
             try {
@@ -250,7 +255,7 @@ public final class MainActivity extends ComponentActivity {
                     case "refreshBadge": Badges.refresh(device); NotificationService.publishBadge(); break;
                     case "localBadge": Badges.local(device,request.getJSONObject("value")); NotificationService.publishBadge(); break;
                     case "checkUpdate": updates.check(); break;
-                    case "downloadUpdate": UpdateService.start(this); break;
+                    case "downloadUpdate": break;
                     case "seenUpdate": updates.seen(request.getString("value")); break;
                     default: throw new IllegalArgumentException("Unknown native method");
                 }
