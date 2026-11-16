@@ -67,6 +67,9 @@ public final class NativeSmokeRunner extends Instrumentation {
             pass("foreground service starts without GMS; badge deduplicates posts");
             assertDeferredEasterEggAudio();
             pass("packaged Easter egg sounds play asynchronously without another user gesture");
+            assertWhiteNightEntry(false);
+            assertWhiteNightEntry(true);
+            pass("WhiteNight rings once across Prelude and active with and without prepared media");
             if (!mediaOnly) {
             NotificationManager nm = manager;
             require(!nm.getNotificationChannel("background-silent-v2").canShowBadge(), "background channel has no badge");
@@ -198,6 +201,37 @@ public final class NativeSmokeRunner extends Instrumentation {
                 SystemClock.sleep(100);
             }
             throw new AssertionError("Timed out waiting for deferred audio: " + last);
+        } finally {
+            runOnMainSync(() -> view.loadUrl("about:blank"));
+        }
+    }
+    /** 验证真实白夜入口跨阶段只敲一次钟，并保留两级警报与背景音乐。 @param {boolean} prepared 是否预热媒体。 @throws Exception 页面、播放或等待失败。 */
+    private void assertWhiteNightEntry(boolean prepared) throws Exception {
+        java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web");
+        field.setAccessible(true);
+        android.webkit.WebView view = (android.webkit.WebView) field.get(activity);
+        String fixture;
+        try (java.io.InputStream input = getContext().getAssets().open("white-night-entry.html")) {
+            fixture = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        String html = fixture.replace("<meta charset=\"utf-8\">", "<meta charset=\"utf-8\"><script>window.entryPrepared=" + prepared + ";</script>");
+        runOnMainSync(() -> view.loadDataWithBaseURL(BuildConfig.APP_ORIGIN + "/", html, "text/html", "UTF-8", null));
+        long deadline = SystemClock.uptimeMillis() + 30000;
+        String last = "null";
+        try {
+            while (SystemClock.uptimeMillis() < deadline) {
+                java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.atomic.AtomicReference<String> value = new java.util.concurrent.atomic.AtomicReference<>();
+                runOnMainSync(() -> view.evaluateJavascript("window.entryProbe", actual -> {
+                    value.set(actual); ready.countDown();
+                }));
+                require(ready.await(2, java.util.concurrent.TimeUnit.SECONDS), "WhiteNight probe callback");
+                last = value.get();
+                if ("\"passed\"".equals(last)) return;
+                require("null".equals(last) || "\"pending\"".equals(last), "WhiteNight prepared=" + prepared + ": " + last);
+                SystemClock.sleep(100);
+            }
+            throw new AssertionError("Timed out waiting for WhiteNight: " + last);
         } finally {
             runOnMainSync(() -> view.loadUrl("about:blank"));
         }

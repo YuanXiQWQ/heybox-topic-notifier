@@ -299,10 +299,16 @@ Deno.test("Lobotomy Corporation injects the saved display name for nav identity 
 
 Deno.test("game entries use embedded data without synchronous requests", () => {
   const aceAttorneyEntry = Deno.readTextFileSync(
-    new URL("../../../static/fun/ace-attorney/ace-attorney.js", import.meta.url),
+    new URL(
+      "../../../static/fun/ace-attorney/ace-attorney.js",
+      import.meta.url,
+    ),
   );
   const lobotomyCorpEntry = Deno.readTextFileSync(
-    new URL("../../../static/fun/lobotomy-corp/lobotomy-corp.js", import.meta.url),
+    new URL(
+      "../../../static/fun/lobotomy-corp/lobotomy-corp.js",
+      import.meta.url,
+    ),
   );
 
   assert(!(aceAttorneyEntry.includes("XMLHttpRequest")));
@@ -327,7 +333,10 @@ Deno.test("Lobotomy Corporation CanvasScaler keeps portrait HUDs legible", async
     ) => [name, Object.getOwnPropertyDescriptor(browser, name)]),
   );
   const localeData = Deno.readTextFileSync(
-    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL(
+      "../../../static/fun/lobotomy-corp/Locales/zh-CN.json",
+      import.meta.url,
+    ),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
@@ -451,7 +460,10 @@ Deno.test("settings transaction disposes failed prepared media and commits only 
   displayNameLabel.textContent = "Original display name";
   const storage = new StorageMock();
   const localeData = Deno.readTextFileSync(
-    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL(
+      "../../../static/fun/lobotomy-corp/Locales/zh-CN.json",
+      import.meta.url,
+    ),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
@@ -636,7 +648,9 @@ Deno.test("Easter egg coordinator interrupts only a different game", async () =>
   const original = browser.easterEggCoordinator;
   const stopped: string[] = [];
   try {
-    await import(`../../../static/fun/coordinator.js?test=${crypto.randomUUID()}`);
+    await import(
+      `../../../static/fun/coordinator.js?test=${crypto.randomUUID()}`
+    );
     browser.easterEggCoordinator!.start("ace", () => stopped.push("ace"));
     browser.easterEggCoordinator!.start("ace", () => stopped.push("duplicate"));
     browser.easterEggCoordinator!.start(
@@ -673,7 +687,10 @@ Deno.test("username Easter egg matches names and resolves localized assets", asy
       ),
     )),
     messages: JSON.parse(Deno.readTextFileSync(
-      new URL("../../../static/fun/ace-attorney/Locales/zh-CN.json", import.meta.url),
+      new URL(
+        "../../../static/fun/ace-attorney/Locales/zh-CN.json",
+        import.meta.url,
+      ),
     )),
   });
   const documentMock = {
@@ -752,7 +769,10 @@ Deno.test("Lobotomy Corporation derives every risk host from server-rendered ide
   const settingsAvatar = new Element();
   settingsAvatarWrapper.append(settingsAvatar);
   const localeData = Deno.readTextFileSync(
-    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL(
+      "../../../static/fun/lobotomy-corp/Locales/zh-CN.json",
+      import.meta.url,
+    ),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
@@ -993,35 +1013,33 @@ Deno.test("Lobotomy Corporation Fourth Trumpet separates visual and music high-w
   /**
    * @param {Element} overlay 警报外层。
    * @return {Element[]} Corner。
-   */ const corners =
-    (overlay: Element) => findAllByClass(overlay, "lobotomy-corp-alert-corner");
+   */ const corners = (overlay: Element) =>
+    findAllByClass(overlay, "lobotomy-corp-alert-corner");
   /**
    * @param {Element} overlay 警报外层。
    * @return {string} Trumpet 文本。
-   */ const trumpet =
-    (overlay: Element) =>
-      requireByClass(overlay, "lobotomy-corp-alert-trumpet-level-content")
-        .textContent;
+   */ const trumpet = (overlay: Element) =>
+    requireByClass(overlay, "lobotomy-corp-alert-trumpet-level-content")
+      .textContent;
   /**
    * @param {Element} overlay 警报外层。
    * @return {Element} Restart 面板。
-   */ const panel =
-    (overlay: Element) => requireByClass(overlay, "lobotomy-corp-top-panel");
+   */ const panel = (overlay: Element) =>
+    requireByClass(overlay, "lobotomy-corp-top-panel");
   /**
    * @param {Element} overlay 警报外层。
    * @return {Element} EmergencyImage。
-   */ const risk =
-    (overlay: Element) => requireByClass(overlay, "lobotomy-corp-alert-risk");
+   */ const risk = (overlay: Element) =>
+    requireByClass(overlay, "lobotomy-corp-alert-risk");
   /**
    * @param {Element} overlay 警报外层。
    * @param {number} cornerIndex 含图标的 Corner 索引。
    * @return {Element} EmergencyImage 的 RectTransform 容器。
-   */ const riskRect =
-    (overlay: Element, cornerIndex: number) =>
-      requireByClass(
-        corners(overlay)[cornerIndex],
-        "lobotomy-corp-alert-factorial",
-      );
+   */ const riskRect = (overlay: Element, cornerIndex: number) =>
+    requireByClass(
+      corners(overlay)[cornerIndex],
+      "lobotomy-corp-alert-factorial",
+    );
   try {
     await import(
       `../../../static/fun/lobotomy-corp/lobotomy-corp.js?test=${crypto.randomUUID()}`
@@ -1518,7 +1536,10 @@ Deno.test("Lobotomy Corporation preserves fractional Days across navigation and 
   );
   const storage = new StorageMock();
   const localeData = Deno.readTextFileSync(
-    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL(
+      "../../../static/fun/lobotomy-corp/Locales/zh-CN.json",
+      import.meta.url,
+    ),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
@@ -1903,7 +1924,10 @@ Deno.test("Lobotomy Corporation snapshots polling-value departments for a Day", 
   const storage = new StorageMock();
   const pollingValue = { value: "5" };
   const localeData = Deno.readTextFileSync(
-    new URL("../../../static/fun/lobotomy-corp/Locales/zh-CN.json", import.meta.url),
+    new URL(
+      "../../../static/fun/lobotomy-corp/Locales/zh-CN.json",
+      import.meta.url,
+    ),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
@@ -2005,7 +2029,10 @@ Deno.test("WhiteNight freezes and resumes the exact remaining Danger decay time"
   );
   const storage = new StorageMock();
   const localeData = Deno.readTextFileSync(
-    new URL("../../../static/fun/lobotomy-corp/Locales/en-US.json", import.meta.url),
+    new URL(
+      "../../../static/fun/lobotomy-corp/Locales/en-US.json",
+      import.meta.url,
+    ),
   );
   const abnormalitiesData = Deno.readTextFileSync(
     new URL(
@@ -2563,6 +2590,46 @@ Deno.test("Lobotomy Corporation raises the restored Danger music high-water to t
     harness.restore();
   }
 });
+for (const prepared of [false, true]) {
+  Deno.test(`WhiteNight rings once across Prelude and active with prepared=${prepared}`, async () => {
+    const harness = installLobotomyCorpAlertHarness();
+    try {
+      await harness.reload();
+      const api = harness.api();
+      if (prepared) void api.prepareDisplayName("T-03-46").commit();
+      else void api.commitDisplayName("T-03-46");
+      const bell = AudioMock.items.find((audio) =>
+        audio.src.endsWith("Lucifer_Bell0.ogg")
+      );
+      assert(bell);
+      const bellPlays = () =>
+        AudioMock.playSnapshots.filter((snapshot) =>
+          !snapshot.muted &&
+          (snapshot.audio === bell ||
+            snapshot.src.endsWith("Lucifer_Bell0.ogg"))
+        ).length;
+      assertEquals(api.getSpecialEventPhase(), "prelude");
+      assertEquals(bellPlays(), 1);
+      // 钟声先于轮盘结束；真实浏览器此时会释放 src，仍须识别同一实例的重复调用。
+      AudioMock.clearSrcOnRemoveAttribute = true;
+      bell.dispatch("ended");
+      harness.setNow(whiteNightPreludeDurationMs);
+      harness.fireFrames();
+      assertEquals(api.getSpecialEventPhase(), "active");
+      assertEquals(bellPlays(), 1);
+      assert(harness.lastTrumpet()!.src.endsWith("emergency03_mast.ogg"));
+      assert(
+        AudioMock.items.some((audio) =>
+          audio.src.endsWith("Lucifer_standbg0.ogg") && !audio.muted &&
+          audio.playCount > 0
+        ),
+      );
+    } finally {
+      harness.restore();
+    }
+  });
+}
+
 Deno.test("WhiteNight keeps the Prelude Alert running and hands the stage BGM over in order", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {

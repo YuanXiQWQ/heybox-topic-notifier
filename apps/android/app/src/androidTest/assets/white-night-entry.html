@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en-US">
+<meta charset="utf-8">
+<script>
+// 记录原始媒体身份，释放 src 后再次调用 play 也不能漏报。
+window.entryProbe = 'pending';
+window.entryRecords = [];
+window.entryAudios = [];
+const NativeAudio = Audio;
+window.Audio = class extends NativeAudio {
+  constructor(src) {
+    super(src);
+    this.entrySource = src;
+    entryAudios.push(this);
+    this.addEventListener('playing', () => {
+      if (!this.muted) entryRecords.push({event: 'playing', src, at: performance.now()});
+    });
+  }
+  play() {
+    if (!this.muted) entryRecords.push({event: 'play', src: this.entrySource, at: performance.now()});
+    return super.play();
+  }
+};
+</script>
+<script type="module">
+try {
+  sessionStorage.clear();
+  localStorage.clear();
+  const root = '/static/fun/lobotomy-corp/';
+  for (const [id, path] of [
+    ['lobotomy-corp-locale-data', 'Locales/en-US.json'],
+    ['lobotomy-corp-abnormalities-data', 'Data/Abnormalities.json'],
+  ]) {
+    const data = document.createElement('script');
+    data.id = id;
+    data.type = 'application/json';
+    data.textContent = await (await fetch(root + path)).text();
+    document.head.append(data);
+  }
+  await import(root + 'lobotomy-corp.js');
+  const api = window.lobotomyCorpEasterEgg;
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  if (window.entryPrepared) {
+    const prepared = api.prepareDisplayName('T-03-46');
+    await wait(100);
+    void prepared.commit();
+  } else {
+    void api.commitDisplayName('T-03-46');
+  }
+  await wait(6500);
+  const bells = entryRecords.filter(({src}) => src.endsWith('Lucifer_Bell0.ogg'));
+  const calls = bells.filter(({event}) => event === 'play').length;
+  const playing = bells.filter(({event}) => event === 'playing').length;
+  const church = entryAudios.find((audio) => audio.entrySource.endsWith('Lucifer_standbg0.ogg'));
+  const trumpets = ['emergency01_mast.ogg', 'emergency03_mast.ogg'].map((path) =>
+    entryRecords.find(({event, src}) => event === 'playing' && src.endsWith(path)));
+  const result = {prepared: window.entryPrepared, phase: api.getSpecialEventPhase(), calls, playing,
+    churchPosition: church?.currentTime, bells, trumpets};
+  console.log('WHITE_NIGHT_PROBE ' + JSON.stringify(result));
+  if (result.phase !== 'active' || calls !== 1 || playing !== 1 ||
+      !(church?.currentTime > 0) || church.paused ||
+      !trumpets.every(Boolean) || !(trumpets[1].at > trumpets[0].at)) {
+    throw new Error(JSON.stringify(result));
+  }
+  window.entryProbe = 'passed';
+} catch (error) {
+  window.entryProbe = String(error);
+}
+</script>
+</html>
