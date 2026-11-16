@@ -1,4 +1,4 @@
-/** @file 在独立无 GMS 模拟器上验证真实系统通知、后台服务和加密设备状态。 */
+/** @file 在独立无 GMS 模拟器上验证真实系统通知、彩蛋音频、后台服务和加密设备状态。 */
 package io.github.yuanxiqwq.heyboxnotifier;
 
 import android.app.Activity;
@@ -63,6 +63,8 @@ public final class NativeSmokeRunner extends Instrumentation {
             activity = startActivitySync(new Intent(getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             awaitStatus(2);
             pass("foreground service starts without GMS; badge deduplicates posts");
+            assertDeferredEasterEggAudio();
+            pass("packaged Easter egg sounds play asynchronously without another user gesture");
             NotificationManager nm = manager;
             require(!nm.getNotificationChannel("background-silent-v2").canShowBadge(), "background channel has no badge");
             android.app.NotificationChannel background = nm.getNotificationChannel("background-silent-v2");
@@ -131,6 +133,53 @@ public final class NativeSmokeRunner extends Instrumentation {
     private static void require(boolean value, String message) { if (!value) throw new AssertionError(message); }
     /** @param {String} name 已完成的检查。 */
     private void pass(String name) { passed.append("PASS ").append(name).append('\n'); }
+    /** 在真实 Activity 的 WebView 内异步播放安装包音频，验证播放策略、解码和播放进度。 @throws Exception 反射、等待或播放失败。 */
+    private void assertDeferredEasterEggAudio() throws Exception {
+        java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web");
+        field.setAccessible(true);
+        android.webkit.WebView view = (android.webkit.WebView) field.get(activity);
+        // 无点击的延迟播放也覆盖刷新恢复；逐项覆盖两套彩蛋的 OGG、WAV、MP3 与循环 BGM。
+        String html = "<!doctype html><meta charset='utf-8'><script>" +
+            "window.audioSmoke='pending';setTimeout(async()=>{try{" +
+            "const sounds=['lobotomy-corp/Assets/Resources/sounds/creature/deathangel/Lucifer_Tick1.ogg'," +
+            "'lobotomy-corp/Assets/Resources/sounds/creature/deathangel/Choir1.ogg'," +
+            "'lobotomy-corp/Assets/Resources/sounds/creature/whitenight/WhiteNight_Atk.ogg'," +
+            "'lobotomy-corp/Assets/Resources/sounds/creature/BossBird/BossBird_Birth.ogg'," +
+            "'lobotomy-corp/Assets/Resources/sounds/creature/dont_touch_me/touch_off.ogg'," +
+            "'lobotomy-corp/Assets/Resources/sounds/bgm/emergency04_mast.wav'," +
+            "'ace-attorney/AA123/StreamingAssets/Sound/se/strm/voice/en-US/phoenix-wright/igiari.wav'," +
+            "'ace-attorney/AA456/natives/stm/sound/gs5/se/voice/en-US/apollo-justice/igiari.wav'," +
+            "'ace-attorney/Common/Derived/sounds/sfx-blipmale.wav'," +
+            "'ace-attorney/Common/Derived/sounds/bgm-phoenix-wright/msc-objection.mp3'];" +
+            "for(const name of sounds){const audio=new Audio('/static/fun/'+name);audio.loop=name.endsWith('.mp3');" +
+            "try{await audio.play();await new Promise(resolve=>setTimeout(resolve,250));" +
+            "if(!(audio.currentTime>0))throw new Error(name+': playback did not advance');}" +
+            "finally{audio.pause();audio.removeAttribute('src');audio.load();}}" +
+            "window.audioSmoke='passed';}catch(error){window.audioSmoke=error.name+': '+error.message;}},100);</script>";
+        runOnMainSync(() -> {
+            view.stopLoading();
+            view.loadDataWithBaseURL(BuildConfig.APP_ORIGIN + "/", html, "text/html", "UTF-8", null);
+        });
+        long deadline = SystemClock.uptimeMillis() + 20000;
+        String last = "null";
+        try {
+            while (SystemClock.uptimeMillis() < deadline) {
+                java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.atomic.AtomicReference<String> value = new java.util.concurrent.atomic.AtomicReference<>();
+                runOnMainSync(() -> view.evaluateJavascript("window.audioSmoke", actual -> {
+                    value.set(actual); ready.countDown();
+                }));
+                require(ready.await(2, java.util.concurrent.TimeUnit.SECONDS), "audio playback probe callback");
+                last = value.get();
+                if ("\"passed\"".equals(last)) return;
+                require("null".equals(last) || "\"pending\"".equals(last), "deferred audio: " + last);
+                SystemClock.sleep(100);
+            }
+            throw new AssertionError("Timed out waiting for deferred audio: " + last);
+        } finally {
+            runOnMainSync(() -> view.loadUrl("about:blank"));
+        }
+    }
     /** 模拟加密状态暂不可读，验证整个轮询回调的异常边界与 CPU 锁。 @throws Exception 反射或断言失败。 */
     private void assertPollingSurvivesStateFailure() throws Exception {
         java.lang.reflect.Field active = NotificationService.class.getDeclaredField("active"); active.setAccessible(true);

@@ -504,6 +504,11 @@ export function createWhiteNightEvent(shared) {
                   true,
               );
               globalThis.document?.addEventListener?.(
+                  'click',
+                  state.resumeAudioOnInteraction,
+                  true,
+              );
+              globalThis.document?.addEventListener?.(
                   'keydown',
                   state.resumeAudioOnInteraction,
                   true,
@@ -932,6 +937,11 @@ export function createWhiteNightEvent(shared) {
           true,
       );
       document?.removeEventListener?.(
+          'click',
+          current.resumeAudioOnInteraction,
+          true,
+      );
+      document?.removeEventListener?.(
           'keydown',
           current.resumeAudioOnInteraction,
           true,
@@ -944,6 +954,8 @@ export function createWhiteNightEvent(shared) {
       }
     };
     addListener(document, 'pointerdown', state.resumeAudioOnInteraction, true);
+    // 触屏 pointerdown 尚未授予媒体播放权限，手指抬起后的 click 再补一次恢复。
+    addListener(document, 'click', state.resumeAudioOnInteraction, true);
     addListener(document, 'keydown', state.resumeAudioOnInteraction, true);
     state.audioRecoveryListenerAttached = true;
 

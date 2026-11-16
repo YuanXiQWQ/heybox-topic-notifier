@@ -2328,6 +2328,7 @@ function startLobotomyCorpAlert({
       : undefined;
   let audio = preparedMedia?.consume?.(initialMusicAlert.soundPath);
   if (!audio) preparedMedia?.dispose?.();
+  let audioRecoveryAttached = false;
   let emergencyController;
   let endAlertButton;
   let endAlertButtonText;
@@ -2654,19 +2655,45 @@ function startLobotomyCorpAlert({
    * 在每次实际 play 前后保护完整刷新恢复位置，兼容 Chromium 重置 currentTime 的行为。
    */
   function playConfiguredAlertAudio() {
+    const playingAudio = audio;
+    if (!playingAudio || closing || finished) return;
     const pendingPosition = applyPendingResumePosition();
     if (pendingPosition !== undefined) {
       audio.addEventListener('playing', confirmPendingResumePosition, {
         once: true,
       });
     }
-    void audio.play().then(() => {
+    void playingAudio.play().then(() => {
+      if (audio !== playingAudio || closing || finished) return;
+      clearAlertAudioRecovery();
       if (pendingPosition !== undefined) {
         confirmPendingResumePosition();
       }
-    }).catch(() => {
-      // 自动播放被拒绝时保留 pendingResumePosition，等待后续真实交互再次 seek 后重试。
+    }).catch((error) => {
+      if (
+          error?.name !== 'NotAllowedError' || audio !== playingAudio ||
+          closing || finished || alertContext.playbackState === 'replay-intermission' ||
+          audioRecoveryAttached
+      ) return;
+      // 切页后的媒体权限可能失效；click 同时覆盖鼠标与触屏，恢复时仍保留原进度。
+      audioRecoveryAttached = true;
+      document.addEventListener('click', resumeBlockedAlertAudio, true);
+      document.addEventListener('keydown', resumeBlockedAlertAudio, true);
     });
+  }
+
+  /** 在真实交互中重试被拦截的当前音乐，不打断两遍之间的静默间隔。 */
+  function resumeBlockedAlertAudio() {
+    if (closing || finished || alertContext.playbackState === 'replay-intermission') return;
+    playConfiguredAlertAudio();
+  }
+
+  /** 换曲、结束或播放成功后撤销音频恢复监听，防止旧会话再次响起。 */
+  function clearAlertAudioRecovery() {
+    if (!audioRecoveryAttached) return;
+    audioRecoveryAttached = false;
+    document.removeEventListener('click', resumeBlockedAlertAudio, true);
+    document.removeEventListener('keydown', resumeBlockedAlertAudio, true);
   }
 
   /**
@@ -2698,6 +2725,7 @@ function startLobotomyCorpAlert({
         closing || finished || musicSourceState !== 'danger' ||
         specialEventMusicDucked || specialEventStageMusicOwned
     ) return;
+    clearAlertAudioRecovery();
     audio?.pause?.();
     alertContext.playbackState = 'replay-intermission';
     replayAt = Date.now() + lobotomyCorpDangerAlertReplayGapMs;
@@ -2779,6 +2807,7 @@ function startLobotomyCorpAlert({
    * @param {boolean} pause 是否停止音频。
    */
   function detachAudio(pause) {
+    clearAlertAudioRecovery();
     if (pause) {
       audio?.pause();
     }
