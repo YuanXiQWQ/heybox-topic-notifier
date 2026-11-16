@@ -99,6 +99,8 @@ public final class UpdateService extends Service {
             .setContentTitle(getString(R.string.app_name)).setContentText(text).setContentIntent(content)
             .setOnlyAlertOnce(true).setShowWhen(false).setOngoing(active && !ready).setAutoCancel(!active)
             .setCategory(Notification.CATEGORY_PROGRESS);
+        // 用户刚确认的下载立即展示进度，避免 Android 延迟显示前台服务通知。
+        if (android.os.Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         if (active && !ready) builder.setProgress(100, state.optInt("progress"), !state.has("progress"));
         return builder.build();
     }
