@@ -1,0 +1,68 @@
+# 在真实 Android WebView 中验证安装资源播放，保留失败时的设备日志。
+name: Verify Android media playback
+on:
+  push:
+    branches: [ main, dev, fix/android-media-response ]
+    paths: [ "apps/android/**", "static/fun/**", ".github/workflows/android-media-check.yml" ]
+  pull_request:
+    paths: [ "apps/android/**", "static/fun/**", ".github/workflows/android-media-check.yml" ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26.13.0"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - name: Build application and device tests
+        run: |
+          node apps/scripts/prepare-assets.mjs --android
+          gradle -p apps/android --no-daemon assembleDebug assembleDebugAndroidTest
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Exercise packaged audio in Android WebView
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -noaudio -camera-back none
+          script: |
+            adb install -r apps/android/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r apps/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell pm grant io.github.yuanxiqwq.heyboxnotifier android.permission.POST_NOTIFICATIONS
+            adb shell cmd connectivity airplane-mode enable
+            adb shell svc wifi disable
+            adb shell svc data disable
+            adb shell dumpsys webviewupdate > webview-version.log
+            adb logcat -c
+            adb shell am instrument -r -w -e isolatedOfflineEmulator true -e mediaOnly true io.github.yuanxiqwq.heyboxnotifier.test/io.github.yuanxiqwq.heyboxnotifier.NativeSmokeRunner > media-instrumentation.log
+            adb logcat -d > media-logcat.log
+            cat media-instrumentation.log
+            grep -q 'INSTRUMENTATION_CODE: -1' media-instrumentation.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-media-diagnostics
+          path: |
+            media-instrumentation.log
+            media-logcat.log
+            webview-version.log

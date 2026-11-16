@@ -54,10 +54,10 @@ final class Assets {
                 long end = parts[0].isEmpty() || parts[1].isEmpty() ? length - 1 : Math.min(length - 1, Long.parseLong(parts[1]));
                 headers.put("Accept-Ranges", "bytes");
                 if (start > end || start >= length) { headers.put("Content-Range", "bytes */" + length); return new WebResourceResponse(mime, null, 416, "Range Not Satisfiable", headers, new ByteArrayInputStream(new byte[0])); }
-                InputStream input = context.getAssets().open(relative); long skipped = 0;
-                while (skipped < start) { long count = input.skip(start - skipped); if (count <= 0) { input.close(); return null; } skipped += count; }
+                // WebView 会根据原始 Range 自动跳过起始字节；提前 skip 会让偏移被应用两次。
+                InputStream input = context.getAssets().open(relative);
                 headers.put("Content-Range", "bytes " + start + "-" + end + "/" + length); headers.put("Content-Length", Long.toString(end - start + 1));
-                return new WebResourceResponse(mime, null, 206, "Partial Content", headers, new LimitedStream(input, end - start + 1));
+                return new WebResourceResponse(mime, null, 206, "Partial Content", headers, new LimitedStream(input, end + 1));
             }
         } catch (Exception error) { return null; }
     }
@@ -84,14 +84,16 @@ final class Assets {
             return new WebResourceResponse(mime, "UTF-8", 200, "OK", java.util.Collections.singletonMap("Cache-Control", "no-cache"), input);
         } catch (Exception ignored) { if (connection != null) connection.disconnect(); return null; }
     }
-    /** 单个媒体范围的有界输入流。 */
+    /** 保留完整流起点供 WebView 自动定位，只限制范围的结束位置。 */
     private static final class LimitedStream extends FilterInputStream {
         private long remaining;
         /** @param {InputStream} input 资源流。 @param {long} length 字节数。 */
         LimitedStream(InputStream input, long length) { super(input); remaining = length; }
+        /** @param {long} length WebView 请求跳过的字节数。 @return {long} 实际跳过数。 */
+        @Override public long skip(long length) throws java.io.IOException { long result = in.skip(Math.min(Math.max(0, length), remaining)); remaining -= result; return result; }
         /** @return {int} 下一字节或 EOF。 */
         @Override public int read() throws java.io.IOException { if (remaining <= 0) return -1; int result = super.read(); if (result >= 0) remaining--; return result; }
         /** @param {byte[]} bytes 接收数组。 @param {int} offset 起点。 @param {int} length 长度。 @return {int} 实际读取数。 */
-        @Override public int read(byte[] bytes, int offset, int length) throws java.io.IOException { if (remaining <= 0) return -1; int result = in.read(bytes, offset, (int) Math.min(length, remaining)); if (result > 0) remaining -= result; return result; }
+        @Override public int read(byte[] bytes, int offset, int length) throws java.io.IOException { if (length == 0) return 0; if (remaining <= 0) return -1; int result = in.read(bytes, offset, (int) Math.min(length, remaining)); if (result > 0) remaining -= result; return result; }
     }
 }
