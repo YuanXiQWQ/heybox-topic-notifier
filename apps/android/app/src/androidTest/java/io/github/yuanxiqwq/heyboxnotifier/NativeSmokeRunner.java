@@ -18,6 +18,7 @@ import org.json.JSONObject;
 /** 仅在明确指定的离线测试模拟器运行，合成会话不访问生产账号。 */
 public final class NativeSmokeRunner extends Instrumentation {
     private Activity activity;
+    private boolean mediaOnly;
     private DeviceState device;
     private NotificationManager manager;
     private final StringBuilder passed = new StringBuilder();
@@ -29,6 +30,7 @@ public final class NativeSmokeRunner extends Instrumentation {
             Bundle result = new Bundle(); result.putString("stream", "Requires isolatedOfflineEmulator=true and offline emulator");
             finish(Activity.RESULT_CANCELED, result); return;
         }
+        mediaOnly = "true".equals(arguments.getString("mediaOnly"));
         start();
     }
 
@@ -65,6 +67,7 @@ public final class NativeSmokeRunner extends Instrumentation {
             pass("foreground service starts without GMS; badge deduplicates posts");
             assertDeferredEasterEggAudio();
             pass("packaged Easter egg sounds play asynchronously without another user gesture");
+            if (!mediaOnly) {
             NotificationManager nm = manager;
             require(!nm.getNotificationChannel("background-silent-v2").canShowBadge(), "background channel has no badge");
             android.app.NotificationChannel background = nm.getNotificationChannel("background-silent-v2");
@@ -107,6 +110,7 @@ public final class NativeSmokeRunner extends Instrumentation {
             byte[] encrypted = java.nio.file.Files.readAllBytes(new java.io.File(getTargetContext().getFilesDir(), "device.bin").toPath());
             require(!new String(encrypted, StandardCharsets.UTF_8).contains("smoke-user"), "state is encrypted");
             pass("badge disable and Keystore encrypted persistence");
+            }
             status = Activity.RESULT_OK;
         } catch (Throwable error) {
             result.putString("error", android.util.Log.getStackTraceString(error));
@@ -144,15 +148,25 @@ public final class NativeSmokeRunner extends Instrumentation {
         String html = "<!doctype html><meta charset='utf-8'><script>" +
             "window.audioSmoke='pending';window.audioSmokeFailures=[];setTimeout(async()=>{try{" +
             "const sounds=" + paths + ";" +
+            "for(const name of sounds.filter(name=>/emergency01_mast|emergency04_mast|msc-objection/.test(name))){" +
+            "const full=new Uint8Array(await (await fetch('/'+name)).arrayBuffer());" +
+            "for(const [range,start,end] of [['bytes=0-31',0,32],['bytes=37-100',37,101],['bytes=-64',full.length-64,full.length]]){" +
+            "const response=await fetch('/'+name,{headers:{Range:range},signal:AbortSignal.timeout(5000)});" +
+            "const bytes=new Uint8Array(await response.arrayBuffer());" +
+            "if(response.status!==206||bytes.length!==end-start||!bytes.every((value,index)=>value===full[start+index]))throw new Error('range mismatch '+name+' '+range);" +
+            "console.log('MEDIA_PROBE range '+name+' '+range);}}" +
             "for(const name of sounds){window.audioSmokePath=name;console.log('MEDIA_PROBE start '+name);" +
-            "const audio=document.createElement(/\\.(mp4|webm)$/.test(name)?'video':'audio');audio.src='/'+name;" +
+            "const audio=document.createElement(/\\.(mp4|webm)$/.test(name)?'video':'audio');audio.src='/'+name;audio.loop=name.includes('sounds/bgm');" +
             "let timeout;try{await Promise.race([audio.play(),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('play timeout')),5000)})]);" +
             "await new Promise(resolve=>setTimeout(resolve,250));" +
-            "console.log('MEDIA_PROBE position '+name+' '+audio.currentTime);if(!(audio.currentTime>0))throw new Error('playback did not advance');}" +
+            "console.log('MEDIA_PROBE position '+name+' '+audio.currentTime);if(!(audio.currentTime>0))throw new Error('playback did not advance');" +
+            "if(audio.loop&&audio.duration>2){audio.currentTime=audio.duration-0.1;await new Promise(resolve=>setTimeout(resolve,1000));" +
+            "if(!(audio.currentTime>0&&audio.currentTime<2&&!audio.paused&&!audio.ended))throw new Error('seek and loop failed '+audio.currentTime);" +
+            "console.log('MEDIA_PROBE loop '+name+' '+audio.currentTime);}}" +
             "catch(error){const message=name+': '+error.name+': '+error.message+' ready='+audio.readyState+' network='+audio.networkState+' media='+audio.error?.code;" +
             "window.audioSmokeFailures.push(message);console.error('MEDIA_PROBE failure '+message);}" +
             "finally{clearTimeout(timeout);audio.pause();audio.removeAttribute('src');audio.load();}}" +
-            "window.audioSmoke=audioSmokeFailures.length?JSON.stringify(audioSmokeFailures):'passed';" +
+            "console.log('MEDIA_PROBE complete '+sounds.length+' failures='+audioSmokeFailures.length);window.audioSmoke=audioSmokeFailures.length?JSON.stringify(audioSmokeFailures):'passed';" +
             "}catch(error){window.audioSmoke=error.name+': '+error.message;}},100);</script>";
         runOnMainSync(() -> {
             android.webkit.WebViewClient original = view.getWebViewClient();
