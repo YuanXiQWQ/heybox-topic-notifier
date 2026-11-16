@@ -22,6 +22,57 @@ import {
   plagueDoctorSpineSkeletonFile,
 } from "../static/fun/lobotomy-corp/Events/PlagueDoctorSpine.js";
 
+Deno.test("两套彩蛋的所有音频均支持正确媒体类型与字节范围响应", async () => {
+  const types: Record<string, string> = {
+    mp3: "audio/mpeg",
+    ogg: "audio/ogg",
+    wav: "audio/wav",
+  };
+  for (
+    const [game, respond] of [
+      ["ace-attorney", aceAttorneyAssetResponse],
+      ["lobotomy-corp", lobotomyCorpAssetResponse],
+    ] as const
+  ) {
+    let checked = 0;
+    const root = new URL(`../static/fun/${game}/`, import.meta.url);
+    /** @param {string} directory 相对于彩蛋根目录的资源目录。 */
+    const checkDirectory = async (directory: string): Promise<void> => {
+      for await (const entry of Deno.readDir(new URL(directory, root))) {
+        const path = `${directory}${entry.name}`;
+        if (entry.isDirectory) {
+          await checkDirectory(`${path}/`);
+          continue;
+        }
+        const type = types[entry.name.split(".").at(-1) ?? ""];
+        if (!type) continue;
+        const full = await respond(path);
+        assertEquals(full.status, 200, `${game}/${path}`);
+        assertEquals(full.headers.get("content-type"), type, path);
+        const bytes = new Uint8Array(await full.arrayBuffer());
+        assert(bytes.length > 16, path);
+        const partial = await respond(path, "bytes=0-15");
+        assertEquals(partial.status, 206, path);
+        assertEquals(partial.headers.get("content-type"), type, path);
+        assertEquals(partial.headers.get("content-length"), "16", path);
+        assertEquals(
+          partial.headers.get("content-range"),
+          `bytes 0-15/${bytes.length}`,
+          path,
+        );
+        assertEquals(
+          new Uint8Array(await partial.arrayBuffer()),
+          bytes.slice(0, 16),
+          path,
+        );
+        checked++;
+      }
+    };
+    await checkDirectory("");
+    assert(checked > 0, `${game} 应包含音频资源`);
+  }
+});
+
 Deno.test({
   name: "WhiteNight Spine 运行时、骨架与白圈资源都能通过彩蛋资源路由读取",
   permissions: { read: true },
