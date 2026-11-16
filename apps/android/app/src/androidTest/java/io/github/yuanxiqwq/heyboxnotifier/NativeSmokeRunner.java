@@ -189,12 +189,13 @@ public final class NativeSmokeRunner extends Instrumentation {
                 };
             }
         });
-        device.put("updateVersion", "99.0.1"); device.put("updateSeen_dismissed", "99.0.1");
+        device.put("updateVersion", "99.0.1"); device.put("updateSeen_dismissed", "");
         java.lang.reflect.Field release = Updates.class.getDeclaredField("release"); release.setAccessible(true);
         release.set(updates, new JSONObject().put("browser_download_url", address).put("size", 81920).put("digest", "sha256:" + "0".repeat(64)));
         java.lang.reflect.Field status = Updates.class.getDeclaredField("status"); status.setAccessible(true); status.set(updates, "available");
-        runOnMainSync(() -> { UpdateService.start(activity); UpdateService.start(activity); });
-        chunks.release(3); awaitUpdateProgress(30);
+        chunks.release(3);
+        assertBrowserFixture("update-progress.html", "window.startUpdateProbe=true;", 30000);
+        awaitUpdateProgress(30);
         runOnMainSync(() -> activity.finishAndRemoveTask());
         deadline = SystemClock.uptimeMillis() + 10000;
         while (!activity.isDestroyed() && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100);
