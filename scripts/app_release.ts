@@ -38,7 +38,7 @@ type Release = {
 };
 
 /**
- * 沿用三段数字标签，兼容 v 前缀，并生成与构建次数无关的递增 Android 版本号。
+ * 沿用三段数字标签，兼容 v 前缀，并生成与构建次数无关的 Android 版本号。
  * @param {string} tag 发行标签。
  * @return {{tag: string, version: string, versionCode: number}} 两个平台共享的版本信息。
  */
@@ -48,15 +48,17 @@ export function releaseVersion(tag: string) {
     throw new Error("发行标签必须是 3.8.2 或 v3.8.2 形式的正式版本。");
   }
   const [major, minor, patch] = match.slice(1).map(Number);
-  if (major > 2099 || minor > 999 || patch > 999) {
+  const versionCode = major * 1000000 + minor * 1000 + patch + 1;
+  if (major > 2099 || minor > 999 || !Number.isSafeInteger(versionCode) ||
+    versionCode > 2100000000) {
     throw new Error(
-      "版本超出 Android 编码范围：major ≤ 2099，minor、patch ≤ 999。",
+      "版本超出 Android 编码范围：major ≤ 2099，minor ≤ 999，versionCode ≤ 2100000000。",
     );
   }
   return {
     tag,
     version: `${major}.${minor}.${patch}`,
-    versionCode: major * 1000000 + minor * 1000 + patch + 1,
+    versionCode,
   };
 }
 

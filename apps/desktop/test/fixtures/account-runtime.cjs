@@ -1,4 +1,4 @@
-/** @file 在真实设置页提交 First Trumpet，检查账户确认、页面地址和实际音频进度。 */
+/** @file 在真实设置页提交 First Trumpet，并检查白夜入场钟声、警报与背景音乐。 */
 const {app, BrowserWindow, session, net, ipcMain} = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -47,6 +47,10 @@ async function respond(request, response) {
     response.setHeader('content-encoding', 'gzip');
     response.setHeader('content-length', body.length);
     response.end(body);
+  } else if (url.pathname === '/white-night-entry') {
+    const fixture = await fs.readFile(path.join(root, 'apps/android/app/src/androidTest/assets/white-night-entry.html'), 'utf8');
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(fixture.replace('<meta charset="utf-8">', `<meta charset="utf-8"><script>window.entryPrepared=${url.searchParams.get('prepared') === 'true'};</script>`));
   } else if (url.pathname === '/app-sw.js' || url.pathname.startsWith('/static/')) {
     const file = url.pathname === '/app-sw.js' ? '/static/app-sw.js' : url.pathname;
     if (!/^[\w/.-]+$/.test(file) || file.includes('..')) { response.writeHead(404); response.end(); return; }
@@ -92,6 +96,13 @@ async function run() {
   assert.equal(saved, 1);
   assert.equal(badNavigation, 0);
   console.log('FIRST_TRUMPET_ACCOUNT_OK', window.webContents.getURL());
+  for (const prepared of [false, true]) {
+    await window.loadURL(origin + '/white-night-entry?prepared=' + prepared);
+    await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
+    const result = await window.webContents.executeJavaScript('entryProbe');
+    assert.equal(result, 'passed');
+    console.log('WHITE_NIGHT_ENTRY_OK', {prepared});
+  }
 }
 
 app.whenReady().then(run).then(() => {

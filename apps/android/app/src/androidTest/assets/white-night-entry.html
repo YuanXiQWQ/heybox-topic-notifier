@@ -47,19 +47,24 @@ try {
   } else {
     void api.commitDisplayName('T-03-46');
   }
-  await wait(6500);
+  await wait(1500);
+  const first = entryAudios.find((audio) => audio.entrySource.endsWith('emergency01_mast.ogg'));
+  const prelude = {phase: api.getSpecialEventPhase(), firstPosition: first?.currentTime,
+    firstPlaying: first && !first.muted && !first.paused};
+  await wait(5000);
   const bells = entryRecords.filter(({src}) => src.endsWith('Lucifer_Bell0.ogg'));
   const calls = bells.filter(({event}) => event === 'play').length;
   const playing = bells.filter(({event}) => event === 'playing').length;
   const church = entryAudios.find((audio) => audio.entrySource.endsWith('Lucifer_standbg0.ogg'));
-  const trumpets = ['emergency01_mast.ogg', 'emergency03_mast.ogg'].map((path) =>
-    entryRecords.find(({event, src}) => event === 'playing' && src.endsWith(path)));
+  const third = entryAudios.find((audio) => audio.entrySource.endsWith('emergency03_mast.ogg') &&
+    !audio.muted && !audio.paused && audio.currentTime > 0);
   const result = {prepared: window.entryPrepared, phase: api.getSpecialEventPhase(), calls, playing,
-    churchPosition: church?.currentTime, bells, trumpets};
+    churchPosition: church?.currentTime, thirdPosition: third?.currentTime, bells, prelude};
   console.log('WHITE_NIGHT_PROBE ' + JSON.stringify(result));
   if (result.phase !== 'active' || calls !== 1 || playing !== 1 ||
       !(church?.currentTime > 0) || church.paused ||
-      !trumpets.every(Boolean) || !(trumpets[1].at > trumpets[0].at)) {
+      prelude.phase !== 'prelude' || !prelude.firstPlaying || !(prelude.firstPosition > 0) ||
+      !(third?.currentTime > 0) || third.muted || third.paused) {
     throw new Error(JSON.stringify(result));
   }
   window.entryProbe = 'passed';
