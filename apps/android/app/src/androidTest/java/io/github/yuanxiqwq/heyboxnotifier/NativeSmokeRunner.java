@@ -151,11 +151,11 @@ public final class NativeSmokeRunner extends Instrumentation {
             "'ace-attorney/AA456/natives/stm/sound/gs5/se/voice/en-US/apollo-justice/igiari.wav'," +
             "'ace-attorney/Common/Derived/sounds/sfx-blipmale.wav'," +
             "'ace-attorney/Common/Derived/sounds/bgm-phoenix-wright/msc-objection.mp3'];" +
-            "for(const name of sounds){const audio=new Audio('/static/fun/'+name);audio.loop=name.endsWith('.mp3');" +
+            "for(const name of sounds){window.audioSmokePath=name;console.log('MEDIA_PROBE start '+name);const audio=new Audio('/static/fun/'+name);audio.loop=name.endsWith('.mp3');" +
             "try{await audio.play();await new Promise(resolve=>setTimeout(resolve,250));" +
-            "if(!(audio.currentTime>0))throw new Error(name+': playback did not advance');}" +
+            "console.log('MEDIA_PROBE position '+name+' '+audio.currentTime);if(!(audio.currentTime>0))throw new Error(name+': playback did not advance');}" +
             "finally{audio.pause();audio.removeAttribute('src');audio.load();}}" +
-            "window.audioSmoke='passed';}catch(error){window.audioSmoke=error.name+': '+error.message;}},100);</script>";
+            "window.audioSmoke='passed';}catch(error){window.audioSmoke=error.name+': '+error.message+' at '+window.audioSmokePath;console.error(window.audioSmoke);}},100);</script>";
         runOnMainSync(() -> {
             view.stopLoading();
             view.loadDataWithBaseURL(BuildConfig.APP_ORIGIN + "/", html, "text/html", "UTF-8", null);

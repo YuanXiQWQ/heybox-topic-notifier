@@ -51,7 +51,7 @@ jobs:
             adb shell svc data disable
             adb shell dumpsys webviewupdate > webview-version.log
             adb logcat -c
-            adb shell am instrument -w -e isolatedOfflineEmulator true io.github.yuanxiqwq.heyboxnotifier.test/io.github.yuanxiqwq.heyboxnotifier.NativeSmokeRunner > media-instrumentation.log
+            adb shell am instrument -r -w -e isolatedOfflineEmulator true io.github.yuanxiqwq.heyboxnotifier.test/io.github.yuanxiqwq.heyboxnotifier.NativeSmokeRunner > media-instrumentation.log
             adb logcat -d > media-logcat.log
             cat media-instrumentation.log
             grep -q 'INSTRUMENTATION_CODE: -1' media-instrumentation.log
