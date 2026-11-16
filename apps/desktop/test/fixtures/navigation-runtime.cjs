@@ -25,7 +25,14 @@ async function respond(request, response) {
   if (offline) { request.socket.destroy(); return; }
   const pathname = new URL(request.url, 'http://localhost').pathname;
   response.setHeader('cache-control', 'no-store');
-  if (pathname === '/api/sync/session') {
+  if (pathname === '/account') {
+    if (request.method !== 'POST') { response.writeHead(404); response.end('Account POST endpoint'); return; }
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    assert.equal(new URLSearchParams(body).get('displayName'), 'First Trumpet');
+    response.writeHead(303, {location: '/settings?account=updated'});
+    response.end();
+  } else if (pathname === '/api/sync/session') {
     response.setHeader('content-type', 'application/json');
     response.end(JSON.stringify({userId: 'navigation-test'}));
   } else if (pathname === '/app-sw.js' || pathname.startsWith('/static/')) {
@@ -89,6 +96,14 @@ async function run() {
     window = createWindow(webSession);
     await window.loadURL(origin + '/');
     console.log('INITIAL_LOADED');
+    // 警报彩蛋依据最终响应地址确认账户已保存；协议转发不能吞掉 303 的目标地址。
+    const saved = await window.webContents.executeJavaScript(`fetch('/account', {
+      method: 'POST', body: new URLSearchParams({accountAction: 'displayName', displayName: 'First Trumpet'})
+    }).then(async response => ({status: response.status, url: response.url, redirected: response.redirected, body: await response.text()}))`);
+    console.log('ACCOUNT_REDIRECT', JSON.stringify(saved));
+    assert.equal(saved.status, 200);
+    assert.equal(saved.url, origin + '/settings?account=updated');
+    assert.equal(saved.redirected, true);
     await window.webContents.executeJavaScript('workerReady');
     for (const route of ['/settings', '/history']) {
       const finished = once(window.webContents, 'did-finish-load');
