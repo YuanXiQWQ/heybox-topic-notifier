@@ -22,7 +22,8 @@ async function until(expression, timeout = 15000) {
     if (await window.webContents.executeJavaScript(expression)) return;
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-  throw new Error('Timed out: ' + expression + ' at ' + window.webContents.getURL());
+  throw new Error('Timed out: ' + expression + ' at ' + window.webContents.getURL() + ' stage=' +
+    await window.webContents.executeJavaScript('globalThis.entryStage'));
 }
 
 /** @param {import('node:http').IncomingMessage} request 测试请求。 @param {import('node:http').ServerResponse} response 响应。 @return {Promise<void>} 响应结束。 */
@@ -111,6 +112,7 @@ async function run() {
   await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
   assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
   console.log('ADVENT_FONT_OK');
+  window.show();
   await window.loadURL(origin + '/advent-settings');
   await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
   assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');

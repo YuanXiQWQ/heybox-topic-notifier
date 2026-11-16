@@ -1584,7 +1584,7 @@ export function playPlagueDoctorAdvent(options) {
       }
       if (layers.focusInput) {
         const textElapsed = elapsed - focusTextStartedAt;
-        const textAlpha = textElapsed <
+        let textAlpha = textElapsed <
         plagueDoctorAdventFocusTimings.textFadeOutMs
             ? 1 -
             clamp(
@@ -1598,6 +1598,12 @@ export function playPlagueDoctorAdvent(options) {
                 0,
                 1,
             );
+        // 位移接近零时本体仍会盖住字段；等本体退场后再显现文字。
+        textAlpha = Math.min(textAlpha, clamp(
+            (elapsed - entityHideAt) / plagueDoctorAdventFocusTimings.textFadeInMs,
+            0,
+            1,
+        ));
         if (
             !focusTextApplied &&
             textElapsed >= plagueDoctorAdventFocusTimings.textFadeOutMs

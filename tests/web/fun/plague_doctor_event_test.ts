@@ -857,10 +857,12 @@ Deno.test("疫医：镜头交接到显示名称输入框并按使徒轮换文本
     assertStrictEquals(focusAlpha(), 1);
     assertStrictEquals(entity!.hidden, true);
     assertStrictEquals(focusInput!.value, "甲");
+    assert(textAlpha() < 0.1, "白夜退场时文字才开始淡入");
+    await advance(harness, clock, plagueDoctorAdventFocusTimings.textFadeInMs);
     assertClose(textAlpha(), 1, 0.01);
 
     // 轮到第二名：钟声那一刻先淡出旧名字，再换成新名字淡入。
-    await advance(harness, clock, focusAt(1) - focusAt(0));
+    await advance(harness, clock, focusAt(1) - focusAt(0) - plagueDoctorAdventFocusTimings.textFadeInMs);
     assertStrictEquals(focusInput!.value, "甲");
     await advance(
       harness,
