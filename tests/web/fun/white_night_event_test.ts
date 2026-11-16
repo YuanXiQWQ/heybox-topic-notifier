@@ -1038,7 +1038,7 @@ Deno.test("WhiteNight blocks escape and polling before downstream handlers while
   }
 });
 
-Deno.test("WhiteNight reload retries both church and the pending recovery bell on interaction", async () => {
+Deno.test("WhiteNight reload retries church and recovery bell on touch click after pointerdown is blocked", async () => {
   const browser = globalThis as typeof globalThis & {
     Audio?: unknown;
     document?: unknown;
@@ -1059,7 +1059,7 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
     if (audio.src.endsWith("Lucifer_standbg0.ogg")) {
       churchAttempts++;
       audio.currentTime = 0;
-      return churchAttempts === 1
+      return churchAttempts <= 2
         ? Promise.reject(new Error("autoplay blocked"))
         : Promise.resolve();
     }
@@ -1155,6 +1155,12 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
     await Promise.resolve();
     await Promise.resolve();
     assertEquals(church.playCount, 2);
+    assertEquals(church.currentTime, 0);
+    // 触屏按下阶段没有播放权限，必须等 click 才能恢复，不能丢掉原播放进度。
+    harness.dispatch("click", new Element());
+    await Promise.resolve();
+    await Promise.resolve();
+    assertEquals(church.playCount, 3);
     assertEquals(church.currentTime, 26.5);
     assertEquals(
       AudioMock.items.filter((audio) => audio.src.endsWith("Lucifer_Bell0.ogg"))
@@ -1165,6 +1171,10 @@ Deno.test("WhiteNight reload retries both church and the pending recovery bell o
       JSON.parse(values.get("white-night") ?? "{}").pendingRecoveryBell,
       false,
     );
+    harness.dispatch("click", new Element());
+    harness.dispatch("pointerdown", new Element());
+    await Promise.resolve();
+    assertEquals(church.playCount, 3);
   } finally {
     event?.finish();
     for (const [name, descriptor] of Object.entries(originals)) {
