@@ -235,7 +235,8 @@ public final class NativeSmokeRunner extends Instrumentation {
                 runOnMainSync(() -> view.evaluateJavascript("window.entryProbe", actual -> {
                     value.set(actual); ready.countDown();
                 }));
-                require(ready.await(2, java.util.concurrent.TimeUnit.SECONDS), name + " probe callback");
+                // 软件渲染模拟器首次绘制完整设置页可能超过两秒，保留页面总超时约束。
+                require(ready.await(10, java.util.concurrent.TimeUnit.SECONDS), name + " probe callback");
                 last = value.get();
                 if ("\"passed\"".equals(last)) return;
                 require("null".equals(last) || "\"pending\"".equals(last), name + " " + setup + ": " + last);
