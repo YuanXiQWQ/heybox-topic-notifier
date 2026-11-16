@@ -14,13 +14,14 @@ const {assetPath} = require('./policy.cjs');
 async function installAssets(webSession, origin, resources, net) {
   const scheme = new URL(origin).protocol.slice(0, -1);
   await webSession.protocol.handle(scheme, async (request) => {
+    // 由外层浏览器跟随重定向，保留 Response.url 和 POST → GET 的导航语义。
     const local = assetPath(resources, request.url, origin);
     if (local) {
       const script = /\.(?:js|css|json)$/.test(local);
       if (script) {
         try {
-          const response = await webSession.fetch(request, {bypassCustomProtocolHandlers: true});
-          if (response.ok) return response;
+          const response = await webSession.fetch(request, {bypassCustomProtocolHandlers: true, redirect: 'manual'});
+          if (response.ok || (response.status >= 300 && response.status < 400)) return response;
         } catch { /* 离线脚本使用安装包版本。 */ }
       }
       try {
@@ -29,7 +30,7 @@ async function installAssets(webSession, origin, resources, net) {
         }
       } catch { /* 未打包的资源继续由本站处理。 */ }
     }
-    return webSession.fetch(request, {bypassCustomProtocolHandlers: true});
+    return webSession.fetch(request, {bypassCustomProtocolHandlers: true, redirect: 'manual'});
   });
 }
 
