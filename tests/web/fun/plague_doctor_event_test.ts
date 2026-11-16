@@ -1171,6 +1171,49 @@ Deno.test("疫医：完整降临的音频调用链与原件一致", async () => 
   }
 });
 
+for (const interrupted of [false, true]) {
+  Deno.test(`疫医：${interrupted ? "中止" : "完成"}降临时一起停止背景音乐与使徒低语`, async () => {
+    const harness = installLobotomyCorpAlertHarness();
+    try {
+      seedCompletedApostles(harness, false);
+      await harness.reload();
+      const api = harness.api();
+      const clock = { value: 0 };
+      await api.commitDisplayName("O-01-45");
+      const totalMs = plagueDoctorAdventSchedule(plagueDoctorApostleCount).totalMs;
+      await advance(harness, clock, totalMs - 1);
+      const sounds = AudioMock.items.filter((audio) =>
+        audio.src.includes("Resources/sounds/creature/deathangel/")
+      );
+      const whispers = sounds.filter((audio) => audio.src.includes("Whisper"));
+      assertEquals(whispers.length, 11);
+      assert(whispers.every((audio) => audio.pauseCount === 0));
+      assertStrictEquals(api.getSpecialEvent(), undefined);
+      // 清理必须发生在白夜教堂音乐启动之前，不能等待低语自然结束。
+      let cleanAtChurchStart = false;
+      AudioMock.playHook = (audio) => {
+        if (audio.src.endsWith("Lucifer_standbg0.ogg")) {
+          cleanAtChurchStart = sounds.every((sound) => sound.pauseCount > 0);
+        }
+        return undefined;
+      };
+      AudioMock.clearSrcOnRemoveAttribute = true;
+      if (interrupted) await api.restartDay();
+      else await advance(harness, clock, 1);
+      for (const audio of sounds) {
+        assert(audio.pauseCount > 0, "演出结束后仍有过场音频未停止");
+        assertEquals(audio.src, "", "已停止的过场音频应释放资源");
+      }
+      if (!interrupted) {
+        assert(cleanAtChurchStart);
+        assertEquals(api.getSpecialEventPhase(), "active");
+      }
+    } finally {
+      harness.restore();
+    }
+  });
+}
+
 Deno.test("疫医：已经转变过的会话再次提交 O-01-45 直接进入白夜", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {

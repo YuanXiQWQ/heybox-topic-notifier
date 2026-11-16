@@ -1614,8 +1614,8 @@ export function createPlagueDoctorEvent(shared) {
   let transformedOnThisPage = false;
   /** @type {{dispose: () => void}|undefined} */
   let activeClock;
-  /** @type {any} 完整降临的专属 BGM（对应 BgmManager 的 UniqueBgm）。 */
-  let adventBgm;
+  /** @type {Set<HTMLAudioElement>} 本事件仍持有的绑定与降临音频。 */
+  const activeSounds = new Set();
 
   /** 转盘演出期间要拦截的页面交互事件。 */
   const blockedInteractionEvents = ['click', 'mousedown', 'pointerdown', 'submit'];
@@ -1757,6 +1757,18 @@ export function createPlagueDoctorEvent(shared) {
   const isTransforming = () => transforming;
 
   /**
+   * 停止并释放一段疫医音频。
+   *
+   * @param {HTMLAudioElement} audio 本事件创建的音频。
+   */
+  const releaseSound = (audio) => {
+    if (!activeSounds.delete(audio)) return;
+    audio.pause?.();
+    audio.removeAttribute?.('src');
+    audio.load?.();
+  };
+
+  /**
    * 播放一段音效。
    *
    * @param {string} soundPath 相对于 Assets 的音频路径。
@@ -1765,23 +1777,23 @@ export function createPlagueDoctorEvent(shared) {
   const playSound = (soundPath) => {
     if (typeof globalThis.Audio !== 'function') return undefined;
     const audio = new Audio(`${shared.assetRoot}/${soundPath}`);
+    activeSounds.add(audio);
+    audio.addEventListener?.('ended', () => releaseSound(audio), {once: true});
+    audio.addEventListener?.('error', () => releaseSound(audio), {once: true});
     audio.hidden = true;
     audio.preload = 'auto';
     audio.setAttribute?.('aria-hidden', 'true');
-    void audio.play?.().catch(() => {
-    });
+    void audio.play?.().catch(() => releaseSound(audio));
     return audio;
   };
 
   /**
-   * 停止完整降临的专属 BGM，对应 `OnEndAdventEffect` 里的 `ClearUniqueBgm()`。
+   * 在完成或中止演出时一起停止 BGM、合唱与低语，避免带入白夜阶段。
    *
    * @return {void}
    */
-  const clearAdventBgm = () => {
-    adventBgm?.pause?.();
-    if (adventBgm) adventBgm.currentTime = 0;
-    adventBgm = undefined;
+  const clearSounds = () => {
+    activeSounds.forEach(releaseSound);
   };
 
   /**
@@ -1799,8 +1811,8 @@ export function createPlagueDoctorEvent(shared) {
     transforming = false;
     activeClock = undefined;
     stopBlockingInteraction();
-    // 白夜登场前先收掉疫医的过场 BGM，避免与白夜教堂音乐重叠。
-    clearAdventBgm();
+    // 白夜登场前先收掉疫医的全部过场音频，避免低语与白夜教堂音乐重叠。
+    clearSounds();
     if (state) {
       state.transformed = true;
       state.recording = false;
@@ -1831,7 +1843,7 @@ export function createPlagueDoctorEvent(shared) {
       return;
     }
     // `StartAdventEvent()` 先起 UniqueBgm，再开黑幕与镜头，所以 BGM 要早于演出脚本。
-    adventBgm = playSound(plagueDoctorSoundPaths.advent);
+    playSound(plagueDoctorSoundPaths.advent);
     activeClock = playPlagueDoctorAdvent({
       assetRoot: shared.assetRoot,
       document: globalThis.document,
@@ -1957,7 +1969,7 @@ export function createPlagueDoctorEvent(shared) {
   const reset = () => {
     activeClock?.dispose?.();
     activeClock = undefined;
-    clearAdventBgm();
+    clearSounds();
     busy = false;
     transforming = false;
     stopBlockingInteraction();

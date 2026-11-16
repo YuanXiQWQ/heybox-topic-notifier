@@ -18,6 +18,11 @@ window.Audio = class extends NativeAudio {
   }
   play() {
     if (!this.muted) entryRecords.push({event: 'play', src: this.entrySource, at: performance.now()});
+    if (window.entryTransformation && this.entrySource.endsWith('Lucifer_standbg0.ogg')) {
+      window.entryCleanup = entryAudios.filter((audio) =>
+        audio !== this && audio.entrySource.includes('/creature/deathangel/'))
+        .map((audio) => ({src: audio.entrySource, paused: audio.paused, released: !audio.getAttribute('src')}));
+    }
     return super.play();
   }
 };
@@ -26,6 +31,12 @@ window.Audio = class extends NativeAudio {
 try {
   sessionStorage.clear();
   localStorage.clear();
+  if (window.entryTransformation) {
+    sessionStorage.setItem('warmnest.lobotomy-corp-plague-doctor', JSON.stringify({
+      apostles: Array.from({length: 12}, (_, index) => 'Apostle ' + index),
+      recording: true, transformed: false,
+    }));
+  }
   const root = '/static/fun/lobotomy-corp/';
   for (const [id, path] of [
     ['lobotomy-corp-locale-data', 'Locales/en-US.json'],
@@ -40,6 +51,21 @@ try {
   await import(root + 'lobotomy-corp.js');
   const api = window.lobotomyCorpEasterEgg;
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  if (window.entryTransformation) {
+    void api.commitDisplayName('O-01-45');
+    const deadline = performance.now() + 75000;
+    while (api.getSpecialEventPhase() !== 'active' && performance.now() < deadline) await wait(100);
+    await wait(500);
+    const whispers = entryAudios.filter((audio) => audio.entrySource.includes('Lucifer_Apostle_Whisper'));
+    const church = entryAudios.find((audio) => audio.entrySource.endsWith('Lucifer_standbg0.ogg'));
+    const result = {phase: api.getSpecialEventPhase(), whispers: whispers.length,
+      whisperPlayed: entryRecords.some(({event, src}) => event === 'playing' && src.includes('Lucifer_Apostle_Whisper')),
+      cleanup: window.entryCleanup, churchPosition: church?.currentTime};
+    console.log('PLAGUE_DOCTOR_PROBE ' + JSON.stringify(result));
+    if (result.phase !== 'active' || whispers.length !== 11 || !result.whisperPlayed ||
+        !result.cleanup?.length || !result.cleanup.every(({paused, released}) => paused && released) ||
+        !(church?.currentTime > 0) || church.paused) throw new Error(JSON.stringify(result));
+  } else {
   if (window.entryPrepared) {
     const prepared = api.prepareDisplayName('T-03-46');
     await wait(100);
@@ -66,6 +92,7 @@ try {
       prelude.phase !== 'prelude' || !prelude.firstPlaying || !(prelude.firstPosition > 0) ||
       !(third?.currentTime > 0) || third.muted || third.paused) {
     throw new Error(JSON.stringify(result));
+  }
   }
   window.entryProbe = 'passed';
 } catch (error) {

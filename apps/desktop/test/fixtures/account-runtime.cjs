@@ -16,8 +16,8 @@ app.enableSandbox();
 let window, server, saved = 0, badNavigation = 0, settings;
 
 /** @param {string} expression 页面条件。 @return {Promise<void>} 条件满足或超时。 */
-async function until(expression) {
-  const deadline = Date.now() + 15000;
+async function until(expression, timeout = 15000) {
+  const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     if (await window.webContents.executeJavaScript(expression)) return;
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -50,7 +50,7 @@ async function respond(request, response) {
   } else if (url.pathname === '/white-night-entry') {
     const fixture = await fs.readFile(path.join(root, 'apps/android/app/src/androidTest/assets/white-night-entry.html'), 'utf8');
     response.setHeader('content-type', 'text/html; charset=utf-8');
-    response.end(fixture.replace('<meta charset="utf-8">', `<meta charset="utf-8"><script>window.entryPrepared=${url.searchParams.get('prepared') === 'true'};</script>`));
+    response.end(fixture.replace('<meta charset="utf-8">', `<meta charset="utf-8"><script>window.entryPrepared=${url.searchParams.get('prepared') === 'true'};window.entryTransformation=${url.searchParams.get('transformation') === 'true'};</script>`));
   } else if (url.pathname === '/app-sw.js' || url.pathname.startsWith('/static/')) {
     const file = url.pathname === '/app-sw.js' ? '/static/app-sw.js' : url.pathname;
     if (!/^[\w/.-]+$/.test(file) || file.includes('..')) { response.writeHead(404); response.end(); return; }
@@ -103,6 +103,10 @@ async function run() {
     assert.equal(result, 'passed');
     console.log('WHITE_NIGHT_ENTRY_OK', {prepared});
   }
+  await window.loadURL(origin + '/white-night-entry?transformation=true');
+  await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`, 90000);
+  assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
+  console.log('PLAGUE_DOCTOR_ENTRY_OK');
 }
 
 app.whenReady().then(run).then(() => {

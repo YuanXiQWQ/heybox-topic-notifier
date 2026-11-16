@@ -6,7 +6,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-test('First Trumpet saves without a 404 and WhiteNight rings once across entry stages', {timeout: 90000}, async () => {
+test('First Trumpet saves without a 404 and WhiteNight entry audio follows each stage', {timeout: 180000}, async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'heybox-account-test-'));
   const env = {...process.env};
   delete env.ELECTRON_RUN_AS_NODE;
@@ -19,13 +19,14 @@ test('First Trumpet saves without a 404 and WhiteNight rings once across entry s
       let output = '';
       child.stdout.on('data', value => { output += value; });
       child.stderr.on('data', value => { output += value; });
-      timer = setTimeout(() => child.kill(), 75000);
+      timer = setTimeout(() => child.kill(), 160000);
       child.once('error', reject);
       child.once('exit', code => resolve({code, output}));
     });
     assert.equal(result.code, 0, result.output);
     assert.match(result.output, /FIRST_TRUMPET_ACCOUNT_OK/);
     assert.equal((result.output.match(/WHITE_NIGHT_ENTRY_OK/g) || []).length, 2);
+    assert.match(result.output, /PLAGUE_DOCTOR_ENTRY_OK/);
     console.log(result.output.trim());
   } finally {
     clearTimeout(timer);
