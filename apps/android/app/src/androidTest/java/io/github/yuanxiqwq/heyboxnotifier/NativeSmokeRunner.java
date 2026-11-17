@@ -353,21 +353,25 @@ public final class NativeSmokeRunner extends Instrumentation {
         java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web"); field.setAccessible(true);
         android.webkit.WebView view = (android.webkit.WebView) field.get(activity);
         String control = "document.querySelector(" + JSONObject.quote(selector) + ")";
+        android.app.UiAutomation automation = getUiAutomation();
+        automation.waitForIdle(100, 5000);
         browserValue(view, control + ".scrollIntoView({block:'center'})");
         SystemClock.sleep(100);
         org.json.JSONArray point = new org.json.JSONArray(browserValue(view, "(() => {const r=" + control + ".getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,innerWidth]})()"));
         int[] origin = new int[2]; runOnMainSync(() -> view.getLocationOnScreen(origin));
         double scale = view.getWidth() / point.getDouble(2);
         float x = origin[0] + (float) (point.getDouble(0) * scale), y = origin[1] + (float) (point.getDouble(1) * scale);
+        android.util.Log.i("SCHEDULE_PROBE", selector + " point=" + point + " screen=" + x + "," + y);
         long pressed = SystemClock.uptimeMillis();
         for (int action : new int[] { android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP }) {
             android.view.MotionEvent event = android.view.MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), action, x, y, 0);
             event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN); sendPointerSync(event); event.recycle();
+            if (action == android.view.MotionEvent.ACTION_DOWN) SystemClock.sleep(80);
         }
         long deadline = SystemClock.uptimeMillis() + 10000;
         boolean selected = false;
         while (!selected && SystemClock.uptimeMillis() < deadline) {
-            android.view.accessibility.AccessibilityNodeInfo root = getUiAutomation().getRootInActiveWindow();
+            android.view.accessibility.AccessibilityNodeInfo root = automation.getRootInActiveWindow();
             if (root != null) for (android.view.accessibility.AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByText(label)) {
                 if (!label.contentEquals(node.getText() == null ? "" : node.getText())) continue;
                 for (int depth = 0; node != null && depth < 4; depth++, node = node.getParent()) {
@@ -376,6 +380,13 @@ public final class NativeSmokeRunner extends Instrumentation {
                 if (selected) break;
             }
             if (!selected) SystemClock.sleep(100);
+        }
+        if (!selected) {
+            logScheduleNodes(automation.getRootInActiveWindow(), 0);
+            android.graphics.Bitmap screenshot = automation.takeScreenshot();
+            if (screenshot != null) try (java.io.FileOutputStream output = new java.io.FileOutputStream(new java.io.File(getTargetContext().getExternalFilesDir(null), "schedule-menu.png"))) {
+                screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+            }
         }
         require(selected, "native option missing: " + label);
         deadline = SystemClock.uptimeMillis() + 10000;
@@ -386,6 +397,13 @@ public final class NativeSmokeRunner extends Instrumentation {
         java.util.concurrent.atomic.AtomicBoolean keyboard = new java.util.concurrent.atomic.AtomicBoolean();
         runOnMainSync(() -> keyboard.set(activity.getWindow().getDecorView().getRootWindowInsets().isVisible(android.view.WindowInsets.Type.ime())));
         require(!keyboard.get(), "calendar selector must not open the keyboard");
+    }
+    /** 记录失败时的系统菜单节点，保留真实选项和屏幕位置用于定位。 @param {android.view.accessibility.AccessibilityNodeInfo} node 当前节点。 @param {int} depth 节点深度。 */
+    private void logScheduleNodes(android.view.accessibility.AccessibilityNodeInfo node, int depth) {
+        if (node == null || depth > 20) return;
+        android.graphics.Rect bounds = new android.graphics.Rect(); node.getBoundsInScreen(bounds);
+        android.util.Log.i("SCHEDULE_PROBE", depth + " " + node.getClassName() + " text=" + node.getText() + " bounds=" + bounds + " clickable=" + node.isClickable());
+        for (int index = 0; index < node.getChildCount(); index++) logScheduleNodes(node.getChild(index), depth + 1);
     }
     /** @param {android.webkit.WebView} view 测试页。 @param {String} script 读取控件状态的表达式。 @return {String} 浏览器返回的 JSON 值。 @throws Exception 脚本回调超时。 */
     private String browserValue(android.webkit.WebView view, String script) throws Exception {
