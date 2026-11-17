@@ -8,7 +8,7 @@ import {
   rowInactive,
   rowPaused,
 } from "./polling-schedule-core.js";
-import { calendarPicker } from "./polling-calendar-picker.js";
+import { calendarPicker } from "./polling-calendar-picker.js?v=20261117-schedule-controls";
 import { branches, stems } from "./polling-calendar.js";
 
 /**
