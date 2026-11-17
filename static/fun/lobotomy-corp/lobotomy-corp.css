@@ -245,13 +245,13 @@
  *
  * 原版 BMDOHYEON 是韩文字体，中日文字形不全（12 条中文台词用到的 142 个汉字里它缺 32 个），
  * 而原作一个 Legacy Text 只用一支字体；这里同样整段切换，避免一个名字里两种字体混排。
- * 字体名按系统常见顺序列出，与游戏用 OS 字体补语言字体的做法一致。
+ * 字体名按系统常见顺序列出，缺席时由系统通用字体兜底；不能重新落回含空白汉字的游戏字体。
  */
 .lobotomy-corp-white-night-simple-advent-name[data-cjk="1"],
 .lobotomy-corp-plague-doctor-advent-name[data-cjk="1"]{
   font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
     "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei",
-    LobotomyAdventNames, sans-serif;
+    sans-serif;
 }
 
 /* Shader 是 Clock 的后续 sibling；Circle/ClockCenter、BlackShader、Point/Arrow 都被 Simple 模式关闭。 */
@@ -385,12 +385,12 @@
   position: absolute;
 }
 
-/* 输入框沿用站点自身的控件样式，只按画布尺寸放大，保证看起来就是那个输入框。 */
+/* 真实输入框保持原始盒模型，文字与内边距一起随镜头缩放。 */
 .lobotomy-corp-plague-doctor-advent-focus-input{
-  height: 100%;
-  min-height: 0;
-  padding: 0 18px;
-  width: 100%;
+  caret-color: transparent;
+  margin: 0;
+  position: absolute;
+  transform-origin: left top;
 }
 
 /* Shader 节点自身就是铺满 1920×1080 的 GlobalShader。 */
@@ -503,7 +503,7 @@
  */
 .lobotomy-corp-plague-doctor-advent-desc[data-cjk="1"]{
   font-family: "SimSun", "Songti SC", "Noto Serif CJK SC",
-    "Source Han Serif SC", "Microsoft YaHei", LobotomyAdventDesc, serif;
+    "Source Han Serif SC", "Microsoft YaHei", serif;
 }
 
 /* BlackShader 与 Circle 属于 `_adventDisabled` 一侧：绑定阶段显示 Circle，降临显示黑幕。 */
@@ -833,7 +833,7 @@
 /* NanumMyeongjo 没有汉字字形，中日文整段换成系统衬线字体。 */
 .lobotomy-corp-black-forest-cg-text[data-cjk="1"]{
   font-family: "SimSun", "Songti SC", "Noto Serif CJK SC",
-    "Source Han Serif SC", "Microsoft YaHei", LobotomyAdventDesc, serif;
+    "Source Han Serif SC", "Microsoft YaHei", serif;
 }
 
 /* 临时顶替页面图标的鸟蛋；画布尺寸沿用被替换图标的占位。 */

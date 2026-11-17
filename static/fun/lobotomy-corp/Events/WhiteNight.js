@@ -962,7 +962,9 @@ export function createWhiteNightEvent(shared) {
     if (!options.restore && behavior.playApostlesCompletion) {
       hostCapabilities.playApostlesCompletion?.(options.source);
     }
-    if (!options.restore && behavior.playEntryBell) {
+    // Simple Advent 已在轮盘开始时敲钟，进入白夜本体时不重复播放。
+    if (!options.restore && behavior.playEntryBell &&
+        (!behavior.usesSimpleAdventPrelude || options.skipPrelude === true)) {
       playBell(options.preparedMedia);
     }
     options.preparedMedia?.dispose?.();

@@ -67,6 +67,15 @@ public final class NativeSmokeRunner extends Instrumentation {
             pass("foreground service starts without GMS; badge deduplicates posts");
             assertDeferredEasterEggAudio();
             pass("packaged Easter egg sounds play asynchronously without another user gesture");
+            assertBrowserFixture("advent-font.html", "", 30000);
+            pass("Advent CJK names and descriptions render visible glyphs with packaged fonts loaded");
+            assertBrowserFixture("advent-settings.html", "", 30000);
+            pass("Plague Doctor reuses and restores the real settings field with animated text and unchanged box model");
+            assertWhiteNightEntry(false, false);
+            assertWhiteNightEntry(true, false);
+            pass("WhiteNight rings once across Prelude and active with and without prepared media");
+            assertWhiteNightEntry(false, true);
+            pass("Plague Doctor stops all cutscene sounds before WhiteNight church music starts");
             if (!mediaOnly) {
             NotificationManager nm = manager;
             require(!nm.getNotificationChannel("background-silent-v2").canShowBadge(), "background channel has no badge");
@@ -111,6 +120,8 @@ public final class NativeSmokeRunner extends Instrumentation {
             require(!new String(encrypted, StandardCharsets.UTF_8).contains("smoke-user"), "state is encrypted");
             pass("badge disable and Keystore encrypted persistence");
             }
+            assertUpdateDownload();
+            pass("update download survives Activity removal; notification and reopened About page share progress; invalid package is rejected");
             status = Activity.RESULT_OK;
         } catch (Throwable error) {
             result.putString("error", android.util.Log.getStackTraceString(error));
@@ -119,6 +130,7 @@ public final class NativeSmokeRunner extends Instrumentation {
             try { if (device != null) { device.put("badgeEnabled", false); device.put("badgeSnapshot", new JSONObject()); device.put("notifications", new JSONObject().put("enabled", false)); } }
             catch (Exception error) { result.putString("cleanupError", error.toString()); status = Activity.RESULT_CANCELED; }
             NotificationJob.maintain(getTargetContext(), false);
+            getTargetContext().stopService(new Intent(getTargetContext(), UpdateService.class));
             boolean stopped = getTargetContext().stopService(new Intent(getTargetContext(), NotificationService.class));
             runOnMainSync(() -> { CookieManager.getInstance().removeAllCookies(null); CookieManager.getInstance().flush(); if (activity != null) activity.finish(); });
             long cleanupEnd = SystemClock.uptimeMillis() + 10000;
@@ -137,6 +149,92 @@ public final class NativeSmokeRunner extends Instrumentation {
     private static void require(boolean value, String message) { if (!value) throw new AssertionError(message); }
     /** @param {String} name 已完成的检查。 */
     private void pass(String name) { passed.append("PASS ").append(name).append('\n'); }
+    /** 在隔离模拟器中分段提供无效安装包，验证真实下载服务生命周期与校验失败，绝不申请安装。 @throws Exception 系统服务或断言失败。 */
+    private void assertUpdateDownload() throws Exception {
+        if (activity == null || activity.isDestroyed() || activity.isFinishing()) activity = startActivitySync(new Intent(getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        Updates updates = Updates.current();
+        java.lang.reflect.Field transferring = Updates.class.getDeclaredField("transferring"); transferring.setAccessible(true);
+        long deadline = SystemClock.uptimeMillis() + 15000;
+        while (((java.util.concurrent.atomic.AtomicBoolean) transferring.get(updates)).get() && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100);
+        require(!((java.util.concurrent.atomic.AtomicBoolean) transferring.get(updates)).get(), "update coordinator idle before isolated download");
+        String address = "https://github.com/YuanXiQWQ/heybox-topic-notifier/releases/download/99.0.1/heybox-topic-notifier-android-universal.apk";
+        java.util.concurrent.Semaphore chunks = new java.util.concurrent.Semaphore(0);
+        java.util.concurrent.atomic.AtomicInteger connections = new java.util.concurrent.atomic.AtomicInteger();
+        // 仅测试进程替换 HTTPS 传输；生产下载器仍执行来源、大小、摘要及签名检查。
+        java.net.URL.setURLStreamHandlerFactory(protocol -> !protocol.equals("https") ? null : new java.net.URLStreamHandler() {
+            @Override protected java.net.URLConnection openConnection(java.net.URL url) throws java.io.IOException {
+                if (!address.equals(url.toString())) throw new java.io.IOException("Isolated offline test");
+                connections.incrementAndGet();
+                return new java.net.HttpURLConnection(url) {
+                    private volatile boolean disconnected;
+                    @Override public void connect() {}
+                    @Override public void disconnect() { disconnected = true; chunks.release(); }
+                    @Override public boolean usingProxy() { return false; }
+                    @Override public int getResponseCode() { return 200; }
+                    @Override public String getHeaderField(String name) { return null; }
+                    @Override public java.io.InputStream getInputStream() {
+                        return new java.io.InputStream() {
+                            private int count;
+                            @Override public int read() throws java.io.IOException { throw new java.io.IOException("Requires buffered read"); }
+                            @Override public int read(byte[] bytes, int offset, int length) throws java.io.IOException {
+                                if (count == 10) return -1;
+                                try { if (!chunks.tryAcquire(60, java.util.concurrent.TimeUnit.SECONDS)) throw new java.io.IOException("Chunk timeout"); }
+                                catch (InterruptedException error) { Thread.currentThread().interrupt(); throw new java.io.IOException(error); }
+                                if (disconnected) throw new java.io.IOException("Download cancelled");
+                                require(length >= 8192, "download buffer");
+                                java.util.Arrays.fill(bytes, offset, offset + 8192, (byte) 0); count++; return 8192;
+                            }
+                        };
+                    }
+                };
+            }
+        });
+        device.put("updateVersion", "99.0.1"); device.put("updateSeen_dismissed", "");
+        java.lang.reflect.Field release = Updates.class.getDeclaredField("release"); release.setAccessible(true);
+        release.set(updates, new JSONObject().put("browser_download_url", address).put("size", 81920).put("digest", "sha256:" + "0".repeat(64)));
+        java.lang.reflect.Field status = Updates.class.getDeclaredField("status"); status.setAccessible(true); status.set(updates, "available");
+        chunks.release(3);
+        assertBrowserFixture("update-progress.html", "window.startUpdateProbe=true;", 30000);
+        awaitUpdateProgress(30);
+        runOnMainSync(() -> activity.finishAndRemoveTask());
+        deadline = SystemClock.uptimeMillis() + 10000;
+        while (!activity.isDestroyed() && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100);
+        require(activity.isDestroyed(), "original Activity destroyed during download");
+        chunks.release(3); awaitUpdateProgress(60);
+        require(connections.get() == 1, "repeated requests do not start a second download");
+        activity = startActivitySync(new Intent(getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        require(Updates.current() == updates, "new Activity attaches to the same download");
+        assertBrowserFixture("update-progress.html", "", 30000);
+        chunks.release(4);
+        deadline = SystemClock.uptimeMillis() + 10000;
+        while (!"error".equals(updates.state().optString("status")) && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100);
+        require("error".equals(updates.state().optString("status")), "invalid digest rejects synthetic package");
+        require(!updates.state().optBoolean("installPending"), "invalid package never requests installation");
+        device.put("updateVersion", ""); device.put("updateSeen_dismissed", "");
+        getTargetContext().stopService(new Intent(getTargetContext(), UpdateService.class));
+        manager.cancel(UpdateService.NOTIFICATION_ID);
+    }
+    /** @param {int} expected 预期共享进度与通知百分比。 @throws Exception 状态读取或等待失败。 */
+    private void awaitUpdateProgress(int expected) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + 10000;
+        while (SystemClock.uptimeMillis() < deadline) {
+            for (StatusBarNotification posted : manager.getActiveNotifications()) {
+                if (posted.getId() != UpdateService.NOTIFICATION_ID) continue;
+                Notification notification = posted.getNotification();
+                if (notification.extras.getInt(Notification.EXTRA_PROGRESS) != expected) continue;
+                require("downloading".equals(Updates.current().state().optString("status")), "coordinator remains downloading");
+                require(Updates.current().state().getInt("progress") == expected, "notification and page progress match");
+                require(notification.extras.getInt(Notification.EXTRA_PROGRESS_MAX) == 100, "determinate progress maximum");
+                require((notification.flags & Notification.FLAG_ONGOING_EVENT) != 0, "download notification is ongoing");
+                require(notification.contentIntent != null, "download notification opens application");
+                android.app.NotificationChannel channel = manager.getNotificationChannel(notification.getChannelId());
+                require(channel.getImportance() <= NotificationManager.IMPORTANCE_LOW && channel.getSound() == null && !channel.canShowBadge(), "progress is silent and does not change workspace badge");
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Update notification did not reach " + expected + ": " + Updates.current().state());
+    }
     /** 在真实 Activity 的 WebView 内异步播放安装包音频，验证播放策略、解码和播放进度。 @throws Exception 反射、等待或播放失败。 */
     private void assertDeferredEasterEggAudio() throws Exception {
         java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web");
@@ -198,6 +296,42 @@ public final class NativeSmokeRunner extends Instrumentation {
                 SystemClock.sleep(100);
             }
             throw new AssertionError("Timed out waiting for deferred audio: " + last);
+        } finally {
+            runOnMainSync(() -> view.loadUrl("about:blank"));
+        }
+    }
+    /** 验证白夜入场的钟声与疫医过场音频交接。 @param {boolean} prepared 是否预热媒体。 @param {boolean} transformation 是否经疫医完整转变入场。 @throws Exception 页面、播放或等待失败。 */
+    private void assertWhiteNightEntry(boolean prepared, boolean transformation) throws Exception {
+        assertBrowserFixture("white-night-entry.html", "window.entryPrepared=" + prepared + ";window.entryTransformation=" + transformation + ";", transformation ? 90000 : 30000);
+    }
+    /** 在真实 WebView 中运行安装于测试包的浏览器检查。 @param {String} name 检查页面。 @param {String} setup 测试选项。 @param {long} timeout 等待上限。 @throws Exception 页面、断言或等待失败。 */
+    private void assertBrowserFixture(String name, String setup, long timeout) throws Exception {
+        java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web");
+        field.setAccessible(true);
+        android.webkit.WebView view = (android.webkit.WebView) field.get(activity);
+        String fixture;
+        try (java.io.InputStream input = getContext().getAssets().open(name)) {
+            fixture = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        String html = fixture.replace("<meta charset=\"utf-8\">", "<meta charset=\"utf-8\"><script>" + setup + "</script>");
+        runOnMainSync(() -> view.loadDataWithBaseURL(BuildConfig.APP_ORIGIN + "/", html, "text/html", "UTF-8", null));
+        long deadline = SystemClock.uptimeMillis() + timeout;
+        String last = "null";
+        try {
+            while (SystemClock.uptimeMillis() < deadline) {
+                java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.atomic.AtomicReference<String> value = new java.util.concurrent.atomic.AtomicReference<>();
+                runOnMainSync(() -> view.evaluateJavascript("window.entryProbe", actual -> {
+                    value.set(actual); ready.countDown();
+                }));
+                // 软件渲染模拟器首次绘制完整设置页可能超过两秒，保留页面总超时约束。
+                require(ready.await(10, java.util.concurrent.TimeUnit.SECONDS), name + " probe callback");
+                last = value.get();
+                if ("\"passed\"".equals(last)) return;
+                require("null".equals(last) || "\"pending\"".equals(last), name + " " + setup + ": " + last);
+                SystemClock.sleep(100);
+            }
+            throw new AssertionError("Timed out waiting for " + name + ": " + last);
         } finally {
             runOnMainSync(() -> view.loadUrl("about:blank"));
         }

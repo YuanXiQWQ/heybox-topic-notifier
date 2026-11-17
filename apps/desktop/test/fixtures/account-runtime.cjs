@@ -1,4 +1,4 @@
-/** @file 在真实设置页提交 First Trumpet，检查账户确认、页面地址和实际音频进度。 */
+/** @file 在真实设置页提交 First Trumpet，并检查白夜入场钟声、警报与背景音乐。 */
 const {app, BrowserWindow, session, net, ipcMain} = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -13,16 +13,17 @@ const root = path.resolve(__dirname, '../../../..');
 app.setPath('userData', process.argv[2]);
 app.setName('小黑盒话题提醒');
 app.enableSandbox();
-let window, server, saved = 0, badNavigation = 0, settings;
+let window, server, saved = 0, badNavigation = 0, settings, adventSettings;
 
-/** @param {string} expression 页面条件。 @return {Promise<void>} 条件满足或超时。 */
-async function until(expression) {
-  const deadline = Date.now() + 15000;
+/** @param {string} expression 页面条件。 @param {number} timeout 等待上限。 @return {Promise<void>} 条件满足或超时。 */
+async function until(expression, timeout = 15000) {
+  const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     if (await window.webContents.executeJavaScript(expression)) return;
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-  throw new Error('Timed out: ' + expression + ' at ' + window.webContents.getURL());
+  throw new Error('Timed out: ' + expression + ' at ' + window.webContents.getURL() + ' stage=' +
+    await window.webContents.executeJavaScript('globalThis.entryStage'));
 }
 
 /** @param {import('node:http').IncomingMessage} request 测试请求。 @param {import('node:http').ServerResponse} response 响应。 @return {Promise<void>} 响应结束。 */
@@ -47,6 +48,16 @@ async function respond(request, response) {
     response.setHeader('content-encoding', 'gzip');
     response.setHeader('content-length', body.length);
     response.end(body);
+  } else if (url.pathname === '/advent-settings') {
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(adventSettings);
+  } else if (url.pathname === '/advent-font') {
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(await fs.readFile(path.join(root, 'apps/android/app/src/androidTest/assets/advent-font.html')));
+  } else if (url.pathname === '/white-night-entry') {
+    const fixture = await fs.readFile(path.join(root, 'apps/android/app/src/androidTest/assets/white-night-entry.html'), 'utf8');
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(fixture.replace('<meta charset="utf-8">', `<meta charset="utf-8"><script>window.entryPrepared=${url.searchParams.get('prepared') === 'true'};window.entryTransformation=${url.searchParams.get('transformation') === 'true'};</script>`));
   } else if (url.pathname === '/app-sw.js' || url.pathname.startsWith('/static/')) {
     const file = url.pathname === '/app-sw.js' ? '/static/app-sw.js' : url.pathname;
     if (!/^[\w/.-]+$/.test(file) || file.includes('..')) { response.writeHead(404); response.end(); return; }
@@ -63,6 +74,11 @@ async function run() {
   });
   assert.equal(rendered.status, 0, rendered.stderr);
   settings = JSON.parse(rendered.stdout)['/settings:workspace'];
+  const renderedAdvent = spawnSync('deno', ['run', '--frozen', '--allow-read', '--allow-env', path.join(__dirname, 'advent-settings-page.ts')], {
+    cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 16 * 1024 * 1024,
+  });
+  assert.equal(renderedAdvent.status, 0, renderedAdvent.stderr);
+  adventSettings = renderedAdvent.stdout;
   server = createServer((request, response) => void respond(request, response).catch(error => { console.error(error); response.destroy(); }));
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -92,6 +108,26 @@ async function run() {
   assert.equal(saved, 1);
   assert.equal(badNavigation, 0);
   console.log('FIRST_TRUMPET_ACCOUNT_OK', window.webContents.getURL());
+  await window.loadURL(origin + '/advent-font');
+  await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
+  assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
+  console.log('ADVENT_FONT_OK');
+  window.show();
+  await window.loadURL(origin + '/advent-settings');
+  await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
+  assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
+  console.log('ADVENT_REAL_INPUT_OK');
+  for (const prepared of [false, true]) {
+    await window.loadURL(origin + '/white-night-entry?prepared=' + prepared);
+    await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
+    const result = await window.webContents.executeJavaScript('entryProbe');
+    assert.equal(result, 'passed');
+    console.log('WHITE_NIGHT_ENTRY_OK', {prepared});
+  }
+  await window.loadURL(origin + '/white-night-entry?transformation=true');
+  await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`, 90000);
+  assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
+  console.log('PLAGUE_DOCTOR_ENTRY_OK');
 }
 
 app.whenReady().then(run).then(() => {

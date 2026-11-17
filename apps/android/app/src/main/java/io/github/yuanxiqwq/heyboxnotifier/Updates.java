@@ -32,11 +32,15 @@ final class Updates {
     private final android.app.Application context;
     private final DeviceState device;
     private volatile java.lang.ref.WeakReference<Runnable> changed;
+    /** 下载服务独立订阅进度，不依赖当前网页或 Activity 是否存在。 */
+    private volatile Runnable downloadChanged;
     private final File apk;
     private volatile JSONObject release;
     private volatile String status = "idle";
     private volatile int progress = 0;
     private volatile boolean installAfterPermission;
+    /** 下载完成后的安装交接跨页面保留，回到前台再申请系统安装。 */
+    private volatile boolean installPending;
     /** 取消只影响未完成下载，完整校验包可跨进程保留。 */
     private volatile boolean downloadCancelled;
     private volatile HttpURLConnection downloadConnection;
@@ -69,12 +73,19 @@ final class Updates {
         else { instance.activity = new java.lang.ref.WeakReference<>(activity); instance.changed = new java.lang.ref.WeakReference<>(changed); }
         return instance;
     }
+    /** @return {Updates} 用户已启动应用创建的进程更新协调器。 */
+    static synchronized Updates current() { return instance; }
+    /** @param {Runnable} listener 下载服务状态订阅，停止服务时清除。 */
+    void observeDownload(Runnable listener) { downloadChanged = listener; }
     /** @param {Activity} owner 已销毁窗口，后台下载不再持有其回调或上下文。 */
     synchronized void detach(Activity owner) { if (activity.get() == owner) { activity.clear(); changed.clear(); } }
     /** 暂停网络读取，下载线程关闭输出流前持久化检查点，不阻塞界面等待网络。 */
     synchronized void cancelDownload() { downloadCancelled = true; HttpURLConnection connection = downloadConnection; if (connection != null) connection.disconnect(); }
     /** 仅通知仍然存活的窗口，进程协调器不强引用页面及其回调。 */
-    private void notifyChanged() { Runnable listener = changed.get(); if (listener != null) listener.run(); }
+    private void notifyChanged() {
+        Runnable listener = changed.get(); if (listener != null) listener.run();
+        Runnable downloadListener = downloadChanged; if (downloadListener != null) downloadListener.run();
+    }
     /**
      * 返回当前更新进度和三个层级的查看状态。
      * @return {JSONObject} 页面状态。
@@ -83,6 +94,7 @@ final class Updates {
     synchronized JSONObject state() throws Exception {
         JSONObject saved = device.read(); String version = saved.optString("updateVersion");
         return new JSONObject().put("status", status).put("version", version.isEmpty() ? JSONObject.NULL : version).put("progress", progress)
+            .put("installPending", installPending)
             .put("settingsUnread", !version.isEmpty() && !version.equals(saved.optString("updateSeen_settings")))
             .put("aboutUnread", !version.isEmpty() && !version.equals(saved.optString("updateSeen_about")))
             .put("prompt", !version.isEmpty() && !version.equals(saved.optString("updateSeen_dismissed")));
@@ -146,8 +158,6 @@ final class Updates {
      */
     void download() throws Exception {
         synchronized (this) {
-            Activity owner = activity.get();
-            if (owner == null || owner.isFinishing() || owner.isDestroyed()) throw new IllegalStateException("Activity unavailable");
             if (!transferring.compareAndSet(false, true)) throw new IllegalStateException("Update operation in progress");
             resumePending = false;
             downloadCancelled = false;
@@ -205,7 +215,7 @@ final class Updates {
             verifyPackage(partial.file,version); java.nio.file.Files.deleteIfExists(apk.toPath());
             if (!partial.file.renameTo(apk)) throw new IllegalStateException("Cannot prepare update");
             device.put("downloadedUpdate",new JSONObject().put("version",version).put("asset",release));
-            partial.discard(); status="downloaded"; notifyChanged();
+            partial.discard(); installPending=true; status="downloaded"; notifyChanged();
         } catch (Exception error) { invalid=error instanceof SecurityException; status="error"; notifyChanged(); throw error; }
         finally {
             if (connection!=null) connection.disconnect(); downloadConnection=null;
@@ -291,6 +301,7 @@ final class Updates {
         if (!status.equals("downloaded")) throw new IllegalStateException("Update not ready");
         Activity owner = activity.get();
         if (owner == null || owner.isDestroyed() || owner.isFinishing()) throw new IllegalStateException("Application window required");
+        installPending = false;
         if (!context.getPackageManager().canRequestPackageInstalls()) {
             installAfterPermission = true;
             owner.runOnUiThread(() -> owner.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.getPackageName())))); return;
