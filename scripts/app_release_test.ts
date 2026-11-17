@@ -182,9 +182,25 @@ Deno.test("release versions follow existing bare tags and preserve monotonic And
       "$(whoami)",
       "2100.0.0",
       "1.1000.0",
-      "1.0.1000",
+      "2099.999.1000",
+      "1.0.9007199254740992",
     ]
   ) assertThrows(() => releaseVersion(tag));
+});
+
+Deno.test("long patch versions preserve published codes and increase within the same minor", () => {
+  let previous = releaseVersion("3.14.15").versionCode;
+  assertEquals(previous, 3014016);
+  for (const patch of [151, 999, 1000, 10000, 1000000]) {
+    const version = `3.14.${patch}`;
+    const current = releaseVersion(version);
+    assertEquals(current.version, version);
+    assertEquals(current.versionCode, 3014001 + patch);
+    assert(current.versionCode > previous);
+    previous = current.versionCode;
+  }
+  assertEquals(releaseVersion("0.0.2099999999").versionCode, 2100000000);
+  assertThrows(() => releaseVersion("0.0.2100000000"));
 });
 
 Deno.test("a tag without a release creates a draft and publishes only after all assets", async () => {

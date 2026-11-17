@@ -76,6 +76,8 @@ export class Element {
     ...nodes: Element[]
   ): void {
     nodes.forEach((node) => {
+      const previous = node.parentElement?.children.indexOf(node) ?? -1;
+      if (previous >= 0) node.parentElement!.children.splice(previous, 1);
       node.parentElement = this;
       this.children.push(node);
     });
@@ -87,6 +89,8 @@ export class Element {
     child: Element,
     before: Element,
   ): void {
+    const previous = child.parentElement?.children.indexOf(child) ?? -1;
+    if (previous >= 0) child.parentElement!.children.splice(previous, 1);
     child.parentElement = this;
     const index = this.children.indexOf(before);
     this.children.splice(index < 0 ? this.children.length : index, 0, child);
@@ -341,6 +345,7 @@ export class AudioMock extends Element {
 export function installLobotomyCorpAlertHarness(
   options: {
     alertOverlays?: Element[];
+    displayNameInput?: Element;
     loginSession?: string;
     navigationType?: "navigate" | "reload";
     now?: number;
@@ -467,7 +472,9 @@ export function installLobotomyCorpAlertHarness(
             }
             : null,
         querySelector: (selector: string) =>
-          selector === "[data-polling-interval-value]" &&
+          selector === "[data-account-display-name-input]"
+            ? options.displayNameInput
+            : selector === "[data-polling-interval-value]" &&
             options.pollingIntervalValue !== undefined
             ? { value: options.pollingIntervalValue }
             : undefined,

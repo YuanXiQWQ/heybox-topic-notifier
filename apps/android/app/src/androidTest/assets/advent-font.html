@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css">
+<body>
+<script type="module">
+window.entryProbe = 'pending';
+try {
+  await new Promise((resolve, reject) => {
+    const link = document.querySelector('link');
+    if (link.sheet) resolve();
+    else { link.onload = resolve; link.onerror = reject; }
+  });
+  // 游戏字体先加载完成，防止暂时使用系统字体掩盖空白字形。
+  await document.fonts.load('40px LobotomyAdventNames');
+  await document.fonts.load('40px LobotomyAdventDesc');
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 80;
+  const context = canvas.getContext('2d', {willReadFrequently: true});
+  const results = [];
+  for (const className of [
+    'lobotomy-corp-white-night-simple-advent-name',
+    'lobotomy-corp-plague-doctor-advent-name',
+    'lobotomy-corp-plague-doctor-advent-desc',
+    'lobotomy-corp-black-forest-cg-text',
+  ]) {
+    const node = document.createElement('span');
+    node.className = className;
+    node.dataset.cjk = '1';
+    node.textContent = '白夜中文使徒你好';
+    document.body.append(node);
+    const family = getComputedStyle(node).fontFamily;
+    const missing = [];
+    for (const glyph of node.textContent) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.font = '40px ' + family;
+      context.fillText(glyph, 10, 55);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      if (!pixels.some((value, index) => index % 4 === 3 && value > 0)) missing.push(glyph);
+    }
+    results.push({className, family, missing});
+  }
+  console.log('ADVENT_FONT_PROBE ' + JSON.stringify(results));
+  if (results.some(({missing}) => missing.length)) throw new Error(JSON.stringify(results));
+  window.entryProbe = 'passed';
+} catch (error) {
+  window.entryProbe = String(error);
+}
+</script>
+</body>
+</html>

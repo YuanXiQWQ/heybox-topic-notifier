@@ -3470,7 +3470,8 @@ tr:last-child td{
   .about-version-updates{ gap: 6px 0; }
 
   .about-version > * + *,
-  .about-version-updates > * + *{ margin-inline-start: 12px; }
+  .about-version-updates > * + *,
+  .about-version-updates > * + .inline-action-status{ margin-inline-start: 12px; }
 }
 
 @media (max-width: 620px){

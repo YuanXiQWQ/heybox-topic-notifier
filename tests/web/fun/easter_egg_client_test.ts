@@ -2563,6 +2563,46 @@ Deno.test("Lobotomy Corporation raises the restored Danger music high-water to t
     harness.restore();
   }
 });
+for (const prepared of [false, true]) {
+  Deno.test(`WhiteNight rings once across Prelude and active with prepared=${prepared}`, async () => {
+    const harness = installLobotomyCorpAlertHarness();
+    try {
+      await harness.reload();
+      const api = harness.api();
+      if (prepared) void api.prepareDisplayName("T-03-46").commit();
+      else void api.commitDisplayName("T-03-46");
+      const bell = AudioMock.items.find((audio) =>
+        audio.src.endsWith("Lucifer_Bell0.ogg")
+      );
+      assert(bell);
+      const bellPlays = () =>
+        AudioMock.playSnapshots.filter((snapshot) =>
+          !snapshot.muted &&
+          (snapshot.audio === bell ||
+            snapshot.src.endsWith("Lucifer_Bell0.ogg"))
+        ).length;
+      assertEquals(api.getSpecialEventPhase(), "prelude");
+      assertEquals(bellPlays(), 1);
+      // 钟声先于轮盘结束；真实浏览器此时会释放 src，仍须识别同一实例的重复调用。
+      AudioMock.clearSrcOnRemoveAttribute = true;
+      bell.dispatch("ended");
+      harness.setNow(whiteNightPreludeDurationMs);
+      harness.fireFrames();
+      assertEquals(api.getSpecialEventPhase(), "active");
+      assertEquals(bellPlays(), 1);
+      assert(harness.lastTrumpet()!.src.endsWith("emergency03_mast.ogg"));
+      assert(
+        AudioMock.items.some((audio) =>
+          audio.src.endsWith("Lucifer_standbg0.ogg") && !audio.muted &&
+          audio.playCount > 0
+        ),
+      );
+    } finally {
+      harness.restore();
+    }
+  });
+}
+
 Deno.test("WhiteNight keeps the Prelude Alert running and hands the stage BGM over in order", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
