@@ -36,6 +36,7 @@ jobs:
           node apps/scripts/prepare-assets.mjs --android
           mkdir -p apps/android/app/build/generated/smoke-assets
           deno run --allow-read --allow-env apps/desktop/test/fixtures/advent-settings-page.ts > apps/android/app/build/generated/smoke-assets/advent-settings.html
+          deno run --allow-read --allow-env apps/desktop/test/fixtures/theme-settings-page.ts > apps/android/app/build/generated/smoke-assets/theme-settings.html
           deno run --allow-read --allow-env apps/desktop/test/fixtures/polling-settings-page.ts > apps/android/app/build/generated/smoke-assets/polling-settings.html
           gradle -p apps/android --no-daemon assembleDebug assembleDebugAndroidTest
       - name: Enable emulator acceleration
