@@ -1646,6 +1646,18 @@ input[type="color"]::-moz-color-swatch{
   border-radius: 4px;
 }
 
+/* 颜色草稿复用现有弹窗，精确数值输入不依赖系统选色器的能力。 */
+.theme-color-dialog{ width:min(92vw,420px); max-height:90vh; max-height:90dvh; overflow-y:auto; }
+.theme-color-fields{ display:grid; grid-template-columns:54px minmax(0,1fr); gap:20px 16px; align-items:end; padding:20px; }
+.theme-color-fields label{ display:grid; gap:8px; min-width:0; }
+.theme-color-fields input:not([type="color"]){ width:100%; min-width:0; font-size:16px; }
+.theme-color-fields > input[type="color"]{ height:42px; }
+.theme-color-rgb{ grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; border:0; padding:0; margin:0; min-width:0; }
+.theme-color-rgb legend{ padding:0; margin-bottom:12px; }
+.theme-color-fields [aria-invalid="true"]{ border-color:#B42318; }
+:root[data-color-mode="dark"] .theme-color-fields [aria-invalid="true"]{ border-color:#FFB4AB; }
+.theme-color-actions{ display:flex; justify-content:flex-end; flex-wrap:wrap; gap:12px; padding:0 20px 20px; }
+
 .metrics{
   background: var(--surface);
   border: 1px solid var(--border);

@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../../..');
 app.setPath('userData', process.argv[2]);
 app.setName('小黑盒话题提醒');
 app.enableSandbox();
-let window, server, saved = 0, badNavigation = 0, settings, adventSettings;
+let window, server, saved = 0, badNavigation = 0, settings, adventSettings, themeSettings;
 
 /** @param {string} expression 页面条件。 @param {number} timeout 等待上限。 @return {Promise<void>} 条件满足或超时。 */
 async function until(expression, timeout = 15000) {
@@ -48,6 +48,9 @@ async function respond(request, response) {
     response.setHeader('content-encoding', 'gzip');
     response.setHeader('content-length', body.length);
     response.end(body);
+  } else if (url.pathname === '/theme-settings') {
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(themeSettings);
   } else if (url.pathname === '/advent-settings') {
     response.setHeader('content-type', 'text/html; charset=utf-8');
     response.end(adventSettings);
@@ -79,6 +82,11 @@ async function run() {
   });
   assert.equal(renderedAdvent.status, 0, renderedAdvent.stderr);
   adventSettings = renderedAdvent.stdout;
+  const renderedTheme = spawnSync('deno', ['run', '--frozen', '--allow-read', '--allow-env', path.join(__dirname, 'theme-settings-page.ts')], {
+    cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 16 * 1024 * 1024,
+  });
+  assert.equal(renderedTheme.status, 0, renderedTheme.stderr);
+  themeSettings = renderedTheme.stdout;
   server = createServer((request, response) => void respond(request, response).catch(error => { console.error(error); response.destroy(); }));
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -117,6 +125,10 @@ async function run() {
   await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
   assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
   console.log('ADVENT_REAL_INPUT_OK');
+  await window.loadURL(origin + '/theme-settings');
+  await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
+  assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
+  console.log('THEME_VALUES_OK');
   for (const prepared of [false, true]) {
     await window.loadURL(origin + '/white-night-entry?prepared=' + prepared);
     await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);

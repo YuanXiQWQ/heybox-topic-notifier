@@ -5763,7 +5763,7 @@ function findActiveTopicRow(topicEditor, activeTarget) {
  * 保存本设备的手动显示选择，失败时保留既有错误反馈。
  * @param {string} field 显示偏好字段。
  * @param {string | boolean} value 用户选择的值。
- * @return {Promise<void>} 本机保存及必要的语言刷新已完成。
+ * @return {Promise<boolean>} 本机保存及必要的语言刷新是否成功。
  */
 async function saveDeviceAppearance(field, value) {
   try {
@@ -5771,9 +5771,71 @@ async function saveDeviceAppearance(field, value) {
     appearance.save(field, value);
     setAutoSaveStatus('saved');
     if (field === 'locale') await appearance.refreshLanguage();
+    return true;
   } catch {
     setAutoSaveStatus('error');
+    return false;
   }
+}
+
+/**
+ * 在系统选色器之外提供两端一致的精确输入；草稿只在确认后写入本机偏好。
+ * @param {HTMLInputElement|null} colorInput 设置页原有的主题色控件。
+ */
+function initThemeColorValues(colorInput) {
+  const dialog = document.querySelector('[data-theme-color-dialog]');
+  if (!colorInput || !dialog) return;
+  const form = dialog.querySelector('[data-theme-color-form]');
+  const palette = dialog.querySelector('[data-theme-color-draft]');
+  const hex = dialog.querySelector('[data-theme-color-hex]');
+  const channels = [...dialog.querySelectorAll('[data-theme-color-channel]')];
+  const submit = form.querySelector('[type="submit"]');
+
+  /**
+   * 同步有效草稿，保留当前输入的内容和光标位置。
+   * @param {string} value 六位十六进制颜色。
+   * @param {HTMLElement} [source] 正在编辑的控件。
+   */
+  function sync(value, source) {
+    palette.value = value;
+    if (source !== hex) hex.value = value.toUpperCase();
+    channels.forEach((channel, index) => {
+      if (source !== channel) channel.value = String(parseInt(value.slice(1 + index * 2, 3 + index * 2), 16));
+    });
+    for (const field of [hex, ...channels]) field.setAttribute('aria-invalid', 'false');
+  }
+
+  colorInput.setAttribute('aria-haspopup', 'dialog');
+  colorInput.addEventListener('click', (event) => {
+    event.preventDefault();
+    sync(colorInput.value);
+    dialog.showModal();
+  });
+  palette.addEventListener('input', () => sync(palette.value));
+  hex.addEventListener('input', () => {
+    const valid = hex.checkValidity();
+    hex.setAttribute('aria-invalid', String(!valid));
+    if (!valid) return;
+    let value = hex.value.replace(/^#/, '');
+    if (value.length === 3) value = [...value].map(part => part + part).join('');
+    sync('#' + value, hex);
+  });
+  for (const channel of channels) channel.addEventListener('input', () => {
+    for (const field of channels) field.setAttribute('aria-invalid', String(!field.checkValidity()));
+    if (channels.some(field => !field.checkValidity())) return;
+    sync('#' + channels.map(field => Number(field.value).toString(16).padStart(2, '0')).join(''), channel);
+  });
+  dialog.querySelector('[data-theme-color-cancel]').addEventListener('click', () => dialog.close());
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity() || submit.disabled) return;
+    submit.disabled = true;
+    try {
+      if (await saveDeviceAppearance('themeColor', palette.value)) dialog.close();
+    } finally {
+      submit.disabled = false;
+    }
+  });
 }
 
 /** 初始化本机显示控件，系统变化不会触发保存。 */
@@ -5781,6 +5843,7 @@ function initThemePicker() {
   const colorInput = document.querySelector('[data-theme-color-input]');
   const darkModeInput = /** @type {HTMLInputElement|null} */ (document.querySelector('[data-dark-mode-input]'));
   const localeInput = document.querySelector('select[name="locale"]');
+  initThemeColorValues(colorInput);
   colorInput?.addEventListener('input', () => void saveDeviceAppearance('themeColor', colorInput.value));
   darkModeInput?.addEventListener('change', () => void saveDeviceAppearance('darkMode', darkModeInput.checked));
   localeInput?.addEventListener('change', () => void saveDeviceAppearance('locale', localeInput.value));

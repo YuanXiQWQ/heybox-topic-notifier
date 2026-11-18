@@ -126,7 +126,7 @@ export function renderSettings(
     )
   }
     <script type="module" src="/static/polling-schedule.js"></script>
-    <script src="/static/settings.js?v=20261026-settings-header-key" defer></script>
+    <script src="/static/settings.js?v=20261118-theme-values" defer></script>
   `;
 
   return renderLayout({
@@ -287,6 +287,29 @@ function renderGlobalSettingsSection(
           </div>
         </dl>
       </section>
+      <dialog class="avatar-crop-dialog theme-color-dialog" data-theme-color-dialog aria-labelledby="theme-color-heading">
+        <header class="avatar-crop-header"><h2 id="theme-color-heading">${
+    escapeHtml(messages.theme)
+  }</h2></header>
+        <form data-theme-color-form>
+          <div class="theme-color-fields">
+            <input type="color" data-theme-color-draft aria-label="${
+    escapeHtml(messages.theme)
+  }">
+            <label class="theme-color-hex">HEX<input type="text" data-theme-color-hex required pattern="#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})" maxlength="7" autocomplete="off" autocapitalize="off" spellcheck="false" dir="ltr"></label>
+            <fieldset class="theme-color-rgb"><legend>RGB</legend>${
+    ["R", "G", "B"].map((channel) =>
+      `<label>${channel}<input type="number" data-theme-color-channel required min="0" max="255" step="1" inputmode="numeric" aria-label="RGB ${channel}" dir="ltr"></label>`
+    ).join("")
+  }</fieldset>
+          </div>
+          <footer class="theme-color-actions"><button type="button" data-theme-color-cancel>${
+    escapeHtml(messages.accountCancel)
+  }</button><button type="submit">${
+    escapeHtml(messages.saveSettings)
+  }</button></footer>
+        </form>
+      </dialog>
   `;
 }
 
