@@ -34,15 +34,12 @@ export function renderPollingSchedule(settings: AppSettings): string {
       normalizeSchedule(settings.polling.schedule, settings.locale),
     ))
   }">
-    <p class="schedule-drag-instruction" id="schedule-drag-instruction">${
-    materialSymbolIcon("drag_indicator", "rule-drag-icon")
-  }<span>${e(m.dragRow)}</span></p>
     <div class="schedule-list" data-schedule-list></div>
     ${renderSettingsBack(m.navSettings)}
     <template data-schedule-template><div class="schedule-row">
       <button type="button" class="icon-button rule-drag-handle" data-schedule-drag aria-label="${
     e(m.dragRow)
-  }" aria-describedby="schedule-drag-instruction">${
+  }">${
     materialSymbolIcon("drag_indicator", "rule-drag-icon")
   }</button>
       <label class="schedule-field schedule-range"><span>${

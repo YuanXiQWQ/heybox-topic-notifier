@@ -36,6 +36,8 @@ jobs:
           node apps/scripts/prepare-assets.mjs --android
           mkdir -p apps/android/app/build/generated/smoke-assets
           deno run --allow-read --allow-env apps/desktop/test/fixtures/advent-settings-page.ts > apps/android/app/build/generated/smoke-assets/advent-settings.html
+          deno run --allow-read --allow-env apps/desktop/test/fixtures/theme-settings-page.ts > apps/android/app/build/generated/smoke-assets/theme-settings.html
+          deno run --allow-read --allow-env apps/desktop/test/fixtures/polling-settings-page.ts > apps/android/app/build/generated/smoke-assets/polling-settings.html
           gradle -p apps/android --no-daemon assembleDebug assembleDebugAndroidTest
       - name: Enable emulator acceleration
         run: |
@@ -61,6 +63,7 @@ jobs:
             adb logcat -c
             adb shell am instrument -r -w -e isolatedOfflineEmulator true -e mediaOnly true io.github.yuanxiqwq.heyboxnotifier.test/io.github.yuanxiqwq.heyboxnotifier.NativeSmokeRunner > media-instrumentation.log
             adb logcat -d > media-logcat.log
+            adb pull /sdcard/Android/data/io.github.yuanxiqwq.heyboxnotifier/files/schedule-menu.png schedule-menu.png || true
             cat media-instrumentation.log
             grep -q 'INSTRUMENTATION_CODE: -1' media-instrumentation.log
       - uses: actions/upload-artifact@v4
@@ -71,3 +74,4 @@ jobs:
             media-instrumentation.log
             media-logcat.log
             webview-version.log
+            schedule-menu.png

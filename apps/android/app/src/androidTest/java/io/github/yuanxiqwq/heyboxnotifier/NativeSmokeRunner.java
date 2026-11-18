@@ -71,6 +71,16 @@ public final class NativeSmokeRunner extends Instrumentation {
             pass("Advent CJK names and descriptions render visible glyphs with packaged fonts loaded");
             assertBrowserFixture("advent-settings.html", "", 30000);
             pass("Plague Doctor reuses and restores the real settings field with animated text and unchanged box model");
+            assertBrowserFixture("theme-settings.html", "", 30000);
+            pass("theme HEX and RGB inputs synchronize with the color preview; invalid drafts and cancellation do not save; confirmed colors persist");
+            assertBrowserFixture("polling-settings.html", "", 30000, () -> {
+                assertNativeScheduleChoice("[data-schedule-calendar]", "农历", "chinese");
+                assertNativeScheduleChoice("[data-schedule-calendar]", "公历", "gregory");
+                assertNativeScheduleChoice("[data-schedule-era]", "干支", "ganzhi");
+                assertNativeScheduleChoice("[data-schedule-era]", "公元", "ce");
+                return null;
+            });
+            pass("schedule uses native calendar and era menus without keyboard; date drafts and card reorder remain saved");
             assertWhiteNightEntry(false, false);
             assertWhiteNightEntry(true, false);
             pass("WhiteNight rings once across Prelude and active with and without prepared media");
@@ -306,6 +316,10 @@ public final class NativeSmokeRunner extends Instrumentation {
     }
     /** 在真实 WebView 中运行安装于测试包的浏览器检查。 @param {String} name 检查页面。 @param {String} setup 测试选项。 @param {long} timeout 等待上限。 @throws Exception 页面、断言或等待失败。 */
     private void assertBrowserFixture(String name, String setup, long timeout) throws Exception {
+        assertBrowserFixture(name, setup, timeout, null);
+    }
+    /** 在页面自检后执行系统控件操作，再关闭测试页。 @param {String} name 检查页面。 @param {String} setup 测试选项。 @param {long} timeout 页面等待上限。 @param {java.util.concurrent.Callable<Void>} nativeCheck 系统控件检查。 @throws Exception 页面或系统操作失败。 */
+    private void assertBrowserFixture(String name, String setup, long timeout, java.util.concurrent.Callable<Void> nativeCheck) throws Exception {
         java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web");
         field.setAccessible(true);
         android.webkit.WebView view = (android.webkit.WebView) field.get(activity);
@@ -327,7 +341,7 @@ public final class NativeSmokeRunner extends Instrumentation {
                 // 软件渲染模拟器首次绘制完整设置页可能超过两秒，保留页面总超时约束。
                 require(ready.await(10, java.util.concurrent.TimeUnit.SECONDS), name + " probe callback");
                 last = value.get();
-                if ("\"passed\"".equals(last)) return;
+                if ("\"passed\"".equals(last)) { if (nativeCheck != null) nativeCheck.call(); return; }
                 require("null".equals(last) || "\"pending\"".equals(last), name + " " + setup + ": " + last);
                 SystemClock.sleep(100);
             }
@@ -335,6 +349,71 @@ public final class NativeSmokeRunner extends Instrumentation {
         } finally {
             runOnMainSync(() -> view.loadUrl("about:blank"));
         }
+    }
+    /** 点击真实 WebView 选择框并通过系统无障碍节点选择选项，检查没有唤起输入法。 @param {String} selector 选择框。 @param {String} label 选项文字。 @param {String} expected 保存值。 @throws Exception 点击、选择或保存失败。 */
+    private void assertNativeScheduleChoice(String selector, String label, String expected) throws Exception {
+        java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web"); field.setAccessible(true);
+        android.webkit.WebView view = (android.webkit.WebView) field.get(activity);
+        String control = "document.querySelector(" + JSONObject.quote(selector) + ")";
+        android.app.UiAutomation automation = getUiAutomation();
+        automation.waitForIdle(100, 5000);
+        browserValue(view, control + ".scrollIntoView({block:'center'})");
+        SystemClock.sleep(100);
+        org.json.JSONArray point = new org.json.JSONArray(browserValue(view, "(() => {const r=" + control + ".getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,innerWidth]})()"));
+        int[] origin = new int[2]; runOnMainSync(() -> view.getLocationOnScreen(origin));
+        double scale = view.getWidth() / point.getDouble(2);
+        float x = origin[0] + (float) (point.getDouble(0) * scale), y = origin[1] + (float) (point.getDouble(1) * scale);
+        android.util.Log.i("SCHEDULE_PROBE", selector + " point=" + point + " screen=" + x + "," + y);
+        long pressed = SystemClock.uptimeMillis();
+        for (int action : new int[] { android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP }) {
+            android.view.MotionEvent event = android.view.MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), action, x, y, 0);
+            event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN); sendPointerSync(event); event.recycle();
+            if (action == android.view.MotionEvent.ACTION_DOWN) SystemClock.sleep(80);
+        }
+        long deadline = SystemClock.uptimeMillis() + 10000;
+        boolean selected = false;
+        while (!selected && SystemClock.uptimeMillis() < deadline) {
+            android.view.accessibility.AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+            if (root != null) for (android.view.accessibility.AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByText(label)) {
+                if (!label.contentEquals(node.getText() == null ? "" : node.getText())) continue;
+                for (int depth = 0; node != null && depth < 4; depth++, node = node.getParent()) {
+                    if (node.isClickable() && node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)) { selected = true; break; }
+                }
+                if (selected) break;
+            }
+            if (!selected) SystemClock.sleep(100);
+        }
+        if (!selected) {
+            logScheduleNodes(automation.getRootInActiveWindow(), 0);
+            android.graphics.Bitmap screenshot = automation.takeScreenshot();
+            if (screenshot != null) try (java.io.FileOutputStream output = new java.io.FileOutputStream(new java.io.File(getTargetContext().getExternalFilesDir(null), "schedule-menu.png"))) {
+                screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+            }
+        }
+        require(selected, "native option missing: " + label);
+        deadline = SystemClock.uptimeMillis() + 10000;
+        String actual;
+        do { actual = browserValue(view, control + ".value"); if (JSONObject.quote(expected).equals(actual)) break; SystemClock.sleep(100); }
+        while (SystemClock.uptimeMillis() < deadline);
+        require(JSONObject.quote(expected).equals(actual), "native selection not saved: " + label + " " + actual);
+        java.util.concurrent.atomic.AtomicBoolean keyboard = new java.util.concurrent.atomic.AtomicBoolean();
+        runOnMainSync(() -> keyboard.set(activity.getWindow().getDecorView().getRootWindowInsets().isVisible(android.view.WindowInsets.Type.ime())));
+        require(!keyboard.get(), "calendar selector must not open the keyboard");
+    }
+    /** 记录失败时的系统菜单节点，保留真实选项和屏幕位置用于定位。 @param {android.view.accessibility.AccessibilityNodeInfo} node 当前节点。 @param {int} depth 节点深度。 */
+    private void logScheduleNodes(android.view.accessibility.AccessibilityNodeInfo node, int depth) {
+        if (node == null || depth > 20) return;
+        android.graphics.Rect bounds = new android.graphics.Rect(); node.getBoundsInScreen(bounds);
+        android.util.Log.i("SCHEDULE_PROBE", depth + " " + node.getClassName() + " text=" + node.getText() + " bounds=" + bounds + " clickable=" + node.isClickable());
+        for (int index = 0; index < node.getChildCount(); index++) logScheduleNodes(node.getChild(index), depth + 1);
+    }
+    /** @param {android.webkit.WebView} view 测试页。 @param {String} script 读取控件状态的表达式。 @return {String} 浏览器返回的 JSON 值。 @throws Exception 脚本回调超时。 */
+    private String browserValue(android.webkit.WebView view, String script) throws Exception {
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicReference<String> value = new java.util.concurrent.atomic.AtomicReference<>();
+        runOnMainSync(() -> view.evaluateJavascript(script, result -> { value.set(result); ready.countDown(); }));
+        require(ready.await(10, java.util.concurrent.TimeUnit.SECONDS), "browser control callback");
+        return value.get();
     }
     /** 遍历安装包内的音视频，不依赖手工维护的抽样清单。 @param {String} directory 资源目录。 @param {org.json.JSONArray} paths 媒体路径。 @throws Exception 安装资源不可读。 */
     private void collectMedia(String directory, org.json.JSONArray paths) throws Exception {
