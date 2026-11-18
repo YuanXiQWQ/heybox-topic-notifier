@@ -251,7 +251,7 @@ export function renderLayout(options: {
     <script src="/static/settings-navigation.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20261115-navigation-back">
+    <link rel="stylesheet" href="/static/app.css?v=20261117-schedule-controls">
     <script src="/static/theme-compat.js" defer></script>
     <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
     ${stylesheetHtml}

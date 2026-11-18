@@ -3802,24 +3802,36 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 [data-schedule-page][hidden]{ display:none; }
 [data-schedule-page] .page-heading{ justify-content:flex-start; gap:24px; }
 [data-schedule-page] .page-heading h1{ margin:0; }
-.schedule-list{ border:1px solid var(--border); border-radius:8px; background:var(--theme-soft); overflow:hidden; }
-.schedule-drag-instruction{ display:flex; align-items:center; gap:6px; margin:12px 0; color:var(--muted); font-size:14px; }
-.schedule-row{ display:grid; grid-template-columns:32px minmax(210px,1.5fr) minmax(170px,1fr) minmax(85px,.6fr) minmax(140px,.8fr) 72px; gap:16px; padding:20px; border-bottom:1px solid var(--border-soft); align-items:center; position:relative; }
-.schedule-row:last-child{ border-bottom:0; }
+.schedule-list{ display:grid; gap:16px; }
+.schedule-row{ display:grid; grid-template-columns:44px minmax(190px,1.5fr) minmax(170px,1fr) minmax(85px,.6fr) minmax(140px,.8fr) 44px; grid-template-areas:"drag range interval limit sort actions" "drag reason reason reason reason actions"; column-gap:16px; align-items:center; border:1px solid var(--theme-border); border-radius:8px; background:var(--theme-soft); overflow:hidden; position:relative; }
+.schedule-row > .schedule-field{ margin:20px 0; }
+.schedule-range{ grid-area:range; }
+.schedule-row > .schedule-field:nth-child(3){ grid-area:interval; }
+.schedule-row > .schedule-field:nth-child(4){ grid-area:limit; }
+.schedule-row > .schedule-field:nth-child(5){ grid-area:sort; }
 .schedule-field [aria-invalid="true"],.schedule-date-fields [aria-invalid="true"]{ border-color:#B42318; }
 :root[data-color-mode="dark"] .schedule-field [aria-invalid="true"],:root[data-color-mode="dark"] .schedule-date-fields [aria-invalid="true"]{ border-color:#FFB4AB; }
 .schedule-row.is-dragging{ opacity:.65; background:var(--theme-soft-strong); }
 .schedule-field{ display:flex; flex-direction:column; gap:10px; min-width:0; color:var(--muted); font-size:14px; }
 .schedule-field input,.schedule-field select{ width:100%; min-width:0; }
+.schedule-field input,.schedule-field select,.schedule-range button{ font-size:16px; }
 .schedule-field[hidden],.schedule-paused-summary[hidden]{ display:none; }
-.schedule-paused-summary{ grid-column:3 / 6; justify-self:start; align-self:center; padding:12px 0; }
-.schedule-interval-reason{ grid-column:1 / -1; margin:0; min-width:0; color:var(--muted-strong); font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
+.schedule-paused-summary{ grid-area:1 / 3 / 2 / 6; justify-self:start; align-self:center; padding:12px 0; }
+.schedule-interval-reason{ grid-area:reason; margin:0 0 20px; min-width:0; color:var(--muted-strong); font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
 .schedule-field .poll-interval-control{ display:flex; gap:8px; }
 .schedule-field .poll-interval-control input{ flex:1; width:60px; }
 .schedule-field .poll-interval-control select{ width:76px; }
-.schedule-range button{ width:100%; min-height:40px; color:var(--ink); border:1px solid var(--control-border); border-radius:6px; background:var(--control-bg); padding:8px 10px; font:inherit; text-align:start; direction:ltr; unicode-bidi:plaintext; }
-.schedule-actions{ display:flex; gap:4px; align-items:center; }
+.schedule-range button{ width:100%; min-height:40px; color:var(--ink); border:1px solid var(--control-border); border-radius:6px; background:var(--control-bg); padding:8px 10px; font:inherit; font-size:16px; text-align:start; direction:ltr; unicode-bidi:plaintext; }
+/* 操作区与卡片共用外缘，浅主题底色覆盖整个点击区域。 */
+.schedule-row > .rule-drag-handle,.schedule-actions .icon-button{ width:100%; min-width:0; min-height:44px; height:auto; margin:0; padding:0; border-radius:0; background:var(--theme-soft-strong); color:var(--theme-link); align-self:stretch; }
+.schedule-row > .rule-drag-handle{ grid-area:drag; border-inline-end:1px solid var(--theme-border); }
+.schedule-actions{ grid-area:actions; align-self:stretch; display:flex; flex-direction:column; border-inline-start:1px solid var(--theme-border); }
+.schedule-actions .icon-button{ flex:1 1 0; }
+.schedule-actions .icon-button + .icon-button{ border-top:1px solid var(--theme-border); }
 .schedule-actions [hidden]{ display:none; }
+.schedule-actions .icon-button:hover,.schedule-row > .rule-drag-handle:hover{ background:var(--theme-border); }
+.schedule-actions .icon-button:focus-visible,.schedule-row > .rule-drag-handle:focus-visible{ outline:2px solid var(--theme-link); outline-offset:-3px; }
+.schedule-actions .icon-button svg{ width:18px; height:18px; }
 .schedule-date-dialog{ width:min(92vw,460px); }
 .schedule-date-fields{ display:grid; gap:20px; padding:20px; }
 .schedule-date-fields label{ display:grid; gap:8px; }
@@ -3836,35 +3848,29 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   .settings-list > .polling-coverage-overlay,:root[data-color-mode="dark"] .settings-list > .polling-coverage-overlay{ background:color-mix(in srgb,var(--bg) 80%,transparent); }
 }
 @media(max-width:1000px){
-  .schedule-paused-summary{ grid-column:2 / 4; grid-row:2; }
-  .schedule-row{ grid-template-columns:28px minmax(0,1fr) minmax(0,1fr) 68px; gap:12px; padding:16px; }
-  .schedule-range{ grid-column:2 / 4; }
-  .schedule-row > .rule-drag-handle{ grid-column:1; grid-row:1 / 3; }
-  .schedule-actions{ grid-column:4; grid-row:1 / 3; }
-  .schedule-row > .schedule-field:nth-child(3){ grid-column:2 / 4; }
-  .schedule-row > .schedule-field:nth-child(4){ grid-column:2; }
-  .schedule-row > .schedule-field:nth-child(5){ grid-column:3; }
+  .schedule-row{ grid-template-columns:44px minmax(0,1fr) minmax(0,1fr) 44px; grid-template-areas:"drag range range actions" "drag interval interval actions" "drag limit sort actions" "drag reason reason actions"; }
+  .schedule-row > .schedule-field{ margin:12px 0 0; }
+  .schedule-row > .schedule-range{ margin-top:16px; }
+  .schedule-row > .schedule-field:nth-child(4),.schedule-row > .schedule-field:nth-child(5){ margin-bottom:16px; }
+  .schedule-paused-summary{ grid-area:2 / 2 / 4 / 4; padding:16px 0; }
+  .schedule-actions{ grid-row:1 / -1; }
+  .schedule-interval-reason{ grid-column:2 / 4; margin-bottom:16px; }
 }
 @media(max-width:540px){
-  .schedule-paused-summary{ grid-column:1 / 5; grid-row:3; }
-  .schedule-row{ grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 60px; padding:12px 10px; gap:10px; }
-  .schedule-row > .schedule-field:nth-child(4),.schedule-row > .schedule-field:nth-child(5){ grid-column:2 / 5; }
-  .schedule-range,.schedule-row > .schedule-field:nth-child(3){ grid-column:2 / 5; }
-  /* 窄屏操作各占一行，图标在完整拖动区或等分的增减区域内居中。 */
-  .schedule-row > button.rule-drag-handle{ grid-column:1 / -1; grid-row:1; width:100%; }
-  .schedule-actions{ grid-column:1 / -1; grid-row:auto; gap:0; }
-  .schedule-row .schedule-actions .icon-button{ flex:1 1 0; width:auto; min-width:0; }
-  .schedule-range{ grid-row:2; grid-column:1 / 5; }
-  .schedule-row > .schedule-field:nth-child(3),.schedule-row > .schedule-field:nth-child(4),.schedule-row > .schedule-field:nth-child(5){ grid-column:1 / 5; }
+  .schedule-row{ grid-template-columns:minmax(0,1fr); grid-template-areas:"drag" "range" "interval" "limit" "sort" "paused" "reason" "actions"; column-gap:0; }
+  .schedule-row > .schedule-field{ margin:16px 12px 0; }
+  .schedule-row > .schedule-range{ margin-top:14px; }
+  .schedule-row > .schedule-field:nth-child(4){ margin-bottom:0; }
+  .schedule-row > .schedule-field:nth-child(5){ margin-bottom:14px; }
+  .schedule-paused-summary{ grid-area:paused; margin:0 12px; }
+  .schedule-interval-reason{ grid-area:reason; margin:0 12px 14px; }
+  .schedule-row > .rule-drag-handle{ border-inline-end:0; border-bottom:1px solid var(--theme-border); }
+  .schedule-actions{ grid-area:actions; flex-direction:row; border-inline-start:0; border-top:1px solid var(--theme-border); }
+  .schedule-actions .icon-button + .icon-button{ border-top:0; border-inline-start:1px solid var(--theme-border); }
   [data-schedule-page] .page-heading{ gap:16px; flex-wrap:wrap; }
   [data-schedule-page] .page-heading h1{ font-size:26px; }
   .settings-list > .schedule-navigation-row > dd{ inset-inline-end:16px; }
 }
-
-/* 时段行操作沿用规则表图标按钮，保持窄屏末端空间。 */
-.schedule-actions .icon-button,.schedule-row > .rule-drag-handle{ flex:0 0 30px; width:30px; min-width:30px; height:36px; padding:0; }
-.schedule-actions .icon-button svg{ width:18px; height:18px; }
-.schedule-field input,.schedule-field select,.schedule-range button{ font-size:16px; }
 [data-schedule-page] .page-heading{ flex-direction:row; align-items:center; }
 /* 日期端点直接选择可留空的年份、月日与时间，不增加重复周期模式。 */
 .schedule-date-fields fieldset{ border:0; margin:0; padding:0; min-width:0; display:grid; gap:10px; }
@@ -3875,10 +3881,11 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .schedule-calendar-options{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
 .schedule-date-fields select{ min-width:0; width:100%; }
 .schedule-date-fields [hidden]{ display:none; }
+/* 旧页面快照仍可能加载旧版日期脚本，保留其隐藏规则直到资源缓存更新。 */
 .schedule-editable-select{ display:block; min-width:0; }
 .schedule-editable-select > select{ display:none; }
 .schedule-editable-select > input{ width:100%; min-width:0; }
-.schedule-date-dialog{ max-height:90vh; overflow-y:auto; }
+.schedule-date-dialog{ max-height:90vh; max-height:90dvh; overflow-y:auto; }
 /* 旧 WebView 不支持逻辑定位时使用物理边界，RTL 同步镜像开关位置。 */
 .settings-list > .polling-coverage-overlay{ left:0; right:0; }
 .settings-list > .schedule-navigation-row > dd{ right:22px; left:auto; }

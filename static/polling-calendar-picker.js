@@ -24,73 +24,9 @@ export function calendarPicker(root, labels, changed) {
   const era = dialog.querySelector("[data-schedule-era]");
   const groups = [.../** @type {NodeListOf<HTMLElement>} */ (dialog.querySelectorAll("[data-schedule-date]"))];
   const locale = document.querySelector('[name="locale"]');
-  const editors = new Map();
+  const calendarOptions = [...calendar.options];
+  const eraOptions = [...era.options];
   let row;
-
-  /**
-   * 将原有选项作为可输入建议列表，保留选项的内部值及即时编辑事件。
-   * @param {HTMLSelectElement} select 原选框。
-   */
-  function makeEditable(select) {
-    const wrapper = document.createElement("span");
-    wrapper.className = "schedule-editable-select";
-    const input = document.createElement("input"),
-      options = document.createElement("datalist");
-    options.id = "schedule-choices-" + crypto.randomUUID();
-    input.setAttribute("list", options.id);
-    input.setAttribute("autocomplete", "off");
-    input.setAttribute(
-      "aria-label",
-      select.getAttribute("aria-label") ||
-        select.closest("label")?.querySelector("span")?.textContent || "",
-    );
-    input.dataset.scheduleInput = select.dataset.datePart ||
-      (select === calendar ? "calendar" : "era");
-    if (["month", "day"].includes(select.dataset.datePart)) {
-      input.inputMode = select.dataset.datePart === "day" ? "numeric" : "text";
-    }
-    select.before(wrapper);
-    wrapper.append(select, input, options);
-    editors.set(select, { input, options, wrapper });
-    /**
-     * 接纳选项文本或内部值，组合输入结束前不触发日期重算。
-     * @param {Event} event 输入或提交事件。
-     */
-    function accept(event) {
-      event.stopPropagation();
-      if ('isComposing' in event && event.isComposing) return;
-      const text = input.value.trim();
-      const match = [...select.options].find((option) =>
-        !option.hidden && !option.disabled && !option.dataset.draft &&
-        (option.textContent === text || option.value === text)
-      );
-      if (select === calendar || select === era) {
-        input.setAttribute("aria-invalid", String(!match));
-        if (match) {
-          select.value = match.value;
-          select.dispatchEvent(new Event("change", { bubbles: true }));
-          refresh(select, true);
-        } else if (event.type === "change") refresh(select, true);
-        return;
-      }
-      setValue(select, match ? match.value : text);
-      select.dispatchEvent(
-        new Event(event.type === "change" ? "change" : "input", {
-          bubbles: true,
-        }),
-      );
-    }
-    input.addEventListener("input", accept);
-    input.addEventListener("change", accept);
-    input.addEventListener("compositionend", accept);
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.isComposing) {
-        event.preventDefault();
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-    });
-    input.addEventListener("blur", () => refresh(select, true));
-  }
 
   /**
    * 写入当前选框值，未匹配选项的草稿保留给字段校验。
@@ -104,44 +40,11 @@ export function calendarPicker(root, labels, changed) {
     if (![...select.options].some((option) => option.value === value)) {
       const option = new Option(value, value);
       option.dataset.draft = "true";
+      option.disabled = true;
       select.add(option);
     }
     select.value = value;
   }
-
-  /**
-   * 同步建议列表、显示值和校验状态，不打断正在输入的文本。
-   * @param {HTMLSelectElement} select 选框。
-   * @param {boolean} force 是否立即更新文本。
-   */
-  function refresh(select, force = false) {
-    const editor = editors.get(select);
-    if (!editor) return;
-    editor.wrapper.hidden = select.hidden;
-    editor.input.disabled = select.disabled;
-    editor.options.textContent = "";
-    for (const option of select.options) {
-      if (
-        !option.value || option.hidden || option.disabled ||
-        option.dataset.draft
-      ) continue;
-      editor.options.append(new Option(option.textContent, option.textContent));
-    }
-    editor.input.placeholder = select.options[0]?.value === ""
-      ? select.options[0].textContent
-      : "";
-    if (force || document.activeElement !== editor.input) {
-      editor.input.value = select.value
-        ? select.selectedOptions[0]?.textContent || select.value
-        : "";
-    }
-    editor.input.setAttribute(
-      "aria-invalid",
-      select.getAttribute("aria-invalid") || "false",
-    );
-  }
-
-  for (const select of dialog.querySelectorAll("select")) makeEditable(select);
 
   /**
    * 获取单个日期端点的控件。
@@ -159,7 +62,6 @@ export function calendarPicker(root, labels, changed) {
       for (const field of dialog.querySelectorAll("[data-date-part]")) {
         field.setAttribute("aria-invalid", "false");
       }
-      for (const select of editors.keys()) refresh(select);
       return;
     }
     const needsYear = groups.some((group) =>
@@ -223,7 +125,6 @@ export function calendarPicker(root, labels, changed) {
         : "time";
       field(groups[1], part).setAttribute("aria-invalid", "true");
     }
-    for (const select of editors.keys()) refresh(select);
   }
 
   /**
@@ -291,7 +192,6 @@ export function calendarPicker(root, labels, changed) {
       control.add(new Option(String(day), String(day).padStart(2, "0")));
     }
     setValue(control, selected);
-    refresh(control);
   }
 
   /**
@@ -317,18 +217,26 @@ export function calendarPicker(root, labels, changed) {
     }
     setValue(control, selected);
     updateDays(group);
-    refresh(control);
   }
 
   /** 根据当前行更新历法与日期控件。 @param {boolean} optionsOnly 是否仅更新选择项。 */
   function fill(optionsOnly = false) {
+    // 原生选择器只接收当前可用选项，避免旧 WebView 仍列出隐藏选项。
+    calendar.textContent = "";
+    for (const option of calendarOptions.filter((option) =>
+      option.value !== "chinese" || root.dataset.chinese === "true" ||
+      row.calendar === "chinese"
+    )) calendar.add(option);
+    era.textContent = "";
+    for (const option of eraOptions.filter((option) =>
+      option.value === "ce" || option.value === row.era ||
+      (option.value === "roc"
+        ? root.dataset.roc === "true"
+        : root.dataset.chinese === "true")
+    )) era.add(option);
     calendar.value = row.calendar || "gregory";
     era.value = row.era || "ce";
-    calendar.querySelector('[value="chinese"]').hidden =
-      root.dataset.chinese !== "true" && row.calendar !== "chinese";
-    era.querySelector('[value="roc"]').hidden = root.dataset.roc !== "true" &&
-      row.era !== "roc";
-    era.querySelector('[value="roc"]').disabled = normalizeSchedule({
+    eraOptions.find((option) => option.value === "roc").disabled = normalizeSchedule({
       rows: [{
         ...row,
         era: "roc",
@@ -336,14 +244,10 @@ export function calendarPicker(root, labels, changed) {
         end: absoluteValue("end") ?? row.end,
       }],
     }, locale?.value || document.documentElement.lang).rows[0].era !== "roc";
-    era.querySelector('[value="ganzhi"]').hidden =
-      root.dataset.chinese !== "true" && row.era !== "ganzhi";
     dialog.querySelector("[data-calendar-label]").hidden =
       root.dataset.chinese !== "true" && row.calendar !== "chinese";
     dialog.querySelector("[data-era-label]").hidden =
       root.dataset.chinese !== "true" && !["roc", "ganzhi"].includes(row.era);
-    refresh(calendar);
-    refresh(era);
     if (optionsOnly) return;
     for (const group of groups) {
       // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
@@ -368,7 +272,6 @@ export function calendarPicker(root, labels, changed) {
             : year.slice(1)
           : "",
       );
-      refresh(cycle, true);
       number.min = row.era === "roc" ? "-1812" : "100";
       number.max = row.era === "roc"
         ? (locale?.value || document.documentElement.lang) === "zh-CN"

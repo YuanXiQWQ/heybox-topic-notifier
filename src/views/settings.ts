@@ -118,14 +118,14 @@ export function renderSettings(
     [
       "polling-schedule-core.js",
       "polling-calendar.js",
-      "polling-calendar-picker.js",
+      "polling-calendar-picker.js?v=20261117-schedule-controls",
       "polling-calendar-profiles.js",
       "vendor/lunar/lunar.js",
     ].map((file) => `<link rel="modulepreload" href="/static/${file}">`).join(
       "",
     )
   }
-    <script type="module" src="/static/polling-schedule.js"></script>
+    <script type="module" src="/static/polling-schedule.js?v=20261117-schedule-controls"></script>
     <script src="/static/settings.js?v=20261026-settings-header-key" defer></script>
   `;
 
