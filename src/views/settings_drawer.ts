@@ -10,6 +10,7 @@ import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
  * @param {MaterialSymbolName} icon 标签图标。
  * @param {string} summaryHtml 已转义的摘要 HTML。
  * @param {string} blackForestSlot 可选的彩蛋图标槽位。
+ * @param {string} actionHtml 标题右侧独立操作。
  * @return {string} 抽屉标题 HTML。
  */
 export function renderDrawerHeading(
@@ -19,6 +20,7 @@ export function renderDrawerHeading(
   icon: MaterialSymbolName,
   summaryHtml: string,
   blackForestSlot?: string,
+  actionHtml = "",
 ): string {
   return `<dt class="dropdown-heading"><button type="button" class="dropdown-toggle" data-action="toggle-${name}" aria-expanded="false" aria-controls="${panelId}" aria-label="${
     escapeHtml(label)
@@ -27,5 +29,5 @@ export function renderDrawerHeading(
     materialSymbolIcon(icon, "settings-label-icon", blackForestSlot)
   }<span>${escapeHtml(label)}</span></span>
     <span class="dropdown-summary-cell">${summaryHtml}<span class="dropdown-indicator" aria-hidden="true"><span class="dropdown-chevron"></span></span></span>
-  </button></dt>`;
+  </button>${actionHtml}</dt>`;
 }

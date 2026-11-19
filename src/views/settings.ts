@@ -4,7 +4,6 @@ import { getMessages } from "../locales/index.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import type { MatchingRuntime } from "../storage/matching_types.ts";
 import {
-  renderMatchingAdvanced,
   renderMatchingSection,
 } from "./matching_settings.ts";
 import { languageOptions } from "../locales/languages.ts";
@@ -94,10 +93,10 @@ export function renderSettings(
         normalizeMatchingSettings(options.settings.matching).apiKey,
         messages,
       ),
+      options.matchingRuntime,
     )
   }
           ${renderKeywordSection(options.settings)}
-          ${renderMatchingAdvanced(options.settings, options.matchingRuntime)}
         </dl>
       </section>
       ${renderPollingSection(options.settings)}
@@ -126,7 +125,8 @@ export function renderSettings(
     )
   }
     <script type="module" src="/static/polling-schedule.js?v=20261117-schedule-controls"></script>
-    <script src="/static/settings.js?v=20261118-theme-values" defer></script>
+    <script src="/static/matching-profiles.js?v=20261119-profiles" defer></script>
+    <script src="/static/settings.js?v=20261119-profiles" defer></script>
   `;
 
   return renderLayout({

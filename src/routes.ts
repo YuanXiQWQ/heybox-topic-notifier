@@ -99,7 +99,11 @@ import {
   createReleaseCatalogReader,
   type ReleaseCatalog,
 } from "./services/releases.ts";
-import { matchingSettingsFromForm, settingsFromForm } from "./services/settings_form.ts";
+import {
+  credentialProfileFromForm,
+  matchingSettingsFromForm,
+  settingsFromForm,
+} from "./services/settings_form.ts";
 import {
   createRandomTestMatchRecord,
   NotificationConfigError,
@@ -2223,10 +2227,15 @@ export function createRoutes(
     if (limited) return limited;
     const storage = await storageForRequest(c, context);
     const current = await storage.getSettings();
-    const settings = matchingSettingsFromForm(form, current.matching);
+    const settings = matchingSettingsFromForm(
+      form, credentialProfileFromForm(form, current),
+    );
     c.header("Cache-Control", "no-store");
     try {
-      const result = await testAiConnection(settings, storage.matching);
+      const result = await testAiConnection(
+        settings, storage.matching, undefined, undefined,
+        String(form.matchingCredentialProfile ?? "default"),
+      );
       return c.json(result, result.ok ? 200 : 400);
     } catch {
       return c.json({ ok: false, error: "request" }, 502);
@@ -2244,7 +2253,9 @@ export function createRoutes(
     if (limited) return limited;
     const storage = await storageForRequest(c, context);
     const current = await storage.getSettings();
-    const settings = matchingSettingsFromForm(form, current.matching);
+    const settings = matchingSettingsFromForm(
+      form, credentialProfileFromForm(form, current),
+    );
     c.header("Cache-Control", "no-store");
     if (!settings.apiKey) return c.json({ error: "credentials" }, 400);
     try {
@@ -2262,7 +2273,12 @@ export function createRoutes(
     }
 
     const currentSettings = await storage.getSettings();
-    let nextSettings = settingsFromForm(form, currentSettings);
+    let nextSettings;
+    try {
+      nextSettings = settingsFromForm(form, currentSettings);
+    } catch {
+      return c.json({ error: "invalidSettings" }, 400);
+    }
     let syncResult: { applied: string[]; superseded: string[] } | undefined;
     if (c.req.header("x-settings-sync") === "1") {
       if (!storage.sync) return c.json({ error: "syncUnavailable" }, 503);
@@ -2271,7 +2287,7 @@ export function createRoutes(
       try {
         stamp = parseEditStamp(JSON.parse(String(form.syncStamp)));
         if (
-          typeof form.syncBase !== "string" || form.syncBase.length > 128000
+          typeof form.syncBase !== "string" || form.syncBase.length > 4 * 1024 * 1024
         )
           // 校验失败沿用当前 catch 的错误反馈与清理路径。
           // noinspection ExceptionCaughtLocallyJS
@@ -2597,9 +2613,10 @@ export function createRoutes(
       ),
   );
 
-  app.get("/static/settings.js", async () => {
+  /** 提供设置页的主编辑器与话题匹配配置脚本。 @param {Context} c 同源请求。 @return {Promise<Response>} 页面脚本。 */
+  app.get("/static/:editorScript{(?:settings|matching-profiles)\\.js}", async (c) => {
     const script = await Deno.readTextFile(
-      new URL("../static/settings.js", import.meta.url),
+      new URL("../static/" + c.req.param("editorScript"), import.meta.url),
     );
     return new Response(script, {
       headers: {

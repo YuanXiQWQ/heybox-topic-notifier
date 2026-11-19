@@ -66,6 +66,18 @@ export async function verifyMatchingStore(
   const limited = await store.prune(now, 10);
   assertEquals(limited.count, 10);
   assertEquals((await store.get("keep"))?.result, null);
+  for (const id of ["a", "b", "c"]) {
+    await store.put({ ...base, key: "other-" + id, topicId: "other-topic" });
+  }
+  const partitioned = await store.prune(now, 1, {
+    topics: { "other-topic": "secondary" },
+    limits: { default: 1, secondary: 2 },
+  });
+  assertEquals(partitioned.count, 3);
+  const retained = await Promise.all(
+    ["a", "b", "c"].map((id) => store.get("other-" + id)),
+  );
+  assertEquals(retained.filter(Boolean).length, 2);
   const runtime = matchingRuntimeForDay(undefined, now);
   runtime.aiFailure = { id: "outage", notified: true };
   await store.saveRuntime(runtime);

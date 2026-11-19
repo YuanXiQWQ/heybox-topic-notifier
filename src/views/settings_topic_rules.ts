@@ -154,15 +154,20 @@ function renderTopicRuleHeader(
 ): string {
   return `
     <div class="topic-rule-row topic-rule-head" role="row">
-      <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
-      <label class="checkbox-cell bulk-action-cell" role="columnheader">
-        <input type="checkbox" data-role="select-all-topics">
+      <div class="rule-drag-header" role="columnheader" aria-hidden="true">${
+    materialSymbolIcon("height", "rule-drag-icon")
+  }</div>
+      <label class="checkbox-cell bulk-action-cell rule-bulk-toggle" role="columnheader">
+        <input type="checkbox" data-role="select-all-topics" aria-label="${
+    escapeHtml(messages.selectAllRows)
+  }"><span>${materialSymbolIcon("done_all", "rule-drag-icon")}</span>
       </label>
       <div role="columnheader">${escapeHtml(messages.topicId)}</div>
       <div role="columnheader">${escapeHtml(messages.topicNote)}</div>
-      <label class="checkbox-cell" role="columnheader">
-        <span>${escapeHtml(messages.topicEnabled)}</span>
-        <input type="checkbox" data-role="enable-all-topics">
+      <label class="checkbox-cell rule-bulk-toggle" role="columnheader">
+        <input type="checkbox" data-role="enable-all-topics"><span>${
+    escapeHtml(messages.topicEnabled)
+  }</span>
       </label>
       <div role="columnheader">
         <button
@@ -172,6 +177,9 @@ function renderTopicRuleHeader(
           data-keyword-target="common"
         >${escapeHtml(messages.topicKeywords)}</button>
       </div>
+      <div role="columnheader" class="topic-profile-cell">${
+    escapeHtml(messages.profileApplied)
+  }</div>
       <div role="columnheader">
         <button
           type="button"
@@ -249,6 +257,14 @@ function renderTopicRuleRow(
           data-keyword-target="${escapeHtml(topic.id)}"
         >${escapeHtml(messages.topicKeywords)}</button>
       </div>
+      <div role="cell" class="topic-profile-cell">
+        <input type="hidden" name="topic_${index}_profileId" value="${
+    escapeHtml(topic.profileId || "default")
+  }" data-topic-profile>
+        <button type="button" class="matching-picker-toggle" data-topic-profile-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="${
+    escapeHtml(messages.profileApplied)
+  }"><span data-profile-label></span><span class="dropdown-chevron" aria-hidden="true"></span></button>
+      </div>
       <div role="cell">
         <button
           type="button"
@@ -280,9 +296,13 @@ function renderKeywordRuleHeader(
 ): string {
   return `
     <div class="keyword-rule-row keyword-rule-head" role="row">
-      <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
-      <label class="checkbox-cell bulk-action-cell" role="columnheader">
-        <input type="checkbox" data-role="select-all-keywords">
+      <div class="rule-drag-header" role="columnheader" aria-hidden="true">${
+    materialSymbolIcon("height", "rule-drag-icon")
+  }</div>
+      <label class="checkbox-cell bulk-action-cell rule-bulk-toggle" role="columnheader">
+        <input type="checkbox" data-role="select-all-keywords" aria-label="${
+    escapeHtml(messages.selectAllRows)
+  }"><span>${materialSymbolIcon("done_all", "rule-drag-icon")}</span>
       </label>
       <div role="columnheader">${escapeHtml(messages.keywords)}</div>
       ${renderKeywordLocationHeader(messages.matchTitle, "title")}

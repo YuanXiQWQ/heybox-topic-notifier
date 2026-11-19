@@ -163,6 +163,14 @@ export type Messages = {
   matchingModelsError: string;
   matchingModelCredentials: string;
   matchingTitle: string;
+  profileDefault: string;
+  profileName: string;
+  profileTopics: string;
+  profileApplied: string;
+  profileCopy: string;
+  profileAdd: string;
+  selectAllRows: string;
+  profileNew: string;
   matchingMode: string;
   matchingRules: string;
   matchingAi: string;

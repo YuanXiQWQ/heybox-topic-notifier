@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../../..');
 app.setPath('userData', process.argv[2]);
 app.setName('小黑盒话题提醒');
 app.enableSandbox();
-let window, server, saved = 0, badNavigation = 0, settings, adventSettings, themeSettings, pollingSettings;
+let window, server, saved = 0, badNavigation = 0, settings, adventSettings, themeSettings, pollingSettings, profileSettings;
 
 /** @param {string} expression 页面条件。 @param {number} timeout 等待上限。 @return {Promise<void>} 条件满足或超时。 */
 async function until(expression, timeout = 15000) {
@@ -51,6 +51,9 @@ async function respond(request, response) {
   } else if (url.pathname === '/theme-settings') {
     response.setHeader('content-type', 'text/html; charset=utf-8');
     response.end(themeSettings);
+  } else if (url.pathname === '/matching-profiles') {
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(profileSettings);
   } else if (url.pathname === '/polling-settings') {
     response.setHeader('content-type', 'text/html; charset=utf-8');
     response.end(pollingSettings);
@@ -95,6 +98,11 @@ async function run() {
   });
   assert.equal(renderedPolling.status, 0, renderedPolling.stderr);
   pollingSettings = renderedPolling.stdout;
+  const renderedProfiles = spawnSync('deno', ['run', '--frozen', '--allow-read', '--allow-env', path.join(__dirname, 'matching-profiles-page.ts')], {
+    cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 16 * 1024 * 1024,
+  });
+  assert.equal(renderedProfiles.status, 0, renderedProfiles.stderr);
+  profileSettings = renderedProfiles.stdout;
   server = createServer((request, response) => void respond(request, response).catch(error => { console.error(error); response.destroy(); }));
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -141,6 +149,10 @@ async function run() {
   await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
   assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
   console.log('POLLING_SETTINGS_OK');
+  await window.loadURL(origin + '/matching-profiles');
+  await until("typeof entryProbe === 'string' && entryProbe !== 'pending'");
+  assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
+  console.log('MATCHING_PROFILES_OK');
   for (const prepared of [false, true]) {
     await window.loadURL(origin + '/white-night-entry?prepared=' + prepared);
     await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);

@@ -1,6 +1,6 @@
 /** @file 使用固定短文本测试 AI 分类接口，复用用户租约与每日调用额度。 */
 import { aiEndpoint, createAiMatcher } from "./ai_matcher.ts";
-import { matchingRuntimeForDay } from "./matching_engine.ts";
+import { matchingRuntimeForDay, usageForProfile } from "./matching_engine.ts";
 import type { MatchingSettings } from "./matching_settings.ts";
 import type { MatchingStore } from "../storage/matching_types.ts";
 
@@ -17,6 +17,7 @@ export type AiConnectionTestResult = {
  * @param {MatchingStore | undefined} store 用户匹配运行状态。
  * @param {ReturnType<typeof createAiMatcher>} ai 可注入的分类器。
  * @param {() => number} now 时钟。
+ * @param {string} profileId 本次调用计入的配置。
  * @return {Promise<AiConnectionTestResult>} 连通结果。
  */
 export async function testAiConnection(
@@ -24,16 +25,18 @@ export async function testAiConnection(
   store?: MatchingStore,
   ai = createAiMatcher(),
   now = Date.now,
+  profileId = "default",
 ): Promise<AiConnectionTestResult> {
   try {
     aiEndpoint(settings.apiUrl);
     if (
       settings.mode === "rules" || !settings.apiKey || !settings.model ||
       !settings.prompt
-    )
+    ) {
       // 校验失败沿用当前 catch 的错误反馈与清理路径。
       // noinspection ExceptionCaughtLocallyJS
       throw new Error("config");
+    }
   } catch {
     return { ok: false, error: "configuration" };
   }
@@ -42,11 +45,12 @@ export async function testAiConnection(
   if (!await store.acquire(token, now())) return { ok: false, error: "busy" };
   try {
     const runtime = matchingRuntimeForDay(await store.runtime(), now());
-    if (runtime.calls >= settings.dailyLimit) {
+    const usage = usageForProfile(runtime, profileId);
+    if (usage.calls >= settings.dailyLimit) {
       return { ok: false, error: "limit" };
     }
-    runtime.calls++;
-    runtime.unknownUsage++;
+    usage.calls++;
+    usage.unknownUsage++;
     await store.saveRuntime(runtime);
     const decision = await ai.classify({
       id: "connection-test",
@@ -58,9 +62,9 @@ export async function testAiConnection(
       url: "",
       publishedAt: "",
     }, settings);
-    runtime.inputTokens += decision.inputTokens;
-    runtime.outputTokens += decision.outputTokens;
-    if (decision.usageKnown) runtime.unknownUsage--;
+    usage.inputTokens += decision.inputTokens;
+    usage.outputTokens += decision.outputTokens;
+    if (decision.usageKnown) usage.unknownUsage--;
     if (decision.error || !decision.decision) runtime.failures++;
     else {
       delete runtime.aiFailure;
