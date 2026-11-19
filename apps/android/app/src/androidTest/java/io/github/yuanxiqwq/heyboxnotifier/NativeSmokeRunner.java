@@ -81,6 +81,8 @@ public final class NativeSmokeRunner extends Instrumentation {
                 return null;
             });
             pass("schedule uses native calendar and era menus without keyboard; date drafts and card reorder remain saved");
+            assertBrowserFixture("matching-profiles.html", "", 30000);
+            pass("matching profiles preserve topic associations and independent advanced settings");
             assertWhiteNightEntry(false, false);
             assertWhiteNightEntry(true, false);
             pass("WhiteNight rings once across Prelude and active with and without prepared media");

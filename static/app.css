@@ -4003,3 +4003,87 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .rule-bulk-toggle input:checked + span {color:var(--theme-strong);}
 .rule-bulk-toggle input:indeterminate + span {color:var(--theme-link);}
 .rule-bulk-toggle:focus-within {outline:2px solid var(--theme-strong); outline-offset:-2px;}
+
+/* 配置操作占据标题摘要位置，标题按钮覆盖其余区域及箭头。 */
+[data-matching-editor] > .dropdown-heading { position: relative; }
+.profile-summary {
+  position: absolute;
+  inset-inline-end: 58px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-matching-editor] > .dropdown-heading .dropdown-toggle {
+  grid-template-columns: minmax(0,1fr) auto;
+}
+[data-matching-editor] .matching-settings-list > [data-advanced-editor] { padding: 0; }
+.topic-rule-grid .topic-rule-row {
+  grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
+    minmax(65px,1fr) minmax(68px,1fr) minmax(48px,.55fr) minmax(80px,.9fr)
+    minmax(88px,1.2fr) repeat(2,var(--rule-action-column));
+}
+.topic-rule-grid.profiles-ai-only .topic-rule-row,
+.profiles-ai-only .topic-rule-grid .topic-rule-row {
+  grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
+    minmax(65px,1fr) minmax(68px,1fr) minmax(48px,.55fr) minmax(88px,1.2fr)
+    repeat(2,var(--rule-action-column));
+}
+.profiles-ai-only .topic-rule-head > :nth-child(6),
+.profiles-ai-only .topic-rule-item > :nth-child(7) { display: none; }
+.profile-row {
+  grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
+    minmax(95px,.8fr) minmax(0,1.6fr) repeat(4,var(--rule-action-column));
+}
+.profile-head { background:var(--surface-soft-base); color:var(--muted-strong); font-size:14px; font-weight:700; text-align:center; }
+.profile-row .icon-button:disabled {opacity:.45;cursor:default;}
+.profile-row .icon-button svg { width:20px; height:20px; }
+.profile-row .icon-button svg[fill="none"] { fill:none; }
+[dir="rtl"] [data-matching-editor] .dropdown-chevron,
+[dir="rtl"] .topic-profile-cell .dropdown-chevron {transform:rotate(-45deg) translateY(-2px);}
+[dir="rtl"] [data-matching-editor] .is-open .dropdown-chevron {transform:rotate(135deg);}
+.profile-row.is-rule-dragging {opacity:.42;}
+.profile-row.is-rule-drag-over-before {box-shadow:inset 0 3px 0 var(--theme-strong);}
+.profile-row.is-rule-drag-over-after {box-shadow:inset 0 -3px 0 var(--theme-strong);}
+.profile-row > .profile-chips {flex-wrap:wrap; justify-content:flex-start; gap:4px;}
+.profile-chip {
+  display:inline-flex; align-items:center; max-width:100%;
+  background:var(--theme-soft); color:var(--ink); border:1px solid var(--theme-border);
+  border-radius:1em; padding:2px 8px; gap:4px; font:inherit; font-size:13px; overflow-wrap:anywhere;
+}
+.profile-chip button {background:transparent; color:inherit; border:0; font:inherit; padding:0 2px;}
+.profile-chip button:disabled {opacity:.45;}
+.profile-chip-add {min-width:26px;justify-content:center;}
+.profile-search {min-width:0; width:100%;}
+.profile-chips .profile-search {width:9em; max-width:100%; border-radius:1em;}
+.topic-profile-cell .matching-picker-toggle {width:100%; justify-content:space-between; min-width:0;}
+.topic-profile-cell [data-profile-label] {overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+.profile-search-menu.matching-picker-menu {position:fixed; inset:auto; z-index:1000; margin:2px 0 0; overflow-y:auto;}
+.profile-search-menu [aria-selected="true"] {font-weight:600;}
+@media (max-width:760px) {
+  .topic-rule-grid .topic-rule-row, .profiles-ai-only .topic-rule-grid .topic-rule-row {
+    grid-template-columns:36px 44px minmax(0,1fr) 58px 44px 44px;
+    grid-template-areas:"drag select id enabled delete insert" "note note note keywords keywords keywords" "profile profile profile profile profile profile";
+  }
+  .profiles-ai-only .topic-rule-grid .topic-rule-row {
+    grid-template-areas:"drag select id enabled delete insert" "note note note profile profile profile";
+  }
+  .topic-rule-grid .topic-profile-cell {grid-area:profile;}
+  .topic-rule-grid .topic-rule-head > :nth-child(8), .topic-rule-grid .topic-rule-item > :nth-child(9) {grid-area:delete;}
+  .topic-rule-grid .topic-rule-head > :nth-child(9), .topic-rule-grid .topic-rule-item > :nth-child(10) {grid-area:insert;}
+  .topic-rule-row.profile-row {
+    grid-template-columns:36px 44px minmax(0,1fr) repeat(4,44px);
+    grid-template-areas:"drag select name name name name name" "chips chips chips edit copy delete insert";
+  }
+  .profile-row > :nth-child(1) {grid-area:drag;}
+  .profile-row > :nth-child(2) {grid-area:select;}
+  .profile-row > :nth-child(3) {grid-area:name;}
+  .profile-row > :nth-child(4) {grid-area:chips;}
+  .profile-row > :nth-child(5) {grid-area:edit;}
+  .profile-row > :nth-child(6) {grid-area:copy;}
+  .profile-row > :nth-child(7) {grid-area:delete;}
+  .profile-row > :nth-child(8) {grid-area:insert;}
+}
+[data-matching-panel] { transition:none; }

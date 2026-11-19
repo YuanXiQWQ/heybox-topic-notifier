@@ -20,6 +20,11 @@ import {
   normalizeMatchingSettings,
 } from "./matching_settings.ts";
 
+import {
+  matchingForProfile,
+  type MatchingProfile,
+} from "./matching_profiles.ts";
+
 /** 表单解析器接收的所有字段。 */
 type SettingsForm = Record<string, FormDataEntryValue | FormDataEntryValue[]>;
 
@@ -90,11 +95,19 @@ export function settingsFromForm(
     ? now.toISOString()
     : currentSettings.polling.intervalStartedAt;
 
+  const profiles = profilesFromForm(form, currentSettings);
+  for (const topic of topics) {
+    if (
+      topic.profileId && profiles &&
+      !profiles.matchingProfiles.some((p) => p.id === topic.profileId)
+    ) delete topic.profileId;
+  }
   return {
     ...currentSettings,
     ...(form.matchingMode !== undefined
       ? { matching: matchingSettingsFromForm(form, currentSettings.matching) }
       : {}),
+    ...profiles,
     activeKeywordTarget,
     commonKeywordRules,
     darkMode: currentSettings.darkMode,
@@ -279,7 +292,11 @@ function topicsFromForm(
       ? activeKeywordRules
       : submittedKeywordRules ?? existingTopic?.keywordRules ?? [];
 
+    const profileId = String(
+      form[`topic_${index}_profileId`] ?? existingTopic?.profileId ?? "default",
+    );
     return {
+      ...(profileId !== "default" ? { profileId } : {}),
       enabled: form[`topic_${index}_enabled`] === "on",
       id,
       keywordRules,
@@ -449,4 +466,68 @@ function parseScheduleForm(value: string): unknown {
   } catch {
     return {};
   }
+}
+/**
+ * 恢复指定配置自己的凭据来源，复制尚未保存时可引用同账号的源配置。
+ * @param {SettingsForm} form 设置表单。
+ * @param {AppSettings} app 当前账号设置。
+ * @return {MatchingSettings} 用于端点校验的已保存配置。
+ */
+export function credentialProfileFromForm(
+  form: SettingsForm,
+  app: AppSettings,
+): MatchingSettings {
+  const id = String(form.matchingCredentialProfile ?? "default");
+  if (id === "default") return matchingForProfile(app);
+  const current = app.matchingProfiles?.find((p) => p.id === id);
+  if (current) return normalizeMatchingSettings(current.options);
+  const source = String(form.matchingCopySource ?? "");
+  if (source === "default") return matchingForProfile(app);
+  return normalizeMatchingSettings(
+    app.matchingProfiles?.find((p) => p.id === source)?.options,
+  );
+}
+
+/**
+ * 从有序列表构建匹配配置。明文密钥只从独立提交字段读取，并绑定已有端点。
+ * @param {SettingsForm} form 完整设置表单。
+ * @param {AppSettings} app 当前持久设置。
+ * @return {object | undefined} 默认设置及其它配置；旧表单沿用单配置解析。
+ */
+function profilesFromForm(form: SettingsForm, app: AppSettings) {
+  if (typeof form.matchingProfiles !== "string") return undefined;
+  const rows = JSON.parse(form.matchingProfiles);
+  if (!Array.isArray(rows)) throw new TypeError("Invalid matching profiles");
+  const matchingProfiles: MatchingProfile[] = [];
+  const ids = new Set<string>();
+  let matching: MatchingSettings | undefined;
+  for (const row of rows) {
+    if (
+      !row || typeof row.id !== "string" ||
+      !/^(?:default|[a-zA-Z0-9-]{1,64})$/.test(row.id) || ids.has(row.id)
+    ) {
+      throw new TypeError("Invalid matching profile ID");
+    }
+    ids.add(row.id);
+    const previous = credentialProfileFromForm({
+      matchingCredentialProfile: row.id,
+      matchingCopySource: row.source ?? "",
+    }, app);
+    const options = normalizeMatchingSettings({ ...row.options, apiKey: "" });
+    const key = String(form[`profileKey_${row.id}`] ?? "").trim();
+    options.apiKey = (key ||
+      (options.provider === previous.provider &&
+          options.apiUrl === previous.apiUrl
+        ? previous.apiKey
+        : "")).slice(0, 4096);
+    const name = String(row.name ?? "").trim().slice(0, 100);
+    if (row.id === "default") matching = options;
+    matchingProfiles.push({
+      id: row.id,
+      name,
+      ...(row.id === "default" ? {} : { options }),
+    });
+  }
+  if (!matching) throw new TypeError("Missing default matching profile");
+  return { matching, matchingProfiles };
 }

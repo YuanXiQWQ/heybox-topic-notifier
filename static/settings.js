@@ -100,7 +100,7 @@ const keywordMatchLocations = ['title', 'body', 'comments', 'replies'];
  * @property {HTMLElement|undefined} ghost 跟随指针的预览。
  * @property {HTMLButtonElement} handle 捕获指针的拖拽按钮。
  * @property {HTMLElement} keywordEditor 关键词编辑器。
- * @property {'topic'|'keyword'} kind 规则种类。
+ * @property {'topic'|'keyword'|'profile'} kind 规则种类。
  * @property {boolean} moved 是否已经改变行顺序。
  * @property {number} pointerId 当前指针标识。
  * @property {HTMLElement} row 被拖拽的规则行。
@@ -1324,7 +1324,7 @@ function normalizedSecretMaskLength(length) {
  */
 function clearSecretSubmissionValues(submitted) {
   document.querySelectorAll('[data-secret-hidden-input]').forEach((input) => {
-    if (input instanceof HTMLInputElement && input.value === submitted.get(input.name)) {
+    if (input instanceof HTMLInputElement && !(input.name === 'matchingApiKey' && submitted.has('matchingProfiles')) && input.value === submitted.get(input.name)) {
       input.value = '';
     }
   });
@@ -5295,7 +5295,7 @@ function initRuleDragging(topicEditor, keywordEditor) {
  * 开始跟踪规则行拖拽。
  *
  * @param {PointerEvent} event 指针按下事件。
- * @param {'topic'|'keyword'} kind 拖拽行类型。
+ * @param {'topic'|'keyword'|'profile'} kind 拖拽行类型。
  * @param {HTMLElement} topicEditor 话题编辑器元素。
  * @param {HTMLElement} keywordEditor 关键词编辑器元素。
  */
@@ -5306,7 +5306,7 @@ function beginRuleDrag(event, kind, topicEditor, keywordEditor) {
   }
 
   const row = handle.closest(
-      kind === 'topic' ? '[data-topic-row]' : '[data-keyword-row]',
+      `[data-${kind}-row]`,
   );
   if (!(row instanceof HTMLElement)) {
     return;
@@ -5418,6 +5418,7 @@ function startRuleDragPreview(state) {
  * @return {string} 拖拽预览文本。
  */
 function ruleDragPreviewText(state) {
+  if (state.kind === 'profile') return state.row.querySelector('[data-profile-name]').value;
   if (state.kind === 'topic') {
     const id = state.row.querySelector('[data-topic-id-input]')?.value.trim() ??
         '';
@@ -5461,6 +5462,11 @@ function updateRuleDragTarget(state, event) {
     return;
   }
 
+  if (state.kind === 'profile') {
+    const row = target.closest('[data-profile-row]');
+    if (row && row !== state.row && state.row.parentNode === row.parentNode) moveDraggedRowBesideTarget(state,row,event.clientY);
+    return;
+  }
   if (state.kind === 'topic') {
     updateTopicDragTarget(state, target, event.clientY);
     return;
@@ -5550,6 +5556,10 @@ function moveDraggedRowBesideTarget(state, targetRow, clientY) {
  * @param {RuleDragState} state 拖拽状态。
  */
 function completeRuleDrag(state) {
+  if (state.kind === 'profile') {
+    if (state.moved) state.row.dispatchEvent(new Event('profile-reorder',{bubbles:true}));
+    return;
+  }
   if (state.kind === 'topic') {
     if (state.moved) {
       reindexTopicRows(state.topicEditor);
@@ -6048,6 +6058,7 @@ async function persistSettingsNow() {
 
     const changed = settingsSignature() !== signature;
     clearSecretSubmissionValues(submitted);
+    if (submitted.has('matchingProfiles')) autoSaveForm.dispatchEvent(new CustomEvent('profile-saved',{detail:submitted}));
     lastSavedSignature = changed ? signature : settingsSignature();
     if (changed) {
       scheduleAutoSave();
@@ -6368,8 +6379,16 @@ function formSignature(form) {
  */
 function formDataFromForm(form) {
   // noinspection JSCheckFunctionSignatures
+  if (form.id === 'settings-autosave-form') form.dispatchEvent?.(new Event('profile-capture'));
   const data = new FormData(form);
   if (form.id === 'settings-autosave-form') {
+    if (data.has('matchingProfiles')) {
+      for (const name of [...data.keys()]) {
+        const editorField = name.startsWith('matching') && name !== 'matchingProfiles';
+        const emptyKey = name.startsWith('profileKey_') && !data.get(name);
+        if (editorField || emptyKey) data.delete(name);
+      }
+    }
     for (const field of ['darkMode', 'themeColor', 'locale']) data.delete(field);
   }
   for (const control of /** @type {NodeListOf<HTMLInputElement|HTMLSelectElement>} */ (form.querySelectorAll('[data-schedule-locked][name]'))) data.set(control.name, control.value);
@@ -7357,8 +7376,9 @@ function initAiConnectionTest(section) {
     // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
     // noinspection JSCheckFunctionSignatures
     for (const [name, value] of new FormData(section.closest('form'))) {
-      if (name.startsWith('matching')) data.append(name, value);
+      if (name.startsWith('matching') && name !== 'matchingProfiles') data.append(name, value);
     }
+    section.dispatchEvent(new CustomEvent('profile-credentials',{detail:data}));
     clearTimeout(timer);
     try {
       const response = await fetch('/settings/test-ai', {
@@ -7394,7 +7414,7 @@ function initMatchingSettings() {
   const advanced = document.querySelector('[data-advanced-editor]');
   const mode = /** @type {HTMLSelectElement|null|undefined} */ (section?.querySelector('[data-matching-mode]'));
   if (!section || !advanced || !mode) return;
-  initDropdown(section, 'matchings');
+  if (!section.querySelector('[data-profile-toggle]')) initDropdown(section, 'matchings');
   initDropdown(advanced, 'advanceds');
   const provider = initMatchingPicker(section.querySelector('[data-matching-picker="matchingProvider"]'));
   const modelRoot = section.querySelector('[data-matching-picker="matchingModel"]');
@@ -7409,6 +7429,7 @@ function initMatchingSettings() {
   let request;
   let revision = 0;
   let loaded = false;
+  let profiles;
   let previousProvider = provider.input.value;
   let previousUrl = apiUrl.value;
 
@@ -7419,18 +7440,18 @@ function initMatchingSettings() {
   function update(animate = true) {
     const ai = mode.value !== 'rules';
     setMatchingRowVisible(section.querySelector('[data-matching-test-action]'), ai, animate);
-    section.querySelector('[data-matching-summary]').textContent = mode.selectedOptions[0].textContent;
+    if (!profiles) section.querySelector('[data-matching-summary]').textContent = mode.selectedOptions[0].textContent;
     section.querySelectorAll('[data-matching-ai-field]').forEach((row) => setMatchingRowVisible(row, ai, animate));
     setMatchingRowVisible(section.querySelector('[data-matching-url]'), ai && provider.input.value === 'custom', animate);
     const choice = [...model.list.querySelectorAll('[role="option"]')].find((item) => item.dataset.value === model.input.value);
     const canThink = choice?.dataset.thinking === 'true';
     setMatchingRowVisible(section.querySelector('[data-matching-thinking]'), ai && canThink, animate);
     if (!canThink) thinking.checked = false;
-    setMatchingRowVisible(document.querySelector('[data-keyword-editor]'), mode.value !== 'ai', animate);
+    if (!profiles) setMatchingRowVisible(document.querySelector('[data-keyword-editor]'), mode.value !== 'ai', animate);
     setMatchingRowVisible(advanced, ai, animate);
     // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
     // noinspection JSUnresolvedReference
-    (/** @type {HTMLElement|null} */ (document.querySelector('[data-topic-editor]')))?.classList.toggle('matching-without-keywords', mode.value === 'ai');
+    if (!profiles) document.querySelector('[data-topic-editor]')?.classList.toggle('matching-without-keywords', mode.value === 'ai');
     if (!ai) {
       provider.setOpen(false);
       model.setOpen(false);
@@ -7446,7 +7467,7 @@ function initMatchingSettings() {
     key.value = '';
     secret.dataset.secretConfigured = 'false';
     lockSecretDisplay(secret, 0);
-    model.list.replaceChildren();
+    model.list.textContent = '';
     model.select('', section.dataset.modelPlaceholder, false);
     thinking.checked = false;
     status.hidden = true;
@@ -7470,6 +7491,7 @@ function initMatchingSettings() {
     data.set('matchingProvider', provider.input.value);
     data.set('matchingApiUrl', apiUrl.value);
     data.set('matchingApiKey', key.value);
+    profiles?.identify(data);
     status.textContent = section.dataset.modelLoading;
     status.hidden = false;
     try {
@@ -7487,7 +7509,7 @@ function initMatchingSettings() {
         // noinspection ExceptionCaughtLocallyJS
         throw new Error('models');
       const savedChoice = [...model.list.children].find((item) => item.dataset.value === model.input.value);
-      model.list.replaceChildren();
+      model.list.textContent = '';
       payload.models.forEach((entry) => {
         const option = document.createElement('button');
         option.type = 'button';
@@ -7538,7 +7560,47 @@ function initMatchingSettings() {
   modelRoot.addEventListener('picker-open', () => {
     void loadModels();
   });
+  if (section.querySelector('[data-profile-list]')) {
+    profiles = globalThis.initMatchingProfiles(section, loadProfile);
+    profiles.restore();
+    section.addEventListener('profile-credentials', event => profiles.identify(event.detail));
+  }
   update(false);
+
+  /**
+   * 清除异步请求并将当前配置投影到模型选择器和条件控件。
+   * @param {object} profile 要编辑的配置。
+   * @param {string} pendingKey 仍待提交的密钥。
+   */
+  function loadProfile(profile, pendingKey) {
+    revision++;
+    request?.abort();
+    loaded = false;
+    provider.setOpen(false);
+    model.setOpen(false);
+    const options = profile.options;
+    previousProvider = options.provider;
+    previousUrl = options.apiUrl;
+    const company = [...provider.list.children].find(item => item.dataset.value === options.provider);
+    provider.select(options.provider, company?.textContent || options.provider, false);
+    model.list.textContent = '';
+    if (options.model) {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.setAttribute('role','option');
+      option.dataset.value = options.model;
+      option.dataset.thinking = String(profile.thinking === true);
+      option.textContent = options.model;
+      model.list.append(option);
+    }
+    model.select(options.model,options.model || section.dataset.modelPlaceholder,false);
+    key.value = pendingKey;
+    secret.dataset.secretConfigured = String(profile.configured);
+    lockSecretDisplay(secret,profile.configured ? 8 : 0);
+    status.hidden = true;
+    mode.dispatchEvent(new Event('input',{bubbles:true}));
+    update(false);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', initSettingsEditors);

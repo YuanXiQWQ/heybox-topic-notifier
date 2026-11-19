@@ -177,6 +177,9 @@ function renderTopicRuleHeader(
           data-keyword-target="common"
         >${escapeHtml(messages.topicKeywords)}</button>
       </div>
+      <div role="columnheader" class="topic-profile-cell">${
+    escapeHtml(messages.profileApplied)
+  }</div>
       <div role="columnheader">
         <button
           type="button"
@@ -253,6 +256,14 @@ function renderTopicRuleRow(
           data-topic-keywords="${keywordRulesJson}"
           data-keyword-target="${escapeHtml(topic.id)}"
         >${escapeHtml(messages.topicKeywords)}</button>
+      </div>
+      <div role="cell" class="topic-profile-cell">
+        <input type="hidden" name="topic_${index}_profileId" value="${
+    escapeHtml(topic.profileId || "default")
+  }" data-topic-profile>
+        <button type="button" class="matching-picker-toggle" data-topic-profile-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="${
+    escapeHtml(messages.profileApplied)
+  }"><span data-profile-label></span><span class="dropdown-chevron" aria-hidden="true"></span></button>
       </div>
       <div role="cell">
         <button

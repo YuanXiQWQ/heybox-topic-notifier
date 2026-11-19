@@ -10,6 +10,7 @@ import type {
   MatchingEntry,
   MatchingRuntime,
   MatchingStore,
+  ProfileUsage,
 } from "../storage/matching_types.ts";
 import {
   aiClassifierRevision,
@@ -20,6 +21,7 @@ import {
 import type { createMatcher } from "./matcher.ts";
 import { matchingDayMs, observeTopic } from "./matching_activity.ts";
 import { normalizeMatchResult, shortAiReason } from "./match_result.ts";
+import { matchingForProfile, matchingProfiles } from "./matching_profiles.ts";
 import { normalizeMatchingSettings } from "./matching_settings.ts";
 import type { TopicSource } from "./topic_source.ts";
 
@@ -70,11 +72,35 @@ export function matchingRuntimeForDay(
     pendingCount: previous?.pendingCount ?? 0,
     dropped: 0,
     lastPrunedAt: previous?.lastPrunedAt,
+    cachePolicy: previous?.cachePolicy,
     topics: previous?.topics ?? {},
     ...(previous?.sourceFailure
       ? { sourceFailure: previous.sourceFailure }
       : {}),
   };
+}
+
+/**
+ * 获取配置当天的用量，默认配置沿用已有统计。
+ * @param {MatchingRuntime} runtime 当日统计。
+ * @param {string} id 配置标识。
+ * @return {ProfileUsage} 可随运行快照持久化的配置用量。
+ */
+export function usageForProfile(
+  runtime: MatchingRuntime,
+  id = "default",
+): ProfileUsage {
+  if (id === "default") return runtime;
+  runtime.profileUsage ??= {};
+  if (!Object.hasOwn(runtime.profileUsage, id)) {
+    Object.defineProperty(runtime.profileUsage, id, {
+      value: { calls: 0, inputTokens: 0, outputTokens: 0, unknownUsage: 0 },
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return runtime.profileUsage[id];
 }
 
 /**
@@ -111,6 +137,17 @@ export async function startMatchingRun(
     throw error;
   }
   const settings = normalizeMatchingSettings(app.matching);
+  const profiles = matchingProfiles(app);
+  const limits = Object.fromEntries(
+    profiles.map((p) => [p.id, matchingForProfile(app, p.id).cacheMaxEntries]),
+  );
+  const partitions = {
+    topics: Object.fromEntries(
+      app.topics.map((t) => [t.id, t.profileId || "default"]),
+    ),
+    limits,
+  };
+  const initialCount = runtime.cacheCount;
   const startedAt = now();
   const configs = new Map<string, string>();
   const visibleIds = new Map<string, Set<string>>();
@@ -261,9 +298,14 @@ export async function startMatchingRun(
     ): Promise<MatchResult | undefined> {
       await renew();
       runtime = matchingRuntimeForDay(runtime, now());
+      const settings = matchingForProfile(app, topic.profileId);
+      const usage = usageForProfile(runtime, topic.profileId);
       let config = configs.get(topic.id);
       if (!config) {
         config = await matchingHash([
+          ...(topic.profileId && topic.profileId !== "default"
+            ? [topic.profileId]
+            : []),
           settings.mode === "rules" ? null : aiClassifierRevision,
           settings.mode,
           settings.apiUrl,
@@ -385,9 +427,9 @@ export async function startMatchingRun(
       entry.result = undefined;
       if (
         now() - startedAt >= aiRunBudgetMs ||
-        runtime.calls >= settings.dailyLimit
+        usage.calls >= settings.dailyLimit
       ) {
-        entry.retryAt = runtime.calls >= settings.dailyLimit
+        entry.retryAt = usage.calls >= settings.dailyLimit
           ? Date.parse(`${runtime.day}T00:00:00Z`) + matchingDayMs
           : now() + 60000;
         await saveEntry(entry);
@@ -501,8 +543,8 @@ export async function startMatchingRun(
       }
       await renew();
       // 先持久化调用预留和短期退避，进程中断也不会立刻重复消费。
-      runtime.calls++;
-      runtime.unknownUsage++;
+      usage.calls++;
+      usage.unknownUsage++;
       if (!partial) {
         entry.attempts++;
         entry.retryAt = now() + 300000 * 2 ** (entry.attempts - 1);
@@ -510,9 +552,9 @@ export async function startMatchingRun(
       await saveEntry(entry);
       await store.saveRuntime(runtime);
       const decision = await ai.classify(detailed, settings);
-      runtime.inputTokens += decision.inputTokens;
-      runtime.outputTokens += decision.outputTokens;
-      if (decision.usageKnown) runtime.unknownUsage--;
+      usage.inputTokens += decision.inputTokens;
+      usage.outputTokens += decision.outputTokens;
+      if (decision.usageKnown) usage.unknownUsage--;
       if (decision.error || !decision.decision) {
         return await fallback(
           entry,
@@ -571,16 +613,24 @@ export async function startMatchingRun(
             activity?.lastObservedAt >= startedAt
           ) await store.saveActivity(topic.id, activity);
         }
+        const cachePolicy = await matchingHash(partitions);
+        const newEntriesMayExceedLimit = runtime.cacheCount > initialCount &&
+          runtime.cacheCount > Math.min(...Object.values(limits));
         if (
           !runtime.lastPrunedAt || now() - runtime.lastPrunedAt >= 3600000 ||
-          runtime.cacheCount > settings.cacheMaxEntries ||
+          runtime.cachePolicy !== cachePolicy || newEntriesMayExceedLimit ||
           runtime.pendingCount > 200
         ) {
-          const counts = await store.prune(now(), settings.cacheMaxEntries);
+          const counts = await store.prune(
+            now(),
+            settings.cacheMaxEntries,
+            profiles.length > 1 ? partitions : undefined,
+          );
           runtime.cacheCount = counts.count;
           runtime.pendingCount = counts.pending;
           runtime.dropped += counts.dropped;
           runtime.lastPrunedAt = now();
+          runtime.cachePolicy = cachePolicy;
         }
         await store.saveRuntime(runtime);
       } finally {

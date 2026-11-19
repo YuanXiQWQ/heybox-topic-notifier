@@ -197,22 +197,28 @@ export function createKvMatchingStore(
      * 删除过期或超出容量的条目并返回清理统计。
      *
      * @param {number} now 当前时间。
-     * @param {number} limit 数量上限。
+     * @param {number} limit 默认配置缓存上限。
+     * @param {object} partitions 话题归属及各配置缓存上限。
      * @return {Promise<{count: number, pending: number, dropped: number}>} 清理统计。
      */
-    async prune(now, limit) {
+    async prune(now, limit, partitions) {
+      const sizes = new Map<string, number>();
       const all = (await entries()).sort((a, b) => b.lastSeenAt - a.lastSeenAt);
       let count = 0, pending = 0, dropped = 0;
       const db = await open();
       for (const entry of all) {
+        const profile = partitions?.topics[entry.topicId] ?? "default";
+        const size = sizes.get(profile) ?? 0;
         if (
-          entry.expiresAt <= now || count >= limit ||
+          entry.expiresAt <= now ||
+          size >= (partitions?.limits[profile] ?? limit) ||
           (entry.pendingPost && pending >= 200)
         ) {
           await db.delete([...prefix, entry.key]);
           if (entry.pendingPost) await db.delete([...pendingPrefix, entry.key]);
           if (entry.pendingPost) dropped++;
         } else {
+          sizes.set(profile, size + 1);
           count++;
           if (entry.pendingPost) pending++;
         }

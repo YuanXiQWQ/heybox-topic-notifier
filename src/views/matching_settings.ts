@@ -9,6 +9,7 @@ import {
   supportsThinkingToggle,
 } from "../services/ai_providers.ts";
 import { escapeHtml as e } from "./html.ts";
+import { renderProfileList } from "./matching_profiles.ts";
 import { renderDrawerHeading } from "./settings_drawer.ts";
 import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
 
@@ -20,6 +21,8 @@ import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
  * @param {string} summary 收起时的摘要。
  * @param {string} attributes 条件显示属性。
  * @param {string | undefined} blackForestSlot 无需修改配置即可访问的彩蛋槽位。
+ * @param {string} alternative 配置列表。
+ * @param {string} action 标题右侧按钮。
  * @return {string} 抽屉 HTML。
  */
 function drawer(
@@ -29,6 +32,8 @@ function drawer(
   summary = "",
   attributes = "",
   blackForestSlot?: string,
+  alternative = "",
+  action = "",
 ): string {
   return `<div class="dropdown-settings-row matching-conditional-row" data-${name}-editor ${attributes}>
     ${
@@ -37,11 +42,12 @@ function drawer(
       `${name}-panel`,
       label,
       "sort",
-      `<span data-${name}-summary>${e(summary)}</span>`,
+      action ? "" : `<span data-${name}-summary>${e(summary)}</span>`,
       blackForestSlot,
+      action,
     )
   }
-    <dd class="dropdown-panel" id="${name}-panel" data-${name}-panel hidden><div class="dropdown-panel-inner"><dl class="settings-list matching-settings-list">${body}</dl></div></dd>
+    <dd class="dropdown-panel" id="${name}-panel" data-${name}-panel hidden><div class="dropdown-panel-inner"><dl class="settings-list matching-settings-list">${body}</dl>${alternative}</div></dd>
   </div>`;
 }
 
@@ -108,11 +114,13 @@ function picker(
  * 渲染匹配模式、公司与模型选择，以及 AI 基本配置。
  * @param {AppSettings} app 应用设置。
  * @param {string} secretEditor 不包含明文密钥的编辑器 HTML。
+ * @param {MatchingRuntime} saved 各配置用量。
  * @return {string} 匹配设置抽屉。
  */
 export function renderMatchingSection(
   app: AppSettings,
   secretEditor: string,
+  saved?: MatchingRuntime,
 ): string {
   const m = getMessages(app.locale);
   const s = normalizeMatchingSettings(app.matching);
@@ -229,14 +237,21 @@ export function renderMatchingSection(
   return drawer(
     "matching",
     m.matchingTitle,
-    body,
-    modes[s.mode],
+    body + renderMatchingAdvanced(app, saved),
+    "",
     `data-model-loading="${e(m.matchingLoading)}" data-model-empty="${
       e(m.matchingNoModels)
     }" data-model-error="${e(m.matchingModelsError)}" data-model-credentials="${
       e(m.matchingModelCredentials)
     }" data-model-placeholder="${e(m.matchingModel)}"`,
     "settings.post.matching",
+    renderProfileList(app, saved),
+    `<button type="button" class="profile-summary text-action-button" data-profile-toggle aria-controls="matching-panel" aria-expanded="false">${
+      e(
+        app.matchingProfiles?.find((p) => p.id === "default")?.name ||
+          m.profileDefault,
+      )
+    }</button>`,
   );
 }
 
@@ -307,7 +322,11 @@ export function renderMatchingAdvanced(
     ).join("") +
       row(
         m.matchingUsage,
-        `<span>${e(m.matchingCalls)}: ${runtime.calls} / ${s.dailyLimit} · ${
+        `<span data-profile-usage data-calls="${
+          e(m.matchingCalls)
+        }" data-cost="${e(m.matchingCost)}">${
+          e(m.matchingCalls)
+        }: ${runtime.calls} / ${s.dailyLimit} · ${
           e(m.matchingCost)
         }: ${estimate}</span>`,
         "",
