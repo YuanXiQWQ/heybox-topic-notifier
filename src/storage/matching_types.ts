@@ -44,9 +44,18 @@ export type TopicActivity = {
   saturated: boolean;
 };
 
+/** 独立配置在当天消耗的调用和 token 数。 */
+export type ProfileUsage = {
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  unknownUsage: number;
+};
+
 /** 当日用量按 UTC 日界线重置，失败请求也占用调用限额。 */
 export type MatchingRuntime = {
   day: string;
+  profileUsage?: Record<string, ProfileUsage>;
   calls: number;
   hits: number;
   failures: number;
@@ -57,6 +66,8 @@ export type MatchingRuntime = {
   pendingCount: number;
   dropped: number;
   lastPrunedAt?: number;
+  /** 最近一次按话题归属及配置容量清理时的策略指纹。 */
+  cachePolicy?: string;
   lastError?: string;
   /** 连续 AI 失败的通知状态，跨轮询保留，成功判定或 UTC 日期变化后清除。 */
   aiFailure?: { id: string; notified: boolean };
@@ -140,12 +151,17 @@ export type MatchingStore = {
    * 删除过期或超出容量的条目并返回清理统计。
    *
    * @param {number} now 当前时间。
-   * @param {number} limit 数量上限。
+   * @param {number} limit 默认配置缓存上限。
+   * @param {object} partitions 话题归属及各配置缓存上限。
    * @return {Promise<{count: number, pending: number, dropped: number}>} 清理后的数量及丢弃的待处理数量。
    */
   prune(
     now: number,
     limit: number,
+    partitions?: {
+      topics: Record<string, string>;
+      limits: Record<string, number>;
+    },
   ): Promise<{ count: number; pending: number; dropped: number }>;
 };
 

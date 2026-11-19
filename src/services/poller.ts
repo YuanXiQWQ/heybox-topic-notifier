@@ -9,7 +9,7 @@ import type { createMatcher } from "./matcher.ts";
 import type { createNotifier } from "./notifier.ts";
 import type { TopicSource } from "./topic_source.ts";
 import { startMatchingRun } from "./matching_engine.ts";
-import { normalizeMatchingSettings } from "./matching_settings.ts";
+import { matchingForProfile } from "./matching_profiles.ts";
 import { createAiMatcher } from "./ai_matcher.ts";
 import type { ServiceNotification } from "./service_notification.ts";
 
@@ -157,7 +157,9 @@ export function createPoller(
           );
           if (!cached) return;
         } else if (
-          normalizeMatchingSettings(settings.matching).mode !== "rules"
+          enabledTopics.some((topic) =>
+            matchingForProfile(settings, topic.profileId).mode !== "rules"
+          )
         ) {
           throw new Error("AI matching requires persistent cache storage");
         }

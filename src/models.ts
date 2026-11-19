@@ -27,6 +27,8 @@ export type KeywordRule = {
  * 小黑盒话题规则。
  */
 export type TopicRule = {
+  /** 缺省时使用默认匹配配置。 */
+  profileId?: string;
   enabled: boolean;
   id: string;
   keywordRules: KeywordRule[];
@@ -74,6 +76,8 @@ export type PollingSettings = {
 export type AppSettings = {
   /** 省略时使用关键词规则模式，不发送 AI 请求。 */
   matching?: MatchingSettings;
+  /** 按用户排序保存的匹配配置。 */
+  matchingProfiles?: import("./services/matching_profiles.ts").MatchingProfile[];
   activeKeywordTarget: KeywordTarget;
   commonKeywordRules: KeywordRule[];
   darkMode: boolean;

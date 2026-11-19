@@ -3,6 +3,10 @@ import { devicePreferenceFields } from "../device_preferences.ts";
 import type { AppSettings, TopicRule } from "../models.ts";
 import { normalizeSchedule } from "../../static/polling-schedule-core.js";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
+import {
+  type MatchingProfile,
+  matchingProfiles,
+} from "../services/matching_profiles.ts";
 import { baselineStamp, compareEdits, type EditStamp } from "./protocol.ts";
 
 /** 一个可独立裁决的设置区域。 */
@@ -46,7 +50,13 @@ export function splitSettings(settings: AppSettings): Record<string, unknown> {
   const grouped = new Set<string>(Object.values(groups).flat());
   for (const [key, value] of Object.entries(settings)) {
     if (
-      !["topics", "polling", "matching", ...devicePreferenceFields].includes(
+      ![
+        "topics",
+        "polling",
+        "matching",
+        "matchingProfiles",
+        ...devicePreferenceFields,
+      ].includes(
         key,
       ) && !grouped.has(key)
     ) {
@@ -78,12 +88,29 @@ export function splitSettings(settings: AppSettings): Record<string, unknown> {
       values[`matching/${key}`] = value;
     }
   }
+  for (const [index, profile] of matchingProfiles(settings).entries()) {
+    const prefix = `profile/${profile.id}/`;
+    values[prefix + "present"] = true;
+    values[prefix + "order"] = index;
+    values[prefix + "name"] = profile.name;
+    if (profile.options) {
+      values[prefix + "connection"] = Object.fromEntries(
+        aiConnectionFields.map((key) => [key, profile.options![key]]),
+      );
+      for (const [key, value] of Object.entries(profile.options)) {
+        if (!(aiConnectionFields as readonly string[]).includes(key)) {
+          values[prefix + key] = value;
+        }
+      }
+    }
+  }
   for (const [index, topic] of settings.topics.entries()) {
     const prefix = `topic/${encodeURIComponent(topic.id)}/`;
     values[prefix + "present"] = true;
     values[prefix + "order"] = index;
     values[prefix + "enabled"] = topic.enabled;
     values[prefix + "note"] = topic.note;
+    values[prefix + "profileId"] = topic.profileId || "default";
     values[prefix + "keywordRules"] = topic.keywordRules;
   }
   return values;
@@ -131,7 +158,8 @@ export function settingsEdits(
   }
   for (const region of Object.keys(before)) {
     if (
-      region.startsWith("topic/") && region.endsWith("/present") &&
+      (region.startsWith("topic/") || region.startsWith("profile/")) &&
+      region.endsWith("/present") &&
       !(region in after)
     ) edits.push({ region, value: false, stamp });
   }
@@ -146,6 +174,13 @@ export function settingsEdits(
 export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
   const result = structuredClone(snapshot.settings);
   result.matching = normalizeMatchingSettings(result.matching);
+  const profiles = new Map<
+    string,
+    { profile: MatchingProfile; order: number; present: boolean }
+  >();
+  for (const profile of matchingProfiles(result)) {
+    profiles.set(profile.id, { profile, order: profiles.size, present: true });
+  }
   const topics = new Map<
     string,
     {
@@ -176,6 +211,25 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
         field === "connection" ? entry.value : { [field]: entry.value },
       );
     }
+    if (kind === "profile") {
+      const item = profiles.get(field) ??
+        {
+          profile: { id: field, name: "" } as MatchingProfile,
+          order: 0,
+          present: false,
+        };
+      if (part === "order") item.order = Number(entry.value);
+      else if (part === "present") item.present = entry.value === true;
+      else if (part === "name") item.profile.name = String(entry.value);
+      else if (field !== "default") {
+        item.profile.options ??= normalizeMatchingSettings();
+        Object.assign(
+          item.profile.options,
+          part === "connection" ? entry.value : { [part]: entry.value },
+        );
+      }
+      profiles.set(field, item);
+    }
     if (kind !== "topic") continue;
     const item = topics.get(field) ??
       {
@@ -205,6 +259,21 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
       a.order - b.order ||
       (a.topic.id < b.topic.id ? -1 : a.topic.id === b.topic.id ? 0 : 1)
     ).map((item) => item.topic);
+  const ordered = [...profiles.values()].filter((item) =>
+    item.present || item.profile.id === "default"
+  )
+    .sort((a, b) =>
+      a.order - b.order || a.profile.id.localeCompare(b.profile.id)
+    ).map((item) => item.profile);
+  if (result.matchingProfiles || ordered.length > 1 || ordered[0]?.name) {
+    result.matchingProfiles = ordered;
+  }
+  const valid = new Set(ordered.map((profile) => profile.id));
+  for (const topic of result.topics) {
+    if (topic.profileId === "default" || !valid.has(topic.profileId ?? "")) {
+      delete topic.profileId;
+    }
+  }
   if (result.polling.schedule) {
     result.polling.schedule = normalizeSchedule(
       result.polling.schedule,

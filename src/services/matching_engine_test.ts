@@ -1558,3 +1558,80 @@ Deno.test("dynamic retention warms up, adapts to activity and resets observation
   const downtime = observeTopic(quiet, ["p1"], polling, 10 * matchingDayMs);
   assertEquals(downtime.observedMs, 0);
 });
+
+Deno.test("topics use their own model, prompt, daily budget and cache after reassignment", async () => {
+  const f = await fixture();
+  const matcher = createMatcher().createSession();
+  try {
+    const first = f.app.topics[0];
+    const other = { ...first, id: "other", profileId: "profile-b" };
+    f.app.topics.push(other);
+    f.app.matching!.dailyLimit = 1;
+    f.app.matchingProfiles = [{ id: "default", name: "" }, {
+      id: "profile-b",
+      name: "B",
+      options: normalizeMatchingSettings({
+        ...f.app.matching,
+        prompt: "社区 B",
+        model: "model-b",
+        includeComments: true,
+        dailyLimit: 2,
+        maxOutputTokens: 512,
+      }),
+    }];
+    const observed: string[][] = [];
+    const session = await startMatchingRun(f.app, f.store, matcher, f.source, {
+      classify: (_post, settings) => {
+        observed.push([
+          settings.model,
+          settings.prompt,
+          String(settings.maxOutputTokens),
+        ]);
+        return Promise.resolve({
+          decision: "no_match",
+          reason: "",
+          inputTokens: 12,
+          outputTokens: 4,
+          usageKnown: true,
+        });
+      },
+    }, f.now);
+    assert(session);
+    try {
+      for (const topic of [first, other]) {
+        for (
+          const item of await session.observe(topic, [
+            post("shared"),
+            post("second"),
+            post("third"),
+          ])
+        ) {
+          await session.findMatch(item, topic, []);
+        }
+      }
+    } finally {
+      await session.close();
+    }
+    assertEquals(observed, [
+      [f.app.matching!.model, f.app.matching!.prompt, "160"],
+      ["model-b", "社区 B", "512"],
+      ["model-b", "社区 B", "512"],
+    ]);
+    const runtime = await f.store.runtime();
+    assertEquals(runtime?.calls, 1);
+    assertEquals(runtime?.profileUsage?.["profile-b"], {
+      calls: 2,
+      inputTokens: 24,
+      outputTokens: 8,
+      unknownUsage: 0,
+    });
+    first.profileId = "profile-b";
+    f.app.matchingProfiles[1].options!.dailyLimit = 4;
+    f.advance(300001);
+    await f.run([post("shared")]);
+    assert((await f.store.runtime())!.profileUsage!["profile-b"].calls > 2);
+  } finally {
+    matcher.close();
+    f.close();
+  }
+});

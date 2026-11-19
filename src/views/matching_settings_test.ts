@@ -77,8 +77,8 @@ Deno.test("matching settings stay between topics and keywords and expose only re
   const positions = [
     "data-topic-editor",
     "data-matching-editor",
-    "data-keyword-editor",
     "data-advanced-editor",
+    "data-keyword-editor",
   ].map((marker) => html.indexOf(marker));
   assert(
     positions.every((position, index) =>
@@ -92,7 +92,7 @@ Deno.test("matching settings stay between topics and keywords and expose only re
   assert(basic.includes("搜索模型"));
   assert(basic.includes("data-matching-url hidden"));
   assert(basic.includes("data-matching-thinking hidden"));
-  assert(!basic.includes("matchingDailyLimit"));
+  assert(basic.includes("matchingDailyLimit"));
   assert(!basic.includes("field-hint"));
   const modeRow = basic.slice(
     basic.indexOf('name="matchingMode"'),
@@ -201,4 +201,62 @@ Deno.test("model discovery requires CSRF and never reuses saved credentials afte
   assertEquals(missing.status, 400);
   assertEquals(await missing.json(), { error: "credentials" });
   assertEquals(missing.headers.get("cache-control"), "no-store");
+});
+
+Deno.test("profile forms preserve scoped credentials, copies, association and advanced settings", () => {
+  const app = defaultAppSettingsFromEnv();
+  app.matching = normalizeMatchingSettings({
+    provider: "openai",
+    apiKey: "fixture-default",
+  });
+  const from = normalizeMatchingSettings({
+    provider: "custom",
+    apiUrl: "https://example.org/v1",
+    apiKey: "fixture-other",
+    model: "example",
+    prompt: "B",
+    dailyLimit: 77,
+  });
+  app.matchingProfiles = [{ id: "default", name: "" }, {
+    id: "secondary",
+    name: "B",
+    options: from,
+  }];
+  const form = {
+    matchingProfiles: JSON.stringify([
+      { id: "default", name: "", options: { ...app.matching, apiKey: "" } },
+      { id: "secondary", name: "B", options: { ...from, apiKey: "" } },
+      {
+        id: "copy",
+        name: "副本",
+        source: "secondary",
+        options: { ...from, apiKey: "" },
+      },
+      {
+        id: "different",
+        name: "其它接口",
+        source: "secondary",
+        options: { ...from, apiUrl: "https://different.example" },
+      },
+      { id: "empty", name: "空配置", options: { provider: "openai" } },
+    ]),
+    topic_0_id: "one",
+    topic_0_profileId: "copy",
+    topic_1_id: "two",
+    topic_1_profileId: "removed",
+  };
+  const saved = settingsFromForm(form, app);
+  assertEquals(saved.matching!.apiKey, "fixture-default");
+  assertEquals(saved.matchingProfiles![2].options, from);
+  assertEquals(saved.matchingProfiles![3].options!.apiKey, "");
+  assertEquals(saved.matchingProfiles![4].options!.apiKey, "");
+  assertEquals(saved.topics.map((t) => t.profileId), ["copy", undefined]);
+  const page = renderSettings({ settings: saved, csrfToken: "fixture" });
+  assert(!page.includes("fixture-default") && !page.includes("fixture-other"));
+  const legacy = settingsFromForm(
+    { matchingMode: "rules", topic_0_id: "one" },
+    saved,
+  );
+  assertEquals(legacy.topics[0].profileId, "copy");
+  assertEquals(legacy.matchingProfiles, saved.matchingProfiles);
 });

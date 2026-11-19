@@ -183,21 +183,38 @@ export function createTursoMatchingStore(
      * 删除过期或超出容量的条目并返回清理统计。
      *
      * @param {number} now 当前时间。
-     * @param {number} limit 数量上限。
+     * @param {number} limit 默认配置缓存上限。
+     * @param {object} partitions 话题归属及各配置缓存上限。
      * @return {Promise<{count: number, pending: number, dropped: number}>} 清理统计。
      */
-    async prune(now, limit) {
+    async prune(now, limit, partitions) {
       await execute({
         sql:
           "DELETE FROM matching_activity WHERE user_id = ? AND last_seen_at < ?",
         args: [userId, now - 30 * 86400000],
       });
+      const capacity = partitions
+        ? `SELECT cache_key FROM (
+        SELECT cache_key, profile_id, ROW_NUMBER() OVER (PARTITION BY profile_id ORDER BY last_seen_at DESC, cache_key) AS position
+        FROM (SELECT c.cache_key,c.last_seen_at,COALESCE(t.value,'default') AS profile_id FROM matching_cache c
+          LEFT JOIN json_each(?) t ON t.key = c.topic_id WHERE c.user_id = ? AND c.expires_at > ?)
+      ) ranked WHERE position > COALESCE((SELECT value FROM json_each(?) WHERE key = ranked.profile_id), ?)`
+        : "SELECT cache_key FROM matching_cache WHERE user_id = ? ORDER BY last_seen_at DESC, cache_key LIMIT -1 OFFSET ?";
+      const capacityArgs = partitions
+        ? [
+          JSON.stringify(partitions.topics),
+          userId,
+          now,
+          JSON.stringify(partitions.limits),
+          limit,
+        ]
+        : [userId, limit];
       const removed = await execute({
         sql:
           `DELETE FROM matching_cache WHERE user_id = ? AND (expires_at <= ? OR cache_key IN
-        (SELECT cache_key FROM matching_cache WHERE user_id = ? ORDER BY last_seen_at DESC, cache_key LIMIT -1 OFFSET ?)
+        (${capacity})
         OR cache_key IN (SELECT cache_key FROM matching_cache WHERE user_id = ? AND pending = 1 ORDER BY last_seen_at DESC, cache_key LIMIT -1 OFFSET 200)) RETURNING pending`,
-        args: [userId, now, userId, limit, userId],
+        args: [userId, now, ...capacityArgs, userId],
       });
       const result = await execute({
         sql:
