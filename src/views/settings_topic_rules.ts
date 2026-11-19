@@ -146,8 +146,8 @@ export function renderKeywordSection(settings: AppSettings): string {
 /**
  * 渲染话题规则表头。
  *
- * @param messages 当前语言文案。
- * @return 话题规则表头 HTML。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 话题规则表头 HTML。
  */
 function renderTopicRuleHeader(
   messages: ReturnType<typeof getMessages>,
@@ -164,11 +164,9 @@ function renderTopicRuleHeader(
       </label>
       <div role="columnheader">${escapeHtml(messages.topicId)}</div>
       <div role="columnheader">${escapeHtml(messages.topicNote)}</div>
-      <label class="checkbox-cell rule-bulk-toggle" role="columnheader">
-        <input type="checkbox" data-role="enable-all-topics"><span>${
-    escapeHtml(messages.topicEnabled)
-  }</span>
-      </label>
+      <div role="columnheader" class="topic-profile-cell">${
+    escapeHtml(messages.profileApplied)
+  }</div>
       <div role="columnheader">
         <button
           type="button"
@@ -177,9 +175,11 @@ function renderTopicRuleHeader(
           data-keyword-target="common"
         >${escapeHtml(messages.topicKeywords)}</button>
       </div>
-      <div role="columnheader" class="topic-profile-cell">${
-    escapeHtml(messages.profileApplied)
-  }</div>
+      <label class="checkbox-cell rule-bulk-toggle" role="columnheader">
+        <input type="checkbox" data-role="enable-all-topics"><span>${
+    escapeHtml(messages.topicEnabled)
+  }</span>
+      </label>
       <div role="columnheader">
         <button
           type="button"
@@ -204,10 +204,10 @@ function renderTopicRuleHeader(
 /**
  * 渲染单条话题规则行。
  *
- * @param topic 话题规则。
- * @param index 话题行索引。
- * @param messages 当前语言文案。
- * @return 话题规则行 HTML。
+ * @param {TopicRule} topic 话题规则。
+ * @param {number | "__index__"} index 话题行索引或模板占位符。
+ * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
+ * @return {string} 话题规则行 HTML。
  */
 function renderTopicRuleRow(
   topic: TopicRule,
@@ -240,14 +240,14 @@ function renderTopicRuleRow(
     escapeHtml(topic.note)
   }" data-topic-note-input>
       </div>
-      <label class="checkbox-cell" role="cell">
-        <input
-          type="checkbox"
-          name="topic_${index}_enabled"
-          data-role="topic-enabled"
-          ${topic.enabled ? "checked" : ""}
-        >
-      </label>
+      <div role="cell" class="topic-profile-cell">
+        <input type="hidden" name="topic_${index}_profileId" value="${
+    escapeHtml(topic.profileId || "default")
+  }" data-topic-profile>
+        <button type="button" class="matching-picker-toggle" data-topic-profile-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="${
+    escapeHtml(messages.profileApplied)
+  }"><span data-profile-label></span><span class="dropdown-chevron" aria-hidden="true"></span></button>
+      </div>
       <div role="cell">
         <button
           type="button"
@@ -257,14 +257,14 @@ function renderTopicRuleRow(
           data-keyword-target="${escapeHtml(topic.id)}"
         >${escapeHtml(messages.topicKeywords)}</button>
       </div>
-      <div role="cell" class="topic-profile-cell">
-        <input type="hidden" name="topic_${index}_profileId" value="${
-    escapeHtml(topic.profileId || "default")
-  }" data-topic-profile>
-        <button type="button" class="matching-picker-toggle" data-topic-profile-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="${
-    escapeHtml(messages.profileApplied)
-  }"><span data-profile-label></span><span class="dropdown-chevron" aria-hidden="true"></span></button>
-      </div>
+      <label class="checkbox-cell" role="cell">
+        <input
+          type="checkbox"
+          name="topic_${index}_enabled"
+          data-role="topic-enabled"
+          ${topic.enabled ? "checked" : ""}
+        >
+      </label>
       <div role="cell">
         <button
           type="button"
