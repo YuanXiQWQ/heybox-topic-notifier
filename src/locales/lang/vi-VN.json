@@ -329,6 +329,7 @@
   "topicId": "ID chủ đề",
   "totalMatches": "Tổng số lượt khớp",
   "pendingPosts": "Bài viết chờ xử lý",
+  "selectAllRows": "Chọn tất cả",
   "matchingTitle": "Cài đặt đối chiếu",
   "matchingMode": "Chế độ đối chiếu từ khóa",
   "matchingRules": "Đối chiếu bằng biểu thức chính quy",

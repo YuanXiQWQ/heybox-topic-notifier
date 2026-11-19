@@ -329,6 +329,7 @@
   "topicId": "話題 ID",
   "totalMatches": "命中總數",
   "pendingPosts": "待處理帖文",
+  "selectAllRows": "全選",
   "matchingTitle": "匹配設定",
   "matchingMode": "關鍵字匹配模式",
   "matchingRules": "正則表達式匹配",

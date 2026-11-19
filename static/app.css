@@ -3996,3 +3996,10 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 :root[data-application-platform="android"] [data-app-navigation] .nav-account-menu-action{ box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
 [dir="rtl"][data-application-platform="android"] [data-app-navigation] .nav-account-dropdown{ left: 0; right: auto; }
 :root[data-application-platform="android"] .shell{ padding-bottom: calc(24px + var(--app-bottom-nav-height, 64px)); }
+
+.rule-bulk-toggle {position:relative; cursor:pointer;}
+.rule-bulk-toggle input[type="checkbox"] {position:absolute; inset:0; margin:0; width:100%; height:100%; opacity:0; cursor:pointer;}
+.rule-bulk-toggle > span {display:inline-flex; align-items:center; pointer-events:none;}
+.rule-bulk-toggle input:checked + span {color:var(--theme-strong);}
+.rule-bulk-toggle input:indeterminate + span {color:var(--theme-link);}
+.rule-bulk-toggle:focus-within {outline:2px solid var(--theme-strong); outline-offset:-2px;}

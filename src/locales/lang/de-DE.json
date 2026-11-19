@@ -329,6 +329,7 @@
   "topicId": "Themen-ID",
   "totalMatches": "Treffer insgesamt",
   "pendingPosts": "Ausstehende Beiträge",
+  "selectAllRows": "Alle auswählen",
   "matchingTitle": "Treffereinstellungen",
   "matchingMode": "Methode für Schlüsselwortabgleich",
   "matchingRules": "Abgleich mit regulären Ausdrücken",

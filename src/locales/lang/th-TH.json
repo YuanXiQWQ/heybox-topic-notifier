@@ -329,6 +329,7 @@
   "accountAvatarUploading": "กำลังอัปโหลดรูปโปรไฟล์…",
   "accountAvatarZoom": "ซูม",
   "navAccountMenu": "เมนูบัญชี",
+  "selectAllRows": "เลือกทั้งหมด",
   "matchingTitle": "การตั้งค่าการจับคู่",
   "matchingMode": "โหมดการจับคู่คำสำคัญ",
   "matchingRules": "การจับคู่ด้วย Regex",

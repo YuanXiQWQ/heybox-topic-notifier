@@ -329,6 +329,7 @@
   "topicId": "ID do tópico",
   "totalMatches": "Total de correspondências",
   "pendingPosts": "Publicações pendentes",
+  "selectAllRows": "Selecionar tudo",
   "matchingTitle": "Definições de correspondência",
   "matchingMode": "Modo de correspondência de palavras-chave",
   "matchingRules": "Correspondência por expressão regular",

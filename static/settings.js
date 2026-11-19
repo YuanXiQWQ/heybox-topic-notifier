@@ -5107,7 +5107,7 @@ function syncHeaderCheckbox(container, headerSelector, itemSelector) {
 function syncCheckboxState(header, items) {
   const checkedCount = items.filter((item) => item.checked).length;
   header.checked = items.length > 0 && checkedCount === items.length;
-  header.indeterminate = false;
+  header.indeterminate = checkedCount > 0 && checkedCount < items.length;
 }
 
 /**

@@ -154,15 +154,20 @@ function renderTopicRuleHeader(
 ): string {
   return `
     <div class="topic-rule-row topic-rule-head" role="row">
-      <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
-      <label class="checkbox-cell bulk-action-cell" role="columnheader">
-        <input type="checkbox" data-role="select-all-topics">
+      <div class="rule-drag-header" role="columnheader" aria-hidden="true">${
+    materialSymbolIcon("height", "rule-drag-icon")
+  }</div>
+      <label class="checkbox-cell bulk-action-cell rule-bulk-toggle" role="columnheader">
+        <input type="checkbox" data-role="select-all-topics" aria-label="${
+    escapeHtml(messages.selectAllRows)
+  }"><span>${materialSymbolIcon("done_all", "rule-drag-icon")}</span>
       </label>
       <div role="columnheader">${escapeHtml(messages.topicId)}</div>
       <div role="columnheader">${escapeHtml(messages.topicNote)}</div>
-      <label class="checkbox-cell" role="columnheader">
-        <span>${escapeHtml(messages.topicEnabled)}</span>
-        <input type="checkbox" data-role="enable-all-topics">
+      <label class="checkbox-cell rule-bulk-toggle" role="columnheader">
+        <input type="checkbox" data-role="enable-all-topics"><span>${
+    escapeHtml(messages.topicEnabled)
+  }</span>
       </label>
       <div role="columnheader">
         <button
@@ -280,9 +285,13 @@ function renderKeywordRuleHeader(
 ): string {
   return `
     <div class="keyword-rule-row keyword-rule-head" role="row">
-      <div class="rule-drag-header" role="columnheader" aria-hidden="true"></div>
-      <label class="checkbox-cell bulk-action-cell" role="columnheader">
-        <input type="checkbox" data-role="select-all-keywords">
+      <div class="rule-drag-header" role="columnheader" aria-hidden="true">${
+    materialSymbolIcon("height", "rule-drag-icon")
+  }</div>
+      <label class="checkbox-cell bulk-action-cell rule-bulk-toggle" role="columnheader">
+        <input type="checkbox" data-role="select-all-keywords" aria-label="${
+    escapeHtml(messages.selectAllRows)
+  }"><span>${materialSymbolIcon("done_all", "rule-drag-icon")}</span>
       </label>
       <div role="columnheader">${escapeHtml(messages.keywords)}</div>
       ${renderKeywordLocationHeader(messages.matchTitle, "title")}

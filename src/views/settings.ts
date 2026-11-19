@@ -126,7 +126,7 @@ export function renderSettings(
     )
   }
     <script type="module" src="/static/polling-schedule.js?v=20261117-schedule-controls"></script>
-    <script src="/static/settings.js?v=20261118-theme-values" defer></script>
+    <script src="/static/settings.js?v=20261119-table-heads" defer></script>
   `;
 
   return renderLayout({

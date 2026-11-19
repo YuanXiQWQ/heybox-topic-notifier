@@ -1443,7 +1443,7 @@ Deno.test("auth routes require MFA after password login when enabled", async () 
   );
   assert(pageHtml.includes("双重验证"));
   assertEquals(
-    pageHtml.includes('href="/static/app.css?v=20261118-theme-values"'),
+    pageHtml.includes('href="/static/app.css?v=20261119-table-heads"'),
     true,
   );
   assert(!(pageHtml.includes("box-shadow: 0 20px 50px")));

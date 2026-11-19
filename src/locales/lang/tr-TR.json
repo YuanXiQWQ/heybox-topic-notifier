@@ -329,6 +329,7 @@
   "accountAvatarUploading": "Avatar yükleniyor…",
   "accountAvatarZoom": "Yakınlaştır",
   "navAccountMenu": "Hesap menüsü",
+  "selectAllRows": "Tümünü seç",
   "matchingTitle": "Eşleştirme ayarları",
   "matchingMode": "Anahtar kelime eşleştirme modu",
   "matchingRules": "Regex eşleştirmesi",

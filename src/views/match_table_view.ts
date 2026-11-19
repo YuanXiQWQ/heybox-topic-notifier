@@ -99,8 +99,8 @@ export function renderMatchRecordsSection(
             <thead>
               <tr>
                 <th>
-                  <label class="checkbox-cell bulk-action-cell">
-                    <input type="checkbox" ${options.action.selectAllAttribute}>
+                  <label class="checkbox-cell bulk-action-cell rule-bulk-toggle">
+                    <input type="checkbox" ${options.action.selectAllAttribute} aria-label="${escapeHtml(options.messages.selectAllRows)}"><span>${materialSymbolIcon("done_all","rule-drag-icon")}</span>
                   </label>
                 </th>
                 <th>${escapeHtml(options.messages.postTitle)}</th>
@@ -1333,6 +1333,7 @@ function renderSelectionScript(action: MatchTableAction): string {
         const checkboxes = section ? Array.from(section.querySelectorAll(rowCheckboxSelector)) : [];
         if (selectAll instanceof HTMLInputElement) {
           selectAll.checked = checkboxes.length > 0 && checkboxes.every((item) => item.checked);
+          selectAll.indeterminate = !selectAll.checked && checkboxes.some((item) => item.checked);
         }
       });
 

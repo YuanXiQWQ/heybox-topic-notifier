@@ -163,6 +163,7 @@ export type Messages = {
   matchingModelsError: string;
   matchingModelCredentials: string;
   matchingTitle: string;
+  selectAllRows: string;
   matchingMode: string;
   matchingRules: string;
   matchingAi: string;

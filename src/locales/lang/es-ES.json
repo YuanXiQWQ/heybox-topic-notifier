@@ -329,6 +329,7 @@
   "topicId": "ID del tema",
   "totalMatches": "Total de coincidencias",
   "pendingPosts": "Publicaciones pendientes",
+  "selectAllRows": "Seleccionar todo",
   "matchingTitle": "Ajustes de coincidencia",
   "matchingMode": "Modo de coincidencia de palabras clave",
   "matchingRules": "Coincidencia con expresiones regulares",

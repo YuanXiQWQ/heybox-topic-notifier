@@ -329,6 +329,7 @@
   "topicId": "Topic ID",
   "totalMatches": "Total matches",
   "pendingPosts": "Pending posts",
+  "selectAllRows": "Select all",
   "matchingTitle": "Matching settings",
   "matchingMode": "Keyword matching mode",
   "matchingRules": "Regular expression matching",

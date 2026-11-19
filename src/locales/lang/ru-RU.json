@@ -329,6 +329,7 @@
   "topicId": "ID темы",
   "totalMatches": "Всего совпадений",
   "pendingPosts": "Публикации в ожидании",
+  "selectAllRows": "Выбрать все",
   "matchingTitle": "Настройки сопоставления",
   "matchingMode": "Режим сопоставления ключевых слов",
   "matchingRules": "По регулярным выражениям",

@@ -329,6 +329,7 @@
   "topicId": "বিষয় ID",
   "totalMatches": "মোট মিল",
   "pendingPosts": "অপেক্ষমাণ পোস্ট",
+  "selectAllRows": "সব নির্বাচন করুন",
   "matchingTitle": "মিল যাচাইয়ের সেটিংস",
   "matchingMode": "কীওয়ার্ড মেলানোর পদ্ধতি",
   "matchingRules": "রেগুলার এক্সপ্রেশন দিয়ে মিল",

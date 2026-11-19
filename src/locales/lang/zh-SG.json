@@ -329,6 +329,7 @@
   "topicId": "话题 ID",
   "totalMatches": "命中总数",
   "pendingPosts": "待处理帖子",
+  "selectAllRows": "全选",
   "matchingTitle": "匹配设置",
   "matchingMode": "关键词匹配模式",
   "matchingRules": "正则表达式匹配",

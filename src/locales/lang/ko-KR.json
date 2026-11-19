@@ -329,6 +329,7 @@
   "topicId": "주제 ID",
   "totalMatches": "총 일치 건수",
   "pendingPosts": "대기 중인 게시물",
+  "selectAllRows": "모두 선택",
   "matchingTitle": "일치 설정",
   "matchingMode": "키워드 일치 방식",
   "matchingRules": "정규 표현식 일치",

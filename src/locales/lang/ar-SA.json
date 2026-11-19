@@ -329,6 +329,7 @@
   "topicId": "معرّف الموضوع",
   "totalMatches": "إجمالي المطابقات",
   "pendingPosts": "المنشورات قيد الانتظار",
+  "selectAllRows": "تحديد الكل",
   "matchingTitle": "إعدادات المطابقة",
   "matchingMode": "وضع مطابقة الكلمات المفتاحية",
   "matchingRules": "المطابقة بالتعبيرات النمطية",

@@ -329,6 +329,7 @@
   "topicId": "話題ID",
   "totalMatches": "検出総数",
   "pendingPosts": "処理待ちの投稿",
+  "selectAllRows": "すべて選択",
   "matchingTitle": "照合設定",
   "matchingMode": "キーワードの照合方式",
   "matchingRules": "正規表現で照合",
