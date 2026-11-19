@@ -247,10 +247,7 @@ export function renderMatchingSection(
     "settings.post.matching",
     renderProfileList(app, saved),
     `<button type="button" class="profile-summary text-action-button" data-profile-toggle aria-controls="matching-panel" aria-expanded="false">${
-      e(
-        app.matchingProfiles?.find((p) => p.id === "default")?.name ||
-          m.profileDefault,
-      )
+      e(m.profileDefault)
     }</button>`,
   );
 }

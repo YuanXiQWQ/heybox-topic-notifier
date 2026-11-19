@@ -224,7 +224,11 @@ Deno.test("profile forms preserve scoped credentials, copies, association and ad
   }];
   const form = {
     matchingProfiles: JSON.stringify([
-      { id: "default", name: "", options: { ...app.matching, apiKey: "" } },
+      {
+        id: "default",
+        name: "自定义旧名称",
+        options: { ...app.matching, apiKey: "" },
+      },
       { id: "secondary", name: "B", options: { ...from, apiKey: "" } },
       {
         id: "copy",
@@ -246,6 +250,7 @@ Deno.test("profile forms preserve scoped credentials, copies, association and ad
     topic_1_profileId: "removed",
   };
   const saved = settingsFromForm(form, app);
+  assertEquals(saved.matchingProfiles![0].name, "");
   assertEquals(saved.matching!.apiKey, "fixture-default");
   assertEquals(saved.matchingProfiles![2].options, from);
   assertEquals(saved.matchingProfiles![3].options!.apiKey, "");

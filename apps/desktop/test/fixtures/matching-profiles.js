@@ -28,6 +28,28 @@ try {
       !find('[data-profile-list]').hidden,
     'profile list did not finish opening',
   );
+  const base = find('[data-profile-row="default"]');
+  const all = find('[data-profile-all]');
+  check(
+    base.querySelector('[data-profile-selected]').disabled &&
+      base.querySelector('[data-profile-name]').disabled && all.disabled,
+    'default profile selection and name must be locked',
+  );
+  base.querySelector('[data-profile-action="copy"]').click();
+  find('[data-profile-row]:last-child [data-profile-action="copy"]').click();
+  check(
+    [...document.querySelectorAll('[data-profile-row] [data-profile-name]')]
+      .map((input) => input.value).join(',') === '默认配置,默认配置（1）,默认配置（2）',
+    'copies should share one numbered sequence',
+  );
+  all.click();
+  check(
+    all.checked && !find('[data-profile-row="default"] [data-profile-selected]').checked &&
+      document.querySelectorAll('[data-profile-selected]:checked').length === 2,
+    'select all should skip the default profile',
+  );
+  find('.profile-head [data-profile-action="delete"]').click();
+  check(all.disabled && !all.checked, 'empty bulk selection');
   find('.profile-head [data-profile-action="add"]').click();
   const row = find('[data-profile-row]:last-child');
   row.querySelector('.profile-chip-add').click();

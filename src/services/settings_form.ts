@@ -520,11 +520,12 @@ function profilesFromForm(form: SettingsForm, app: AppSettings) {
           options.apiUrl === previous.apiUrl
         ? previous.apiKey
         : "")).slice(0, 4096);
-    const name = String(row.name ?? "").trim().slice(0, 100);
     if (row.id === "default") matching = options;
     matchingProfiles.push({
       id: row.id,
-      name,
+      name: row.id === "default"
+        ? ""
+        : String(row.name ?? "").trim().slice(0, 100),
       ...(row.id === "default" ? {} : { options }),
     });
   }

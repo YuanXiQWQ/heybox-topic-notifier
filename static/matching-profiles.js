@@ -304,10 +304,9 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
    * @return {string} 用于显示和排序的名称。
    */
   function name(profile) {
-    return profile.name ||
-      (profile.id === 'default'
-        ? list.dataset.defaultLabel
-        : list.dataset.newLabel);
+    return profile.id === 'default'
+      ? list.dataset.defaultLabel
+      : profile.name || list.dataset.newLabel;
   }
 
   /**
@@ -465,7 +464,9 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
       ) {
         const chip = document.createElement('span');
         chip.className = 'profile-chip';
-        chip.append(document.createTextNode(entry.label));
+        const label = document.createElement('span');
+        label.textContent = entry.label;
+        chip.append(label);
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.textContent = '×';
@@ -522,21 +523,23 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
   /** 同步表头选择、批量操作和默认配置保护状态。 */
   function selection() {
     const checkbox = list.querySelector('[data-profile-all]');
-    checkbox.checked = selected.size === profiles.length;
-    checkbox.indeterminate = selected.size > 0 && !checkbox.checked;
     for (const row of grid.querySelectorAll('[data-profile-row]')) {
       row.querySelector('[data-profile-selected]').checked = selected.has(
         row.dataset.profileRow,
       );
     }
+    const eligible = [
+      ...grid.querySelectorAll('[data-profile-selected]:enabled'),
+    ];
+    syncCheckboxState(checkbox, eligible);
+    checkbox.disabled = eligible.length === 0;
     const header = grid.firstElementChild;
     header.querySelector('[data-profile-action="edit"]').disabled =
       selected.size !== 1;
     header.querySelector('[data-profile-action="copy"]').disabled =
       selected.size === 0;
-    header.querySelector('[data-profile-action="delete"]').disabled = ![
-      ...selected,
-    ].some((id) => id !== 'default');
+    header.querySelector('[data-profile-action="delete"]').disabled =
+      selected.size === 0;
   }
 
   /** 根据持久顺序重建配置行，并刷新关联视图。 */
@@ -546,15 +549,16 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
       const row = list.querySelector('template').content.firstElementChild
         .cloneNode(true);
       row.dataset.profileRow = profile.id;
+      const isDefault = profile.id === 'default';
       const input = row.querySelector('[data-profile-name]');
       input.value = name(profile);
-      row.querySelector('[data-profile-selected]').setAttribute(
-        'aria-label',
-        name(profile),
-      );
+      input.disabled = isDefault;
+      const checkbox = row.querySelector('[data-profile-selected]');
+      checkbox.disabled = isDefault;
+      checkbox.setAttribute('aria-label', name(profile));
       input.placeholder = name(profile);
       row.querySelector('[data-profile-action="delete"]').disabled =
-        profile.id === 'default';
+        isDefault;
       grid.append(row);
     }
     selection();
@@ -571,11 +575,18 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
    */
   function insert(source, index) {
     const id = crypto.randomUUID();
-    const label = source ? name(source) : list.dataset.newLabel;
-    let suffix = source ? 2 : 1;
+    const label = source
+      ? name(source).replace(/（\d+）$/u, '') || name(source)
+      : list.dataset.newLabel;
+    const names = new Set(profiles.map(name));
     let title = label;
-    while (profiles.some((p) => name(p) === title)) {
-      title = label.slice(0, 92) + ' ' + suffix++;
+    if (source || names.has(title)) {
+      let number = 1;
+      do {
+        const suffix = source ? '（' + number + '）' : ' ' + number;
+        title = label.slice(0, 100 - suffix.length) + suffix;
+        number++;
+      } while (names.has(title));
     }
     const options = { ...(source?.options || defaults) };
     delete options.apiKey;
@@ -640,7 +651,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
     scheduleAutoSave();
   });
   list.addEventListener('input', (event) => {
-    if (!event.target.matches('[data-profile-name]')) return;
+    if (!event.target.matches('[data-profile-name]:enabled')) return;
     const profile = profiles.find((p) =>
       p.id === event.target.closest('[data-profile-row]').dataset.profileRow
     );
@@ -655,8 +666,12 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
   list.addEventListener('change', (event) => {
     if (event.target.matches('[data-profile-all]')) {
       selected.clear();
-      if (event.target.checked) profiles.forEach((p) => selected.add(p.id));
-    } else if (event.target.matches('[data-profile-selected]')) {
+      if (event.target.checked) {
+        for (const p of profiles) {
+          if (p.id !== 'default') selected.add(p.id);
+        }
+      }
+    } else if (event.target.matches('[data-profile-selected]:enabled')) {
       const id = event.target.closest('[data-profile-row]').dataset.profileRow;
       if (event.target.checked) selected.add(id);
       else selected.delete(id);

@@ -58,3 +58,15 @@ Deno.test("offline profile edits merge independently and a deleted target falls 
   assertEquals(after.settings.topics[0].profileId, undefined);
   assertEquals(mergeSettings(after, late).snapshot.settings, after.settings);
 });
+
+Deno.test("default profile names from offline clients never override the device language", () => {
+  const app = defaultAppSettingsFromEnv();
+  app.matchingProfiles = [{ id: "default", name: "自定义旧名称" }];
+  const snapshot = initialSettingsSnapshot(app);
+  const result = mergeSettings(snapshot, [{
+    region: "profile/default/name",
+    value: "其它设备名称",
+    stamp: nextEditStamp(undefined, 1000, "desktop"),
+  }]);
+  assertEquals(result.snapshot.settings.matchingProfiles![0].name, "");
+});

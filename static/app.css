@@ -2708,7 +2708,7 @@ td:has(> .checkbox-cell) > .checkbox-cell{
 .icon-button:focus-visible,
 .dropdown-toggle:hover,
 .dropdown-toggle:focus-visible,
-.text-action-button:hover,
+.text-action-button:not(.profile-summary):hover,
 .text-action-button:focus-visible,
 .metric-panel-control:not(.is-disabled):hover,
 .metric-panel-control:not(.is-disabled):focus-visible{
@@ -4030,6 +4030,8 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 }
 .profile-head { background:var(--surface-soft-base); color:var(--muted-strong); font-size:14px; font-weight:700; text-align:center; }
 .profile-row .icon-button:disabled {opacity:.45;cursor:default;}
+.profile-head [data-profile-all]:disabled {cursor:default;}
+.profile-head [data-profile-all]:disabled + span {opacity:.45;}
 .profile-row .icon-button svg { width:20px; height:20px; }
 .profile-row .icon-button svg[fill="none"] { fill:none; }
 [dir="rtl"] [data-matching-editor] .dropdown-chevron,
@@ -4038,15 +4040,28 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .profile-row.is-rule-dragging {opacity:.42;}
 .profile-row.is-rule-drag-over-before {box-shadow:inset 0 3px 0 var(--theme-strong);}
 .profile-row.is-rule-drag-over-after {box-shadow:inset 0 -3px 0 var(--theme-strong);}
-.profile-row > .profile-chips {flex-wrap:wrap; justify-content:flex-start; gap:4px;}
+.profile-row > .profile-chips {
+  --profile-chip-size:36px;
+  flex-wrap:wrap; align-content:center; justify-content:flex-start; gap:4px;
+}
 .profile-chip {
-  display:inline-flex; align-items:center; max-width:100%;
+  display:inline-flex; align-items:center; box-sizing:border-box;
+  min-height:var(--profile-chip-size); max-width:100%;
   background:var(--theme-soft); color:var(--ink); border:1px solid var(--theme-border);
   border-radius:1em; padding:2px 8px; gap:4px; font:inherit; font-size:13px; overflow-wrap:anywhere;
 }
-.profile-chip button {background:transparent; color:inherit; border:0; font:inherit; padding:0 2px;}
+.profile-chip > span {min-width:0;}
+.profile-chip button {
+  display:inline-flex; align-items:center; justify-content:center; flex:none;
+  width:24px; min-height:28px; background:transparent; color:inherit;
+  border:0; font:inherit; font-size:20px; line-height:1; padding:0;
+}
 .profile-chip button:disabled {opacity:.45;}
-.profile-chip-add {min-width:26px;justify-content:center;}
+.profile-chip-add {
+  width:var(--profile-chip-size); height:var(--profile-chip-size); flex:none;
+  justify-content:center; border-radius:10px; padding:0;
+  font-size:22px; font-weight:700; line-height:1;
+}
 .profile-search {min-width:0; width:100%;}
 .profile-chips .profile-search {width:9em; max-width:100%; border-radius:1em;}
 .topic-profile-cell .matching-picker-toggle {width:100%; justify-content:space-between; min-width:0;}

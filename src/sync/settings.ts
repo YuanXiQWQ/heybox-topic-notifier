@@ -220,8 +220,9 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
         };
       if (part === "order") item.order = Number(entry.value);
       else if (part === "present") item.present = entry.value === true;
-      else if (part === "name") item.profile.name = String(entry.value);
-      else if (field !== "default") {
+      else if (part === "name") {
+        item.profile.name = field === "default" ? "" : String(entry.value);
+      } else if (field !== "default") {
         item.profile.options ??= normalizeMatchingSettings();
         Object.assign(
           item.profile.options,
