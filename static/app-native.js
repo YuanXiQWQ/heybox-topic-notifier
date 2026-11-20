@@ -366,12 +366,12 @@
     if (!dialog.open) dialog.showModal();
   }
 
-  /** 等待本地事务完成后请求安装，合并下载事件与按钮产生的重复请求。 */
+  /** 合并重复安装请求；桌面由主进程统一等待本地事务，手机在交给安装界面前保存。 */
   async function installUpdate() {
     if (installing) return;
     installing = true;
     try {
-      await globalThis.applicationSync?.prepareForExit();
+      if (!state?.savesBeforeUpdate) await globalThis.applicationSync?.prepareForExit();
       await native.installUpdate();
     } finally {
       installing = false;

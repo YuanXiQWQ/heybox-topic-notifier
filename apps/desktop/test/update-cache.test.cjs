@@ -78,3 +78,14 @@ test('malformed metadata never causes cleanup outside the pending cache', () => 
   assert.equal(await repairUpdateCache(updater), false);
   assert.equal(await fs.readFile(path.join(root, 'outside.exe'), 'utf8'), 'keep');
 }));
+
+test('install preparation rejects a cached filename that differs from the downloader target', () => fixture(async ({pending, updater}) => {
+  const helper = await updater.getOrCreateDownloadHelper();
+  helper.file = path.join(pending, 'requested.exe');
+  const bytes = Buffer.from('complete installer');
+  await fs.writeFile(path.join(pending, 'other.exe'), bytes);
+  await fs.writeFile(path.join(pending, 'update-info.json'), JSON.stringify({
+    fileName: 'other.exe', sha512: createHash('sha512').update(bytes).digest('base64'),
+  }));
+  assert.equal(await repairUpdateCache({getOrCreateDownloadHelper: async () => helper}), false);
+}));

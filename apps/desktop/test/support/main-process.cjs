@@ -12,15 +12,16 @@ const {EventEmitter} = require('node:events');
  */
 function harness(options = {}) {
   const handlers = new Map(), events = new Map();
-  let cacheReady = true;
   let installs = 0, downloads = 0, quitting = 0;
   const installOptions = [];
   const updaterEvents = new Map();
   const updater = options.updater || {
-    quitAndInstall: (...options) => {
-      installs++;
-      installOptions.push(options);
-    }, downloadUpdate: () => {
+    /** @return {Promise<object>} 当前模拟发行的安装包路径、版本和启动权限。 */
+    getOrCreateDownloadHelper: async () => ({
+      file: path.join('cache', 'setup.exe'), cacheDirForPendingUpdate: 'cache',
+      downloadedFileInfo: {fileName: 'setup.exe'}, versionInfo: {version: api.info().update.version},
+    }),
+    downloadUpdate: () => {
       downloads++;
       return Promise.resolve();
     }, on: (name, fn) => updaterEvents.set(name, fn)
@@ -48,6 +49,11 @@ function harness(options = {}) {
     isDestroyed: () => false,
     loadURL: (url) => opened.push(url),
     isMinimized: () => false,
+    /** @param {boolean} enabled 窗口是否接受用户输入。 */
+    setEnabled(enabled) { window.enabled = enabled; },
+    /** 模拟窗口在移交更新时隐藏。 */
+    hide() {
+    },
     show() {
     },
     focus() {
@@ -82,6 +88,19 @@ function harness(options = {}) {
   };
   const electron = {
     app,
+    utilityProcess: {
+      /** @param {string} script 交接程序。 @param {string[]} args 安装文件与提权方式。 @return {EventEmitter} 模拟实用进程。 */
+      fork(script, args) {
+        installs++;
+        installOptions.push([path.basename(script), ...args]);
+        const launcher = new EventEmitter();
+        setImmediate(() => {
+          if (options.onLaunch) options.onLaunch(launcher);
+          else launcher.emit('message', 'started');
+        });
+        return launcher;
+      },
+    },
     Notification: class {
       /** @param {object} data 系统通知载荷。 */
       constructor(data) {
@@ -132,7 +151,7 @@ function harness(options = {}) {
         name === 'electron'
             ? electron
             : name === './update-cache.cjs'
-                ? {repairUpdateCache: options.repairUpdateCache || (() => Promise.resolve(cacheReady))}
+                ? {repairUpdateCache: options.repairUpdateCache || (() => Promise.resolve(true))}
                 : name === 'electron-updater'
                     ? {autoUpdater: updater}
                     : localRequire(name),
@@ -174,9 +193,8 @@ function harness(options = {}) {
     fetch: () => Promise.resolve({ok: true, json: () => read()}),
   });
   return {
-    api, app, window, updater, updaterEvents, setCacheReady: value => {
-      cacheReady = value;
-    }, downloads: () => downloads, quitting: () => quitting,
+    api, app, window, updater, updaterEvents, events,
+    downloads: () => downloads, quitting: () => quitting,
     contents,
     device,
     handlers,
