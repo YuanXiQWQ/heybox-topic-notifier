@@ -2999,6 +2999,12 @@ Deno.test("counterexample history carries the same content and match details as 
     value: "疑似求助",
     location: record.location,
   });
+  record.kind = "keyword";
+  record.aiLocation = "comments";
+  const [hybrid] = await (await app.request("/settings/counterexample-history")).json();
+  assertEquals(hybrid.details.value, record.keyword);
+  assertEquals(hybrid.details.location, record.location);
+  assertEquals(hybrid.details.ai, { reason: "疑似求助", location: "comments" });
 });
 
 Deno.test("delete matches ajax returns refreshed history table", async () => {

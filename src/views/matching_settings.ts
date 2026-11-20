@@ -265,7 +265,7 @@ export function renderMatchingSection(
 }
 
 /**
- * 渲染反例列表、历史选帖表格及提示词预览。
+ * 渲染反例列表及历史选帖表格。
  * @param {AppSettings} app 当前账号设置。
  * @return {string} 当前匹配配置的反例抽屉。
  */
@@ -353,9 +353,6 @@ function renderCounterexamples(app: AppSettings): string {
     }</select></label></div>
         <template data-history-pick-row><tr>${box}${cells}</tr></template>
       </section>
-      <details data-example-preview><summary>${
-      e(m.examplePreview)
-    }</summary><pre dir="ltr"></pre></details>
       ${renderRelativeTimeScript()}
     </div>`,
     new Intl.NumberFormat(app.locale).format(settings.counterexamples.length),

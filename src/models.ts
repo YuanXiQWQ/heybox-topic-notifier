@@ -137,6 +137,8 @@ export type MatchResult = {
   /** 未带类型的持久化记录由展示兼容逻辑读取。 */
   kind?: "keyword" | "ai";
   aiReason?: string;
+  /** 混合模式中 AI 判定的位置，独立于正则命中的位置。 */
+  aiLocation?: MatchResultLocation;
   keyword: string;
   location: MatchResultLocation;
 };

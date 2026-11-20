@@ -388,7 +388,6 @@
   "exampleAllTopics": "所有话题",
   "exampleReason": "反例原因",
   "exampleAdd": "添加反例",
-  "examplePreview": "预览反例提示词",
   "exampleHistoryError": "无法读取历史记录",
   "examplePostUnavailable": "缺少原帖，这条反例暂不发送给 AI。",
   "matchingCompany": "公司",

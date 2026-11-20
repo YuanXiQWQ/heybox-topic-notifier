@@ -23,6 +23,8 @@ export type MatchingCounterexample = {
     kind: "ai" | "keyword";
     value: string;
     location: string;
+    /** 混合模式下同时记录的 AI 判定。 */
+    ai?: { reason: string; location: string };
   };
 };
 export type MatchingSettings = {
@@ -117,6 +119,9 @@ function normalizeCounterexamples(raw: unknown): MatchingCounterexample[] {
             kind: item.details.kind === "ai" ? "ai" : "keyword",
             value: String(item.details.value ?? ""),
             location: String(item.details.location ?? ""),
+            ...(typeof item.details.ai?.reason === "string"
+              ? { ai: { reason: item.details.ai.reason, location: String(item.details.ai.location ?? "unknown") } }
+              : {}),
           },
         }
         : {}),

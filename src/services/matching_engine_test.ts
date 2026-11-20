@@ -492,6 +492,12 @@ Deno.test("matching invalidates changed content and prompts but not price or bud
     f.app.matching!.counterexamples = [{ ...example, post: original }];
     await f.run([post("p1", "新的内容")]);
     assertEquals(f.calls(), 7);
+    f.app.matching!.counterexamples[0].details = {
+      kind: "ai", value: "标题像是在求助", location: "title",
+      publishedAt: original.publishedAt, matchedAt: "2026-10-01T00:00:00Z",
+    };
+    await f.run([post("p1", "新的内容")]);
+    assertEquals(f.calls(), 8);
   } finally {
     f.close();
   }
@@ -743,6 +749,8 @@ Deno.test("rules use no AI while hybrid evaluates rules against full details", a
       keyword: "求助",
       kind: "keyword",
       location: "body",
+      aiReason: "正在求助",
+      aiLocation: "title",
     }]);
     assertEquals(f.calls(), 1);
   } finally {
