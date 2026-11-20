@@ -13,6 +13,7 @@ const {
   session,
   shell,
   screen,
+  utilityProcess,
 } = require('electron');
 const {autoUpdater} = require('electron-updater');
 const {CancellationToken} = require('builder-util-runtime');
@@ -53,6 +54,10 @@ let webSession;
 let quitting = false;
 /** 防止重复退出事件同时执行持久化屏障。 */
 let preparingExit;
+/** 已开始的重启请求持有退出流程，防止托盘退出与启动安装器同时执行。 */
+let restartingForUpdate;
+/** 交接安装包期间保留已保存的窗口，以便启动失败时恢复。 */
+let updateWindowHidden = false;
 /** 合并并发的更新检查。 */
 let checking;
 /** 启动前已完整下载的自动更新，只在再次启动并校验缓存后安装。 */
@@ -81,6 +86,7 @@ else {
   app.on('before-quit', (event) => {
     if (quitting || !window || window.isDestroyed()) return;
     event.preventDefault();
+    if (restartingForUpdate) return;
     preparingExit ??= prepareExit().then(() => {
       quitting = true;
       app.quit();
@@ -109,12 +115,16 @@ async function savePageChanges() {
 }
 
 /**
- * 等待页面本地事务，保存失败时保持窗口以便用户重试。
+ * 等待页面本地事务；重启时保存成功即收起窗口，在后台等待下载和校验缓存。
  * @param {boolean} installing 是否必须保留有效安装包。
  * @return {Promise<void>} 下载已停止且缓存已处理，可以退出或安装更新。
  */
 async function prepareExit(installing = false) {
   await savePageChanges();
+  if (installing) {
+    updateWindowHidden = true;
+    window.hide();
+  }
   stoppingUpdates = true;
   try {
     await checking;
@@ -229,7 +239,7 @@ async function start() {
   // noinspection JSUnresolvedReference
   window.removeMenu();
   window.on('close', handleWindowClose);
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => { if (!updateWindowHidden) window.show(); });
   // 此处使用运行时及已安装依赖声明支持的 API；IDE 的混合环境解析不完整。
   // noinspection JSUnresolvedReference
   window.webContents.setWindowOpenHandler(({url}) => {
@@ -298,6 +308,7 @@ function configureWindowIdentity() {
 function handleWindowClose(event) {
   if (quitting) return;
   event.preventDefault();
+  if (restartingForUpdate) return;
   if (device.value.closeAction === 'quit') app.quit();
   else window.hide();
 }
@@ -361,6 +372,7 @@ async function setPreferences(values) {
     Object.assign(device.value, previous);
     throw error;
   }
+  if (stoppingUpdates) return info();
   autoUpdater.autoDownload = autoUpdateAllowed();
   autoUpdater.autoInstallOnAppQuit = autoUpdateAllowed() || manualUpdateDownload;
   if (autoUpdater.autoDownload && (update.status === 'available' ||
@@ -455,12 +467,7 @@ function installBridge(inbox) {
     }
     return info();
   });
-  handle('app:install-update', async () => {
-    if (update.status !== 'downloaded') throw new Error('Update not ready');
-    await prepareExit(true);
-    quitting = true;
-    autoUpdater.quitAndInstall(true, true);
-  });
+  handle('app:install-update', restartForUpdate);
   handle('app:seen-update', async (section) => {
     if (!['settings', 'about', 'dismissed'].includes(section)) {
       throw new Error('Invalid update section');
@@ -481,6 +488,7 @@ function info() {
   const silent = autoUpdateAllowed() && ['available', 'downloading', 'downloaded'].includes(update.status);
   return {
     platform: 'windows',
+    savesBeforeUpdate: true,
     navigation: {canGoBack: Boolean(window && !window.isDestroyed() && !window.webContents.isDestroyed() && window.webContents.navigationHistory?.canGoBack())},
     version: app.getVersion(),
     preferences: {
@@ -524,7 +532,7 @@ function emitState() {
  * @return {Promise<void>} 窗口已显示，或保留保存失败的编辑页。
  */
 async function showWindow(route, allowed) {
-  if (!window || window.isDestroyed()) return;
+  if (updateWindowHidden || !window || window.isDestroyed()) return;
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
@@ -535,6 +543,65 @@ async function showWindow(route, allowed) {
       if (!window.isDestroyed()) await window.loadURL(origin + route);
     } catch { /* 保存失败时保留编辑页，由现有保存状态反馈错误。 */
     }
+  }
+}
+
+/**
+ * 本地保存完成后收起旧窗口，校验更新包，再由独立进程启动静默安装器。
+ * 只有 Windows 接受启动请求后才退出；交接失败时将当前页面交还用户。
+ * @return {Promise<void>} 安装器已启动，或退出准备失败。
+ */
+async function restartForUpdate() {
+  if (restartingForUpdate) return restartingForUpdate;
+  if (quitting || preparingExit) throw new Error('Application is closing');
+  if (update.status !== 'downloaded') throw new Error('Update not ready');
+  restartingForUpdate = (async () => {
+    window.setEnabled(false);
+    let prepared = false;
+    try {
+      await prepareExit(true);
+      prepared = true;
+      const helper = await autoUpdater.getOrCreateDownloadHelper();
+      if (!helper.file || helper.versionInfo?.version !== update.version ||
+          !helper.downloadedFileInfo || helper.file !== path.join(helper.cacheDirForPendingUpdate, helper.downloadedFileInfo.fileName)) {
+        throw new Error('Update installer does not match the release');
+      }
+      await new Promise((resolve, reject) => {
+        const launcher = utilityProcess.fork(path.join(__dirname, 'launch-update.cjs'), [
+          helper.file, path.join(process.resourcesPath, 'elevate.exe'),
+          helper.downloadedFileInfo.isAdminRightsRequired ? 'elevated' : 'normal',
+        ], {stdio: 'ignore'});
+        launcher.once('message', message => {
+          if (message === 'started') resolve();
+          else reject(new Error('Windows failed to start the update installer'));
+        });
+        launcher.once('exit', () => reject(new Error('Update launcher exited before confirming startup')));
+        launcher.once('error', () => reject(new Error('Update launcher failed')));
+      });
+      autoUpdater.autoInstallOnAppQuit = false;
+      quitting = true;
+      app.quit();
+    } catch (error) {
+      window.setEnabled(true);
+      if (updateWindowHidden) {
+        updateWindowHidden = false;
+        await showWindow();
+      }
+      if (!prepared) throw error;
+      stoppingUpdates = false;
+      autoUpdater.autoInstallOnAppQuit = false;
+      update.status = 'error';
+      emitState();
+      delete device.value.autoUpdateReady;
+      device.value.failedUpdateVersion = update.version;
+      await device.save();
+      throw error;
+    }
+  })();
+  try {
+    await restartingForUpdate;
+  } finally {
+    restartingForUpdate = undefined;
   }
 }
 
@@ -590,9 +657,7 @@ function installUpdater() {
       emitState();
       if (installCachedUpdateOnStart && autoUpdateAllowed()) {
         installCachedUpdateOnStart = false;
-        await prepareExit(true);
-        quitting = true;
-        autoUpdater.quitAndInstall(true, true);
+        await restartForUpdate();
       }
     } catch {
       quitting = false;

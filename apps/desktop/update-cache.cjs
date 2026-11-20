@@ -55,6 +55,7 @@ async function repairUpdateCache(updater) {
       // noinspection ExceptionCaughtLocallyJS
       throw new Error('Cached metadata differs from release');
     const file = path.join(directory, name), stat = await fs.lstat(file);
+    if (helper.file && helper.file !== file) throw new Error('Cached installer differs from release path');
     if (!stat.isFile() || stat.isSymbolicLink() || await digest(file) !== metadata.sha512)
       // 校验失败沿用当前 catch 的错误反馈与清理路径。
       // noinspection ExceptionCaughtLocallyJS
