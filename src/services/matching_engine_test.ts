@@ -460,6 +460,23 @@ Deno.test("matching invalidates changed content and prompts but not price or bud
     f.advance(31 * matchingDayMs);
     await f.run([post("p1", "新的内容")]);
     assertEquals(f.calls(), 4);
+    const example = {
+      id: "other",
+      title: "回顾",
+      source: "body" as const,
+      url: "",
+      topicId: "1",
+      topicNote: "",
+      excerpt: "已经通关",
+      reason: "分享通关经历",
+      addedAt: 1,
+    };
+    f.app.matching!.counterexamples = [example];
+    await f.run([post("p1", "新的内容")]);
+    assertEquals(f.calls(), 5);
+    example.reason = "作者在回顾过去的困难";
+    await f.run([post("p1", "新的内容")]);
+    assertEquals(f.calls(), 6);
   } finally {
     f.close();
   }

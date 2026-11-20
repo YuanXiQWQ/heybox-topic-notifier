@@ -325,12 +325,22 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
   const defaults = JSON.parse(list.dataset.defaultOptions);
   const usages = JSON.parse(list.dataset.usage);
   const profiles = JSON.parse(field.value);
+  for (const profile of profiles) {
+    if (!profile.options.counterexamples) profile.options.counterexamples = [];
+  }
   const selected = new Set();
   const request = initProfileDrawer(section, list);
   let active = profiles.find((p) => p.id === list.dataset.active) ||
     profiles.find((p) => p.id === 'default');
   let switching = false;
+  let restored = false;
   let closePicker;
+  const exampleEditor = globalThis.initMatchingCounterexamples?.(section,
+    () => active.options.counterexamples,
+    () => topicEntries().map(({ id, row, profile }) => ({
+      id, note: row.querySelector('[data-topic-note-input]').value.trim(), assigned: profile === active,
+    })),
+    () => { capture(); scheduleAutoSave(); });
 
   /**
    * 取本地化配置名称。
@@ -377,6 +387,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
   function capture() {
     if (switching) return;
     for (const key of Object.keys(defaults)) {
+      if (key === 'counterexamples') continue;
       const element = control(key);
       if (key === 'apiKey') {
         secretField(active.id).value = element.value;
@@ -413,13 +424,14 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
     active = profile;
     list.dataset.active = profile.id;
     for (const [key, value] of Object.entries(profile.options)) {
-      if (key === 'apiKey') continue;
+      if (key === 'apiKey' || key === 'counterexamples') continue;
       const element = control(key);
       if (element.type === 'checkbox') {
         element.checked = key === 'disableThinking' ? !value : value;
       } else element.value = value;
     }
     load(profile, secretField(profile.id).value);
+    exampleEditor?.restore();
     switching = false;
     updateUsage();
     toggle.textContent = name(active);
@@ -474,7 +486,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
     setMatchingRowVisible(
       keyword,
       targetEntry ? targetEntry.profile.options.mode !== 'ai' : hasRules,
-      false,
+      restored,
     );
     topics.classList.toggle('profiles-ai-only', !hasRules);
     for (const entry of entries) {
@@ -628,6 +640,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
       } while (names.includes(title));
     }
     const options = { ...(source?.options || defaults) };
+    options.counterexamples = (options.counterexamples || []).map((example) => ({ ...example }));
     delete options.apiKey;
     const profile = {
       id,
@@ -809,6 +822,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
       );
       edit(active);
       render();
+      restored = true;
     },
     /**
      * 给模型请求附加对应的凭据标识。

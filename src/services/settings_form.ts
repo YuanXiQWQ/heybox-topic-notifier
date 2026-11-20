@@ -227,6 +227,7 @@ export function matchingSettingsFromForm(
     ),
     model: String(form.matchingModel ?? previous.model),
     prompt: String(form.matchingPrompt ?? previous.prompt),
+    counterexamples: previous.counterexamples,
     includeComments: form.matchingIncludeComments === "on",
     disableThinking: form.matchingEnableThinking !== "on",
     dailyLimit: Number(form.matchingDailyLimit ?? previous.dailyLimit),
@@ -513,7 +514,11 @@ function profilesFromForm(form: SettingsForm, app: AppSettings) {
       matchingCredentialProfile: row.id,
       matchingCopySource: row.source ?? "",
     }, app);
-    const options = normalizeMatchingSettings({ ...row.options, apiKey: "" });
+    const options = normalizeMatchingSettings({
+      ...row.options,
+      counterexamples: row.options?.counterexamples ?? previous.counterexamples,
+      apiKey: "",
+    });
     const key = String(form[`profileKey_${row.id}`] ?? "").trim();
     options.apiKey = (key ||
       (options.provider === previous.provider &&

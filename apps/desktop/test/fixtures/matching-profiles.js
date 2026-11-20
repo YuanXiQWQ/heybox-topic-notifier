@@ -1,4 +1,4 @@
-/** @file 检查真实设置页的双抽屉、快速切换、气泡改绑及独立高级设置。 */
+/** @file 检查设置抽屉切换、话题改绑、分配置反例注释和高级设置。 */
 globalThis.entryProbe = 'pending';
 try {
   if (document.readyState === 'loading') {
@@ -104,6 +104,29 @@ try {
     ),
     'topic dropdown projection',
   );
+  find('[data-profile-row="default"] [data-profile-action="edit"]').click();
+  await settle();
+  const examples = find('[data-counterexample-editor]');
+  const keywords = find('[data-keyword-editor]');
+  check(examples.hidden && !keywords.hidden, 'rules mode shows only keywords');
+  mode.value = 'ai';
+  mode.dispatchEvent(new Event('change', { bubbles: true }));
+  await settle();
+  check(!examples.hidden && keywords.hidden &&
+    examples.nextElementSibling === find('[data-advanced-editor]'), 'AI example drawer');
+  find('[data-action="toggle-counterexamples"]').click();
+  const annotation = find('[data-example-rows] textarea');
+  annotation.value = '评论引用了过去的困难';
+  annotation.dispatchEvent(new Event('input', { bubbles: true }));
+  const saved = JSON.parse(form.elements.matchingProfiles.value);
+  check(saved[0].options.counterexamples[0].reason === annotation.value &&
+    saved[1].options.counterexamples.length === 0 &&
+    JSON.parse(find('[data-example-preview] pre').textContent)[0].source === 'comments',
+    'editable profile-specific evidence and preview');
+  mode.value = 'hybrid';
+  mode.dispatchEvent(new Event('change', { bubbles: true }));
+  await settle();
+  check(!examples.hidden && !keywords.hidden, 'hybrid mode shows both drawers');
   globalThis.entryProbe = 'passed';
 } catch (error) {
   globalThis.entryProbe = String(error.stack || error);

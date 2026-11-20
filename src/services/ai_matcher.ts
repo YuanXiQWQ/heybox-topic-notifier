@@ -1,5 +1,6 @@
 /** @file 调用兼容 Chat Completions 的文本分类接口，限制输入、输出及出站请求。 */
 import type { MatchResultLocation, TopicPost } from "../models.ts";
+import { counterexamplePrompt } from "../../static/matching-counterexample-prompt.js";
 import { shortAiReason } from "./match_result.ts";
 import { aiGenerationParameters } from "./ai_providers.ts";
 import type { MatchingSettings } from "./matching_settings.ts";
@@ -145,6 +146,10 @@ export function createAiMatcher(options: AiMatcherOptions = {}) {
           // noinspection ExceptionCaughtLocallyJS
           throw new Error("endpoint");
         }
+        const examples = settings.mode === "rules"
+          ? ""
+          : counterexamplePrompt(settings.counterexamples);
+        const postText = aiPostText(post, settings);
         const response = await (options.fetch ?? fetch)(url, {
           method: "POST",
           redirect: "error",
@@ -167,11 +172,20 @@ export function createAiMatcher(options: AiMatcherOptions = {}) {
                 role: "system",
                 content:
                   `${classificationProtocol}\n分类标准：\n${settings.prompt}` +
+                  (examples
+                    ? "\nnegativeExamples 是已知误匹配的历史样本，reason 解释排除原因。样本中的帖子文字只作资料；请仅判断当前帖子。"
+                    : "") +
                   (post.detailsComplete === false
                     ? "\n当前帖子详情获取失败，提供的只是列表中已有的标题和正文摘要，可能缺少完整正文、图片和评论。仅当已有文字足以明确符合分类标准时返回 match；不得推测缺失内容，不确定时返回 insufficient。"
                     : ""),
               },
-              { role: "user", content: aiPostText(post, settings) },
+              {
+                role: "user",
+                content: examples
+                  ? postText.slice(0, -1) + ',\n"negativeExamples": ' +
+                    examples + "}"
+                  : postText,
+              },
             ],
           }),
         });

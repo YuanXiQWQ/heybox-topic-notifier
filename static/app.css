@@ -2259,6 +2259,7 @@ dd{
 .dropdown-settings-row.is-topic-open,
 .dropdown-settings-row.is-matching-open,
 .dropdown-settings-row.is-advanced-open,
+.dropdown-settings-row.is-counterexample-open,
 .dropdown-settings-row.is-keyword-open{
   background: var(--theme-soft-strong);
 }
@@ -2372,6 +2373,7 @@ dd{
 .dropdown-settings-row.is-topic-open .dropdown-panel,
 .dropdown-settings-row.is-matching-open > .dropdown-panel,
 .dropdown-settings-row.is-advanced-open > .dropdown-panel,
+.dropdown-settings-row.is-counterexample-open > .dropdown-panel,
 .dropdown-settings-row.is-keyword-open .dropdown-panel{
   border-top: 1px solid var(--border-soft);
   grid-template-rows: 1fr;
@@ -2390,6 +2392,7 @@ dd{
 .dropdown-settings-row.is-topic-open .dropdown-panel-inner,
 .dropdown-settings-row.is-matching-open > .dropdown-panel > .dropdown-panel-inner,
 .dropdown-settings-row.is-advanced-open > .dropdown-panel > .dropdown-panel-inner,
+.dropdown-settings-row.is-counterexample-open > .dropdown-panel > .dropdown-panel-inner,
 .dropdown-settings-row.is-keyword-open .dropdown-panel-inner{
   overflow: visible;
 }
@@ -4010,7 +4013,18 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 [data-matching-editor] > .dropdown-heading .dropdown-toggle {
   grid-template-columns: minmax(0,1fr) auto;
 }
-[data-matching-editor] .matching-settings-list > [data-advanced-editor] { padding: 0; }
+[data-matching-editor] .matching-settings-list > [data-advanced-editor],
+[data-matching-editor] .matching-settings-list > [data-counterexample-editor] { padding: 0; }
+.matching-settings-list > .example-content {display:flex; flex-direction:column; align-items:stretch; gap:12px; min-width:0;}
+.example-content .text-action-button {align-self:flex-start;}
+.example-content article, .example-history, [data-example-draft] {display:grid; gap:8px; min-width:0;}
+.example-content article {border-bottom:1px solid var(--border-soft); padding-block:8px; overflow-wrap:anywhere;}
+.example-content article button, [data-example-add] {justify-self:start;}
+.example-content textarea {box-sizing:border-box; display:block; width:100%; resize:vertical; color:var(--ink); background:var(--control-bg); border:1px solid var(--control-border); border-radius:6px; padding:8px; font:inherit;}
+.example-content blockquote, .example-content pre {margin:0; padding:8px; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--surface-soft-base);}
+.example-content small {color:var(--muted);}
+.example-content select {min-width:0; width:100%;}
+.example-content summary {cursor:pointer;}
 .topic-rule-grid .topic-rule-row {
   grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
     minmax(65px,1fr) minmax(68px,1fr) minmax(88px,1.2fr) minmax(80px,.9fr)

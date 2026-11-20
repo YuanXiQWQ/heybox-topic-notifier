@@ -20,9 +20,7 @@ export type MatchingProfile = {
 export function matchingProfiles(app: AppSettings): MatchingProfile[] {
   const profiles = app.matchingProfiles ?? [];
   return profiles.some((p) => p.id === "default")
-    ? profiles.map((p) =>
-      p.id === "default" && p.name ? { ...p, name: "" } : p
-    )
+    ? profiles.map((p) => p.id === "default" && p.name ? { ...p, name: "" } : p)
     : [{ id: "default", name: "" }, ...profiles];
 }
 
@@ -36,8 +34,14 @@ export function matchingForProfile(
   app: AppSettings,
   id?: string,
 ): MatchingSettings {
-  const options = id && id !== "default"
-    ? app.matchingProfiles?.find((p) => p.id === id)?.options
+  const profile = id && id !== "default"
+    ? app.matchingProfiles?.find((p) => p.id === id)
     : undefined;
-  return normalizeMatchingSettings({ ...app.matching, ...options });
+  return normalizeMatchingSettings({
+    ...app.matching,
+    ...profile?.options,
+    counterexamples: profile
+      ? profile.options?.counterexamples
+      : app.matching?.counterexamples,
+  });
 }

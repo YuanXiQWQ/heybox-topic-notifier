@@ -22,6 +22,7 @@ import type { createMatcher } from "./matcher.ts";
 import { matchingDayMs, observeTopic } from "./matching_activity.ts";
 import { normalizeMatchResult, shortAiReason } from "./match_result.ts";
 import { matchingForProfile, matchingProfiles } from "./matching_profiles.ts";
+import { counterexamplePrompt } from "../../static/matching-counterexample-prompt.js";
 import { normalizeMatchingSettings } from "./matching_settings.ts";
 import type { TopicSource } from "./topic_source.ts";
 
@@ -302,6 +303,9 @@ export async function startMatchingRun(
       const usage = usageForProfile(runtime, topic.profileId);
       let config = configs.get(topic.id);
       if (!config) {
+        const examples = settings.mode === "rules"
+          ? ""
+          : counterexamplePrompt(settings.counterexamples);
         config = await matchingHash([
           ...(topic.profileId && topic.profileId !== "default"
             ? [topic.profileId]
@@ -312,6 +316,7 @@ export async function startMatchingRun(
           settings.apiKey,
           settings.model,
           settings.prompt,
+          ...(examples ? [examples] : []),
           settings.includeComments,
           settings.disableThinking,
           settings.maxInputChars,
