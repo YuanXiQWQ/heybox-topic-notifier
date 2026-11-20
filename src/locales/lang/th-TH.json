@@ -388,7 +388,6 @@
   "exampleAllTopics": "ทุกหัวข้อ",
   "exampleReason": "เหตุผลที่ไม่ควรจับคู่โพสต์นี้",
   "exampleAdd": "เพิ่มตัวอย่างที่ไม่ตรงเงื่อนไข",
-  "examplePreview": "ดูตัวอย่างข้อความที่จะส่งให้ AI",
   "exampleHistoryError": "โหลดประวัติไม่ได้",
   "examplePostUnavailable": "ไม่พบโพสต์ต้นฉบับ ระบบจะข้ามตัวอย่างนี้",
   "matchingCompany": "บริษัท",

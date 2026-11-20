@@ -21,7 +21,7 @@ import {
 } from "./ai_matcher.ts";
 import type { createMatcher } from "./matcher.ts";
 import { matchingDayMs, observeTopic } from "./matching_activity.ts";
-import { normalizeMatchResult, shortAiReason } from "./match_result.ts";
+import { counterexampleMatchDetails, normalizeMatchResult, shortAiReason } from "./match_result.ts";
 import { matchingForProfile, matchingProfiles } from "./matching_profiles.ts";
 import { counterexamplePrompt } from "../../static/matching-counterexample-prompt.js";
 import { type MatchingSettings, normalizeMatchingSettings } from "./matching_settings.ts";
@@ -166,12 +166,15 @@ export async function startMatchingRun(
     const profile = matchingForProfile(app, id);
     if (profile.mode !== "rules" && findHistory) {
       for (const item of profile.counterexamples) {
-        if (item.post || !item.reason.trim()) continue;
+        if ((item.post && item.details) || !item.reason.trim()) continue;
         const records = await findHistory(item.id);
         const record = item.topicId
           ? records.find((r) => r.id.split(":")[0] === item.topicId)
           : records[0];
-        if (record) item.post = record.post;
+        if (record) {
+          item.post ??= record.post;
+          item.details ??= counterexampleMatchDetails(record);
+        }
       }
     }
     resolvedProfiles.set(id, profile);
@@ -612,15 +615,14 @@ export async function startMatchingRun(
         return undefined;
       } else {
         delete entry.insufficient;
-        entry.result = decision.decision === "match"
-          ? ruleMatch ??
-            {
-              kind: "ai",
-              keyword: "",
-              aiReason: shortAiReason(decision.reason || "符合匹配提示词"),
-              location: decision.location ?? "unknown",
-            }
-          : null;
+        entry.result = null;
+        if (decision.decision === "match") {
+          const aiReason = shortAiReason(decision.reason || "符合匹配提示词");
+          const location = decision.location ?? "unknown";
+          entry.result = ruleMatch
+            ? { ...ruleMatch, aiReason, aiLocation: location }
+            : { kind: "ai", keyword: "", aiReason, location };
+        }
         entry.evaluatedAt = now();
         entry.attempts = 0;
         entry.retryAt = 0;

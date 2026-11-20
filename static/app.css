@@ -4035,7 +4035,7 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .example-filters {display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-inline: 12px;}
 .example-filters input[type=search] {min-width: 0; flex: 1 1 16em;}
 .example-history [role=status]:empty {display: none;}
-.example-history [role=status], .example-content > details {padding-inline: 12px;}
+.example-history [role=status] {padding-inline: 12px;}
 .example-table {background: var(--surface); overflow-wrap: anywhere;}
 .example-rule-row .match-detail-value {white-space: normal;}
 .example-rule-row {grid-template-columns: var(--rule-select-column) minmax(0,1fr) minmax(0,1.7fr) minmax(0,1.2fr) minmax(0,1.2fr) repeat(2,var(--rule-action-column));}
@@ -4047,8 +4047,6 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 :root[data-hover-input] .example-history-table tbody tr:not(.is-unavailable):hover > td,
 .example-history-table tbody tr:not(.is-unavailable):focus-within > td {background: var(--surface-action-hover);}
 .example-history-table tbody .checkbox-cell:hover, .example-history-table tbody .checkbox-cell:focus-within {background: transparent;}
-.example-content pre {margin: 0; padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-soft-base);}
-.example-content summary {cursor: pointer;}
 .example-history .pagination-row {padding-inline: 12px; flex-wrap: wrap;}
 .example-history .pagination button:not([aria-current]) {background: transparent;}
 .example-history .pagination button {border: 0;}

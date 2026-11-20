@@ -125,8 +125,9 @@ try {
   const saved = JSON.parse(form.elements.matchingProfiles.value);
   check(saved[0].options.counterexamples[0].reason === annotation.value &&
     saved[1].options.counterexamples.length === 0 &&
-    JSON.parse(find('[data-example-preview] pre').textContent)[0].post.comments[0] === '当时卡住了',
-    'editable profile-specific evidence and preview');
+    saved[0].options.counterexamples[0].post.comments[0] === '当时卡住了' &&
+    !find('[data-example-preview]'),
+    'editable profile-specific evidence without a preview');
   const history = Array.from({ length: 11 }, (_, index) => ({
     id: String(index),
     recordId: '10:' + index,
@@ -203,9 +204,8 @@ try {
       JSON.parse(form.elements.matchingProfiles.value)[0].options.counterexamples;
     check(
       items().length === 3 && items()[1].body === '完整正文 0' && !items()[1].post &&
-        items()[2].details.value === '疑似求助' &&
-        JSON.parse(find('[data-example-preview] pre').textContent).length === 1,
-      'batch add across pages, empty reasons excluded',
+        items()[2].details.value === '疑似求助' && items()[2].reason === '',
+      'batch add across pages retains the prior match',
     );
     const stored = find('[data-example-rows] [data-post="10"]');
     const why = stored.querySelector('[data-example-reason]');
@@ -213,9 +213,8 @@ try {
     why.dispatchEvent(new Event('input', { bubbles: true }));
     check(
       items()[2].reason === why.value &&
-        JSON.stringify(JSON.parse(find('[data-example-preview] pre').textContent)[1].post) ===
-          JSON.stringify(history[10].post) &&
-        JSON.parse(find('[data-example-preview] pre').textContent).length === 2,
+        JSON.stringify(items()[2].post) === JSON.stringify(history[10].post) &&
+        items()[2].details.location === history[10].details.location,
       'annotate after adding',
     );
     stored.querySelector('[data-example-picker]').click();

@@ -388,7 +388,6 @@
   "exampleAllTopics": "All topics",
   "exampleReason": "Why this post should not match",
   "exampleAdd": "Add example",
-  "examplePreview": "Preview example prompt",
   "exampleHistoryError": "Could not load history",
   "examplePostUnavailable": "The original post is unavailable. This example will be skipped.",
   "matchingCompany": "Company",
