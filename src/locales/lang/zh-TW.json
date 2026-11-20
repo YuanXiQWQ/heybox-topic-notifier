@@ -334,6 +334,7 @@
   "profileTopics": "關聯話題",
   "profileApplied": "套用設定檔",
   "profileCopy": "複製設定檔",
+  "profileCopySuffix": "（{number}）",
   "profileAdd": "新增設定檔",
   "selectAllRows": "全選",
   "profileNew": "新設定檔",

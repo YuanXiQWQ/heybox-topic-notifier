@@ -334,6 +334,7 @@
   "profileTopics": "Topik tertaut",
   "profileApplied": "Profil yang diterapkan",
   "profileCopy": "Duplikat profil",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "Tambah profil",
   "selectAllRows": "Pilih semua",
   "profileNew": "Profil baru",

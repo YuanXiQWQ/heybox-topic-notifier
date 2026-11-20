@@ -334,6 +334,7 @@
   "profileTopics": "موضوع‌های مرتبط",
   "profileApplied": "نمایهٔ اعمال‌شده",
   "profileCopy": "تکثیر نمایه",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "افزودن نمایه",
   "selectAllRows": "انتخاب همه",
   "profileNew": "نمایهٔ جدید",

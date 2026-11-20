@@ -334,6 +334,7 @@
   "profileTopics": "נושאים מקושרים",
   "profileApplied": "פרופיל פעיל",
   "profileCopy": "שכפול פרופיל",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "הוספת פרופיל",
   "selectAllRows": "בחירת הכול",
   "profileNew": "פרופיל חדש",

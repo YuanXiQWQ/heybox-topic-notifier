@@ -334,6 +334,7 @@
   "profileTopics": "関連トピック",
   "profileApplied": "適用する設定",
   "profileCopy": "設定を複製",
+  "profileCopySuffix": "（{number}）",
   "profileAdd": "設定を追加",
   "selectAllRows": "すべて選択",
   "profileNew": "新しい設定",

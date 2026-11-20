@@ -334,6 +334,7 @@
   "profileTopics": "关联话题",
   "profileApplied": "应用配置",
   "profileCopy": "复制配置",
+  "profileCopySuffix": "（{number}）",
   "profileAdd": "添加配置",
   "selectAllRows": "全选",
   "profileNew": "新配置",

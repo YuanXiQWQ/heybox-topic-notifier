@@ -334,6 +334,7 @@
   "profileTopics": "Zugeordnete Themen",
   "profileApplied": "Verwendetes Profil",
   "profileCopy": "Profil duplizieren",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "Profil hinzufügen",
   "selectAllRows": "Alle auswählen",
   "profileNew": "Neues Profil",

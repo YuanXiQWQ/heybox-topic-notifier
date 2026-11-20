@@ -334,6 +334,7 @@
   "profileTopics": "Связанные темы",
   "profileApplied": "Применённый профиль",
   "profileCopy": "Дублировать профиль",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "Добавить профиль",
   "selectAllRows": "Выбрать все",
   "profileNew": "Новый профиль",

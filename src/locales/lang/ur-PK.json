@@ -334,6 +334,7 @@
   "profileTopics": "منسلک موضوعات",
   "profileApplied": "اطلاق شدہ پروفائل",
   "profileCopy": "پروفائل کی نقل بنائیں",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "پروفائل شامل کریں",
   "selectAllRows": "سب منتخب کریں",
   "profileNew": "نیا پروفائل",

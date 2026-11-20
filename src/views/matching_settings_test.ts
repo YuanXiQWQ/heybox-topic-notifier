@@ -1,5 +1,8 @@
 /** @file 验证匹配设置表单的保存、边界约束、密钥遮罩及主题布局。 */
 import { assert, assertEquals } from "../test_helpers.ts";
+import { runInNewContext } from "node:vm";
+import { getMessages } from "../locales/index.ts";
+import { locales } from "../locales/types.ts";
 import { defaultAppSettingsFromEnv } from "../services/default_settings.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
 import { createRoutes } from "../routes.ts";
@@ -11,6 +14,31 @@ import {
   renderMatchingAdvanced,
   renderMatchingSection,
 } from "./matching_settings.ts";
+
+Deno.test("profile copies localize punctuation and share numbering across device languages", async () => {
+  const script = await Deno.readTextFile(
+    new URL("../../static/matching-profiles.js", import.meta.url),
+  );
+  const copy = runInNewContext(script + "\nmatchingProfileCopyName");
+  const existing = ["社区（1）", "社区 (۲)", "社区(৩)", "社区 (٥)"];
+  for (const locale of locales) {
+    const pattern = getMessages(locale).profileCopySuffix;
+    const digit = new Intl.NumberFormat(locale).format(4);
+    const expected = /^(zh|ja)-/.test(locale)
+      ? `社区（${digit}）`
+      : locale === "ko-KR"
+      ? `社区(${digit})`
+      : `社区 (${digit})`;
+    assertEquals(copy(existing[0], existing, locale, pattern), expected);
+  }
+  const base = "A".repeat(95) + "🌟XYZ";
+  const first = copy(base, [base], "en-US", " ({number})");
+  assertEquals(first, "A".repeat(95) + " (1)");
+  assertEquals(
+    copy(base, [base, first], "en-US", " ({number})"),
+    "A".repeat(95) + " (2)",
+  );
+});
 
 Deno.test("matching settings preserve secrets and clamp user supplied limits", () => {
   const settings = {

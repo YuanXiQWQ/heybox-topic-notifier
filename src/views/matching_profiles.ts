@@ -66,7 +66,7 @@ export function renderProfileList(
   ];
   return `<div data-profile-list hidden data-default-label="${
     e(m.profileDefault)
-  }" data-new-label="${e(m.profileNew)}" data-topic-label="${
+  }" data-copy-suffix="${e(m.profileCopySuffix)}" data-new-label="${e(m.profileNew)}" data-topic-label="${
     e(m.profileTopics)
   }" data-apply-label="${e(m.profileApplied)}" data-remove-label="${
     e(m.accountPasskeyDelete)

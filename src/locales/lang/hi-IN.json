@@ -334,6 +334,7 @@
   "profileTopics": "जुड़े विषय",
   "profileApplied": "लागू प्रोफ़ाइल",
   "profileCopy": "प्रोफ़ाइल की प्रतिलिपि बनाएँ",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "प्रोफ़ाइल जोड़ें",
   "selectAllRows": "सभी चुनें",
   "profileNew": "नई प्रोफ़ाइल",

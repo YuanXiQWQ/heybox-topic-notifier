@@ -334,6 +334,7 @@
   "profileTopics": "หัวข้อที่เชื่อมโยง",
   "profileApplied": "โปรไฟล์ที่ใช้",
   "profileCopy": "ทำสำเนาโปรไฟล์",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "เพิ่มโปรไฟล์",
   "selectAllRows": "เลือกทั้งหมด",
   "profileNew": "โปรไฟล์ใหม่",

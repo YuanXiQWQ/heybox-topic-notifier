@@ -334,6 +334,7 @@
   "profileTopics": "Bağlı konular",
   "profileApplied": "Uygulanan profil",
   "profileCopy": "Profili çoğalt",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "Profil ekle",
   "selectAllRows": "Tümünü seç",
   "profileNew": "Yeni profil",

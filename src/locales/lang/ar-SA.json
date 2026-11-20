@@ -334,6 +334,7 @@
   "profileTopics": "المواضيع المرتبطة",
   "profileApplied": "الملف المطبّق",
   "profileCopy": "نسخ الملف",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "إضافة ملف",
   "selectAllRows": "تحديد الكل",
   "profileNew": "ملف جديد",

@@ -1,6 +1,40 @@
 /** @file 管理匹配配置、配置与话题的单向关联，以及共用设置抽屉的视图切换。 */
 
 /**
+ * 按界面语言生成副本名称，识别其它设备语言和旧全角格式已占用的编号。
+ * @param {string} source 来源配置的显示名称。
+ * @param {string[]} names 已有配置的显示名称。
+ * @param {string} locale 当前界面语言。
+ * @param {string} pattern 带数字占位符的本地化后缀。
+ * @return {string} 首个可用编号对应的配置名称。
+ */
+function matchingProfileCopyName(source, names, locale, pattern = '（{number}）') {
+  const suffix = / ?(?:（(\p{Decimal_Number}+)）|\((\p{Decimal_Number}+)\))$/u;
+  const base = source.replace(suffix, '') || source;
+  const numbers = new Intl.NumberFormat(locale, { useGrouping: false });
+  const compare = new Intl.Collator(locale, { numeric: true }).compare;
+  const decimalDigits = [...'0123456789'];
+  const used = new Set();
+  for (const name of names) {
+    const match = suffix.exec(name);
+    if (!match) continue;
+    const prefix = name.slice(0, match.index);
+    // 数字比较可将不同文字中的同一十进制数字归入同一个编号。
+    const digits = Array.from(match[1] || match[2], (digit) =>
+      decimalDigits.find((value) => compare(value, digit) === 0)
+    ).join('');
+    used.add(prefix + '(' + digits + ')');
+  }
+  for (let n = 1; ; n++) {
+    const digits = numbers.format(n);
+    const ending = pattern.replace('{number}', digits);
+    const prefix = base.slice(0, 100 - ending.length)
+      .replace(/[\uD800-\uDBFF]$/u, '').trimEnd();
+    if (!used.has(prefix + '(' + n + ')')) return prefix + ending;
+  }
+}
+
+/**
  * 共用话题表与气泡的可搜索单选菜单，用相关性和数字、拼音顺序排列候选。
  * @param {HTMLButtonElement} toggle 打开菜单的按钮。
  * @param {string} label 搜索框的可访问名称。
@@ -575,18 +609,23 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
    */
   function insert(source, index) {
     const id = crypto.randomUUID();
-    const label = source
-      ? name(source).replace(/（\d+）$/u, '') || name(source)
-      : list.dataset.newLabel;
-    const names = new Set(profiles.map(name));
+    const label = list.dataset.newLabel;
+    const names = profiles.map(name);
     let title = label;
-    if (source || names.has(title)) {
+    if (source) {
+      title = matchingProfileCopyName(
+        name(source),
+        names,
+        document.documentElement.lang,
+        list.dataset.copySuffix,
+      );
+    } else if (names.includes(title)) {
       let number = 1;
       do {
-        const suffix = source ? '（' + number + '）' : ' ' + number;
+        const suffix = ' ' + number;
         title = label.slice(0, 100 - suffix.length) + suffix;
         number++;
-      } while (names.has(title));
+      } while (names.includes(title));
     }
     const options = { ...(source?.options || defaults) };
     delete options.apiKey;

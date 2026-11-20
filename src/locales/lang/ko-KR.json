@@ -334,6 +334,7 @@
   "profileTopics": "연결된 주제",
   "profileApplied": "적용할 프로필",
   "profileCopy": "프로필 복제",
+  "profileCopySuffix": "({number})",
   "profileAdd": "프로필 추가",
   "selectAllRows": "모두 선택",
   "profileNew": "새 프로필",

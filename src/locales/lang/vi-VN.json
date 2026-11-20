@@ -334,6 +334,7 @@
   "profileTopics": "Chủ đề liên kết",
   "profileApplied": "Hồ sơ áp dụng",
   "profileCopy": "Nhân bản hồ sơ",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "Thêm hồ sơ",
   "selectAllRows": "Chọn tất cả",
   "profileNew": "Hồ sơ mới",

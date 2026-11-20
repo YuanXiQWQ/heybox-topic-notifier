@@ -168,6 +168,7 @@ export type Messages = {
   profileTopics: string;
   profileApplied: string;
   profileCopy: string;
+  profileCopySuffix: string;
   profileAdd: string;
   selectAllRows: string;
   profileNew: string;

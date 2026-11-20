@@ -334,6 +334,7 @@
   "profileTopics": "সংযুক্ত বিষয়",
   "profileApplied": "প্রয়োগ করা প্রোফাইল",
   "profileCopy": "প্রোফাইলের অনুলিপি",
+  "profileCopySuffix": " ({number})",
   "profileAdd": "প্রোফাইল যোগ করুন",
   "selectAllRows": "সব নির্বাচন করুন",
   "profileNew": "নতুন প্রোফাইল",
