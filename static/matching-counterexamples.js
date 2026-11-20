@@ -1,5 +1,4 @@
-/** @file 编辑当前配置的历史反例，并与分类器共用提示词预览格式。 */
-import { counterexamplePrompt } from "./matching-counterexample-prompt.js?v=full-post";
+/** @file 管理当前配置的历史选帖与反例原因。 */
 
 /**
  * 初始化随配置切换的反例列表、历史选择器和可编辑注释。
@@ -32,20 +31,13 @@ globalThis.initMatchingCounterexamples = function (
   const grid = root.querySelector(".example-table");
   const bulkRemove = grid.querySelector("[data-example-delete]");
   const gridPicker = grid.querySelector("[data-example-picker]");
-  const preview = root.querySelector("[data-example-preview]");
+  // 旧的离线设置草稿可能保留提示词预览节点。
+  root.querySelector("[data-example-preview]")?.remove();
   const format = new Intl.NumberFormat(document.documentElement.lang);
   const marked = new Set(), picked = new Map();
   let candidatesById = new Map(), historyRequest;
   const toggle = root.querySelector('[data-action="toggle-counterexamples"]');
   let history = [], candidates = [], page = 1, revision = 0, opener;
-  /** 更新抽屉数量与实际发送给分类器的反例。 */
-  function updatePreview() {
-    root.querySelector("[data-counterexample-summary]").textContent = format
-      .format(examples().length);
-    const prompt = counterexamplePrompt(examples());
-    preview.querySelector("pre").textContent = prompt;
-    preview.hidden = !prompt;
-  }
   /**
    * 从模板生成脱离文档的行。
    * @param {string} selector 模板选择器。
@@ -160,7 +152,6 @@ globalThis.initMatchingCounterexamples = function (
       reason.value = item.reason;
       reason.addEventListener("input", () => {
         item.reason = reason.value;
-        updatePreview();
         save();
       });
       row.querySelector("[data-example-picker]").setAttribute(
@@ -170,7 +161,7 @@ globalThis.initMatchingCounterexamples = function (
       rows.append(row);
     }
     selectionState(rows, marked);
-    updatePreview();
+    root.querySelector("[data-counterexample-summary]").textContent = format.format(examples().length);
     globalThis.__matchTableRelativeTimeUpdate?.();
   }
   /** 渲染当前历史页，保留其它页中已选的记录。 */
@@ -285,7 +276,7 @@ globalThis.initMatchingCounterexamples = function (
     const items = examples();
     if (
       toggle.getAttribute("aria-expanded") !== "true" ||
-      !items.some((item) => !item.post)
+      !items.some((item) => !item.post || !item.details)
     ) return;
     let records;
     try {
@@ -303,18 +294,19 @@ globalThis.initMatchingCounterexamples = function (
     let changed = false;
     for (const [index, row] of Array.from(rows.children).entries()) {
       const item = items[index];
-      if (!item || item.post) continue;
+      if (!item || item.post && item.details) continue;
       const post = item.topicId ? byTopic.get(item.topicId + ":" + item.id) : byId.get(item.id);
       if (!post?.post) continue;
-      item.post = post.post;
-      if (post.body !== post.post.body) item.body = post.body;
-      else delete item.body;
+      if (!item.post) {
+        item.post = post.post;
+        if (post.body !== post.post.body) item.body = post.body;
+        else delete item.body;
+      }
       item.details ??= post.details;
       fill(row, item);
       changed = true;
     }
     if (changed) {
-      updatePreview();
       globalThis.__matchTableRelativeTimeUpdate?.();
       save();
     }

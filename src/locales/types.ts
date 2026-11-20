@@ -160,7 +160,6 @@ export type Messages = {
   exampleAllTopics: string;
   exampleReason: string;
   exampleAdd: string;
-  examplePreview: string;
   exampleHistoryError: string;
   examplePostUnavailable: string;
   matchingCompany: string;

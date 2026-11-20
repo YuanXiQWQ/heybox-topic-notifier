@@ -86,6 +86,10 @@ Deno.test("AI and hybrid requests append only annotated examples to the post dat
       detailsComplete: false,
     },
     reason: "在回顾一次已解决的问题",
+    details: {
+      kind: "ai" as const, value: "描述卡关并寻求帮助", location: "title",
+      publishedAt: sample.publishedAt, matchedAt: "2026-10-02",
+    },
     addedAt: 1,
   };
   const payloads: Array<Record<string, unknown>> = [];
@@ -104,12 +108,21 @@ Deno.test("AI and hybrid requests append only annotated examples to the post dat
       mode,
       counterexamples: [
         example,
+        { ...example, id: "hybrid", post: { ...example.post, id: "hybrid" },
+          details: { ...example.details, kind: "keyword", value: "卡关", location: "body",
+            ai: { reason: "评论中提到求助", location: "comments" } } },
         { ...example, id: "draft", post: { ...example.post, id: "draft" }, reason: " " },
         { ...example, id: "missing", post: undefined },
       ],
     }));
   }
-  const expected = [{ post: example.post, reason: example.reason }];
+  const expected = [
+    { post: example.post, previousMatch: { kind: "ai", decision: "match",
+      reason: "描述卡关并寻求帮助", location: "title" }, reason: example.reason },
+    { post: { ...example.post, id: "hybrid" }, previousMatch: { kind: "keyword",
+      keyword: "卡关", location: "body",
+      ai: { decision: "match", reason: "评论中提到求助", location: "comments" } }, reason: example.reason },
+  ];
   assertEquals(payloads.map((payload) => payload.negativeExamples), [
     undefined,
     expected,

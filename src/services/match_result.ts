@@ -1,6 +1,6 @@
 /** @file 统一匹配结果的简短原因、类型和历史记录兼容规则。 */
-import type { MatchResult } from "../models.ts";
-import type { MatchingSettings } from "./matching_settings.ts";
+import type { MatchRecord, MatchResult } from "../models.ts";
+import type { MatchingCounterexample, MatchingSettings } from "./matching_settings.ts";
 
 /** AI 原因最多保留三十个 Unicode 字符，截断时包含省略号。 */
 export const aiReasonLimit = 30;
@@ -39,6 +39,9 @@ export function normalizeMatchResult(
       keyword: result.keyword,
       location: result.location,
       kind: "keyword",
+      ...(result.aiReason && !result.aiFallback
+        ? { aiReason: result.aiReason, aiLocation: result.aiLocation ?? "unknown" }
+        : {}),
       ...(result.aiFallback ? { aiFallback: true } : {}),
     };
   }
@@ -50,5 +53,24 @@ export function normalizeMatchResult(
       result.aiReason ?? result.keyword.replace(/^AI: /, ""),
     ),
     location: result.kind === "ai" ? result.location : "unknown",
+  };
+}
+
+/**
+ * 将历史命中转换为反例快照，保留正则命中与 AI 判定各自的依据。
+ * @param {MatchRecord} record 选入反例的历史记录。
+ * @return {NonNullable<MatchingCounterexample["details"]>} 展示和发给模型的历史判定。
+ */
+export function counterexampleMatchDetails(record: MatchRecord): NonNullable<MatchingCounterexample["details"]> {
+  const match = normalizeMatchResult(record);
+  return {
+    publishedAt: record.post.publishedAt,
+    matchedAt: record.matchedAt,
+    kind: match.kind!,
+    value: match.kind === "ai" ? match.aiReason ?? "" : match.keyword,
+    location: match.location,
+    ...(match.kind === "keyword" && match.aiReason
+      ? { ai: { reason: match.aiReason, location: match.aiLocation ?? "unknown" } }
+      : {}),
   };
 }

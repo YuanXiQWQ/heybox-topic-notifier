@@ -388,7 +388,6 @@
   "exampleAllTopics": "すべてのトピック",
   "exampleReason": "検出対象から除外する理由",
   "exampleAdd": "反例を追加",
-  "examplePreview": "反例プロンプトのプレビュー",
   "exampleHistoryError": "履歴を読み込めません",
   "examplePostUnavailable": "元の投稿を取得できないため、この反例は AI に送信されません。",
   "matchingCompany": "企業",
