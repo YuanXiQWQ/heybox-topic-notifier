@@ -2470,7 +2470,8 @@ dd{
 }
 
 .topic-rule-head,
-.keyword-rule-head{
+.keyword-rule-head,
+.rule-grid-head{
   background: var(--surface-soft-base);
   color: var(--muted-strong);
   font-size: 14px;
@@ -2478,7 +2479,8 @@ dd{
 }
 
 .topic-rule-head > *,
-.keyword-rule-head > *{
+.keyword-rule-head > *,
+.rule-grid-head > *{
   justify-content: center;
   text-align: center;
   overflow-wrap: anywhere;
@@ -4022,9 +4024,8 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   align-items: stretch; padding: 0;
 }
 .example-table-scroll {min-width: 0; max-width: 100%; overflow-x: auto;}
-.example-action-col {width: var(--rule-action-column);}
-.example-content .match-table th, .example-content .match-table td {border-inline-end: 1px solid var(--border-soft);}
-.example-content .match-table td:last-child, .example-content .match-table th:last-child {border-inline-end: 0;}
+.example-history-table th, .example-history-table td {border-inline-end: 1px solid var(--border-soft);}
+.example-history-table td:last-child, .example-history-table th:last-child {border-inline-end: 0;}
 .example-history {margin: 0 12px 12px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface); min-width: 0;}
 .example-history:not([hidden]) {display: grid; gap: 8px; animation: example-history-open 180ms ease-out;}
 @keyframes example-history-open {from {opacity: 0; transform: translateY(-4px);} to {opacity: 1; transform: translateY(0);}}
@@ -4035,8 +4036,18 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .example-filters input[type=search] {min-width: 0; flex: 1 1 16em;}
 .example-history [role=status]:empty {display: none;}
 .example-history [role=status], .example-content > details {padding-inline: 12px;}
-.example-content textarea, .example-content [data-example-source] {box-sizing: border-box; width: 100%; min-width: 0; color: var(--ink); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 6px; padding: 6px; font: inherit;}
-.example-content textarea {display: block; resize: vertical;}
+.example-table {background: var(--surface); overflow-wrap: anywhere;}
+.example-rule-row .match-detail-value {white-space: normal;}
+.example-rule-row {grid-template-columns: var(--rule-select-column) minmax(0,1fr) minmax(0,1.7fr) minmax(0,1.2fr) minmax(0,1.2fr) repeat(2,var(--rule-action-column));}
+.example-rule-row > .example-post-content {flex-direction: column; align-items: stretch; overflow-wrap: anywhere;}
+.example-rule-row textarea {resize: none; overflow-y: auto;}
+.example-rule-row [data-example-source] {width: 100%; min-width: 0;}
+.example-history-table tbody tr:not(.is-unavailable), .example-history-table tbody tr:not(.is-unavailable) label {cursor: pointer;}
+.example-history-table tbody tr.is-unavailable label {cursor: default;}
+.example-history-table tbody tr.is-selected > td, .example-history-table tbody tr.is-unavailable > td {background: var(--theme-soft);}
+:root[data-hover-input] .example-history-table tbody tr:not(.is-unavailable):hover > td,
+.example-history-table tbody tr:not(.is-unavailable):focus-within > td {background: var(--surface-action-hover);}
+.example-history-table tbody .checkbox-cell:hover, .example-history-table tbody .checkbox-cell:focus-within {background: transparent;}
 .example-content pre {margin: 0; padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-soft-base);}
 .example-content summary {cursor: pointer;}
 .example-history .pagination-row {padding-inline: 12px; flex-wrap: wrap;}
@@ -4063,8 +4074,7 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
     minmax(95px,.8fr) minmax(0,1.6fr) repeat(4,var(--rule-action-column));
 }
-.profile-head { background:var(--surface-soft-base); color:var(--muted-strong); font-size:14px; font-weight:700; text-align:center; }
-.profile-row .icon-button:disabled {opacity:.45;cursor:default;}
+.profile-row .icon-button:disabled, .example-rule-row .icon-button:disabled {opacity:.45;cursor:default;}
 .profile-head [data-profile-all]:disabled {cursor:default;}
 .profile-head [data-profile-all]:disabled + span {opacity:.45;}
 .profile-row .icon-button svg { width:20px; height:20px; }

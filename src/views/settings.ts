@@ -126,7 +126,7 @@ export function renderSettings(
   }
     <script type="module" src="/static/polling-schedule.js?v=20261117-schedule-controls"></script>
     <link rel="modulepreload" href="/static/matching-counterexample-prompt.js">
-    <script type="module" src="/static/matching-counterexamples.js?v=20261119-table"></script>
+    <script type="module" src="/static/matching-counterexamples.js?v=20261120-row-selection"></script>
     <script src="/static/matching-profiles.js?v=20261119-examples" defer></script>
     <script src="/static/settings.js?v=20261119-examples" defer></script>
   `;
