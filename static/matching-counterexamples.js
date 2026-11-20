@@ -1,5 +1,5 @@
 /** @file 编辑当前配置的历史反例，并与分类器共用提示词预览格式。 */
-import { counterexamplePrompt } from "./matching-counterexample-prompt.js";
+import { counterexamplePrompt } from "./matching-counterexample-prompt.js?v=full-post";
 
 /**
  * 初始化随配置切换的反例列表、历史选择器和可编辑注释。
@@ -73,8 +73,10 @@ globalThis.initMatchingCounterexamples = function (
       if (/^https?:\/\//i.test(post.url)) title.href = post.url;
       else title.removeAttribute("href");
     }
-    row.querySelector("[data-example-body], .table-clip").textContent = post.body ??
-      (post.source === "body" ? post.excerpt : "—");
+    row.querySelector("[data-example-body], .table-clip").textContent =
+      post.body ?? post.post?.body ?? "—";
+    const unavailable = row.querySelector("[data-example-unavailable]");
+    if (unavailable) unavailable.hidden = Boolean(post.post);
     const detail = post.details;
     const list = row.querySelector(".match-detail-list");
     const [published, matched, value, location] = list.querySelectorAll(
@@ -86,7 +88,7 @@ globalThis.initMatchingCounterexamples = function (
       (detail?.kind === "ai" ? labels.ai : labels.keyword) + "：";
     value.textContent = detail?.value || "—";
     location.textContent =
-      labels[detail?.location || post.location || post.source] || "—";
+      labels[detail?.location || post.location] || "—";
   }
   /**
    * 更新行选择、表头半选与批量动作。
@@ -148,20 +150,7 @@ globalThis.initMatchingCounterexamples = function (
       selectionState(body, selection);
     });
   }
-  /**
-   * 读取原帖可引用的标题、正文、评论与回复。
-   * @param {object} post 帖子历史记录。
-   * @return {Array} 带来源的原文片段。
-   */
-  function pieces(post) {
-    return [
-      ["title", post.title],
-      ["body", post.body],
-      ...(post.comments || []).map((v) => ["comments", v]),
-      ...(post.replies || []).map((v) => ["replies", v]),
-    ].filter(([, v]) => v);
-  }
-  /** 渲染保存的反例与可随时编辑的原因、摘录。 */
+  /** 渲染已保存的反例与可随时编辑的排除原因。 */
   function render() {
     rows.textContent = "";
     for (const item of examples()) {
@@ -174,50 +163,6 @@ globalThis.initMatchingCounterexamples = function (
         updatePreview();
         save();
       });
-      const quote = clone("[data-example-quote]");
-      const source = quote.querySelector("select"),
-        excerpt = quote.querySelector("textarea");
-      excerpt.value = item.excerpt;
-      let parts = [];
-      /**
-       * 当前摘录始终保留为第一项，支持已从历史中删除的帖子。
-       * @param {object|undefined} post 原始帖子。
-       */
-      const setSources = (post) => {
-        parts = [[item.source, item.excerpt], ...(post ? pieces(post) : [])];
-        source.replaceChildren(
-          ...parts.map(([kind, v], i) =>
-            new Option(
-              labels[kind] + (i ? " · " + v.slice(0, 50) : ""),
-              String(i),
-            )
-          ),
-        );
-      };
-      setSources();
-      quote.addEventListener("toggle", async () => {
-        if (!quote.open) return;
-        let post = history.find((p) => p.id === item.id);
-        if (!post) {
-          try {
-            post = (await loadHistory()).find((p) => p.id === item.id);
-          } catch { /* 离线时仍可编辑快照。 */ }
-        }
-        if (quote.isConnected && quote.open) setSources(post);
-      });
-      source.addEventListener("change", () => {
-        const [kind, v] = parts[source.selectedIndex];
-        item.source = kind;
-        item.excerpt = excerpt.value = v.slice(0, 2000);
-        updatePreview();
-        save();
-      });
-      excerpt.addEventListener("input", () => {
-        item.excerpt = excerpt.value;
-        updatePreview();
-        save();
-      });
-      row.querySelector(".example-post-content").append(quote);
       row.querySelector("[data-example-picker]").setAttribute(
         "aria-expanded",
         String(!panel.hidden),
@@ -241,8 +186,9 @@ globalThis.initMatchingCounterexamples = function (
       const row = clone("[data-history-pick-row]");
       fill(row, post);
       const box = row.querySelector("[data-row-check]");
-      if (saved.has(post.id)) {
-        box.checked = box.disabled = true;
+      if (!post.post || saved.has(post.id)) {
+        box.disabled = true;
+        box.checked = saved.has(post.id);
         row.classList.add("is-unavailable");
       }
       results.append(row);
@@ -339,7 +285,7 @@ globalThis.initMatchingCounterexamples = function (
     const items = examples();
     if (
       toggle.getAttribute("aria-expanded") !== "true" ||
-      !items.some((item) => !item.details || item.body === undefined)
+      !items.some((item) => !item.post)
     ) return;
     let records;
     try {
@@ -348,21 +294,27 @@ globalThis.initMatchingCounterexamples = function (
       return;
     }
     if (items !== examples()) return;
-    const byId = new Map(records.map((post) => [post.id, post]));
-    const byRecord = new Map(records.map((post) => [post.recordId, post]));
+    const byId = new Map(), byTopic = new Map();
+    for (const record of records) {
+      const key = record.topicId + ":" + record.id;
+      if (!byTopic.has(key)) byTopic.set(key, record);
+      if (!byId.has(record.id)) byId.set(record.id, record);
+    }
     let changed = false;
     for (const [index, row] of Array.from(rows.children).entries()) {
       const item = items[index];
-      if (!item || item.details && item.body !== undefined) continue;
-      const post = byRecord.get(item.topicId + ":" + item.id) ??
-        byId.get(item.id);
-      if (!post?.details) continue;
-      item.body ??= post.body;
+      if (!item || item.post) continue;
+      const post = item.topicId ? byTopic.get(item.topicId + ":" + item.id) : byId.get(item.id);
+      if (!post?.post) continue;
+      item.post = post.post;
+      if (post.body !== post.post.body) item.body = post.body;
+      else delete item.body;
       item.details ??= post.details;
       fill(row, item);
       changed = true;
     }
     if (changed) {
+      updatePreview();
       globalThis.__matchTableRelativeTimeUpdate?.();
       save();
     }
@@ -435,12 +387,7 @@ globalThis.initMatchingCounterexamples = function (
     const notes = new Map(topics().map((t) => [t.id, t.note]));
     let first;
     for (const [id, post] of picked) {
-      if (!post || saved.has(id)) continue;
-      const parts = pieces(post),
-        location = post.location === "excerpt" ? "body" : post.location;
-      const [source, text] = parts.find(([kind]) => kind === location) ||
-        parts.find(([kind]) => kind === "body") || parts[0] ||
-        ["title", post.id];
+      if (!post?.post || saved.has(id)) continue;
       items.push({
         id,
         addedAt: Date.now(),
@@ -448,10 +395,9 @@ globalThis.initMatchingCounterexamples = function (
         title: post.title,
         topicId: post.topicId,
         topicNote: notes.get(post.topicId) || "",
-        body: post.body,
+        ...(post.body !== post.post.body ? { body: post.body } : {}),
         details: post.details,
-        source,
-        excerpt: text.slice(0, 2000),
+        post: post.post,
         reason: "",
       });
       first ??= id;

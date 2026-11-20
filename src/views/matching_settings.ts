@@ -264,7 +264,7 @@ export function renderMatchingSection(
 }
 
 /**
- * 渲染历史反例列表、片段选择器及提示词预览。
+ * 渲染反例列表、历史选帖表格及提示词预览。
  * @param {AppSettings} app 当前账号设置。
  * @return {string} 当前匹配配置的反例抽屉。
  */
@@ -320,19 +320,10 @@ function renderCounterexamples(app: AppSettings): string {
       <template data-example-row><div class="topic-rule-row example-rule-row" role="row">
         <label role="cell"><input type="checkbox" data-row-check></label>
         <div role="cell"><a data-example-title target="_blank" rel="noopener noreferrer"></a></div>
-        <div role="cell" class="example-post-content"><span data-example-body></span></div>
+        <div role="cell" class="example-post-content"><span data-example-body></span><small data-example-unavailable hidden>${e(m.examplePostUnavailable)}</small></div>
         <div role="cell">${renderMatchDetails(undefined, new Date(), app.locale, m)}</div>
         <div role="cell"><textarea class="matching-prompt" rows="2" maxlength="1000" data-example-reason aria-label="${e(m.exampleReason)}"></textarea></div>
         <div role="cell">${remove}</div><div role="cell">${add}</div></div></template>
-      <template data-example-quote><details><summary>${
-      e(m.matchExcerpt)
-    }</summary>
-        <select data-example-source aria-label="${
-      e(m.matchDetailLocation)
-    }"></select>
-        <textarea class="matching-prompt" rows="3" maxlength="2000" data-example-excerpt aria-label="${
-      e(m.matchExcerpt)
-    }"></textarea></details></template>
       <section id="example-history" class="example-history" aria-label="${
       e(m.historyTitle)
     }" hidden>

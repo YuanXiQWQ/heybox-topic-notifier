@@ -2,6 +2,7 @@
 import type {
   AppSettings,
   KeywordRule,
+  MatchRecord,
   MatchResult,
   TopicPost,
   TopicRule,
@@ -23,7 +24,7 @@ import { matchingDayMs, observeTopic } from "./matching_activity.ts";
 import { normalizeMatchResult, shortAiReason } from "./match_result.ts";
 import { matchingForProfile, matchingProfiles } from "./matching_profiles.ts";
 import { counterexamplePrompt } from "../../static/matching-counterexample-prompt.js";
-import { normalizeMatchingSettings } from "./matching_settings.ts";
+import { type MatchingSettings, normalizeMatchingSettings } from "./matching_settings.ts";
 import type { TopicSource } from "./topic_source.ts";
 
 /** 未变化列表帖子的详情检查间隔，内容不变时不重复调用 AI。 */
@@ -114,6 +115,7 @@ export function usageForProfile(
  * @param {() => number} now 可注入时钟。
  * @param {(id: string) => Promise<boolean>} sendAiFailure 无回退命中可合并时发送故障通知。
  * @param {(id: string) => Promise<boolean>} sendSourceFailure 详情持续不可用时发送独立服务通知。
+ * @param {(id: string) => Promise<MatchRecord[]>} findHistory 在当前账号历史中查找旧反例的原帖。
  * @return {Promise<object | undefined>} 已获得租约的会话，忙碌时返回 undefined。
  */
 export async function startMatchingRun(
@@ -127,6 +129,7 @@ export async function startMatchingRun(
     Promise.resolve(false),
   sendSourceFailure: (id: string) => Promise<boolean> = () =>
     Promise.resolve(false),
+  findHistory?: (id: string) => Promise<MatchRecord[]>,
 ) {
   const token = crypto.randomUUID();
   if (!await store.acquire(token, now())) return undefined;
@@ -151,6 +154,29 @@ export async function startMatchingRun(
   const initialCount = runtime.cacheCount;
   const startedAt = now();
   const configs = new Map<string, string>();
+  const resolvedProfiles = new Map<string, MatchingSettings>();
+  /**
+   * 为本轮匹配补齐旧反例的原帖，同配置的其它话题复用读取结果。
+   * @param {string} id 话题关联的配置。
+   * @return {Promise<MatchingSettings>} 用于请求和缓存指纹的同一份配置。
+   */
+  async function resolveProfile(id = "default"): Promise<MatchingSettings> {
+    const cached = resolvedProfiles.get(id);
+    if (cached) return cached;
+    const profile = matchingForProfile(app, id);
+    if (profile.mode !== "rules" && findHistory) {
+      for (const item of profile.counterexamples) {
+        if (item.post || !item.reason.trim()) continue;
+        const records = await findHistory(item.id);
+        const record = item.topicId
+          ? records.find((r) => r.id.split(":")[0] === item.topicId)
+          : records[0];
+        if (record) item.post = record.post;
+      }
+    }
+    resolvedProfiles.set(id, profile);
+    return profile;
+  }
   const visibleIds = new Map<string, Set<string>>();
   let failedThisRun = false;
   let sourceFailedThisRun = false;
@@ -299,7 +325,7 @@ export async function startMatchingRun(
     ): Promise<MatchResult | undefined> {
       await renew();
       runtime = matchingRuntimeForDay(runtime, now());
-      const settings = matchingForProfile(app, topic.profileId);
+      const settings = await resolveProfile(topic.profileId);
       const usage = usageForProfile(runtime, topic.profileId);
       let config = configs.get(topic.id);
       if (!config) {

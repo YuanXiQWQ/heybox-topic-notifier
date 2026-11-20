@@ -390,7 +390,7 @@
   "exampleAdd": "Gegenbeispiel hinzufügen",
   "examplePreview": "Prompt mit Gegenbeispielen anzeigen",
   "exampleHistoryError": "Verlauf konnte nicht geladen werden",
-  "exampleExcerptHint": "Textstelle bearbeiten oder auswählen (maximal 2000 Zeichen).",
+  "examplePostUnavailable": "Der Originalbeitrag ist nicht verfügbar. Dieses Beispiel wird übersprungen.",
   "matchingCompany": "Unternehmen",
   "matchingCustom": "Benutzerdefinierte Konfiguration",
   "matchingSearchCompany": "Unternehmen suchen",

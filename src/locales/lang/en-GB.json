@@ -390,7 +390,7 @@
   "exampleAdd": "Add example",
   "examplePreview": "Preview example prompt",
   "exampleHistoryError": "Could not load history",
-  "exampleExcerptHint": "Edit or select the passage to quote, up to 2000 characters.",
+  "examplePostUnavailable": "The original post is unavailable. This example will be skipped.",
   "matchingCompany": "Company",
   "matchingCustom": "Custom configuration",
   "matchingSearchCompany": "Search companies",

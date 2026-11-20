@@ -116,17 +116,16 @@ try {
     examples.nextElementSibling === find('[data-advanced-editor]'), 'AI example drawer');
   find('[data-action="toggle-counterexamples"]').click();
   const annotation = find('[data-example-rows] [data-example-reason]');
-  const excerpt = find('[data-example-rows] [data-example-excerpt]');
-  check([annotation, excerpt].every((field) => {
-    const style = getComputedStyle(field);
-    return style.resize === 'none' && style.overflowY === 'auto';
-  }), 'counterexample editors scroll long text without resize handles');
+  const style = getComputedStyle(annotation);
+  check(style.resize === 'none' && style.overflowY === 'auto' &&
+    !find('[data-example-rows]').querySelector('details, [data-example-excerpt]'),
+    'only the reason is editable and has no resize handle');
   annotation.value = '评论引用了过去的困难';
   annotation.dispatchEvent(new Event('input', { bubbles: true }));
   const saved = JSON.parse(form.elements.matchingProfiles.value);
   check(saved[0].options.counterexamples[0].reason === annotation.value &&
     saved[1].options.counterexamples.length === 0 &&
-    JSON.parse(find('[data-example-preview] pre').textContent)[0].source === 'comments',
+    JSON.parse(find('[data-example-preview] pre').textContent)[0].post.comments[0] === '当时卡住了',
     'editable profile-specific evidence and preview');
   const history = Array.from({ length: 11 }, (_, index) => ({
     id: String(index),
@@ -134,6 +133,11 @@ try {
     topicId: '10',
     title: '历史标题 ' + index,
     body: '完整正文 ' + index,
+    post: {
+      id: String(index), title: '历史标题 ' + index, body: '原始正文 ' + index,
+      excerpt: '', url: '', publishedAt: '2026-11-01', comments: ['示例评论 ' + index],
+      commentReplies: ['示例回复 ' + index],
+    },
     location: 'comments',
     comments: ['示例评论 ' + index],
     replies: [],
@@ -197,6 +201,8 @@ try {
     why.dispatchEvent(new Event('input', { bubbles: true }));
     check(
       items()[2].reason === why.value &&
+        JSON.stringify(JSON.parse(find('[data-example-preview] pre').textContent)[1].post) ===
+          JSON.stringify(history[10].post) &&
         JSON.parse(find('[data-example-preview] pre').textContent).length === 2,
       'annotate after adding',
     );

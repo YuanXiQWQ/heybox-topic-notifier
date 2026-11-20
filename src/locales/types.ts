@@ -162,7 +162,7 @@ export type Messages = {
   exampleAdd: string;
   examplePreview: string;
   exampleHistoryError: string;
-  exampleExcerptHint: string;
+  examplePostUnavailable: string;
   matchingCompany: string;
   matchingCustom: string;
   matchingSearchCompany: string;

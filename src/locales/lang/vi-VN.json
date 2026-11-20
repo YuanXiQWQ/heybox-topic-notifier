@@ -390,7 +390,7 @@
   "exampleAdd": "Thêm phản ví dụ",
   "examplePreview": "Xem trước phản ví dụ gửi cho AI",
   "exampleHistoryError": "Không tải được lịch sử",
-  "exampleExcerptHint": "Chỉnh sửa hoặc chọn đoạn trích dẫn, tối đa 2000 ký tự.",
+  "examplePostUnavailable": "Không tìm thấy bài viết gốc. Ví dụ này sẽ được bỏ qua.",
   "matchingCompany": "Công ty",
   "matchingCustom": "Cấu hình tùy chỉnh",
   "matchingSearchCompany": "Tìm công ty",

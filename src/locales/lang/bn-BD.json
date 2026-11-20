@@ -390,7 +390,7 @@
   "exampleAdd": "বিপরীত উদাহরণ যোগ করুন",
   "examplePreview": "মডেলে পাঠানোর উদাহরণ দেখুন",
   "exampleHistoryError": "ইতিহাস লোড করা যায়নি",
-  "exampleExcerptHint": "উদ্ধৃতির অংশটি সম্পাদনা বা নির্বাচন করুন (সর্বাধিক ২০০০ অক্ষর)।",
+  "examplePostUnavailable": "মূল পোস্টটি পাওয়া যাচ্ছে না। এই উদাহরণটি বাদ দেওয়া হবে।",
   "matchingCompany": "কোম্পানি",
   "matchingCustom": "নিজস্ব কনফিগারেশন",
   "matchingSearchCompany": "কোম্পানি খুঁজুন",

@@ -390,7 +390,7 @@
   "exampleAdd": "جوابی مثال شامل کریں",
   "examplePreview": "ماڈل کو بھیجی جانے والی مثالیں دیکھیں",
   "exampleHistoryError": "سابقہ ریکارڈ لوڈ نہیں ہو سکا",
-  "exampleExcerptHint": "اقتباس میں شامل کرنے کے لیے عبارت منتخب یا تبدیل کریں (زیادہ سے زیادہ ۲۰۰۰ حروف)۔",
+  "examplePostUnavailable": "اصل پوسٹ دستیاب نہیں ہے۔ یہ مثال نہیں بھیجی جائے گی۔",
   "matchingCompany": "کمپنی",
   "matchingCustom": "اپنی ترتیب",
   "matchingSearchCompany": "کمپنیاں تلاش کریں",

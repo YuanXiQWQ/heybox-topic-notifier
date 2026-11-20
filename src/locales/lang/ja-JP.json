@@ -390,7 +390,7 @@
   "exampleAdd": "反例を追加",
   "examplePreview": "反例プロンプトのプレビュー",
   "exampleHistoryError": "履歴を読み込めません",
-  "exampleExcerptHint": "引用する原文を編集または選択してください（2000文字以内）。",
+  "examplePostUnavailable": "元の投稿を取得できないため、この反例は AI に送信されません。",
   "matchingCompany": "企業",
   "matchingCustom": "独自設定",
   "matchingSearchCompany": "企業を検索",

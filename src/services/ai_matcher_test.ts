@@ -76,8 +76,15 @@ Deno.test("AI and hybrid requests append only annotated examples to the post dat
     topicId: "a",
     topicNote: "社区备注",
     title: "复盘",
-    excerpt: "当时卡了半天",
-    source: "comments" as const,
+    post: {
+      ...sample,
+      title: "复盘",
+      body: "原文".repeat(5000) + "正文结尾",
+      excerpt: "原帖自带的简介",
+      comments: ["当时卡了半天", "后来解决了"],
+      commentReplies: ["回复一", "回复二"],
+      detailsComplete: false,
+    },
     reason: "在回顾一次已解决的问题",
     addedAt: 1,
   };
@@ -86,27 +93,23 @@ Deno.test("AI and hybrid requests append only annotated examples to the post dat
     resolveDns: () => Promise.resolve(["93.184.216.34"]),
     fetch: (_url, init) => {
       const { messages } = JSON.parse(String(init?.body));
-      assert(!messages[0].content.includes(example.excerpt));
+      assert(!messages[0].content.includes(example.post.excerpt));
       payloads.push(JSON.parse(messages[1].content));
       return Promise.resolve(new Response(null, { status: 503 }));
     },
   });
   for (const mode of ["rules", "ai", "hybrid"] as const) {
-    await matcher.classify(sample, {
+    await matcher.classify(sample, normalizeMatchingSettings({
       ...settings,
       mode,
       counterexamples: [
         example,
-        { ...example, id: "draft", reason: " " },
+        { ...example, id: "draft", post: { ...example.post, id: "draft" }, reason: " " },
+        { ...example, id: "missing", post: undefined },
       ],
-    });
+    }));
   }
-  const expected = [{
-    title: example.title,
-    source: example.source,
-    excerpt: example.excerpt,
-    reason: example.reason,
-  }];
+  const expected = [{ post: example.post, reason: example.reason }];
   assertEquals(payloads.map((payload) => payload.negativeExamples), [
     undefined,
     expected,

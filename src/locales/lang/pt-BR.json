@@ -390,7 +390,7 @@
   "exampleAdd": "Adicionar contraexemplo",
   "examplePreview": "Prévia dos contraexemplos enviados",
   "exampleHistoryError": "Não foi possível carregar o histórico",
-  "exampleExcerptHint": "Edite ou selecione o trecho a citar (até 2000 caracteres).",
+  "examplePostUnavailable": "A publicação original não está disponível. Este exemplo será ignorado.",
   "matchingCompany": "Empresa",
   "matchingCustom": "Configuração personalizada",
   "matchingSearchCompany": "Buscar empresas",

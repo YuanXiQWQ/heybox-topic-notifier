@@ -329,6 +329,7 @@ async function fixture(
       () => time,
       notifyAiFailure,
       notifySourceFailure,
+      (id) => storage.listMatchesForPost(id),
     );
     assert(session);
     try {
@@ -463,11 +464,10 @@ Deno.test("matching invalidates changed content and prompts but not price or bud
     const example = {
       id: "other",
       title: "回顾",
-      source: "body" as const,
+      post: post("other", "已经通关"),
       url: "",
       topicId: "1",
       topicNote: "",
-      excerpt: "已经通关",
       reason: "分享通关经历",
       addedAt: 1,
     };
@@ -477,6 +477,21 @@ Deno.test("matching invalidates changed content and prompts but not price or bud
     example.reason = "作者在回顾过去的困难";
     await f.run([post("p1", "新的内容")]);
     assertEquals(f.calls(), 6);
+    // 相同历史原帖补齐的旧反例与完整快照使用同一个请求缓存。
+    const original = { ...example.post, commentReplies: ["作者补充"] };
+    await f.storage.saveMatch({
+      id: "1:other",
+      post: original,
+      keyword: "通关",
+      location: "body",
+      matchedAt: "2026-10-01T00:00:00Z",
+    });
+    f.app.matching!.counterexamples = [{ ...example, post: undefined }];
+    await f.run([post("p1", "新的内容")]);
+    assertEquals(f.calls(), 7);
+    f.app.matching!.counterexamples = [{ ...example, post: original }];
+    await f.run([post("p1", "新的内容")]);
+    assertEquals(f.calls(), 7);
   } finally {
     f.close();
   }

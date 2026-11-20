@@ -390,7 +390,7 @@
   "exampleAdd": "新增反例",
   "examplePreview": "預覽反例提示詞",
   "exampleHistoryError": "無法讀取歷史記錄",
-  "exampleExcerptHint": "可編輯或選取要引用的原文，最多 2000 個字元。",
+  "examplePostUnavailable": "缺少原帖，暫時無法將此反例傳送給 AI。",
   "matchingCompany": "公司",
   "matchingCustom": "自定義配置",
   "matchingSearchCompany": "搜索公司",

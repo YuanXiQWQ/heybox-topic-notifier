@@ -390,7 +390,7 @@
   "exampleAdd": "Добавить контрпример",
   "examplePreview": "Предпросмотр контрпримеров для ИИ",
   "exampleHistoryError": "Не удалось загрузить историю",
-  "exampleExcerptHint": "Отредактируйте или выделите цитату длиной до 2000 символов.",
+  "examplePostUnavailable": "Исходная публикация недоступна. Этот пример будет пропущен.",
   "matchingCompany": "Компания",
   "matchingCustom": "Своя конфигурация",
   "matchingSearchCompany": "Поиск компаний",

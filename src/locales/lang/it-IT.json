@@ -390,7 +390,7 @@
   "exampleAdd": "Aggiungi controesempio",
   "examplePreview": "Anteprima dei controesempi inviati",
   "exampleHistoryError": "Impossibile caricare la cronologia",
-  "exampleExcerptHint": "Modifica o seleziona il brano da citare (massimo 2000 caratteri).",
+  "examplePostUnavailable": "Il post originale non è disponibile. Questo esempio verrà ignorato.",
   "matchingCompany": "Azienda",
   "matchingCustom": "Configurazione personalizzata",
   "matchingSearchCompany": "Cerca aziende",

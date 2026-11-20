@@ -4041,7 +4041,6 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .example-rule-row {grid-template-columns: var(--rule-select-column) minmax(0,1fr) minmax(0,1.7fr) minmax(0,1.2fr) minmax(0,1.2fr) repeat(2,var(--rule-action-column));}
 .example-rule-row > .example-post-content {flex-direction: column; align-items: stretch; overflow-wrap: anywhere;}
 .example-rule-row textarea {resize: none; overflow-y: auto;}
-.example-rule-row [data-example-source] {width: 100%; min-width: 0;}
 .example-history-table tbody tr:not(.is-unavailable), .example-history-table tbody tr:not(.is-unavailable) label {cursor: pointer;}
 .example-history-table tbody tr.is-unavailable label {cursor: default;}
 .example-history-table tbody tr.is-selected > td, .example-history-table tbody tr.is-unavailable > td {background: var(--theme-soft);}

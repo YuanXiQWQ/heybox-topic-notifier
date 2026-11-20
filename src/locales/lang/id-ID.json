@@ -390,7 +390,7 @@
   "exampleAdd": "Tambahkan contoh negatif",
   "examplePreview": "Pratinjau contoh yang dikirim ke AI",
   "exampleHistoryError": "Riwayat tidak dapat dimuat",
-  "exampleExcerptHint": "Edit atau pilih kutipan hingga 2000 karakter.",
+  "examplePostUnavailable": "Postingan asli tidak tersedia. Contoh ini akan dilewati.",
   "matchingCompany": "Perusahaan",
   "matchingCustom": "Konfigurasi khusus",
   "matchingSearchCompany": "Cari perusahaan",
