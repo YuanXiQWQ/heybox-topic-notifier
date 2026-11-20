@@ -2,7 +2,10 @@
 import { devicePreferenceFields } from "../device_preferences.ts";
 import type { AppSettings, TopicRule } from "../models.ts";
 import { normalizeSchedule } from "../../static/polling-schedule-core.js";
-import { normalizeMatchingSettings } from "../services/matching_settings.ts";
+import {
+  type MatchingCounterexample,
+  normalizeMatchingSettings,
+} from "../services/matching_settings.ts";
 import {
   type MatchingProfile,
   matchingProfiles,
@@ -84,11 +87,18 @@ export function splitSettings(settings: AppSettings): Record<string, unknown> {
     aiConnectionFields.map((field) => [field, matching[field]]),
   );
   for (const [key, value] of Object.entries(matching)) {
-    if (!(aiConnectionFields as readonly string[]).includes(key)) {
+    if (
+      key !== "counterexamples" &&
+      !(aiConnectionFields as readonly string[]).includes(key)
+    ) {
       values[`matching/${key}`] = value;
     }
   }
   for (const [index, profile] of matchingProfiles(settings).entries()) {
+    const options = profile.id === "default" ? matching : profile.options;
+    for (const item of options?.counterexamples ?? []) {
+      values[`example/${profile.id}/${encodeURIComponent(item.id)}`] = item;
+    }
     const prefix = `profile/${profile.id}/`;
     values[prefix + "present"] = true;
     values[prefix + "order"] = index;
@@ -98,7 +108,10 @@ export function splitSettings(settings: AppSettings): Record<string, unknown> {
         aiConnectionFields.map((key) => [key, profile.options![key]]),
       );
       for (const [key, value] of Object.entries(profile.options)) {
-        if (!(aiConnectionFields as readonly string[]).includes(key)) {
+        if (
+          key !== "counterexamples" &&
+          !(aiConnectionFields as readonly string[]).includes(key)
+        ) {
           values[prefix + key] = value;
         }
       }
@@ -157,6 +170,9 @@ export function settingsEdits(
     }
   }
   for (const region of Object.keys(before)) {
+    if (region.startsWith("example/") && !(region in after)) {
+      edits.push({ region, value: null, stamp });
+    }
     if (
       (region.startsWith("topic/") || region.startsWith("profile/")) &&
       region.endsWith("/present") &&
@@ -190,8 +206,16 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
       latest: EditStamp;
     }
   >();
+  const examples = new Map<string, MatchingCounterexample[]>();
   for (const [region, entry] of Object.entries(snapshot.regions)) {
     const [kind, field, part] = region.split("/");
+    if (kind === "example") {
+      const items = examples.get(field) ?? [];
+      if (entry.value) {
+        items.push(structuredClone(entry.value as MatchingCounterexample));
+      }
+      examples.set(field, items);
+    }
     if (
       kind === "setting" &&
       !(devicePreferenceFields as readonly string[]).includes(field)
@@ -220,8 +244,9 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
         };
       if (part === "order") item.order = Number(entry.value);
       else if (part === "present") item.present = entry.value === true;
-      else if (part === "name") item.profile.name = String(entry.value);
-      else if (field !== "default") {
+      else if (part === "name") {
+        item.profile.name = field === "default" ? "" : String(entry.value);
+      } else if (field !== "default") {
         item.profile.options ??= normalizeMatchingSettings();
         Object.assign(
           item.profile.options,
@@ -265,6 +290,17 @@ export function projectSettings(snapshot: SettingsSyncSnapshot): AppSettings {
     .sort((a, b) =>
       a.order - b.order || a.profile.id.localeCompare(b.profile.id)
     ).map((item) => item.profile);
+  for (const profile of ordered) {
+    const items = examples.get(profile.id);
+    const options = profile.id === "default"
+      ? result.matching
+      : profile.options;
+    if (items && options) {
+      options.counterexamples = items.sort((a, b) =>
+        a.addedAt - b.addedAt || a.id.localeCompare(b.id)
+      );
+    }
+  }
   if (result.matchingProfiles || ordered.length > 1 || ordered[0]?.name) {
     result.matchingProfiles = ordered;
   }

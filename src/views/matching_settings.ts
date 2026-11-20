@@ -1,4 +1,4 @@
-/** @file 在帖子设置内渲染匹配和高级配置抽屉，复用统一表单及密钥控件。 */
+/** @file 在帖子设置内渲染匹配、反例和高级配置抽屉，复用统一表单及密钥控件。 */
 import { getMessages } from "../locales/index.ts";
 import type { AppSettings } from "../models.ts";
 import { normalizeMatchingSettings } from "../services/matching_settings.ts";
@@ -237,7 +237,7 @@ export function renderMatchingSection(
   return drawer(
     "matching",
     m.matchingTitle,
-    body + renderMatchingAdvanced(app, saved),
+    body + renderCounterexamples(app) + renderMatchingAdvanced(app, saved),
     "",
     `data-model-loading="${e(m.matchingLoading)}" data-model-empty="${
       e(m.matchingNoModels)
@@ -247,11 +247,69 @@ export function renderMatchingSection(
     "settings.post.matching",
     renderProfileList(app, saved),
     `<button type="button" class="profile-summary text-action-button" data-profile-toggle aria-controls="matching-panel" aria-expanded="false">${
-      e(
-        app.matchingProfiles?.find((p) => p.id === "default")?.name ||
-          m.profileDefault,
-      )
+      e(m.profileDefault)
     }</button>`,
+  );
+}
+
+/**
+ * 渲染历史反例列表、片段选择器及提示词预览。
+ * @param {AppSettings} app 当前账号设置。
+ * @return {string} 当前匹配配置的反例抽屉。
+ */
+function renderCounterexamples(app: AppSettings): string {
+  const m = getMessages(app.locale);
+  const settings = normalizeMatchingSettings(app.matching);
+  const labels = {
+    title: m.matchTitle,
+    body: m.matchBody,
+    comments: m.matchComments,
+    replies: m.matchReplies,
+    reason: m.exampleReason,
+    remove: m.accountPasskeyDelete,
+    empty: m.emptyHistory,
+    error: m.exampleHistoryError,
+    excerptHint: m.exampleExcerptHint,
+  };
+  return drawer(
+    "counterexample",
+    m.matchingExamples,
+    `<div class="example-content" data-example-labels="${
+      e(JSON.stringify(labels))
+    }">
+    <div data-example-rows></div>
+    <button type="button" class="text-action-button" data-example-picker aria-expanded="false" aria-controls="example-history">${
+      e(m.exampleFromHistory)
+    }</button>
+    <div id="example-history" class="example-history" hidden>
+      <input type="search" data-example-search placeholder="${
+      e(m.exampleSearch)
+    }" aria-label="${e(m.exampleSearch)}">
+      <label><input type="checkbox" data-example-all> ${
+      e(m.exampleAllTopics)
+    }</label>
+      <span data-example-status role="status"></span>
+      <select size="5" data-example-results aria-label="${
+      e(m.historyTitle)
+    }"></select>
+      <div data-example-draft hidden>
+        <select data-example-source aria-label="${e(m.matchExcerpt)}"></select>
+        <label>${
+      e(m.matchExcerpt)
+    }<textarea data-example-excerpt rows="3" aria-describedby="example-excerpt-hint"></textarea></label>
+        <small id="example-excerpt-hint">${e(m.exampleExcerptHint)}</small>
+        <label>${
+      e(m.exampleReason)
+    }<textarea data-example-reason rows="2" maxlength="1000"></textarea></label>
+        <button type="button" data-example-add>${e(m.exampleAdd)}</button>
+      </div>
+    </div>
+    <details data-example-preview><summary>${
+      e(m.examplePreview)
+    }</summary><pre dir="ltr"></pre></details>
+  </div>`,
+    new Intl.NumberFormat(app.locale).format(settings.counterexamples.length),
+    settings.mode === "rules" ? "hidden" : "",
   );
 }
 

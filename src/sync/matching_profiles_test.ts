@@ -58,3 +58,47 @@ Deno.test("offline profile edits merge independently and a deleted target falls 
   assertEquals(after.settings.topics[0].profileId, undefined);
   assertEquals(mergeSettings(after, late).snapshot.settings, after.settings);
 });
+
+Deno.test("default profile names from offline clients never override the device language", () => {
+  const app = defaultAppSettingsFromEnv();
+  app.matchingProfiles = [{ id: "default", name: "自定义旧名称" }];
+  const snapshot = initialSettingsSnapshot(app);
+  const result = mergeSettings(snapshot, [{
+    region: "profile/default/name",
+    value: "其它设备名称",
+    stamp: nextEditStamp(undefined, 1000, "desktop"),
+  }]);
+  assertEquals(result.snapshot.settings.matchingProfiles![0].name, "");
+});
+
+Deno.test("offline annotations merge per example and deletion survives replay", () => {
+  const app = defaultAppSettingsFromEnv();
+  const sample = {
+    id: "a",
+    title: "回顾",
+    topicId: "1",
+    topicNote: "",
+    url: "",
+    source: "comments" as const,
+    excerpt: "当时卡住了",
+    reason: "已解决",
+    addedAt: 1,
+  };
+  app.matching = normalizeMatchingSettings({
+    counterexamples: [sample, { ...sample, id: "b", addedAt: 2 }],
+  });
+  const early = structuredClone(app), late = structuredClone(app);
+  early.matching!.counterexamples.shift();
+  late.matching!.counterexamples[1].reason = "讨论的是另一个玩家";
+  const first = settingsEdits(app, early, nextEditStamp(undefined, 100, "one"));
+  const second = settingsEdits(app, late, nextEditStamp(undefined, 200, "two"));
+  const snapshot = initialSettingsSnapshot(app);
+  const forward =
+    mergeSettings(mergeSettings(snapshot, first).snapshot, second).snapshot;
+  const reverse =
+    mergeSettings(mergeSettings(snapshot, second).snapshot, first).snapshot;
+  assertEquals(forward.settings, reverse.settings);
+  assertEquals(forward.settings.matching!.counterexamples, [
+    late.matching!.counterexamples[1],
+  ]);
+});

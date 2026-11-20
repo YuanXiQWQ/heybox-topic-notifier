@@ -1,6 +1,40 @@
 /** @file 管理匹配配置、配置与话题的单向关联，以及共用设置抽屉的视图切换。 */
 
 /**
+ * 按界面语言生成副本名称，识别其它设备语言和旧全角格式已占用的编号。
+ * @param {string} source 来源配置的显示名称。
+ * @param {string[]} names 已有配置的显示名称。
+ * @param {string} locale 当前界面语言。
+ * @param {string} pattern 带数字占位符的本地化后缀。
+ * @return {string} 首个可用编号对应的配置名称。
+ */
+function matchingProfileCopyName(source, names, locale, pattern = '（{number}）') {
+  const suffix = / ?(?:（(\p{Decimal_Number}+)）|\((\p{Decimal_Number}+)\))$/u;
+  const base = source.replace(suffix, '') || source;
+  const numbers = new Intl.NumberFormat(locale, { useGrouping: false });
+  const compare = new Intl.Collator(locale, { numeric: true }).compare;
+  const decimalDigits = [...'0123456789'];
+  const used = new Set();
+  for (const name of names) {
+    const match = suffix.exec(name);
+    if (!match) continue;
+    const prefix = name.slice(0, match.index);
+    // 数字比较可将不同文字中的同一十进制数字归入同一个编号。
+    const digits = Array.from(match[1] || match[2], (digit) =>
+      decimalDigits.find((value) => compare(value, digit) === 0)
+    ).join('');
+    used.add(prefix + '(' + digits + ')');
+  }
+  for (let n = 1; ; n++) {
+    const digits = numbers.format(n);
+    const ending = pattern.replace('{number}', digits);
+    const prefix = base.slice(0, 100 - ending.length)
+      .replace(/[\uD800-\uDBFF]$/u, '').trimEnd();
+    if (!used.has(prefix + '(' + n + ')')) return prefix + ending;
+  }
+}
+
+/**
  * 共用话题表与气泡的可搜索单选菜单，用相关性和数字、拼音顺序排列候选。
  * @param {HTMLButtonElement} toggle 打开菜单的按钮。
  * @param {string} label 搜索框的可访问名称。
@@ -291,12 +325,22 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
   const defaults = JSON.parse(list.dataset.defaultOptions);
   const usages = JSON.parse(list.dataset.usage);
   const profiles = JSON.parse(field.value);
+  for (const profile of profiles) {
+    if (!profile.options.counterexamples) profile.options.counterexamples = [];
+  }
   const selected = new Set();
   const request = initProfileDrawer(section, list);
   let active = profiles.find((p) => p.id === list.dataset.active) ||
     profiles.find((p) => p.id === 'default');
   let switching = false;
+  let restored = false;
   let closePicker;
+  const exampleEditor = globalThis.initMatchingCounterexamples?.(section,
+    () => active.options.counterexamples,
+    () => topicEntries().map(({ id, row, profile }) => ({
+      id, note: row.querySelector('[data-topic-note-input]').value.trim(), assigned: profile === active,
+    })),
+    () => { capture(); scheduleAutoSave(); });
 
   /**
    * 取本地化配置名称。
@@ -304,10 +348,9 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
    * @return {string} 用于显示和排序的名称。
    */
   function name(profile) {
-    return profile.name ||
-      (profile.id === 'default'
-        ? list.dataset.defaultLabel
-        : list.dataset.newLabel);
+    return profile.id === 'default'
+      ? list.dataset.defaultLabel
+      : profile.name || list.dataset.newLabel;
   }
 
   /**
@@ -344,6 +387,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
   function capture() {
     if (switching) return;
     for (const key of Object.keys(defaults)) {
+      if (key === 'counterexamples') continue;
       const element = control(key);
       if (key === 'apiKey') {
         secretField(active.id).value = element.value;
@@ -380,13 +424,14 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
     active = profile;
     list.dataset.active = profile.id;
     for (const [key, value] of Object.entries(profile.options)) {
-      if (key === 'apiKey') continue;
+      if (key === 'apiKey' || key === 'counterexamples') continue;
       const element = control(key);
       if (element.type === 'checkbox') {
         element.checked = key === 'disableThinking' ? !value : value;
       } else element.value = value;
     }
     load(profile, secretField(profile.id).value);
+    exampleEditor?.restore();
     switching = false;
     updateUsage();
     toggle.textContent = name(active);
@@ -441,7 +486,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
     setMatchingRowVisible(
       keyword,
       targetEntry ? targetEntry.profile.options.mode !== 'ai' : hasRules,
-      false,
+      restored,
     );
     topics.classList.toggle('profiles-ai-only', !hasRules);
     for (const entry of entries) {
@@ -465,7 +510,9 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
       ) {
         const chip = document.createElement('span');
         chip.className = 'profile-chip';
-        chip.append(document.createTextNode(entry.label));
+        const label = document.createElement('span');
+        label.textContent = entry.label;
+        chip.append(label);
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.textContent = '×';
@@ -522,21 +569,23 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
   /** 同步表头选择、批量操作和默认配置保护状态。 */
   function selection() {
     const checkbox = list.querySelector('[data-profile-all]');
-    checkbox.checked = selected.size === profiles.length;
-    checkbox.indeterminate = selected.size > 0 && !checkbox.checked;
     for (const row of grid.querySelectorAll('[data-profile-row]')) {
       row.querySelector('[data-profile-selected]').checked = selected.has(
         row.dataset.profileRow,
       );
     }
+    const eligible = [
+      ...grid.querySelectorAll('[data-profile-selected]:enabled'),
+    ];
+    syncCheckboxState(checkbox, eligible);
+    checkbox.disabled = eligible.length === 0;
     const header = grid.firstElementChild;
     header.querySelector('[data-profile-action="edit"]').disabled =
       selected.size !== 1;
     header.querySelector('[data-profile-action="copy"]').disabled =
       selected.size === 0;
-    header.querySelector('[data-profile-action="delete"]').disabled = ![
-      ...selected,
-    ].some((id) => id !== 'default');
+    header.querySelector('[data-profile-action="delete"]').disabled =
+      selected.size === 0;
   }
 
   /** 根据持久顺序重建配置行，并刷新关联视图。 */
@@ -546,15 +595,16 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
       const row = list.querySelector('template').content.firstElementChild
         .cloneNode(true);
       row.dataset.profileRow = profile.id;
+      const isDefault = profile.id === 'default';
       const input = row.querySelector('[data-profile-name]');
       input.value = name(profile);
-      row.querySelector('[data-profile-selected]').setAttribute(
-        'aria-label',
-        name(profile),
-      );
+      input.disabled = isDefault;
+      const checkbox = row.querySelector('[data-profile-selected]');
+      checkbox.disabled = isDefault;
+      checkbox.setAttribute('aria-label', name(profile));
       input.placeholder = name(profile);
       row.querySelector('[data-profile-action="delete"]').disabled =
-        profile.id === 'default';
+        isDefault;
       grid.append(row);
     }
     selection();
@@ -571,13 +621,26 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
    */
   function insert(source, index) {
     const id = crypto.randomUUID();
-    const label = source ? name(source) : list.dataset.newLabel;
-    let suffix = source ? 2 : 1;
+    const label = list.dataset.newLabel;
+    const names = profiles.map(name);
     let title = label;
-    while (profiles.some((p) => name(p) === title)) {
-      title = label.slice(0, 92) + ' ' + suffix++;
+    if (source) {
+      title = matchingProfileCopyName(
+        name(source),
+        names,
+        document.documentElement.lang,
+        list.dataset.copySuffix,
+      );
+    } else if (names.includes(title)) {
+      let number = 1;
+      do {
+        const suffix = ' ' + number;
+        title = label.slice(0, 100 - suffix.length) + suffix;
+        number++;
+      } while (names.includes(title));
     }
     const options = { ...(source?.options || defaults) };
+    options.counterexamples = (options.counterexamples || []).map((example) => ({ ...example }));
     delete options.apiKey;
     const profile = {
       id,
@@ -640,7 +703,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
     scheduleAutoSave();
   });
   list.addEventListener('input', (event) => {
-    if (!event.target.matches('[data-profile-name]')) return;
+    if (!event.target.matches('[data-profile-name]:enabled')) return;
     const profile = profiles.find((p) =>
       p.id === event.target.closest('[data-profile-row]').dataset.profileRow
     );
@@ -655,8 +718,12 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
   list.addEventListener('change', (event) => {
     if (event.target.matches('[data-profile-all]')) {
       selected.clear();
-      if (event.target.checked) profiles.forEach((p) => selected.add(p.id));
-    } else if (event.target.matches('[data-profile-selected]')) {
+      if (event.target.checked) {
+        for (const p of profiles) {
+          if (p.id !== 'default') selected.add(p.id);
+        }
+      }
+    } else if (event.target.matches('[data-profile-selected]:enabled')) {
       const id = event.target.closest('[data-profile-row]').dataset.profileRow;
       if (event.target.checked) selected.add(id);
       else selected.delete(id);
@@ -755,6 +822,7 @@ globalThis.initMatchingProfiles = function initMatchingProfiles(section, load) {
       );
       edit(active);
       render();
+      restored = true;
     },
     /**
      * 给模型请求附加对应的凭据标识。

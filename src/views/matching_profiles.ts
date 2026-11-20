@@ -51,7 +51,10 @@ export function renderProfileList(
    * @return {string} 操作按钮。
    */
   function button(action: string, label: string, icon: string): string {
-    return `<button type="button" class="icon-button" data-profile-action="${action}" aria-label="${
+    const classes = action === "add"
+      ? "icon-button text-icon-button"
+      : "icon-button";
+    return `<button type="button" class="${classes}" data-profile-action="${action}" aria-label="${
       e(label)
     }" data-tooltip="${e(label)}">${icon}</button>`;
   }
@@ -63,7 +66,7 @@ export function renderProfileList(
   ];
   return `<div data-profile-list hidden data-default-label="${
     e(m.profileDefault)
-  }" data-new-label="${e(m.profileNew)}" data-topic-label="${
+  }" data-copy-suffix="${e(m.profileCopySuffix)}" data-new-label="${e(m.profileNew)}" data-topic-label="${
     e(m.profileTopics)
   }" data-apply-label="${e(m.profileApplied)}" data-remove-label="${
     e(m.accountPasskeyDelete)

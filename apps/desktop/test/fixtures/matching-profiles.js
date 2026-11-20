@@ -1,4 +1,4 @@
-/** @file 检查真实设置页的双抽屉、快速切换、气泡改绑及独立高级设置。 */
+/** @file 检查设置抽屉切换、话题改绑、分配置反例注释和高级设置。 */
 globalThis.entryProbe = 'pending';
 try {
   if (document.readyState === 'loading') {
@@ -28,6 +28,28 @@ try {
       !find('[data-profile-list]').hidden,
     'profile list did not finish opening',
   );
+  const base = find('[data-profile-row="default"]');
+  const all = find('[data-profile-all]');
+  check(
+    base.querySelector('[data-profile-selected]').disabled &&
+      base.querySelector('[data-profile-name]').disabled && all.disabled,
+    'default profile selection and name must be locked',
+  );
+  base.querySelector('[data-profile-action="copy"]').click();
+  find('[data-profile-row]:last-child [data-profile-action="copy"]').click();
+  check(
+    [...document.querySelectorAll('[data-profile-row] [data-profile-name]')]
+      .map((input) => input.value).join(',') === '默认配置,默认配置（1）,默认配置（2）',
+    'copies should share one numbered sequence',
+  );
+  all.click();
+  check(
+    all.checked && !find('[data-profile-row="default"] [data-profile-selected]').checked &&
+      document.querySelectorAll('[data-profile-selected]:checked').length === 2,
+    'select all should skip the default profile',
+  );
+  find('.profile-head [data-profile-action="delete"]').click();
+  check(all.disabled && !all.checked, 'empty bulk selection');
   find('.profile-head [data-profile-action="add"]').click();
   const row = find('[data-profile-row]:last-child');
   row.querySelector('.profile-chip-add').click();
@@ -82,6 +104,29 @@ try {
     ),
     'topic dropdown projection',
   );
+  find('[data-profile-row="default"] [data-profile-action="edit"]').click();
+  await settle();
+  const examples = find('[data-counterexample-editor]');
+  const keywords = find('[data-keyword-editor]');
+  check(examples.hidden && !keywords.hidden, 'rules mode shows only keywords');
+  mode.value = 'ai';
+  mode.dispatchEvent(new Event('change', { bubbles: true }));
+  await settle();
+  check(!examples.hidden && keywords.hidden &&
+    examples.nextElementSibling === find('[data-advanced-editor]'), 'AI example drawer');
+  find('[data-action="toggle-counterexamples"]').click();
+  const annotation = find('[data-example-rows] textarea');
+  annotation.value = '评论引用了过去的困难';
+  annotation.dispatchEvent(new Event('input', { bubbles: true }));
+  const saved = JSON.parse(form.elements.matchingProfiles.value);
+  check(saved[0].options.counterexamples[0].reason === annotation.value &&
+    saved[1].options.counterexamples.length === 0 &&
+    JSON.parse(find('[data-example-preview] pre').textContent)[0].source === 'comments',
+    'editable profile-specific evidence and preview');
+  mode.value = 'hybrid';
+  mode.dispatchEvent(new Event('change', { bubbles: true }));
+  await settle();
+  check(!examples.hidden && !keywords.hidden, 'hybrid mode shows both drawers');
   globalThis.entryProbe = 'passed';
 } catch (error) {
   globalThis.entryProbe = String(error.stack || error);

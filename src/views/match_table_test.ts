@@ -580,7 +580,7 @@ Deno.test("settings page loads the latest settings interactions", () => {
 
   assertIncludes(
     html,
-    `/static/settings.js?v=20261119-profiles`,
+    `/static/settings.js?v=20261119-examples`,
   );
   assertIncludes(
     html,

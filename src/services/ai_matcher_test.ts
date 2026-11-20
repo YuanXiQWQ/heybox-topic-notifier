@@ -69,6 +69,51 @@ Deno.test("AI sends bounded isolated JSON and reads structured decisions and usa
   assertEquals(text.title.length + text.body.length + text.excerpt.length, 200);
 });
 
+Deno.test("AI and hybrid requests append only annotated examples to the post data", async () => {
+  const example = {
+    id: "1",
+    url: sample.url,
+    topicId: "a",
+    topicNote: "社区备注",
+    title: "复盘",
+    excerpt: "当时卡了半天",
+    source: "comments" as const,
+    reason: "在回顾一次已解决的问题",
+    addedAt: 1,
+  };
+  const payloads: Array<Record<string, unknown>> = [];
+  const matcher = createAiMatcher({
+    resolveDns: () => Promise.resolve(["93.184.216.34"]),
+    fetch: (_url, init) => {
+      const { messages } = JSON.parse(String(init?.body));
+      assert(!messages[0].content.includes(example.excerpt));
+      payloads.push(JSON.parse(messages[1].content));
+      return Promise.resolve(new Response(null, { status: 503 }));
+    },
+  });
+  for (const mode of ["rules", "ai", "hybrid"] as const) {
+    await matcher.classify(sample, {
+      ...settings,
+      mode,
+      counterexamples: [
+        example,
+        { ...example, id: "draft", reason: " " },
+      ],
+    });
+  }
+  const expected = [{
+    title: example.title,
+    source: example.source,
+    excerpt: example.excerpt,
+    reason: example.reason,
+  }];
+  assertEquals(payloads.map((payload) => payload.negativeExamples), [
+    undefined,
+    expected,
+    expected,
+  ]);
+});
+
 Deno.test("AI explicitly marks partial source content and requires evidence for positive matches", async () => {
   const matcher = createAiMatcher({
     resolveDns: () => Promise.resolve(["93.184.216.34"]),

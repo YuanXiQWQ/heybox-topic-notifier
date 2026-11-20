@@ -7195,20 +7195,20 @@ function showToast(editor, message) {
  */
 function setMatchingRowVisible(row, visible, animate) {
   if (!row) return;
-  if (row.dataset.matchingVisible === String(visible)) return;
+  if (animate && row.dataset.matchingVisible === String(visible)) return;
   row.dataset.matchingVisible = String(visible);
   const token = String(Number(row.dataset.matchingTransition || 0) + 1);
   row.dataset.matchingTransition = token;
   row.inert = !visible;
-  if (!animate) {
+  if (!animate || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     row.hidden = !visible;
     row.classList.toggle('is-collapsed', !visible);
+    row.style.removeProperty('max-height');
     return;
   }
-  const height = row.scrollHeight;
+  const height = row.getBoundingClientRect().height;
   row.hidden = false;
-  row.style.maxHeight = visible ? '0px' : `${height}px`;
-  row.classList.toggle('is-collapsed', visible);
+  row.style.maxHeight = `${height}px`;
   row.getBoundingClientRect();
   row.classList.toggle('is-collapsed', !visible);
   row.style.maxHeight = visible ? `${row.scrollHeight}px` : '0px';
@@ -7416,6 +7416,8 @@ function initMatchingSettings() {
   if (!section || !advanced || !mode) return;
   if (!section.querySelector('[data-profile-toggle]')) initDropdown(section, 'matchings');
   initDropdown(advanced, 'advanceds');
+  const examples = section.querySelector('[data-counterexample-editor]');
+  if (examples) initDropdown(examples, 'counterexamples');
   const provider = initMatchingPicker(section.querySelector('[data-matching-picker="matchingProvider"]'));
   const modelRoot = section.querySelector('[data-matching-picker="matchingModel"]');
   const model = initMatchingPicker(modelRoot);
@@ -7449,6 +7451,7 @@ function initMatchingSettings() {
     if (!canThink) thinking.checked = false;
     if (!profiles) setMatchingRowVisible(document.querySelector('[data-keyword-editor]'), mode.value !== 'ai', animate);
     setMatchingRowVisible(advanced, ai, animate);
+    setMatchingRowVisible(examples, ai, animate);
     // 此处使用标准浏览器 API 或页面声明的宿主接口；IDE 的跨脚本推断不完整。
     // noinspection JSUnresolvedReference
     if (!profiles) document.querySelector('[data-topic-editor]')?.classList.toggle('matching-without-keywords', mode.value === 'ai');

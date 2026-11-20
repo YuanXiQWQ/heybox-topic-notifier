@@ -5,6 +5,17 @@ import { defaultAppSettingsFromEnv } from "../../../../src/services/default_sett
 /** 回归页面使用固定话题、账号和语言。 */
 const settings = defaultAppSettingsFromEnv();
 settings.locale = "zh-CN";
+settings.matching!.counterexamples = [{
+  id: "10-post",
+  topicId: "10",
+  topicNote: "社区十",
+  url: "",
+  title: "通关回顾",
+  source: "comments",
+  excerpt: "当时卡住了",
+  reason: "作者在回顾经历",
+  addedAt: 1,
+}];
 settings.topics = [{
   id: "10",
   note: "社区十",

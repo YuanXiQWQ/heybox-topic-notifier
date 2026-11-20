@@ -2259,6 +2259,7 @@ dd{
 .dropdown-settings-row.is-topic-open,
 .dropdown-settings-row.is-matching-open,
 .dropdown-settings-row.is-advanced-open,
+.dropdown-settings-row.is-counterexample-open,
 .dropdown-settings-row.is-keyword-open{
   background: var(--theme-soft-strong);
 }
@@ -2372,6 +2373,7 @@ dd{
 .dropdown-settings-row.is-topic-open .dropdown-panel,
 .dropdown-settings-row.is-matching-open > .dropdown-panel,
 .dropdown-settings-row.is-advanced-open > .dropdown-panel,
+.dropdown-settings-row.is-counterexample-open > .dropdown-panel,
 .dropdown-settings-row.is-keyword-open .dropdown-panel{
   border-top: 1px solid var(--border-soft);
   grid-template-rows: 1fr;
@@ -2390,6 +2392,7 @@ dd{
 .dropdown-settings-row.is-topic-open .dropdown-panel-inner,
 .dropdown-settings-row.is-matching-open > .dropdown-panel > .dropdown-panel-inner,
 .dropdown-settings-row.is-advanced-open > .dropdown-panel > .dropdown-panel-inner,
+.dropdown-settings-row.is-counterexample-open > .dropdown-panel > .dropdown-panel-inner,
 .dropdown-settings-row.is-keyword-open .dropdown-panel-inner{
   overflow: visible;
 }
@@ -2708,7 +2711,7 @@ td:has(> .checkbox-cell) > .checkbox-cell{
 .icon-button:focus-visible,
 .dropdown-toggle:hover,
 .dropdown-toggle:focus-visible,
-.text-action-button:hover,
+.text-action-button:not(.profile-summary):hover,
 .text-action-button:focus-visible,
 .metric-panel-control:not(.is-disabled):hover,
 .metric-panel-control:not(.is-disabled):focus-visible{
@@ -3142,19 +3145,6 @@ tr:last-child td{
     min-width: 0;
   }
 
-  .topic-rule-row{
-    grid-template-areas:
-      "drag select id enabled delete insert"
-      "note note note note keywords keywords";
-    grid-template-columns:
-      36px
-      44px
-      minmax(0, 1fr)
-      58px
-      44px
-      44px;
-  }
-
   .topic-rule-head > :nth-child(1),
   .topic-rule-item > :nth-child(2){
     grid-area: drag;
@@ -3175,9 +3165,8 @@ tr:last-child td{
     grid-area: note;
   }
 
-  .topic-rule-head > :nth-child(5),
-  .topic-rule-item > :nth-child(6){
-    grid-area: enabled;
+  .topic-rule-grid .topic-profile-cell{
+    grid-area: profile;
   }
 
   .topic-rule-head > :nth-child(6),
@@ -3187,11 +3176,16 @@ tr:last-child td{
 
   .topic-rule-head > :nth-child(7),
   .topic-rule-item > :nth-child(8){
-    grid-area: delete;
+    grid-area: enabled;
   }
 
   .topic-rule-head > :nth-child(8),
   .topic-rule-item > :nth-child(9){
+    grid-area: delete;
+  }
+
+  .topic-rule-head > :nth-child(9),
+  .topic-rule-item > :nth-child(10){
     grid-area: insert;
   }
 
@@ -3245,8 +3239,8 @@ tr:last-child td{
 
   .topic-rule-head > :nth-child(6),
   .topic-rule-item > :nth-child(7),
-  .topic-rule-head > :nth-child(8),
-  .topic-rule-item > :nth-child(9),
+  .topic-rule-head > :nth-child(9),
+  .topic-rule-item > :nth-child(10),
   .keyword-rule-row > :nth-child(7),
   .keyword-rule-row > :nth-child(9){
     border-inline-end: 0;
@@ -3259,8 +3253,8 @@ tr:last-child td{
     border-bottom: 1px solid var(--border-soft);
   }
 
-  .topic-rule-item:last-child > :nth-child(5),
-  .topic-rule-item:last-child > :nth-child(7),
+  .topic-rule-item:last-child > :nth-child(6),
+  .topic-rule-item:last-child > :nth-child(n+8),
   .keyword-rule-item:last-child > :nth-child(4),
   .keyword-rule-item:last-child > :nth-child(5),
   .keyword-rule-item:last-child > :nth-child(6),
@@ -4000,8 +3994,8 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .rule-bulk-toggle {position:relative; cursor:pointer;}
 .rule-bulk-toggle input[type="checkbox"] {position:absolute; inset:0; margin:0; width:100%; height:100%; opacity:0; cursor:pointer;}
 .rule-bulk-toggle > span {display:inline-flex; align-items:center; pointer-events:none;}
-.rule-bulk-toggle input:checked + span {color:var(--theme-strong);}
-.rule-bulk-toggle input:indeterminate + span {color:var(--theme-link);}
+.rule-bulk-toggle input:checked + span > svg {color:var(--theme-strong);}
+.rule-bulk-toggle input:indeterminate + span > svg {color:var(--theme-link);}
 .rule-bulk-toggle:focus-within {outline:2px solid var(--theme-strong); outline-offset:-2px;}
 
 /* 配置操作占据标题摘要位置，标题按钮覆盖其余区域及箭头。 */
@@ -4019,17 +4013,28 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 [data-matching-editor] > .dropdown-heading .dropdown-toggle {
   grid-template-columns: minmax(0,1fr) auto;
 }
-[data-matching-editor] .matching-settings-list > [data-advanced-editor] { padding: 0; }
+[data-matching-editor] .matching-settings-list > [data-advanced-editor],
+[data-matching-editor] .matching-settings-list > [data-counterexample-editor] { padding: 0; }
+.matching-settings-list > .example-content {display:flex; flex-direction:column; align-items:stretch; gap:12px; min-width:0;}
+.example-content .text-action-button {align-self:flex-start;}
+.example-content article, .example-history, [data-example-draft] {display:grid; gap:8px; min-width:0;}
+.example-content article {border-bottom:1px solid var(--border-soft); padding-block:8px; overflow-wrap:anywhere;}
+.example-content article button, [data-example-add] {justify-self:start;}
+.example-content textarea {box-sizing:border-box; display:block; width:100%; resize:vertical; color:var(--ink); background:var(--control-bg); border:1px solid var(--control-border); border-radius:6px; padding:8px; font:inherit;}
+.example-content blockquote, .example-content pre {margin:0; padding:8px; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--surface-soft-base);}
+.example-content small {color:var(--muted);}
+.example-content select {min-width:0; width:100%;}
+.example-content summary {cursor:pointer;}
 .topic-rule-grid .topic-rule-row {
   grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
-    minmax(65px,1fr) minmax(68px,1fr) minmax(48px,.55fr) minmax(80px,.9fr)
-    minmax(88px,1.2fr) repeat(2,var(--rule-action-column));
+    minmax(65px,1fr) minmax(68px,1fr) minmax(88px,1.2fr) minmax(80px,.9fr)
+    repeat(3,var(--rule-action-column));
 }
 .topic-rule-grid.profiles-ai-only .topic-rule-row,
 .profiles-ai-only .topic-rule-grid .topic-rule-row {
   grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
-    minmax(65px,1fr) minmax(68px,1fr) minmax(48px,.55fr) minmax(88px,1.2fr)
-    repeat(2,var(--rule-action-column));
+    minmax(65px,1fr) minmax(68px,1fr) minmax(88px,1.2fr)
+    repeat(3,var(--rule-action-column));
 }
 .profiles-ai-only .topic-rule-head > :nth-child(6),
 .profiles-ai-only .topic-rule-item > :nth-child(7) { display: none; }
@@ -4039,6 +4044,8 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 }
 .profile-head { background:var(--surface-soft-base); color:var(--muted-strong); font-size:14px; font-weight:700; text-align:center; }
 .profile-row .icon-button:disabled {opacity:.45;cursor:default;}
+.profile-head [data-profile-all]:disabled {cursor:default;}
+.profile-head [data-profile-all]:disabled + span {opacity:.45;}
 .profile-row .icon-button svg { width:20px; height:20px; }
 .profile-row .icon-button svg[fill="none"] { fill:none; }
 [dir="rtl"] [data-matching-editor] .dropdown-chevron,
@@ -4047,15 +4054,28 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .profile-row.is-rule-dragging {opacity:.42;}
 .profile-row.is-rule-drag-over-before {box-shadow:inset 0 3px 0 var(--theme-strong);}
 .profile-row.is-rule-drag-over-after {box-shadow:inset 0 -3px 0 var(--theme-strong);}
-.profile-row > .profile-chips {flex-wrap:wrap; justify-content:flex-start; gap:4px;}
+.profile-row > .profile-chips {
+  --profile-chip-size:36px;
+  flex-wrap:wrap; align-content:center; justify-content:flex-start; gap:4px;
+}
 .profile-chip {
-  display:inline-flex; align-items:center; max-width:100%;
+  display:inline-flex; align-items:center; box-sizing:border-box;
+  min-height:var(--profile-chip-size); max-width:100%;
   background:var(--theme-soft); color:var(--ink); border:1px solid var(--theme-border);
   border-radius:1em; padding:2px 8px; gap:4px; font:inherit; font-size:13px; overflow-wrap:anywhere;
 }
-.profile-chip button {background:transparent; color:inherit; border:0; font:inherit; padding:0 2px;}
+.profile-chip > span {min-width:0;}
+.profile-chip button {
+  display:inline-flex; align-items:center; justify-content:center; flex:none;
+  width:24px; min-height:28px; background:transparent; color:inherit;
+  border:0; font:inherit; font-size:20px; line-height:1; padding:0;
+}
 .profile-chip button:disabled {opacity:.45;}
-.profile-chip-add {min-width:26px;justify-content:center;}
+.profile-chip-add {
+  width:var(--profile-chip-size); height:var(--profile-chip-size); flex:none;
+  justify-content:center; border-radius:10px; padding:0;
+  font-size:22px; font-weight:700; line-height:1;
+}
 .profile-search {min-width:0; width:100%;}
 .profile-chips .profile-search {width:9em; max-width:100%; border-radius:1em;}
 .topic-profile-cell .matching-picker-toggle {width:100%; justify-content:space-between; min-width:0;}
@@ -4064,15 +4084,12 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .profile-search-menu [aria-selected="true"] {font-weight:600;}
 @media (max-width:760px) {
   .topic-rule-grid .topic-rule-row, .profiles-ai-only .topic-rule-grid .topic-rule-row {
-    grid-template-columns:36px 44px minmax(0,1fr) 58px 44px 44px;
-    grid-template-areas:"drag select id enabled delete insert" "note note note keywords keywords keywords" "profile profile profile profile profile profile";
+    grid-template-columns:36px 44px minmax(0,1fr) repeat(3,44px);
+    grid-template-areas:"drag select id id id id" "note note note keywords keywords keywords" "profile profile profile enabled delete insert";
   }
   .profiles-ai-only .topic-rule-grid .topic-rule-row {
-    grid-template-areas:"drag select id enabled delete insert" "note note note profile profile profile";
+    grid-template-areas:"drag select id note note note" "profile profile profile enabled delete insert";
   }
-  .topic-rule-grid .topic-profile-cell {grid-area:profile;}
-  .topic-rule-grid .topic-rule-head > :nth-child(8), .topic-rule-grid .topic-rule-item > :nth-child(9) {grid-area:delete;}
-  .topic-rule-grid .topic-rule-head > :nth-child(9), .topic-rule-grid .topic-rule-item > :nth-child(10) {grid-area:insert;}
   .topic-rule-row.profile-row {
     grid-template-columns:36px 44px minmax(0,1fr) repeat(4,44px);
     grid-template-areas:"drag select name name name name name" "chips chips chips edit copy delete insert";

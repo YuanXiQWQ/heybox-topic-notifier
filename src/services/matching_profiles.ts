@@ -13,14 +13,14 @@ export type MatchingProfile = {
 };
 
 /**
- * 返回有序的配置列表，为只有账号匹配设置的数据补上默认入口。
+ * 返回有序的配置列表，保留默认入口并留空其名称以供设备本地化显示。
  * @param {AppSettings} app 账号设置。
  * @return {MatchingProfile[]} 具有默认入口的列表。
  */
 export function matchingProfiles(app: AppSettings): MatchingProfile[] {
   const profiles = app.matchingProfiles ?? [];
   return profiles.some((p) => p.id === "default")
-    ? profiles
+    ? profiles.map((p) => p.id === "default" && p.name ? { ...p, name: "" } : p)
     : [{ id: "default", name: "" }, ...profiles];
 }
 
@@ -34,8 +34,14 @@ export function matchingForProfile(
   app: AppSettings,
   id?: string,
 ): MatchingSettings {
-  const options = id && id !== "default"
-    ? app.matchingProfiles?.find((p) => p.id === id)?.options
+  const profile = id && id !== "default"
+    ? app.matchingProfiles?.find((p) => p.id === id)
     : undefined;
-  return normalizeMatchingSettings({ ...app.matching, ...options });
+  return normalizeMatchingSettings({
+    ...app.matching,
+    ...profile?.options,
+    counterexamples: profile
+      ? profile.options?.counterexamples
+      : app.matching?.counterexamples,
+  });
 }

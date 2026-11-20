@@ -623,6 +623,25 @@ export function createRoutes(
     );
   }
 
+  app.get("/settings/counterexample-history", async (c) => {
+    const storage = await storageForRequest(c, context);
+    const session = await authSessionForRequest(c, context);
+    if (session) c.header("x-app-user", session.userId);
+    const history = await storage.listHistory();
+    c.header("Cache-Control", "private, no-store");
+    return c.json(history.map(({ id, post, location }) => ({
+      recordId: id,
+      topicId: id.split(":")[0],
+      id: post.id,
+      title: post.title,
+      url: post.url,
+      body: post.body || post.excerpt,
+      comments: post.comments,
+      replies: post.commentReplies,
+      location,
+    })));
+  });
+
   app.get("/settings", async (c) => {
     const url = new URL(c.req.url);
     const storage = await storageForRequest(c, context);
@@ -2614,7 +2633,7 @@ export function createRoutes(
   );
 
   /** 提供设置页的主编辑器与话题匹配配置脚本。 @param {Context} c 同源请求。 @return {Promise<Response>} 页面脚本。 */
-  app.get("/static/:editorScript{(?:settings|matching-profiles)\\.js}", async (c) => {
+  app.get("/static/:editorScript{(?:settings|matching-profiles|matching-counterexamples|matching-counterexample-prompt)\\.js}", async (c) => {
     const script = await Deno.readTextFile(
       new URL("../static/" + c.req.param("editorScript"), import.meta.url),
     );
