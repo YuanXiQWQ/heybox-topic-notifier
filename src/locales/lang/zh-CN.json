@@ -386,7 +386,7 @@
   "exampleFromHistory": "从历史中选择",
   "exampleSearch": "搜索标题、帖子 ID 或话题",
   "exampleAllTopics": "所有话题",
-  "exampleReason": "为什么不该匹配",
+  "exampleReason": "反例原因",
   "exampleAdd": "添加反例",
   "examplePreview": "预览反例提示词",
   "exampleHistoryError": "无法读取历史记录",

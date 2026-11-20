@@ -5,7 +5,7 @@ import { normalizeMatchResult } from "../services/match_result.ts";
 import { materialSymbolIcon } from "./icons.ts";
 import { getMessages } from "../locales/index.ts";
 import { type Locale, locales, type Messages } from "../locales/types.ts";
-import type { MatchResultLocation } from "../models.ts";
+import type { MatchRecord, MatchResultLocation } from "../models.ts";
 import { csrfHiddenInput } from "../security/csrf.ts";
 import { plainTextFromHeyboxContent } from "../services/heybox_topic_source.ts";
 import { escapeHtml, renderSelectOption } from "./html.ts";
@@ -103,9 +103,7 @@ export function renderMatchRecordsSection(
                     <input type="checkbox" ${options.action.selectAllAttribute} aria-label="${escapeHtml(options.messages.selectAllRows)}"><span>${materialSymbolIcon("done_all","rule-drag-icon")}</span>
                   </label>
                 </th>
-                <th>${escapeHtml(options.messages.postTitle)}</th>
-                <th>${escapeHtml(options.messages.postContent)}</th>
-                <th>${escapeHtml(options.messages.matchDetails)}</th>
+                ${renderPostHeadings(options.messages)}
                 ${
     options.allowRestore
       ? `<th class="table-action-cell"><button type="submit" class="icon-button" formaction="/matches/restore" data-match-secondary-bulk data-tooltip="${
@@ -162,10 +160,6 @@ function renderRows(options: MatchRecordsSectionOptions): string {
     const titleClasses = ["match-table-title-link", options.titleLinkClass]
       .filter((className): className is string => Boolean(className))
       .join(" ");
-    const postContent = plainTextFromHeyboxContent(
-      record.post.body || record.post.excerpt,
-    );
-
     return `
     <tr data-record-id="${escapeHtml(record.id)}" data-record-post-id="${
       escapeHtml(record.post.id)
@@ -180,19 +174,7 @@ function renderRows(options: MatchRecordsSectionOptions): string {
           >
         </label>
       </td>
-      <td class="match-title-cell"><a class="${
-      escapeHtml(titleClasses)
-    }" href="${
-      escapeHtml(record.post.url)
-    }" target="_blank" rel="noopener noreferrer">${
-      escapeHtml(record.post.title)
-    }</a></td>
-      <td class="match-content-cell"><span class="table-clip">${
-      escapeHtml(postContent)
-    }</span></td>
-      <td>${
-      renderMatchDetails(record, now, options.locale, options.messages)
-    }</td>
+      ${renderPostCells(record, options.locale, options.messages, now, titleClasses)}
       ${
       options.allowRestore
         ? `<td class="table-action-cell"><button type="submit" class="icon-button" name="matchId" value="${
@@ -222,6 +204,38 @@ function renderRows(options: MatchRecordsSectionOptions): string {
 }
 
 /**
+ * 渲染历史和反例表共用的帖子列标题。
+ * @param {Messages} messages 当前语言文案。
+ * @return {string} 帖子列标题。
+ */
+export function renderPostHeadings(messages: Messages): string {
+  return [messages.postTitle, messages.postContent, messages.matchDetails]
+    .map((label) => `<th scope="col">${escapeHtml(label)}</th>`).join("");
+}
+
+/**
+ * 渲染帖子标题、内容与详情；空记录生成可由历史快照填充的行模板。
+ * @param {MatchRecord | undefined} record 命中记录。
+ * @param {Locale} locale 当前语言。
+ * @param {Messages} messages 本地化文案。
+ * @param {Date} now 相对时间基准。
+ * @param {string} titleClasses 标题样式。
+ * @return {string} 三个数据单元格。
+ */
+export function renderPostCells(
+  record: MatchRecord | undefined,
+  locale: Locale,
+  messages: Messages,
+  now = new Date(),
+  titleClasses = "match-table-title-link pending-title-link",
+): string {
+  const postContent = record ? plainTextFromHeyboxContent(record.post.body || record.post.excerpt) : "";
+  return `<td class="match-title-cell"><a class="${escapeHtml(titleClasses)}" href="${escapeHtml(record?.post.url ?? "")}" target="_blank" rel="noopener noreferrer">${escapeHtml(record?.post.title ?? "")}</a></td>
+    <td class="match-content-cell"><span class="table-clip">${escapeHtml(postContent)}</span></td>
+    <td>${renderMatchDetails(record, now, locale, messages)}</td>`;
+}
+
+/**
  * 渲染带前端相对时间刷新标记的时间单元格。
  *
  * @param value 时间字符串。
@@ -244,42 +258,42 @@ function renderRelativeTimeCell(
 /**
  * 渲染命中记录详情单元格。
  *
- * @param {MatchTableResult["records"][number]} record 命中记录，按记录类型展示关键词或 AI 原因。
+ * @param {MatchTableResult["records"][number] | undefined} record 命中记录，按记录类型展示关键词或 AI 原因。
  * @param {Date} now 当前时间。
  * @param {Locale} locale 当前语言标识。
  * @param {Messages} messages 当前语言文案。
  * @return {string} 命中记录详情单元格 HTML。
  */
 function renderMatchDetails(
-  record: MatchTableResult["records"][number],
+  record: MatchTableResult["records"][number] | undefined,
   now: Date,
   locale: Locale,
   messages: Messages,
 ): string {
-  const result = normalizeMatchResult(record);
+  const result = record && normalizeMatchResult(record);
   const details = [
     [
       messages.matchDetailPublished,
-      renderRelativeTimeCell(record.post.publishedAt, now, locale),
+      renderRelativeTimeCell(record?.post.publishedAt ?? "", now, locale),
     ],
     [
       messages.matchDetailMatched,
-      renderRelativeTimeCell(record.matchedAt, now, locale),
+      renderRelativeTimeCell(record?.matchedAt ?? "", now, locale),
     ],
     [
-      result.kind === "ai"
+      result?.kind === "ai"
         ? messages.matchDetailAi
         : messages.matchDetailKeyword,
       `<span class="match-detail-value">${
         escapeHtml(
-          result.kind === "ai" ? result.aiReason || "—" : result.keyword,
+          result?.kind === "ai" ? result.aiReason || "—" : result?.keyword ?? "",
         )
       }</span>`,
     ],
     [
       messages.matchDetailLocation,
       `<span class="match-detail-value">${
-        escapeHtml(locationLabel(result.location, messages))
+        escapeHtml(locationLabel(result?.location, messages))
       }</span>`,
     ],
   ];
@@ -799,7 +813,7 @@ type RelativeTimeTemplates = {
  *
  * @return {string} 相对时间脚本 HTML。
  */
-function renderRelativeTimeScript(): string {
+export function renderRelativeTimeScript(): string {
   return `<script>
     (() => {
       const installedKey = '__matchTableRelativeTimeScriptInstalled';
@@ -1005,7 +1019,7 @@ function relativeTimeTemplates(messages: Messages): RelativeTimeTemplates {
  *
  * @return {string} 溢出检测脚本 HTML。
  */
-function renderOverflowScript(): string {
+export function renderOverflowScript(): string {
   return `<script>
     (() => {
       const clippedSelector = ".match-table-title-link, .table-clip, .match-detail-list";

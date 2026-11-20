@@ -115,7 +115,7 @@ try {
   check(!examples.hidden && keywords.hidden &&
     examples.nextElementSibling === find('[data-advanced-editor]'), 'AI example drawer');
   find('[data-action="toggle-counterexamples"]').click();
-  const annotation = find('[data-example-rows] textarea');
+  const annotation = find('[data-example-rows] [data-example-reason]');
   annotation.value = '评论引用了过去的困难';
   annotation.dispatchEvent(new Event('input', { bubbles: true }));
   const saved = JSON.parse(form.elements.matchingProfiles.value);
@@ -123,6 +123,86 @@ try {
     saved[1].options.counterexamples.length === 0 &&
     JSON.parse(find('[data-example-preview] pre').textContent)[0].source === 'comments',
     'editable profile-specific evidence and preview');
+  const history = Array.from({ length: 11 }, (_, index) => ({
+    id: String(index),
+    recordId: '10:' + index,
+    topicId: '10',
+    title: '历史标题 ' + index,
+    body: '完整正文 ' + index,
+    location: 'comments',
+    comments: ['示例评论 ' + index],
+    replies: [],
+    details: {
+      publishedAt: '2026-11-01',
+      matchedAt: '2026-11-02',
+      kind: 'ai',
+      value: '疑似求助',
+      location: 'comments',
+    },
+  }));
+  const originalFetch = window.fetch;
+  window.fetch = (url, options) =>
+    url === '/settings/counterexample-history'
+      ? Promise.resolve(
+        new Response(JSON.stringify(history), {
+          headers: { 'x-app-user': document.body.dataset.appUserId },
+        }),
+      )
+      : originalFetch(url, options);
+  try {
+    const head = find('.example-table thead tr');
+    check(
+      head.cells.length === 7 && head.cells[1].textContent === '帖子标题',
+      'seven counterexample columns',
+    );
+    head.querySelector('[data-example-picker]').click();
+    await settle();
+    check(
+      find('[data-example-results]').rows.length === 10 && find('[data-example-add]').disabled,
+      'initial history page',
+    );
+    find('[data-example-results] [data-row-check]').click();
+    find('[data-example-pages] button:last-child').click();
+    find('[data-history-pick-all]').click();
+    find('[data-example-add]').click();
+    /** 读取表单即将保存的默认配置反例。 @return {Array} 当前快照。 */
+    const items = () =>
+      JSON.parse(form.elements.matchingProfiles.value)[0].options.counterexamples;
+    check(
+      items().length === 3 && items()[1].body === '完整正文 0' &&
+        items()[2].details.value === '疑似求助' &&
+        JSON.parse(find('[data-example-preview] pre').textContent).length === 1,
+      'batch add across pages, empty reasons excluded',
+    );
+    const stored = find('[data-example-rows] tr[data-post="10"]');
+    const why = stored.querySelector('[data-example-reason]');
+    why.value = '原帖是在分享经历';
+    why.dispatchEvent(new Event('input', { bubbles: true }));
+    check(
+      items()[2].reason === why.value &&
+        JSON.parse(find('[data-example-preview] pre').textContent).length === 2,
+      'annotate after adding',
+    );
+    stored.querySelector('[data-example-picker]').click();
+    await settle();
+    check(
+      find('[data-example-results] [data-row-check]').disabled,
+      'already added post disabled',
+    );
+    find('[data-example-results] tr[data-post="1"] [data-row-check]').click();
+    find('[data-example-add]').click();
+    check(items().length === 4, 'single add');
+    find('[data-example-rows] tr[data-post="1"] [data-example-delete]').click();
+    check(items().length === 3, 'row delete');
+    find('[data-example-select-all]').click();
+    find('.example-table thead [data-example-delete]').click();
+    check(
+      items().length === 0 && find('.example-table thead [data-example-picker]').isConnected,
+      'bulk delete and empty entry',
+    );
+  } finally {
+    window.fetch = originalFetch;
+  }
   mode.value = 'hybrid';
   mode.dispatchEvent(new Event('change', { bubbles: true }));
   await settle();

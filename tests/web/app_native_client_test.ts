@@ -218,25 +218,17 @@ Deno.test("native manual update check can be retried after bridge failure", asyn
   assertEquals(bridge.timers.size, 0);
 });
 
-Deno.test("电脑端就绪链接等待设置保存后直接请求安装，重复点击只交接一次", async () => {
+Deno.test("电脑端就绪链接只向负责保存的主进程交接一次", async () => {
   const bridge = await harness(true, {
     platform: "windows",
+    savesBeforeUpdate: true,
     update: { status: "downloaded", version: "3.14.0" },
   });
-  let saved!: () => void;
-  bridge.context.applicationSync.prepareForExit = () =>
-    new Promise<void>((resolve) => {
-      saved = resolve;
-    });
+  bridge.context.applicationSync.prepareForExit = () => {
+    throw new Error("桌面保存由主进程执行");
+  };
   const first = bridge.clickCheck();
   const second = bridge.clickCheck();
-  assertEquals(
-    bridge.requests.filter((request) => request.method === "installUpdate")
-      .length,
-    0,
-  );
-  saved();
-  await new Promise((resolve) => setTimeout(resolve, 0));
   assertEquals(
     bridge.requests.filter((request) => request.method === "installUpdate")
       .length,
@@ -246,6 +238,23 @@ Deno.test("电脑端就绪链接等待设置保存后直接请求安装，重复
   await Promise.all([first, second]);
   assertEquals(bridge.check.disabled, false);
   assertEquals(bridge.elements.length, 0);
+});
+
+Deno.test("未声明原生保存能力的桌面客户端等待页面落盘", async () => {
+  const bridge = await harness(true, {
+    platform: "windows",
+    update: { status: "downloaded", version: "3.14.0" },
+  });
+  let save!: () => void;
+  bridge.context.applicationSync.prepareForExit = () => new Promise<void>((resolve) => { save = resolve; });
+  const pending = bridge.clickCheck();
+  assertEquals(bridge.requests.some((request) => request.method === "installUpdate"), false);
+  save();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const request = bridge.requests.at(-1)!;
+  assertEquals(request.method, "installUpdate");
+  bridge.respond(request.id);
+  await pending;
 });
 
 Deno.test("手机确认更新立即关闭弹窗，原生下载尚未回应时仍可操作页面", async () => {

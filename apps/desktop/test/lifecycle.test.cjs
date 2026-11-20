@@ -3,6 +3,8 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const {EventEmitter} = require('node:events');
+const {runInNewContext} = require('node:vm');
 const {harness} = require('./support/main-process.cjs');
 
 test('development processes cannot register the installed application identity', () => {
@@ -175,7 +177,9 @@ test('restart update waits for durable edits, skips the wizard and relaunches; s
   release();
   await pending;
   assert.equal(context.installs(), 1);
-  assert.deepEqual(context.installOptions, [[true, true]]);
+  assert.deepEqual(context.installOptions, [['launch-update.cjs', path.join('cache', 'setup.exe'), path.join('resources', 'elevate.exe'), 'normal']]);
+  assert.equal(context.quitting(), 1);
+  assert.equal(context.updater.autoInstallOnAppQuit, false);
   const failing = harness();
   failing.contents.executeJavaScript = () =>
       Promise.reject(new Error('Disk full'));
@@ -184,6 +188,86 @@ test('restart update waits for durable edits, skips the wizard and relaunches; s
       /Disk full/,
   );
   assert.equal(failing.installs(), 0);
+  assert.equal(failing.window.enabled, true);
+  assert.equal(failing.api.info().update.status, 'downloaded');
+});
+
+test('a pending installer handoff hides the window, coalesces restarts and owns concurrent quit requests', async () => {
+  let launched;
+  const context = harness({onLaunch: launcher => { launched = launcher; }});
+  const calls = [];
+  context.window.hide = () => calls.push('hide');
+  context.window.show = () => calls.push('show');
+  const restart = context.handlers.get('app:install-update');
+  const first = restart(context.event), second = restart(context.event);
+  while (!launched) await new Promise(resolve => setImmediate(resolve));
+  context.events.get('before-quit')({preventDefault: () => calls.push('prevent')});
+  await context.api.showWindow();
+  assert.deepEqual(calls, ['hide', 'prevent']);
+  assert.equal(context.quitting(), 0);
+  launched.emit('message', 'started');
+  await Promise.all([first, second]);
+  assert.equal(context.installs(), 1);
+  assert.equal(context.quitting(), 1);
+});
+
+test('Windows launch failure or premature helper exit restores the editor and allows a manual retry', async () => {
+  for (const event of ['message', 'exit', 'error']) {
+    let retry = false;
+    const context = harness({onLaunch: launcher => {
+      if (retry) launcher.emit('message', 'started');
+      else launcher.emit(event, event === 'message' ? 'failed' : 1);
+    }});
+    context.api.installUpdater();
+    const calls = [];
+    context.window.hide = () => calls.push('hide');
+    context.window.show = () => calls.push('show');
+    await assert.rejects(context.handlers.get('app:install-update')(context.event));
+    assert.deepEqual(calls, ['hide', 'show']);
+    assert.equal(context.window.enabled, true);
+    assert.equal(context.api.info().update.status, 'error');
+    assert.equal(context.device.value.failedUpdateVersion, '1.1.0');
+    assert.equal(context.updater.autoInstallOnAppQuit, false);
+    assert.equal(context.quitting(), 0);
+    retry = true;
+    await context.handlers.get('app:download-update')(context.event);
+    await context.updaterEvents.get('update-downloaded')();
+    await context.handlers.get('app:install-update')(context.event);
+    assert.equal(context.quitting(), 1);
+  }
+});
+
+test('the Windows launcher preserves silent restart arguments, elevation and startup error acknowledgement', async () => {
+  const source = fs.readFileSync(path.join(__dirname, '../launch-update.cjs'), 'utf8');
+  const installer = 'C:\\更新 缓存\\setup.exe', elevate = 'C:\\应用\\resources\\elevate.exe';
+  const args = ['--updated', '/S', '--force-run'];
+  for (const [mode, errors, executables, result] of [
+    ['normal', [], [installer], 'started'],
+    ['elevated', [], [elevate], 'started'],
+    ['normal', ['EACCES'], [installer, elevate], 'started'],
+    ['normal', ['ENOENT'], [installer], 'failed'],
+    ['normal', ['UNKNOWN', 'EACCES'], [installer, elevate], 'failed'],
+  ]) {
+    const calls = [];
+    const message = await new Promise(resolve => runInNewContext(source, {
+      process: {argv: ['electron', 'launch-update.cjs', installer, elevate, mode], parentPort: {postMessage: resolve}},
+      require: () => ({
+        /** @param {string} file 程序。 @param {string[]} options 命令行参数。 @param {object} spawnOptions 进程属性。 @return {EventEmitter} 模拟 Windows 启动结果。 */
+        spawn(file, options, spawnOptions) {
+          const error = errors[calls.length];
+          calls.push(file);
+          assert.deepEqual(Array.from(options), file === elevate ? [installer, ...args] : args);
+          assert.equal(spawnOptions.detached, true);
+          const child = new EventEmitter();
+          child.unref = () => {};
+          setImmediate(() => error ? child.emit('error', {code: error}) : child.emit('spawn'));
+          return child;
+        },
+      }),
+    }));
+    assert.deepEqual(calls, executables);
+    assert.equal(message, result);
+  }
 });
 
 
@@ -287,7 +371,7 @@ test('cached automatic update waits for local writes before restarting on the ne
   release();
   await downloaded;
   assert.equal(context.installs(), 1);
-  assert.deepEqual(context.installOptions, [[true, true]]);
+  assert.equal(context.quitting(), 1);
 });
 
 
@@ -313,9 +397,16 @@ test('normal exit cancels and awaits an unfinished download before cleaning the 
 });
 
 test('installation refuses a corrupt cache and disables automatic installation', async () => {
-  const context = harness();
-  context.setCacheReady(false);
+  const calls = [];
+  const context = harness({repairUpdateCache: async () => {
+    calls.push('verify');
+    return false;
+  }});
+  context.contents.executeJavaScript = async () => { calls.push('save'); };
+  context.window.hide = () => calls.push('hide');
+  context.window.show = () => calls.push('show');
   await assert.rejects(context.handlers.get('app:install-update')(context.event), /incomplete/);
+  assert.deepEqual(calls, ['save', 'hide', 'verify', 'show']);
   assert.equal(context.installs(), 0);
   assert.equal(context.updater.autoInstallOnAppQuit, false);
 });

@@ -11,7 +11,18 @@ import {
 import { escapeHtml as e } from "./html.ts";
 import { renderProfileList } from "./matching_profiles.ts";
 import { renderDrawerHeading } from "./settings_drawer.ts";
-import { materialSymbolIcon, type MaterialSymbolName } from "./icons.ts";
+import { pageSizeValues } from "./match_table.ts";
+import {
+  renderOverflowScript,
+  renderPostCells,
+  renderPostHeadings,
+  renderRelativeTimeScript,
+} from "./match_table_view.ts";
+import {
+  materialSymbolIcon,
+  type MaterialSymbolName,
+  trashIcon,
+} from "./icons.ts";
 
 /**
  * 渲染与话题、关键词一致的可折叠设置项。
@@ -265,49 +276,104 @@ function renderCounterexamples(app: AppSettings): string {
     body: m.matchBody,
     comments: m.matchComments,
     replies: m.matchReplies,
-    reason: m.exampleReason,
-    remove: m.accountPasskeyDelete,
+    excerpt: m.matchExcerpt,
+    unknown: m.matchUnknown,
+    ai: m.matchDetailAi,
+    keyword: m.matchDetailKeyword,
     empty: m.emptyHistory,
     error: m.exampleHistoryError,
-    excerptHint: m.exampleExcerptHint,
   };
+  /**
+   * 渲染整格可操作的多选表头。
+   * @param {string} attribute 选择组标记。
+   * @return {string} 表头。
+   */
+  const selectHead = (attribute: string) =>
+    `<th scope="col"><label class="checkbox-cell bulk-action-cell rule-bulk-toggle">
+    <input type="checkbox" ${attribute} aria-label="${
+      e(m.selectAllRows)
+    }"><span>${
+      materialSymbolIcon("done_all", "rule-drag-icon")
+    }</span></label></th>`;
+  const add =
+    `<button type="button" class="icon-button text-icon-button" data-example-picker aria-expanded="false" aria-controls="example-history" aria-label="${
+      e(m.exampleFromHistory)
+    }" data-tooltip="${e(m.exampleFromHistory)}">+</button>`;
+  const remove =
+    `<button type="button" class="icon-button" data-example-delete aria-label="${
+      e(m.accountPasskeyDelete)
+    }" data-tooltip="${e(m.accountPasskeyDelete)}">${trashIcon()}</button>`;
+  const cells = renderPostCells(undefined, app.locale, m);
+  const box =
+    `<td><label class="checkbox-cell"><input type="checkbox" data-row-check></label></td>`;
   return drawer(
     "counterexample",
     m.matchingExamples,
     `<div class="example-content" data-example-labels="${
       e(JSON.stringify(labels))
     }">
-    <div data-example-rows></div>
-    <button type="button" class="text-action-button" data-example-picker aria-expanded="false" aria-controls="example-history">${
-      e(m.exampleFromHistory)
-    }</button>
-    <div id="example-history" class="example-history" hidden>
-      <input type="search" data-example-search placeholder="${
+      <div class="example-table-scroll"><table class="match-table example-table" aria-label="${
+      e(m.matchingExamples)
+    }">
+        <colgroup><col class="example-action-col"><col><col><col><col><col class="example-action-col"><col class="example-action-col"></colgroup>
+        <thead><tr>${selectHead("data-example-select-all")}${
+      renderPostHeadings(m)
+    }<th scope="col">${e(m.exampleReason)}</th>
+          <th class="table-action-cell">${remove}</th><th class="table-action-cell">${add}</th></tr></thead>
+        <tbody data-example-rows></tbody></table></div>
+      <template data-example-row><tr>${box}${cells}<td><textarea rows="2" maxlength="1000" data-example-reason aria-label="${
+      e(m.exampleReason)
+    }"></textarea></td>
+        <td class="table-action-cell">${remove}</td><td class="table-action-cell">${add}</td></tr></template>
+      <template data-example-quote><details><summary>${
+      e(m.matchExcerpt)
+    }</summary>
+        <select data-example-source aria-label="${
+      e(m.matchDetailLocation)
+    }"></select>
+        <textarea rows="3" maxlength="2000" data-example-excerpt aria-label="${
+      e(m.matchExcerpt)
+    }"></textarea></details></template>
+      <section id="example-history" class="example-history" aria-label="${
+      e(m.historyTitle)
+    }" hidden>
+        <div class="section-title-row"><h3>${
+      e(m.historyTitle)
+    }</h3><button type="button" data-example-add disabled>${
+      e(m.exampleAdd)
+    }</button></div>
+        <div class="example-filters"><input type="search" data-example-search placeholder="${
       e(m.exampleSearch)
     }" aria-label="${e(m.exampleSearch)}">
-      <label><input type="checkbox" data-example-all> ${
+          <label><input type="checkbox" data-example-all> ${
       e(m.exampleAllTopics)
-    }</label>
-      <span data-example-status role="status"></span>
-      <select size="5" data-example-results aria-label="${
+    }</label></div>
+        <span data-example-status role="status"></span>
+        <div class="example-table-scroll"><table class="match-table example-history-table" aria-label="${
       e(m.historyTitle)
-    }"></select>
-      <div data-example-draft hidden>
-        <select data-example-source aria-label="${e(m.matchExcerpt)}"></select>
-        <label>${
-      e(m.matchExcerpt)
-    }<textarea data-example-excerpt rows="3" aria-describedby="example-excerpt-hint"></textarea></label>
-        <small id="example-excerpt-hint">${e(m.exampleExcerptHint)}</small>
-        <label>${
-      e(m.exampleReason)
-    }<textarea data-example-reason rows="2" maxlength="1000"></textarea></label>
-        <button type="button" data-example-add>${e(m.exampleAdd)}</button>
-      </div>
-    </div>
-    <details data-example-preview><summary>${
+    }">
+          <colgroup><col class="match-table-col-2"><col class="match-table-col-3"><col class="match-table-col-14"><col class="match-table-col-5"></colgroup>
+          <thead><tr>${selectHead("data-history-pick-all")}${
+      renderPostHeadings(m)
+    }</tr></thead>
+          <tbody data-example-results></tbody></table></div>
+        <div class="pagination-row" data-example-pagination hidden><div class="pagination" data-example-pages></div>
+          <label>${e(m.pageSize)} <select data-example-page-size>${
+      pageSizeValues().map((n) =>
+        `<option value="${n}">${
+          n === "all"
+            ? e(m.filterAll)
+            : new Intl.NumberFormat(app.locale).format(n)
+        }</option>`
+      ).join("")
+    }</select></label></div>
+        <template data-history-pick-row><tr>${box}${cells}</tr></template>
+      </section>
+      <details data-example-preview><summary>${
       e(m.examplePreview)
     }</summary><pre dir="ltr"></pre></details>
-  </div>`,
+      ${renderRelativeTimeScript()}${renderOverflowScript()}
+    </div>`,
     new Intl.NumberFormat(app.locale).format(settings.counterexamples.length),
     settings.mode === "rules" ? "hidden" : "",
   );

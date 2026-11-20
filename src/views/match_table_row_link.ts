@@ -66,7 +66,7 @@ export function renderMatchTableRowLinkStyle(): string {
 export function renderMatchTableRowLinkScript(): string {
   return `<script>
     (() => {
-      const rowSelector = ".match-table tbody tr";
+      const rowSelector = ".match-table tbody:not([data-example-rows]):not([data-example-results]) tr";
       const initializedAttribute = "data-post-link-initialized";
 
       const validPostUrl = (rawUrl) => {

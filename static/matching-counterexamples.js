@@ -16,200 +16,383 @@ globalThis.initMatchingCounterexamples = function (
   save,
 ) {
   const root = section.querySelector("[data-counterexample-editor]");
-  if (!root) return;
-  const labels = JSON.parse(
-    root.querySelector("[data-example-labels]").dataset.exampleLabels,
-  );
+  if (!root?.querySelector("[data-example-row]")) return;
+  const content = root.querySelector("[data-example-labels]");
+  const labels = JSON.parse(content.dataset.exampleLabels);
   const rows = root.querySelector("[data-example-rows]");
-  const picker = root.querySelector("[data-example-picker]");
-  const panel = root.querySelector(".example-history");
-  const search = root.querySelector("[data-example-search]");
-  const all = root.querySelector("[data-example-all]");
   const results = root.querySelector("[data-example-results]");
-  const status = root.querySelector("[data-example-status]");
-  const draft = root.querySelector("[data-example-draft]");
-  const sources = root.querySelector("[data-example-source]");
-  const excerpt = root.querySelector("[data-example-excerpt]");
-  const reason = root.querySelector("[data-example-reason]");
+  const panel = root.querySelector(".example-history");
+  const search = panel.querySelector("[data-example-search]");
+  const allTopics = panel.querySelector("[data-example-all]");
+  const pageSize = panel.querySelector("[data-example-page-size]");
+  const pages = panel.querySelector("[data-example-pages]");
+  const status = panel.querySelector("[data-example-status]");
+  const add = panel.querySelector("[data-example-add]");
+  const addLabel = add.textContent;
+  const bulkRemove = root.querySelector("thead [data-example-delete]");
   const preview = root.querySelector("[data-example-preview]");
-  const number = new Intl.NumberFormat(document.documentElement.lang);
-  let history = [], candidates = [], pieces = [], revision = 0;
-
-  /** 刷新本配置的反例数量与实际提交给分类器的样本。 */
+  const format = new Intl.NumberFormat(document.documentElement.lang);
+  const marked = new Set(), picked = new Map();
+  let candidatesById = new Map(), historyRequest;
+  const toggle = root.querySelector('[data-action="toggle-counterexamples"]');
+  let history = [], candidates = [], page = 1, revision = 0, opener;
+  /** 更新抽屉数量与实际发送给分类器的反例。 */
   function updatePreview() {
-    root.querySelector("[data-counterexample-summary]").textContent = number
+    root.querySelector("[data-counterexample-summary]").textContent = format
       .format(examples().length);
-    preview.querySelector("pre").textContent = counterexamplePrompt(examples());
-    preview.hidden = !examples().length;
+    const prompt = counterexamplePrompt(examples());
+    preview.querySelector("pre").textContent = prompt;
+    preview.hidden = !prompt;
   }
-
-  /** 从快照渲染已收录的帖子；原因可直接编辑并随设置自动保存。 */
+  /**
+   * 从模板生成脱离文档的行。
+   * @param {string} selector 模板选择器。
+   * @return {HTMLElement} 模板根元素。
+   */
+  function clone(selector) {
+    return root.querySelector(selector).content.firstElementChild.cloneNode(
+      true,
+    );
+  }
+  /**
+   * 填充历史页共用的帖子三列；所有外部内容只按文本显示。
+   * @param {HTMLElement} row 数据行。
+   * @param {object} post 帖子或反例快照。
+   */
+  function fill(row, post) {
+    row.dataset.post = post.id;
+    row.querySelector("[data-row-check]").setAttribute(
+      "aria-label",
+      post.title || post.id,
+    );
+    const link = row.querySelector(".match-table-title-link");
+    link.textContent = post.title || post.id;
+    if (/^https?:\/\//i.test(post.url)) link.href = post.url;
+    else link.removeAttribute("href");
+    row.querySelector(".table-clip").textContent = post.body ??
+      (post.source === "body" ? post.excerpt : "—");
+    const detail = post.details;
+    const list = row.querySelector(".match-detail-list");
+    const [published, matched, value, location] = list.querySelectorAll(
+      ".match-detail-value",
+    );
+    published.dataset.relativeTime = detail?.publishedAt || "";
+    matched.dataset.relativeTime = detail?.matchedAt || "";
+    value.closest("div").querySelector("dt").textContent =
+      (detail?.kind === "ai" ? labels.ai : labels.keyword) + "：";
+    value.textContent = detail?.value || "—";
+    location.textContent =
+      labels[detail?.location || post.location || post.source] || "—";
+  }
+  /**
+   * 更新行选择、表头半选与批量动作。
+   * @param {HTMLElement} body 表体。
+   * @param {Set<string>} selection 已选帖子。
+   */
+  function selectionState(body, selection) {
+    const boxes = Array.from(
+      body.querySelectorAll("[data-row-check]:not(:disabled)"),
+    );
+    let count = 0;
+    for (const box of boxes) {
+      box.checked = selection.has(box.closest("tr").dataset.post);
+      if (box.checked) count++;
+    }
+    const head = body.closest("table").querySelector("thead input");
+    head.disabled = !boxes.length;
+    head.checked = boxes.length > 0 && count === boxes.length;
+    head.indeterminate = count > 0 && count < boxes.length;
+    bulkRemove.disabled = !marked.size;
+    add.disabled = !picked.size;
+    add.textContent = picked.size > 1
+      ? `${addLabel} (${format.format(picked.size)})`
+      : addLabel;
+  }
+  /**
+   * 绑定行和本页全选，仅操作当前表格。
+   * @param {HTMLElement} body 表体。
+   * @param {Set<string>} selection 已选帖子。
+   */
+  function bindSelection(body, selection) {
+    /**
+     * 保存选择时的帖子快照，可跨搜索结果和话题范围批量添加。
+     * @param {string} id 帖子 ID。
+     */
+    function select(id) {
+      if (body === results) picked.set(id, candidatesById.get(id));
+      else marked.add(id);
+    }
+    const table = body.closest("table");
+    table.addEventListener("change", (event) => {
+      const input = event.target;
+      if (input.matches("thead input")) {
+        for (
+          const box of body.querySelectorAll("[data-row-check]:not(:disabled)")
+        ) {
+          const id = box.closest("tr").dataset.post;
+          if (input.checked) select(id);
+          else selection.delete(id);
+        }
+      } else if (input.matches("[data-row-check]")) {
+        const id = input.closest("tr").dataset.post;
+        if (input.checked) select(id);
+        else selection.delete(id);
+      } else return;
+      selectionState(body, selection);
+    });
+  }
+  /**
+   * 读取原帖可引用的标题、正文、评论与回复。
+   * @param {object} post 帖子历史记录。
+   * @return {Array} 带来源的原文片段。
+   */
+  function pieces(post) {
+    return [
+      ["title", post.title],
+      ["body", post.body],
+      ...(post.comments || []).map((v) => ["comments", v]),
+      ...(post.replies || []).map((v) => ["replies", v]),
+    ].filter(([, v]) => v);
+  }
+  /** 渲染保存的反例与可随时编辑的原因、摘录。 */
   function render() {
     rows.textContent = "";
-    const notes = new Map(topics().map((t) => [t.id, t.note]));
     for (const item of examples()) {
-      const row = document.createElement("article");
-      const title = document.createElement(
-        /^https?:\/\//i.test(item.url) ? "a" : "strong",
-      );
-      title.textContent = item.title || item.id;
-      if (title.tagName === "A") {
-        title.href = item.url;
-        title.target = "_blank";
-        title.rel = "noopener noreferrer";
-      }
-      const topic = document.createElement("small");
-      topic.textContent = notes.get(item.topicId) || item.topicNote ||
-        item.topicId;
-      const quote = document.createElement("blockquote");
-      quote.textContent = labels[item.source] + " · " + item.excerpt;
-      const label = document.createElement("label");
-      label.textContent = labels.reason;
-      const input = document.createElement("textarea");
-      input.rows = 2;
-      input.maxLength = 1000;
-      input.value = item.reason;
-      input.addEventListener("input", () => {
-        if (!input.value.trim()) return;
-        item.reason = input.value;
+      const row = clone("[data-example-row]");
+      fill(row, item);
+      const reason = row.querySelector("[data-example-reason]");
+      reason.value = item.reason;
+      reason.addEventListener("input", () => {
+        item.reason = reason.value;
         updatePreview();
         save();
       });
-      input.addEventListener("blur", () => {
-        input.value = item.reason;
+      const quote = clone("[data-example-quote]");
+      const source = quote.querySelector("select"),
+        excerpt = quote.querySelector("textarea");
+      excerpt.value = item.excerpt;
+      let parts = [];
+      /**
+       * 当前摘录始终保留为第一项，支持已从历史中删除的帖子。
+       * @param {object|undefined} post 原始帖子。
+       */
+      const setSources = (post) => {
+        parts = [[item.source, item.excerpt], ...(post ? pieces(post) : [])];
+        source.replaceChildren(
+          ...parts.map(([kind, v], i) =>
+            new Option(
+              labels[kind] + (i ? " · " + v.slice(0, 50) : ""),
+              String(i),
+            )
+          ),
+        );
+      };
+      setSources();
+      quote.addEventListener("toggle", async () => {
+        if (!quote.open) return;
+        let post = history.find((p) => p.id === item.id);
+        if (!post) {
+          try {
+            post = (await loadHistory()).find((p) => p.id === item.id);
+          } catch { /* 离线时仍可编辑快照。 */ }
+        }
+        if (quote.isConnected && quote.open) setSources(post);
       });
-      label.append(input);
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "text-action-button";
-      remove.textContent = labels.remove;
-      remove.addEventListener("click", () => {
-        examples().splice(examples().indexOf(item), 1);
-        render();
-        if (!panel.hidden) filter();
+      source.addEventListener("change", () => {
+        const [kind, v] = parts[source.selectedIndex];
+        item.source = kind;
+        item.excerpt = excerpt.value = v.slice(0, 2000);
+        updatePreview();
         save();
-        picker.focus();
       });
-      row.append(title, topic, quote, label, remove);
+      excerpt.addEventListener("input", () => {
+        item.excerpt = excerpt.value;
+        updatePreview();
+        save();
+      });
+      row.querySelector(".match-content-cell").append(quote);
+      row.querySelector("[data-example-picker]").setAttribute(
+        "aria-expanded",
+        String(!panel.hidden),
+      );
       rows.append(row);
     }
+    selectionState(rows, marked);
     updatePreview();
+    globalThis.__matchTableRelativeTimeUpdate?.();
+    globalThis.__matchTableOverflowUpdate?.();
   }
-
-  /** 按配置的话题归属、帖子标题、ID 和话题备注筛选历史。 */
+  /** 渲染当前历史页，保留其它页中已选的记录。 */
+  function showPage() {
+    const size = pageSize.value === "all"
+      ? Math.max(1, candidates.length)
+      : Number(pageSize.value);
+    const total = Math.max(1, Math.ceil(candidates.length / size));
+    page = Math.min(page, total);
+    const saved = new Set(examples().map((item) => item.id));
+    results.textContent = "";
+    for (const post of candidates.slice((page - 1) * size, page * size)) {
+      const row = clone("[data-history-pick-row]");
+      fill(row, post);
+      const box = row.querySelector("[data-row-check]");
+      if (saved.has(post.id)) box.checked = box.disabled = true;
+      results.append(row);
+    }
+    pages.textContent = "";
+    for (
+      const n of [...new Set([1, page - 1, page, page + 1, total])].filter(
+        (n) => n > 0 && n <= total,
+      ).sort((a, b) => a - b)
+    ) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = format.format(n);
+      if (n === page) button.setAttribute("aria-current", "page");
+      button.addEventListener("click", () => {
+        page = n;
+        showPage();
+        pages.querySelector('[aria-current="page"]')?.focus();
+      });
+      pages.append(button);
+    }
+    panel.querySelector("[data-example-pagination]").hidden =
+      candidates.length <= 10;
+    selectionState(results, picked);
+    globalThis.__matchTableRelativeTimeUpdate?.();
+    globalThis.__matchTableOverflowUpdate?.();
+  }
+  /** 按话题、备注、标题及帖子 ID 筛选历史。 */
   function filter() {
     const byTopic = new Map(topics().map((t) => [t.id, t]));
-    const selected = new Set(examples().map((item) => item.id));
-    const query = search.value.trim().toLocaleLowerCase();
+    const q = search.value.trim().toLocaleLowerCase();
     const unique = new Map();
-    for (const post of history) {
-      const topic = byTopic.get(post.topicId);
-      if (!all.checked && !topic?.assigned) continue;
+    for (const p of history) {
+      const t = byTopic.get(p.topicId);
+      if (!allTopics.checked && !t?.assigned) continue;
       if (
-        ![post.title, post.id, topic?.note, post.topicId].some((v) =>
-          String(v || "").toLocaleLowerCase().includes(query)
+        ![p.title, p.id, t?.note, p.topicId].some((v) =>
+          String(v || "").toLocaleLowerCase().includes(q)
         )
       ) continue;
-      if (!unique.has(post.id)) unique.set(post.id, post);
+      if (!unique.has(p.id)) unique.set(p.id, p);
     }
+    candidatesById = unique;
     candidates = [...unique.values()];
-    results.textContent = "";
-    for (const post of candidates) {
-      const note = byTopic.get(post.topicId)?.note || post.topicId;
-      const option = new Option(
-        (selected.has(post.id) ? "✓ " : "") +
-          (post.title || post.id) + " · " + note,
-        post.id,
-      );
-      option.disabled = selected.has(post.id);
-      results.add(option);
-    }
-    results.selectedIndex = -1;
-    draft.hidden = true;
     status.textContent = candidates.length ? "" : labels.empty;
+    page = 1;
+    showPage();
   }
+  /** 读取当前账号的历史；断网时采用加密快照并投影待同步的删除。 @return {Promise<Array>} 可选择的历史帖子。 */
+  async function readHistory() {
+    const user = document.body.dataset.appUserId,
+      store = globalThis.AppLocalStore;
+    let records;
+    const response = await fetch("/settings/counterexample-history", {
+      cache: "no-store",
+      redirect: "manual",
+    }).catch(() => null);
+    if (response) {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      records = await response.json();
+      if (!Array.isArray(records)) throw new Error("Invalid history");
+      if (user && response.headers.get("x-app-user") !== user) {
+        throw new Error("Account changed");
+      }
+      if (user && store) {
+        await store.writeState(user, "counterexample-history", records).catch(
+          () => {},
+        );
+      }
+    } else {
+      if (!user || !store) throw new Error("Offline");
+      records = await store.readState(user, "counterexample-history");
+      if (!Array.isArray(records)) throw new Error("No cached history");
+    }
+    if (user && store) {
+      const removed = new Set(
+        (await store.pending(user).catch(() => [])).filter((op) =>
+          op.target === "/matches/delete"
+        ).flatMap((op) => op.records?.map((r) => r.id) || []),
+      );
+      records = records.filter((post) => !removed.has(post.recordId));
+    }
 
-  /** 选择原帖正文、具体评论或回复，可在摘录框中继续精简。 */
-  function choosePost() {
-    const post = candidates[results.selectedIndex];
-    if (!post) return;
-    pieces = [
-      ["title", post.title],
-      ["body", post.body],
-      ...(post.comments || []).map((text) => ["comments", text]),
-      ...(post.replies || []).map((text) => ["replies", text]),
-    ].filter(([, text]) => text);
-    sources.textContent = "";
-    const counts = {};
-    pieces.forEach(([kind, text], i) => {
-      counts[kind] = (counts[kind] || 0) + 1;
-      const detail = ["comments", "replies"].includes(kind)
-        ? " " + number.format(counts[kind]) + " · " + text.slice(0, 50)
-        : "";
-      sources.add(new Option(labels[kind] + detail, String(i)));
+    return records;
+  }
+  /** 合并同时进行的历史请求。 @return {Promise<Array>} 当前账号的历史记录。 */
+  function loadHistory() {
+    historyRequest ??= readHistory().finally(() => {
+      historyRequest = undefined;
     });
-    const preferred = pieces.findIndex(([kind]) =>
-      kind === (post.location === "excerpt" ? "body" : post.location)
-    );
-    sources.selectedIndex = preferred >= 0
-      ? preferred
-      : Math.max(0, pieces.findIndex(([kind]) => kind === "body"));
-    excerpt.value = pieces[sources.selectedIndex]?.[1] || "";
-    reason.value = "";
-    draft.hidden = false;
+    return historyRequest;
   }
-
-  /** 关闭选择器并使未完成的历史请求失效。 */
+  /** 为只有旧摘录的反例补齐仍可从历史取得的帖子信息，保留正在编辑的原因。 */
+  async function restoreDetails() {
+    const items = examples();
+    if (
+      toggle.getAttribute("aria-expanded") !== "true" ||
+      !items.some((item) => !item.details || item.body === undefined)
+    ) return;
+    let records;
+    try {
+      records = await loadHistory();
+    } catch {
+      return;
+    }
+    if (items !== examples()) return;
+    const byId = new Map(records.map((post) => [post.id, post]));
+    const byRecord = new Map(records.map((post) => [post.recordId, post]));
+    let changed = false;
+    for (const row of rows.rows) {
+      const item = items[row.sectionRowIndex];
+      if (!item || item.details && item.body !== undefined) continue;
+      const post = byRecord.get(item.topicId + ":" + item.id) ??
+        byId.get(item.id);
+      if (!post?.details) continue;
+      item.body ??= post.body;
+      item.details ??= post.details;
+      fill(row, item);
+      changed = true;
+    }
+    if (changed) {
+      globalThis.__matchTableRelativeTimeUpdate?.();
+      globalThis.__matchTableOverflowUpdate?.();
+      save();
+    }
+  }
+  new MutationObserver(restoreDetails).observe(toggle, {
+    attributes: true,
+    attributeFilter: ["aria-expanded"],
+  });
+  /** 收起历史并作废尚在进行的打开请求。 */
   function close() {
     revision++;
-    panel.hidden = draft.hidden = true;
-    picker.setAttribute("aria-expanded", "false");
+    panel.hidden = true;
+    picked.clear();
+    for (const button of root.querySelectorAll("[data-example-picker]")) {
+      button.setAttribute("aria-expanded", "false");
+    }
   }
-
-  /** 按需读取账号历史，断网时使用该账号最近成功读取的加密快照。 */
-  async function open() {
+  /**
+   * 打开卡片内的历史选择表。
+   * @param {HTMLButtonElement} button 触发按钮。
+   */
+  async function open(button) {
+    opener = button;
     const current = ++revision;
-    const user = document.body.dataset.appUserId;
-    const store = globalThis.AppLocalStore;
-    picker.setAttribute("aria-expanded", "true");
-    panel.hidden = false;
+    for (const trigger of root.querySelectorAll("[data-example-picker]")) {
+      trigger.setAttribute("aria-expanded", "true");
+    }
     history = [];
+    picked.clear();
+    panel.hidden = false;
+    allTopics.checked = false;
     search.value = "";
-    all.checked = false;
     filter();
     status.textContent = "…";
     search.focus();
     try {
-      let records;
-      const response = await fetch("/settings/counterexample-history", {
-        cache: "no-store",
-        redirect: "manual",
-      }).catch(() => null);
-      if (response) {
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        records = await response.json();
-        if (!Array.isArray(records)) throw new Error("Invalid history");
-        if (user && response.headers.get("x-app-user") !== user) {
-          throw new Error("Account changed");
-        }
-        if (user && store) {
-          await store.writeState(user, "counterexample-history", records).catch(
-            () => {},
-          );
-        }
-      } else {
-        if (!user || !store) throw new Error("Offline");
-        records = await store.readState(user, "counterexample-history");
-        if (!Array.isArray(records)) throw new Error("No cached history");
-      }
-      if (user && store) {
-        const removed = new Set(
-          (await store.pending(user).catch(() => [])).filter((op) =>
-            op.target === "/matches/delete"
-          ).flatMap((op) => op.records?.map((r) => r.id) || []),
-        );
-        records = records.filter((post) => !removed.has(post.recordId));
-      }
+      const records = await loadHistory();
       if (current !== revision) return;
       history = records;
       filter();
@@ -217,57 +400,80 @@ globalThis.initMatchingCounterexamples = function (
       if (current === revision) status.textContent = labels.error;
     }
   }
-  picker.addEventListener("click", () => panel.hidden ? open() : close());
-  search.addEventListener("input", filter);
-  all.addEventListener("change", filter);
-  results.addEventListener("change", choosePost);
-  sources.addEventListener("change", () => {
-    excerpt.value = pieces[sources.selectedIndex][1];
-  });
-  root.querySelector("[data-example-add]").addEventListener("click", () => {
-    const post = candidates[results.selectedIndex];
-    if (!post || examples().some((item) => item.id === post.id)) return;
-    const text =
-      (excerpt.value.slice(excerpt.selectionStart, excerpt.selectionEnd) ||
-        excerpt.value).trim();
-    for (
-      const [field, valid, message] of [[
-        reason,
-        reason.value.trim(),
-        labels.reason,
-      ], [excerpt, text && text.length <= 2000, labels.excerptHint]]
-    ) {
-      if (!valid) {
-        field.setCustomValidity(message);
-        field.reportValidity();
-        field.setCustomValidity("");
-        return;
+  root.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-example-picker]");
+    if (trigger) {
+      if (panel.hidden) open(trigger);
+      else close();
+      return;
+    }
+    const remove = event.target.closest("[data-example-delete]");
+    if (!remove) return;
+    const row = remove.closest("tbody tr");
+    const ids = row ? new Set([row.dataset.post]) : new Set(marked);
+    const items = examples();
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (ids.has(items[i].id)) {
+        marked.delete(items[i].id);
+        items.splice(i, 1);
       }
     }
-    const topic = topics().find((t) => t.id === post.topicId);
-    examples().push({
-      addedAt: Date.now(),
-      id: post.id,
-      title: post.title,
-      topicId: post.topicId,
-      topicNote: topic?.note || "",
-      url: post.url,
-      source: pieces[sources.selectedIndex]?.[0] || "title",
-      excerpt: text,
-      reason: reason.value.trim(),
-    });
+    render();
+    if (!panel.hidden) showPage();
+    save();
+    root.querySelector("thead [data-example-picker]").focus();
+  });
+  add.addEventListener("click", () => {
+    const items = examples(), saved = new Set(items.map((v) => v.id));
+    const notes = new Map(topics().map((t) => [t.id, t.note]));
+    let first;
+    for (const [id, post] of picked) {
+      if (!post || saved.has(id)) continue;
+      const parts = pieces(post),
+        location = post.location === "excerpt" ? "body" : post.location;
+      const [source, text] = parts.find(([kind]) => kind === location) ||
+        parts.find(([kind]) => kind === "body") || parts[0] ||
+        ["title", post.id];
+      items.push({
+        id,
+        addedAt: Date.now(),
+        url: post.url,
+        title: post.title,
+        topicId: post.topicId,
+        topicNote: notes.get(post.topicId) || "",
+        body: post.body,
+        details: post.details,
+        source,
+        excerpt: text.slice(0, 2000),
+        reason: "",
+      });
+      first ??= id;
+      saved.add(id);
+    }
     close();
     render();
     save();
-    picker.focus();
+    const row = [...rows.rows].find((r) => r.dataset.post === first);
+    (row?.querySelector("[data-example-reason]") || opener)?.focus();
+  });
+  bindSelection(rows, marked);
+  bindSelection(results, picked);
+  search.addEventListener("input", filter);
+  allTopics.addEventListener("change", filter);
+  pageSize.addEventListener("change", () => {
+    page = 1;
+    showPage();
   });
   root.addEventListener("input", (event) => event.stopPropagation());
   root.addEventListener("change", (event) => event.stopPropagation());
   return {
-    /** 切换配置时清除未提交的选择并恢复该配置保存的反例。 */
+    /** 切换配置时清除临时选择并恢复独立保存的反例。 */
     restore() {
       close();
+      marked.clear();
+      history = [];
       render();
+      void restoreDetails();
     },
   };
 };

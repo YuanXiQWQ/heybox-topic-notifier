@@ -31,7 +31,7 @@ Windows 安装目录页直接显示实际目标目录：浏览选择父目录后
 - `heybox-topic-notifier-android-universal.apk`
 - `latest.yml`（核对版本、尺寸和摘要后最后上传）
 
-Android `versionCode` 自动使用 `major × 1,000,000 + minor × 1,000 + patch + 1`，例如 `3.12.6 → 3012007`。同版本重跑保持相同编码；major 上限为 2099，minor、patch 上限为 999。正式发布后不要改换编码规则或签名密钥。
+Android `versionCode` 自动使用 `major × 1,000,000 + minor × 1,000 + patch + 1`，例如 `3.12.6 → 3012007`。同版本重跑保持相同编码。major 上限为 2099，minor 上限为 999，patch 可以超过 999，总编码上限为 2100000000。发布新版本时须确保编码高于上一版。正式发布后不要改换编码规则或签名密钥。
 
 首次启用前，在仓库 **Settings → Secrets and variables → Actions** 配置：
 

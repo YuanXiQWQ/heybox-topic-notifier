@@ -15,6 +15,15 @@ export type MatchingCounterexample = {
   source: "title" | "body" | "comments" | "replies";
   excerpt: string;
   reason: string;
+  /** 帖子正文与命中信息快照，历史清理后仍可查看；旧反例仅保存摘录。 */
+  body?: string;
+  details?: {
+    publishedAt: string;
+    matchedAt: string;
+    kind: "ai" | "keyword";
+    value: string;
+    location: string;
+  };
 };
 export type MatchingSettings = {
   mode: "rules" | "ai" | "hybrid";
@@ -99,6 +108,18 @@ function normalizeCounterexamples(raw: unknown): MatchingCounterexample[] {
       !item || typeof item.id !== "string" || !item.id || unique.has(item.id)
     ) continue;
     unique.set(item.id, {
+      ...(typeof item.body === "string" ? { body: item.body } : {}),
+      ...(item.details && typeof item.details === "object"
+        ? {
+          details: {
+            publishedAt: String(item.details.publishedAt ?? ""),
+            matchedAt: String(item.details.matchedAt ?? ""),
+            kind: item.details.kind === "ai" ? "ai" : "keyword",
+            value: String(item.details.value ?? ""),
+            location: String(item.details.location ?? ""),
+          },
+        }
+        : {}),
       addedAt: Number.isSafeInteger(item.addedAt) ? item.addedAt : 0,
       id: item.id,
       title: String(item.title ?? ""),
