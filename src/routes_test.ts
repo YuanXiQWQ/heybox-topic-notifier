@@ -2989,6 +2989,7 @@ Deno.test("counterexample history carries the same content and match details as 
   const response = await app.request("/settings/counterexample-history");
   assertEquals(response.status, 200);
   const [post] = await response.json();
+  assertEquals(post.post, record.post);
   assertEquals(post.body, "原帖正文");
   assertEquals(post.topicId, "10");
   assertEquals(post.details, {

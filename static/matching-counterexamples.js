@@ -1,5 +1,5 @@
 /** @file 编辑当前配置的历史反例，并与分类器共用提示词预览格式。 */
-import { counterexamplePrompt } from "./matching-counterexample-prompt.js";
+import { counterexamplePrompt } from "./matching-counterexample-prompt.js?v=full-post";
 
 /**
  * 初始化随配置切换的反例列表、历史选择器和可编辑注释。
@@ -29,7 +29,9 @@ globalThis.initMatchingCounterexamples = function (
   const status = panel.querySelector("[data-example-status]");
   const add = panel.querySelector("[data-example-add]");
   const addLabel = add.textContent;
-  const bulkRemove = root.querySelector("thead [data-example-delete]");
+  const grid = root.querySelector(".example-table");
+  const bulkRemove = grid.querySelector("[data-example-delete]");
+  const gridPicker = grid.querySelector("[data-example-picker]");
   const preview = root.querySelector("[data-example-preview]");
   const format = new Intl.NumberFormat(document.documentElement.lang);
   const marked = new Set(), picked = new Map();
@@ -65,12 +67,16 @@ globalThis.initMatchingCounterexamples = function (
       "aria-label",
       post.title || post.id,
     );
-    const link = row.querySelector(".match-table-title-link");
-    link.textContent = post.title || post.id;
-    if (/^https?:\/\//i.test(post.url)) link.href = post.url;
-    else link.removeAttribute("href");
-    row.querySelector(".table-clip").textContent = post.body ??
-      (post.source === "body" ? post.excerpt : "—");
+    const title = row.querySelector("[data-example-title]");
+    title.textContent = post.title || post.id;
+    if (title instanceof HTMLAnchorElement) {
+      if (/^https?:\/\//i.test(post.url)) title.href = post.url;
+      else title.removeAttribute("href");
+    }
+    row.querySelector("[data-example-body], .table-clip").textContent =
+      post.body ?? post.post?.body ?? "—";
+    const unavailable = row.querySelector("[data-example-unavailable]");
+    if (unavailable) unavailable.hidden = Boolean(post.post);
     const detail = post.details;
     const list = row.querySelector(".match-detail-list");
     const [published, matched, value, location] = list.querySelectorAll(
@@ -82,12 +88,12 @@ globalThis.initMatchingCounterexamples = function (
       (detail?.kind === "ai" ? labels.ai : labels.keyword) + "：";
     value.textContent = detail?.value || "—";
     location.textContent =
-      labels[detail?.location || post.location || post.source] || "—";
+      labels[detail?.location || post.location] || "—";
   }
   /**
    * 更新行选择、表头半选与批量动作。
    * @param {HTMLElement} body 表体。
-   * @param {Set<string>} selection 已选帖子。
+   * @param {Set<string>|Map<string, object>} selection 已选帖子。
    */
   function selectionState(body, selection) {
     const boxes = Array.from(
@@ -95,10 +101,13 @@ globalThis.initMatchingCounterexamples = function (
     );
     let count = 0;
     for (const box of boxes) {
-      box.checked = selection.has(box.closest("tr").dataset.post);
+      box.checked = selection.has(box.closest("[data-post]").dataset.post);
+      if (body === results) box.closest("tr").classList.toggle("is-selected", box.checked);
       if (box.checked) count++;
     }
-    const head = body.closest("table").querySelector("thead input");
+    const head = body === results
+      ? panel.querySelector("[data-history-pick-all]")
+      : grid.querySelector("[data-example-select-all]");
     head.disabled = !boxes.length;
     head.checked = boxes.length > 0 && count === boxes.length;
     head.indeterminate = count > 0 && count < boxes.length;
@@ -111,7 +120,7 @@ globalThis.initMatchingCounterexamples = function (
   /**
    * 绑定行和本页全选，仅操作当前表格。
    * @param {HTMLElement} body 表体。
-   * @param {Set<string>} selection 已选帖子。
+   * @param {Set<string>|Map<string, object>} selection 已选帖子。
    */
   function bindSelection(body, selection) {
     /**
@@ -122,39 +131,26 @@ globalThis.initMatchingCounterexamples = function (
       if (body === results) picked.set(id, candidatesById.get(id));
       else marked.add(id);
     }
-    const table = body.closest("table");
+    const table = body.closest('table, [role="table"]');
     table.addEventListener("change", (event) => {
       const input = event.target;
-      if (input.matches("thead input")) {
+      if (input.matches("[data-example-select-all], [data-history-pick-all]")) {
         for (
           const box of body.querySelectorAll("[data-row-check]:not(:disabled)")
         ) {
-          const id = box.closest("tr").dataset.post;
+          const id = box.closest("[data-post]").dataset.post;
           if (input.checked) select(id);
           else selection.delete(id);
         }
       } else if (input.matches("[data-row-check]")) {
-        const id = input.closest("tr").dataset.post;
+        const id = input.closest("[data-post]").dataset.post;
         if (input.checked) select(id);
         else selection.delete(id);
       } else return;
       selectionState(body, selection);
     });
   }
-  /**
-   * 读取原帖可引用的标题、正文、评论与回复。
-   * @param {object} post 帖子历史记录。
-   * @return {Array} 带来源的原文片段。
-   */
-  function pieces(post) {
-    return [
-      ["title", post.title],
-      ["body", post.body],
-      ...(post.comments || []).map((v) => ["comments", v]),
-      ...(post.replies || []).map((v) => ["replies", v]),
-    ].filter(([, v]) => v);
-  }
-  /** 渲染保存的反例与可随时编辑的原因、摘录。 */
+  /** 渲染已保存的反例与可随时编辑的排除原因。 */
   function render() {
     rows.textContent = "";
     for (const item of examples()) {
@@ -167,50 +163,6 @@ globalThis.initMatchingCounterexamples = function (
         updatePreview();
         save();
       });
-      const quote = clone("[data-example-quote]");
-      const source = quote.querySelector("select"),
-        excerpt = quote.querySelector("textarea");
-      excerpt.value = item.excerpt;
-      let parts = [];
-      /**
-       * 当前摘录始终保留为第一项，支持已从历史中删除的帖子。
-       * @param {object|undefined} post 原始帖子。
-       */
-      const setSources = (post) => {
-        parts = [[item.source, item.excerpt], ...(post ? pieces(post) : [])];
-        source.replaceChildren(
-          ...parts.map(([kind, v], i) =>
-            new Option(
-              labels[kind] + (i ? " · " + v.slice(0, 50) : ""),
-              String(i),
-            )
-          ),
-        );
-      };
-      setSources();
-      quote.addEventListener("toggle", async () => {
-        if (!quote.open) return;
-        let post = history.find((p) => p.id === item.id);
-        if (!post) {
-          try {
-            post = (await loadHistory()).find((p) => p.id === item.id);
-          } catch { /* 离线时仍可编辑快照。 */ }
-        }
-        if (quote.isConnected && quote.open) setSources(post);
-      });
-      source.addEventListener("change", () => {
-        const [kind, v] = parts[source.selectedIndex];
-        item.source = kind;
-        item.excerpt = excerpt.value = v.slice(0, 2000);
-        updatePreview();
-        save();
-      });
-      excerpt.addEventListener("input", () => {
-        item.excerpt = excerpt.value;
-        updatePreview();
-        save();
-      });
-      row.querySelector(".match-content-cell").append(quote);
       row.querySelector("[data-example-picker]").setAttribute(
         "aria-expanded",
         String(!panel.hidden),
@@ -220,7 +172,6 @@ globalThis.initMatchingCounterexamples = function (
     selectionState(rows, marked);
     updatePreview();
     globalThis.__matchTableRelativeTimeUpdate?.();
-    globalThis.__matchTableOverflowUpdate?.();
   }
   /** 渲染当前历史页，保留其它页中已选的记录。 */
   function showPage() {
@@ -235,7 +186,11 @@ globalThis.initMatchingCounterexamples = function (
       const row = clone("[data-history-pick-row]");
       fill(row, post);
       const box = row.querySelector("[data-row-check]");
-      if (saved.has(post.id)) box.checked = box.disabled = true;
+      if (!post.post || saved.has(post.id)) {
+        box.disabled = true;
+        box.checked = saved.has(post.id);
+        row.classList.add("is-unavailable");
+      }
       results.append(row);
     }
     pages.textContent = "";
@@ -259,7 +214,6 @@ globalThis.initMatchingCounterexamples = function (
       candidates.length <= 10;
     selectionState(results, picked);
     globalThis.__matchTableRelativeTimeUpdate?.();
-    globalThis.__matchTableOverflowUpdate?.();
   }
   /** 按话题、备注、标题及帖子 ID 筛选历史。 */
   function filter() {
@@ -331,7 +285,7 @@ globalThis.initMatchingCounterexamples = function (
     const items = examples();
     if (
       toggle.getAttribute("aria-expanded") !== "true" ||
-      !items.some((item) => !item.details || item.body === undefined)
+      !items.some((item) => !item.post)
     ) return;
     let records;
     try {
@@ -340,23 +294,28 @@ globalThis.initMatchingCounterexamples = function (
       return;
     }
     if (items !== examples()) return;
-    const byId = new Map(records.map((post) => [post.id, post]));
-    const byRecord = new Map(records.map((post) => [post.recordId, post]));
+    const byId = new Map(), byTopic = new Map();
+    for (const record of records) {
+      const key = record.topicId + ":" + record.id;
+      if (!byTopic.has(key)) byTopic.set(key, record);
+      if (!byId.has(record.id)) byId.set(record.id, record);
+    }
     let changed = false;
-    for (const row of rows.rows) {
-      const item = items[row.sectionRowIndex];
-      if (!item || item.details && item.body !== undefined) continue;
-      const post = byRecord.get(item.topicId + ":" + item.id) ??
-        byId.get(item.id);
-      if (!post?.details) continue;
-      item.body ??= post.body;
+    for (const [index, row] of Array.from(rows.children).entries()) {
+      const item = items[index];
+      if (!item || item.post) continue;
+      const post = item.topicId ? byTopic.get(item.topicId + ":" + item.id) : byId.get(item.id);
+      if (!post?.post) continue;
+      item.post = post.post;
+      if (post.body !== post.post.body) item.body = post.body;
+      else delete item.body;
       item.details ??= post.details;
       fill(row, item);
       changed = true;
     }
     if (changed) {
+      updatePreview();
       globalThis.__matchTableRelativeTimeUpdate?.();
-      globalThis.__matchTableOverflowUpdate?.();
       save();
     }
   }
@@ -409,7 +368,7 @@ globalThis.initMatchingCounterexamples = function (
     }
     const remove = event.target.closest("[data-example-delete]");
     if (!remove) return;
-    const row = remove.closest("tbody tr");
+    const row = remove.closest("[data-post]");
     const ids = row ? new Set([row.dataset.post]) : new Set(marked);
     const items = examples();
     for (let i = items.length - 1; i >= 0; i--) {
@@ -421,19 +380,14 @@ globalThis.initMatchingCounterexamples = function (
     render();
     if (!panel.hidden) showPage();
     save();
-    root.querySelector("thead [data-example-picker]").focus();
+    gridPicker.focus();
   });
   add.addEventListener("click", () => {
     const items = examples(), saved = new Set(items.map((v) => v.id));
     const notes = new Map(topics().map((t) => [t.id, t.note]));
     let first;
     for (const [id, post] of picked) {
-      if (!post || saved.has(id)) continue;
-      const parts = pieces(post),
-        location = post.location === "excerpt" ? "body" : post.location;
-      const [source, text] = parts.find(([kind]) => kind === location) ||
-        parts.find(([kind]) => kind === "body") || parts[0] ||
-        ["title", post.id];
+      if (!post?.post || saved.has(id)) continue;
       items.push({
         id,
         addedAt: Date.now(),
@@ -441,10 +395,9 @@ globalThis.initMatchingCounterexamples = function (
         title: post.title,
         topicId: post.topicId,
         topicNote: notes.get(post.topicId) || "",
-        body: post.body,
+        ...(post.body !== post.post.body ? { body: post.body } : {}),
         details: post.details,
-        source,
-        excerpt: text.slice(0, 2000),
+        post: post.post,
         reason: "",
       });
       first ??= id;
@@ -453,11 +406,16 @@ globalThis.initMatchingCounterexamples = function (
     close();
     render();
     save();
-    const row = [...rows.rows].find((r) => r.dataset.post === first);
+    const row = [...rows.children].find((r) => r.dataset.post === first);
     (row?.querySelector("[data-example-reason]") || opener)?.focus();
   });
   bindSelection(rows, marked);
   bindSelection(results, picked);
+  results.addEventListener("click", (event) => {
+    if (event.target.closest("label, input")) return;
+    const box = event.target.closest("tr[data-post]")?.querySelector("[data-row-check]");
+    if (box && !box.disabled) box.click();
+  });
   search.addEventListener("input", filter);
   allTopics.addEventListener("change", filter);
   pageSize.addEventListener("change", () => {

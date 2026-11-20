@@ -77,7 +77,7 @@ export function renderProfileList(
     e(JSON.stringify(profiles))
   }">
     <div role="table" data-profile-grid>
-      <div class="topic-rule-row profile-head profile-row" role="row">
+      <div class="topic-rule-row profile-head rule-grid-head profile-row" role="row">
         <div role="columnheader">${
     materialSymbolIcon("height", "rule-drag-icon")
   }</div><label class="rule-bulk-toggle" role="columnheader"><input type="checkbox" data-profile-all aria-label="${

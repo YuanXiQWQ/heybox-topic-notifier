@@ -214,7 +214,7 @@ export function renderPostHeadings(messages: Messages): string {
 }
 
 /**
- * 渲染帖子标题、内容与详情；空记录生成可由历史快照填充的行模板。
+ * 渲染帖子标题、内容与详情；历史选择器使用没有跳转链接的空记录模板。
  * @param {MatchRecord | undefined} record 命中记录。
  * @param {Locale} locale 当前语言。
  * @param {Messages} messages 本地化文案。
@@ -230,7 +230,10 @@ export function renderPostCells(
   titleClasses = "match-table-title-link pending-title-link",
 ): string {
   const postContent = record ? plainTextFromHeyboxContent(record.post.body || record.post.excerpt) : "";
-  return `<td class="match-title-cell"><a class="${escapeHtml(titleClasses)}" href="${escapeHtml(record?.post.url ?? "")}" target="_blank" rel="noopener noreferrer">${escapeHtml(record?.post.title ?? "")}</a></td>
+  const title = record
+    ? `<a class="${escapeHtml(titleClasses)}" href="${escapeHtml(record.post.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(record.post.title)}</a>`
+    : '<span class="match-table-title-link" data-example-title></span>';
+  return `<td class="match-title-cell">${title}</td>
     <td class="match-content-cell"><span class="table-clip">${escapeHtml(postContent)}</span></td>
     <td>${renderMatchDetails(record, now, locale, messages)}</td>`;
 }
@@ -264,7 +267,7 @@ function renderRelativeTimeCell(
  * @param {Messages} messages 当前语言文案。
  * @return {string} 命中记录详情单元格 HTML。
  */
-function renderMatchDetails(
+export function renderMatchDetails(
   record: MatchTableResult["records"][number] | undefined,
   now: Date,
   locale: Locale,

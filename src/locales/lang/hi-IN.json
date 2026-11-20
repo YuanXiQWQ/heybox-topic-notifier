@@ -390,7 +390,7 @@
   "exampleAdd": "प्रति-उदाहरण जोड़ें",
   "examplePreview": "मॉडल को भेजे जाने वाले उदाहरण देखें",
   "exampleHistoryError": "इतिहास लोड नहीं हो सका",
-  "exampleExcerptHint": "उद्धृत करने के लिए अंश संपादित करें या चुनें (अधिकतम 2000 वर्ण)।",
+  "examplePostUnavailable": "मूल पोस्ट उपलब्ध नहीं है। यह उदाहरण नहीं भेजा जाएगा।",
   "matchingCompany": "कंपनी",
   "matchingCustom": "कस्टम कॉन्फ़िगरेशन",
   "matchingSearchCompany": "कंपनियाँ खोजें",

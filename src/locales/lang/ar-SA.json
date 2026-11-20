@@ -390,7 +390,7 @@
   "exampleAdd": "إضافة مثال مضاد",
   "examplePreview": "معاينة الأمثلة المرسلة للنموذج",
   "exampleHistoryError": "تعذّر تحميل السجل",
-  "exampleExcerptHint": "عدّل المقطع المراد اقتباسه أو حدّده، بحد أقصى ٢٠٠٠ حرف.",
+  "examplePostUnavailable": "المنشور الأصلي غير متاح. سيُتخطّى هذا المثال.",
   "matchingCompany": "الشركة",
   "matchingCustom": "إعدادات مخصصة",
   "matchingSearchCompany": "البحث عن الشركات",

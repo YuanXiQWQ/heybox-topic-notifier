@@ -11,8 +11,15 @@ settings.matching!.counterexamples = [{
   topicNote: "社区十",
   url: "",
   title: "通关回顾",
-  source: "comments",
-  excerpt: "当时卡住了",
+  body: "通关后回顾",
+  details: {
+    publishedAt: "2026-11-01", matchedAt: "2026-11-02",
+    kind: "ai", value: "疑似求助", location: "comments",
+  },
+  post: {
+    id: "10-post", title: "通关回顾", url: "", publishedAt: "2026-11-01",
+    body: "通关后回顾", excerpt: "", comments: ["当时卡住了"], commentReplies: [],
+  },
   reason: "作者在回顾经历",
   addedAt: 1,
 }];

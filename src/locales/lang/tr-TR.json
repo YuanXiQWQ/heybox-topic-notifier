@@ -390,7 +390,7 @@
   "exampleAdd": "Karşı örnek ekle",
   "examplePreview": "Modele gönderilecek örnekleri önizle",
   "exampleHistoryError": "Geçmiş yüklenemedi",
-  "exampleExcerptHint": "Alıntılanacak bölümü düzenleyin veya seçin (en fazla 2000 karakter).",
+  "examplePostUnavailable": "Özgün gönderiye ulaşılamıyor. Bu örnek atlanacak.",
   "matchingCompany": "Şirket",
   "matchingCustom": "Özel yapılandırma",
   "matchingSearchCompany": "Şirket ara",

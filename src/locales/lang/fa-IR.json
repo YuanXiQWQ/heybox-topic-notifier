@@ -390,7 +390,7 @@
   "exampleAdd": "افزودن مثال نقض",
   "examplePreview": "پیش‌نمایش مثال‌های ارسالی به مدل",
   "exampleHistoryError": "بارگیری تاریخچه ممکن نشد",
-  "exampleExcerptHint": "بخش مورد نظر برای نقل‌قول را ویرایش یا انتخاب کنید (حداکثر ۲۰۰۰ نویسه).",
+  "examplePostUnavailable": "پست اصلی در دسترس نیست. این نمونه ارسال نمی‌شود.",
   "matchingCompany": "شرکت",
   "matchingCustom": "پیکربندی سفارشی",
   "matchingSearchCompany": "جستجوی شرکت‌ها",

@@ -13,7 +13,7 @@ import { renderProfileList } from "./matching_profiles.ts";
 import { renderDrawerHeading } from "./settings_drawer.ts";
 import { pageSizeValues } from "./match_table.ts";
 import {
-  renderOverflowScript,
+  renderMatchDetails,
   renderPostCells,
   renderPostHeadings,
   renderRelativeTimeScript,
@@ -264,7 +264,7 @@ export function renderMatchingSection(
 }
 
 /**
- * 渲染历史反例列表、片段选择器及提示词预览。
+ * 渲染反例列表、历史选帖表格及提示词预览。
  * @param {AppSettings} app 当前账号设置。
  * @return {string} 当前匹配配置的反例抽屉。
  */
@@ -285,16 +285,14 @@ function renderCounterexamples(app: AppSettings): string {
   };
   /**
    * 渲染整格可操作的多选表头。
-   * @param {string} attribute 选择组标记。
-   * @return {string} 表头。
    */
-  const selectHead = (attribute: string) =>
-    `<th scope="col"><label class="checkbox-cell bulk-action-cell rule-bulk-toggle">
-    <input type="checkbox" ${attribute} aria-label="${
+  const selectHead =
+    `<label class="rule-bulk-toggle" role="columnheader">
+    <input type="checkbox" data-example-select-all aria-label="${
       e(m.selectAllRows)
     }"><span>${
       materialSymbolIcon("done_all", "rule-drag-icon")
-    }</span></label></th>`;
+    }</span></label>`;
   const add =
     `<button type="button" class="icon-button text-icon-button" data-example-picker aria-expanded="false" aria-controls="example-history" aria-label="${
       e(m.exampleFromHistory)
@@ -312,28 +310,20 @@ function renderCounterexamples(app: AppSettings): string {
     `<div class="example-content" data-example-labels="${
       e(JSON.stringify(labels))
     }">
-      <div class="example-table-scroll"><table class="match-table example-table" aria-label="${
-      e(m.matchingExamples)
-    }">
-        <colgroup><col class="example-action-col"><col><col><col><col><col class="example-action-col"><col class="example-action-col"></colgroup>
-        <thead><tr>${selectHead("data-example-select-all")}${
-      renderPostHeadings(m)
-    }<th scope="col">${e(m.exampleReason)}</th>
-          <th class="table-action-cell">${remove}</th><th class="table-action-cell">${add}</th></tr></thead>
-        <tbody data-example-rows></tbody></table></div>
-      <template data-example-row><tr>${box}${cells}<td><textarea rows="2" maxlength="1000" data-example-reason aria-label="${
-      e(m.exampleReason)
-    }"></textarea></td>
-        <td class="table-action-cell">${remove}</td><td class="table-action-cell">${add}</td></tr></template>
-      <template data-example-quote><details><summary>${
-      e(m.matchExcerpt)
-    }</summary>
-        <select data-example-source aria-label="${
-      e(m.matchDetailLocation)
-    }"></select>
-        <textarea rows="3" maxlength="2000" data-example-excerpt aria-label="${
-      e(m.matchExcerpt)
-    }"></textarea></details></template>
+      <div class="example-table-scroll"><div class="example-table" role="table" aria-label="${e(m.matchingExamples)}">
+        <div class="topic-rule-row example-rule-row rule-grid-head" role="row">
+          ${selectHead}
+          ${[m.postTitle, m.postContent, m.matchDetails, m.exampleReason].map((label) => `<div role="columnheader">${e(label)}</div>`).join("")}
+          <div role="columnheader">${remove}</div><div role="columnheader">${add}</div>
+        </div>
+        <div role="rowgroup" data-example-rows></div></div></div>
+      <template data-example-row><div class="topic-rule-row example-rule-row" role="row">
+        <label role="cell"><input type="checkbox" data-row-check></label>
+        <div role="cell"><a data-example-title target="_blank" rel="noopener noreferrer"></a></div>
+        <div role="cell" class="example-post-content"><span data-example-body></span><small data-example-unavailable hidden>${e(m.examplePostUnavailable)}</small></div>
+        <div role="cell">${renderMatchDetails(undefined, new Date(), app.locale, m)}</div>
+        <div role="cell"><textarea class="matching-prompt" rows="2" maxlength="1000" data-example-reason aria-label="${e(m.exampleReason)}"></textarea></div>
+        <div role="cell">${remove}</div><div role="cell">${add}</div></div></template>
       <section id="example-history" class="example-history" aria-label="${
       e(m.historyTitle)
     }" hidden>
@@ -353,7 +343,7 @@ function renderCounterexamples(app: AppSettings): string {
       e(m.historyTitle)
     }">
           <colgroup><col class="match-table-col-2"><col class="match-table-col-3"><col class="match-table-col-14"><col class="match-table-col-5"></colgroup>
-          <thead><tr>${selectHead("data-history-pick-all")}${
+          <thead><tr><th scope="col"><label class="checkbox-cell bulk-action-cell rule-bulk-toggle"><input type="checkbox" data-history-pick-all aria-label="${e(m.selectAllRows)}"><span>${materialSymbolIcon("done_all", "rule-drag-icon")}</span></label></th>${
       renderPostHeadings(m)
     }</tr></thead>
           <tbody data-example-results></tbody></table></div>
@@ -372,7 +362,7 @@ function renderCounterexamples(app: AppSettings): string {
       <details data-example-preview><summary>${
       e(m.examplePreview)
     }</summary><pre dir="ltr"></pre></details>
-      ${renderRelativeTimeScript()}${renderOverflowScript()}
+      ${renderRelativeTimeScript()}
     </div>`,
     new Intl.NumberFormat(app.locale).format(settings.counterexamples.length),
     settings.mode === "rules" ? "hidden" : "",
