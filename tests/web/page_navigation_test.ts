@@ -8,7 +8,7 @@ import { assert, assertEquals } from "@std/assert";
  * @return {Promise<object>} 导航、会话与后台任务控制接口。
  */
 async function harness() {
-  const html = '<html data-app-page-cache="2" lang="zh-CN"><body>cached settings</body></html>';
+  const html = '<html data-app-page-cache="3" lang="zh-CN"><body>cached settings</body></html>';
   const values = new Map<string, unknown>([
     ["__device:active-user", "alice"],
     ["__device:navigation-clients", [["source", {userId: "alice", locale: "zh-CN"}]]],
@@ -88,8 +88,8 @@ for (const condition of ["unbound", "logout", "other-account", "language", "call
     const app = await harness();
     if (condition === "logout") await app.clear();
     if (condition === "other-account") { app.values.set("__device:active-user", "bob"); app.changeUser("bob"); }
-    if (condition === "language") app.values.set("alice:page:/settings", {html: '<html data-app-page-cache="2" lang="en-US">wrong language</html>'});
-    if (condition === "old-page") app.values.set("alice:page:/settings", {html: '<html lang="zh-CN">old cache</html>'});
+    if (condition === "language") app.values.set("alice:page:/settings", {html: '<html data-app-page-cache="3" lang="en-US">wrong language</html>'});
+    if (condition === "old-page") app.values.set("alice:page:/settings", {html: '<html data-app-page-cache="2" lang="zh-CN">old cache</html>'});
     let finished = false;
     const pending = app.navigate(condition === "callback" ? "/settings?recoveryCodes=once" : "/settings", condition === "unbound" ? "unknown" : "source", condition === "reload" ? "reload" : "default").then((response) => {finished = true; return response;});
     await new Promise((resolve) => setTimeout(resolve, 0));

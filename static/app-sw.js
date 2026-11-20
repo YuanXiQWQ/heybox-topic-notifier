@@ -165,7 +165,7 @@ async function applicationNavigation(event) {
         request.cache !== 'reload') {
       const page = await self.AppLocalStore.readState(active, name);
       // 旧页面和其它语言仍可离线回退，但不能作为正常切页的首选响应。
-      if (page?.html && page.html.includes('data-app-page-cache="2"') &&
+      if (page?.html && page.html.includes('data-app-page-cache="3"') &&
           page.html.match(/<html\b[^>]*\blang="([^"]+)"/i)?.[1] === source.locale) cached = page;
     }
   } catch { /* 本地存储或来源不可用时使用认证后的网络页面。 */ }
