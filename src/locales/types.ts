@@ -154,6 +154,15 @@ export type Messages = {
   applicationNotReleased: string;
   applicationDownloadFailed: string;
   matchingAdvanced: string;
+  matchingExamples: string;
+  exampleFromHistory: string;
+  exampleSearch: string;
+  exampleAllTopics: string;
+  exampleReason: string;
+  exampleAdd: string;
+  examplePreview: string;
+  exampleHistoryError: string;
+  exampleExcerptHint: string;
   matchingCompany: string;
   matchingCustom: string;
   matchingSearchCompany: string;
@@ -168,6 +177,7 @@ export type Messages = {
   profileTopics: string;
   profileApplied: string;
   profileCopy: string;
+  profileCopySuffix: string;
   profileAdd: string;
   selectAllRows: string;
   profileNew: string;
