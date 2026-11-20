@@ -386,7 +386,7 @@
   "exampleFromHistory": "從歷史記錄中選擇",
   "exampleSearch": "搜尋標題、貼文 ID 或話題",
   "exampleAllTopics": "所有話題",
-  "exampleReason": "為什麼不應符合條件",
+  "exampleReason": "反例原因",
   "exampleAdd": "新增反例",
   "examplePreview": "預覽反例提示詞",
   "exampleHistoryError": "無法讀取歷史記錄",

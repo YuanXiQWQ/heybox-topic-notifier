@@ -6,7 +6,7 @@
  * @return {string} 反例 JSON 数组；没有完整样本时为空。
  */
 export function counterexamplePrompt(examples = []) {
-  const samples = examples.filter((item) => item.reason.trim()).map((item) => ({
+  const samples = examples.filter((item) => item.reason.trim() && item.excerpt.trim()).map((item) => ({
     title: item.title,
     source: item.source,
     excerpt: item.excerpt.trim(),

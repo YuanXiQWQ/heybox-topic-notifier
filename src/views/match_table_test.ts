@@ -280,7 +280,7 @@ Deno.test("renderMatchRecordsSection folds match metadata into one details colum
     titleLinkClass: "pending-title-link",
   });
 
-  assertIncludes(html, "<th>详细信息</th>");
+  assertIncludes(html, '<th scope="col">详细信息</th>');
   assertIncludes(html, "<dt>发布：</dt>");
   assertIncludes(html, "<dt>命中：</dt>");
   assertIncludes(html, "<dt>关键词：</dt>");
@@ -636,7 +636,7 @@ Deno.test("renderSettings marks navigation and locale controls with icons", () =
   assertIncludes(html, `class="settings-label-icon"`);
   assertIncludes(html, `viewBox="0 -960 960 960"`);
   assertIncludes(html, `d="m476-80`);
-  assertNotIncludes(html, `<dt>`);
+  assertNotIncludes(html.replaceAll(/<dl class="match-detail-list">[\s\S]*?<\/dl>/g, ""), `<dt>`);
 });
 
 Deno.test("renderSettings keeps settings row actions compact", () => {

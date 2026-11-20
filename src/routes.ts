@@ -75,6 +75,8 @@ import type {
 import type { AppContext } from "./services/app_context.ts";
 import { renderDashboard } from "./views/dashboard.ts";
 import { renderPendingMatches } from "./views/dashboard.ts";
+import { normalizeMatchResult } from "./services/match_result.ts";
+import { plainTextFromHeyboxContent } from "./services/heybox_topic_source.ts";
 import { renderHistory, renderHistoryTable } from "./views/history.ts";
 import {
   applyMatchTableQuery,
@@ -629,17 +631,19 @@ export function createRoutes(
     if (session) c.header("x-app-user", session.userId);
     const history = await storage.listHistory();
     c.header("Cache-Control", "private, no-store");
-    return c.json(history.map(({ id, post, location }) => ({
-      recordId: id,
-      topicId: id.split(":")[0],
-      id: post.id,
-      title: post.title,
-      url: post.url,
-      body: post.body || post.excerpt,
-      comments: post.comments,
-      replies: post.commentReplies,
-      location,
-    })));
+    return c.json(history.map((record) => {
+      const { id, post, matchedAt } = record;
+      const result = normalizeMatchResult(record);
+      return {
+        recordId: id, topicId: id.split(":")[0], id: post.id, title: post.title, url: post.url,
+        body: plainTextFromHeyboxContent(post.body || post.excerpt),
+        comments: post.comments, replies: post.commentReplies, location: result.location,
+        details: {
+          publishedAt: post.publishedAt, matchedAt, kind: result.kind,
+          value: result.kind === "ai" ? result.aiReason : result.keyword, location: result.location,
+        },
+      };
+    }));
   });
 
   app.get("/settings", async (c) => {

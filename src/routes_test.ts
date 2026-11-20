@@ -2976,6 +2976,30 @@ Deno.test("delete matches handles all selected ids and ignores empty submissions
   assertEquals(deleted, [["old-first", "old-second"]]);
 });
 
+Deno.test("counterexample history carries the same content and match details as history rows", async () => {
+  const record = routeMatchRecord("10:sample");
+  record.post.body = "原帖正文";
+  record.kind = "ai";
+  record.aiReason = "疑似求助";
+  const app = createRoutes(
+    {
+      storage: { listHistory: () => Promise.resolve([record]) },
+    } as unknown as AppContext,
+  );
+  const response = await app.request("/settings/counterexample-history");
+  assertEquals(response.status, 200);
+  const [post] = await response.json();
+  assertEquals(post.body, "原帖正文");
+  assertEquals(post.topicId, "10");
+  assertEquals(post.details, {
+    publishedAt: record.post.publishedAt,
+    matchedAt: record.matchedAt,
+    kind: "ai",
+    value: "疑似求助",
+    location: record.location,
+  });
+});
+
 Deno.test("delete matches ajax returns refreshed history table", async () => {
   const deleted: string[][] = [];
   const app = createRoutes({

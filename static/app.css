@@ -1949,6 +1949,7 @@ input[type="color"]::-moz-color-swatch{
 }
 
 .pagination a,
+.example-history .pagination button,
 .page-size-links a,
 .pagination-ellipsis,
 .pagination-page-input{
@@ -1976,6 +1977,7 @@ input[type="color"]::-moz-color-swatch{
 }
 
 .pagination a.is-current,
+.example-history .pagination button[aria-current],
 .page-size-links a.is-current{
   background: var(--theme-soft-strong);
   color: var(--heading);
@@ -4015,16 +4017,35 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 }
 [data-matching-editor] .matching-settings-list > [data-advanced-editor],
 [data-matching-editor] .matching-settings-list > [data-counterexample-editor] { padding: 0; }
-.matching-settings-list > .example-content {display:flex; flex-direction:column; align-items:stretch; gap:12px; min-width:0;}
-.example-content .text-action-button {align-self:flex-start;}
-.example-content article, .example-history, [data-example-draft] {display:grid; gap:8px; min-width:0;}
-.example-content article {border-bottom:1px solid var(--border-soft); padding-block:8px; overflow-wrap:anywhere;}
-.example-content article button, [data-example-add] {justify-self:start;}
-.example-content textarea {box-sizing:border-box; display:block; width:100%; resize:vertical; color:var(--ink); background:var(--control-bg); border:1px solid var(--control-border); border-radius:6px; padding:8px; font:inherit;}
-.example-content blockquote, .example-content pre {margin:0; padding:8px; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--surface-soft-base);}
-.example-content small {color:var(--muted);}
-.example-content select {min-width:0; width:100%;}
-.example-content summary {cursor:pointer;}
+.matching-settings-list > .example-content {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0;
+  align-items: stretch; padding: 0;
+}
+.example-table-scroll {min-width: 0; max-width: 100%; overflow-x: auto;}
+.example-action-col {width: var(--rule-action-column);}
+.example-content .match-table th, .example-content .match-table td {border-inline-end: 1px solid var(--border-soft);}
+.example-content .match-table td:last-child, .example-content .match-table th:last-child {border-inline-end: 0;}
+.example-history {margin: 0 12px 12px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface); min-width: 0;}
+.example-history:not([hidden]) {display: grid; gap: 8px; animation: example-history-open 180ms ease-out;}
+@keyframes example-history-open {from {opacity: 0; transform: translateY(-4px);} to {opacity: 1; transform: translateY(0);}}
+@media (prefers-reduced-motion: reduce) {.example-history:not([hidden]) {animation: none;}}
+.example-history .section-title-row {display: flex; justify-content: space-between; align-items: center; padding: 12px 12px 0;}
+.example-history h3 {margin: 0;}
+.example-filters {display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-inline: 12px;}
+.example-filters input[type=search] {min-width: 0; flex: 1 1 16em;}
+.example-history [role=status]:empty {display: none;}
+.example-history [role=status], .example-content > details {padding-inline: 12px;}
+.example-content textarea, .example-content [data-example-source] {box-sizing: border-box; width: 100%; min-width: 0; color: var(--ink); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 6px; padding: 6px; font: inherit;}
+.example-content textarea {display: block; resize: vertical;}
+.example-content pre {margin: 0; padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-soft-base);}
+.example-content summary {cursor: pointer;}
+.example-history .pagination-row {padding-inline: 12px; flex-wrap: wrap;}
+.example-history .pagination button:not([aria-current]) {background: transparent;}
+.example-history .pagination button {border: 0;}
+@media (max-width: 760px) {
+  .example-table {min-width: 650px;}
+  .example-history-table {min-width: 430px;}
+}
 .topic-rule-grid .topic-rule-row {
   grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
     minmax(65px,1fr) minmax(68px,1fr) minmax(88px,1.2fr) minmax(80px,.9fr)
