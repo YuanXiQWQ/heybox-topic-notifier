@@ -184,6 +184,33 @@ try {
       'initial history page',
     );
     const first = find('[data-example-results] tr');
+    const example = find('[data-example-rows]').firstElementChild;
+    const originalDir = document.documentElement.dir;
+    for (const dir of ['ltr', 'rtl']) {
+      document.documentElement.dir = dir;
+      for (const wrapper of examples.querySelectorAll('.example-table-scroll')) {
+        const bounds = wrapper.getBoundingClientRect();
+        check(bounds.width > 0 && wrapper.scrollWidth <= wrapper.clientWidth + 1 &&
+          bounds.left >= -1 && bounds.right <= document.documentElement.clientWidth + 1,
+          dir + ' tables fit inside the drawer');
+      }
+      for (const row of [head, example]) {
+        const [select, title, body, details, reason, remove, add] =
+          Array.from(row.children, (cell) => cell.getBoundingClientRect());
+        check([title, body, details].every((cell) => Math.abs(cell.top - select.top) < 1) &&
+          [remove, add].every((cell) => Math.abs(cell.top - reason.top) < 1),
+          dir + ' example cells align with their headings');
+        if (matchMedia('(max-width: 620px)').matches) {
+          check(reason.top >= select.bottom - 1 && reason.width > row.clientWidth / 2,
+            dir + ' second line gives the editable reason most of the width');
+        } else {
+          check(Math.abs(reason.top - select.top) < 1, dir + ' wide examples use one line');
+        }
+      }
+      check(Array.from(first.cells).every((cell) => cell.offsetTop === first.cells[0].offsetTop),
+        dir + ' history selection stays on one line');
+    }
+    document.documentElement.dir = originalDir;
     const checkbox = first.querySelector('[data-row-check]');
     first.querySelector('[data-example-title]').click();
     check(checkbox.checked && first.classList.contains('is-selected') && !find('[data-example-add]').disabled,

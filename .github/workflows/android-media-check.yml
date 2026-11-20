@@ -3,9 +3,9 @@ name: Verify Android media playback
 on:
   push:
     branches: [ main, dev, fix/android-media-response ]
-    paths: [ "apps/android/**", "static/fun/**", ".github/workflows/android-media-check.yml" ]
+    paths: [ "apps/android/**", "static/fun/**", "static/app.css", "apps/desktop/test/fixtures/matching-profiles*", ".github/workflows/android-media-check.yml" ]
   pull_request:
-    paths: [ "apps/android/**", "static/fun/**", ".github/workflows/android-media-check.yml" ]
+    paths: [ "apps/android/**", "static/fun/**", "static/app.css", "apps/desktop/test/fixtures/matching-profiles*", ".github/workflows/android-media-check.yml" ]
   workflow_dispatch:
 permissions:
   contents: read

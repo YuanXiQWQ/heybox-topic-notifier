@@ -3342,12 +3342,12 @@ tr:last-child td{
 
 /* 窄屏按控件类型分配空间，不依赖旧 WebView 缺失的 :has 选择器。 */
 @media (max-width: 620px){
-  .settings-list > div:not(.dropdown-settings-row):not(.settings-navigation-row):not(.notification-test-drawer){
+  .settings-list > div:not(.dropdown-settings-row):not(.settings-navigation-row):not(.notification-test-drawer):not(.example-content){
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
   }
 
-  .settings-list > div:not(.dropdown-settings-row):not(.settings-navigation-row):not(.notification-test-drawer):not(.is-collapsed){
+  .settings-list > div:not(.dropdown-settings-row):not(.settings-navigation-row):not(.notification-test-drawer):not(.is-collapsed):not(.example-content){
     padding: 14px 16px;
   }
 
@@ -4035,11 +4035,11 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   display: flex; flex-direction: column; gap: 12px; min-width: 0;
   align-items: stretch; padding: 0;
 }
-.example-table-scroll {min-width: 0; max-width: 100%; overflow-x: auto;}
+.example-table-scroll {min-width: 0; max-width: 100%;}
 .example-history-table th, .example-history-table td {border-inline-end: 1px solid var(--border-soft);}
 .example-history-table td:last-child, .example-history-table th:last-child {border-inline-end: 0;}
 .example-history {margin: 0 12px 12px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface); min-width: 0;}
-.example-history:not([hidden]) {display: grid; gap: 8px; animation: example-history-open 180ms ease-out;}
+.example-history:not([hidden]) {display: grid; grid-template-columns: minmax(0,1fr); gap: 8px; animation: example-history-open 180ms ease-out;}
 @keyframes example-history-open {from {opacity: 0; transform: translateY(-4px);} to {opacity: 1; transform: translateY(0);}}
 @media (prefers-reduced-motion: reduce) {.example-history:not([hidden]) {animation: none;}}
 .example-history .section-title-row {display: flex; justify-content: space-between; align-items: center; padding: 12px 12px 0;}
@@ -4062,9 +4062,29 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .example-history .pagination-row {padding-inline: 12px; flex-wrap: wrap;}
 .example-history .pagination button:not([aria-current]) {background: transparent;}
 .example-history .pagination button {border: 0;}
-@media (max-width: 760px) {
-  .example-table {min-width: 650px;}
-  .example-history-table {min-width: 430px;}
+@media (max-width: 620px) {
+  .example-rule-row {
+    --rule-action-column: 44px;
+    --rule-select-column: var(--rule-action-column);
+    grid-template-columns: var(--rule-select-column) minmax(0,1fr) minmax(0,1.5fr) minmax(0,.35fr) repeat(2,var(--rule-action-column));
+    grid-template-areas:
+      "select title body details details details"
+      "reason reason reason reason remove add";
+  }
+  .example-rule-row > :nth-child(1) {grid-area: select;}
+  .example-rule-row > :nth-child(2) {grid-area: title;}
+  .example-rule-row > :nth-child(3) {grid-area: body;}
+  .example-rule-row > :nth-child(4) {grid-area: details; border-inline-end: 0;}
+  .example-rule-row > :nth-child(5) {grid-area: reason;}
+  .example-rule-row > :nth-child(6) {grid-area: remove;}
+  .example-rule-row > :nth-child(7) {grid-area: add;}
+  .example-rule-row .match-detail-list {width: 100%;}
+  .example-rule-row .match-detail-list > div {grid-template-columns: fit-content(55%) minmax(0,1fr);}
+  .example-rule-row .match-detail-list dt {white-space: normal;}
+  .example-rule-row .match-detail-list dd .match-detail-value {max-block-size: none;}
+  .example-history-table .match-table-col-3 {width: min(5.5em, 28%);}
+  .example-history-table .match-table-col-5 {width: min(6.5em, 32%);}
+  .example-history .section-title-row {flex-wrap: wrap;}
 }
 .topic-rule-grid .topic-rule-row {
   grid-template-columns: var(--rule-drag-column) var(--rule-select-column)
