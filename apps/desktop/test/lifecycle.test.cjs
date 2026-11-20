@@ -398,11 +398,14 @@ test('normal exit cancels and awaits an unfinished download before cleaning the 
 
 test('installation refuses a corrupt cache and disables automatic installation', async () => {
   const calls = [];
-  const context = harness({repairUpdateCache: async () => {
+  const context = harness({repairUpdateCache: () => {
     calls.push('verify');
-    return false;
+    return Promise.resolve(false);
   }});
-  context.contents.executeJavaScript = async () => { calls.push('save'); };
+  context.contents.executeJavaScript = () => {
+    calls.push('save');
+    return Promise.resolve();
+  };
   context.window.hide = () => calls.push('hide');
   context.window.show = () => calls.push('show');
   await assert.rejects(context.handlers.get('app:install-update')(context.event), /incomplete/);
