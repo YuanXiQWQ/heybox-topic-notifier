@@ -140,8 +140,8 @@ try {
       location: 'comments',
     },
   }));
-  const originalFetch = window.fetch;
-  window.fetch = (url, options) =>
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (url, options) =>
     url === '/settings/counterexample-history'
       ? Promise.resolve(
         new Response(JSON.stringify(history), {
@@ -201,7 +201,7 @@ try {
       'bulk delete and empty entry',
     );
   } finally {
-    window.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
   }
   mode.value = 'hybrid';
   mode.dispatchEvent(new Event('change', { bubbles: true }));

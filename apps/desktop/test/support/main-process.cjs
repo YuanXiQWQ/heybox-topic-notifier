@@ -17,7 +17,7 @@ function harness(options = {}) {
   const updaterEvents = new Map();
   const updater = options.updater || {
     /** @return {Promise<object>} 当前模拟发行的安装包路径、版本和启动权限。 */
-    getOrCreateDownloadHelper: async () => ({
+    getOrCreateDownloadHelper: () => Promise.resolve({
       file: path.join('cache', 'setup.exe'), cacheDirForPendingUpdate: 'cache',
       downloadedFileInfo: {fileName: 'setup.exe'}, versionInfo: {version: api.info().update.version},
     }),

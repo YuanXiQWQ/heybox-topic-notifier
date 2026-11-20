@@ -87,5 +87,5 @@ test('install preparation rejects a cached filename that differs from the downlo
   await fs.writeFile(path.join(pending, 'update-info.json'), JSON.stringify({
     fileName: 'other.exe', sha512: createHash('sha512').update(bytes).digest('base64'),
   }));
-  assert.equal(await repairUpdateCache({getOrCreateDownloadHelper: async () => helper}), false);
+  assert.equal(await repairUpdateCache({getOrCreateDownloadHelper: () => Promise.resolve(helper)}), false);
 }));
