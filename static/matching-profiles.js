@@ -248,24 +248,35 @@ function initProfileDrawer(section, list) {
    */
   async function animate(opening) {
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const expanded = {
-      height: panel.getBoundingClientRect().height + 'px',
-      opacity: 1,
-      transform: 'translateY(0)',
-    };
-    const folded = { height: '0px', opacity: 0, transform: 'translateY(-6px)' };
+    const height = panel.getBoundingClientRect().height + 'px';
     panel.style.overflow = 'hidden';
+    panel.style.height = opening ? '0px' : height;
+    panel.style.opacity = opening ? '0' : '1';
+    panel.style.transform = opening ? 'translateY(-6px)' : 'translateY(0)';
+    panel.getBoundingClientRect();
     try {
-      const animation = panel.animate(
-        opening ? [folded, expanded] : [expanded, folded],
-        { duration: 220, easing: 'ease' },
-      );
       await new Promise((resolve) => {
-        animation.onfinish = resolve;
-        animation.oncancel = resolve;
+        /** 释放过渡监听，允许排队的抽屉继续切换。 */
+        function finish() {
+          clearTimeout(timer);
+          panel.removeEventListener('transitionend', onEnd);
+          resolve();
+        }
+        /** 只在面板自身的高度到位时切换内容。 @param {TransitionEvent} event 过渡事件。 */
+        function onEnd(event) {
+          if (event.target === panel && event.propertyName === 'height') finish();
+        }
+        const timer = setTimeout(finish, 250);
+        panel.addEventListener('transitionend', onEnd);
+        panel.style.transition = 'height 220ms ease, opacity 180ms ease, transform 220ms ease';
+        panel.style.height = opening ? height : '0px';
+        panel.style.opacity = opening ? '1' : '0';
+        panel.style.transform = opening ? 'translateY(0)' : 'translateY(-6px)';
       });
     } finally {
-      panel.style.removeProperty('overflow');
+      for (const property of ['transition', 'height', 'opacity', 'transform', 'overflow']) {
+        panel.style.removeProperty(property);
+      }
     }
   }
 
