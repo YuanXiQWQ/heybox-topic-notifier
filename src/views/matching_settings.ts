@@ -11,6 +11,7 @@ import {
 import { escapeHtml as e } from "./html.ts";
 import { renderProfileList } from "./matching_profiles.ts";
 import { renderDrawerHeading } from "./settings_drawer.ts";
+import { renderRuleTableHeader } from "./settings_topic_rules.ts";
 import { pageSizeValues } from "./match_table.ts";
 import {
   renderMatchDetails,
@@ -283,16 +284,6 @@ function renderCounterexamples(app: AppSettings): string {
     empty: m.emptyHistory,
     error: m.exampleHistoryError,
   };
-  /**
-   * 渲染整格可操作的多选表头。
-   */
-  const selectHead =
-    `<label class="rule-bulk-toggle" role="columnheader">
-    <input type="checkbox" data-example-select-all aria-label="${
-      e(m.selectAllRows)
-    }"><span>${
-      materialSymbolIcon("done_all", "rule-drag-icon")
-    }</span></label>`;
   const add =
     `<button type="button" class="icon-button text-icon-button" data-example-picker aria-expanded="false" aria-controls="example-history" aria-label="${
       e(m.exampleFromHistory)
@@ -311,11 +302,14 @@ function renderCounterexamples(app: AppSettings): string {
       e(JSON.stringify(labels))
     }">
       <div class="example-table-scroll"><div class="example-table" role="table" aria-label="${e(m.matchingExamples)}">
-        <div class="topic-rule-row example-rule-row rule-grid-head" role="row">
-          ${selectHead}
-          ${[m.postTitle, m.postContent, m.matchDetails, m.exampleReason].map((label) => `<div role="columnheader">${e(label)}</div>`).join("")}
-          <div role="columnheader">${remove}</div><div role="columnheader">${add}</div>
-        </div>
+        ${renderRuleTableHeader(
+          "example-rule-row",
+          "data-example-select-all",
+          m.selectAllRows,
+          [m.postTitle, m.postContent, m.matchDetails, m.exampleReason].map((label) =>
+            `<div role="columnheader">${e(label)}</div>`
+          ).join("") + `<div role="columnheader">${remove}</div><div role="columnheader">${add}</div>`,
+        )}
         <div role="rowgroup" data-example-rows></div></div></div>
       <template data-example-row><div class="topic-rule-row example-rule-row" role="row">
         <label role="cell"><input type="checkbox" data-row-check></label>

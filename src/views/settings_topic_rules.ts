@@ -144,6 +144,31 @@ export function renderKeywordSection(settings: AppSettings): string {
 }
 
 /**
+ * 为设置列表渲染共用的表头行与整格全选控件。
+ * @param {string} layoutClass 对应列表的列布局类。
+ * @param {string} selectAttribute 全选框的事件绑定属性。
+ * @param {string} selectLabel 全选的可访问名称。
+ * @param {string} columns 全选框后面的表头单元格。
+ * @param {string} leading 全选框前面的拖拽列（如有）。
+ * @return {string} 设置列表表头。
+ */
+export function renderRuleTableHeader(
+  layoutClass: string,
+  selectAttribute: string,
+  selectLabel: string,
+  columns: string,
+  leading = "",
+): string {
+  return `<div class="topic-rule-row rule-grid-head ${layoutClass}" role="row">
+    ${leading}
+    <label class="checkbox-cell bulk-action-cell rule-bulk-toggle" role="columnheader">
+      <input type="checkbox" ${selectAttribute} aria-label="${escapeHtml(selectLabel)}"><span>${materialSymbolIcon("done_all", "rule-drag-icon")}</span>
+    </label>
+    ${columns}
+  </div>`;
+}
+
+/**
  * 渲染话题规则表头。
  *
  * @param {ReturnType<typeof getMessages>} messages 当前语言文案。
@@ -152,17 +177,11 @@ export function renderKeywordSection(settings: AppSettings): string {
 function renderTopicRuleHeader(
   messages: ReturnType<typeof getMessages>,
 ): string {
-  return `
-    <div class="topic-rule-row topic-rule-head" role="row">
-      <div class="rule-drag-header" role="columnheader" aria-hidden="true">${
-    materialSymbolIcon("height", "rule-drag-icon")
-  }</div>
-      <label class="checkbox-cell bulk-action-cell rule-bulk-toggle" role="columnheader">
-        <input type="checkbox" data-role="select-all-topics" aria-label="${
-    escapeHtml(messages.selectAllRows)
-  }"><span>${materialSymbolIcon("done_all", "rule-drag-icon")}</span>
-      </label>
-      <div role="columnheader">${escapeHtml(messages.topicId)}</div>
+  return renderRuleTableHeader(
+    "topic-rule-head",
+    'data-role="select-all-topics"',
+    messages.selectAllRows,
+    `<div role="columnheader">${escapeHtml(messages.topicId)}</div>
       <div role="columnheader">${escapeHtml(messages.topicNote)}</div>
       <div role="columnheader" class="topic-profile-cell">${
     escapeHtml(messages.profileApplied)
@@ -196,9 +215,9 @@ function renderTopicRuleHeader(
           data-action="insert-topic"
           aria-label="+"
         >+</button>
-      </div>
-    </div>
-  `;
+      </div>`,
+    `<div class="rule-drag-header" role="columnheader" aria-hidden="true">${materialSymbolIcon("height", "rule-drag-icon")}</div>`,
+  );
 }
 
 /**
