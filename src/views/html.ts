@@ -223,7 +223,7 @@ export function renderLayout(options: {
 
   return `<!doctype html>
 <html
-  data-app-page-cache="2"
+  data-app-page-cache="3"
   lang="${options.locale}"
   dir="${direction}"
   data-color-mode="${options.darkMode ? "dark" : "light"}"

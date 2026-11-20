@@ -150,6 +150,8 @@ try {
     },
   }));
   const originalFetch = globalThis.fetch;
+  // 离线历史缓存可能只有表格数据，选中后仍可保存原因，待取得原帖再发送。
+  delete history[0].post;
   globalThis.fetch = (url, options) =>
     url === '/settings/counterexample-history'
       ? Promise.resolve(
@@ -160,11 +162,20 @@ try {
       : originalFetch(url, options);
   try {
     const head = find('.example-table .rule-grid-head');
+    const topicHead = find('.topic-rule-head');
     check(
       head.matches('.topic-rule-row') && head.children.length === 7 &&
-        head.children[1].textContent === '帖子标题',
+        head.children[1].textContent === '帖子标题' &&
+        head.firstElementChild.className === topicHead.children[1].className &&
+        getComputedStyle(head).backgroundColor === getComputedStyle(topicHead).backgroundColor &&
+        getComputedStyle(head.children[1]).borderInlineEnd === getComputedStyle(topicHead.children[2]).borderInlineEnd &&
+        getComputedStyle(head.children[1]).textAlign === 'center',
       'seven counterexample columns',
     );
+    const actionWidth = parseFloat(getComputedStyle(head).getPropertyValue('--rule-action-column'));
+    check([head.children[0], head.children[5], head.children[6]].every((cell) =>
+      Math.abs(cell.offsetWidth - actionWidth) <= 1
+    ), 'counterexample selection and actions use topic table column widths');
     head.querySelector('[data-example-picker]').click();
     await settle();
     check(
@@ -174,7 +185,8 @@ try {
     const first = find('[data-example-results] tr');
     const checkbox = first.querySelector('[data-row-check]');
     first.querySelector('[data-example-title]').click();
-    check(checkbox.checked && first.classList.contains('is-selected'), 'title selects the row');
+    check(checkbox.checked && first.classList.contains('is-selected') && !find('[data-example-add]').disabled,
+      'title selects a cached history row and enables adding');
     first.querySelector('.match-detail-list').click();
     check(!checkbox.checked && !first.classList.contains('is-selected'), 'details clear the row');
     first.querySelector('label').click();
@@ -190,7 +202,7 @@ try {
     const items = () =>
       JSON.parse(form.elements.matchingProfiles.value)[0].options.counterexamples;
     check(
-      items().length === 3 && items()[1].body === '完整正文 0' &&
+      items().length === 3 && items()[1].body === '完整正文 0' && !items()[1].post &&
         items()[2].details.value === '疑似求助' &&
         JSON.parse(find('[data-example-preview] pre').textContent).length === 1,
       'batch add across pages, empty reasons excluded',

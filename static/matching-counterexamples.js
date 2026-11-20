@@ -186,9 +186,9 @@ globalThis.initMatchingCounterexamples = function (
       const row = clone("[data-history-pick-row]");
       fill(row, post);
       const box = row.querySelector("[data-row-check]");
-      if (!post.post || saved.has(post.id)) {
+      if (saved.has(post.id)) {
         box.disabled = true;
-        box.checked = saved.has(post.id);
+        box.checked = true;
         row.classList.add("is-unavailable");
       }
       results.append(row);
@@ -387,7 +387,7 @@ globalThis.initMatchingCounterexamples = function (
     const notes = new Map(topics().map((t) => [t.id, t.note]));
     let first;
     for (const [id, post] of picked) {
-      if (!post?.post || saved.has(id)) continue;
+      if (!post || saved.has(id)) continue;
       items.push({
         id,
         addedAt: Date.now(),
@@ -395,9 +395,9 @@ globalThis.initMatchingCounterexamples = function (
         title: post.title,
         topicId: post.topicId,
         topicNote: notes.get(post.topicId) || "",
-        ...(post.body !== post.post.body ? { body: post.body } : {}),
+        ...(post.body !== post.post?.body ? { body: post.body } : {}),
         details: post.details,
-        post: post.post,
+        ...(post.post ? { post: post.post } : {}),
         reason: "",
       });
       first ??= id;
@@ -413,8 +413,12 @@ globalThis.initMatchingCounterexamples = function (
   bindSelection(results, picked);
   results.addEventListener("click", (event) => {
     if (event.target.closest("label, input")) return;
-    const box = event.target.closest("tr[data-post]")?.querySelector("[data-row-check]");
-    if (box && !box.disabled) box.click();
+    const row = event.target.closest("tr[data-post]");
+    if (!row || row.querySelector("[data-row-check]").disabled) return;
+    const id = row.dataset.post;
+    if (picked.has(id)) picked.delete(id);
+    else picked.set(id, candidatesById.get(id));
+    selectionState(results, picked);
   });
   search.addEventListener("input", filter);
   allTopics.addEventListener("change", filter);
