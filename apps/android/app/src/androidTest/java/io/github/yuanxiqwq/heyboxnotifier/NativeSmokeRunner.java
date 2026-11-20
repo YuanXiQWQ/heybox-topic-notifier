@@ -81,7 +81,10 @@ public final class NativeSmokeRunner extends Instrumentation {
                 return null;
             });
             pass("schedule uses native calendar and era menus without keyboard; date drafts and card reorder remain saved");
-            assertBrowserFixture("matching-profiles.html", "", 30000);
+            assertBrowserFixture("matching-profiles.html", "", 30000, () -> {
+                assertMatchingDrawerTouch();
+                return null;
+            });
             pass("matching profiles preserve topic associations and independent advanced settings");
             assertWhiteNightEntry(false, false);
             assertWhiteNightEntry(true, false);
@@ -352,6 +355,40 @@ public final class NativeSmokeRunner extends Instrumentation {
             runOnMainSync(() -> view.loadUrl("about:blank"));
         }
     }
+    /** 在实际屏幕坐标向 WebView 发送触摸。 @param {android.webkit.WebView} view 页面。 @param {String} selector 触摸目标。 @throws Exception 控件不可访问。 */
+    private void tapWebControl(android.webkit.WebView view, String selector) throws Exception {
+        String control = "document.querySelector(" + JSONObject.quote(selector) + ")";
+        browserValue(view, control + ".scrollIntoView({block:'center'})");
+        SystemClock.sleep(100);
+        org.json.JSONArray point = new org.json.JSONArray(browserValue(view, "(() => {const r=" + control + ".getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,innerWidth]})()"));
+        int[] origin = new int[2]; runOnMainSync(() -> view.getLocationOnScreen(origin));
+        double scale = view.getWidth() / point.getDouble(2);
+        float x = origin[0] + (float) (point.getDouble(0) * scale), y = origin[1] + (float) (point.getDouble(1) * scale);
+        long pressed = SystemClock.uptimeMillis();
+        for (int action : new int[] { android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP }) {
+            android.view.MotionEvent event = android.view.MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), action, x, y, 0);
+            event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN); sendPointerSync(event); event.recycle();
+            if (action == android.view.MotionEvent.ACTION_DOWN) SystemClock.sleep(80);
+        }
+    }
+    /** 用触摸切换配置列表和设置，检查每次切换的收起与展开。 @throws Exception 触摸或过渡失败。 */
+    private void assertMatchingDrawerTouch() throws Exception {
+        java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web"); field.setAccessible(true);
+        android.webkit.WebView view = (android.webkit.WebView) field.get(activity);
+        browserValue(view, "window.drawerPhases=[];document.querySelector('[data-matching-panel]').addEventListener('transitionstart',e=>{if(e.target===e.currentTarget && e.propertyName==='height') drawerPhases.push(e.target.style.height==='0px'?'close':'open')})");
+        for (String selector : new String[]{
+                "[data-profile-toggle]", "[data-action=toggle-matchings] .settings-label-with-icon",
+                "[data-profile-toggle]", "[data-action=toggle-matchings] .dropdown-chevron"}) {
+            boolean list = selector.equals("[data-profile-toggle]");
+            browserValue(view, "drawerPhases.length=0");
+            tapWebControl(view, selector);
+            String ready = "(() => {const panel=document.querySelector('[data-matching-panel]');return !panel.hidden && !panel.style.height && document.querySelector('[data-profile-list]').hidden===" + !list + " && panel.getBoundingClientRect().height>0})()";
+            long deadline = SystemClock.uptimeMillis() + 3000;
+            while (!"true".equals(browserValue(view, ready)) && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(50);
+            require("true".equals(browserValue(view, ready)), "touch did not open the requested drawer: " + selector);
+            require("true".equals(browserValue(view, "matchMedia('(prefers-reduced-motion: reduce)').matches || drawerPhases.join(',')==='close,open'")), "missing drawer transition: " + selector);
+        }
+    }
     /** 点击真实 WebView 选择框并通过系统无障碍节点选择选项，检查没有唤起输入法。 @param {String} selector 选择框。 @param {String} label 选项文字。 @param {String} expected 保存值。 @throws Exception 点击、选择或保存失败。 */
     private void assertNativeScheduleChoice(String selector, String label, String expected) throws Exception {
         java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web"); field.setAccessible(true);
@@ -359,19 +396,7 @@ public final class NativeSmokeRunner extends Instrumentation {
         String control = "document.querySelector(" + JSONObject.quote(selector) + ")";
         android.app.UiAutomation automation = getUiAutomation();
         automation.waitForIdle(100, 5000);
-        browserValue(view, control + ".scrollIntoView({block:'center'})");
-        SystemClock.sleep(100);
-        org.json.JSONArray point = new org.json.JSONArray(browserValue(view, "(() => {const r=" + control + ".getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,innerWidth]})()"));
-        int[] origin = new int[2]; runOnMainSync(() -> view.getLocationOnScreen(origin));
-        double scale = view.getWidth() / point.getDouble(2);
-        float x = origin[0] + (float) (point.getDouble(0) * scale), y = origin[1] + (float) (point.getDouble(1) * scale);
-        android.util.Log.i("SCHEDULE_PROBE", selector + " point=" + point + " screen=" + x + "," + y);
-        long pressed = SystemClock.uptimeMillis();
-        for (int action : new int[] { android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP }) {
-            android.view.MotionEvent event = android.view.MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), action, x, y, 0);
-            event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN); sendPointerSync(event); event.recycle();
-            if (action == android.view.MotionEvent.ACTION_DOWN) SystemClock.sleep(80);
-        }
+        tapWebControl(view, selector);
         long deadline = SystemClock.uptimeMillis() + 10000;
         boolean selected = false;
         while (!selected && SystemClock.uptimeMillis() < deadline) {
