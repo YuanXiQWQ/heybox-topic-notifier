@@ -1,10 +1,11 @@
 /** @file 定义匹配模式、AI 调用限制和缓存设置的默认值与规范化规则。 */
+import type { TopicPost } from "../models.ts";
 import {
   type AiProvider,
   aiProviders,
   normalizeAiProvider,
 } from "./ai_providers.ts";
-/** 由历史帖子摘录的反例，链接与话题备注仅供设置页显示。 */
+/** 历史帖子的原始快照与排除原因。旧反例需从历史补齐原帖。 */
 export type MatchingCounterexample = {
   addedAt: number;
   id: string;
@@ -12,10 +13,9 @@ export type MatchingCounterexample = {
   topicNote: string;
   url: string;
   title: string;
-  source: "title" | "body" | "comments" | "replies";
-  excerpt: string;
+  post?: TopicPost;
   reason: string;
-  /** 帖子正文与命中信息快照，历史清理后仍可查看；旧反例仅保存摘录。 */
+  /** 历史表格展示的纯文本正文。 */
   body?: string;
   details?: {
     publishedAt: string;
@@ -126,14 +126,28 @@ function normalizeCounterexamples(raw: unknown): MatchingCounterexample[] {
       topicId: String(item.topicId ?? ""),
       topicNote: String(item.topicNote ?? ""),
       url: /^https?:\/\//i.test(item.url) ? String(item.url) : "",
-      source: ["title", "comments", "replies"].includes(item.source)
-        ? item.source
-        : "body",
-      excerpt: String(item.excerpt ?? "").slice(0, 2000),
+      ...(item.post?.id === item.id && isCounterexamplePost(item.post)
+        ? { post: item.post }
+        : {}),
       reason: String(item.reason ?? "").slice(0, 1000),
     });
   }
   return [...unique.values()];
+}
+
+/**
+ * 验证历史帖子包含全部原始字段，避免将缺少正文或评论的摘录当作原帖。
+ * @param {unknown} value 待保存的帖子快照。
+ * @return {boolean} 是否为可发送的原帖。
+ */
+function isCounterexamplePost(value: unknown): value is TopicPost {
+  if (!value || typeof value !== "object") return false;
+  const post = value as Record<string, unknown>;
+  return ["id", "title", "body", "excerpt", "url", "publishedAt"].every(
+    (key) => typeof post[key] === "string",
+  ) && [post.comments, post.commentReplies].every((list) =>
+    Array.isArray(list) && list.every((entry) => typeof entry === "string")
+  );
 }
 
 /**

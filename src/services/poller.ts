@@ -154,6 +154,7 @@ export function createPoller(
                 runStorage.userId,
               )).sent;
             },
+            (id) => runStorage.listMatchesForPost(id),
           );
           if (!cached) return;
         } else if (

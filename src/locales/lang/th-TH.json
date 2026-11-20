@@ -390,7 +390,7 @@
   "exampleAdd": "เพิ่มตัวอย่างที่ไม่ตรงเงื่อนไข",
   "examplePreview": "ดูตัวอย่างข้อความที่จะส่งให้ AI",
   "exampleHistoryError": "โหลดประวัติไม่ได้",
-  "exampleExcerptHint": "แก้ไขหรือเลือกข้อความที่จะอ้างอิงได้สูงสุด 2000 ตัวอักษร",
+  "examplePostUnavailable": "ไม่พบโพสต์ต้นฉบับ ระบบจะข้ามตัวอย่างนี้",
   "matchingCompany": "บริษัท",
   "matchingCustom": "การตั้งค่าแบบกำหนดเอง",
   "matchingSearchCompany": "ค้นหาบริษัท",

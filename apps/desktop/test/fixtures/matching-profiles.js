@@ -116,12 +116,16 @@ try {
     examples.nextElementSibling === find('[data-advanced-editor]'), 'AI example drawer');
   find('[data-action="toggle-counterexamples"]').click();
   const annotation = find('[data-example-rows] [data-example-reason]');
+  const style = getComputedStyle(annotation);
+  check(style.resize === 'none' && style.overflowY === 'auto' &&
+    !find('[data-example-rows]').querySelector('details, [data-example-excerpt]'),
+    'only the reason is editable and has no resize handle');
   annotation.value = '评论引用了过去的困难';
   annotation.dispatchEvent(new Event('input', { bubbles: true }));
   const saved = JSON.parse(form.elements.matchingProfiles.value);
   check(saved[0].options.counterexamples[0].reason === annotation.value &&
     saved[1].options.counterexamples.length === 0 &&
-    JSON.parse(find('[data-example-preview] pre').textContent)[0].source === 'comments',
+    JSON.parse(find('[data-example-preview] pre').textContent)[0].post.comments[0] === '当时卡住了',
     'editable profile-specific evidence and preview');
   const history = Array.from({ length: 11 }, (_, index) => ({
     id: String(index),
@@ -129,6 +133,11 @@ try {
     topicId: '10',
     title: '历史标题 ' + index,
     body: '完整正文 ' + index,
+    post: {
+      id: String(index), title: '历史标题 ' + index, body: '原始正文 ' + index,
+      excerpt: '', url: '', publishedAt: '2026-11-01', comments: ['示例评论 ' + index],
+      commentReplies: ['示例回复 ' + index],
+    },
     location: 'comments',
     comments: ['示例评论 ' + index],
     replies: [],
@@ -150,9 +159,10 @@ try {
       )
       : originalFetch(url, options);
   try {
-    const head = find('.example-table thead tr');
+    const head = find('.example-table .rule-grid-head');
     check(
-      head.cells.length === 7 && head.cells[1].textContent === '帖子标题',
+      head.matches('.topic-rule-row') && head.children.length === 7 &&
+        head.children[1].textContent === '帖子标题',
       'seven counterexample columns',
     );
     head.querySelector('[data-example-picker]').click();
@@ -161,7 +171,18 @@ try {
       find('[data-example-results]').rows.length === 10 && find('[data-example-add]').disabled,
       'initial history page',
     );
-    find('[data-example-results] [data-row-check]').click();
+    const first = find('[data-example-results] tr');
+    const checkbox = first.querySelector('[data-row-check]');
+    first.querySelector('[data-example-title]').click();
+    check(checkbox.checked && first.classList.contains('is-selected'), 'title selects the row');
+    first.querySelector('.match-detail-list').click();
+    check(!checkbox.checked && !first.classList.contains('is-selected'), 'details clear the row');
+    first.querySelector('label').click();
+    check(checkbox.checked, 'checkbox label toggles once');
+    checkbox.click();
+    check(!checkbox.checked, 'checkbox toggles once');
+    first.querySelector('.table-clip').click();
+    check(checkbox.checked, 'post content selects the row');
     find('[data-example-pages] button:last-child').click();
     find('[data-history-pick-all]').click();
     find('[data-example-add]').click();
@@ -174,12 +195,14 @@ try {
         JSON.parse(find('[data-example-preview] pre').textContent).length === 1,
       'batch add across pages, empty reasons excluded',
     );
-    const stored = find('[data-example-rows] tr[data-post="10"]');
+    const stored = find('[data-example-rows] [data-post="10"]');
     const why = stored.querySelector('[data-example-reason]');
     why.value = '原帖是在分享经历';
     why.dispatchEvent(new Event('input', { bubbles: true }));
     check(
       items()[2].reason === why.value &&
+        JSON.stringify(JSON.parse(find('[data-example-preview] pre').textContent)[1].post) ===
+          JSON.stringify(history[10].post) &&
         JSON.parse(find('[data-example-preview] pre').textContent).length === 2,
       'annotate after adding',
     );
@@ -189,15 +212,19 @@ try {
       find('[data-example-results] [data-row-check]').disabled,
       'already added post disabled',
     );
-    find('[data-example-results] tr[data-post="1"] [data-row-check]').click();
+    const unavailable = find('[data-example-results] tr.is-unavailable');
+    unavailable.click();
+    check(find('[data-example-add]').disabled && unavailable.querySelector('input').checked,
+      'clicking an existing example does not add it again');
+    find('[data-example-results] tr[data-post="1"]').click();
     find('[data-example-add]').click();
     check(items().length === 4, 'single add');
-    find('[data-example-rows] tr[data-post="1"] [data-example-delete]').click();
+    find('[data-example-rows] [data-post="1"] [data-example-delete]').click();
     check(items().length === 3, 'row delete');
     find('[data-example-select-all]').click();
-    find('.example-table thead [data-example-delete]').click();
+    find('.example-table .rule-grid-head [data-example-delete]').click();
     check(
-      items().length === 0 && find('.example-table thead [data-example-picker]').isConnected,
+      items().length === 0 && find('.example-table .rule-grid-head [data-example-picker]').isConnected,
       'bulk delete and empty entry',
     );
   } finally {

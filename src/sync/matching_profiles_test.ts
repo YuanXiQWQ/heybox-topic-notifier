@@ -79,13 +79,18 @@ Deno.test("offline annotations merge per example and deletion survives replay", 
     topicId: "1",
     topicNote: "",
     url: "",
-    source: "comments" as const,
-    excerpt: "当时卡住了",
+    post: {
+      id: "a", title: "回顾", body: "通关过程", excerpt: "", url: "",
+      publishedAt: "", comments: ["当时卡住了"], commentReplies: ["后来解决了"],
+    },
     reason: "已解决",
     addedAt: 1,
   };
   app.matching = normalizeMatchingSettings({
-    counterexamples: [sample, { ...sample, id: "b", addedAt: 2 }],
+    counterexamples: [
+      sample,
+      { ...sample, id: "b", post: { ...sample.post, id: "b" }, addedAt: 2 },
+    ],
   });
   const early = structuredClone(app), late = structuredClone(app);
   early.matching!.counterexamples.shift();

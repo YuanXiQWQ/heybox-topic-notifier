@@ -390,7 +390,7 @@
   "exampleAdd": "הוספת דוגמה נגדית",
   "examplePreview": "תצוגה מקדימה של הדוגמאות שיישלחו",
   "exampleHistoryError": "טעינת ההיסטוריה נכשלה",
-  "exampleExcerptHint": "אפשר לערוך או לסמן את הקטע לציטוט, עד 2000 תווים.",
+  "examplePostUnavailable": "הפוסט המקורי אינו זמין. הדוגמה הזו לא תישלח.",
   "matchingCompany": "חברה",
   "matchingCustom": "תצורה מותאמת אישית",
   "matchingSearchCompany": "חיפוש חברות",

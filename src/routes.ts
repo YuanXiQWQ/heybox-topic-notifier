@@ -635,7 +635,7 @@ export function createRoutes(
       const { id, post, matchedAt } = record;
       const result = normalizeMatchResult(record);
       return {
-        recordId: id, topicId: id.split(":")[0], id: post.id, title: post.title, url: post.url,
+        recordId: id, topicId: id.split(":")[0], id: post.id, title: post.title, url: post.url, post,
         body: plainTextFromHeyboxContent(post.body || post.excerpt),
         comments: post.comments, replies: post.commentReplies, location: result.location,
         details: {
