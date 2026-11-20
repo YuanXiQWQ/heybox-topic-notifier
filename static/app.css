@@ -4002,20 +4002,32 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .rule-bulk-toggle input:indeterminate + span > svg {color:var(--theme-link);}
 .rule-bulk-toggle:focus-within {outline:2px solid var(--theme-strong); outline-offset:-2px;}
 
-/* 配置操作占据标题摘要位置，标题按钮覆盖其余区域及箭头。 */
-[data-matching-editor] > .dropdown-heading { position: relative; }
+/* 标题与配置按钮各占一列，逻辑末端的箭头仍属于标题按钮。 */
+[data-matching-editor] > .dropdown-heading {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  padding-inline-end: 52px;
+}
 .profile-summary {
-  position: absolute;
-  inset-inline-end: 58px;
-  top: 50%;
-  transform: translateY(-50%);
-  max-width: 45%;
+  align-self: stretch;
+  min-height: 44px;
+  max-width: min(40vw, 20em);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 [data-matching-editor] > .dropdown-heading .dropdown-toggle {
-  grid-template-columns: minmax(0,1fr) auto;
+  grid-template-columns: minmax(0,1fr);
+}
+[data-matching-editor] > .dropdown-heading .dropdown-summary-cell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  inset-inline-end: 0;
+  width: 52px;
+  margin: 0;
+  justify-content: center;
 }
 [data-matching-editor] .matching-settings-list > [data-advanced-editor],
 [data-matching-editor] .matching-settings-list > [data-counterexample-editor] { padding: 0; }
@@ -4131,4 +4143,4 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   .profile-row > :nth-child(7) {grid-area:delete;}
   .profile-row > :nth-child(8) {grid-area:insert;}
 }
-[data-matching-panel] { transition:none; }
+[data-matching-panel] { box-sizing: border-box; min-height: 0; transition: none; }
