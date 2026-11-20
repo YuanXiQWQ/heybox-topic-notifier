@@ -76,6 +76,8 @@ function api(
 
 Deno.test("deployment versions accept only supported stable tags", () => {
   assertEquals(parseVersion("v3.13.2")?.version, "3.13.2");
+  assertEquals(parseVersion("v3.14.1592")?.version, "3.14.1592");
+  assertEquals(parseVersion("0.0.2099999999")?.order, 2099999999);
   for (
     const tag of [
       "main",
@@ -84,6 +86,8 @@ Deno.test("deployment versions accept only supported stable tags", () => {
       "03.13.2",
       "3.1000.0",
       "2100.0.0",
+      "2099.999.1000",
+      "0.0.9007199254740992",
       "3.13.2;exit",
     ]
   ) assertEquals(parseVersion(tag), undefined);
@@ -115,6 +119,36 @@ Deno.test("deployment requires a completed tag build for the exact commit", asyn
   ) {
     assertEquals(
       await deploymentTarget(api([release()], [run(overrides)]), {}),
+      undefined,
+    );
+  }
+});
+
+Deno.test("deployment upgrades long patch tags and compares persisted versions by component", async () => {
+  for (
+    const [previous, next] of [
+      ["3.14.159", "3.14.1592"],
+      ["3.14.1592", "3.15.0"],
+      ["3.14.1000", "3.15.0"],
+    ]
+  ) {
+    const releases = [release(previous), release(next)];
+    assertEquals(latestRelease(releases)?.tag_name, next);
+    const target = await deploymentTarget(
+      api(releases, [run({ head_branch: next })]),
+      {
+        current: { ...parseVersion(previous)!, sha: "b".repeat(40) },
+      },
+    );
+    assertEquals(target?.tag, next);
+    assertEquals(
+      await deploymentTarget(
+        api([release(previous)], [run({ head_branch: previous })]),
+        {
+          current: { ...parseVersion(next)!, sha: "b".repeat(40) },
+        },
+        sha,
+      ),
       undefined,
     );
   }

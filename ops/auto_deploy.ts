@@ -12,6 +12,8 @@ const assetNames = [
 ];
 /** 正式版本身份。 */
 type Version = { tag: string; version: string; order: number };
+/** 逐段按数字比较标准版本串，避免长补丁号与更高次版本的 Android 编码重叠。 */
+const versionOrder = new Intl.Collator("en", { numeric: true });
 /** GitHub 公开发行所需字段。 */
 export type Release = {
   tag_name: string;
@@ -50,11 +52,15 @@ export function parseVersion(tag: string): Version | undefined {
   const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(tag);
   if (!match) return;
   const [major, minor, patch] = match.slice(1).map(Number);
-  if (major > 2099 || minor > 999 || patch > 999) return;
+  const order = major * 1000000 + minor * 1000 + patch;
+  if (
+    major > 2099 || minor > 999 || !Number.isSafeInteger(order) ||
+    order + 1 > 2100000000
+  ) return;
   return {
     tag,
     version: `${major}.${minor}.${patch}`,
-    order: major * 1000000 + minor * 1000 + patch,
+    order,
   };
 }
 
@@ -69,7 +75,10 @@ export function latestRelease(releases: Release[]): Release | undefined {
     release.published_at && parseVersion(release.tag_name)
   )
     .sort((a, b) =>
-      parseVersion(b.tag_name)!.order - parseVersion(a.tag_name)!.order
+      versionOrder.compare(
+        parseVersion(b.tag_name)!.version,
+        parseVersion(a.tag_name)!.version,
+      )
     )[0];
 }
 
@@ -115,8 +124,10 @@ export async function deploymentTarget(
   );
   if (!release) return;
   const version = parseVersion(release.tag_name)!;
-  if (state.current && version.order < state.current.order) return;
-  if (state.current && version.order === state.current.order && !redeploySha) {
+  const comparison = state.current
+    ? versionOrder.compare(version.version, state.current.version)
+    : 1;
+  if (comparison < 0 || (comparison === 0 && !redeploySha)) {
     return;
   }
   if (
@@ -130,7 +141,7 @@ export async function deploymentTarget(
   if (redeploySha && sha !== redeploySha) {
     throw new Error("正式标签与明确授权的重部署提交不匹配。");
   }
-  if (state.current?.order === version.order && state.current.sha === sha) {
+  if (comparison === 0 && state.current?.sha === sha) {
     return;
   }
   const { workflow_runs } = await read(
