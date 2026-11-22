@@ -251,11 +251,11 @@ export function renderLayout(options: {
     <script src="/static/settings-navigation.js" defer></script>
     <title>${escapeHtml(options.title)}</title>
     <link rel="icon" href="/favicon.ico" type="image/png">
-    <link rel="stylesheet" href="/static/app.css?v=20261120-mobile-examples">
+    <link rel="stylesheet" href="/static/app.css?v=20261122-example-interactions">
     <script src="/static/theme-compat.js" defer></script>
     <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
     ${stylesheetHtml}
-    <script src="/static/tooltip.js" defer></script>
+    <script src="/static/tooltip.js?v=20261122-example-interactions" defer></script>
     <script src="/static/app-sync/store.js?v=20261114-instant-navigation" defer></script>
     <script src="/static/app-sync/client.js?v=20261114-instant-navigation" defer></script>
     ${
