@@ -42,7 +42,7 @@
       !includeClipped || node.closest("button, input, select, textarea, label")
     ) return undefined;
     const clipped = node.closest(clippedSelector) ??
-      node.closest(".match-table td")?.querySelector(clippedSelector);
+      node.closest(".match-table td, [data-post-link-cell]")?.querySelector(clippedSelector);
     return clipped instanceof HTMLElement ? clipped : undefined;
   }
 
@@ -192,7 +192,7 @@
     if (input !== "touch" || !event.isPrimary || event.button !== 0) return;
     const target = findTarget(event.target, true);
     if (!target) return;
-    const surface = target.closest(".match-table td") ?? target;
+    const surface = target.closest(".match-table td, [data-post-link-cell]") ?? target;
     press = {
       id: event.pointerId,
       x: event.clientX,

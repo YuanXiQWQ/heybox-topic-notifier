@@ -185,6 +185,58 @@ try {
     );
     const first = find('[data-example-results] tr');
     const example = find('[data-example-rows]').firstElementChild;
+    const title = example.querySelector('[data-example-title]');
+    const body = example.querySelector('[data-example-body]');
+    const details = example.querySelector('.match-detail-list');
+    check([title, body, details].every((el) =>
+      el.classList.contains('is-overflowing') && el.tabIndex === 0
+    ), 'saved titles, bodies and clipped details have keyboard previews');
+    check(body.clientHeight <= parseFloat(getComputedStyle(body).lineHeight) * 5 + 2,
+      'long saved posts use the five-line history preview');
+    if (new URLSearchParams(location.search).has('mouse')) {
+      details.scrollIntoView({ block: 'center' });
+      globalThis.entryStage = 'hover-saved-details';
+      await new Promise((resolve) => document.addEventListener('details-hover-checked', resolve, { once: true }));
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    details.focus();
+    check(getComputedStyle(details).position === 'absolute' &&
+      getComputedStyle(details.querySelectorAll('dd .match-detail-value')[2]).whiteSpace === 'normal',
+      'focusing clipped details expands the full AI reason');
+    details.blur();
+    const opened = [];
+    const nativeOpen = globalThis.open;
+    globalThis.open = (url) => { opened.push(url); return null; };
+    try {
+      for (const cell of example.querySelectorAll('[data-post-link-cell]')) cell.click();
+      title.click();
+      title.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+      const touch = { pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, bubbles: true };
+      details.parentElement.dispatchEvent(new PointerEvent('pointerdown', touch));
+      await settle();
+      const tooltip = find('#app-tooltip');
+      check(!tooltip.hidden && tooltip.textContent.includes('疑似求助'.repeat(50)),
+        'holding a saved details cell exposes the complete matching reason');
+      details.parentElement.dispatchEvent(new PointerEvent('pointerup', touch));
+      details.parentElement.click();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      const selectedText = document.createRange();
+      selectedText.selectNodeContents(body);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(selectedText);
+      body.click();
+      selection.removeAllRanges();
+      annotation.click();
+      const mark = example.querySelector('[data-row-check]');
+      mark.click();
+      check(mark.checked, 'selection is independent of opening the post');
+      mark.click();
+      check(opened.length === 5 && opened.every((url) => url === title.href),
+        'only activating saved post cells or the keyboard link opens the original');
+    } finally {
+      globalThis.open = nativeOpen;
+    }
     const originalDir = document.documentElement.dir;
     for (const dir of ['ltr', 'rtl']) {
       document.documentElement.dir = dir;
@@ -265,6 +317,19 @@ try {
       items().length === 0 && find('.example-table .rule-grid-head [data-example-picker]').isConnected,
       'bulk delete and empty entry',
     );
+    head.querySelector('[data-example-picker]').click();
+    await settle();
+    find('[data-history-pick-all]').click();
+    find('[data-example-pages] button:last-child').click();
+    find('[data-history-pick-all]').click();
+    find('[data-example-add]').click();
+    check(!find('[data-saved-pagination]').hidden && find('[data-example-rows]').children.length === 10,
+      'large saved lists show the first ten examples');
+    find('[data-saved-pages] button:last-child').click();
+    check(find('[data-example-rows]').children.length === 1 &&
+      find('[data-example-rows] [data-post="10"]'), 'saved page two contains the remaining post');
+    find('[data-saved-size="all"]').click();
+    check(find('[data-example-rows]').children.length === 11, 'all saved examples fit on one page');
   } finally {
     globalThis.fetch = originalFetch;
   }

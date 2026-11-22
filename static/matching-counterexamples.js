@@ -25,6 +25,7 @@ globalThis.initMatchingCounterexamples = function (
   const allTopics = panel.querySelector("[data-example-all]");
   const pageSize = panel.querySelector("[data-example-page-size]");
   const pages = panel.querySelector("[data-example-pages]");
+  const savedPager = root.querySelector("[data-saved-pagination]");
   const status = panel.querySelector("[data-example-status]");
   const add = panel.querySelector("[data-example-add]");
   const addLabel = add.textContent;
@@ -38,6 +39,7 @@ globalThis.initMatchingCounterexamples = function (
   let candidatesById = new Map(), historyRequest;
   const toggle = root.querySelector('[data-action="toggle-counterexamples"]');
   let history = [], candidates = [], page = 1, revision = 0, opener;
+  let savedPage = 1, savedSize = 10;
   /**
    * 从模板生成脱离文档的行。
    * @param {string} selector 模板选择器。
@@ -62,8 +64,11 @@ globalThis.initMatchingCounterexamples = function (
     const title = row.querySelector("[data-example-title]");
     title.textContent = post.title || post.id;
     if (title instanceof HTMLAnchorElement) {
-      if (/^https?:\/\//i.test(post.url)) title.href = post.url;
+      const url = post.url || post.post?.url;
+      if (/^https?:\/\//i.test(url)) title.href = url;
       else title.removeAttribute("href");
+      row.classList.toggle("match-table-row-link", !!title.href);
+      row.dataset.postUrl = title.href;
     }
     row.querySelector("[data-example-body], .table-clip").textContent =
       post.body ?? post.post?.body ?? "—";
@@ -145,7 +150,12 @@ globalThis.initMatchingCounterexamples = function (
   /** 渲染已保存的反例与可随时编辑的排除原因。 */
   function render() {
     rows.textContent = "";
-    for (const item of examples()) {
+    const items = examples();
+    const size = savedPager && Number.isFinite(savedSize) ? savedSize : Math.max(1, items.length);
+    const total = Math.max(1, Math.ceil(items.length / size));
+    savedPage = Math.min(savedPage, total);
+    const start = (savedPage - 1) * size;
+    for (const item of items.slice(start, start + size)) {
       const row = clone("[data-example-row]");
       fill(row, item);
       const reason = row.querySelector("[data-example-reason]");
@@ -160,9 +170,22 @@ globalThis.initMatchingCounterexamples = function (
       );
       rows.append(row);
     }
+    if (savedPager) {
+      savedPager.hidden = items.length <= 10;
+      renderPages(savedPager.querySelector("[data-saved-pages]"), savedPage, total, (n) => {
+        if (savedPage !== n) marked.clear();
+        savedPage = n;
+        render();
+      });
+      for (const button of savedPager.querySelectorAll("[data-saved-size]")) {
+        const active = savedSize === (Number(button.dataset.savedSize) || Infinity);
+        button.setAttribute("aria-pressed", String(active));
+      }
+    }
     selectionState(rows, marked);
-    root.querySelector("[data-counterexample-summary]").textContent = format.format(examples().length);
+    root.querySelector("[data-counterexample-summary]").textContent = format.format(items.length);
     globalThis.__matchTableRelativeTimeUpdate?.();
+    globalThis.__matchTableOverflowUpdate?.();
   }
   /** 渲染当前历史页，保留其它页中已选的记录。 */
   function showPage() {
@@ -184,27 +207,40 @@ globalThis.initMatchingCounterexamples = function (
       }
       results.append(row);
     }
-    pages.textContent = "";
+    renderPages(pages, page, total, (n) => {
+      page = n;
+      showPage();
+    });
+    panel.querySelector("[data-example-pagination]").hidden =
+      candidates.length <= 10;
+    selectionState(results, picked);
+    globalThis.__matchTableRelativeTimeUpdate?.();
+    globalThis.__matchTableOverflowUpdate?.();
+  }
+  /**
+   * 渲染设置表格的紧凑页码，翻页后将焦点保留在当前页码。
+   * @param {HTMLElement} bar 页码容器。
+   * @param {number} current 当前页。
+   * @param {number} total 总页数。
+   * @param {(page: number) => void} changePage 切换并重绘目标表格。
+   */
+  function renderPages(bar, current, total, changePage) {
+    bar.textContent = "";
     for (
-      const n of [...new Set([1, page - 1, page, page + 1, total])].filter(
+      const n of [...new Set([1, current - 1, current, current + 1, total])].filter(
         (n) => n > 0 && n <= total,
       ).sort((a, b) => a - b)
     ) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = format.format(n);
-      if (n === page) button.setAttribute("aria-current", "page");
+      if (n === current) button.setAttribute("aria-current", "page");
       button.addEventListener("click", () => {
-        page = n;
-        showPage();
-        pages.querySelector('[aria-current="page"]')?.focus();
+        changePage(n);
+        bar.querySelector('[aria-current="page"]')?.focus();
       });
-      pages.append(button);
+      bar.append(button);
     }
-    panel.querySelector("[data-example-pagination]").hidden =
-      candidates.length <= 10;
-    selectionState(results, picked);
-    globalThis.__matchTableRelativeTimeUpdate?.();
   }
   /** 按话题、备注、标题及帖子 ID 筛选历史。 */
   function filter() {
@@ -292,9 +328,9 @@ globalThis.initMatchingCounterexamples = function (
       if (!byId.has(record.id)) byId.set(record.id, record);
     }
     let changed = false;
-    for (const [index, row] of Array.from(rows.children).entries()) {
-      const item = items[index];
-      if (!item || item.post && item.details) continue;
+    const visibleRows = new Map(Array.from(rows.children, (row) => [row.dataset.post, row]));
+    for (const item of items) {
+      if (item.post && item.details) continue;
       const post = item.topicId ? byTopic.get(item.topicId + ":" + item.id) : byId.get(item.id);
       if (!post?.post) continue;
       if (!item.post) {
@@ -303,11 +339,13 @@ globalThis.initMatchingCounterexamples = function (
         else delete item.body;
       }
       item.details ??= post.details;
-      fill(row, item);
+      const row = visibleRows.get(item.id);
+      if (row) fill(row, item);
       changed = true;
     }
     if (changed) {
       globalThis.__matchTableRelativeTimeUpdate?.();
+      globalThis.__matchTableOverflowUpdate?.();
       save();
     }
   }
@@ -376,6 +414,7 @@ globalThis.initMatchingCounterexamples = function (
   });
   add.addEventListener("click", () => {
     const items = examples(), saved = new Set(items.map((v) => v.id));
+    const firstIndex = items.length;
     const notes = new Map(topics().map((t) => [t.id, t.note]));
     let first;
     for (const [id, post] of picked) {
@@ -396,12 +435,25 @@ globalThis.initMatchingCounterexamples = function (
       saved.add(id);
     }
     close();
+    if (savedPager && first && Number.isFinite(savedSize)) {
+      const next = 1 + Math.floor(firstIndex / savedSize);
+      if (next !== savedPage) marked.clear();
+      savedPage = next;
+    }
     render();
     save();
     const row = [...rows.children].find((r) => r.dataset.post === first);
     (row?.querySelector("[data-example-reason]") || opener)?.focus();
   });
   bindSelection(rows, marked);
+  savedPager?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-saved-size]");
+    if (!button || button.getAttribute("aria-pressed") === "true") return;
+    savedSize = Number(button.dataset.savedSize) || Infinity;
+    savedPage = 1;
+    marked.clear();
+    render();
+  });
   bindSelection(results, picked);
   results.addEventListener("click", (event) => {
     if (event.target.closest("label, input")) return;
@@ -425,6 +477,7 @@ globalThis.initMatchingCounterexamples = function (
     restore() {
       close();
       marked.clear();
+      savedPage = 1;
       history = [];
       render();
       void restoreDetails();

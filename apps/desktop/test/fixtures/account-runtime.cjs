@@ -149,7 +149,25 @@ async function run() {
   await until(`typeof entryProbe === 'string' && entryProbe !== 'pending'`);
   assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
   console.log('POLLING_SETTINGS_OK');
-  await window.loadURL(origin + '/matching-profiles');
+  await window.loadURL(origin + '/matching-profiles?mouse=1');
+  await until("globalThis.entryStage === 'hover-saved-details' || globalThis.entryProbe !== 'pending' && typeof entryProbe === 'string'");
+  if (await window.webContents.executeJavaScript("globalThis.entryStage === 'hover-saved-details'")) {
+    const point = await window.webContents.executeJavaScript(`(() => {
+      const rect = document.querySelector('[data-example-rows] .match-detail-list').getBoundingClientRect();
+      return {x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2)};
+    })()`);
+    window.webContents.sendInputEvent({type: 'mouseMove', ...point});
+    await until(`(() => {
+      const list = document.querySelector('[data-example-rows] .match-detail-list');
+      const reason = list.querySelectorAll('.match-detail-value')[2];
+      return list.matches(':hover') && getComputedStyle(list).position === 'absolute' &&
+        getComputedStyle(reason).whiteSpace === 'normal' && reason.clientHeight > parseFloat(getComputedStyle(reason).lineHeight);
+    })()`);
+    window.webContents.sendInputEvent({type: 'mouseMove', x: 1, y: 1});
+    window.webContents.sendInputEvent({type: 'keyDown', keyCode: 'Tab'});
+    window.webContents.sendInputEvent({type: 'keyUp', keyCode: 'Tab'});
+    await window.webContents.executeJavaScript("document.dispatchEvent(new Event('details-hover-checked'))");
+  }
   await until("typeof entryProbe === 'string' && entryProbe !== 'pending'");
   assert.equal(await window.webContents.executeJavaScript('entryProbe'), 'passed');
   console.log('MATCHING_PROFILES_OK');

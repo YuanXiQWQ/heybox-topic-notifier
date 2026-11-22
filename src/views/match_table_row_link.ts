@@ -5,7 +5,7 @@
 /**
  * 渲染命中表格整行帖子跳转样式。
  *
- * @return 命中表格整行帖子跳转样式标签。
+ * @return {string} 命中表格和反例表共用的帖子跳转样式标签。
  */
 export function renderMatchTableRowLinkStyle(): string {
   return `<style>
@@ -13,22 +13,18 @@ export function renderMatchTableRowLinkStyle(): string {
       color: var(--theme-link);
     }
 
-    .match-table tbody tr.match-table-row-link > td:nth-child(n + 2):nth-last-child(n + 2) {
+    .match-table-row-link > [data-post-link-cell] {
       cursor: pointer;
       transition: background-color 160ms ease;
     }
 
-    :root[data-hover-input] .match-table tbody tr.match-table-row-link:has(> td:nth-child(n + 2):nth-last-child(n + 2):hover)
-      > td:nth-child(n + 2):nth-last-child(n + 2),
-    .match-table tbody tr.match-table-row-link:has(> td:nth-child(n + 2):nth-last-child(n + 2) :focus-visible)
-      > td:nth-child(n + 2):nth-last-child(n + 2),
-    .match-table tbody tr.match-table-row-link:focus-visible
-      > td:nth-child(n + 2):nth-last-child(n + 2) {
+    :root[data-hover-input] .match-table-row-link:has(> [data-post-link-cell]:hover) > [data-post-link-cell],
+    .match-table-row-link:has(> [data-post-link-cell] :focus-visible) > [data-post-link-cell],
+    .match-table-row-link:focus-visible > [data-post-link-cell] {
       background: var(--theme-soft-strong);
     }
 
-    .match-table tbody tr.match-table-row-link:has(> td:nth-child(n + 2):nth-last-child(n + 2):active)
-      > td:nth-child(n + 2):nth-last-child(n + 2) {
+    .match-table-row-link:has(> [data-post-link-cell]:active) > [data-post-link-cell] {
       background: color-mix(in srgb, var(--theme-color) 20%, var(--surface));
     }
 
@@ -36,7 +32,7 @@ export function renderMatchTableRowLinkStyle(): string {
       outline: none;
     }
 
-    .match-table tbody tr.match-table-row-link:focus-visible > td:nth-child(n + 2):nth-last-child(n + 2) {
+    .match-table tbody tr.match-table-row-link:focus-visible > [data-post-link-cell] {
       box-shadow:
         inset 0 2px 0 var(--theme-strong),
         inset 0 -2px 0 var(--theme-strong);
@@ -49,7 +45,7 @@ export function renderMatchTableRowLinkStyle(): string {
         inset 0 -2px 0 var(--theme-strong);
     }
 
-    .match-table tbody tr.match-table-row-link:focus-visible > td:nth-last-child(2) {
+    .match-table tbody tr.match-table-row-link:focus-visible > [data-post-link-cell]:has(+ .table-action-cell) {
       box-shadow:
         inset -2px 0 0 var(--theme-strong),
         inset 0 2px 0 var(--theme-strong),
@@ -61,7 +57,7 @@ export function renderMatchTableRowLinkStyle(): string {
 /**
  * 渲染命中表格整行帖子跳转交互脚本。
  *
- * @return 命中表格整行帖子跳转脚本标签。
+ * @return {string} 命中表格和反例表共用的帖子跳转脚本标签。
  */
 export function renderMatchTableRowLinkScript(): string {
   return `<script>
@@ -70,6 +66,7 @@ export function renderMatchTableRowLinkScript(): string {
       const initializedAttribute = "data-post-link-initialized";
 
       const validPostUrl = (rawUrl) => {
+        if (!rawUrl) return "";
         try {
           const url = new URL(rawUrl, window.location.href);
           return url.protocol === "http:" || url.protocol === "https:" ? url.href : "";
@@ -88,10 +85,16 @@ export function renderMatchTableRowLinkScript(): string {
         return titleText;
       };
 
+      /**
+       * 标记命中表的帖子阅读区域，并为有原帖链接的行绑定跳转信息。
+       * @param {Element} row 实时渲染或从离线快照恢复的记录行。
+       */
       const initializeRow = (row) => {
-        if (!(row instanceof HTMLTableRowElement) || row.hasAttribute(initializedAttribute)) {
-          return;
+        if (!(row instanceof HTMLTableRowElement)) return;
+        for (const cell of Array.from(row.cells).slice(1, 4)) {
+          cell.setAttribute("data-post-link-cell", "");
         }
+        if (row.hasAttribute(initializedAttribute)) return;
 
         const titleCell = row.cells.item(1);
         const titleLink = titleCell?.querySelector("a[href]");
@@ -162,23 +165,17 @@ export function renderMatchTableRowLinkScript(): string {
           return;
         }
 
-        const row = target.closest("tr.match-table-row-link");
-        const cell = target.closest("td");
-        if (
-          !(row instanceof HTMLTableRowElement) ||
-          !(cell instanceof HTMLTableCellElement) ||
-          cell.parentElement !== row
-        ) {
+        const cell = target.closest("[data-post-link-cell]");
+        const row = cell?.parentElement;
+        if (!row?.classList.contains("match-table-row-link")) {
           return;
         }
 
-        const lastCellIndex = row.cells.length - 1;
-        if (cell.cellIndex === 0 || cell.cellIndex === lastCellIndex) {
-          return;
-        }
-
-        if (target.closest("a, button, input, label, select, textarea")) {
-          return;
+        const control = target.closest("a, button, input, label, select, textarea");
+        if (control) {
+          if (!control.matches("a[data-example-title][href]") ||
+              event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
         }
 
         if (selectionTouchesRow(row)) {
@@ -189,15 +186,13 @@ export function renderMatchTableRowLinkScript(): string {
       });
 
       document.addEventListener("keydown", (event) => {
-        const row = event.target;
-        if (!(row instanceof HTMLTableRowElement) || !row.matches("tr.match-table-row-link")) {
-          return;
-        }
-
         if (event.key !== "Enter" && event.key !== " ") {
           return;
         }
-
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const row = target.closest(".match-table-row-link");
+        if (!row || target !== row && !(target.matches("a[data-example-title][href]") && event.key === " ")) return;
         event.preventDefault();
         openPost(row);
       });

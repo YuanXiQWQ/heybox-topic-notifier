@@ -1055,7 +1055,7 @@ export function renderOverflowScript(): string {
           observer.unobserve(table);
           observedTables.delete(table);
         }
-        for (const table of document.querySelectorAll('.match-table')) {
+        for (const table of document.querySelectorAll('.match-table, .example-table')) {
           if (observedTables.has(table)) continue;
           observedTables.add(table);
           observer.observe(table);
@@ -1082,6 +1082,7 @@ export function renderOverflowScript(): string {
         for (const item of measurements) item.element.classList.remove('is-overflowing');
         for (const item of measurements) {
           const element = item.element;
+          if (!element.getClientRects().length) continue;
           if (element.classList.contains('match-detail-list')) {
             item.overflowing = Array.from(element.querySelectorAll('.match-detail-value'))
               .some((value) => value instanceof HTMLElement && value.scrollWidth > value.clientWidth + 1);

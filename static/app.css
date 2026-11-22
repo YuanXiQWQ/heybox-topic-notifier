@@ -1949,7 +1949,8 @@ input[type="color"]::-moz-color-swatch{
 }
 
 .pagination a,
-.example-history .pagination button,
+.example-content .pagination button,
+.example-content .page-size-links button,
 .page-size-links a,
 .pagination-ellipsis,
 .pagination-page-input{
@@ -1977,7 +1978,8 @@ input[type="color"]::-moz-color-swatch{
 }
 
 .pagination a.is-current,
-.example-history .pagination button[aria-current],
+.example-content .pagination button[aria-current],
+.example-content .page-size-links button[aria-pressed="true"],
 .page-size-links a.is-current{
   background: var(--theme-soft-strong);
   color: var(--heading);
@@ -2629,10 +2631,10 @@ dd{
 
 @media (any-pointer: coarse){
   [data-tooltip],
-  .match-table .is-overflowing{
+  :is(.match-table, .example-table) .is-overflowing{
     -webkit-touch-callout: none;
   }
-  :root:not([data-hover-input]) .match-table .is-overflowing{
+  :root:not([data-hover-input]) :is(.match-table, .example-table) .is-overflowing{
     -webkit-user-select: none;
     user-select: none;
   }
@@ -2901,7 +2903,9 @@ td:first-child .checkbox-cell{
   white-space: nowrap;
 }
 
-:root[data-hover-input] .match-table tbody td:hover{
+:root[data-hover-input] .match-table tbody td:hover,
+:root[data-hover-input] .example-rule-row > [data-post-link-cell]:hover,
+.example-rule-row > [data-post-link-cell]:focus-within{
   z-index: 3;
 }
 
@@ -2943,6 +2947,9 @@ td:first-child .checkbox-cell{
 :root[data-hover-input] .match-table-title-link.is-overflowing:hover,
 .match-table-title-link.is-overflowing:focus-visible{
   --table-clip-lines: 8;
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
   background: var(--surface);
   border: 1px solid var(--theme-border);
   border-radius: 0;
@@ -2985,8 +2992,8 @@ td:first-child .checkbox-cell{
   z-index: 6;
 }
 
-:root[data-hover-input] .match-table tbody td:has(> .match-detail-list.is-overflowing):hover > .match-detail-list,
-.match-table tbody td:has(> .match-detail-list.is-overflowing):has(:focus-visible) > .match-detail-list,
+:root[data-hover-input] :is(.match-table tbody td, [data-post-link-cell]):has(> .match-detail-list.is-overflowing):hover > .match-detail-list,
+:is(.match-table tbody td, [data-post-link-cell]):has(> .match-detail-list.is-overflowing):has(:focus-visible) > .match-detail-list,
 :root[data-hover-input] .match-detail-list.is-overflowing:hover,
 .match-detail-list.is-overflowing:focus-visible{
   background: var(--surface);
@@ -3008,8 +3015,8 @@ td:first-child .checkbox-cell{
 
 :root[data-hover-input] .match-detail-list.is-overflowing:hover .match-detail-value,
 .match-detail-list.is-overflowing:focus-visible .match-detail-value,
-:root[data-hover-input] .match-table tbody td:has(> .match-detail-list.is-overflowing):hover .match-detail-value,
-.match-table tbody td:has(> .match-detail-list.is-overflowing):has(:focus-visible) .match-detail-value{
+:root[data-hover-input] :is(.match-table tbody td, [data-post-link-cell]):has(> .match-detail-list.is-overflowing):hover .match-detail-value,
+:is(.match-table tbody td, [data-post-link-cell]):has(> .match-detail-list.is-overflowing):has(:focus-visible) .match-detail-value{
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
@@ -4049,9 +4056,13 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 .example-history [role=status]:empty {display: none;}
 .example-history [role=status] {padding-inline: 12px;}
 .example-table {background: var(--surface); overflow-wrap: anywhere;}
-.example-rule-row .match-detail-value {white-space: normal;}
+.example-rule-row > [data-post-link-cell] {position: relative; text-align: start;}
+.settings-list:has(.example-content .is-overflowing:focus-visible),
+:root[data-hover-input] .settings-list:has(.example-content :is([data-post-link-cell], td):hover .is-overflowing),
+.example-history-table:focus-within,
+:root[data-hover-input] .example-history-table:hover {overflow: visible;}
 .example-rule-row {grid-template-columns: var(--rule-select-column) minmax(0,1fr) minmax(0,1.7fr) minmax(0,1.2fr) minmax(0,1.2fr) repeat(2,var(--rule-action-column));}
-.example-rule-row > .example-post-content {flex-direction: column; align-items: stretch; overflow-wrap: anywhere;}
+.example-rule-row > .example-post-content {flex-direction: column; justify-content: center; align-items: stretch; overflow-wrap: anywhere;}
 .example-rule-row textarea {resize: none; overflow-y: auto;}
 .example-history-table tbody tr:not(.is-unavailable), .example-history-table tbody tr:not(.is-unavailable) label {cursor: pointer;}
 .example-history-table tbody tr.is-unavailable label {cursor: default;}
@@ -4059,9 +4070,10 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
 :root[data-hover-input] .example-history-table tbody tr:not(.is-unavailable):hover > td,
 .example-history-table tbody tr:not(.is-unavailable):focus-within > td {background: var(--surface-action-hover);}
 .example-history-table tbody .checkbox-cell:hover, .example-history-table tbody .checkbox-cell:focus-within {background: transparent;}
-.example-history .pagination-row {padding-inline: 12px; flex-wrap: wrap;}
-.example-history .pagination button:not([aria-current]) {background: transparent;}
-.example-history .pagination button {border: 0;}
+.example-content .pagination-row {padding-inline: 12px; flex-wrap: wrap;}
+.example-content .pagination button:not([aria-current]),
+.example-content .page-size-links button[aria-pressed="false"] {background: transparent;}
+.example-content .pagination button, .example-content .page-size-links button {border: 0;}
 @media (max-width: 620px) {
   .example-rule-row {
     --rule-action-column: 44px;
@@ -4081,7 +4093,8 @@ body[data-settings-panel="polling"] #settings-autosave-form > :not([data-schedul
   .example-rule-row .match-detail-list {width: 100%;}
   .example-rule-row .match-detail-list > div {grid-template-columns: fit-content(55%) minmax(0,1fr);}
   .example-rule-row .match-detail-list dt {white-space: normal;}
-  .example-rule-row .match-detail-list dd .match-detail-value {max-block-size: none;}
+  .example-content .match-detail-list.is-overflowing:focus-visible .match-detail-value,
+  :root[data-hover-input] .example-content :is([data-post-link-cell], td):hover .match-detail-list.is-overflowing .match-detail-value {max-block-size: none;}
   .example-history-table .match-table-col-3 {width: min(5.5em, 28%);}
   .example-history-table .match-table-col-5 {width: min(6.5em, 32%);}
   .example-history .section-title-row {flex-wrap: wrap;}

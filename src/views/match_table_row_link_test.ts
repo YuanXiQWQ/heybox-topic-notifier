@@ -15,13 +15,13 @@ Deno.test("renderLayout enables the middle match-table cells as one post link ar
 
   assertIncludes(
     html,
-    ".match-table tbody tr.match-table-row-link > td:nth-child(n + 2):nth-last-child(n + 2)",
+    ".match-table-row-link > [data-post-link-cell]",
   );
   assertIncludes(html, 'row.classList.add("match-table-row-link")');
   assertIncludes(html, "row.dataset.postUrl = postUrl");
   assertIncludes(
     html,
-    "cell.cellIndex === 0 || cell.cellIndex === lastCellIndex",
+    'const cell = target.closest("[data-post-link-cell]")',
   );
   assertIncludes(html, 'event.key !== "Enter" && event.key !== " "');
   assertIncludes(html, "const observer = new MutationObserver");
