@@ -89,7 +89,7 @@ Deno.test("service faults attempt all channels independently without creating bu
     assert(
       next[1].body.startsWith(aiFallbackNotice([fallback], settings) + "\n"),
     );
-    assertEquals(next[1].path, "/history");
+    assertEquals(next[1].path, "/");
   } finally {
     kv.close();
   }

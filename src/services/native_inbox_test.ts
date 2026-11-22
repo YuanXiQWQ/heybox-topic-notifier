@@ -36,9 +36,19 @@ for (const backend of ["kv", "turso"]) {
       };
       await user.saveMatch(record);
       await enqueueNativeNotifications(storage, "alice", [record], settings);
+      const [match] = (await readActiveNativeNotifications(user, "")).events;
+      assertEquals(match.path, "/");
+      const previous = await user.nativeNotifications!.save({
+        ...match,
+        id: await sessionTokenHash("previous-match-event"),
+        cursor: "",
+        path: "/history",
+      });
       assertEquals(
-        (await readActiveNativeNotifications(user, "")).events.length,
-        1,
+        (await readActiveNativeNotifications(user, "")).events.find((event) =>
+          event.id === previous.id
+        ),
+        { ...previous, path: "/" },
       );
       await user.completeMatches([record.id]);
       const filtered = await readActiveNativeNotifications(user, "");
@@ -56,10 +66,8 @@ for (const backend of ["kv", "turso"]) {
       await storage.forUser("bob").saveMatch({ ...record, id: "legacy" });
       assertEquals((await readActiveNativeNotifications(user, "")).events, []);
       await user.saveMatch({ ...record, id: "legacy" });
-      assertEquals(
-        (await readActiveNativeNotifications(user, "")).events.length,
-        1,
-      );
+      const [legacy] = (await readActiveNativeNotifications(user, "")).events;
+      assertEquals(legacy.path, "/");
       await user.deleteMatches(["legacy"]);
       await enqueueNativeNotifications(storage, "alice", {
         id: "test",
@@ -69,6 +77,7 @@ for (const backend of ["kv", "turso"]) {
       }, settings);
       const tested = await readActiveNativeNotifications(user, "");
       assertEquals(tested.events.map((event) => event.kind), ["service"]);
+      assertEquals(tested.events[0].path, "/settings");
       assertEquals((await user.listPendingMatches()).length, 0);
       await assertRejects(
         () =>

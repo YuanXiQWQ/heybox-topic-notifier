@@ -1432,7 +1432,7 @@ Deno.test("polling sends one complete PushPlus match message and one native matc
       events[0].body,
       messages.notificationAiFallback + "\n需要帮助",
     );
-    assertEquals(events[0].path, "/history");
+    assertEquals(events[0].path, "/");
     assertEquals(
       (await account.matching!.runtime())?.aiFailure?.notified,
       true,

@@ -10,7 +10,7 @@ import {
 } from "./service_notification.ts";
 
 /**
- * 先持久保存整批事件，再发送一次厂商唤醒，客户端可从原游标继续消费。
+ * 先持久保存整批事件，再发送一次厂商唤醒。新命中通知打开工作区。
  * @param {Storage} storage 应用存储。
  * @param {string} userId 账号 ID。
  * @param {MatchRecord[] | ServiceNotification} records 新命中或独立服务通知。
@@ -37,7 +37,7 @@ export async function enqueueNativeNotifications(
         aiFallbackNotice([record], settings),
         record.post.title.slice(0, 240),
       ].filter(Boolean).join("\n"),
-      path: "/history",
+      path: "/",
     }))
     : [{ ...records, kind: "service" as const }];
   let latest;
