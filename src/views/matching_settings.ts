@@ -15,6 +15,7 @@ import { renderRuleTableHeader } from "./settings_topic_rules.ts";
 import { pageSizeValues } from "./match_table.ts";
 import {
   renderMatchDetails,
+  renderOverflowScript,
   renderPostCells,
   renderPostHeadings,
   renderRelativeTimeScript,
@@ -311,11 +312,19 @@ function renderCounterexamples(app: AppSettings): string {
           ).join("") + `<div role="columnheader">${remove}</div><div role="columnheader">${add}</div>`,
         )}
         <div role="rowgroup" data-example-rows></div></div></div>
+      <div class="pagination-row" data-saved-pagination hidden>
+        <div class="pagination" data-saved-pages></div>
+        <div class="page-size-links"><span>${e(m.pageSize)}</span>${
+          pageSizeValues().map((n) =>
+            `<button type="button" data-saved-size="${n}" aria-pressed="${n === 10}">${n === "all" ? e(m.allRows) : new Intl.NumberFormat(app.locale).format(n)}</button>`
+          ).join("")
+        }</div>
+      </div>
       <template data-example-row><div class="topic-rule-row example-rule-row" role="row">
-        <label role="cell"><input type="checkbox" data-row-check></label>
-        <div role="cell"><a data-example-title target="_blank" rel="noopener noreferrer"></a></div>
-        <div role="cell" class="example-post-content"><span data-example-body></span><small data-example-unavailable hidden>${e(m.examplePostUnavailable)}</small></div>
-        <div role="cell">${renderMatchDetails(undefined, new Date(), app.locale, m)}</div>
+        <label role="cell" class="checkbox-cell"><input type="checkbox" data-row-check></label>
+        <div role="cell" class="match-title-cell" data-post-link-cell><a class="match-table-title-link pending-title-link" data-example-title target="_blank" rel="noopener noreferrer"></a></div>
+        <div role="cell" class="match-content-cell example-post-content" data-post-link-cell><span class="table-clip" data-example-body></span><small data-example-unavailable hidden>${e(m.examplePostUnavailable)}</small></div>
+        <div role="cell" data-post-link-cell>${renderMatchDetails(undefined, new Date(), app.locale, m)}</div>
         <div role="cell"><textarea class="matching-prompt" rows="2" maxlength="1000" data-example-reason aria-label="${e(m.exampleReason)}"></textarea></div>
         <div role="cell">${remove}</div><div role="cell">${add}</div></div></template>
       <section id="example-history" class="example-history" aria-label="${
@@ -354,6 +363,7 @@ function renderCounterexamples(app: AppSettings): string {
         <template data-history-pick-row><tr>${box}${cells}</tr></template>
       </section>
       ${renderRelativeTimeScript()}
+      ${renderOverflowScript()}
     </div>`,
     new Intl.NumberFormat(app.locale).format(settings.counterexamples.length),
     settings.mode === "rules" ? "hidden" : "",
