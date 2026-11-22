@@ -3,7 +3,7 @@ import { sessionTokenHash } from "../auth/session.ts";
 import type { UserStorage } from "../storage/types.ts";
 
 /**
- * 返回仍需提醒的帖子及独立服务通知；过滤项也由批次游标确认。
+ * 返回仍需提醒的帖子及独立服务通知。旧命中通知指向工作区，过滤项也由批次游标确认。
  * @param {UserStorage} storage 当前账号的存储。
  * @param {string | undefined} after 已消费游标，省略时只初始化。
  * @return {Promise<object>} 已过滤事件、原始末尾游标和后续分页标志。
@@ -51,7 +51,11 @@ export async function readActiveNativeNotifications(
     active = batch.events.filter(isActive);
   }
   return {
-    events: active,
+    events: active.map((event) =>
+      event.path === "/history" && event.kind !== "service"
+        ? { ...event, path: "/" }
+        : event
+    ),
     cursor: batch.cursor,
     hasMore: batch.events.length === 100,
   };
