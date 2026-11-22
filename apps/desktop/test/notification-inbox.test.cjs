@@ -33,7 +33,7 @@ test('notification cursor advances only after system display and failed events r
   assert.equal(context.shown.length, 2);
 });
 
-test('notification navigation rechecks the account after saving pending edits', async () => {
+test('a legacy match notification opens the workspace and rechecks the account after saving', async () => {
   const context = harness();
   await context.handlers.get('app:notifications')(context.event, true);
   context.readWith(() => ({
@@ -47,12 +47,14 @@ test('notification navigation rechecks the account after saving pending edits', 
     }],
   }));
   await context.api.inbox.poll();
+  await context.shown[0].events.get('click')();
+  assert.deepEqual(context.opened, ['https://heybox.yuanxiqwq.top/']);
   context.contents.executeJavaScript = () => {
     context.changeCookie('session-b');
     return Promise.resolve();
   };
   await context.shown[0].events.get('click')();
-  assert.equal(context.opened.length, 0);
+  assert.equal(context.opened.length, 1);
 });
 
 test('notification backlog merges across pages and confirms filtered tails', async () => {

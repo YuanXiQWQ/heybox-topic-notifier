@@ -180,6 +180,10 @@ function createNotificationInbox({webSession, device, origin, Notification, icon
         icon,
         silent: false,
       });
+      // 旧收件箱用 /history 表示命中，点击后仍应打开待处理的工作区。
+      const opensWorkspace = events.length > 1 || event.kind === 'match' ||
+          (!event.kind && event.path === '/history');
+      const route = opensWorkspace ? '/' : event.path;
       notification.on('click', async () => {
         try {
           const current = await sessionFingerprint();
@@ -188,7 +192,7 @@ function createNotificationInbox({webSession, device, origin, Notification, icon
               current === binding.session
           ) {
             await showWindow(
-                events.length > 1 ? '/' : event.path,
+                route,
                 async () =>
                     device.value.notifications === binding &&
                     await sessionFingerprint() === binding.session,

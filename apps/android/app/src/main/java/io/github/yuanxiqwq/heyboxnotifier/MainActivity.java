@@ -29,7 +29,6 @@ import androidx.webkit.WebViewFeature;
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.splashscreen.SplashScreen;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -320,12 +319,16 @@ public final class MainActivity extends ComponentActivity {
      * @param {Intent} intent 系统通知参数。
      */
     private void consumeIntent(Intent intent) { pendingUpdatePage = intent.getBooleanExtra("updatePage", false); pendingNotificationPath = intent.getStringExtra("notificationPath"); pendingNotificationUser = intent.getStringExtra("notificationUser"); if (reply != null) openPendingNotification(); }
-    /** 冷启动和已打开窗口使用同一账号检查，通知跳转不丢弃尚在保存的设置。 */
+    /** 冷启动和已打开窗口使用同一账号检查。旧系统通知携带 /history 时也打开工作区。 */
     private void openPendingNotification() {
         if (pendingUpdatePage) { pendingUpdatePage = false; navigateSaved("/about", null); }
         String path = pendingNotificationPath, user = pendingNotificationUser;
         pendingNotificationPath = null; pendingNotificationUser = null;
-        try { if (Arrays.asList("/", "/history").contains(path) && user != null && notifications.owns(user)) navigateSaved(path, user); }
+        try {
+            if (("/".equals(path) || "/history".equals(path)) && user != null && notifications.owns(user)) {
+                navigateSaved("/", user);
+            }
+        }
         catch (Exception ignored) { /* 不打开已失效账号的通知。 */ }
     }
     /** 仅在可见窗口恢复已经确认的下载，避免后台启动前台服务。 */

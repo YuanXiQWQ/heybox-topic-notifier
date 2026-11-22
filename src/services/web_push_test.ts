@@ -232,6 +232,7 @@ Deno.test("browser notifications show service faults and prefix fallback matches
       },
     };
     await notifyBrowsers(storage, "alice", [record], settings, options);
+    assertEquals(delivered[3].path, "/");
     assert(
       delivered[3].body.startsWith(aiFallbackNotice([record], settings) + "\n"),
     );
