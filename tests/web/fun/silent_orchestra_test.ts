@@ -126,6 +126,7 @@ for (
         await api.setDangerScore(0);
         const buttons = findAllByClass(h.body, restart.className);
         assertEquals(buttons.length, 1);
+        assert(buttons[0] === restart);
         assertEquals(buttons[0].parentElement?.className, frame.className);
         const panel = requireByClass(h.body, "lobotomy-corp-top-panel");
         assertEquals(panel.dataset.lobotomyCorpTopPanelReused, "true");
