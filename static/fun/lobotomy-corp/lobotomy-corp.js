@@ -2,6 +2,7 @@
  * @file 本文件提供修改显示名称时触发的《脑叶公司》Trumpet 警报彩蛋。
  */
 
+import {createSilentOrchestraEvent} from './Events/SilentOrchestra.js?v=20261123-player';
 import {
   createWhiteNightEvent,
   whiteNightDeathSounds,
@@ -35,7 +36,6 @@ import {
 import {
   blackForestAbnormalityIds,
   blackForestActivePhases,
-  blackForestDefaultBirdOrder,
   blackForestEggs,
   blackForestEventId,
   blackForestGift,
@@ -418,7 +418,7 @@ const lobotomyCorpWhiteNightActiveDangerContribution = whiteNightDangerPoints;
  */
 let activeLobotomyCorpAlert;
 
-/** 白夜拦截导航且没有警报 HUD 时，单独挂载的原版 RestartButton 兜底。 */
+/** 独立承接特殊事件重启操作的顶部面板。 */
 let activeLobotomyCorpRestartButton;
 
 /**
@@ -886,7 +886,8 @@ function pauseLobotomyCorpDangerDecay() {
 function ensureLobotomyCorpDayCoordinator() {
   if (
       lobotomyCorpDangerScore > 0 ||
-      lobotomyCorpShelterEvent?.isActive()
+      lobotomyCorpShelterEvent?.isActive() ||
+      lobotomyCorpOrchestra.isActive()
   ) {
     globalThis.easterEggCoordinator?.start(
         lobotomyCorpEasterEggGameId,
@@ -901,6 +902,7 @@ function ensureLobotomyCorpDayCoordinator() {
 function finishAllLobotomyCorpSpecialEvents() {
   lobotomyCorpPendingBlackForestAfterWhiteNight = false;
   lobotomyCorpShelterEvent?.finish();
+  for (const event of breachPerformances.values()) event.finish?.();
   lobotomyCorpWhiteNightEvent?.finish({restoreAlert: false});
   lobotomyCorpBlackForestEvent?.finish({restore: false});
   lobotomyCorpPlagueDoctorEvent?.reset();
@@ -1054,7 +1056,7 @@ function prepareLobotomyCorpDisplayName(value) {
   const adoptedAudio = new Set();
 
   /**
-   * 在当前用户手势内预热一段白夜专用音频。
+   * 在当前用户手势内预热已登记的特殊演出音频。
    *
    * @param {string} soundPath 相对于 Assets 的音频路径。
    */
@@ -1092,6 +1094,9 @@ function prepareLobotomyCorpDisplayName(value) {
     }).catch(() => {
       // 某些浏览器不允许预播放；提交后仍会按既有路径尝试播放。
     });
+  }
+  if (abnormalityMatch && !lobotomyCorpBreachedAbnormalitiesThisDay.has(abnormalityMatch.canonicalId)) {
+    breachPerformances.get(abnormalityMatch.canonicalId)?.sounds?.forEach(prepareSpecialAudio);
   }
   if (isWhiteNightSubmission) {
     prepareSpecialAudio(lobotomyCorpWhiteNightEvent?.soundPaths.bell);
@@ -1652,7 +1657,7 @@ function startLobotomyCorpWhiteNight(options) {
 /**
  * 处理一次已由服务器确认成功的 canonical 异想体提交。
  *
- * 该入口刻意将身份识别与危急值贡献分层，后续特殊事件可订阅此处而不依赖 canBreach。
+ * 广播身份后按当天去重，结算危急值并分发已登记的出逃演出。三鸟前置记录独立于出逃结算。
  *
  * @param {string} value 服务器已保存成功的显示名称。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
@@ -1673,18 +1678,18 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     return Promise.resolve(true);
   }
   // 终末鸟事件观察三只鸟的输入顺序；直接输入 O-02-63 时按 CG 边界逐笔结算。
-  const startedBlackForestEvent =
-      lobotomyCorpBlackForestEvent?.recordSubmission(match.canonicalId) === true;
+  const performance = breachPerformances.get(match.canonicalId);
+  const isApocalypseBird = match.canonicalId === blackForestAbnormalityIds.apocalypseBird;
+  if (!isApocalypseBird && Object.values(blackForestAbnormalityIds).includes(match.canonicalId)) {
+    lobotomyCorpBlackForestEvent.recordSubmission(match.canonicalId);
+  }
   // 直接召唤的四笔贡献由事件 CG 时间线结算，不再经过普通异想体分支。
-  if (
-      startedBlackForestEvent &&
-      match.canonicalId === blackForestAbnormalityIds.apocalypseBird
-  ) {
+  if (isApocalypseBird && performance.start()) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
   // 终末鸟通过 EscapeWithoutIsolateRoom 进入 EmergencyController，按 ALEPH 风险点÷部门数结算。
-  if (match.canonicalId === blackForestAbnormalityIds.apocalypseBird) {
+  if (isApocalypseBird) {
     if (lobotomyCorpBreachedAbnormalitiesThisDay.has(match.canonicalId)) {
       preparedMedia?.dispose?.();
       return Promise.resolve(true);
@@ -1734,6 +1739,7 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     // direct-submission 的第一笔为 Simple Advent 开始时 11 名普通使徒的死亡抽象。
     lobotomyCorpWhiteNightDangerSettlementStage = 'prelude-settled';
   }
+  if (!isWhiteNightSubmission) performance?.start(preparedMedia);
   const alertLifecycle = setLobotomyCorpDangerScore(
       clampDangerScore(
           lobotomyCorpDangerScore + contribution,
@@ -1743,12 +1749,7 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
         positiveContribution: true,
       },
   );
-  if (isWhiteNightSubmission) {
-    startLobotomyCorpWhiteNight({
-      preparedMedia,
-      source: 'direct-submission',
-    });
-  }
+  if (isWhiteNightSubmission) performance.start(preparedMedia);
   return alertLifecycle;
 }
 
@@ -2155,20 +2156,32 @@ function createLobotomyCorpRestartButton() {
 /**
  * 创建复现原版“重新开始这一天”布局的顶部结束面板。
  *
+ * @param {boolean} [framed] 显示完整面板装饰；白夜与终末鸟可单独显示按钮。
  * @return {{activeController: HTMLElement, element: HTMLElement, endAlertButton: HTMLButtonElement, endAlertButtonText: HTMLElement}} 顶部面板、动画节点及结束按钮的图标与文本节点。
  */
-function createLobotomyCorpTopPanel() {
+function createLobotomyCorpTopPanel(framed = true) {
   const topPanel = document.createElement('section');
   const activeController = document.createElement('div');
-  const leftValve = document.createElement('img');
-  const frameOutter = document.createElement('div');
-  const frameInner = document.createElement('img');
   const restartButton = createLobotomyCorpRestartButton();
-  const rightValve = document.createElement('img');
 
   topPanel.className = 'lobotomy-corp-top-panel';
   activeController.className = 'lobotomy-corp-top-panel-active-controller';
+  topPanel.append(activeController);
+  const panel = {
+    activeController,
+    element: topPanel,
+    endAlertButton: restartButton.button,
+    endAlertButtonText: restartButton.text,
+  };
+  if (!framed) {
+    activeController.append(restartButton.button);
+    return panel;
+  }
 
+  const leftValve = document.createElement('img');
+  const frameOutter = document.createElement('div');
+  const frameInner = document.createElement('img');
+  const rightValve = document.createElement('img');
   leftValve.alt = '';
   leftValve.className = 'lobotomy-corp-top-panel-valve left';
   leftValve.src = `${lobotomyCorpSpriteRoot}/Valve.png`;
@@ -2187,44 +2200,51 @@ function createLobotomyCorpTopPanel() {
 
   frameOutter.append(frameInner, restartButton.button);
   activeController.append(leftValve, frameOutter, rightValve);
-  topPanel.append(activeController);
-  return {
-    activeController,
-    element: topPanel,
-    endAlertButton: restartButton.button,
-    endAlertButtonText: restartButton.text,
-  };
+  return panel;
 }
 
 /**
- * 白夜拦截导航且没有警报时，单独挂载原版 RestartButton 本体。
+ * 特殊事件独占重启入口时挂载按钮，乐团沿用完整警报面板及其视口缩放。
  *
- * @return {{finish: () => void}|undefined} 已挂载按钮的清理操作。
+ * @param {boolean} [continuing] 正在接替已经入场的警报面板。
+ * @return {{framed: boolean, finish: () => void}|undefined} 已挂载按钮的样式与清理操作。
  */
-function mountLobotomyCorpRestartButton() {
-  if (activeLobotomyCorpAlert || activeLobotomyCorpRestartButton) {
+function mountLobotomyCorpRestartButton(continuing = false) {
+  const framed = lobotomyCorpOrchestra.isActive();
+  if (activeLobotomyCorpAlert || activeLobotomyCorpRestartButton?.framed === framed) {
     return activeLobotomyCorpRestartButton;
   }
+  activeLobotomyCorpRestartButton?.finish();
   const document = globalThis.document;
   if (!document?.createElement || !document.body) return undefined;
   const overlay = document.createElement('div');
-  const topPanel = document.createElement('section');
-  const activeController = document.createElement('div');
-  const restartButton = createLobotomyCorpRestartButton();
+  const {element: topPanel, endAlertButton} = createLobotomyCorpTopPanel(framed);
   overlay.className = 'lobotomy-corp-alert-overlay';
-  topPanel.className = 'lobotomy-corp-top-panel';
-  activeController.className = 'lobotomy-corp-top-panel-active-controller';
-  restartButton.button.addEventListener('click', () => {
+  if (continuing) topPanel.dataset.lobotomyCorpTopPanelReused = 'true';
+  let viewport;
+  /** 按与警报相同的 CanvasScaler 更新独立面板。 */
+  function resize() {
+    viewport = lobotomyCorpCanvasViewportForUpdate(viewport, lobotomyCorpViewportSize());
+    updateLobotomyCorpCanvasScale(viewport, topPanel);
+  }
+  if (framed) {
+    resize();
+    globalThis.addEventListener?.('resize', resize);
+    globalThis.visualViewport?.addEventListener?.('resize', resize);
+  }
+  endAlertButton.addEventListener('click', () => {
     void restartLobotomyCorpDay();
   });
-  activeController.append(restartButton.button);
-  topPanel.append(activeController);
   overlay.append(topPanel);
   document.body.append(overlay);
   const button = {
+    framed,
+    /** 释放该面板独占的视口监听及按钮节点。 */
     finish: () => {
       if (activeLobotomyCorpRestartButton !== button) return;
       activeLobotomyCorpRestartButton = undefined;
+      globalThis.removeEventListener?.('resize', resize);
+      globalThis.visualViewport?.removeEventListener?.('resize', resize);
       overlay.remove();
     },
   };
@@ -2238,11 +2258,15 @@ function mountLobotomyCorpRestartButton() {
 function finishLobotomyCorpRestartButtonIfUnused() {
   if (
       lobotomyCorpWhiteNightEvent?.hasEventState?.() ||
-      lobotomyCorpBlackForestEvent?.isActive?.()
+      lobotomyCorpBlackForestEvent?.isActive?.() || lobotomyCorpOrchestra.isActive()
   ) {
+    if (activeLobotomyCorpRestartButton) mountLobotomyCorpRestartButton(true);
     return;
   }
   activeLobotomyCorpRestartButton?.finish();
+  if (lobotomyCorpDangerScore <= 0 && !activeLobotomyCorpAlert && !lobotomyCorpShelterEvent.isActive()) {
+    globalThis.easterEggCoordinator?.finish?.(lobotomyCorpEasterEggGameId, finishLobotomyCorpDayFromCoordinator);
+  }
 }
 
 /**
@@ -2351,7 +2375,12 @@ function startLobotomyCorpAlert({
   let closing = false;
   let finished = false;
   let currentActivation = createAlertActivation();
+  let alertBaseVolume = 1;
   const alertContext = {
+    /** 把当前警报的基础音量与乐团控制的场景 BGM 增益合成。 */
+    refreshVolume: () => {
+      if (audio) audio.volume = alertBaseVolume * lobotomyCorpOrchestra.bgmGain();
+    },
     audio: undefined,
     finish: () => {
     },
@@ -2466,7 +2495,12 @@ function startLobotomyCorpAlert({
     if (activeLobotomyCorpAlert === alertContext) {
       activeLobotomyCorpAlert = undefined;
     }
-    if (clearDay || lobotomyCorpDangerScore <= 0) {
+    if (lobotomyCorpOrchestra.isActive()) {
+      mountLobotomyCorpRestartButton(true);
+      teardownAlert();
+      return;
+    }
+    if (!lobotomyCorpOrchestra.isActive() && (clearDay || lobotomyCorpDangerScore <= 0)) {
       globalThis.easterEggCoordinator?.finish?.(
           lobotomyCorpEasterEggGameId,
           coordinatorStop,
@@ -2846,7 +2880,7 @@ function startLobotomyCorpAlert({
     if (!audio) return;
     audio.loop = false;
     audio.muted = false;
-    audio.volume = 1;
+    setAlertVolume(1);
     playConfiguredAlertAudio();
   }
 
@@ -2880,7 +2914,7 @@ function startLobotomyCorpAlert({
     if (!audio) return;
     audio.loop = true;
     audio.muted = false;
-    audio.volume = lobotomyCorpWhiteNightAlertDuckVolume;
+    setAlertVolume(lobotomyCorpWhiteNightAlertDuckVolume);
     playConfiguredAlertAudio();
   }
 
@@ -2981,7 +3015,7 @@ function startLobotomyCorpAlert({
     );
     const requestedVolume = Number.isFinite(options.startVolume)
         ? options.startVolume
-        : audio.volume;
+        : alertBaseVolume;
     const startVolume = Math.max(0, Math.min(1, requestedVolume));
     const targetVolume = lobotomyCorpWhiteNightAlertDuckVolume;
     specialEventMusicDucked = true;
@@ -3002,12 +3036,12 @@ function startLobotomyCorpAlert({
     audio.loop = true;
     // 淡出期间这首曲目仍在可听播放：保持 muted=false，只让音量平滑降到 duck 目标音量。
     audio.muted = false;
-    audio.volume = startVolume;
+    setAlertVolume(startVolume);
     playConfiguredAlertAudio();
     const finishFade = () => {
       specialEventFadeTimer = undefined;
       specialEventStageMusicOwned = false;
-      if (audio) audio.volume = targetVolume;
+      if (audio) setAlertVolume(targetVolume);
       persistPlaybackPosition();
     };
     if (fadeDuration <= 0) {
@@ -3019,11 +3053,11 @@ function startLobotomyCorpAlert({
     const fadeStep = () => {
       if (closing || finished || !audio || !specialEventMusicDucked) return;
       const progress = Math.min(1, (Date.now() - fadeStartedAt) / fadeDuration);
-      audio.volume = lobotomyCorpInterpolateAlertVolume(
+      setAlertVolume(lobotomyCorpInterpolateAlertVolume(
           startVolume,
           targetVolume,
           progress,
-      );
+      ));
       if (progress < 1) {
         specialEventFadeTimer = setTimeout(fadeStep, 16);
         return;
@@ -3070,8 +3104,8 @@ function startLobotomyCorpAlert({
         0,
         Math.min(
             1,
-            Number.isFinite(audio.volume)
-                ? audio.volume
+            Number.isFinite(alertBaseVolume)
+                ? alertBaseVolume
                 : lobotomyCorpWhiteNightAlertDuckVolume,
         ),
     );
@@ -3083,7 +3117,7 @@ function startLobotomyCorpAlert({
     alertContext.playbackState = 'special-event-held';
     audio.loop = true;
     audio.muted = false;
-    audio.volume = startVolume;
+    setAlertVolume(startVolume);
     playConfiguredAlertAudio();
     persistPlaybackPosition();
     const fadeStartedAt = Date.now();
@@ -3094,11 +3128,11 @@ function startLobotomyCorpAlert({
           1,
           (Date.now() - fadeStartedAt) / lobotomyCorpSpecialEventMusicFadeInMs,
       );
-      audio.volume = lobotomyCorpInterpolateAlertVolume(
+      setAlertVolume(lobotomyCorpInterpolateAlertVolume(
           startVolume,
           1,
           progress,
-      );
+      ));
       if (progress < 1) {
         specialEventFadeTimer = setTimeout(fadeStep, 16);
         return;
@@ -3108,7 +3142,7 @@ function startLobotomyCorpAlert({
       specialEventMusicDucked = false;
       alertContext.playbackState = 'normal-playing';
       audio.loop = false;
-      audio.volume = 1;
+      setAlertVolume(1);
       persistPlaybackPosition();
     };
     fadeStep();
@@ -3125,6 +3159,16 @@ function startLobotomyCorpAlert({
   }
 
   /**
+   * 将警报本身的音量与乐团的 BGM 淡化相乘，兼容白夜并发控制同一首警报。
+   *
+   * @param {number} volume 警报自身的音量。
+   */
+  function setAlertVolume(volume) {
+    alertBaseVolume = volume;
+    alertContext.refreshVolume();
+  }
+
+  /**
    * 为新建或已准备的 Audio 绑定当前警报会话监听器。
    */
   function configureAlertAudio() {
@@ -3133,9 +3177,7 @@ function startLobotomyCorpAlert({
     // 恢复 special-event-held 时按 ducked hold 语义重建：loop 后台推进、不静音、取 duck 目标音量。
     audio.loop = specialEventMusicDucked;
     audio.muted = false;
-    audio.volume = specialEventMusicDucked
-        ? lobotomyCorpWhiteNightAlertDuckVolume
-        : 1;
+    setAlertVolume(specialEventMusicDucked ? lobotomyCorpWhiteNightAlertDuckVolume : 1);
     audio.preload = 'auto';
     audio.setAttribute('aria-hidden', 'true');
     audio.addEventListener('ended', finishAlertFromAudioEnd);
@@ -3511,7 +3553,7 @@ function applyLobotomyCorpDontTouchMeWorkerDanger(kind) {
  * 结算“异想体全部出逃”的危急值。
  *
  * 出逃数量与平均基值都由危急值模块从异想体资料现算；这次出逃造成的危急值按整批
- * 一次结算，随后触发白夜与终末鸟事件。
+ * 一次结算，随后分发所有已登记的专属出逃演出。
  */
 function applyLobotomyCorpDontTouchMeEscapeDanger() {
   const contribution = lobotomyCorpEscapeAllDangerContribution(
@@ -3537,22 +3579,37 @@ let lobotomyCorpPendingBlackForestAfterWhiteNight = false;
  * @return {boolean} 新事件成功开始时返回 true。
  */
 function startLobotomyCorpBlackForestAfterAllEscape() {
-  return lobotomyCorpBlackForestEvent.start({
-    order: [...blackForestDefaultBirdOrder],
-    source: 'direct-submission',
-  });
+  return breachPerformances.get(blackForestAbnormalityIds.apocalypseBird).start();
 }
 
 /**
- * 结算“所有异想体出逃”同步触发的特殊事件。
+ * 遍历专属演出登记表；普通出逃危急值已整批结算，仅标记当天已出逃。
  *
  * 白夜的 Simple Advent 有自己的四秒转盘与隐藏动画；终末鸟事件必须等转盘完全
  * 隐藏后再播 CG，避免两个特殊事件的首段画面重叠。白夜已经 active 时没有转盘，
  * 终末鸟事件可以立即开始。
  */
 function triggerLobotomyCorpAllEscapeSpecialEvents() {
+  for (const [id, event] of breachPerformances) {
+    if (event.allEscape) {
+      event.allEscape(event.start);
+    } else if (lobotomyCorpAbnormalities[id]?.canBreach &&
+        !lobotomyCorpBreachedAbnormalitiesThisDay.has(id)) {
+      lobotomyCorpBreachedAbnormalitiesThisDay.add(id);
+      event.start();
+    }
+  }
+  persistLobotomyCorpDay();
+}
+
+/**
+ * 按白夜独立的前奏结算规则响应全体出逃。
+ *
+ * @param {() => boolean} start 白夜登记的出逃回调。
+ */
+function releaseWhiteNightWithAll(start) {
   if (!lobotomyCorpWhiteNightEvent.hasEventState()) {
-    const started = startLobotomyCorpWhiteNight({source: 'direct-submission'});
+    const started = start();
     if (started && !lobotomyCorpBreachedAbnormalitiesThisDay.has(
         whiteNightCanonicalId,
     )) {
@@ -3570,6 +3627,10 @@ function triggerLobotomyCorpAllEscapeSpecialEvents() {
       );
     }
   }
+}
+
+/** 白夜转盘完全隐藏后再启动全体出逃中的终末鸟 CG。 */
+function releaseBlackForestWithAll() {
   if (lobotomyCorpWhiteNightEvent.getPhase() === 'prelude') {
     lobotomyCorpPendingBlackForestAfterWhiteNight = true;
     return;
@@ -3789,6 +3850,36 @@ const lobotomyCorpShelterEvent = createShelterEvent({
   storageKey: shelterStorageKey,
   storages: lobotomyCorpAlertStorages,
 });
+
+/** 沉默乐团的 UI、音轨和警报音乐接口。 */
+const lobotomyCorpOrchestra = createSilentOrchestraEvent({
+  assetRoot: lobotomyCorpAssetRoot,
+  mountRestartButton: mountLobotomyCorpRestartButton,
+  finishRestartButton: finishLobotomyCorpRestartButtonIfUnused,
+  ensureCoordinator: ensureLobotomyCorpDayCoordinator,
+  refreshAlertVolume: () => activeLobotomyCorpAlert?.refreshVolume?.(),
+});
+
+/**
+ * 出逃专属演出登记。普通登记项的 start 同时服务于单只与全体出逃；
+ * 独立结算或有时序依赖的事件可提供 allEscape。登记顺序保证白夜先建立前奏。
+ * @type {Map<string, {start: Function, allEscape?: Function, sounds?: string[], finish?: Function}>}
+ */
+const breachPerformances = new Map([
+  [whiteNightCanonicalId, {
+    /** @param {object} [preparedMedia] 用户手势内预热的白夜音轨。 @return {boolean} 是否开始。 */
+    start: (preparedMedia) => startLobotomyCorpWhiteNight({
+      source: 'direct-submission', preparedMedia,
+    }),
+    allEscape: releaseWhiteNightWithAll,
+  }],
+  [blackForestAbnormalityIds.apocalypseBird, {
+    /** @return {boolean} 三鸟直接召唤是否启动。 */
+    start: () => lobotomyCorpBlackForestEvent.recordSubmission(blackForestAbnormalityIds.apocalypseBird),
+    allEscape: releaseBlackForestWithAll,
+  }],
+  [lobotomyCorpOrchestra.id, lobotomyCorpOrchestra],
+]);
 
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
   activate: activateLobotomyCorpAlert,

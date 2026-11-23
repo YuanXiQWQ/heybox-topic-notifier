@@ -600,11 +600,11 @@ Deno.test("settings page loads the latest settings interactions", () => {
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261123-orchestra-player`,
   );
   assertIncludes(
     html,
-    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1`,
+    `/static/fun/lobotomy-corp/lobotomy-corp.css?v=20261123-orchestra-player`,
   );
   assertIncludes(
     html,
