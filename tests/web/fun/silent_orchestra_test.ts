@@ -134,6 +134,8 @@ for (
         assert(finale.pauseCount > pauses);
         assertEquals(api.getDangerScore(), 0);
       } else {
+        await api.prepareDisplayName("T-01-31").commit();
+        assertEquals(findByClass(h.documentElement, "lobotomy-orchestra"), undefined);
         finale.dispatch("ended");
         assertEquals(api.getDangerScore(), score);
       }
@@ -176,6 +178,40 @@ Deno.test("沉默乐团：开场保留背景音乐，第一乐章淡出，镇压
     assertEquals(event.bgmGain(), 1);
   } finally {
     event.finish();
+    h.restore();
+  }
+});
+
+Deno.test("沉默乐团：白夜和终末鸟在场时手动重演，沿用预热音轨且只开一场", async () => {
+  const h = installLobotomyCorpAlertHarness();
+  try {
+    h.storage.setItem("warmnest.lobotomy-corp-day", JSON.stringify({
+      countedAbnormalityIds: ["T-01-31"],
+      dangerScore: 25,
+      departmentCount: 5,
+    }));
+    await h.reload();
+    const api = h.api();
+    assert(api.startWhiteNight({ source: "plague-doctor-transformation" }));
+    await api.commitDisplayName("O-02-63");
+    const score = api.getDangerScore();
+    assert(score > 0 && score < 100);
+    // 避难所自动释放仍按当日记录去重。
+    await api.handleAbnormalitySubmitted("T-01-31");
+    const prepared = api.prepareDisplayName("T-01-31");
+    const tracks = h.AudioMock.items.filter((a) => a.src.includes("Sym_movment_"));
+    assertEquals(tracks.length, 6);
+    assertEquals(findByClass(h.documentElement, "lobotomy-orchestra"), undefined);
+    await prepared.commit();
+    const root = requireByClass(h.documentElement, "lobotomy-orchestra");
+    assert(tracks.every((track) => !track.muted && track.src));
+    await api.prepareDisplayName("T-01-31").commit();
+    assertEquals(h.AudioMock.items.filter((a) => a.src.includes("Sym_movment_")), tracks);
+    assertEquals(findAllByClass(h.documentElement, root.className), [root]);
+    assertEquals(api.getDangerScore(), score);
+    assertEquals(api.blackForestPhase(), "cg");
+    assertEquals(api.getSpecialEventPhase(), "active");
+  } finally {
     h.restore();
   }
 });

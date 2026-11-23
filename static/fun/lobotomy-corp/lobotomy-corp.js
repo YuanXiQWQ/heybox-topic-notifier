@@ -1021,7 +1021,7 @@ function activateLobotomyCorpAlert(value, preparedMedia) {
 }
 
 /**
- * 在同步用户手势中准备可能会在服务器确认后播放的警报媒体。
+ * 在同步用户手势中准备保存成功后可能播放的警报与出逃音轨，包括手动重演。
  *
  * 此阶段只触碰 Audio，不建立 Day、HUD 或持久化业务状态。
  *
@@ -1095,8 +1095,12 @@ function prepareLobotomyCorpDisplayName(value) {
       // 某些浏览器不允许预播放；提交后仍会按既有路径尝试播放。
     });
   }
-  if (abnormalityMatch && !lobotomyCorpBreachedAbnormalitiesThisDay.has(abnormalityMatch.canonicalId)) {
-    breachPerformances.get(abnormalityMatch.canonicalId)?.sounds?.forEach(prepareSpecialAudio);
+  if (abnormalityMatch) {
+    const performance = breachPerformances.get(abnormalityMatch.canonicalId);
+    if (!lobotomyCorpBreachedAbnormalitiesThisDay.has(abnormalityMatch.canonicalId) ||
+        performance?.canReplayOnSubmit?.()) {
+      performance?.sounds?.forEach(prepareSpecialAudio);
+    }
   }
   if (isWhiteNightSubmission) {
     prepareSpecialAudio(lobotomyCorpWhiteNightEvent?.soundPaths.bell);
@@ -1655,15 +1659,16 @@ function startLobotomyCorpWhiteNight(options) {
 }
 
 /**
- * 处理一次已由服务器确认成功的 canonical 异想体提交。
+ * 处理手动提交或自动释放的异想体。
  *
- * 广播身份后按当天去重，结算危急值并分发已登记的出逃演出。三鸟前置记录独立于出逃结算。
+ * 当天首次出逃结算危急值。手动保存还可以重演已谢幕的乐团，自动释放沿用当天的出逃记录。
  *
- * @param {string} value 服务器已保存成功的显示名称。
+ * @param {string} value 已保存的显示名称或自动释放的异想体编号。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
+ * @param {'release'|'display-name'} [source] 出逃来自自动释放或手动保存显示名称。
  * @return {Promise<boolean>} 危急值更新后的警报生命周期 Promise。
  */
-function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
+function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia, source = 'release') {
   const match = matchingLobotomyCorpAbnormality(value);
   if (!match) {
     preparedMedia?.dispose?.();
@@ -1712,6 +1717,9 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
     return Promise.resolve(true);
   }
   if (lobotomyCorpBreachedAbnormalitiesThisDay.has(match.canonicalId)) {
+    if (source === 'display-name' && performance?.canReplayOnSubmit?.()) {
+      performance.start(preparedMedia);
+    }
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
@@ -1754,7 +1762,7 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia) {
 }
 
 /**
- * 在账户保存成功后提交异想体，或按名称直接触发手动 Trumpet。
+ * 在账户保存成功后手动提交异想体，或按名称直接触发手动 Trumpet。
  *
  * @param {string} value 服务器确认保存的显示名称。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
@@ -1777,7 +1785,7 @@ function commitLobotomyCorpDisplayName(value, preparedMedia) {
     return Promise.resolve(true);
   }
   return matchingLobotomyCorpAbnormality(value)
-      ? handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia)
+      ? handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia, 'display-name')
       : activateLobotomyCorpAlert(value, preparedMedia);
 }
 
@@ -3863,7 +3871,7 @@ const lobotomyCorpOrchestra = createSilentOrchestraEvent({
 /**
  * 出逃专属演出登记。普通登记项的 start 同时服务于单只与全体出逃；
  * 独立结算或有时序依赖的事件可提供 allEscape。登记顺序保证白夜先建立前奏。
- * @type {Map<string, {start: Function, allEscape?: Function, sounds?: string[], finish?: Function}>}
+ * @type {Map<string, {start: Function, allEscape?: Function, sounds?: string[], finish?: Function, canReplayOnSubmit?: () => boolean}>}
  */
 const breachPerformances = new Map([
   [whiteNightCanonicalId, {
@@ -3878,7 +3886,11 @@ const breachPerformances = new Map([
     start: () => lobotomyCorpBlackForestEvent.recordSubmission(blackForestAbnormalityIds.apocalypseBird),
     allEscape: releaseBlackForestWithAll,
   }],
-  [lobotomyCorpOrchestra.id, lobotomyCorpOrchestra],
+  [lobotomyCorpOrchestra.id, {
+    ...lobotomyCorpOrchestra,
+    /** @return {boolean} 乐团的画面和余音均已结束，可以手动再演。 */
+    canReplayOnSubmit: () => !lobotomyCorpOrchestra.isActive(),
+  }],
 ]);
 
 globalThis.lobotomyCorpEasterEgg = Object.freeze({
