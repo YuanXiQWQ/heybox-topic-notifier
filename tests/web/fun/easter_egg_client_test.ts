@@ -3575,7 +3575,10 @@ Deno.test("DontTouchMe escapes every abnormality with the WARNING sequence", asy
       effectVideo.src,
       "/static/fun/lobotomy-corp/Assets/Resources/sprites/effect/touchwarning.webm",
     );
-    // 全体员工出逃：3 个部门容纳 12 只，12 × (1993 / 40) / 3 ≈ 199.3，被 100 封顶。
+    // 全体计数归零时月光女神直接演奏出逃曲，整批危急值达到上限。
+    assert(harness.pendingTimer(95000));
+    assert(AudioMock.items.some((audio) => audio.src.endsWith("/Moon_Piano_Escape.ogg") && audio.playCount > 0));
+    assert(!AudioMock.items.some((audio) => audio.src.endsWith("/Moon_Piano.ogg")));
     assertEquals(api.getDangerScore(), 100);
 
     effectVideo.dispatch("ended");
