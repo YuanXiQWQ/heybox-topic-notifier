@@ -271,7 +271,7 @@ export function renderLayout(options: {
           options.loginSession,
         )
       }
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261123-orchestra-player"></script>`
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261123-piano"></script>`
   }
     ${renderMatchTableRowLinkStyle()}
   </head>

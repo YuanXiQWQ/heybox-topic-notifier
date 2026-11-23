@@ -3,6 +3,7 @@
  */
 import { assert, assertEquals, assertStrictEquals } from "@std/assert";
 import { findByClass } from "./event_test_helpers.ts";
+import { pianoId, pianoSounds } from "../../../static/fun/lobotomy-corp/Events/Piano.js";
 import { installLobotomyCorpAlertHarness } from "./test_harness.ts";
 import {
   escapableAbnormalityIds,
@@ -110,6 +111,36 @@ Deno.test("避难所：输入 T-09-82 后延迟释放普通异想体，Restart D
     harness.restore();
   }
 });
+
+for (const working of [false, true]) {
+  Deno.test(`避难所：选中${working ? "工作中" : "未工作"}的月光女神直接出逃，连续选中保留进度`, async () => {
+    const h = installLobotomyCorpAlertHarness();
+    const candidates = escapableAbnormalityIds(readAbnormalities());
+    const restoreRandom = selectShelterSequence(candidates, [pianoId]);
+    try {
+      await h.reload();
+      if (working) await h.api().commitDisplayName(pianoId);
+      const work = h.AudioMock.items.find((a) => a.src.endsWith(pianoSounds[0]));
+      const pauses = work?.pauseCount ?? 0;
+      await h.api().commitDisplayName("T-09-82");
+      h.pendingTimer(shelterInitialReleaseDelayMs)!.callback();
+      const deadline = h.pendingTimer(95000);
+      assert(deadline);
+      const escape = h.AudioMock.items.find((a) => a.src.endsWith(pianoSounds[1]));
+      assert(escape?.loop && escape.playCount > 0);
+      const plays = escape.playCount;
+      h.pendingTimer(shelterReleaseIntervalMs)!.callback();
+      assertStrictEquals(h.pendingTimer(95000), deadline);
+      assertEquals(escape.playCount, plays);
+      assertEquals(h.api().getDangerScore(), 60 / 11);
+      if (working) assert(work && work.pauseCount > pauses);
+      else assert(!h.AudioMock.items.some((a) => a.src.endsWith(pianoSounds[0])));
+    } finally {
+      restoreRandom();
+      h.restore();
+    }
+  });
+}
 
 Deno.test("避难所：连续释放两只鸟会按既有流程启动终末鸟", async () => {
   const harness = installLobotomyCorpAlertHarness();
