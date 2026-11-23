@@ -272,6 +272,8 @@ export class AudioMock extends Element {
   muted: boolean;
   /** 暂停次数。 */
   pauseCount = 0;
+  /** 音频是否处于暂停状态。 */
+  paused = true;
   /** 播放次数。 */
   playCount = 0;
   /** preload 属性值，由动态加载的媒体脚本写入。 */
@@ -314,6 +316,7 @@ export class AudioMock extends Element {
       this.autoplayRejected = true;
       return Promise.reject(new Error("unmuted autoplay blocked"));
     }
+    this.paused = false;
     if (AudioMock.deferNextPlayCount > 0) {
       AudioMock.deferNextPlayCount--;
       return new Promise((resolve) =>
@@ -323,6 +326,7 @@ export class AudioMock extends Element {
     return Promise.resolve();
   }
   /** 暂停音频。 */ pause(): void {
+    this.paused = true;
     this.pauseCount++;
   }
   /** 释放媒体资源。 */ load(): void {}
