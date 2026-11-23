@@ -1041,7 +1041,7 @@ function prepareLobotomyCorpDisplayName(value) {
   const isPiano = abnormalityMatch?.canonicalId === pianoId;
   const pianoPhase = isPiano ? piano.phase() : undefined;
   const alert = matchingLobotomyCorpAlert(value) ??
-      ((abnormalityMatch?.abnormality.canBreach || pianoPhase === 'waiting' || pianoPhase === 'work') &&
+      ((abnormalityMatch?.abnormality.canBreach || (isPiano && piano.playingWork())) &&
       !lobotomyCorpBreachedAbnormalitiesThisDay.has(
           abnormalityMatch.canonicalId,
       )
@@ -1105,7 +1105,7 @@ function prepareLobotomyCorpDisplayName(value) {
     });
   }
   if (isPiano) {
-    if (pianoPhase === 'idle' || pianoPhase === 'waiting') pianoSounds.forEach(prepareSpecialAudio);
+    if (pianoPhase !== 'escape' && !piano.playingWork()) pianoSounds.forEach(prepareSpecialAudio);
   } else if (abnormalityMatch) {
     const performance = breachPerformances.get(abnormalityMatch.canonicalId);
     if (!lobotomyCorpBreachedAbnormalitiesThisDay.has(abnormalityMatch.canonicalId) ||
@@ -1690,7 +1690,7 @@ function startLobotomyCorpWhiteNight(options) {
 /**
  * 处理手动提交或自动释放的异想体。
  *
- * 月光女神的首次工作单独进入声部；真正出逃才按当天记录结算危急值。
+ * 月光女神只在工作曲播放期间响应手动出逃；自动释放可直接出逃。
  * 手动保存可以重演已谢幕的乐团。
  *
  * @param {string} value 已保存的显示名称或自动释放的异想体编号。
@@ -1743,12 +1743,12 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia, source = '
     );
   }
   if (match.canonicalId === pianoId) {
-    if (source === 'display-name' && piano.phase() === 'idle') {
-      piano.work(preparedMedia);
+    if (piano.phase() === 'escape') {
       preparedMedia?.dispose?.();
       return Promise.resolve(true);
     }
-    if (piano.phase() === 'escape') {
+    if (source === 'display-name' && !piano.playingWork()) {
+      piano.work(preparedMedia);
       preparedMedia?.dispose?.();
       return Promise.resolve(true);
     }
