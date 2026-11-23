@@ -283,6 +283,23 @@ async function prefetchPageResources(html) {
 async function applicationResource(request, background) {
   const cache = await caches.open(applicationResourceCache);
   const cached = await cache.match(request, {ignoreVary: true});
+  // 旧桌面协议可能将文件片段作为没有长度的 200 响应缓存。保留离线副本直到完整文件可读。
+  if (cached && /\bElectron\//.test(self.navigator?.userAgent ?? '') && !cached.headers.has('content-length') &&
+      /\.(?:ogg|wav|mp3|webm)$/i.test(new URL(request.url).pathname)) {
+    const [stored] = await cache.keys(request, {ignoreVary: true});
+    if (stored?.headers.has('range')) {
+      const headers = new Headers(request.headers);
+      headers.delete('range');
+      const fullRequest = new Request(request, {headers});
+      try {
+        const full = await fetch(fullRequest);
+        if (full.status === 200 && !full.redirected && full.headers.has('content-length')) {
+          await cache.put(fullRequest, full.clone());
+          return rangeResponse(request, full);
+        }
+      } catch { /* 文件暂不可用时沿用现有副本。 */ }
+    }
+  }
   if (cached && !/\.(?:js|css)(?:\?|$)/.test(request.url)) return rangeResponse(request, cached);
   if (cached && background) {
     let update = applicationResourceUpdates.get(request.url);

@@ -14,6 +14,16 @@ try {
   const find = (selector) => document.querySelector(selector);
   /** @return {Promise<void>} 等待收起与展开均完成。 */
   const settle = () => new Promise((resolve) => setTimeout(resolve, 560));
+  /**
+   * 等待 Android 测试驱动完成指定的真实输入，再继续检查页面状态。
+   * @param {string} stage 原生驱动等待的输入阶段。
+   * @return {Promise<void>} 本次按键或触摸已结束。
+   */
+  const androidInput = async (stage) => {
+    globalThis.entryProbe = stage;
+    await new Promise((resolve) => document.addEventListener('matching-input-complete', resolve, {once: true}));
+    globalThis.entryProbe = 'pending';
+  };
   const heading = find('[data-action="toggle-matchings"]');
   const toggle = find('[data-profile-toggle]');
   if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
@@ -114,7 +124,8 @@ try {
   await settle();
   check(!examples.hidden && keywords.hidden &&
     examples.nextElementSibling === find('[data-advanced-editor]'), 'AI example drawer');
-  find('[data-action="toggle-counterexamples"]').click();
+  const examplesToggle = find('[data-action="toggle-counterexamples"]');
+  if (examplesToggle.getAttribute('aria-expanded') !== 'true') examplesToggle.click();
   const annotation = find('[data-example-rows] [data-example-reason]');
   const style = getComputedStyle(annotation);
   check(style.resize === 'none' && style.overflowY === 'auto' &&
@@ -198,8 +209,15 @@ try {
       globalThis.entryStage = 'hover-saved-details';
       await new Promise((resolve) => document.addEventListener('details-hover-checked', resolve, { once: true }));
     }
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
-    details.focus();
+    if (globalThis.nativeMatchingInput) {
+      body.focus({preventScroll: true});
+      await androidInput('tab-to-saved-details');
+    } else {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+      details.focus({preventScroll: true});
+    }
+    check(document.activeElement === details, 'Tab focuses the saved details cell (active: ' +
+      document.activeElement?.outerHTML.slice(0, 100) + ', inert: ' + details.closest('[inert]')?.id + ')');
     check(getComputedStyle(details).position === 'absolute' &&
       getComputedStyle(details.querySelectorAll('dd .match-detail-value')[2]).whiteSpace === 'normal',
       'focusing clipped details expands the full AI reason');
@@ -211,14 +229,23 @@ try {
       for (const cell of example.querySelectorAll('[data-post-link-cell]')) cell.click();
       title.click();
       title.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
-      const touch = { pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, bubbles: true };
-      details.parentElement.dispatchEvent(new PointerEvent('pointerdown', touch));
-      await settle();
       const tooltip = find('#app-tooltip');
-      check(!tooltip.hidden && tooltip.textContent.includes('疑似求助'.repeat(50)),
-        'holding a saved details cell exposes the complete matching reason');
-      details.parentElement.dispatchEvent(new PointerEvent('pointerup', touch));
-      details.parentElement.click();
+      const cell = details.parentElement;
+      cell.scrollIntoView({block: 'center', behavior: 'instant'});
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      let heldReason;
+      cell.addEventListener('pointerup', () => { heldReason = tooltip.hidden ? '' : tooltip.textContent; }, {once: true});
+      if (globalThis.nativeMatchingInput) {
+        await androidInput('hold-saved-details');
+      } else {
+        const touch = { pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, bubbles: true };
+        cell.dispatchEvent(new PointerEvent('pointerdown', touch));
+        await settle();
+        cell.dispatchEvent(new PointerEvent('pointerup', touch));
+        cell.click();
+      }
+      check(heldReason?.includes('疑似求助'.repeat(50)) && !tooltip.hidden && tooltip.textContent === heldReason,
+        'holding a saved details cell exposes the complete matching reason through release');
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       const selectedText = document.createRange();
       selectedText.selectNodeContents(body);

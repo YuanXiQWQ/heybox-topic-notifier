@@ -425,8 +425,8 @@ function isLobotomyCorpAssetPath(assetPath: string): boolean {
     /^Assets\/Resources\/spinedata\/[A-Za-z0-9_]+(?:\/[A-Za-z0-9_.]+)*\.(?:json|txt)$/u
       .test(assetPath) ||
     assetPath === "Data/Abnormalities.json" ||
-    /^Events\/(?:AdventLight|BlackForest|BlackForestEggSpine|CanvasScaler|DangerScore|DontTouchMe|PlagueDoctor|PlagueDoctorSpine|Shelter|SpineRuntime|WhiteNight|WhiteNightAdvent|WhiteNightSpine)\.js$/u
-      .test(assetPath) ||
+    // Events 是公开的客户端模块目录，只允许其直属 JavaScript 文件。
+    /^Events\/[A-Za-z][A-Za-z0-9_]*\.js$/u.test(assetPath) ||
     // 骨架运行时使用的官方 Spine WebGL 构建。
     /^vendor\/spine-webgl-[0-9.]+\.js$/u.test(assetPath) ||
     /^Locales\/(?:en-US|es-ES|ja-JP|ko-KR|ru-RU|vi-VN|zh-CN|zh-TW)\.json$/u
