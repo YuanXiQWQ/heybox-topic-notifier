@@ -74,6 +74,23 @@ Deno.test("特殊事件：别碰我全部出逃等待白夜转盘隐藏后再启
       "出逃分支应先显示白夜转盘",
     );
 
+    const orchestra = harness.createdElements().find((node) =>
+      node.className === "lobotomy-orchestra"
+    );
+    assert(
+      orchestra && !orchestra.removed,
+      "全体出逃应在白夜转盘期间同时启动乐团",
+    );
+    const allEscapeScore = api.getDangerScore();
+    await api.handleAbnormalitySubmitted("T-01-31");
+    assertEquals(api.getDangerScore(), allEscapeScore);
+    assertEquals(
+      harness.createdElements().filter((node) =>
+        node.className === orchestra.className
+      ).length,
+      1,
+    );
+
     // 四秒逻辑边界只启动 Hide_21；转盘在 500ms 隐藏动画结束前仍占着画面。
     await advance(harness, clock, 4000);
     assertStrictEquals(api.getSpecialEventPhase(), "active");

@@ -1302,3 +1302,76 @@ button.lobotomy-corp-top-panel-action-button:active:not(:disabled) .lobotomy-cor
   position: absolute;
   width: 100%;
 }
+
+/* 演出期间仍可滚动页面，帷幕绘制到滚动条原先占用的窗口边缘。 */
+:root.lobotomy-orchestra-visible { scrollbar-width: none; }
+:root.lobotomy-orchestra-visible::-webkit-scrollbar { display: none; }
+
+/* 独立排布警报四角和重启面板，使后者在终末鸟的全屏 CG 接收点击时也可操作。 */
+.lobotomy-orchestra-active .lobotomy-corp-alert-overlay { display: contents; }
+.lobotomy-orchestra-active .lobotomy-corp-emergency-controller { z-index: 10000; }
+.lobotomy-orchestra-active .lobotomy-corp-top-panel { z-index: 10016; }
+
+/* 原作窗口为 16:9；将 1600×900 的画布边缘映射到应用实际内容区的四边。 */
+.lobotomy-orchestra {
+  position: fixed;
+  inset: 0;
+  z-index: 10021;
+  overflow: hidden;
+  pointer-events: none;
+  direction: ltr;
+}
+.lobotomy-orchestra > img {
+  position: absolute;
+  top: -0.888889%;
+  height: 101.777778%; /* 916 / 900 */
+  max-width: none;
+  pointer-events: none;
+}
+/* Unity UI 先分别采样 RGB 和 Alpha，再按 SrcAlpha 混合。两层取自同一张原图。 */
+@supports ((mask-image: url("")) or (-webkit-mask-image: url(""))) {
+  .lobotomy-orchestra > img {
+    content: var(--orchestra-rgb);
+    -webkit-mask: var(--orchestra-sprite) center / 100% 100% no-repeat;
+    mask: var(--orchestra-sprite) center / 100% 100% no-repeat;
+  }
+}
+.lobotomy-orchestra-left, .lobotomy-orchestra-right {
+  left: 0;
+  width: 102.625%;
+  transform-origin: left center;
+  --side: 1;
+}
+.lobotomy-orchestra-right {
+  left: 100%;
+  --side: -1;
+}
+.lobotomy-orchestra[data-curtain=appear] > .lobotomy-orchestra-left,
+.lobotomy-orchestra[data-curtain=appear] > .lobotomy-orchestra-right {
+  transform: translateX(calc(-49.939099% * var(--side))) scaleX(var(--side)); /* 820 / 1642 */
+}
+.lobotomy-orchestra[data-curtain=close] > .lobotomy-orchestra-left,
+.lobotomy-orchestra[data-curtain=close] > .lobotomy-orchestra-right,
+.lobotomy-orchestra[data-curtain=open] > .lobotomy-orchestra-left,
+.lobotomy-orchestra[data-curtain=open] > .lobotomy-orchestra-right {
+  transform: scaleX(calc(var(--side) * var(--orchestra-side-scale, 0)));
+}
+.lobotomy-orchestra-upper-left, .lobotomy-orchestra-upper-right {
+  width: 81.5%; /* 1630 × 0.8 / 1600 */
+}
+.lobotomy-orchestra-upper-left { left: 0; --offset: -34.509202%; }
+.lobotomy-orchestra-upper-right { right: 0; --offset: 34.509202%; } /* 450 / 1304 */
+.lobotomy-orchestra[data-curtain=appear] > .lobotomy-orchestra-upper-left,
+.lobotomy-orchestra[data-curtain=appear] > .lobotomy-orchestra-upper-right {
+  transform: translateX(calc(var(--offset) * var(--orchestra-upper-offset, 1)));
+}
+.lobotomy-orchestra > .lobotomy-orchestra-title {
+  left: 50%;
+  top: 50%;
+  /* Text 四边拉伸，sizeDelta 为 (-1000,-700)，CanvasScaler 按 1600 参考宽度缩放。 */
+  width: 37.5%;
+  height: calc(100% - 43.75vw);
+  margin: 0;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+}

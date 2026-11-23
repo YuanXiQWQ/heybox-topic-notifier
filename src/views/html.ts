@@ -253,7 +253,7 @@ export function renderLayout(options: {
     <link rel="icon" href="/favicon.ico" type="image/png">
     <link rel="stylesheet" href="/static/app.css?v=20261122-example-interactions">
     <script src="/static/theme-compat.js" defer></script>
-    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20260914-black-forest-1">
+    <link rel="stylesheet" href="/static/fun/lobotomy-corp/lobotomy-corp.css?v=20261123-orchestra-player">
     ${stylesheetHtml}
     <script src="/static/tooltip.js?v=20261122-example-interactions" defer></script>
     <script src="/static/app-sync/store.js?v=20261114-instant-navigation" defer></script>
@@ -271,7 +271,7 @@ export function renderLayout(options: {
           options.loginSession,
         )
       }
-    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261026-black-forest-slots"></script>`
+    <script type="module" src="/static/fun/lobotomy-corp/lobotomy-corp.js?v=20261123-orchestra-player"></script>`
   }
     ${renderMatchTableRowLinkStyle()}
   </head>
