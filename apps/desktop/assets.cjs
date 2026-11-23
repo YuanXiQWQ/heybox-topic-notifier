@@ -62,6 +62,43 @@ function forwardRequest(webSession, request, net) {
 }
 
 /**
+ * 将安装文件作为可定位的 HTTP 资源返回，供媒体解码器读取文件头和末页。
+ * @param {string} file 安装文件的绝对路径。
+ * @param {number} size 文件字节数。
+ * @param {Request} request 页面请求。
+ * @param {import('electron').Net} net 读取文件并识别媒体类型的原生网络接口。
+ * @return {Promise<Response>} 完整文件、单段字节范围或范围错误响应。
+ */
+async function localAssetResponse(file, size, request, net) {
+  const range = request.method === 'GET' && request.headers.get('range');
+  let start = 0;
+  let end = size - 1;
+  if (range) {
+    const match = /^bytes=(\d*)-(\d*)$/i.exec(range.trim());
+    if (match) {
+      start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+      if (match[1] && match[2]) end = Math.min(Number(match[2]), end);
+    }
+    if (!match || start > end) {
+      return new Response(null, {status: 416, headers: {
+        'accept-ranges': 'bytes', 'content-range': 'bytes */' + size, 'content-length': '0',
+      }});
+    }
+  }
+  const headers = new Headers(request.headers);
+  headers.delete('range');
+  if (range) headers.set('range', 'bytes=' + start + '-' + end);
+  const response = await net.fetch(pathToFileURL(file).href, {headers, signal: request.signal});
+  if (!response.ok) return response;
+  const result = new Headers(response.headers);
+  result.set('accept-ranges', 'bytes');
+  result.set('content-length', String(end - start + 1));
+  if (range) result.set('content-range', 'bytes ' + start + '-' + end + '/' + size);
+  if (request.method === 'HEAD') await response.body?.cancel();
+  return new Response(request.method === 'HEAD' ? null : response.body, {status: range ? 206 : 200, headers: result});
+}
+
+/**
  * 在服务不可达时读取同路径安装资源，脚本在线时优先跟随当前网页版本。
  * @param {import('electron').Session} webSession 应用独立会话。
  * @param {string} origin 固定业务来源。
@@ -83,8 +120,9 @@ async function installAssets(webSession, origin, resources, net) {
         } catch { /* 离线脚本使用安装包版本。 */ }
       }
       try {
-        if ((await fs.stat(local)).isFile()) {
-          return await net.fetch(pathToFileURL(local).href, {headers: request.headers});
+        const stat = await fs.stat(local);
+        if (stat.isFile()) {
+          return await localAssetResponse(local, stat.size, request, net);
         }
       } catch { /* 未打包的资源继续由本站处理。 */ }
     }

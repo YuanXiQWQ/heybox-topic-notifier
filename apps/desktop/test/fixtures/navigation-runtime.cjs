@@ -5,6 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const {createServer} = require('node:http');
 const {once} = require('node:events');
+const {createHash} = require('node:crypto');
 const {installAssets} = require('../../assets.cjs');
 const {applicationUserAgent} = require('../../policy.cjs');
 /** 测试只访问回环服务，不复用正式账号、通知标识或持久入口。 */
@@ -84,6 +85,51 @@ async function verify(pathname) {
 }
 
 /**
+ * 在断网的真实协议和 Service Worker 下读取终章，验证区间、缓存恢复与播放器定位。
+ * @return {Promise<void>} 安装资源与浏览器实际读取的字节及媒体元数据相符。
+ */
+async function verifyOfflineFinale() {
+  const asset = '/static/fun/lobotomy-corp/Assets/Resources/sounds/creature/silentorchestra/Sym_movment_5_finale.ogg';
+  const original = await fs.readFile(path.join(root, asset));
+  const size = original.length;
+  window.webContents.setAudioMuted(true);
+  const result = await window.webContents.executeJavaScript(`(async (asset, size) => {
+    const url = asset + '?offline-audio';
+    const request = (range) => fetch(url, {headers: {range}});
+    const partial = await request('bytes=100-109');
+    const suffix = await request('bytes=-4');
+    const invalid = await request('bytes=' + size + '-');
+    const head = await fetch(url, {method: 'HEAD'});
+    const cache = await caches.open('heybox-app-resources-v1');
+    await cache.put(new Request(url, {headers: {range: 'bytes=100-109'}}),
+      new Response(new Uint8Array(10), {headers: {'content-type': 'audio/ogg'}}));
+    const file = await (await fetch(url)).arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', file);
+    const media = new Audio(url);
+    const duration = await new Promise((resolve, reject) => {
+      media.onloadedmetadata = () => {
+        if (!Number.isFinite(media.duration)) { reject(new Error('无法确定终章时长')); return; }
+        media.currentTime = media.duration - 0.25;
+      };
+      media.onseeked = () => media.play().catch(reject);
+      media.onended = () => resolve(media.duration);
+      media.onerror = () => reject(new Error(media.error.message));
+      media.load();
+    });
+    return {partial: [partial.status, partial.headers.get('content-range'), partial.headers.get('content-length'),
+      ...new Uint8Array(await partial.arrayBuffer())], suffix: [...new Uint8Array(await suffix.arrayBuffer())],
+      invalid: [invalid.status, invalid.headers.get('content-range')], head: [head.status, head.headers.get('content-length'),
+      (await head.arrayBuffer()).byteLength], digest: [...new Uint8Array(digest)], duration};
+  })(` + JSON.stringify(asset) + ',' + size + ')', true);
+  assert.deepEqual(result.partial, [206, 'bytes 100-109/' + size, '10', ...original.subarray(100, 110)]);
+  assert.deepEqual(result.suffix, [...original.subarray(-4)]);
+  assert.deepEqual(result.invalid, [416, 'bytes */' + size]);
+  assert.deepEqual(result.head, [200, String(size), 0]);
+  assert.deepEqual(result.digest, [...createHash('sha256').update(original).digest()]);
+  assert.ok(Math.abs(result.duration - 34.274989) < 0.01, String(result.duration));
+}
+
+/**
  * 覆盖中文宿主的旧网络标记和规范后的网络标记，不依赖模拟 Request 实现。
  * @return {Promise<void>} 全部场景通过。
  */
@@ -133,6 +179,7 @@ async function run() {
     offline = true;
     await window.loadURL(origin + '/settings');
     await verify('/settings');
+    if (normalized) await verifyOfflineFinale();
     window.destroy();
     window = undefined;
     await webSession.closeAllConnections();
