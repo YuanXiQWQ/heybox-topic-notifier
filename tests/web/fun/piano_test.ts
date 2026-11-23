@@ -11,7 +11,6 @@ import {
 for (
   const trigger of [
     "工作中输入",
-    "曲终后输入",
     "警报从零升档",
     "一级直升三级",
   ] as const
@@ -32,7 +31,6 @@ for (
       const escape = h.AudioMock.items.findLast((a) =>
         a.src.endsWith(pianoSounds[1])
       )!;
-      Object.defineProperty(work, "paused", { value: false });
       assertEquals(api.getDangerScore(), initial);
       assert(!work.loop && !work.muted);
       const warmCount = escape.playCount;
@@ -40,13 +38,7 @@ for (
       await api.setDangerScore(initial + 1);
       assertEquals(escape.playCount, warmCount);
       let beforeBreach = initial + 1;
-      if (trigger === "曲终后输入") {
-        work.dispatch("ended");
-        beforeBreach = 12;
-        void api.setDangerScore(beforeBreach);
-        assertEquals(escape.playCount, warmCount);
-        await api.prepareDisplayName(pianoId).commit();
-      } else if (trigger === "工作中输入") {
+      if (trigger === "工作中输入") {
         void api.prepareDisplayName(pianoId).commit();
       } else {
         beforeBreach = initial ? 80 : 10;
@@ -92,25 +84,40 @@ for (
   });
 }
 
-Deno.test("月光女神：工作曲播完后跨页记住首次输入，全新窗口从首曲开始", async () => {
-  for (const alreadyWorked of [true, false]) {
+for (const ending of ["自然曲终", "曲终跨页", "跨页时乐章到期", "旧版等待记录", "播放已暂停", "曲终事件待派发"]) {
+  Deno.test(`月光女神：${ending}后保存从第一乐章开始，曲中再保存才出逃`, async () => {
     const h = installLobotomyCorpAlertHarness();
     try {
       await h.reload();
-      if (alreadyWorked) {
-        await h.api().prepareDisplayName(pianoId).commit();
-        h.AudioMock.items.find((a) => a.src.endsWith(pianoSounds[0]))!.dispatch(
-          "ended",
-        );
+      await h.api().prepareDisplayName(pianoId).commit();
+      const previous = h.AudioMock.items.find((a) => a.src.endsWith(pianoSounds[0]))!;
+      if (ending === "播放已暂停") previous.pause();
+      else if (ending === "曲终事件待派发") Object.defineProperty(previous, "ended", { value: true });
+      else if (ending === "跨页时乐章到期") {
+        h.setNow(60000);
         await h.reload();
+      } else if (ending === "旧版等待记录") {
+        h.storage.setItem("warmnest.lobotomy-corp-piano", JSON.stringify({ phase: "waiting", since: 0 }));
+        await h.reload();
+      } else {
+        previous.dispatch("ended");
+        if (ending === "曲终跨页") await h.reload();
       }
-      void h.api().prepareDisplayName(pianoId).commit();
-      assertEquals(Boolean(h.pendingTimer(95000)), alreadyWorked);
+      await h.api().prepareDisplayName(pianoId).commit();
+      const next = h.AudioMock.items.findLast((a) => a.src.endsWith(pianoSounds[0]))!;
+      assert(next && next !== previous && !next.paused && !next.muted);
+      assertEquals(next.currentTime, 0);
+      assertEquals(h.api().getDangerScore(), 0);
+      assertEquals(h.pendingTimer(95000), undefined);
+      previous.dispatch("ended");
+      await h.api().commitDisplayName(pianoId);
+      assert(h.pendingTimer(95000));
+      assertEquals(h.api().getDangerScore(), 60 / 11);
     } finally {
       h.restore();
     }
-  }
-});
+  });
+}
 
 Deno.test("月光女神：原作音轨支持完整及分段读取", async () => {
   for (const file of pianoSounds) {
@@ -132,8 +139,6 @@ Deno.test("月光女神：警报降档或仅音乐升级时继续第一乐章", 
     const api = h.api();
     void api.setDangerScore(60);
     await api.prepareDisplayName(pianoId).commit();
-    const work = h.AudioMock.items.find((a) => a.src.endsWith(pianoSounds[0]))!;
-    Object.defineProperty(work, "paused", { value: false });
     await api.setDangerScore(20);
     void api.activate("third trumpet");
     assertEquals(h.pendingTimer(95000), undefined);
@@ -155,10 +160,6 @@ Deno.test("月光女神：沉默乐团出逃引发升档，两场同时运行并
     const restart = requireByClass(h.body, restartClass);
     assertEquals(restart.parentElement?.className, "lobotomy-corp-top-panel-frame-outter");
     assert(requireByClass(h.body, "lobotomy-corp-top-panel").styleProperties.has("--lobotomy-corp-unity-canvas-scale"));
-    const first = h.AudioMock.items.find((a) =>
-      a.src.endsWith(pianoSounds[0])
-    )!;
-    Object.defineProperty(first, "paused", { value: false });
     void api.prepareDisplayName("T-01-31").commit();
     await flushMicrotasks();
     assert(

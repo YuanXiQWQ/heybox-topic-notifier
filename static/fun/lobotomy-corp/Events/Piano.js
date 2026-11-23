@@ -18,7 +18,7 @@ const workMs = 59690;
 
 /**
  * @typedef {{consume?:(path:string)=>HTMLAudioElement|undefined}} PianoMedia
- * @typedef {'idle'|'work'|'waiting'|'escape'} PianoPhase
+ * @typedef {'idle'|'work'|'escape'} PianoPhase
  * @typedef {{work:(media?:PianoMedia)=>void, escape:(media?:PianoMedia)=>void,
  *   finish:()=>void, restore:()=>void, phase:()=>PianoPhase,
  *   playingWork:()=>boolean, isActive:()=>boolean}} PianoEvent
@@ -68,7 +68,7 @@ export function createPianoEvent(host) {
     tracks.clear();
     blocked.clear();
   }
-  /** 整日重启或跨游戏中断时清空当前轮次。 */
+  /** 清理演奏进度，让下一次手动输入从第一乐章开始。 */
   function finish() {
     detach();
     phase = 'idle';
@@ -101,31 +101,24 @@ export function createPianoEvent(host) {
       tracks.set(path, audio);
     }
   }
-  /** 第一乐章播放完毕，本轮仍等待第二次输入。 */
-  function workEnded() {
-    if (phase !== 'work') return;
-    phase = 'waiting';
-    detach();
-    persist();
-    host.changed();
-  }
   /**
    * 播放一次普通工作曲。
    * @param {PianoMedia} [media] 预热句柄。
    * @param {number} [offset] 跨页恢复的秒数。
    */
   function work(media, offset = 0) {
+    if (phase === 'work') detach();
     phase = 'work';
     since = Date.now() - offset * 1000;
     persist();
     prepare(media);
     const audio = tracks.get(pianoSounds[0]);
-    if (!audio) return workEnded();
+    if (!audio) return finish();
     audio.currentTime = offset;
     audio.loop = false;
     /** 只响应当前工作音轨的终止通知。 */
     const endCurrentWork = () => {
-      if (tracks.get(pianoSounds[0]) === audio) workEnded();
+      if (phase === 'work' && tracks.get(pianoSounds[0]) === audio) finish();
     };
     audio.addEventListener('ended', endCurrentWork, { once: true });
     audio.addEventListener('error', endCurrentWork, { once: true });
@@ -193,7 +186,7 @@ export function createPianoEvent(host) {
     }, Math.max(0, escapeMs - elapsed));
     host.changed();
   }
-  /** 从当前窗口恢复第一乐章的输入记录或尚未结束的声音。 */
+  /** 恢复当前窗口尚在演奏的乐章，过期进度和旧的曲终等待状态均清空。 */
   function restore() {
     let saved;
     try {
@@ -207,9 +200,6 @@ export function createPianoEvent(host) {
     const elapsed = Math.max(0, Date.now() - saved.since);
     if (saved.phase === 'work' && elapsed < workMs) {
       work(undefined, elapsed / 1000);
-    } else if (saved.phase === 'waiting' || saved.phase === 'work') {
-      phase = 'waiting';
-      persist();
     } else if (saved.phase === 'escape' && elapsed < escapeMs + fadeMs) {
       escape(undefined, elapsed);
     } else finish();
@@ -232,8 +222,10 @@ export function createPianoEvent(host) {
     /** @return {PianoPhase} 当前窗口的演奏阶段。 */
     phase: () => phase,
     /** @return {boolean} 第一乐章已开始并仍在播放。 */
-    playingWork: () =>
-      phase === 'work' && tracks.get(pianoSounds[0])?.paused === false,
+    playingWork: () => {
+      const audio = tracks.get(pianoSounds[0]);
+      return phase === 'work' && audio?.paused === false && !audio.ended;
+    },
     /** @return {boolean} 是否需要保留公共重启入口。 */
     isActive: () => phase === 'work' || phase === 'escape',
   };
