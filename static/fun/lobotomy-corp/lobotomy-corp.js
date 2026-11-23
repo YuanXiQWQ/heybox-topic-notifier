@@ -3,6 +3,7 @@
  */
 
 import {createSilentOrchestraEvent} from './Events/SilentOrchestra.js?v=20261123-player';
+import {createPianoEvent, pianoId, pianoSounds} from './Events/Piano.js';
 import {
   createWhiteNightEvent,
   whiteNightDeathSounds,
@@ -887,7 +888,7 @@ function ensureLobotomyCorpDayCoordinator() {
   if (
       lobotomyCorpDangerScore > 0 ||
       lobotomyCorpShelterEvent?.isActive() ||
-      lobotomyCorpOrchestra.isActive()
+      lobotomyCorpOrchestra.isActive() || piano.isActive()
   ) {
     globalThis.easterEggCoordinator?.start(
         lobotomyCorpEasterEggGameId,
@@ -1031,8 +1032,10 @@ function activateLobotomyCorpAlert(value, preparedMedia) {
 function prepareLobotomyCorpDisplayName(value) {
   const abnormalityMatch = matchingLobotomyCorpAbnormality(value);
   const isWhiteNightSubmission = abnormalityMatch?.canonicalId === 'T-03-46';
+  const isPiano = abnormalityMatch?.canonicalId === pianoId;
+  const pianoPhase = isPiano ? piano.phase() : undefined;
   const alert = matchingLobotomyCorpAlert(value) ??
-      (abnormalityMatch?.abnormality.canBreach &&
+      ((abnormalityMatch?.abnormality.canBreach || pianoPhase === 'waiting' || pianoPhase === 'work') &&
       !lobotomyCorpBreachedAbnormalitiesThisDay.has(
           abnormalityMatch.canonicalId,
       )
@@ -1095,7 +1098,9 @@ function prepareLobotomyCorpDisplayName(value) {
       // 某些浏览器不允许预播放；提交后仍会按既有路径尝试播放。
     });
   }
-  if (abnormalityMatch) {
+  if (isPiano) {
+    if (pianoPhase === 'idle' || pianoPhase === 'waiting') pianoSounds.forEach(prepareSpecialAudio);
+  } else if (abnormalityMatch) {
     const performance = breachPerformances.get(abnormalityMatch.canonicalId);
     if (!lobotomyCorpBreachedAbnormalitiesThisDay.has(abnormalityMatch.canonicalId) ||
         performance?.canReplayOnSubmit?.()) {
@@ -1341,7 +1346,7 @@ function activateLobotomyCorpDirectTrumpet(candidate, preparedMedia) {
   }
   if (!current) {
     // 没有进行中的会话：Direct 自己建立会话，四角 HUD 与音乐都使用它自己的等级。
-    return startLobotomyCorpAlert({
+    const lifecycle = startLobotomyCorpAlert({
       directSession: true,
       musicAlert: candidate,
       musicSource: 'direct',
@@ -1349,12 +1354,27 @@ function activateLobotomyCorpDirectTrumpet(candidate, preparedMedia) {
       startedAt: Date.now(),
       visualAlert: candidate,
     });
+    releasePianoOnAlertRise(0);
+    return lifecycle;
   }
   if (candidate.level <= current.musicLevel()) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
-  return current.takeOverMusic(candidate, 'direct', preparedMedia);
+  const previousLevel = current.visualAlert?.level ?? 0;
+  const lifecycle = current.takeOverMusic(candidate, 'direct', preparedMedia);
+  releasePianoOnAlertRise(previousLevel);
+  return lifecycle;
+}
+
+/**
+ * HUD 真正升档时将正在播放的工作曲切入出逃，沿用同一天的 WAW 结算。
+ * @param {number} previousLevel 更新前显示的警报等级，零表示没有警报。
+ */
+function releasePianoOnAlertRise(previousLevel) {
+  if ((activeLobotomyCorpAlert?.visualAlert?.level ?? 0) > previousLevel && piano.playingWork()) {
+    void handleLobotomyCorpAbnormalitySubmitted(pianoId);
+  }
 }
 
 /**
@@ -1435,6 +1455,7 @@ function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
     );
   }
 
+  const previousLevel = activeLobotomyCorpAlert?.visualAlert?.level ?? 0;
   lobotomyCorpDangerScore = dangerScore;
   syncLobotomyCorpDangerMusicHighWater(dangerScore);
   if (dangerScore > 0) {
@@ -1447,9 +1468,11 @@ function setLobotomyCorpDangerScore(dangerScore, preparedMedia, options = {}) {
   if (!options.isDecay && options.positiveContribution === true) {
     resetLobotomyCorpDangerDecayGrace();
   }
-  return reconcileLobotomyCorpDangerAlert(preparedMedia, {
+  const lifecycle = reconcileLobotomyCorpDangerAlert(preparedMedia, {
     suppressMusic: options.suppressMusic === true,
   });
+  releasePianoOnAlertRise(previousLevel);
+  return lifecycle;
 }
 
 /**
@@ -1661,7 +1684,8 @@ function startLobotomyCorpWhiteNight(options) {
 /**
  * 处理手动提交或自动释放的异想体。
  *
- * 当天首次出逃结算危急值。手动保存还可以重演已谢幕的乐团，自动释放沿用当天的出逃记录。
+ * 月光女神的首次工作单独进入声部；真正出逃才按当天记录结算危急值。
+ * 手动保存可以重演已谢幕的乐团。
  *
  * @param {string} value 已保存的显示名称或自动释放的异想体编号。
  * @param {object} [preparedMedia] 在用户手势中预先准备的媒体句柄。
@@ -1712,12 +1736,22 @@ function handleLobotomyCorpAbnormalitySubmitted(value, preparedMedia, source = '
         {positiveContribution: true},
     );
   }
-  if (!match.abnormality.canBreach) {
+  if (match.canonicalId === pianoId) {
+    if (source === 'display-name' && piano.phase() === 'idle') {
+      piano.work(preparedMedia);
+      preparedMedia?.dispose?.();
+      return Promise.resolve(true);
+    }
+    if (piano.phase() === 'escape') {
+      preparedMedia?.dispose?.();
+      return Promise.resolve(true);
+    }
+  } else if (!match.abnormality.canBreach) {
     preparedMedia?.dispose?.();
     return Promise.resolve(true);
   }
   if (lobotomyCorpBreachedAbnormalitiesThisDay.has(match.canonicalId)) {
-    if (source === 'display-name' && performance?.canReplayOnSubmit?.()) {
+    if (match.canonicalId === pianoId || (source === 'display-name' && performance?.canReplayOnSubmit?.())) {
       performance.start(preparedMedia);
     }
     preparedMedia?.dispose?.();
@@ -2266,7 +2300,7 @@ function mountLobotomyCorpRestartButton(continuing = false) {
 function finishLobotomyCorpRestartButtonIfUnused() {
   if (
       lobotomyCorpWhiteNightEvent?.hasEventState?.() ||
-      lobotomyCorpBlackForestEvent?.isActive?.() || lobotomyCorpOrchestra.isActive()
+      lobotomyCorpBlackForestEvent?.isActive?.() || lobotomyCorpOrchestra.isActive() || piano.isActive()
   ) {
     if (activeLobotomyCorpRestartButton) mountLobotomyCorpRestartButton(true);
     return;
@@ -2503,7 +2537,7 @@ function startLobotomyCorpAlert({
     if (activeLobotomyCorpAlert === alertContext) {
       activeLobotomyCorpAlert = undefined;
     }
-    if (lobotomyCorpOrchestra.isActive()) {
+    if (lobotomyCorpOrchestra.isActive() || piano.isActive()) {
       mountLobotomyCorpRestartButton(true);
       teardownAlert();
       return;
@@ -3868,6 +3902,18 @@ const lobotomyCorpOrchestra = createSilentOrchestraEvent({
   refreshAlertVolume: () => activeLobotomyCorpAlert?.refreshVolume?.(),
 });
 
+/** 月光女神使用独立音轨，并共享整日重启入口。 */
+const piano = createPianoEvent({
+  assetRoot: lobotomyCorpAssetRoot,
+  /** 随演奏阶段挂载或释放整日重启入口。 */
+  changed() {
+    if (piano.isActive()) {
+      ensureLobotomyCorpDayCoordinator();
+      mountLobotomyCorpRestartButton();
+    } else finishLobotomyCorpRestartButtonIfUnused();
+  },
+});
+
 /**
  * 出逃专属演出登记。普通登记项的 start 同时服务于单只与全体出逃；
  * 独立结算或有时序依赖的事件可提供 allEscape。登记顺序保证白夜先建立前奏。
@@ -3890,6 +3936,12 @@ const breachPerformances = new Map([
     ...lobotomyCorpOrchestra,
     /** @return {boolean} 乐团的画面和余音均已结束，可以手动再演。 */
     canReplayOnSubmit: () => !lobotomyCorpOrchestra.isActive(),
+  }],
+  [pianoId, {
+    start: piano.escape,
+    finish: piano.finish,
+    /** 全体计数归零时进入同一出逃和计分入口。 */
+    allEscape: () => { void handleLobotomyCorpAbnormalitySubmitted(pianoId); },
   }],
 ]);
 
@@ -4062,6 +4114,7 @@ function lobotomyCorpLoginSession() {
 }
 
 const persistedDisplayName = persistedLobotomyCorpDisplayName();
+piano.restore();
 if (persistedDisplayName !== undefined) {
   syncLobotomyCorpAbnormalityIdentity(persistedDisplayName);
 }
