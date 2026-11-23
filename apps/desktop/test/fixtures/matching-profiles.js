@@ -19,11 +19,11 @@ try {
    * @param {string} stage 原生驱动等待的输入阶段。
    * @return {Promise<void>} 本次按键或触摸已结束。
    */
-  async function androidInput(stage) {
+  const androidInput = async (stage) => {
     globalThis.entryProbe = stage;
     await new Promise((resolve) => document.addEventListener('matching-input-complete', resolve, {once: true}));
     globalThis.entryProbe = 'pending';
-  }
+  };
   const heading = find('[data-action="toggle-matchings"]');
   const toggle = find('[data-profile-toggle]');
   if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
