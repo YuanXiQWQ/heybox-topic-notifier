@@ -378,6 +378,9 @@ const lobotomyCorpTintedRiskSources = new Map();
  */
 const lobotomyCorpTintedRestartButtonSources = new Map();
 
+/** 顶部按钮的字体、面板图片与两种按压状态的共享加载任务。 */
+let lobotomyCorpTopPanelAssetPreparation;
+
 /**
  * 预加载字体、Sprite 与逐像素染色缓存的共享任务。
  */
@@ -421,6 +424,9 @@ let activeLobotomyCorpAlert;
 
 /** 独立承接特殊事件重启操作的顶部面板。 */
 let activeLobotomyCorpRestartButton;
+
+/** 正在播放退场动画的 HUD；新面板入场前结束其退场。 */
+let finishClosingLobotomyCorpPanel;
 
 /**
  * 当前脑叶公司彩蛋的危急值，始终为 0 到 100 的有限数值。
@@ -1975,7 +1981,25 @@ async function tintLobotomyCorpImage(source, tint) {
 }
 
 /**
- * 预加载 HUD 与顶部结束面板的图片和字体，并建立 Triangle、EmergencyImage 与 End_1 染色缓存。
+ * 为有无警报的公共面板准备同一组字体、装饰和按钮染色图。
+ *
+ * @return {Promise<void>} 面板资源准备完成。
+ */
+function prepareLobotomyCorpTopPanelAssets() {
+  lobotomyCorpTopPanelAssetPreparation ??= Promise.all([
+    loadLobotomyCorpTopPanelFont(),
+    ...lobotomyCorpTopPanelSpriteFiles.map((file) =>
+        loadLobotomyCorpImage(`${lobotomyCorpSpriteRoot}/${file}`)),
+    ...Object.entries(lobotomyCorpRestartButtonTints).map(async ([state, tint]) => {
+      const source = `${lobotomyCorpSpriteRoot}/End_1.png`;
+      lobotomyCorpTintedRestartButtonSources.set(state, await tintLobotomyCorpImage(source, tint));
+    }),
+  ]).then(() => undefined);
+  return lobotomyCorpTopPanelAssetPreparation;
+}
+
+/**
+ * 预加载 HUD 与顶部面板，并建立警报图像的染色缓存。
  *
  * @return {Promise<void>} 所有可用视觉资源已完成准备后返回。
  */
@@ -1993,12 +2017,9 @@ function prepareLobotomyCorpVisualAssets() {
     ];
     await Promise.all([
       loadLobotomyCorpFont(),
-      loadLobotomyCorpTopPanelFont(),
+      prepareLobotomyCorpTopPanelAssets(),
       ...alerts.map(({riskFile}) =>
           loadLobotomyCorpImage(`${lobotomyCorpSpriteRoot}/${riskFile}`)
-      ),
-      ...lobotomyCorpTopPanelSpriteFiles.map((spriteFile) =>
-          loadLobotomyCorpImage(`${lobotomyCorpSpriteRoot}/${spriteFile}`)
       ),
     ]);
     await Promise.all([
@@ -2023,15 +2044,6 @@ function prepareLobotomyCorpVisualAssets() {
                 alert.riskTint,
             );
             lobotomyCorpTintedRiskSources.set(alert.assetDirectory, tintedSource);
-          },
-      ),
-      ...Object.entries(lobotomyCorpRestartButtonTints).map(
-          async ([state, tint]) => {
-            const tintedSource = await tintLobotomyCorpImage(
-                `${lobotomyCorpSpriteRoot}/End_1.png`,
-                tint,
-            );
-            lobotomyCorpTintedRestartButtonSources.set(state, tintedSource);
           },
       ),
     ]);
@@ -2175,16 +2187,23 @@ function createLobotomyCorpRestartButton() {
   endAlertButton.type = 'button';
   endAlertButton.className = 'lobotomy-corp-top-panel-action-button';
   endAlertButton.setAttribute('aria-label', restartDayText);
+  endAlertButton.addEventListener('click', () => { void restartLobotomyCorpDay(); });
   normalButtonSprite.alt = '';
   normalButtonSprite.className =
       'lobotomy-corp-top-panel-action-button-sprite normal';
-  normalButtonSprite.src = lobotomyCorpRestartButtonSource('normal');
   normalButtonSprite.setAttribute('aria-hidden', 'true');
   pressedButtonSprite.alt = '';
   pressedButtonSprite.className =
       'lobotomy-corp-top-panel-action-button-sprite pressed';
-  pressedButtonSprite.src = lobotomyCorpRestartButtonSource('pressed');
   pressedButtonSprite.setAttribute('aria-hidden', 'true');
+  /** 按可用的染色缓存设置正常与按下状态的图像。 */
+  function applySprites() {
+    normalButtonSprite.src = lobotomyCorpRestartButtonSource('normal');
+    pressedButtonSprite.src = lobotomyCorpRestartButtonSource('pressed');
+  }
+  if (shouldPrepareLobotomyCorpVisualAssets()) {
+    void prepareLobotomyCorpTopPanelAssets().then(applySprites, applySprites);
+  } else applySprites();
   endAlertButtonText.className = 'lobotomy-corp-top-panel-action-button-text';
   endAlertButtonText.textContent = restartDayText;
   endAlertButton.append(
@@ -2198,10 +2217,10 @@ function createLobotomyCorpRestartButton() {
 /**
  * 创建复现原版“重新开始这一天”布局的顶部结束面板。
  *
- * @param {boolean} [framed] 显示完整面板装饰；白夜与终末鸟可单独显示按钮。
  * @return {{activeController: HTMLElement, element: HTMLElement, endAlertButton: HTMLButtonElement, endAlertButtonText: HTMLElement}} 顶部面板、动画节点及结束按钮的图标与文本节点。
  */
-function createLobotomyCorpTopPanel(framed = true) {
+function createLobotomyCorpTopPanel() {
+  finishClosingLobotomyCorpPanel?.();
   const topPanel = document.createElement('section');
   const activeController = document.createElement('div');
   const restartButton = createLobotomyCorpRestartButton();
@@ -2215,11 +2234,6 @@ function createLobotomyCorpTopPanel(framed = true) {
     endAlertButton: restartButton.button,
     endAlertButtonText: restartButton.text,
   };
-  if (!framed) {
-    activeController.append(restartButton.button);
-    return panel;
-  }
-
   const leftValve = document.createElement('img');
   const frameOutter = document.createElement('div');
   const frameInner = document.createElement('img');
@@ -2246,41 +2260,37 @@ function createLobotomyCorpTopPanel(framed = true) {
 }
 
 /**
- * 特殊事件独占重启入口时挂载按钮，乐团沿用完整警报面板及其视口缩放。
+ * 没有警报 HUD 时承载公共重启面板，并在警报收起时接回同一节点。
  *
- * @param {boolean} [continuing] 正在接替已经入场的警报面板。
- * @return {{framed: boolean, finish: () => void}|undefined} 已挂载按钮的样式与清理操作。
+ * @param {ReturnType<typeof createLobotomyCorpTopPanel>} [panel] 已经入场的警报面板。
  */
-function mountLobotomyCorpRestartButton(continuing = false) {
-  const framed = lobotomyCorpOrchestra.isActive();
-  if (activeLobotomyCorpAlert || activeLobotomyCorpRestartButton?.framed === framed) {
-    return activeLobotomyCorpRestartButton;
-  }
-  activeLobotomyCorpRestartButton?.finish();
+function mountLobotomyCorpRestartButton(panel) {
+  if (activeLobotomyCorpAlert || activeLobotomyCorpRestartButton) return;
   const document = globalThis.document;
-  if (!document?.createElement || !document.body) return undefined;
+  if (!document?.createElement || !document.body) return;
   const overlay = document.createElement('div');
-  const {element: topPanel, endAlertButton} = createLobotomyCorpTopPanel(framed);
+  const controller = panel ?? createLobotomyCorpTopPanel();
+  const topPanel = controller.element;
   overlay.className = 'lobotomy-corp-alert-overlay';
-  if (continuing) topPanel.dataset.lobotomyCorpTopPanelReused = 'true';
+  if (panel) {
+    topPanel.dataset.lobotomyCorpTopPanelReused = 'true';
+    const text = lobotomyCorpTopPanelActionText();
+    panel.endAlertButtonText.textContent = text;
+    panel.endAlertButton.setAttribute('aria-label', text);
+  }
   let viewport;
   /** 按与警报相同的 CanvasScaler 更新独立面板。 */
   function resize() {
     viewport = lobotomyCorpCanvasViewportForUpdate(viewport, lobotomyCorpViewportSize());
     updateLobotomyCorpCanvasScale(viewport, topPanel);
   }
-  if (framed) {
-    resize();
-    globalThis.addEventListener?.('resize', resize);
-    globalThis.visualViewport?.addEventListener?.('resize', resize);
-  }
-  endAlertButton.addEventListener('click', () => {
-    void restartLobotomyCorpDay();
-  });
+  resize();
+  globalThis.addEventListener?.('resize', resize);
+  globalThis.visualViewport?.addEventListener?.('resize', resize);
   overlay.append(topPanel);
   document.body.append(overlay);
   const button = {
-    framed,
+    panel: controller,
     /** 释放该面板独占的视口监听及按钮节点。 */
     finish: () => {
       if (activeLobotomyCorpRestartButton !== button) return;
@@ -2291,20 +2301,19 @@ function mountLobotomyCorpRestartButton(continuing = false) {
     },
   };
   activeLobotomyCorpRestartButton = button;
-  return button;
 }
 
 /**
- * 在最后一个特殊事件结束时移除独立的 RestartButton。
+ * @return {boolean} 当前是否有需要公共重启按钮的特殊事件。
  */
+function lobotomyCorpEventNeedsRestartButton() {
+  return lobotomyCorpWhiteNightEvent?.hasEventState?.() ||
+      lobotomyCorpBlackForestEvent?.isActive?.() || lobotomyCorpOrchestra.isActive() || piano.isActive();
+}
+
+/** 最后一个特殊事件结束时释放独立承载的面板。 */
 function finishLobotomyCorpRestartButtonIfUnused() {
-  if (
-      lobotomyCorpWhiteNightEvent?.hasEventState?.() ||
-      lobotomyCorpBlackForestEvent?.isActive?.() || lobotomyCorpOrchestra.isActive() || piano.isActive()
-  ) {
-    if (activeLobotomyCorpRestartButton) mountLobotomyCorpRestartButton(true);
-    return;
-  }
+  if (lobotomyCorpEventNeedsRestartButton()) return;
   activeLobotomyCorpRestartButton?.finish();
   if (lobotomyCorpDangerScore <= 0 && !activeLobotomyCorpAlert && !lobotomyCorpShelterEvent.isActive()) {
     globalThis.easterEggCoordinator?.finish?.(lobotomyCorpEasterEggGameId, finishLobotomyCorpDayFromCoordinator);
@@ -2384,7 +2393,6 @@ function startLobotomyCorpAlert({
   if (racingSessionResult !== undefined) {
     return racingSessionResult;
   }
-  activeLobotomyCorpRestartButton?.finish();
   let musicSourceState = musicSource;
   let directSessionState = directSession;
   let visualAlert = initialVisualAlert;
@@ -2404,6 +2412,7 @@ function startLobotomyCorpAlert({
   let overlay;
   let mounted = false;
   let panelDisappearTimer;
+  let topPanelController;
   let topPanel;
   let topPanelActiveController;
   let stableCanvasViewport;
@@ -2466,6 +2475,7 @@ function startLobotomyCorpAlert({
       return;
     }
     finished = true;
+    if (finishClosingLobotomyCorpPanel === teardownAlert) finishClosingLobotomyCorpPanel = undefined;
     if (panelDisappearTimer !== undefined) {
       clearTimeout(panelDisappearTimer);
     }
@@ -2519,10 +2529,6 @@ function startLobotomyCorpAlert({
     }
     closing = true;
     detachAudio(true);
-    endAlertButton?.removeEventListener('click', finishAlertFromButton);
-    if (endAlertButton) {
-      endAlertButton.disabled = true;
-    }
     globalThis.removeEventListener?.('pagehide', persistPlaybackPosition);
     globalThis.removeEventListener?.(
         'resize',
@@ -2537,11 +2543,13 @@ function startLobotomyCorpAlert({
     if (activeLobotomyCorpAlert === alertContext) {
       activeLobotomyCorpAlert = undefined;
     }
-    if (lobotomyCorpOrchestra.isActive() || piano.isActive()) {
-      mountLobotomyCorpRestartButton(true);
+    if (lobotomyCorpEventNeedsRestartButton()) {
+      mountLobotomyCorpRestartButton(topPanelController);
       teardownAlert();
       return;
     }
+    activeLobotomyCorpRestartButton?.finish();
+    if (endAlertButton) endAlertButton.disabled = true;
     if (!lobotomyCorpOrchestra.isActive() && (clearDay || lobotomyCorpDangerScore <= 0)) {
       globalThis.easterEggCoordinator?.finish?.(
           lobotomyCorpEasterEggGameId,
@@ -2550,6 +2558,7 @@ function startLobotomyCorpAlert({
     }
 
     if (animateExit && topPanel && topPanelActiveController) {
+      finishClosingLobotomyCorpPanel = teardownAlert;
       topPanelActiveController.addEventListener(
           'animationend',
           finishAfterPanelAnimation,
@@ -2560,13 +2569,6 @@ function startLobotomyCorpAlert({
       return;
     }
     teardownAlert();
-  }
-
-  /**
-   * 响应顶部 RestartButton 点击，不允许 DOM Event 污染结束方式参数。
-   */
-  function finishAlertFromButton() {
-    void restartLobotomyCorpDay();
   }
 
   /**
@@ -3479,12 +3481,15 @@ function startLobotomyCorpAlert({
       overlay.dataset.lobotomyCorpAlertResumeAt = String(
           currentAudioPosition(),
       );
-      const topPanelController = createLobotomyCorpTopPanel();
+      topPanelController = activeLobotomyCorpRestartButton?.panel ?? createLobotomyCorpTopPanel();
+      if (activeLobotomyCorpRestartButton) {
+        topPanelController.element.dataset.lobotomyCorpTopPanelReused = 'true';
+        activeLobotomyCorpRestartButton.finish();
+      }
       topPanel = topPanelController.element;
       topPanelActiveController = topPanelController.activeController;
       endAlertButton = topPanelController.endAlertButton;
       endAlertButtonText = topPanelController.endAlertButtonText;
-      endAlertButton.addEventListener('click', finishAlertFromButton);
       syncTopPanelActionText(visualAlert);
       if (!audio) {
         createAlertAudio();

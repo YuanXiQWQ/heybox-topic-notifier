@@ -2,6 +2,7 @@
  * @file 本文件实现《脑叶公司》“3月27日的避难所”彩蛋的随机释放调度。
  */
 // @ts-check
+import {pianoId} from './Piano.js';
 
 /** “3月27日的避难所”的 canonical 编号。 */
 export const shelterAbnormalityId = 'T-09-82';
@@ -57,15 +58,14 @@ export const shelterStorageKey = 'warmnest.lobotomy-corp-shelter';
 /**
  * 列出可能被避难所释放的异想体编号。
  *
- * 与原作一致，只有能够出逃的异想体参与随机选择；疫医和“别碰我”等
- * 不能出逃的条目不会进入候选列表。
+ * 除常规可出逃条目外，月光女神的计数归零也能在收容室内触发出逃演奏。
  *
  * @param {Record<string, {canBreach?: boolean}>|undefined} abnormalities 异想体资料。
  * @return {string[]} 按编号排序后的可出逃异想体编号。
  */
 export function escapableAbnormalityIds(abnormalities) {
   return Object.entries(abnormalities ?? {})
-      .filter(([, abnormality]) => abnormality?.canBreach === true)
+      .filter(([id, abnormality]) => abnormality?.canBreach === true || id === pianoId)
       .map(([canonicalId]) => canonicalId)
       .sort();
 }

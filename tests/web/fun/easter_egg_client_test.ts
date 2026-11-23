@@ -1696,19 +1696,13 @@ Deno.test("Lobotomy Corporation starts Black Forest after two bird submissions",
       ).textContent,
       "重新开始这一天",
     );
-    assertEquals(
-      findByClass(
-        restartButtonOnlyOverlay,
-        "lobotomy-corp-top-panel-frame-outter",
-      ),
-      undefined,
-    );
+    assert(findByClass(restartButtonOnlyOverlay, "lobotomy-corp-top-panel-frame-outter"));
     assertEquals(
       findAllByClass(
         restartButtonOnlyOverlay,
         "lobotomy-corp-top-panel-valve",
       ).length,
-      0,
+      2,
     );
     assertEquals(
       JSON.parse(
@@ -1828,7 +1822,7 @@ Deno.test("refreshing after the Black Forest opening preserves the active event"
   }
 });
 
-Deno.test("WhiteNight restart fallback reuses the original button without the top panel frame", async () => {
+Deno.test("白夜前奏使用完整的公共重启面板", async () => {
   const harness = installLobotomyCorpAlertHarness();
   try {
     await harness.reload();
@@ -1849,16 +1843,10 @@ Deno.test("WhiteNight restart fallback reuses the original button without the to
       ).textContent,
       "重新开始这一天",
     );
-    assertEquals(
-      findByClass(
-        fallbackOverlay,
-        "lobotomy-corp-top-panel-frame-outter",
-      ),
-      undefined,
-    );
+    assert(findByClass(fallbackOverlay, "lobotomy-corp-top-panel-frame-outter"));
     assertEquals(
       findAllByClass(fallbackOverlay, "lobotomy-corp-top-panel-valve").length,
-      0,
+      2,
     );
   } finally {
     harness.restore();
@@ -3587,7 +3575,10 @@ Deno.test("DontTouchMe escapes every abnormality with the WARNING sequence", asy
       effectVideo.src,
       "/static/fun/lobotomy-corp/Assets/Resources/sprites/effect/touchwarning.webm",
     );
-    // 全体员工出逃：3 个部门容纳 12 只，12 × (1993 / 40) / 3 ≈ 199.3，被 100 封顶。
+    // 全体计数归零时月光女神直接演奏出逃曲，整批危急值达到上限。
+    assert(harness.pendingTimer(95000));
+    assert(AudioMock.items.some((audio) => audio.src.endsWith("/Moon_Piano_Escape.ogg") && audio.playCount > 0));
+    assert(!AudioMock.items.some((audio) => audio.src.endsWith("/Moon_Piano.ogg")));
     assertEquals(api.getDangerScore(), 100);
 
     effectVideo.dispatch("ended");

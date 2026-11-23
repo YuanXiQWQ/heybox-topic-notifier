@@ -1,7 +1,7 @@
 /** @file 月光女神输入轮次、警报跨档、并发和原声资源回归。 */
 import { assert, assertEquals } from "@std/assert";
 import { installLobotomyCorpAlertHarness } from "./test_harness.ts";
-import { flushMicrotasks } from "./event_test_helpers.ts";
+import { findAllByClass, flushMicrotasks, requireByClass } from "./event_test_helpers.ts";
 import { lobotomyCorpAssetResponse } from "../../../src/easter_egg_assets.ts";
 import {
   pianoId,
@@ -151,6 +151,10 @@ Deno.test("月光女神：沉默乐团出逃引发升档，两场同时运行并
     await h.reload();
     const api = h.api();
     await api.prepareDisplayName(pianoId).commit();
+    const restartClass = "lobotomy-corp-top-panel-action-button";
+    const restart = requireByClass(h.body, restartClass);
+    assertEquals(restart.parentElement?.className, "lobotomy-corp-top-panel-frame-outter");
+    assert(requireByClass(h.body, "lobotomy-corp-top-panel").styleProperties.has("--lobotomy-corp-unity-canvas-scale"));
     const first = h.AudioMock.items.find((a) =>
       a.src.endsWith(pianoSounds[0])
     )!;
@@ -163,6 +167,9 @@ Deno.test("月光女神：沉默乐团出逃引发升档，两场同时运行并
       ),
     );
     assert(h.pendingTimer(95000));
+    const buttons = findAllByClass(h.body, restartClass);
+    assertEquals(buttons.length, 1);
+    assert(buttons[0] === restart);
     assertEquals(api.getDangerScore(), (75 + 60) / 5);
     void api.commitDisplayName(pianoId);
     assertEquals(api.getDangerScore(), 27);
