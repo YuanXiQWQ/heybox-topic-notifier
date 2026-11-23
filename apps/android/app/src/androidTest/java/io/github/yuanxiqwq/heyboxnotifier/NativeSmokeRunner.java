@@ -81,7 +81,7 @@ public final class NativeSmokeRunner extends Instrumentation {
                 return null;
             });
             pass("schedule uses native calendar and era menus without keyboard; date drafts and card reorder remain saved");
-            assertBrowserFixture("matching-profiles.html", "", 30000, () -> {
+            assertBrowserFixture("matching-profiles.html", "window.nativeMatchingInput=true;", 30000, () -> {
                 assertMatchingDrawerTouch();
                 return null;
             });
@@ -323,7 +323,7 @@ public final class NativeSmokeRunner extends Instrumentation {
     private void assertBrowserFixture(String name, String setup, long timeout) throws Exception {
         assertBrowserFixture(name, setup, timeout, null);
     }
-    /** 在页面自检后执行系统控件操作，再关闭测试页。 @param {String} name 检查页面。 @param {String} setup 测试选项。 @param {long} timeout 页面等待上限。 @param {java.util.concurrent.Callable<Void>} nativeCheck 系统控件检查。 @throws Exception 页面或系统操作失败。 */
+    /** 在页面就绪时发送所需的原生输入，自检通过后执行系统控件检查，再关闭测试页。 @param {String} name 检查页面。 @param {String} setup 测试选项。 @param {long} timeout 页面等待上限。 @param {java.util.concurrent.Callable<Void>} nativeCheck 系统控件检查。 @throws Exception 页面或系统操作失败。 */
     private void assertBrowserFixture(String name, String setup, long timeout, java.util.concurrent.Callable<Void> nativeCheck) throws Exception {
         java.lang.reflect.Field field = MainActivity.class.getDeclaredField("web");
         field.setAccessible(true);
@@ -347,6 +347,12 @@ public final class NativeSmokeRunner extends Instrumentation {
                 require(ready.await(10, java.util.concurrent.TimeUnit.SECONDS), name + " probe callback");
                 last = value.get();
                 if ("\"passed\"".equals(last)) { if (nativeCheck != null) nativeCheck.call(); return; }
+                if ("\"tab-to-saved-details\"".equals(last) || "\"hold-saved-details\"".equals(last)) {
+                    if ("\"tab-to-saved-details\"".equals(last)) sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_TAB);
+                    else pressWebControl(view, "[data-example-rows] [data-post-link-cell]:has(> .match-detail-list)", 750);
+                    browserValue(view, "document.dispatchEvent(new Event('matching-input-complete'))");
+                    continue;
+                }
                 require("null".equals(last) || "\"pending\"".equals(last), name + " " + setup + ": " + last);
                 SystemClock.sleep(100);
             }
@@ -355,8 +361,8 @@ public final class NativeSmokeRunner extends Instrumentation {
             runOnMainSync(() -> view.loadUrl("about:blank"));
         }
     }
-    /** 在实际屏幕坐标向 WebView 发送触摸。 @param {android.webkit.WebView} view 页面。 @param {String} selector 触摸目标。 @throws Exception 控件不可访问。 */
-    private void tapWebControl(android.webkit.WebView view, String selector) throws Exception {
+    /** 在实际屏幕坐标按住 WebView 控件并松手。 @param {android.webkit.WebView} view 页面。 @param {String} selector 触摸目标。 @param {long} duration 按住时长，单位毫秒。 @throws Exception 控件不可访问。 */
+    private void pressWebControl(android.webkit.WebView view, String selector, long duration) throws Exception {
         String control = "document.querySelector(" + JSONObject.quote(selector) + ")";
         browserValue(view, control + ".scrollIntoView({block:'center'})");
         SystemClock.sleep(100);
@@ -368,7 +374,7 @@ public final class NativeSmokeRunner extends Instrumentation {
         for (int action : new int[] { android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP }) {
             android.view.MotionEvent event = android.view.MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), action, x, y, 0);
             event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN); sendPointerSync(event); event.recycle();
-            if (action == android.view.MotionEvent.ACTION_DOWN) SystemClock.sleep(80);
+            if (action == android.view.MotionEvent.ACTION_DOWN) SystemClock.sleep(duration);
         }
     }
     /** 用触摸切换配置列表和设置，检查每次切换的收起与展开。 @throws Exception 触摸或过渡失败。 */
@@ -381,7 +387,7 @@ public final class NativeSmokeRunner extends Instrumentation {
                 "[data-profile-toggle]", "[data-action=toggle-matchings] .dropdown-chevron"}) {
             boolean list = selector.equals("[data-profile-toggle]");
             browserValue(view, "drawerPhases.length=0");
-            tapWebControl(view, selector);
+            pressWebControl(view, selector, 80);
             String ready = "(() => {const panel=document.querySelector('[data-matching-panel]');return !panel.hidden && !panel.style.height && document.querySelector('[data-profile-list]').hidden===" + !list + " && panel.getBoundingClientRect().height>0})()";
             long deadline = SystemClock.uptimeMillis() + 3000;
             while (!"true".equals(browserValue(view, ready)) && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(50);
@@ -396,7 +402,7 @@ public final class NativeSmokeRunner extends Instrumentation {
         String control = "document.querySelector(" + JSONObject.quote(selector) + ")";
         android.app.UiAutomation automation = getUiAutomation();
         automation.waitForIdle(100, 5000);
-        tapWebControl(view, selector);
+        pressWebControl(view, selector, 80);
         long deadline = SystemClock.uptimeMillis() + 10000;
         boolean selected = false;
         while (!selected && SystemClock.uptimeMillis() < deadline) {
