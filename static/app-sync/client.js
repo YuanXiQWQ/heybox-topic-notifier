@@ -294,7 +294,7 @@
   }
 
   /**
-   * 验证账号后重放队列；暂时失败保留重试，明确拒绝撤回投影并显示错误。
+   * 验证账号后重放队列；暂时失败保留重试，明确拒绝撤回投影，记录提交失败时显示错误。
    * @return {Promise<void>} 本次同步尝试结束。
    */
   async function drain() {
@@ -334,7 +334,9 @@
         });
         const rejected = operation.kind === 'record' && [400, 404, 410, 422].includes(saved.status);
         if (!saved.ok && !rejected) {
-          showRecordStatus('pending', `HTTP ${saved.status}\n${(await saved.text()).slice(0, 2000)}`);
+          if (operation.kind === 'record') {
+            showRecordStatus('error', `HTTP ${saved.status}\n${(await saved.text()).slice(0, 2000)}`);
+          }
           return;
         }
         if (operation.kind === 'record') {
@@ -510,13 +512,13 @@
     globalThis.__matchTableRelativeTimeUpdate?.();
     globalThis.__matchTableOverflowUpdate?.();
     const rejected = all.filter((operation) => operation.delivery === 'rejected');
-    showRecordStatus(rejected.length ? 'error' : all.some((operation) => !operation.delivery) ? 'pending' : '',
+    showRecordStatus(rejected.length ? 'error' : '',
       rejected.map((operation) => operation.error).join('\n'));
   }
 
   /**
-   * 使用现有保存文案和可展开错误样式显示记录队列状态。
-   * @param {string} state pending、error 或空状态。
+   * 使用保存失败文案显示可展开的记录错误，或清除错误反馈。
+   * @param {string} state error 或空状态。
    * @param {string} details 可安全作为纯文本显示的错误详情。
    */
   function showRecordStatus(state, details = '') {

@@ -144,6 +144,7 @@ async function run() {
   const clicked = Date.now();
   await evaluate(`document.querySelector('tr[data-record-id] button[type="submit"]').click()`);
   await until('!document.querySelector("tr[data-record-id]")', 700);
+  assert.equal(await evaluate(`document.querySelector('[data-record-sync-status]').hidden`), true);
   const actionMs = Date.now() - clicked;
   assert.ok(actionMs < 700, `action ${actionMs}ms`);
   const exitStarted = Date.now();
@@ -180,7 +181,8 @@ async function run() {
   status = 503;
   await evaluate(`document.querySelector('tr[data-record-id] button[type="submit"]').click()`);
   await until('!document.querySelector("tr[data-record-id]")');
-  await wait(250);
+  await until(`document.querySelector('[data-record-sync-status] p').textContent.includes('503')`);
+  assert.equal(await evaluate(`(() => { const status = document.querySelector('[data-record-sync-status]'); return !status.hidden && status.querySelector('summary').textContent === status.dataset.error; })()`), true);
   assert.equal(await evaluate("AppLocalStore.pending('responsive-test').then(items => items.length)"), 1);
   await window.loadURL(origin + '/');
   await evaluate('applicationSync.ready.then(applicationSync.applyPendingRecords)');
