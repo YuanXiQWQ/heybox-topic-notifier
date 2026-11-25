@@ -634,6 +634,11 @@ Deno.test("renderSettings marks navigation and locale controls with icons", () =
   );
   assertIncludes(html, `class="settings-label-with-icon"`);
   assertIncludes(html, `class="settings-label-icon"`);
+  assertIncludes(
+    html,
+    `href="/about" data-settings-subpage data-app-about-link`,
+  );
+  assertNotIncludes(html, `settings-navigation-chevron`);
   assertIncludes(html, `viewBox="0 -960 960 960"`);
   assertIncludes(html, `d="m476-80`);
   assertNotIncludes(html.replaceAll(/<dl class="match-detail-list">[\s\S]*?<\/dl>/g, ""), `<dt>`);

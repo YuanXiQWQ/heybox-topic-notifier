@@ -282,7 +282,6 @@ function renderGlobalSettingsSection(
               <span class="settings-label-with-icon">${
     materialSymbolIcon("info", "settings-label-icon")
   }<span>${escapeHtml(messages.aboutProject)}</span></span>
-              <span class="settings-navigation-chevron" aria-hidden="true"></span>
             </a></dt>
             <dd hidden></dd>
           </div>
