@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "Trình duyệt này không hỗ trợ thông báo hệ thống",
   "applicationNotificationsUnavailable": "Thông báo chưa được cấu hình hoặc máy chủ không khả dụng",
   "applicationNotificationsDenied": "Cho phép thông báo trong cài đặt trình duyệt",
-  "autoSavePending": "Đã lưu trên thiết bị, đang chờ đồng bộ",
   "restoreMatch": "Chuyển lại không gian làm việc",
   "checkUpdate": "Kiểm tra cập nhật",
   "updateAvailable": "Có bản cập nhật",

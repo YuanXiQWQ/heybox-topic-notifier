@@ -2110,18 +2110,6 @@ dt{
   outline-offset: -2px;
 }
 
-.settings-navigation-chevron{
-  border-block-start: 2px solid currentColor;
-  border-inline-end: 2px solid currentColor;
-  flex: 0 0 8px;
-  height: 8px;
-  transform: rotate(45deg);
-}
-
-[dir="rtl"] .settings-navigation-chevron{
-  transform: rotate(-45deg);
-}
-
 .about-downloads{
   display: flex;
   flex-wrap: wrap;

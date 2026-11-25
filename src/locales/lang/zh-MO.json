@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "目前瀏覽器不支援系統通知",
   "applicationNotificationsUnavailable": "伺服器尚未啟用應用程式通知，或暫時無法連線",
   "applicationNotificationsDenied": "請在瀏覽器設定中允許通知",
-  "autoSavePending": "已儲存至此裝置，等待同步",
   "restoreMatch": "移回工作區",
   "checkUpdate": "檢查更新",
   "updateAvailable": "發現新版本",

@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "Ce navigateur ne prend pas en charge les notifications système",
   "applicationNotificationsUnavailable": "Les notifications ne sont pas configurées ou le serveur est indisponible",
   "applicationNotificationsDenied": "Autorisez les notifications dans les paramètres du navigateur",
-  "autoSavePending": "Enregistré sur cet appareil, en attente de synchronisation",
   "restoreMatch": "Remettre dans l’espace de travail",
   "checkUpdate": "Rechercher des mises à jour",
   "updateAvailable": "Mise à jour disponible",

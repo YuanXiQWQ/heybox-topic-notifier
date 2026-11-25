@@ -80,7 +80,6 @@ export function renderMatchRecordsSection(
         ${renderTableFilters(options)}
       </div>
       <details class="app-navigation-status" data-record-sync-status
-        data-pending="${escapeHtml(options.messages.autoSavePending)}"
         data-error="${escapeHtml(options.messages.autoSaveError)}" hidden>
         <summary role="status"></summary><p class="app-navigation-error"></p>
       </details>

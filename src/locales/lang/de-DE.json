@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "Dieser Browser unterstützt keine Systembenachrichtigungen",
   "applicationNotificationsUnavailable": "App-Benachrichtigungen sind nicht eingerichtet oder der Server ist nicht erreichbar",
   "applicationNotificationsDenied": "Benachrichtigungen in den Browsereinstellungen zulassen",
-  "autoSavePending": "Auf diesem Gerät gespeichert, Synchronisierung ausstehend",
   "restoreMatch": "Zurück in den Arbeitsbereich",
   "checkUpdate": "Nach Updates suchen",
   "updateAvailable": "Update verfügbar",

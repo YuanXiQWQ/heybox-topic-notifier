@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนระบบ",
   "applicationNotificationsUnavailable": "ยังไม่ได้ตั้งค่าการแจ้งเตือนหรือเชื่อมต่อเซิร์ฟเวอร์ไม่ได้",
   "applicationNotificationsDenied": "อนุญาตการแจ้งเตือนในการตั้งค่าเบราว์เซอร์",
-  "autoSavePending": "บันทึกในอุปกรณ์นี้แล้ว รอการซิงค์",
   "restoreMatch": "ย้ายกลับไปยังพื้นที่ทำงาน",
   "checkUpdate": "ตรวจสอบการอัปเดต",
   "updateAvailable": "มีเวอร์ชันใหม่",

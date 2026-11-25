@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "Bu tarayıcı sistem bildirimlerini desteklemiyor",
   "applicationNotificationsUnavailable": "Bildirimler yapılandırılmamış veya sunucuya ulaşılamıyor",
   "applicationNotificationsDenied": "Tarayıcı ayarlarından bildirimlere izin verin",
-  "autoSavePending": "Bu cihaza kaydedildi, eşitleme bekleniyor",
   "restoreMatch": "Çalışma alanına geri taşı",
   "checkUpdate": "Güncellemeleri denetle",
   "updateAvailable": "Güncelleme mevcut",

@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "هذا المتصفح لا يدعم إشعارات النظام",
   "applicationNotificationsUnavailable": "إشعارات التطبيق غير مهيأة أو الخادم غير متاح",
   "applicationNotificationsDenied": "اسمح بالإشعارات في إعدادات المتصفح",
-  "autoSavePending": "تم الحفظ على هذا الجهاز، بانتظار المزامنة",
   "restoreMatch": "إعادة إلى مساحة العمل",
   "checkUpdate": "التحقق من التحديثات",
   "updateAvailable": "يتوفر تحديث",

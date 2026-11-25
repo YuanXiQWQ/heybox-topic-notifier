@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "Этот браузер не поддерживает системные уведомления",
   "applicationNotificationsUnavailable": "Уведомления не настроены или сервер недоступен",
   "applicationNotificationsDenied": "Разрешите уведомления в настройках браузера",
-  "autoSavePending": "Сохранено на устройстве, ожидает синхронизации",
   "restoreMatch": "Вернуть в рабочую область",
   "checkUpdate": "Проверить обновления",
   "updateAvailable": "Доступно обновление",

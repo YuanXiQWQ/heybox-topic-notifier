@@ -6016,7 +6016,7 @@ async function guardSettingsNavigation(event) {
 let settingsSaveTask;
 
 /**
- * 将当前表单保存到本地队列或服务端，成功后推进本页编辑基线。
+ * 将当前表单保存到本地队列或服务端，可靠保存后推进编辑基线并显示已保存。
  * @return {Promise<boolean>} 本次快照是否已可靠保存。
  */
 async function persistSettingsNow() {
@@ -6064,7 +6064,7 @@ async function persistSettingsNow() {
       scheduleAutoSave();
       return true;
     }
-    setAutoSaveStatus(response.headers.get('x-app-local') === '1' ? 'pending' : 'saved');
+    setAutoSaveStatus('saved');
     return true;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -6075,13 +6075,6 @@ async function persistSettingsNow() {
     return false;
   }
 }
-
-/** 业务同步完成后清除本地待同步状态。 */
-document.addEventListener('application-sync-complete', () => {
-  if (autoSaveForm && settingsSignature() === lastSavedSignature) {
-    setAutoSaveStatus('saved');
-  }
-});
 
 /**
  * 发送测试通知并更新发送状态。

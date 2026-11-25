@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "דפדפן זה אינו תומך בהתראות מערכת",
   "applicationNotificationsUnavailable": "ההתראות לא הוגדרו או שהשרת אינו זמין",
   "applicationNotificationsDenied": "אפשרו התראות בהגדרות הדפדפן",
-  "autoSavePending": "נשמר במכשיר זה, ממתין לסנכרון",
   "restoreMatch": "החזרה לסביבת העבודה",
   "checkUpdate": "בדיקת עדכונים",
   "updateAvailable": "קיים עדכון",

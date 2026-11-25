@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "Este navegador no admite notificaciones del sistema",
   "applicationNotificationsUnavailable": "Las notificaciones no están configuradas o el servidor no está disponible",
   "applicationNotificationsDenied": "Permite las notificaciones en la configuración del navegador",
-  "autoSavePending": "Guardado en este dispositivo, pendiente de sincronización",
   "restoreMatch": "Volver al espacio de trabajo",
   "checkUpdate": "Buscar actualizaciones",
   "updateAvailable": "Actualización disponible",
