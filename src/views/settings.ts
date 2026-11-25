@@ -77,7 +77,6 @@ export function renderSettings(
       data-autosave-form
       data-autosave-saving="${escapeHtml(messages.autoSaveSaving)}"
       data-autosave-saved="${escapeHtml(messages.autoSaveSaved)}"
-      data-autosave-pending="${escapeHtml(messages.autoSavePending)}"
       data-autosave-error="${escapeHtml(messages.autoSaveError)}"
     >
       ${csrfHiddenInput(options.csrfToken)}
@@ -127,7 +126,7 @@ export function renderSettings(
     <script type="module" src="/static/polling-schedule.js?v=20261117-schedule-controls"></script>
     <script type="module" src="/static/matching-counterexamples.js?v=20261122-example-interactions"></script>
     <script src="/static/matching-profiles.js?v=20261120-mobile-drawer" defer></script>
-    <script src="/static/settings.js?v=20261119-examples" defer></script>
+    <script src="/static/settings.js?v=20261125-saved-status" defer></script>
   `;
 
   return renderLayout({

@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "এই ব্রাউজার সিস্টেম বিজ্ঞপ্তি সমর্থন করে না",
   "applicationNotificationsUnavailable": "অ্যাপের বিজ্ঞপ্তি কনফিগার করা নেই অথবা সার্ভার অনুপলব্ধ",
   "applicationNotificationsDenied": "ব্রাউজার সেটিংসে বিজ্ঞপ্তির অনুমতি দিন",
-  "autoSavePending": "এই ডিভাইসে সংরক্ষিত, সিঙ্কের অপেক্ষায়",
   "restoreMatch": "কর্মক্ষেত্রে ফিরিয়ে নিন",
   "checkUpdate": "আপডেট পরীক্ষা করুন",
   "updateAvailable": "আপডেট উপলব্ধ",

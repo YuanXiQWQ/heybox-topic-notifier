@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "このブラウザーはシステム通知に対応していません",
   "applicationNotificationsUnavailable": "サーバー側でアプリ通知が有効になっていないか、一時的に接続できません。",
   "applicationNotificationsDenied": "ブラウザーの設定で通知を許可してください",
-  "autoSavePending": "この端末に保存済み・同期待ち",
   "restoreMatch": "ワークスペースに戻す",
   "checkUpdate": "更新を確認",
   "updateAvailable": "新しいバージョンがあります",

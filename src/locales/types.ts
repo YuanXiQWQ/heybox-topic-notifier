@@ -419,7 +419,6 @@ export type Messages = {
   allRows: string;
   autoSaveError: string;
   autoSaveSaved: string;
-  autoSavePending: string;
   restoreMatch: string;
   desktopCloseWindow: string;
   desktopCloseMinimize: string;

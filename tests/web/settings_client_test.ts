@@ -169,6 +169,7 @@ Deno.test("overlapping offline saves advance the edit baseline in durable order"
   const key = new SecretInputMock();
   const form = { model: "first" };
   const calls: Array<{ body: FormData; base: string }> = [];
+  const statuses: string[] = [];
   let complete!: (value: Response) => void;
   const source = Deno.readTextFileSync(
     new URL("../../static/settings.js", import.meta.url),
@@ -178,9 +179,11 @@ Deno.test("overlapping offline saves advance the edit baseline in durable order"
     "HTMLInputElement",
     "globalThis",
     "form",
+    "statuses",
     `${source}
     autoSaveForm = autoSaveTopicEditor = autoSaveKeywordEditor = form;
-    pruneIncompleteDraftRows = persistCurrentKeywordRows = setAutoSaveStatus = scheduleAutoSave = () => {};
+    pruneIncompleteDraftRows = persistCurrentKeywordRows = scheduleAutoSave = () => {};
+    setAutoSaveStatus = (state) => statuses.push(state);
     formDataFromForm = () => { const value = new FormData(); value.set('matchingModel', form.model); return value; };
     return {saveSettingsNow};
   `,
@@ -206,6 +209,7 @@ Deno.test("overlapping offline saves advance the edit baseline in durable order"
       },
     },
     form,
+    statuses,
   );
   const first = client.saveSettingsNow();
   form.model = "second";
@@ -221,6 +225,7 @@ Deno.test("overlapping offline saves advance the edit baseline in durable order"
     "first",
   );
   assertEquals(calls[1].body.get("matchingModel"), "second");
+  assertEquals(statuses, ["saving", "saving", "saved"]);
 });
 
 /**

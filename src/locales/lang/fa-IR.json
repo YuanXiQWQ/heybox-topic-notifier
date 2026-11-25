@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "این مرورگر از اعلان‌های سیستم پشتیبانی نمی‌کند",
   "applicationNotificationsUnavailable": "اعلان‌ها پیکربندی نشده‌اند یا سرور در دسترس نیست",
   "applicationNotificationsDenied": "در تنظیمات مرورگر به اعلان‌ها اجازه دهید",
-  "autoSavePending": "روی این دستگاه ذخیره شد، در انتظار همگام‌سازی",
   "restoreMatch": "بازگرداندن به فضای کاری",
   "checkUpdate": "بررسی به‌روزرسانی",
   "updateAvailable": "به‌روزرسانی موجود است",

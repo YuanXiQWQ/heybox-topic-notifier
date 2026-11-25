@@ -420,7 +420,6 @@
   "applicationNotificationsUnsupported": "이 브라우저는 시스템 알림을 지원하지 않습니다",
   "applicationNotificationsUnavailable": "서버에서 앱 알림이 활성화되지 않았거나 일시적으로 연결할 수 없습니다.",
   "applicationNotificationsDenied": "브라우저 설정에서 알림을 허용해 주세요",
-  "autoSavePending": "이 기기에 저장됨, 동기화 대기 중",
   "restoreMatch": "작업 공간으로 되돌리기",
   "checkUpdate": "업데이트 확인",
   "updateAvailable": "새 버전 사용 가능",
